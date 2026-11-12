@@ -264,8 +264,8 @@ def test_evaluator_capability_query_on_initial_and_conditional_requests(
     capability_param = "cap_dependent-flags-variant-key"
     original = urlsplit(endpoint)
     expected_query = parse_qsl(original.query, keep_blank_values=True)
+    expected_query = [(key, value) for key, value in expected_query if key != capability_param]
     if expected is not None:
-        expected_query = [(key, value) for key, value in expected_query if key != capability_param]
         expected_query.append((capability_param, expected))
     for request in src._requests:
         target = urlsplit(request["target"])
@@ -273,7 +273,7 @@ def test_evaluator_capability_query_on_initial_and_conditional_requests(
         assert parse_qsl(target.query, keep_blank_values=True) == expected_query
         assert not target.fragment
         assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in request["headers"]
-        if expected is None or "custom" in original.path:
+        if "cap_dependent-flags-variant-key" not in original.query and "%63ap" not in original.query:
             expected_raw_query = original.query
             if expected is not None:
                 expected_raw_query += ("&" if expected_raw_query else "") + "cap_dependent-flags-variant-key=v1"
@@ -283,19 +283,21 @@ def test_evaluator_capability_query_on_initial_and_conditional_requests(
 
 
 @pytest.mark.parametrize("endpoint", [ENDPOINT, ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo"])
-def test_missing_native_capability_reporter_preserves_query(harness, monkeypatch, endpoint):
+def test_missing_native_capability_reporter_removes_capability_query(harness, monkeypatch, endpoint):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace())
     src = harness([_FakeResponse(200, _ufc_body())], endpoint=endpoint)
     src.periodic()
-    assert src._requests[0]["target"] == urlsplit(endpoint)._replace(scheme="", netloc="").geturl()
+    assert parse_qsl(urlsplit(src._requests[0]["target"]).query, keep_blank_values=True) == [
+        (key, value)
+        for key, value in parse_qsl(urlsplit(endpoint).query, keep_blank_values=True)
+        if key != "cap_dependent-flags-variant-key"
+    ]
     assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
 
 
-def test_linked_evaluator_does_not_advertise_dependent_flags():
-    # Prerequisite records and exposure eligibility are not yet surfaced by this binding,
-    # so transports must not advertise support.
-    assert native_mod.ffe.get_evaluator_capabilities() == []
-    assert "dependent-flag-variant-key-v1" not in native_mod.get_evaluator_capabilities()
+def test_linked_evaluator_advertises_dependent_flags():
+    assert native_mod.ffe.get_evaluator_capabilities() == ["dependent-flag-variant-key-v1"]
+    assert "dependent-flag-variant-key-v1" in native_mod.get_evaluator_capabilities()
 
 
 def test_client_library_headers_and_gzip_accept(harness):

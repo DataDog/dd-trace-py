@@ -21,6 +21,15 @@ experiments:
         run: fail_on_breach
         scenarios:
 
+          # openfeatureresolution: independent native flag resolution, CPython 3.12.
+          # Preserve the original limits after removing eager metadata allocation.
+          - name: openfeatureresolution-static
+            thresholds:
+              - execution_time < 0.00080 ms
+          - name: openfeatureresolution-targeting
+            thresholds:
+              - execution_time < 0.00085 ms
+
           # openfeatureflagevaluation (class OpenFeatureFlagEvaluation)
           - name: openfeatureflagevaluation-aggregate-protected-typical
             thresholds:
@@ -64,3 +73,30 @@ experiments:
           - name: openfeatureflagevaluation-provider-resolution-typical
             thresholds:
               - execution_time < 0.060 ms
+
+          # Bound prerequisite work by the existing 76-us split-feature provider
+          # budget per reached flag. CI measurements will guide tighter limits.
+          - name: openfeatureflagevaluation-provider-dependent-0-warm
+            thresholds:
+              - execution_time < 0.076 ms
+          - name: openfeatureflagevaluation-provider-dependent-0-cold
+            thresholds:
+              - execution_time < 0.076 ms
+          - name: openfeatureflagevaluation-provider-dependent-1-warm
+            thresholds:
+              - execution_time < 0.152 ms
+          - name: openfeatureflagevaluation-provider-dependent-1-cold
+            thresholds:
+              - execution_time < 0.152 ms
+          - name: openfeatureflagevaluation-provider-dependent-5-warm
+            thresholds:
+              - execution_time < 0.456 ms
+          - name: openfeatureflagevaluation-provider-dependent-5-cold
+            thresholds:
+              - execution_time < 0.456 ms
+          - name: openfeatureflagevaluation-provider-dependent-10-warm
+            thresholds:
+              - execution_time < 0.836 ms
+          - name: openfeatureflagevaluation-provider-dependent-10-cold
+            thresholds:
+              - execution_time < 0.836 ms

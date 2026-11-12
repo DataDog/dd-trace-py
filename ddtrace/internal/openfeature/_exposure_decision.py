@@ -58,9 +58,10 @@ class FlagMetadata(dict[str, typing.Any]):
     The slots are set only when used, so read them with getattr(..., None).
     """
 
-    __slots__ = ("_dd_exposure_decision", "_dd_evaluation_context")
+    __slots__ = ("_dd_exposure_decision", "_dd_evaluation_context", "_dd_dependency_exposure_metadata")
     _dd_exposure_decision: typing.Optional[ExposureDecision]
     _dd_evaluation_context: typing.Optional[EvaluationContext]
+    _dd_dependency_exposure_metadata: list["FlagMetadata"]
 
     def __reduce__(self) -> tuple[typing.Any, ...]:
         # Copies and pickles are plain dicts: the decision holds the cache and its lock.

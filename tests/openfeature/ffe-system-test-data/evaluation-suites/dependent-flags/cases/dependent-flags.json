@@ -1,0 +1,436 @@
+[
+  {
+    "description": "A root flag matches a direct prerequisite by variant key.",
+    "attributes": {},
+    "defaultValue": "caller-default",
+    "flag": "dependent-direct-root",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "direct-match"
+    },
+    "targetingKey": "dependent-direct",
+    "variationType": "STRING"
+  },
+  {
+    "description": "ONE_OF does not match when the prerequisite variant key is absent from the allowed list. The prerequisite retains its evaluation event but not its exposure because the containing allocation is rejected.",
+    "attributes": {},
+    "defaultValue": "caller-default",
+    "flag": "dependent-one-of-miss-root",
+    "result": {
+      "reason": "STATIC",
+      "value": "one-of-fallback"
+    },
+    "targetingKey": "dependent-one-of-miss",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [
+        {
+          "allocation": "fallback",
+          "flag": "dependent-one-of-miss-root",
+          "variant": "fallback"
+        }
+      ],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-leaf-on",
+          "errorCode": null
+        },
+        {
+          "flag": "dependent-one-of-miss-root",
+          "errorCode": null
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "NOT_ONE_OF does not match when the prerequisite variant key is present in the excluded list. The prerequisite retains its evaluation event but not its exposure because the containing allocation is rejected.",
+    "attributes": {},
+    "defaultValue": "caller-default",
+    "flag": "dependent-not-one-of-hit-root",
+    "result": {
+      "reason": "STATIC",
+      "value": "not-one-of-fallback"
+    },
+    "targetingKey": "dependent-not-one-of-hit",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [
+        {
+          "allocation": "fallback",
+          "flag": "dependent-not-one-of-hit-root",
+          "variant": "fallback"
+        }
+      ],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-leaf-on",
+          "errorCode": null
+        },
+        {
+          "flag": "dependent-not-one-of-hit-root",
+          "errorCode": null
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "A depth-two tree evaluates its leaf and intermediate prerequisite before matching the root.",
+    "attributes": {},
+    "defaultValue": "caller-default",
+    "flag": "dependent-transitive-root",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "transitive-match"
+    },
+    "targetingKey": "dependent-transitive",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A false attribute condition short-circuits before an otherwise fatal missing prerequisite and selects the root fallback.",
+    "attributes": {
+      "gate": "closed"
+    },
+    "defaultValue": "caller-default",
+    "flag": "dependent-short-circuit-root",
+    "result": {
+      "reason": "STATIC",
+      "value": "short-circuit-fallback"
+    },
+    "targetingKey": "dependent-short-circuit",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [
+        {
+          "allocation": "fallback",
+          "flag": "dependent-short-circuit-root",
+          "variant": "fallback"
+        }
+      ],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-short-circuit-root",
+          "errorCode": null
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "A prerequisite evaluated before a later false condition retains its evaluation event but not its exposure because the containing targeting rule is not selected.",
+    "attributes": {
+      "gate": "closed"
+    },
+    "defaultValue": "caller-default",
+    "flag": "dependent-inapplicable-rule-root",
+    "result": {
+      "reason": "STATIC",
+      "value": "inapplicable-rule-fallback"
+    },
+    "targetingKey": "dependent-inapplicable-rule",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [
+        {
+          "allocation": "fallback",
+          "flag": "dependent-inapplicable-rule-root",
+          "variant": "fallback"
+        }
+      ],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-leaf-on",
+          "errorCode": null
+        },
+        {
+          "flag": "dependent-inapplicable-rule-root",
+          "errorCode": null
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "When every condition matches, the selected rule retains both the prerequisite and root exposures.",
+    "attributes": {
+      "gate": "open"
+    },
+    "defaultValue": "caller-default",
+    "flag": "dependent-inapplicable-rule-root",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "inapplicable-rule-match"
+    },
+    "targetingKey": "dependent-applicable-rule",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [
+        {
+          "flag": "dependent-leaf-on"
+        },
+        {
+          "allocation": "prerequisite-before-false-condition",
+          "flag": "dependent-inapplicable-rule-root",
+          "variant": "matched"
+        }
+      ],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-leaf-on",
+          "errorCode": null
+        },
+        {
+          "flag": "dependent-inapplicable-rule-root",
+          "errorCode": null
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "A prerequisite first used by a rejected rule remains eligible for one exposure when a later selected rule reuses it.",
+    "attributes": {
+      "gate": "closed"
+    },
+    "defaultValue": "caller-default",
+    "flag": "dependent-reuse-after-rejection-root",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "reuse-after-rejection-match"
+    },
+    "targetingKey": "dependent-reuse-after-rejection",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [
+        {
+          "_count": 1,
+          "flag": "dependent-leaf-on"
+        },
+        {
+          "allocation": "selected-reuse",
+          "flag": "dependent-reuse-after-rejection-root",
+          "variant": "matched"
+        }
+      ],
+      "evaluationEvents": [
+        {
+          "_count": 1,
+          "flag": "dependent-leaf-on",
+          "errorCode": null
+        },
+        {
+          "flag": "dependent-reuse-after-rejection-root",
+          "errorCode": null
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "When a later condition rejects a rule after a transitive dependency succeeds, neither the parent nor leaf exposure remains eligible.",
+    "attributes": {
+      "gate": "closed"
+    },
+    "defaultValue": "caller-default",
+    "flag": "dependent-transitive-inapplicable-rule-root",
+    "result": {
+      "reason": "STATIC",
+      "value": "transitive-inapplicable-fallback"
+    },
+    "targetingKey": "dependent-transitive-inapplicable-rule",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [
+        {
+          "allocation": "fallback",
+          "flag": "dependent-transitive-inapplicable-rule-root",
+          "variant": "fallback"
+        }
+      ],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-leaf-on",
+          "errorCode": null
+        },
+        {
+          "flag": "dependent-transitive-parent",
+          "errorCode": null
+        },
+        {
+          "flag": "dependent-transitive-inapplicable-rule-root",
+          "errorCode": null
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "Two membership conditions against the same prerequisite evaluate successfully.",
+    "attributes": {},
+    "defaultValue": "caller-default",
+    "flag": "dependent-memoized-root",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "memoized-match"
+    },
+    "targetingKey": "dependent-memoized",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A reached prerequisite that produces no assignment aborts the graph before a later unconditional root allocation can return or publish an exposure.",
+    "attributes": {},
+    "defaultValue": "caller-default",
+    "flag": "dependent-no-assignment-root",
+    "result": {
+      "reason": "ERROR",
+      "errorCode": "GENERAL",
+      "value": "caller-default"
+    },
+    "targetingKey": "dependent-no-assignment",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-no-assignment-parent",
+          "errorCode": "GENERAL"
+        },
+        {
+          "flag": "dependent-no-assignment-root",
+          "errorCode": "GENERAL"
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "A successful prerequisite followed by a missing prerequisite aborts the graph and returns the caller default.",
+    "attributes": {},
+    "defaultValue": "atomic-default",
+    "flag": "dependent-atomic-error-root",
+    "result": {
+      "reason": "ERROR",
+      "errorCode": "GENERAL",
+      "value": "atomic-default"
+    },
+    "targetingKey": "dependent-atomic-error",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-leaf-on",
+          "errorCode": null
+        },
+        {
+          "flag": "dependent-missing-prerequisite",
+          "errorCode": "FLAG_NOT_FOUND"
+        },
+        {
+          "flag": "dependent-atomic-error-root",
+          "errorCode": "GENERAL"
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "A missing prerequisite under a configured parent aborts the graph. The missing prerequisite reports FLAG_NOT_FOUND, and the configured parent and the requested root report GENERAL.",
+    "attributes": {},
+    "defaultValue": "transitive-error-default",
+    "flag": "dependent-transitive-error-root",
+    "result": {
+      "reason": "ERROR",
+      "errorCode": "GENERAL",
+      "value": "transitive-error-default"
+    },
+    "targetingKey": "dependent-transitive-error",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [],
+      "evaluationEvents": [
+        {
+          "flag": "dependent-missing-prerequisite",
+          "errorCode": "FLAG_NOT_FOUND"
+        },
+        {
+          "flag": "dependent-transitive-error-parent",
+          "errorCode": "GENERAL"
+        },
+        {
+          "flag": "dependent-transitive-error-root",
+          "errorCode": "GENERAL"
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  },
+  {
+    "description": "With maxDependencyDepth 2, a third dependency edge aborts the graph and returns the caller default. evaluatorParams also carries unknownEvaluatorField, which must not change maxDependencyDepth.",
+    "attributes": {},
+    "defaultValue": "depth-default",
+    "flag": "dependent-depth-three-root",
+    "result": {
+      "reason": "ERROR",
+      "errorCode": "GENERAL",
+      "value": "depth-default"
+    },
+    "targetingKey": "dependent-over-depth",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A dependency cycle aborts the graph and returns the caller default.",
+    "attributes": {},
+    "defaultValue": "cycle-default",
+    "flag": "dependent-cycle-a",
+    "result": {
+      "reason": "ERROR",
+      "errorCode": "GENERAL",
+      "value": "cycle-default"
+    },
+    "targetingKey": "dependent-cycle",
+    "variationType": "STRING"
+  },
+  {
+    "description": "The unknownFlagEvaluationField key inside flagEvaluation must be ignored; only 'key' selects the prerequisite. The unknownConditionField key must also be ignored, preserving the normal assignment and telemetry.",
+    "attributes": {},
+    "defaultValue": "caller-default",
+    "flag": "dependent-unknown-fields-root",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "direct-match"
+    },
+    "targetingKey": "dependent-unknown-fields",
+    "variationType": "STRING",
+    "expectations": {
+      "exposures": [
+        {
+          "_count": 1,
+          "allocation": "leaf-static",
+          "flag": "dependent-leaf-on",
+          "variant": "on"
+        },
+        {
+          "_count": 1,
+          "allocation": "dependent-match",
+          "flag": "dependent-unknown-fields-root",
+          "variant": "matched"
+        }
+      ],
+      "evaluationEvents": [
+        {
+          "_count": 1,
+          "flag": "dependent-leaf-on",
+          "errorCode": null
+        },
+        {
+          "_count": 1,
+          "flag": "dependent-unknown-fields-root",
+          "errorCode": null
+        }
+      ],
+      "noUnmatchedEvents": true
+    }
+  }
+]

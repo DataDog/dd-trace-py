@@ -148,15 +148,13 @@ class AgentlessConfigurationSource(PeriodicService):
         parts = urlsplit(endpoint)
         self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
         # Negotiate once for the loaded evaluator, keeping conditional polls on
-        # the same URL variant. Without support, preserve the configured query,
-        # including an explicitly supplied capability parameter, as Node.js does.
-        query = parts.query
+        # the same URL variant. Custom URLs must not advertise unsupported features.
+        capability_param = "cap_dependent-flags-variant-key"
+        items = parts.query.split("&") if parts.query else []
+        items = [item for item in items if unquote_plus(item.partition("=")[0]) != capability_param]
         if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
-            capability_param = "cap_dependent-flags-variant-key"
-            items = query.split("&") if query else []
-            items = [item for item in items if unquote_plus(item.partition("=")[0]) != capability_param]
             items.append(capability_param + "=v1")
-            query = "&".join(items)
+        query = "&".join(items)
         self._request_target = urlunsplit(("", "", parts.path, query, "")) or "/"
         # The environment the endpoint is actually asked for. A custom endpoint does
         # not receive DD_ENV unless its own URL carries dd_env.

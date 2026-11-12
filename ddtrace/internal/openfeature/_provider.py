@@ -47,7 +47,6 @@ from ddtrace.internal.openfeature._exposure_decision import ExposureCacheKey
 from ddtrace.internal.openfeature._exposure_decision import ExposureCacheValue
 from ddtrace.internal.openfeature._exposure_decision import ExposureDecision
 from ddtrace.internal.openfeature._exposure_decision import FlagMetadata
-from ddtrace.internal.openfeature._exposure_decision import complete_exposure_decision
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
@@ -56,11 +55,14 @@ from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOI
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
+from ddtrace.internal.openfeature._flagevaluation_writer import _protected_error_message
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
 from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
+from ddtrace.internal.openfeature._split_features import FEATURE_DESTINATION_EVALUATION
 from ddtrace.internal.openfeature._split_features import METADATA_EXPOSURE_FEATURE_PREFIX
 from ddtrace.internal.openfeature._split_features import add_split_features
 from ddtrace.internal.openfeature._split_features import features_with_prefix
@@ -579,6 +581,10 @@ class DataDogProvider(AbstractProvider):
                     flag_metadata=flag_metadata,
                 )
 
+            # Report reached prerequisites even when the root fails. Eligible exposures
+            # remain pending until all application hooks have succeeded.
+            self._record_dependency_evaluations(details, evaluation_context, flag_metadata)
+
             # Handle errors from native evaluation
             if details.error_code is not None:
                 # Map native error code to OpenFeature error code
@@ -607,7 +613,7 @@ class DataDogProvider(AbstractProvider):
             reason = self._map_reason_to_openfeature(details.reason)
 
             # The native getter builds new tuples on every read.
-            split_features = details.features
+            split_features = getattr(details, "features", None)
             add_split_features(flag_metadata, split_features)
 
             if details.do_log:
@@ -667,6 +673,77 @@ class DataDogProvider(AbstractProvider):
                 flag_metadata=flag_metadata,
             )
 
+    def _record_dependency_evaluations(
+        self,
+        details: ffe.ResolutionDetails,
+        evaluation_context: typing.Optional[EvaluationContext],
+        flag_metadata: FlagMetadata,
+    ) -> None:
+        for dependency in getattr(details, "dependency_evaluations", ()):
+            split_features = getattr(dependency, "features", None)
+            error_code = (
+                self._map_error_code_to_openfeature(dependency.error_code)
+                if dependency.error_code is not None
+                else None
+            )
+            if self._flag_eval_evp_writer is not None:
+                try:
+                    consent = flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+                    code = error_code.value if error_code is not None else ""
+                    self._flag_eval_evp_writer.enqueue(
+                        _EvalEvent(
+                            flag_key=dependency.flag_key,
+                            variant=dependency.variant or "",
+                            allocation_key=dependency.allocation_key or "",
+                            targeting_key=evaluation_context.targeting_key if evaluation_context is not None else None,
+                            # Protected mode must not inspect context attributes.
+                            attrs=(evaluation_context.attributes or {})
+                            if consent and evaluation_context is not None
+                            else {},
+                            runtime_default=not dependency.variant,
+                            error_message=_protected_error_message(code),
+                            eval_time_ms=flag_metadata[EVAL_TIMESTAMP_METADATA_KEY],
+                            observe_full_evaluation_data=consent,
+                            error_code=code,
+                            features={
+                                key: value
+                                for key, value, destinations in (split_features or ())
+                                if FEATURE_DESTINATION_EVALUATION in destinations
+                            },
+                        )
+                    )
+                except Exception:
+                    logger.debug("Feature Flags: failed to enqueue prerequisite evaluation")
+            if self._flag_eval_metrics is not None:
+                try:
+                    reason = self._map_reason_to_openfeature(dependency.reason)
+                    self._flag_eval_metrics.record(
+                        flag_key=dependency.flag_key,
+                        variant=dependency.variant,
+                        reason=reason.value,
+                        error_code=error_code,
+                        allocation_key=dependency.allocation_key,
+                    )
+                except Exception:
+                    logger.debug("Feature Flags: failed to record prerequisite evaluation metric")
+            if dependency.exposure_eligible and dependency.do_log and error_code is None:
+                dependency_metadata = FlagMetadata()
+                add_split_features(dependency_metadata, split_features)
+                self._prepare_exposure_decision(
+                    dependency_metadata,
+                    flag_key=dependency.flag_key,
+                    variant_key=dependency.variant,
+                    allocation_key=dependency.allocation_key,
+                    evaluation_context=evaluation_context,
+                    serial_id=dependency.serial_id,
+                    has_split_features=split_features is not None,
+                )
+                if getattr(dependency_metadata, "_dd_exposure_decision", None) is not None:
+                    pending = getattr(flag_metadata, "_dd_dependency_exposure_metadata", None)
+                    if pending is None:
+                        pending = flag_metadata._dd_dependency_exposure_metadata = []
+                    pending.append(dependency_metadata)
+
     def _prepare_exposure_decision(
         self,
         flag_metadata: FlagMetadata,
@@ -707,6 +784,9 @@ class DataDogProvider(AbstractProvider):
                 exposure_event,
             )
             flag_metadata[METADATA_EXPOSURE_CACHE_HIT] = decision.is_cache_hit()
+            if not flag_metadata[METADATA_EXPOSURE_CACHE_HIT]:
+                # Native context conversion accepts only scalars; isolate the mapping from later hooks.
+                exposure_event["subject"]["attributes"] = dict(exposure_event["subject"]["attributes"])
             flag_metadata._dd_exposure_decision = decision
         except Exception as e:
             logger.debug("Failed to prepare exposure decision: %s", e, exc_info=True)
@@ -837,18 +917,27 @@ class ExposureLoggingHook(Hook):
         details: FlagEvaluationDetails[typing.Any],
         hints: HookHints,
     ) -> None:
-        try:
-            decision = complete_exposure_decision(details)
-            if decision is None:
-                return
-            if details.flag_metadata.get(METADATA_EXPOSURE_CACHE_HIT) is not False:
-                logger.debug("Skipping duplicate exposure event for %s", details.flag_key)
-                return
-            get_exposure_writer().enqueue(decision.event)
-        except Exception:
-            if not self._warned:
-                self._warned = True
-                logger.warning("Could not record a feature flag exposure; later failures are not logged", exc_info=True)
+        if details.error_code is not None or details.reason == Reason.ERROR:
+            return
+        # Prerequisites precede their root and share the root's final hook verdict.
+        for metadata in (
+            *getattr(details.flag_metadata, "_dd_dependency_exposure_metadata", ()),
+            details.flag_metadata,
+        ):
+            try:
+                decision = getattr(metadata, "_dd_exposure_decision", None)
+                if decision is None:
+                    continue
+                decision.complete(metadata)
+                if metadata.get(METADATA_EXPOSURE_CACHE_HIT) is not False:
+                    continue
+                get_exposure_writer().enqueue(decision.event)
+            except Exception:
+                if not self._warned:
+                    self._warned = True
+                    logger.warning(
+                        "Could not record a feature flag exposure; later failures are not logged", exc_info=True
+                    )
 
 
 def _apply_agentless_configuration(configuration: "dict[str, typing.Any]") -> None:

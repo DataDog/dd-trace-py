@@ -704,8 +704,9 @@ with the same exposure decision that the provider uses for Datadog::
   need and hand it to a background queue.
 - ``should_send`` is ``True`` for a successful evaluation of an allocation that logs
   exposures, for a subject not yet exposed to the same allocation, variant and serial id.
-  These are exactly the exposures that the provider sends to Datadog when Datadog logging is
-  on. Evaluate through an OpenFeature client so that the provider's hooks run.
+  These are exactly the exposures that the provider sends to Datadog for the evaluated flag
+  when Datadog logging is on. Prerequisite exposures are sent to Datadog but are not passed
+  to ``ExposureHook``. Evaluate through an OpenFeature client so that the provider's hooks run.
 - ``is_exposure`` is ``True`` for every successful evaluation of an allocation that logs
   exposures, including repeats. ``is_cache_hit`` tells repeats apart.
 - An evaluation that fails, including one that a later ``after`` hook fails, is not an

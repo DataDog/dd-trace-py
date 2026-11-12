@@ -4,25 +4,48 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod ffe {
-    use std::collections::HashMap;
     use std::sync::Arc;
 
-    use pyo3::{exceptions::PyValueError, prelude::*, types::PyTuple};
+    use pyo3::{
+        exceptions::PyValueError,
+        prelude::*,
+        types::{PyDict, PyTuple},
+    };
     use tracing::debug;
 
     use libdd_ffe::rules_based as ffe;
     use libdd_ffe::rules_based::{
-        get_assignment, now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
-        EvaluationError, Feature, Str, UniversalFlagConfig,
+        now, Assignment, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
+        EvaluationError, EvaluationOptions, Feature, Str, UniversalFlagConfig,
     };
 
-    /// UFC extensions supported by both the linked evaluator and this binding.
-    /// Only add a token after its evaluation semantics, error propagation, and
-    /// exposure reporting are supported. Prerequisite records and exposure eligibility
-    /// are not yet surfaced by this binding, so transports must not advertise support.
+    /// UFC extensions supported by both the linked evaluator and this binding,
+    /// including dependency error propagation and exposure eligibility.
     #[pyfunction]
     fn get_evaluator_capabilities() -> Vec<&'static str> {
-        Vec::new()
+        vec!["dependent-flag-variant-key-v1"]
+    }
+
+    #[derive(Clone)]
+    #[pyclass(frozen)]
+    struct DependencyEvaluation {
+        #[pyo3(get)]
+        flag_key: Str,
+        #[pyo3(get)]
+        variant: Option<Str>,
+        #[pyo3(get)]
+        allocation_key: Option<Str>,
+        #[pyo3(get)]
+        serial_id: Option<i64>,
+        #[pyo3(get)]
+        error_code: Option<ErrorCode>,
+        #[pyo3(get)]
+        reason: Option<Reason>,
+        #[pyo3(get)]
+        do_log: bool,
+        #[pyo3(get)]
+        exposure_eligible: bool,
+        features: Option<Arc<[Feature]>>,
     }
 
     #[pyclass(frozen)]
@@ -56,8 +79,6 @@ pub mod ffe {
         #[pyo3(get)]
         allocation_key: Option<Str>,
         #[pyo3(get)]
-        flag_metadata: HashMap<Str, Str>,
-        #[pyo3(get)]
         do_log: bool,
         // Serial id of the selected split, surfaced for APM span enrichment
         // (DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED). Threaded
@@ -65,6 +86,8 @@ pub mod ffe {
         // assignment field is Option<i32>; cast to i64 to match the Python stub.
         #[pyo3(get)]
         serial_id: Option<i64>,
+        #[pyo3(get)]
+        dependency_evaluations: Vec<DependencyEvaluation>,
         features: Option<Arc<[Feature]>>,
     }
 
@@ -142,58 +165,112 @@ pub mod ffe {
                 }
             };
 
-            let assignment = get_assignment(
-                Some(&self.inner),
+            let evaluation = self.inner.eval_flag_with_trace(
                 flag_key,
                 &context,
                 expected_type.into(),
                 now(),
+                EvaluationOptions::default(),
             );
-
-            let result = match assignment {
-                Ok(assignment) => ResolutionDetails {
-                    value: Some(assignment.value),
-                    error_code: None,
-                    error_message: None,
-                    reason: Some(assignment.reason.into()),
-                    variant: Some(assignment.variation_key),
-                    allocation_key: Some(assignment.allocation_key.clone()),
-                    flag_metadata: [("allocation_key".into(), assignment.allocation_key)]
-                        .into_iter()
-                        .collect(),
-                    do_log: assignment.do_log,
-                    serial_id: assignment.serial_id.map(|id| id as i64),
-                    features: assignment.features,
-                },
+            let mut result = match evaluation.result {
+                Ok(assignment) => ResolutionDetails::from_assignment(assignment),
                 Err(err) => err.into(),
             };
+            result.dependency_evaluations = evaluation
+                .evaluations
+                .into_iter()
+                .map(|record| {
+                    let details = match record.result {
+                        Ok(assignment) => ResolutionDetails::from_assignment(assignment),
+                        // A reached prerequisite must produce an assignment. Unlike a
+                        // direct evaluation, disabled/unassigned prerequisites are errors.
+                        Err(
+                            EvaluationError::FlagDisabled | EvaluationError::DefaultAllocationNull,
+                        ) => ResolutionDetails::error(
+                            ErrorCode::General,
+                            "prerequisite has no assignment",
+                        ),
+                        Err(err) => err.into(),
+                    };
+                    DependencyEvaluation {
+                        flag_key: record.flag_key,
+                        variant: details.variant,
+                        allocation_key: details.allocation_key,
+                        serial_id: details.serial_id,
+                        error_code: details.error_code,
+                        reason: details.reason,
+                        do_log: details.do_log,
+                        exposure_eligible: record.exposure_eligible,
+                        features: details.features,
+                    }
+                })
+                .collect();
 
             Ok(result)
         }
     }
 
+    fn features_to_python<'py>(
+        py: Python<'py>,
+        features: Option<&[Feature]>,
+    ) -> PyResult<Option<Bound<'py, PyTuple>>> {
+        let Some(features) = features else {
+            return Ok(None);
+        };
+        let items = features
+            .iter()
+            .map(|feature| {
+                let destinations =
+                    PyTuple::new(py, feature.destinations.iter().map(|d| d.as_str()))?;
+                (feature.key.as_str(), &feature.value, destinations).into_pyobject(py)
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        PyTuple::new(py, items).map(Some)
+    }
+
     #[pymethods]
-    impl ResolutionDetails {
-        /// Features of the selected split as `(key, value, destinations)` tuples, or `None` when
-        /// the split has none. Destinations are passed through unfiltered.
+    impl DependencyEvaluation {
         #[getter]
         fn features<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyTuple>>> {
-            let Some(features) = self.features.as_deref() else {
-                return Ok(None);
-            };
-            let items = features
-                .iter()
-                .map(|feature| {
-                    let destinations =
-                        PyTuple::new(py, feature.destinations.iter().map(|d| d.as_str()))?;
-                    (feature.key.as_str(), &feature.value, destinations).into_pyobject(py)
-                })
-                .collect::<PyResult<Vec<_>>>()?;
-            PyTuple::new(py, items).map(Some)
+            features_to_python(py, self.features.as_deref())
+        }
+    }
+
+    #[pymethods]
+    impl ResolutionDetails {
+        #[getter]
+        fn features<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyTuple>>> {
+            features_to_python(py, self.features.as_deref())
+        }
+
+        #[getter]
+        fn flag_metadata<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+            // Provider resolution reads allocation_key directly. Build the public
+            // metadata dictionary only when requested, without an intermediate map.
+            let metadata = PyDict::new(py);
+            if let Some(key) = &self.allocation_key {
+                metadata.set_item("allocation_key", key)?;
+            }
+            Ok(metadata)
         }
     }
 
     impl ResolutionDetails {
+        fn from_assignment(assignment: Assignment) -> ResolutionDetails {
+            ResolutionDetails {
+                value: Some(assignment.value),
+                error_code: None,
+                error_message: None,
+                reason: Some(assignment.reason.into()),
+                variant: Some(assignment.variation_key),
+                allocation_key: Some(assignment.allocation_key),
+                do_log: assignment.do_log,
+                serial_id: assignment.serial_id.map(i64::from),
+                features: assignment.features,
+                dependency_evaluations: Vec::new(),
+            }
+        }
+
         fn empty(reason: impl Into<Reason>) -> ResolutionDetails {
             ResolutionDetails {
                 value: None,
@@ -202,10 +279,10 @@ pub mod ffe {
                 reason: Some(reason.into()),
                 variant: None,
                 allocation_key: None,
-                flag_metadata: HashMap::new(),
                 do_log: false,
                 serial_id: None,
                 features: None,
+                dependency_evaluations: Vec::new(),
             }
         }
 
@@ -217,10 +294,10 @@ pub mod ffe {
                 reason: Some(Reason::Error),
                 variant: None,
                 allocation_key: None,
-                flag_metadata: HashMap::new(),
                 do_log: false,
                 serial_id: None,
                 features: None,
+                dependency_evaluations: Vec::new(),
             }
         }
     }
