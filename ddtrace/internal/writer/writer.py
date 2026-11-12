@@ -1304,8 +1304,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
+        if spans is not None and self.agentless:
+            self._set_agentless_top_level(spans)
         for client in self._clients:
             self._write_with_client(client, spans=spans)
+
+    @staticmethod
+    def _set_agentless_top_level(spans: Sequence[SpanData]) -> None:
+        # Without a trace agent nothing copies _dd.top_level into _top_level, which the intake
+        # relies on to find entry spans.
+        for span_data in spans:
+            if span_data._get_attribute("_dd.top_level") == 1:
+                span_data._set_attribute("_top_level", 1)
 
     @staticmethod
     def _set_otlp_trace_context(spans: Sequence[SpanData]) -> None:

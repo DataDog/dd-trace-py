@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where traces sent with ``DD_AGENTLESS_ENABLED`` had no service entry
+    span in Datadog, which prevented features that rely on the entry span, such as AI Guard trace
+    views, from showing those traces.

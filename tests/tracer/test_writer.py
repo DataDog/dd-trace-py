@@ -2563,6 +2563,7 @@ def test_agentless_end_to_end_payload_reaches_the_intake():
             ("agentless-e2e", "agentless-svc", "a-resource")
         ]
         assert spans[0]["meta"]["in_payload"] == "yes"
+        assert spans[0]["metrics"]["_top_level"] == 1
 
 
 @pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
@@ -2793,6 +2794,17 @@ def test_native_writer_sets_otlp_trace_context_on_every_span():
         assert span.get_metric("_sampling_priority_v1") == 1
         assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
         assert f"p:{span.span_id:016x}" in span.get_tag("tracestate")
+
+
+def test_native_writer_marks_top_level_spans_for_agentless():
+    root = Span("root", trace_id=1, span_id=1)
+    root._set_attribute("_dd.top_level", 1)
+    child = Span("child", trace_id=1, span_id=2, parent_id=1, context=root.context)
+
+    NativeWriter._set_agentless_top_level([root, child])
+
+    assert root.get_metric("_top_level") == 1
+    assert child.get_metric("_top_level") is None
 
 
 def test_native_writer_forwards_inherited_otel_trace_context():
