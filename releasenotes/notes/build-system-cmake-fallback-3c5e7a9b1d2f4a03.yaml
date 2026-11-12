@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    build: when the ``cmake`` PyPI distribution is not installed, setup.py
+    now falls back to a system-provided ``cmake`` binary found on ``PATH``.
+    This lets environments that install build tools as system packages (e.g.
+    Linux distribution build systems) build without the PyPI wheel; the
+    default behaviour is unchanged.
