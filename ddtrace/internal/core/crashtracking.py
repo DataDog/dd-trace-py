@@ -320,11 +320,15 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 if not safe_to_swap:
                     log.error("Failed to start crashtracker: could not pause stack sampler for handler swap")
                     return False
-                try:
-                    stack_mod.uninstall_segv_handler()
-                except Exception:  # nosec: B110
-                    pass
+            # Uninstall inside try/finally (same shape as profiling/_faulthandler.py):
+            # KeyboardInterrupt is BaseException, so an except Exception around
+            # uninstall alone would skip reinstall/resume if SIGINT lands there.
             try:
+                if stack_mod is not None:
+                    try:
+                        stack_mod.uninstall_segv_handler()
+                    except Exception:  # nosec: B110
+                        pass
                 crashtracker_init(config, receiver_config, metadata)
                 excepthook.register(_unhandled_exception_reporter)
 

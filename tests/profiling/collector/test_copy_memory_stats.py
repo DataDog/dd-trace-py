@@ -421,6 +421,47 @@ def test_fast_copy_successful_disable_uninstalls_handler() -> None:
 @pytest.mark.skipif(sys.platform == "win32", reason="fast-copy recovery handlers are not used on Windows")
 @pytest.mark.subprocess(
     env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_released_uninstall_not_foreign",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_released_uninstall_does_not_latch_foreign_takeover() -> None:
+    """A second uninstall after coordinated release must not sticky-takeover.
+
+    After stop, handlers are still installed and ops stay desired. The first
+    uninstall_segv_handler releases them; a second call sees !installed. Without
+    a released/absent guard that falsely latches foreign takeover and blocks
+    reinstall forever.
+    """
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+    p.stop()
+    assert _stack.segv_handler_installed(), "stop should leave the recovery handler installed"
+
+    _stack.uninstall_segv_handler()
+    assert not _stack.segv_handler_installed(), "first uninstall should release our handlers"
+    _stack.uninstall_segv_handler()
+    _stack.reinstall_segv_handler()
+    assert _stack.segv_handler_installed(), (
+        "second uninstall must not latch foreign takeover; reinstall should restore handlers"
+    )
+
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler failed to restart after released uninstall"
+    p.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fast-copy recovery handlers are not used on Windows")
+@pytest.mark.subprocess(
+    env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_foreign_while_stopped",
         DD_PROFILING_UPLOAD_INTERVAL="1",
         _DD_PROFILING_STACK_FAST_COPY="1",

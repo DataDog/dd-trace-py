@@ -1127,18 +1127,24 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // after faulthandler.enable would set g_old_* to faulthandler while X still points
     // at us — a loop — and the warmup deadline would then upgrade to safe_memcpy.
     // Sticky takeover instead so reinstall becomes a no-op.
+    //
+    // Do not latch on a coordinated release (or absent DFL/IGN): set_fast_copy /
+    // a prior uninstall can leave handlers released while ops are still desired.
+    // Same guard as the set_fast_copy(True) reclaim path above.
     if (!segv_handler_installed()) {
-        mark_fast_copy_foreign_takeover();
-        // Same as the sampling-thread takeover path: if syscall fallback is unavailable,
-        // stop rather than let resume_sampling continue with leftover safe_memcpy while
-        // sticky takeover has disabled the handler-ownership checks.
-        if (!set_fast_copy_enabled(false)) {
-            std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                         "stopping stack sampling to avoid crashing."
-                      << std::endl;
-            Sampler::get().stop();
+        if (!segv_handler_released() && !segv_handlers_are_absent()) {
+            mark_fast_copy_foreign_takeover();
+            // Same as the sampling-thread takeover path: if syscall fallback is unavailable,
+            // stop rather than let resume_sampling continue with leftover safe_memcpy while
+            // sticky takeover has disabled the handler-ownership checks.
+            if (!set_fast_copy_enabled(false)) {
+                std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                             "stopping stack sampling to avoid crashing."
+                          << std::endl;
+                Sampler::get().stop();
+            }
+            seed_fast_copy_profiler_stats();
         }
-        seed_fast_copy_profiler_stats();
         Py_RETURN_NONE;
     }
     uninstall_segv_handler();

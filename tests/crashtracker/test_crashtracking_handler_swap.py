@@ -117,3 +117,45 @@ def test_handler_swap_lock_blocks_nested_faulthandler_during_crashtracking_start
 
     assert started is True
     assert saw_lock_held == [True], saw_lock_held
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+def test_start_reinstalls_when_keyboardinterrupt_during_uninstall() -> None:
+    """KeyboardInterrupt after uninstall must still reinstall and resume.
+
+    uninstall sits inside the try/finally with init: BaseException skips
+    except Exception, so leaving uninstall outside finally would leave sampling
+    paused without recovery handlers when the app catches the interrupt.
+    """
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.settings.crashtracker import config as crashtracker_config
+
+    if not stack.is_available:
+        pytest.skip("stack profiler native extension unavailable")
+
+    call_order: list[str] = []
+
+    def _uninstall_then_interrupt() -> None:
+        call_order.append("uninstall")
+        raise KeyboardInterrupt()
+
+    mock_reinstall: MagicMock = MagicMock(side_effect=lambda: call_order.append("reinstall"))
+    mock_resume: MagicMock = MagicMock(side_effect=lambda: call_order.append("resume"))
+
+    with (
+        patch.object(crashtracking, "is_available", True),
+        patch.object(crashtracker_config, "enabled", True),
+        patch.object(crashtracking, "_get_args", return_value=(object(), object(), object())),
+        patch.object(crashtracking, "crashtracker_init"),
+        patch.object(stack, "pause_sampling", return_value=True),
+        patch.object(stack, "uninstall_segv_handler", side_effect=_uninstall_then_interrupt),
+        patch.object(stack, "reinstall_segv_handler", mock_reinstall),
+        patch.object(stack, "resume_sampling", mock_resume),
+    ):
+        with pytest.raises(KeyboardInterrupt):
+            crashtracking.start()
+
+    mock_reinstall.assert_called()
+    mock_resume.assert_called_once()
+    assert call_order.index("uninstall") < call_order.index("reinstall") < call_order.index("resume"), call_order
