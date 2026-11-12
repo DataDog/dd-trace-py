@@ -473,8 +473,8 @@ typedef struct periodic_thread
 
     std::atomic<bool> _stopping;
     std::atomic<bool> _skip_shutdown;
-    // Set once the worker exits other than for a fork, so _after_fork does not
-    // restart it.
+    // Set once the worker stops other than for a fork or an error, so
+    // _after_fork does not restart it.
     std::atomic<bool> _finished;
 
     module_state* _state;
@@ -768,9 +768,9 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                     if (!state->is_finalizing()) {
                         // Run the shutdown callback if there was no error and we are not
                         // at Python shutdown.
-                        if (!self->_skip_shutdown) {
+                        if (!error && !self->_skip_shutdown) {
                             self->_finished = true;
-                            if (!error && self->_on_shutdown != Py_None)
+                            if (self->_on_shutdown != Py_None)
                                 PeriodicThread__on_shutdown(self);
                         }
 

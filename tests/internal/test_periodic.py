@@ -1031,6 +1031,33 @@ def test_periodic_service_fork_during_restart_for_shutdown_stays_stopped():
     assert worker not in periodic_threads.values(), "the thread is still running"
 
 
+def test_periodic_thread_restarts_after_fork_if_target_raised():
+    """A thread whose target raised is still restarted after a fork, as ThreadRestartTimer relies on."""
+    calls = []
+    raised = Event()
+    restarted = Event()
+
+    def _run_periodic():
+        calls.append(None)
+        if len(calls) == 1:
+            raised.set()
+            raise RuntimeError("boom")
+        restarted.set()
+
+    t = periodic.PeriodicThread(60, _run_periodic)
+    t.start()
+    t.awake()
+    assert raised.wait(timeout=1)
+    t.join()
+
+    t._after_fork(force=True)
+    t.awake()
+    assert restarted.wait(timeout=1), "the thread was not restarted"
+
+    t.stop()
+    t.join()
+
+
 def test_periodic_thread_preserves_awake_during_restart_window():
     """Ensure awake() isn't lost while a periodic thread is paused for fork.
 
