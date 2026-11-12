@@ -1114,7 +1114,7 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter(agentless):
     """
     from ddtrace._trace.processor import SpanAggregator
 
-    tags = {"team": "core", "region": "us1"}
+    tags = {"team": "core", "region": "us1", "workers": 7}
     with override_global_config(dict(_trace_agentless_enabled=agentless, _dd_api_key="an-api-key")):
         aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1, tracer_tags=tags)
         old_writer = aggregator.writer
@@ -1127,9 +1127,31 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter(agentless):
 
             assert shutdown.called, "the unstarted writer's exporter was never released"
             assert aggregator.writer.agentless is not agentless
-            assert aggregator.writer._resource_attributes == tags
+            assert aggregator.writer._resource_attributes == {"team": "core", "region": "us1"}
         finally:
             try:
                 aggregator.writer.stop()
             except ServiceStatusError:
                 pass
+
+
+def test_resource_tags_update_during_writer_recreation():
+    writer = NativeWriter(
+        "http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces", resource_attributes={"team": "core"}
+    )
+    with mock.patch("ddtrace._trace.processor.create_trace_writer", return_value=writer):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    recreate = writer._recreate
+
+    def update_during_recreation(*args, **kwargs):
+        replacement = recreate(*args, **kwargs)
+        aggregator._set_resource_attributes({"team": "updated"})
+        return replacement
+
+    try:
+        with mock.patch.object(writer, "_recreate", side_effect=update_during_recreation):
+            aggregator.reset()
+        assert aggregator.writer is not writer
+        assert aggregator.writer._resource_attributes == {"team": "updated"}
+    finally:
+        aggregator.writer.shutdown_exporter()

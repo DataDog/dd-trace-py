@@ -883,7 +883,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         # Keep a copy so in-place tracer tag updates remain detectable.
-        self._resource_attributes = resource_attributes.copy() if resource_attributes is not None else {}
+        self._resource_attributes = {
+            key: value for key, value in (resource_attributes or {}).items() if isinstance(value, str)
+        }
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._api_key = api_key
         self._agentless_stats_endpoint = agentless_stats_endpoint
@@ -1021,12 +1023,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         return exporter
 
     def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
+        attributes = {key: value for key, value in attributes.items() if isinstance(value, str)}
         with self._exporter_lock:
             if attributes == self._resource_attributes:
                 return
-            if self._otlp_endpoint is not None:
+            if self._otlp_endpoint is not None and not self._exporter_stopping and not self._exporter_dropped:
                 self._exporter.set_otlp_resource_attributes(attributes)
-            self._resource_attributes = attributes.copy()
+            self._resource_attributes = attributes
 
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
@@ -1044,6 +1047,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         non-fatal too. Anything else still propagates.
         """
         with self._exporter_lock:
+            if exporter is self._exporter:
+                self._exporter_stopping = True
             try:
                 exporter.shutdown(int(max(timeout, 0) * 1_000_000_000))
             except Exception:

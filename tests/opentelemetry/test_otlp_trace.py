@@ -32,7 +32,7 @@ def test_otlp_resource_attributes():
                 child.set_tag("region", "eu1")
                 child._set_attribute("workers", 7)
         tracer.flush()
-        tracer.set_tags({"team": "updated"})
+        tracer.set_tags({"team": "updated", "workers": 8})
         tracer.configure(trace_processors=[])
         with tracer.trace("updated"):
             pass
@@ -56,6 +56,9 @@ def test_otlp_resource_attributes():
     [updated] = json.loads(requests[1])["resourceSpans"]
     attributes = {a["key"]: a["value"] for a in updated["resource"]["attributes"]}
     assert attributes["team"] == {"stringValue": "updated"}
+    assert "workers" not in attributes
+    span_attributes = {a["key"]: a["value"] for a in updated["scopeSpans"][0]["spans"][0]["attributes"]}
+    assert span_attributes["workers"] == {"intValue": "8"}
 
 
 @requires_grpc_test_server
