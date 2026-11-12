@@ -384,48 +384,16 @@ add_target() {
 # pip 23.0.x crashes with "TypeError: unhashable type: 'dict'" when an index's
 # JSON (PEP 691) response reports dist-info-metadata as a hash dict, and that
 # includes resolving pip itself, so `pip install --upgrade pip` cannot fix it.
-# Read the HTML representation of the index instead, which these pips parse
-# fine, and install a pinned pip wheel by direct URL so no index metadata is
-# consulted.
-BOOTSTRAP_PIP_VERSION="24.3.1"
+# Hash-checking mode skips the metadata-only fetch that crashes, so install a
+# hash-pinned pip first.
+BOOTSTRAP_PIP_REQUIREMENT="pip==24.3.1 --hash=sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed"
 bootstrap_pip() {
-    local wheel_url
-    wheel_url=$(python3 - "${BOOTSTRAP_PIP_VERSION}" <<'EOF'
-import os
-import re
-import sys
-from urllib.parse import urljoin
-
-from pip import __version__ as pip_version
-from pip._vendor import requests
-
-if tuple(int(p) for p in pip_version.split(".")[:2]) >= (23, 1):
-    sys.exit(0)
-
-from pip._internal.commands import create_command
-from pip._internal.utils.misc import normalize_path
-
-pip_command = create_command("install")
-pip_options, _ = pip_command.parse_args([])
-if pip_options.cache_dir:
-    pip_options.cache_dir = normalize_path(pip_options.cache_dir)
-index_url = os.environ.get("PIP_INDEX_URL", "https://pypi.org/simple/").rstrip("/") + "/"
-page_url = urljoin(index_url, "pip/")
-resp = pip_command._build_session(pip_options).get(page_url, headers={"Accept": "text/html"}, timeout=30)
-safe_page_url = requests.utils.urldefragauth(page_url)
-resp.url = requests.utils.urldefragauth(resp.url)
-resp.raise_for_status()
-wheel = re.escape("pip-%s-py3-none-any.whl" % sys.argv[1])
-match = re.search(r'href="([^"]*%s(?:#[^"]*)?)"' % wheel, resp.text)
-if match is None:
-    sys.exit("pip %s wheel not found at %s" % (sys.argv[1], safe_page_url))
-print(urljoin(page_url, match.group(1).replace("&amp;", "&")))
-EOF
-    ) || { echo "Failed to locate a pip wheel to bootstrap"; exit 1; }
-    if [ -n "${wheel_url}" ]; then
-        echo "Bootstrapping pip ${BOOTSTRAP_PIP_VERSION}"
-        python3 -m pip install "${wheel_url}" || { echo "Failed to bootstrap pip"; exit 1; }
+    if python3 -c 'import sys, pip; sys.exit(tuple(int(p) for p in pip.__version__.split(".")[:2]) < (23, 1))'; then
+        return
     fi
+    echo "Bootstrapping ${BOOTSTRAP_PIP_REQUIREMENT%% *}"
+    python3 -m pip install --require-hashes -r /dev/stdin <<< "${BOOTSTRAP_PIP_REQUIREMENT}" \
+        || { echo "Failed to bootstrap pip"; exit 1; }
 }
 
 #Build rust dependencies
