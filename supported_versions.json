@@ -286,8 +286,7 @@
                     "1.4.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "algoliasearch",
@@ -634,14 +633,14 @@
                 },
                 "supportedRange": ">=0.11.0",
                 "tested": [
-                    "0.11.0"
+                    "0.11.0",
+                    "0.12.0"
                 ]
             }
         ],
         "aliases": [
             "aws_sdk_bedrock_runtime"
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "azure-cosmos",
@@ -1610,11 +1609,10 @@
                 "supportedRange": ">=2.70.0",
                 "tested": [
                     "2.70.0",
-                    "2.75.0"
+                    "2.77.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "falcon",
@@ -1798,6 +1796,18 @@
                 "tested": [
                     "1.10.1",
                     "2.3.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.13",
+                "tested": [
+                    "2.5.1"
                 ]
             }
         ]
@@ -2362,7 +2372,7 @@
                 "supportedRange": ">=4.6.6",
                 "tested": [
                     "5.2.4",
-                    "5.6.2"
+                    "5.7.0"
                 ]
             },
             {
@@ -2376,7 +2386,7 @@
                 },
                 "supportedRange": ">=4.6.6",
                 "tested": [
-                    "5.6.2"
+                    "5.7.0"
                 ]
             }
         ]
@@ -2450,7 +2460,7 @@
                     "0.2.23",
                     "0.3.21",
                     "0.3.22",
-                    "1.2.17"
+                    "1.2.19"
                 ]
             }
         ]
@@ -2487,7 +2497,7 @@
                 "tested": [
                     "1.0.12",
                     "2.1.2",
-                    "4.3.0"
+                    "4.3.1"
                 ]
             }
         ]
@@ -2536,7 +2546,18 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
+                        "3.9"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "1.65.4",
+                    "1.83.9"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.10",
                         "3.11",
                         "3.12",
@@ -2546,7 +2567,7 @@
                 "supportedRange": "*",
                 "tested": [
                     "1.65.4",
-                    "1.80.16"
+                    "1.108.2"
                 ]
             },
             {
@@ -2557,7 +2578,7 @@
                 },
                 "supportedRange": "*",
                 "tested": [
-                    "1.80.16"
+                    "1.108.2"
                 ]
             },
             {
@@ -2571,8 +2592,7 @@
                     "1.65.4"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "llama-index-core",
@@ -2798,6 +2818,18 @@
                     "1.30.0",
                     "2.3.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.10.0",
+                "tested": [
+                    "1.30.0",
+                    "2.3.0"
+                ]
             }
         ]
     },
@@ -2847,12 +2879,13 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.17.2"
+                    "3.18.0"
                 ]
             }
         ]
@@ -2867,12 +2900,13 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.17.2"
+                    "3.18.0"
                 ]
             }
         ]
@@ -2887,12 +2921,13 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.17.2"
+                    "3.18.0"
                 ]
             }
         ]
@@ -3219,26 +3254,26 @@
                 "testedRuntimes": {
                     "python": [
                         "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13",
-                        "3.14"
+                        "3.11"
                     ]
                 },
                 "supportedRange": ">=3.0.0",
                 "tested": [
-                    "3.3.4"
+                    "3.3.8"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
+                        "3.12",
+                        "3.13",
+                        "3.14",
                         "3.15"
                     ]
                 },
                 "supportedRange": ">=3.0.0",
                 "tested": [
-                    "3.3.6"
+                    "3.3.7"
                 ]
             }
         ]
@@ -3484,8 +3519,7 @@
                     "6.1.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "pyodbc",
@@ -3664,11 +3698,11 @@
                 },
                 "supportedRange": "*",
                 "tested": [
-                    "6.0.1"
+                    "6.0.1",
+                    "9.0.1"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "torch",
@@ -4177,6 +4211,17 @@
                 "tested": [
                     "0.5.2.post3"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "0.5.4.post2"
+                ]
             }
         ]
     },
@@ -4342,11 +4387,10 @@
                 },
                 "supportedRange": ">=6.1",
                 "tested": [
-                    "6.4.1"
+                    "6.6"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "trio",
@@ -4378,7 +4422,7 @@
                 },
                 "supportedRange": ">=0.21.0",
                 "tested": [
-                    "0.34.0"
+                    "0.35.0"
                 ]
             }
         ]
@@ -4560,7 +4604,17 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=1.71.1",
+                "tested": [
+                    "1.71.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.10",
                         "3.11",
                         "3.12"
@@ -4568,7 +4622,21 @@
                 },
                 "supportedRange": ">=1.71.1",
                 "tested": [
-                    "1.71.1"
+                    "1.71.1",
+                    "2.7.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.71.1",
+                "tested": [
+                    "2.7.0"
                 ]
             }
         ]

@@ -9,17 +9,17 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.contrib.internal.mlflow.constants import LOG_ATTR_MLFLOW_RUN_ID
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_LLM_SPAN_START_EVENT
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import get_llmobs_tags
 
 
 MLFLOW_ACTIVE_RUN_SPANS = {}
@@ -85,10 +85,8 @@ def _on_span_start(span: Span):
         span._set_attribute(MLFLOW_RUN_ID_TAG, run_id)
         span._set_attribute(_HOSTNAME_KEY, get_hostname())
         if span.span_type == SpanTypes.LLM:
-            # set mlflow.run_id on mlobs span tags
-            llmobs_tags = get_llmobs_tags(span) or {}
-            if MLFLOW_RUN_ID_TAG not in llmobs_tags:
-                _annotate_llmobs_span_data(span, tags={MLFLOW_RUN_ID_TAG: run_id})
+            # LLMObs sets mlflow.run_id on its span tags; see ddtrace/llmobs/_contrib/mlflow.
+            core.dispatch(MLFLOW_LLM_SPAN_START_EVENT, (span, run_id))
 
 
 def _traced_start_run(wrapped, instance, args, kwargs):
@@ -218,6 +216,9 @@ def patch():
     core.on("trace.log_correlation_context", _mlflow_log_correlation_context)
     core.on("trace.span_start", _on_span_start)
 
+    # Let products (LLMObs) attach their listeners without this module importing them.
+    integration_hooks.on_patch("mlflow")
+
     if not _MLFLOW_ATEXIT_REGISTERED:
         atexit.register(_finish_unfinished_spans_at_exit)
         _MLFLOW_ATEXIT_REGISTERED = True
@@ -228,6 +229,8 @@ def unpatch():
         return
 
     mlflow._datadog_patch = False
+
+    integration_hooks.on_unpatch("mlflow")
 
     _u(mlflow, "start_run")
     _u(mlflow, "end_run")
