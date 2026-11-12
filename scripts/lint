@@ -97,11 +97,11 @@ case "$cmd" in
   spelling)
     if [[ $# -gt 0 ]]; then
       uv_lint codespell -I docs/spelling_wordlist.txt \
-        --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
+        --skip='ddwaf.h,*cassettes*,tests/internal/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
         "$@"
     else
       uv_lint codespell -I docs/spelling_wordlist.txt \
-        --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
+        --skip='ddwaf.h,*cassettes*,tests/internal/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
         ddtrace/ tests/ releasenotes/ docs/
     fi
     ;;
