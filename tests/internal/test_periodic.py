@@ -938,6 +938,7 @@ def test_periodic_service_fork_during_on_shutdown_does_not_restart():
     in_periodic = Event()
     release_periodic = Event()
     in_shutdown = Event()
+    release_shutdown = Event()
     counts = {"periodic": 0, "shutdown": 0}
 
     class Service(periodic.PeriodicService):
@@ -949,8 +950,8 @@ def test_periodic_service_fork_during_on_shutdown_does_not_restart():
         def on_shutdown(self):
             counts["shutdown"] += 1
             in_shutdown.set()
-            # Keep the thread registered long enough for the fork to join it.
-            sleep(0.5)
+            # Stay in on_shutdown() until the fork stops the thread.
+            release_shutdown.wait(timeout=5)
 
     svc = Service(0.05)
     svc.start()
@@ -960,7 +961,16 @@ def test_periodic_service_fork_during_on_shutdown_does_not_restart():
     release_periodic.set()
     assert in_shutdown.wait(timeout=5)
 
+    before_fork = worker._before_fork
+
+    def _before_fork():
+        before_fork()
+        release_shutdown.set()
+
+    worker._before_fork = _before_fork
+
     def check():
+        assert release_shutdown.is_set(), "the fork did not stop the thread"
         # Wait past ThreadRestartTimer so that a restart, if any, has run.
         sleep(1)
         assert counts == {"periodic": 1, "shutdown": 1}, counts
@@ -996,6 +1006,7 @@ def test_periodic_service_fork_during_restart_for_shutdown_stays_stopped():
     threads.ThreadRestartTimer.__timeout__ = int(1e9)
 
     in_shutdown = Event()
+    release_shutdown = Event()
     counts = {"periodic": 0, "shutdown": 0}
 
     class Service(periodic.PeriodicService):
@@ -1005,8 +1016,8 @@ def test_periodic_service_fork_during_restart_for_shutdown_stays_stopped():
         def on_shutdown(self):
             counts["shutdown"] += 1
             in_shutdown.set()
-            # Keep the thread registered long enough for the second fork to join it.
-            sleep(0.5)
+            # Stay in on_shutdown() until the second fork stops the thread.
+            release_shutdown.wait(timeout=5)
 
     svc = Service(0.05)
     svc.start()
@@ -1020,10 +1031,20 @@ def test_periodic_service_fork_during_restart_for_shutdown_stays_stopped():
 
     fork_and_exit_child()
     svc.stop()
+
+    before_fork = worker._before_fork
+
+    def _before_fork():
+        before_fork()
+        release_shutdown.set()
+
+    worker._before_fork = _before_fork
+
     # The restart after the first fork only runs on_shutdown(). Fork again while it does.
     assert in_shutdown.wait(timeout=5)
     ran = counts["periodic"]
     fork_and_exit_child()
+    assert release_shutdown.is_set(), "the second fork did not stop the thread"
 
     # Wait past ThreadRestartTimer so that a restart, if any, has run.
     sleep(1.5)
