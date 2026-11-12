@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import re
-import struct
 import sys
 from typing import Any
 from typing import Callable
@@ -147,14 +146,12 @@ def _recompute_base_hash() -> None:
         return
 
     global base_hash
-    global base_hash_bytes
     if "process_tags" not in globals():
         _initialize_process_tags()
 
     # if process tags are enabled, they cannot be None, that is why we add type: ignore
     b = bytes(process_tags, encoding="utf-8") + bytes(_container_tags_hash, encoding="utf-8")  # type: ignore
     base_hash = fnv1_64(b)
-    base_hash_bytes = struct.pack("<Q", base_hash)
 
 
 def compute_base_hash(container_tags_hash):
@@ -166,7 +163,7 @@ def compute_base_hash(container_tags_hash):
     _recompute_base_hash()
 
 
-base_hash, base_hash_bytes = None, b""
+base_hash = None
 _container_tags_hash = ""
 
 
