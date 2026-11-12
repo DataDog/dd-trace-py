@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 from types import SimpleNamespace
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -588,11 +589,18 @@ async def test_realtime_transcription_timer_without_next_event(
     model = await connect(socket)
     state = model._dd_realtime_state
     state._input_transcription_enabled = True
+    expired = asyncio.Event()
+    transcript_timeout = state._transcript_timeout
+
+    def on_timeout(entry: _realtime._Playback) -> None:
+        transcript_timeout(entry)
+        expired.set()
+
+    monkeypatch.setattr(state, "_transcript_timeout", on_timeout)
     await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
     await socket.feed(created())
     await socket.feed(done())
-    assert state.entries
-    await asyncio.sleep(0.03)
+    await asyncio.wait_for(expired.wait(), 2)
     assert not state.entries
     await model.close()
     llm_span(test_spans)
@@ -988,14 +996,21 @@ async def test_realtime_item_admission_after_owner_eviction(
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
-@pytest.mark.skipif(not hasattr(sdk, "TransportConfig"), reason="SDK predates transport configuration")
 @pytest.mark.parametrize("audio_tokens", [None, 20, 1000000])
-async def test_realtime_unsafe_retrieval_keeps_transport_open(agents, openai_agents_llmobs, audio_tokens):
+async def test_realtime_unsafe_retrieval_keeps_transport_open(agents, openai_agents_llmobs, audio_tokens, monkeypatch):
     import json
 
     from websockets.asyncio.server import serve
     from websockets.exceptions import ConnectionClosed
 
+    websocket_connect = sdk.websockets.connect
+
+    async def connect_with_limit(*args: Any, **kwargs: Any) -> Any:
+        # Older SDKs ignore max_size in TransportConfig and use an unlimited socket.
+        kwargs["max_size"] = 2048
+        return await websocket_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sdk.websockets, "connect", connect_with_limit)
     requested = asyncio.Event()
     closed = asyncio.Event()
     codes = []
@@ -1025,7 +1040,7 @@ async def test_realtime_unsafe_retrieval_keeps_transport_open(agents, openai_age
 
     async with serve(handler, "127.0.0.1", 0) as server:
         port = server.sockets[0].getsockname()[1]
-        model = sdk.OpenAIRealtimeWebSocketModel(transport_config={"max_size": 2048})
+        model = sdk.OpenAIRealtimeWebSocketModel()
         await model.connect(
             {
                 "api_key": "fake",
