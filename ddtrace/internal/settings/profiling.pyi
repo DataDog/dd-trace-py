@@ -86,6 +86,7 @@ class ProfilingConfigNativeHeap(DDConfig):
 
 class ProfilingConfigGC(DDConfig):
     enabled: bool
+    pause_event_threshold_ms: float
 
 class ProfilingConfigPytorch(DDConfig):
     parsed: ProfilingConfigPytorch
