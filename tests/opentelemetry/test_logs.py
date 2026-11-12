@@ -246,8 +246,8 @@ def test_otel_logs_support_not_enabled():
         "deployment.environment.name=tag_env",
         "DD_TRACE_REPORT_HOSTNAME": "true",
         "DD_HOSTNAME": "ddhost",
-        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": [None, "", "http/protobuf"]},
     err=None,
 )
 def test_otel_logs_exporter_auto_configured_http():
@@ -332,8 +332,7 @@ def test_otel_logs_exporter_otlp_protocol_unsupported():
 )
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env={"DD_LOGS_OTEL_ENABLED": "true"},
-    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", None]},
+    env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"},
     err=None,
 )
 def test_otel_logs_exporter_auto_configured_grpc():
@@ -378,6 +377,7 @@ def test_otel_logs_exporter_auto_configured_grpc():
     ddtrace_run=True,
     env={
         "DD_LOGS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": "grpc",
         "DD_SERVICE": "test_service",
         "DD_VERSION": "1.0",
         "DD_ENV": "test_env",
@@ -437,6 +437,7 @@ def test_ddtrace_log_injection_otlp_enabled():
     ddtrace_run=True,
     env={
         "DD_LOGS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": "grpc",
         "DD_TRACE_OTEL_ENABLED": None,
         "DD_SERVICE": "test_service",
         "DD_VERSION": "1.0",
@@ -507,6 +508,7 @@ def test_ddtrace_log_correlation():
     ddtrace_run=True,
     env={
         "DD_LOGS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": "grpc",
         "DD_TRACE_OTEL_ENABLED": "true",
         "OTEL_RESOURCE_ATTRIBUTES": "service.name=test_service,service.version=1.0,"
         "deployment.environment=test_env,host.name=test_host",
@@ -572,7 +574,9 @@ def test_otel_trace_log_correlation():
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"}, err=None)
+@pytest.mark.subprocess(
+    ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": "grpc"}, err=None
+)
 def test_otel_logs_exporter_excludes_self_telemetry():
     """Test that the OTLP logs handler does not capture the tracer's own telemetry.
 
@@ -625,7 +629,9 @@ def test_otel_logs_exporter_excludes_self_telemetry():
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
 @pytest.mark.snapshot()
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"})
+@pytest.mark.subprocess(
+    ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": "grpc"}
+)
 def test_otel_logs_does_not_generate_client_grpc_spans():
     """
     Test that OpenTelemetry grpc logs exporter does not generate client grpc spans.

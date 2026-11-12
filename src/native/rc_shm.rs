@@ -419,6 +419,10 @@ pub struct ShmReader {
     active_configs: HashMap<String, (u64, Arc<Vec<u8>>)>,
     /// Product names enabled at the previous read.
     active_products: HashSet<String>,
+    /// Whether the previous read failed. The manifest reader has consumed the
+    /// generation it saw by then, so the next read must not take an unchanged
+    /// generation to mean that there is nothing new.
+    retry: bool,
 }
 
 impl ShmReader {
@@ -428,6 +432,7 @@ impl ShmReader {
             contents: Some(contents_handle.map()?),
             active_configs: HashMap::new(),
             active_products: HashSet::new(),
+            retry: false,
         })
     }
 
@@ -448,27 +453,36 @@ impl ShmReader {
     /// Read the latest published state and return the changes since the previous
     /// successful read (removals first).
     ///
+    /// Returns `None` when no consistent snapshot could be read, leaving the diff
+    /// memo untouched so that the next read diffs against the same state. This
+    /// tells such a read apart from one that found nothing changed.
+    ///
     /// `enabled` is the set of product names this consumer currently subscribes
     /// to. Filters out configs for products not in `enabled`.
-    pub fn read(&mut self, enabled: HashSet<String>) -> Vec<ChangeRecord> {
+    pub fn read(&mut self, enabled: HashSet<String>) -> Option<Vec<ChangeRecord>> {
+        let records = self.try_read(enabled);
+        self.retry = records.is_none();
+        records
+    }
+
+    fn try_read(&mut self, enabled: HashSet<String>) -> Option<Vec<ChangeRecord>> {
         let (mut changed, mut bytes) = self.manifest.read();
         // Force re-evaluation when our product subscriptions change, to pick up
         // e.g. a newly enabled LIVE_DEBUGGER product.
-        if !changed && enabled == self.active_products {
-            return Vec::new();
+        if !changed && !self.retry && enabled == self.active_products {
+            return Some(Vec::new());
         }
 
         // We retry to ensure the compaction_seq did not change
         for _ in 0..MAX_CONTENT_READ_RETRIES {
-            let (compaction_seq, entries) = match Manifest::from_bytes(bytes) {
-                Some(m) => (m.header.compaction_seq, m.entries.to_vec()),
-                None => return Vec::new(),
-            };
+            let manifest = Manifest::from_bytes(bytes)?;
+            let (compaction_seq, entries) =
+                (manifest.header.compaction_seq, manifest.entries.to_vec());
 
             // A compaction is moving blocks in place; offsets are unstable.
             // And we know that we'll get a change again soon.
             if compaction_seq & 1 == 1 {
-                return Vec::new();
+                return None;
             }
 
             // Ensure the mapping is big enough
@@ -484,10 +498,8 @@ impl ShmReader {
                     self.contents = handle.map().ok();
                 }
             }
-            let contents = match self.contents.as_ref() {
-                Some(c) => c.as_slice(),
-                None => return Vec::new(), // shouldn't happen
-            };
+            // None shouldn't happen
+            let contents = self.contents.as_ref()?.as_slice();
 
             // Build diff
             let mut adds_updates: Vec<ChangeRecord> = Vec::new();
@@ -503,7 +515,7 @@ impl ShmReader {
                 ) {
                     (Some(p), Some(c)) => (p, c),
                     _ => {
-                        return Vec::new();
+                        return None;
                     }
                 };
                 let path = match std::str::from_utf8(path_bytes) {
@@ -552,11 +564,11 @@ impl ShmReader {
                 records.extend(adds_updates);
                 self.active_configs = new_configs;
                 self.active_products = enabled;
-                return records;
+                return Some(records);
             }
         }
 
-        Vec::new() // Out of retries
+        None // Out of retries
     }
 }
 
@@ -694,7 +706,7 @@ mod tests {
 
         let (mh, ch) = storage.take_handles().unwrap();
         let mut reader = ShmReader::new(mh, ch).unwrap();
-        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
         assert_eq!(content_of(&changes, "/big/"), Some(&big));
     }
 
@@ -716,7 +728,7 @@ mod tests {
 
         let (mh, ch) = storage.take_handles().unwrap();
         let mut reader = ShmReader::new(mh, ch).unwrap();
-        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].version, 10);
         assert_eq!(content_of(&changes, "/c/"), Some(&vec![10u8; 4000]));
@@ -769,7 +781,7 @@ mod tests {
         used += e.block_len();
         entries.insert(a.to_string(), e);
         manifest_writer.write(&serialize_manifest(0, &entries));
-        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].version, 1);
         assert_eq!(content_of(&changes, "/a/"), Some(&b"AAAA".to_vec()));
@@ -781,7 +793,7 @@ mod tests {
         entries.insert(a.to_string(), e_a);
         entries.insert(b.to_string(), e_b);
         manifest_writer.write(&serialize_manifest(0, &entries));
-        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
         assert_eq!(changes.len(), 2, "A updated + B added");
         assert_eq!(content_of(&changes, "/a/"), Some(&b"AA22".to_vec()));
         assert_eq!(content_of(&changes, "/b/"), Some(&b"BBBB".to_vec()));
@@ -790,7 +802,7 @@ mod tests {
         // though the generation bumps the reader emits no records.
         manifest_writer.write(&serialize_manifest(0, &entries));
         assert!(
-            reader.read(enabled(&["ASM_FEATURES"])).is_empty(),
+            reader.read(enabled(&["ASM_FEATURES"])).unwrap().is_empty(),
             "unchanged snapshot emits nothing"
         );
 
@@ -798,10 +810,70 @@ mod tests {
         // with no content; unchanged B is not re-emitted.
         entries.remove(a);
         manifest_writer.write(&serialize_manifest(0, &entries));
-        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
         assert_eq!(changes.len(), 1);
         assert!(changes[0].path.contains("/a/"));
         assert!(changes[0].content.is_none(), "removal carries no content");
+    }
+
+    /// A read that cannot observe a consistent snapshot must not pass for one in
+    /// which every config was removed, and must leave the diff memo untouched.
+    #[test]
+    fn reader_returns_none_during_compaction() {
+        let (manifest_writer, manifest_reader) = create_anon_pair().unwrap();
+        let contents_handle = ShmHandle::new(0x4000).unwrap();
+        let mut contents = contents_handle.clone().map().unwrap();
+        let mut reader = ShmReader::new(manifest_reader, contents_handle).unwrap();
+
+        let a = "datadog/2/ASM_FEATURES/a/config";
+        let mut entries: HashMap<String, Entry> = HashMap::new();
+        entries.insert(a.to_string(), put_block(&mut contents, 0, 1, a, b"AAAA"));
+
+        // An odd compaction_seq means a compaction is moving blocks in place.
+        manifest_writer.write(&serialize_manifest(1, &entries));
+        assert!(reader.read(enabled(&["ASM_FEATURES"])).is_none());
+
+        // Once the compaction is done, the next read delivers the full snapshot.
+        manifest_writer.write(&serialize_manifest(2, &entries));
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
+        assert_eq!(changes.len(), 1);
+        assert_eq!(content_of(&changes, "/a/"), Some(&b"AAAA".to_vec()));
+    }
+
+    /// A failed read has consumed the manifest generation, so the next read must
+    /// re-evaluate it even though the origin publishes nothing new.
+    #[test]
+    fn reader_retries_after_failed_read_without_new_publish() {
+        let (manifest_writer, manifest_reader) = create_anon_pair().unwrap();
+        let contents_handle = ShmHandle::new(0x4000).unwrap();
+        let mut contents = contents_handle.clone().map().unwrap();
+        let mut reader = ShmReader::new(manifest_reader, contents_handle).unwrap();
+
+        let a = "datadog/2/ASM_FEATURES/a/config";
+        let b = "datadog/2/ASM_FEATURES/b/config";
+        let mut entries: HashMap<String, Entry> = HashMap::new();
+        entries.insert(a.to_string(), put_block(&mut contents, 0, 1, a, b"AAAA"));
+        manifest_writer.write(&serialize_manifest(0, &entries));
+        assert_eq!(reader.read(enabled(&["ASM_FEATURES"])).unwrap().len(), 1);
+
+        // B points past the end of the contents, which were not grown yet.
+        let offset = 0x4000;
+        entries.insert(
+            b.to_string(),
+            Entry {
+                version: 1,
+                offset,
+                path_len: b.len() as u32,
+                content_len: 4,
+            },
+        );
+        manifest_writer.write(&serialize_manifest(0, &entries));
+        assert!(reader.read(enabled(&["ASM_FEATURES"])).is_none());
+
+        put_block(&mut contents, offset, 1, b, b"BBBB");
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
+        assert_eq!(changes.len(), 1);
+        assert_eq!(content_of(&changes, "/b/"), Some(&b"BBBB".to_vec()));
     }
 
     /// In-product enablement: a config for a product the consumer has not enabled
@@ -829,13 +901,15 @@ mod tests {
         manifest_writer.write(&serialize_manifest(0, &entries));
 
         // Only ASM_FEATURES enabled: the probe is withheld.
-        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
         assert_eq!(changes.len(), 1, "only the enabled product is emitted");
         assert!(changes[0].path.contains("/ASM_FEATURES/"));
 
         // Enable LIVE_DEBUGGING. The manifest has NOT changed, but the subscription
         // did, so the previously-withheld probe is now emitted as an add.
-        let changes = reader.read(enabled(&["ASM_FEATURES", "LIVE_DEBUGGING"]));
+        let changes = reader
+            .read(enabled(&["ASM_FEATURES", "LIVE_DEBUGGING"]))
+            .unwrap();
         assert_eq!(
             changes.len(),
             1,
@@ -848,12 +922,13 @@ mod tests {
         assert!(
             reader
                 .read(enabled(&["ASM_FEATURES", "LIVE_DEBUGGING"]))
+                .unwrap()
                 .is_empty(),
             "unchanged snapshot and subscription emits nothing"
         );
 
         // Disable LIVE_DEBUGGING again: its config is emitted as a removal.
-        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
         assert_eq!(changes.len(), 1, "disabled product's config is removed");
         assert!(changes[0].path.contains("/LIVE_DEBUGGING/"));
         assert!(changes[0].content.is_none(), "removal carries no content");

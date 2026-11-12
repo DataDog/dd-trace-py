@@ -328,6 +328,7 @@ statsd
 stderr
 stdlib
 stdout
+streamable
 setuptools
 Str
 stringable

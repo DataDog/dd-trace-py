@@ -201,6 +201,13 @@
         "default": "16"
       }
     ],
+    "DD_AI_GUARD_MCP_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_OPENAI_ENABLED": [
       {
         "implementation": "A",
@@ -901,6 +908,20 @@
         "implementation": "B",
         "type": "boolean",
         "default": null
+      }
+    ],
+    "DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_CIVISIBILITY_GIT_UPLOAD_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_CIVISIBILITY_ITR_ENABLED": [
@@ -1781,11 +1802,14 @@
         "default": "true"
       }
     ],
-    "DD_FFE_INTAKE_ENABLED": [
+    "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "aliases": [
+          "DD_FFE_INTAKE_ENABLED"
+        ]
       }
     ],
     "DD_FFE_INTAKE_HEARTBEAT_INTERVAL": [
@@ -3554,13 +3578,6 @@
         "implementation": "C",
         "type": "string",
         "default": "datadoghq.com"
-      }
-    ],
-    "DD_SNAPSHOT_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": null
       }
     ],
     "DD_SNOWFLAKE_SERVICE": [
@@ -5612,9 +5629,9 @@
     ],
     "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": [
       {
-        "implementation": "C",
+        "implementation": "D",
         "type": "string",
-        "default": "grpc"
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT": [
@@ -5676,9 +5693,9 @@
     ],
     "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "string",
-        "default": null
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": [
@@ -5697,9 +5714,9 @@
     ],
     "OTEL_EXPORTER_OTLP_PROTOCOL": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_TIMEOUT": [
@@ -5905,6 +5922,14 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_APPSEC_SCA_CVE_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
         "internal": true
       }
     ],
@@ -6201,6 +6226,14 @@
         "implementation": "A",
         "type": "string",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],

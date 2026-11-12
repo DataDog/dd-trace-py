@@ -170,7 +170,7 @@ class TestExposureWriter:
 
     def test_writer_disabled_via_config(self):
         """Test that writer can be disabled via configuration."""
-        with override_global_config({"ffe_intake_enabled": False}):
+        with override_global_config({"exposures_datadog_logging_enabled": False}):
             writer = ExposureWriter()
             assert writer._enabled is False
 

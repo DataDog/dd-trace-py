@@ -1,5 +1,6 @@
 from inspect import currentframe
 from inspect import getframeinfo
+import io
 from pathlib import Path
 import traceback
 from unittest import mock
@@ -15,6 +16,8 @@ from ddtrace.appsec._contrib.filesystem.patch import wrapped_path_open
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.telemetry import telemetry_writer
+import ddtrace.internal.telemetry.writer as telemetry_writer_module
 
 
 class _OriginalOpen:
@@ -211,3 +214,27 @@ def test_lfi_normal_exception_pathlib() -> None:
             assert "pathlib" in frames[-1].filename
     finally:
         cmp.unpatch_common_modules()
+
+
+@pytest.fixture
+def isolated_passthrough_wrappers():
+    with mock.patch.object(telemetry_writer_module, "_PASSTHROUGH_CODES", set()):
+        yield
+
+
+def _reported_as_ddtrace_error(exc: BaseException) -> bool:
+    with mock.patch.object(telemetry_writer, "add_error_log") as add_error_log:
+        with mock.patch.object(telemetry_writer, "app_shutdown") as app_shutdown:
+            telemetry_writer._telemetry_excepthook(type(exc), exc, exc.__traceback__)
+    app_shutdown.assert_called_once()
+    return add_error_log.called
+
+
+@pytest.mark.usefixtures("isolated_passthrough_wrappers")
+def test_application_open_error_through_builtin_open_wrapper_is_not_reported(tmp_path: Path) -> None:
+    with mock.patch.object(filesystem_patch, "try_wrap_function_wrapper"):
+        filesystem_patch.patch()
+    with pytest.raises(FileNotFoundError) as exc_info:
+        wrapped_builtin_open(io.open, None, (str(tmp_path / "missing"),), {})
+
+    assert not _reported_as_ddtrace_error(exc_info.value)
