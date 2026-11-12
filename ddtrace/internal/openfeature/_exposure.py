@@ -3,6 +3,7 @@ Exposure event building for Feature Flag evaluation results.
 """
 
 import time
+from typing import Any
 from typing import Optional
 
 from openfeature.evaluation_context import EvaluationContext
@@ -21,6 +22,7 @@ def build_exposure_event(
     allocation_key: Optional[str],
     evaluation_context: Optional[EvaluationContext],
     serial_id: Optional[int] = None,
+    attributes: Any = None,
 ) -> Optional[ExposureEvent]:
     """
     Build an exposure event that will be batched and sent with context.
@@ -36,6 +38,8 @@ def build_exposure_event(
         serial_id: Serial id of the split the subject landed in. The intake resolves it
             back to the holdout the allocation was generated from, which an exposure
             does not otherwise record.
+        attributes: The context's attributes already passed through _native_attributes, when
+            the caller has them; otherwise they are filtered here
     """
     # Validate required fields
     if not flag_key:
@@ -51,6 +55,8 @@ def build_exposure_event(
         return None
 
     evaluation_context = evaluation_context or EvaluationContext()
+    if attributes is None:
+        attributes = _native_attributes(evaluation_context.attributes or {})
 
     # Build the exposure event
     exposure_event: ExposureEvent = {
@@ -60,7 +66,7 @@ def build_exposure_event(
         "variant": {"key": variant_key},
         "subject": {
             "id": evaluation_context.targeting_key or "",
-            "attributes": _native_attributes(evaluation_context.attributes or {}),
+            "attributes": attributes,
         },
     }
 
