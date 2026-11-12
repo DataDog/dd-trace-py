@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where a slow Datadog Agent can block application threads while telemetry metrics are recorded. If the telemetry buffer fills, some metric points can be dropped.
