@@ -149,10 +149,13 @@ async def traced_tool_run(func, instance, args, kwargs, tool_name):
 
 
 def patch():
+    global _run_stream_active
     if getattr(pydantic_ai, "_datadog_patch", False):
         return
 
     pydantic_ai._datadog_patch = True
+    # A run_stream() context manager that was created but never entered leaves the guard set.
+    _run_stream_active = False
 
     wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter)
     wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream)
@@ -169,12 +172,14 @@ def patch():
 
 
 def unpatch():
+    global _run_stream_active
     import pydantic_ai
 
     if not getattr(pydantic_ai, "_datadog_patch", False):
         return
 
     pydantic_ai._datadog_patch = False
+    _run_stream_active = False
 
     integration_hooks.on_unpatch(COMPONENT)
 
