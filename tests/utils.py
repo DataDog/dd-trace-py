@@ -1554,11 +1554,6 @@ def terminate_process_group(proc: subprocess.Popen[bytes], timeout: float = 3.0)
         proc.communicate(timeout=timeout)
 
 
-def restore_default_sigint() -> None:
-    """Undo an inherited SIG_IGN for SIGINT, which some CI runners set, so that children handle it as usual."""
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-
 def call_program(*args, **kwargs):
     # TODO(mabdinur): remove and replace with python_process for Python code or run_process for other commands.
     return run_process(*args, **kwargs)
