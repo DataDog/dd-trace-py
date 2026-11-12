@@ -6,10 +6,12 @@ from typing import Optional
 import ddtrace
 from ddtrace.internal import periodic
 from ddtrace.internal import service
+from ddtrace.internal.datadog.profiling import code_provenance
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.profiling import config
+from ddtrace.internal.threads import Thread
 
 
 LOG = get_logger(__name__)
@@ -30,6 +32,7 @@ class Scheduler(periodic.PeriodicService):
         self._last_export: int = 0  # Overridden in _start_service
         self._tracer: Optional[ProfilerTracer] = tracer
         self._enable_code_provenance: bool = config.code_provenance
+        self._code_provenance_thread: Optional[Thread] = None
 
     def _start_service(self) -> None:
         """Start the scheduler."""
@@ -37,7 +40,33 @@ class Scheduler(periodic.PeriodicService):
         ddup.reset(self._tracer)
         super()._start_service()
         self._last_export = time.time_ns()
+        self._start_code_provenance_build()
         LOG.debug("[profiling] Scheduler started")
+
+    def _start_code_provenance_build(self) -> None:
+        # The first upload reads the code provenance file. With a cold cache, building it
+        # waits for the installed packages scan, and a process that exits before the first
+        # periodic upload would pay for that in the shutdown flush. Build it in the background
+        # so neither start nor that flush has to. If the upload gets there first, it builds the
+        # file itself. Stop does not wait for this thread; a fork does, like any one-shot Thread.
+        if not self._enable_code_provenance or self._code_provenance_thread is not None:
+            return
+
+        def build() -> None:
+            try:
+                code_provenance.get_code_provenance_file()
+            except Exception:
+                LOG.debug("[profiling] Failed to build the code provenance file", exc_info=True)
+            finally:
+                self._code_provenance_thread = None
+
+        thread: Thread = Thread(build, name=f"{__name__}:code_provenance")
+        self._code_provenance_thread = thread
+        try:
+            thread.start()
+        except Exception:
+            self._code_provenance_thread = None
+            LOG.debug("[profiling] Failed to start the code provenance build", exc_info=True)
 
     def _rollback_start(self) -> None:
         with self._service_lock:
