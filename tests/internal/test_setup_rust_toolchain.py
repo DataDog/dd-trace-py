@@ -35,7 +35,7 @@ def check_toolchain(monkeypatch):
 
 
 @pytest.mark.parametrize("tool", ["rustc", "cargo"])
-@pytest.mark.parametrize("version", ["1.91.1", "1.99.0", "1.100.0", "2.0.0", "1.100.0-nightly", "1.100.0-beta.1"])
+@pytest.mark.parametrize("version", ["1.87.0", "1.99.0", "1.100.0", "2.0.0", "1.100.0-nightly", "1.100.0-beta.1"])
 def test_accepts_supported_toolchains(check_toolchain, tool, version):
     check, versions = check_toolchain
     versions[tool] = version
@@ -43,9 +43,9 @@ def test_accepts_supported_toolchains(check_toolchain, tool, version):
 
 
 @pytest.mark.parametrize("tool", ["rustc", "cargo"])
-@pytest.mark.parametrize("version", ["0.99.0", "1.9.9", "1.90.100", "1.91.0"])
+@pytest.mark.parametrize("version", ["0.99.0", "1.9.9", "1.86.100", "1.86.0"])
 def test_rejects_toolchains_below_minimum(check_toolchain, tool, version):
     check, versions = check_toolchain
     versions[tool] = version
-    with pytest.raises(OSError, match=f"{tool} version 1.91.1 or later required, {version} found"):
+    with pytest.raises(OSError, match=f"{tool} version 1.87.0 or later required, {version} found"):
         check()
