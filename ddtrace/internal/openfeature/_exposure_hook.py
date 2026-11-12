@@ -105,7 +105,8 @@ class ExposureHook(Hook):
     Register it with openfeature.api.add_hooks([ExposureHook(callback)]) or on a client.
     The callback receives an ExposureEvaluation for every evaluation, including errors and
     repeats. Use should_send to keep the new or changed exposures: these are exactly the
-    exposures the provider sends to Datadog. With
+    exposures the provider sends to Datadog for the evaluated flag. Prerequisite exposures
+    are sent to Datadog but are not passed to this callback. With
     DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED=false, Datadog receives no exposures
     and should_send gives the same results.
 

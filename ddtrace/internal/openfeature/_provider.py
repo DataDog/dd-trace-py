@@ -7,7 +7,6 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
-import copy
 import time
 import typing
 import weakref
@@ -786,7 +785,8 @@ class DataDogProvider(AbstractProvider):
             )
             flag_metadata[METADATA_EXPOSURE_CACHE_HIT] = decision.is_cache_hit()
             if not flag_metadata[METADATA_EXPOSURE_CACHE_HIT]:
-                exposure_event["subject"]["attributes"] = copy.deepcopy(exposure_event["subject"]["attributes"])
+                # Native context conversion accepts only scalars; isolate the mapping from later hooks.
+                exposure_event["subject"]["attributes"] = dict(exposure_event["subject"]["attributes"])
             flag_metadata._dd_exposure_decision = decision
         except Exception as e:
             logger.debug("Failed to prepare exposure decision: %s", e, exc_info=True)

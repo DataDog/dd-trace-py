@@ -1,6 +1,9 @@
 """Dependent evaluations and telemetry through the native evaluator and provider."""
 
 import copy
+import importlib.util
+from pathlib import Path
+import sys
 from types import SimpleNamespace
 from unittest import mock
 
@@ -504,7 +507,8 @@ def test_prerequisite_split_features_and_public_exposure_hook(evaluated, reject)
             EvaluationContext(targeting_key="subject"),
             FlagEvaluationOptions(hooks=[RejectAfter()] if reject else []),
         )
-        assert received[-1].should_send is (not reject)
+        assert [evaluation.flag_key for evaluation in received] == ["root"]
+        assert received[0].should_send is (not reject)
         if reject:
             assert result.reason == Reason.ERROR
             assert not exposures.called
@@ -517,6 +521,7 @@ def test_prerequisite_split_features_and_public_exposure_hook(evaluated, reject)
             {"layer": "parent-layer"},
             {"layer": "root-layer"},
         ]
+        assert [evaluation.flag_key for evaluation in received] == (["root", "root"] if reject else ["root"])
         assert dict(received[-1].features) == {"layer": "root-layer"}
     finally:
         api.clear_hooks()
@@ -555,3 +560,64 @@ def test_prerequisite_evaluation_features_preserve_count_buckets(evaluated, cons
     buckets = provider._flag_eval_evp_writer._full.values()
     assert sorted((entry.features["layer"], entry.count) for entry in buckets) == [("first", 2), ("second", 1)]
     assert ("parent" in exposure_keys(exposures)) is (accepted and do_log)
+
+
+@pytest.mark.parametrize("dependent", [False, True])
+def test_public_exposure_hook_cannot_mutate_queued_subject(evaluated, dependent):
+    _, client, _, exposures, _ = evaluated
+    root = dependent_flag() if dependent else create_boolean_flag("root")
+    assert process_ffe_configuration(create_config(create_boolean_flag("parent"), root))
+    attributes = {"plan": "pro", "age": 42, "ratio": 0.5, "enabled": True, "missing": None}
+    context = EvaluationContext(targeting_key="subject", attributes=dict(attributes))
+
+    def mutate(evaluation):
+        evaluation.evaluation_context.attributes.clear()
+        evaluation.evaluation_context.attributes["plan"] = "changed"
+
+    api.add_hooks([ExposureHook(mutate)])
+    try:
+        assert client.get_boolean_value("root", False, context) is True
+        assert exposure_keys(exposures) == (["parent", "root"] if dependent else ["root"])
+        for call in exposures.call_args_list:
+            assert call.args[0]["subject"]["attributes"] == attributes
+    finally:
+        api.clear_hooks()
+
+
+@pytest.mark.parametrize("dependencies", [0, 1, 5, 10])
+@pytest.mark.parametrize("cold", [False, True])
+def test_dependency_benchmark_exercises_telemetry_and_exposures(evaluated, dependencies, cold):
+    # Load the scenario without bm's command-line registration; exercise its real
+    # provider loop and verify that the timed workload includes every reached node.
+    path = Path(__file__).parents[2] / "benchmarks/openfeature_flagevaluation/scenario.py"
+    spec = importlib.util.spec_from_file_location("dependent_benchmark", path)
+    module = importlib.util.module_from_spec(spec)
+    with mock.patch.dict(sys.modules, {"bm": SimpleNamespace(Scenario=object)}):
+        spec.loader.exec_module(module)
+    scenario = module.OpenFeatureFlagEvaluation()
+    scenario.num_flags = 1
+    scenario.num_users = 2
+    scenario.num_context_fields = 10
+    scenario.num_dependencies = dependencies
+    scenario.split_features = True
+    scenario.observe_full_evaluation_data = True
+    scenario.cold_exposures = cold
+    scenario.warm_exposures = not cold
+    from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+
+    with (
+        mock.patch.object(FlagEvaluationWriter, "enqueue") as evaluations,
+        mock.patch.object(module._DISCARDING_EXPOSURE_WRITER, "enqueue") as exposures,
+    ):
+        run = scenario._provider_resolution()
+        loop = next(run)
+        evaluations.reset_mock()
+        exposures.reset_mock()
+        loop(4)
+        assert evaluations.call_count == 4 * (dependencies + 1)
+        assert exposures.call_count == (4 * (dependencies + 1) if cold else 0)
+        assert {call.args[0].flag_key for call in evaluations.call_args_list} == {
+            "flag-0",
+            *[f"prerequisite-{i}" for i in range(dependencies)],
+        }
+        run.close()

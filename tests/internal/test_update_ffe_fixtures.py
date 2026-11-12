@@ -252,3 +252,47 @@ def test_main_rejects_empty_ref(updater, monkeypatch):
 
     with pytest.raises(ValueError, match="Invalid FFE fixture ref"):
         updater.main()
+
+
+def test_copy_dependent_suite_preserves_only_json_and_counts_cases(updater, tmp_path):
+    source = tmp_path / "source"
+    snapshot = tmp_path / "snapshot"
+    write_fixture_snapshot(source)
+    dependent = source / "evaluation-suites" / "dependent-flags"
+    (dependent / "cases").mkdir(parents=True)
+    (dependent / "ufc-config.json").write_text("{}")
+    (dependent / "cases" / "dependent.json").write_text('[{"flag": "root"}]')
+    (dependent / "README.md").write_text("not part of the executable snapshot")
+    snapshot.mkdir()
+
+    updater.copy_fixture_snapshot(source, snapshot)
+
+    assert (snapshot / "evaluation-suites/dependent-flags/cases/dependent.json").read_text() == '[{"flag": "root"}]'
+    assert not (snapshot / "evaluation-suites/dependent-flags/README.md").exists()
+    assert updater.validate_fixture_snapshot(snapshot) == 2
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "evaluation-suites",
+        "evaluation-suites/dependent-flags",
+        "evaluation-suites/dependent-flags/cases",
+        "evaluation-suites/dependent-flags/cases/dependent.json",
+    ],
+)
+def test_copy_dependent_suite_rejects_symlinks(updater, tmp_path, entry):
+    source = tmp_path / "source"
+    snapshot = tmp_path / "snapshot"
+    write_fixture_snapshot(source)
+    dependent = source / "evaluation-suites" / "dependent-flags"
+    (dependent / "cases").mkdir(parents=True)
+    (dependent / "ufc-config.json").write_text("{}")
+    (dependent / "cases" / "dependent.json").write_text('[{"flag": "root"}]')
+    original = source / entry
+    target = tmp_path / "target"
+    original.rename(target)
+    original.symlink_to(target, target_is_directory=target.is_dir())
+    snapshot.mkdir()
+    with pytest.raises(ValueError, match="symbolic link"):
+        updater.copy_fixture_snapshot(source, snapshot)
