@@ -1,4 +1,0 @@
-fixes:
-  - |
-    internal: Fixes an issue where installing from source fails with Rust 1.100.0
-    or later despite meeting the minimum Rust version requirement.
