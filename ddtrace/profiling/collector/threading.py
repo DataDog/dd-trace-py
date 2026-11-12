@@ -1,3 +1,4 @@
+from types import ModuleType
 import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
@@ -32,12 +33,13 @@ class _ProfiledThreadingCondition(_lock._ProfiledLock):
 
 
 class _ThreadingLockCollectorBase(_lock.LockCollector):
-    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
-        # threading is imported only when a collector is created: this module is imported at startup, and importing
-        # threading there would load it before the application can e.g. monkey-patch it with gevent.
-        import threading
-
-        type(self).MODULE = threading
+    def __init__(self, *args: typing.Any, module: ModuleType, **kwargs: typing.Any) -> None:
+        # The threading module is passed in. It is imported at startup, and importing threading there would
+        # load it before the application can e.g. monkey-patch it with gevent.
+        # Importing it on construction is not safe either, as collectors are created while holding the
+        # service lock, and the import could wait for another thread that holds the threading module lock while
+        # waiting for the service lock, which would deadlock.
+        type(self).MODULE = module
         super().__init__(*args, **kwargs)
 
 

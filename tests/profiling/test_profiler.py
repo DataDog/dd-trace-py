@@ -339,7 +339,7 @@ def test_failed_lock_collector_start_preserves_patch_target() -> None:
         def patch(self) -> None:
             raise RuntimeError("patch failed")
 
-    failing_collector = FailingLockCollector()
+    failing_collector = FailingLockCollector(module=sys.modules["threading"])
     original_lock = failing_collector.MODULE.Lock
     p = _bare_profiler_instance()
     p._collectors = [failing_collector]
@@ -494,7 +494,7 @@ def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: p
     try:
         for module, hook in registered_hooks:
             if module in ("threading", "asyncio"):
-                hook(None)
+                hook(sys.modules[module])
 
         locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
         assert locks, "expected lock collectors"
