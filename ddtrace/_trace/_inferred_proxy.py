@@ -2,10 +2,14 @@ from dataclasses import dataclass
 import logging
 from typing import Callable
 from typing import Optional
+from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import _INFERRED_SPAN_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -14,6 +18,8 @@ from ddtrace.internal.inferred_spans import INFERRED_SPAN_NAMES as INFERRED_SPAN
 from ddtrace.internal.inferred_spans import PROXY_SPAN_NAMES
 from ddtrace.internal.inferred_spans import PUSH_SUBSCRIPTION_SPAN_NAMES as PUSH_SUBSCRIPTION_SPAN_NAMES
 from ddtrace.internal.inferred_spans import SUPPORTED_PROXY_SPAN_NAMES as SUPPORTED_PROXY_SPAN_NAMES
+from ddtrace.internal.inferred_spans import is_inferred_span
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.utils.time import Time
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
@@ -235,3 +241,25 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
 
 def normalize_headers(headers) -> dict[str, str]:
     return {key.lower(): value for key, value in headers.items()}
+
+
+def _set_inferred_proxy_tags(span: Span, status_code: Optional[Union[int, float, str]]) -> None:
+    if span._parent and is_inferred_span(span._parent):
+        inferred_span = span._parent
+        # Proxy spans keep Datadog status attributes; only the source lookup follows active semantics.
+        if not status_code and config._otel_trace_semantics_enabled:
+            # The OTel status attribute is numeric, but the proxy's Datadog attribute is a string.
+            otel_status = span._get_attribute(otel_http.RESPONSE_STATUS_CODE)
+            status_code = str(otel_status) if otel_status else None
+        else:
+            status_code = status_code or span._get_attribute(http.STATUS_CODE)
+        if status_code:
+            inferred_span._set_attribute("http.status_code", status_code)
+        if span.error == 1:
+            inferred_span.error = span.error
+            if (error_msg := span._get_attribute(ERROR_MSG)) is not None:
+                inferred_span._set_attribute(ERROR_MSG, error_msg)
+            if (error_type := span._get_attribute(ERROR_TYPE)) is not None:
+                inferred_span._set_attribute(ERROR_TYPE, error_type)
+            if (error_stack := span._get_attribute(ERROR_STACK)) is not None:
+                inferred_span._set_attribute(ERROR_STACK, error_stack)
