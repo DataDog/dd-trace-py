@@ -19,13 +19,13 @@ class TestVisibilityCoverageData:
     def __init__(self) -> None:
         self._coverage_data: dict[Path, CoverageLines] = defaultdict(CoverageLines)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self._coverage_data)
 
     def get_data(self) -> dict[Path, CoverageLines]:
         return self._coverage_data
 
-    def add_covered_files(self, covered_files: dict[Path, CoverageLines]):
+    def add_covered_files(self, covered_files: dict[Path, CoverageLines]) -> None:
         """Add coverage segments to the coverage data"""
         for file_path, covered_lines in covered_files.items():
             self._coverage_data[file_path.absolute()].update(covered_lines)

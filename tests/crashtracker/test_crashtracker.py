@@ -159,6 +159,7 @@ def test_crashtracker_simple():
             assert not stdout_msg, stdout_msg
             assert not stderr_msg, stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 
@@ -200,6 +201,7 @@ def test_crashtracker_simple_fork():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)  # just in case
 
@@ -247,6 +249,7 @@ def test_crashtracker_simple_sigbus():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            utils.disable_core_dumps()
             with tempfile.TemporaryFile() as tmp_file:
                 tmp_file.write(b"aaaaaa")  # write some data to the file
                 fd = tmp_file.fileno()  # get the file descriptor
@@ -296,6 +299,7 @@ def test_crashtracker_raise_sigsegv():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            utils.disable_core_dumps()
             os.kill(os.getpid(), signal.SIGSEGV.value)
             sys.exit(-1)
 
@@ -330,6 +334,7 @@ def test_crashtracker_raise_sigbus():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            utils.disable_core_dumps()
             os.kill(os.getpid(), signal.SIGBUS.value)
             sys.exit(-1)
 
@@ -348,7 +353,9 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import ctypes
+import resource
 import sys
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
 ctypes.string_at(0)
 sys.exit(-1)
 """
@@ -494,6 +501,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import ctypes
 import ddtrace.auto
+import resource
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
 ctypes.string_at(0)
 sys.exit(-1)
 """
@@ -633,6 +642,8 @@ for i in range(3):
 
 time.sleep(0.1)
 
+import resource
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
 ctypes.string_at(0)
 sys.exit(-1)
 """
@@ -701,6 +712,8 @@ _lib.trigger_crash.restype  = None
 _lib.trigger_crash.argtypes = []
 
 import ddtrace.auto  # starts the crashtracker
+import resource
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
 _lib.trigger_crash()
 sys.exit(-1)
 """
@@ -825,6 +838,7 @@ def test_crashtracker_user_tags_profiling():
             assert not stdout_msg
             assert not stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 
@@ -872,6 +886,7 @@ def test_crashtracker_user_tags_core():
             assert not stdout_msg
             assert not stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 
@@ -913,6 +928,7 @@ def test_crashtracker_process_tags():
             assert not stdout_msg
             assert not stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 
@@ -984,6 +1000,7 @@ def test_crashtracker_echild_hang():
                 # then crash.
                 time.sleep(0.1)
 
+                utils.disable_core_dumps()
                 ctypes.string_at(0)
                 sys.exit(-1)
             else:
@@ -1057,6 +1074,7 @@ def test_crashtracker_no_zombies():
                 # then crash.
                 time.sleep(0.1)
 
+                utils.disable_core_dumps()
                 ctypes.string_at(0)
                 sys.exit(-1)
             else:
@@ -1109,6 +1127,7 @@ def test_crashtracker_receiver_env_inheritance():
             assert not stdout_msg, stdout_msg
             assert not stderr_msg, stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 

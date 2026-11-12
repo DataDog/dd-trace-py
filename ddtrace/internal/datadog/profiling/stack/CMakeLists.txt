@@ -58,6 +58,8 @@ endif()
 add_library(
     ${EXTENSION_NAME} SHARED
     src/cpu_timer.cpp
+    src/echion/asyncio_debug.cc
+    src/echion/asyncio_discovery.cc
     src/echion/danger.cc
     src/echion/frame.cc
     src/echion/greenlets.cc

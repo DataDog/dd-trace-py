@@ -156,18 +156,19 @@ def test_class_subprocess(pytester, monkeypatch):
         import asyncio
         import os
         from pathlib import Path
-        import unittest
         import pytest
+        from tests.contrib.asyncio.utils import AsyncioTestCase
 
         MODE = os.getenv("CHILD_MODE", "parent")
 
-        class TestCase(unittest.IsolatedAsyncioTestCase):
+        class TestCase(AsyncioTestCase):
             async def asyncSetUp(self):
                 assert MODE == "child"
                 assert os.getpid() != int(os.environ["PARENT_PID"])
                 self.loop = asyncio.get_running_loop()
 
             async def asyncTearDown(self):
+                await asyncio.sleep(0)
                 assert asyncio.get_running_loop() is self.loop
                 with Path(os.environ["EVENTS"]).open("a") as stream:
                     stream.write(self._testMethodName + "\\n")
@@ -179,7 +180,7 @@ def test_class_subprocess(pytester, monkeypatch):
                 assert os.environ["CASE"] in ("one", "two")
 
             @pytest.mark.subprocess(env={"CHILD_MODE": "child", "PYTHONOPTIMIZE": "1"})
-            def test_failure(self):
+            async def test_failure(self):
                 assert False, "class assertion must execute"
         """
     )
@@ -307,6 +308,30 @@ def test_snapshot_comparison_outcomes(monkeypatch, body, outcome):
     monkeypatch.setattr(session._client, "_request", lambda *args, **kwargs: (400, body))
     with pytest.raises(outcome, match=body.decode()):
         session.verify([], timeout=1)
+
+
+def test_snapshot_disables_stats_before_start(monkeypatch):
+    events = []
+    writer = utils.ddtrace.tracer._span_aggregator.writer
+
+    monkeypatch.setattr(writer, "flush_queue", lambda *args, **kwargs: events.append("flush"))
+    monkeypatch.setattr(
+        writer,
+        "set_test_session_token",
+        lambda token, compute_stats_enabled=None: events.append(("token", compute_stats_enabled)),
+    )
+
+    def request(client, method, url, **kwargs):
+        if url.startswith("/test/session/start"):
+            events.append("start")
+        return 200, b""
+
+    monkeypatch.setattr(utils.TestAgentClient, "_request", request)
+
+    with utils.snapshot_context("trace-only"):
+        events.append("test")
+
+    assert events[:4] == ["flush", ("token", False), "start", "test"]
 
 
 def test_testagent_connection_failure(monkeypatch):

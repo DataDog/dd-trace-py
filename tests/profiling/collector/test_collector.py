@@ -1,14 +1,15 @@
 import importlib
 import sys
 import types
+from typing import Any
 
 import pytest
 
 from ddtrace.profiling import collector
 
 
-def _test_repr(collector_class: type[collector.Collector], s: str) -> None:
-    assert repr(collector_class()) == s
+def _test_repr(collector_class: type[collector.Collector], s: str, **kwargs: Any) -> None:
+    assert repr(collector_class(**kwargs)) == s
 
 
 def test_capture_sampler() -> None:

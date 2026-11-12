@@ -26,7 +26,7 @@ def _record_event(
     has_codeowners: Optional[bool] = False,
     is_unsupported_ci: Optional[bool] = False,
     early_flake_detection_abort_reason: Optional[str] = None,
-):
+) -> None:
     log.debug(
         "Recording event telemetry: event=%s"
         ", event_type=%s"
@@ -74,7 +74,7 @@ def record_event_created(
     test_framework: TEST_FRAMEWORKS,
     has_codeowners: Optional[bool] = None,
     is_unsupported_ci: Optional[bool] = None,
-):
+) -> None:
     if event_type == EVENT_TYPES.TEST:
         log.warning("Test events should be recorded with record_event_test_created")
         return
@@ -98,7 +98,7 @@ def record_event_finished(
     has_codeowners: bool = False,
     is_unsupported_ci: bool = False,
     early_flake_detection_abort_reason: Optional[str] = None,
-):
+) -> None:
     if event_type == EVENT_TYPES.TEST:
         log.warning("Test events should be recorded with record_event_test_finished")
         return
@@ -113,7 +113,7 @@ def record_event_finished(
     )
 
 
-def record_manual_api_event_created(event_type: EVENT_TYPES):
+def record_manual_api_event_created(event_type: EVENT_TYPES) -> None:
     # Note: _created suffix is added in cases we were to change the metric name in the future.
     # The current metric applies to event creation even though it does not specify it
     telemetry_writer.add_count_metric(
@@ -121,7 +121,7 @@ def record_manual_api_event_created(event_type: EVENT_TYPES):
     )
 
 
-def record_events_enqueued_for_serialization(events_count: int):
+def record_events_enqueued_for_serialization(events_count: int) -> None:
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION, events_count
     )
@@ -130,7 +130,7 @@ def record_events_enqueued_for_serialization(events_count: int):
 def record_event_created_test(
     test_framework: Optional[TEST_FRAMEWORKS],
     is_benchmark: bool = False,
-):
+) -> None:
     log.debug("Recording test event created: test_framework=%s, is_benchmark=%s", test_framework, is_benchmark)
     tags: list[tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
 
@@ -159,7 +159,7 @@ def record_event_finished_test(
     has_failed_all_retries: bool = False,
     ci_provider_name: str = UNSUPPORTED_PROVIDER,
     is_auto_injected: bool = False,
-):
+) -> None:
     log.debug(
         "Recording test event finished: test_framework=%s"
         ", is_new=%s"

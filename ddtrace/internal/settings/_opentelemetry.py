@@ -30,16 +30,6 @@ def _with_intake_auth(configured: str, signal_endpoint_env_var: str) -> str:
     return f"{configured},{api_key_header}" if configured else api_key_header
 
 
-def _default_protocol(config: "ExporterConfig", signal_endpoint_env_var: str = "") -> str:
-    """The protocol to fall back on when no signal-specific one is set.
-
-    Agentless to our intake overrides the gRPC default because the intake speaks https only.
-    """
-    if _targets_agentless_intake(signal_endpoint_env_var) and "OTEL_EXPORTER_OTLP_PROTOCOL" not in env:
-        return "http/protobuf"
-    return config.PROTOCOL
-
-
 def _default_endpoint(config: "ExporterConfig", protocol: str, signal_path: str = "") -> str:
     if agentless_config.enabled and "OTEL_EXPORTER_OTLP_ENDPOINT" not in env:
         return _agentless_endpoint(signal_path)
@@ -57,7 +47,7 @@ def _derive_logs_endpoint(config: "ExporterConfig"):
 
 
 def _derive_logs_protocol(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", _default_protocol(config, "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"))
+    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", config.PROTOCOL)
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
@@ -78,7 +68,7 @@ def _derive_metrics_endpoint(config: "ExporterConfig"):
 def _derive_metrics_protocol(config: "ExporterConfig"):
     return get_config(
         ["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"],
-        _default_protocol(config, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
+        config.PROTOCOL,
     )
 
 
@@ -143,9 +133,8 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
 def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
     """Endpoint for the native OTLP trace-metrics exporter (client-computed span stats).
 
-    libdatadog only supports HTTP/JSON for this exporter, so — unlike the SDK's protocol-aware
-    ``METRICS_ENDPOINT`` (which defaults to the gRPC endpoint with no ``/v1/metrics`` path) — this
-    always resolves an HTTP ``/v1/metrics`` endpoint, mirroring ``_derive_traces_endpoint``.
+    Unlike the protocol-aware METRICS_ENDPOINT, this always resolves an HTTP /v1/metrics
+    endpoint because libdatadog only supports HTTP/JSON for trace metrics.
     """
     # Signal-specific endpoint takes precedence (full URL, no path appended).
     if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
@@ -183,7 +172,7 @@ class ExporterConfig(DDConfig):
     DEFAULT_METRICS_METRIC_READER_EXPORT_INTERVAL: int = 10000
     DEFAULT_METRICS_METRIC_READER_EXPORT_TIMEOUT: int = 7500
 
-    PROTOCOL = DDConfig.v(t.Optional[str], "otlp.protocol", default="grpc")
+    PROTOCOL = DDConfig.v(t.Optional[str], "otlp.protocol", default="http/protobuf")
     ENDPOINT = DDConfig.d(str, _derive_endpoint)
     HEADERS = DDConfig.v(str, "otlp.headers", default=DEFAULT_HEADERS)
     TIMEOUT = DDConfig.v(int, "otlp.timeout", default=DEFAULT_TIMEOUT)

@@ -5,7 +5,7 @@ from copy import deepcopy
 import json
 import re
 from typing import Any
-from typing import Optional  # noqa:F401
+from typing import Optional
 from typing import TypedDict
 from urllib.parse import urlparse
 
@@ -13,14 +13,14 @@ from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
-from ddtrace.aiguard._types import MCP  # noqa:F401
-from ddtrace.aiguard._types import ContentPart  # noqa:F401
+from ddtrace.aiguard._types import MCP
+from ddtrace.aiguard._types import ContentPart
 from ddtrace.aiguard._types import Evaluation
-from ddtrace.aiguard._types import Function  # noqa:F401
-from ddtrace.aiguard._types import ImageURL  # noqa:F401
+from ddtrace.aiguard._types import Function
+from ddtrace.aiguard._types import ImageURL
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import Message
-from ddtrace.aiguard._types import ToolCall  # noqa:F401
+from ddtrace.aiguard._types import ToolCall
 from ddtrace.aiguard.middleware import _MIDDLEWARES
 from ddtrace.aiguard.middleware import AIGuardContext
 from ddtrace.aiguard.middleware import AIGuardRequest
@@ -90,7 +90,7 @@ _RESERVED_EXTRA_TAGS = frozenset(
         _SPAN_MEASURED_KEY,
     )
 )
-_RESERVED_EXTRA_STRUCT_KEYS = frozenset(("messages", "attack_categories", "sds", "tag_probs"))
+_RESERVED_EXTRA_STRUCT_KEYS = frozenset(("messages", "mcp_servers", "attack_categories", "sds", "tag_probs"))
 # Root span tags that anomaly detection reads under their OTel names when OTel semantics are enabled.
 _OTEL_ANOMALY_SOURCE_TAGS = {
     http.USER_AGENT: otel_http.USER_AGENT_ORIGINAL,
@@ -572,7 +572,12 @@ class AIGuardClient:
                     if redaction_enabled:
                         span.set_tag(AI_GUARD.REDACTED_TAG, "true" if redacted else "false")
 
-                    meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)}
+                    meta_struct: dict[str, Any] = {
+                        "messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)
+                    }
+                    # Resolves the mcp.server_id of the tool calls in messages to the server it names.
+                    if mcp_servers:
+                        meta_struct["mcp_servers"] = deepcopy(mcp_servers)
                     span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
                     if attack_categories:
@@ -715,7 +720,7 @@ class AIGuardClient:
             target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
             conn.request("POST", target, json_body, self._headers)
             resp = conn.getresponse()
-            return Response.from_http_response(resp)  # type: ignore[no-any-return,no-untyped-call]
+            return Response.from_http_response(resp)
         finally:
             conn.close()
 

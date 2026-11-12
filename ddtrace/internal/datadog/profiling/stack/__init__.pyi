@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Sequence
 from types import FrameType
+from types import ModuleType
 from typing import Optional
 from typing import Union
 
@@ -112,7 +113,8 @@ def weak_link_tasks(parent: asyncio.Task, child: asyncio.Future) -> None: ...
 def init_asyncio(
     scheduled_tasks: Sequence[asyncio.Task],
     eager_tasks: Optional[Sequence[asyncio.Task]],
-) -> None: ...
+    asyncio_c: Optional[ModuleType] = None,
+) -> bool: ...
 
 # Greenlet support
 
