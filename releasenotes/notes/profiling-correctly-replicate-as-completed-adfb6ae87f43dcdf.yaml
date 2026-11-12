@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixed an issue where awaitables passed to ``asyncio.as_completed`` were scheduled
+    immediately when the function was called instead of on first iteration, on Python 3.12 and earlier.
