@@ -1,4 +1,3 @@
-from ddtrace import config
 from ddtrace.contrib.internal.kombu.utils import HEADER_POS
 from ddtrace.contrib.internal.kombu.utils import PUBLISH_BODY_IDX
 from ddtrace.contrib.internal.kombu.utils import get_exchange_from_args
@@ -14,6 +13,11 @@ log = get_logger(__name__)
 
 def handle_kombu_produce(args, kwargs, span):
     from . import data_streams_processor as processor
+
+    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
+    p = processor()
+    if p is None:
+        return
 
     routing_key = get_routing_key_from_args(args)
     exchange = get_exchange_from_args(args)
@@ -37,24 +41,28 @@ def handle_kombu_produce(args, kwargs, span):
             if value is not None:
                 pathway_tags.append(f"{prefix}:{value}")
 
-    if (p := processor()) is not None:
-        ctx = p.set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
-        DsmPathwayCodec.encode(ctx, args[HEADER_POS])
+    ctx = p.set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
+    DsmPathwayCodec.encode(ctx, args[HEADER_POS])
 
 
 def handle_kombu_consume(instance, message, span):
     from . import data_streams_processor as processor
 
+    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
+    p = processor()
+    if p is None:
+        return
+
     payload_size = 0
     payload_size += _calculate_byte_size(message.body)
     payload_size += _calculate_byte_size(message.headers)
 
-    if (p := processor()) is not None:
-        ctx = DsmPathwayCodec.decode(message.headers, p)
-        queue = instance.queues[0].name if len(instance.queues) > 0 else ""
-        ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
+    ctx = DsmPathwayCodec.decode(message.headers, p)
+    queue = instance.queues[0].name if len(instance.queues) > 0 else ""
+    ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
 
 
-if config._data_streams_enabled:
-    core.on("kombu.amqp.publish.pre", handle_kombu_produce)
-    core.on("kombu.amqp.receive.post", handle_kombu_consume)
+# DSM2-599: handlers are subscribed unconditionally, so remote config can
+# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+core.on("kombu.amqp.publish.pre", handle_kombu_produce)
+core.on("kombu.amqp.receive.post", handle_kombu_consume)

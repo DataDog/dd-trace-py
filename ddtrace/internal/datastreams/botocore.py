@@ -7,7 +7,6 @@ from typing import Optional
 from typing import cast
 from urllib import parse
 
-from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
@@ -161,11 +160,15 @@ def calculate_eventbridge_payload_size(message: dict[str, Any], trace_data: Opti
 def handle_kinesis_produce(
     ctx: Any, stream: str, dd_ctx_json: dict[str, Any], record: dict[str, Any], *args: Any
 ) -> None:
-    if config._data_streams_enabled:
-        if "_datadog" not in dd_ctx_json:
-            dd_ctx_json["_datadog"] = {}
-        if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
-            inject_context(dd_ctx_json["_datadog"], "kinesis", stream, record)
+    from . import data_streams_processor as processor
+
+    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
+    if processor() is None:
+        return
+    if "_datadog" not in dd_ctx_json:
+        dd_ctx_json["_datadog"] = {}
+    if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
+        inject_context(dd_ctx_json["_datadog"], "kinesis", stream, record)
 
 
 def handle_eventbridge_produce(
@@ -180,6 +183,10 @@ def handle_eventbridge_produce(
     # `event_entry` is the specific event being mutated while `request_params` is the
     # full PutEvents payload. Fall back to `request_params` for any caller that only
     # passes a single message-like object.
+    from . import data_streams_processor as processor
+
+    if processor() is None:
+        return
     if not event_entry:
         event_entry = request_params
     payload_size = calculate_eventbridge_payload_size(event_entry, trace_data)
@@ -195,6 +202,10 @@ def handle_sqs_sns_produce(
     message: Optional[dict[str, Any]] = None,
 ) -> None:
     # if a message wasn't included, that means that the message is in the params object
+    from . import data_streams_processor as processor
+
+    if processor() is None:
+        return
     if not message:
         message = params
     dsm_identifier = None
@@ -206,6 +217,10 @@ def handle_sqs_sns_produce(
 
 
 def handle_sqs_prepare(params: dict[str, Any]) -> None:
+    from . import data_streams_processor as processor
+
+    if processor() is None:
+        return
     if "MessageAttributeNames" not in params:
         params.update({"MessageAttributeNames": ["_datadog"]})
     elif "_datadog" not in params["MessageAttributeNames"]:
@@ -265,6 +280,10 @@ def get_datastreams_context(message: dict[str, Any]) -> Optional[dict[str, Any]]
 def handle_sqs_receive(_, params: dict[str, Any], result: dict[str, Any], *args: Any) -> None:
     from . import data_streams_processor as processor
 
+    p = processor()
+    if p is None:
+        return
+
     queue_name = get_queue_name(params)
 
     for message in result.get("Messages", []):
@@ -272,9 +291,8 @@ def handle_sqs_receive(_, params: dict[str, Any], result: dict[str, Any], *args:
             context_json = get_datastreams_context(message)
             payload_size = calculate_sqs_payload_size(message)
 
-            if (p := processor()) is not None:
-                ctx = DsmPathwayCodec.decode(cast(dict[Any, Any], context_json), p)
-                ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
+            ctx = DsmPathwayCodec.decode(cast(dict[Any, Any], context_json), p)
+            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
@@ -288,6 +306,11 @@ def record_data_streams_path_for_kinesis_stream(
 ) -> None:
     from . import data_streams_processor as processor
 
+    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
+    p = processor()
+    if p is None:
+        return
+
     stream = get_stream(params)
 
     if not stream:
@@ -295,16 +318,15 @@ def record_data_streams_path_for_kinesis_stream(
         raise StreamMetadataNotFound()
 
     payload_size = calculate_kinesis_payload_size(record)
-    if (p := processor()) is not None:
-        ctx = DsmPathwayCodec.decode(context_json, p)
-        # The arrival time is only a fallback start for records that carry no upstream DSM context.
-        start_override = None if ctx.hash else time_estimate
-        ctx.set_checkpoint(
-            ["direction:in", "topic:" + stream, "type:kinesis"],
-            edge_start_sec_override=start_override,
-            pathway_start_sec_override=start_override,
-            payload_size=payload_size,
-        )
+    ctx = DsmPathwayCodec.decode(context_json, p)
+    # The arrival time is only a fallback start for records that carry no upstream DSM context.
+    start_override = None if ctx.hash else time_estimate
+    ctx.set_checkpoint(
+        ["direction:in", "topic:" + stream, "type:kinesis"],
+        edge_start_sec_override=start_override,
+        pathway_start_sec_override=start_override,
+        payload_size=payload_size,
+    )
 
 
 def handle_kinesis_receive(
@@ -321,10 +343,11 @@ def handle_kinesis_receive(
         log.warning("Failed to report data streams monitoring info for kinesis", exc_info=True)
 
 
-if config._data_streams_enabled:
-    core.on("botocore.kinesis.update_record", handle_kinesis_produce)
-    core.on("botocore.eventbridge.update_messages", handle_eventbridge_produce)
-    core.on("botocore.sqs_sns.update_messages", handle_sqs_sns_produce)
-    core.on("botocore.sqs.ReceiveMessage.pre", handle_sqs_prepare)
-    core.on("botocore.sqs.ReceiveMessage.post", handle_sqs_receive)
-    core.on("botocore.kinesis.GetRecords.post", handle_kinesis_receive)
+# DSM2-599: handlers are subscribed unconditionally, so remote config can
+# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+core.on("botocore.kinesis.update_record", handle_kinesis_produce)
+core.on("botocore.eventbridge.update_messages", handle_eventbridge_produce)
+core.on("botocore.sqs_sns.update_messages", handle_sqs_sns_produce)
+core.on("botocore.sqs.ReceiveMessage.pre", handle_sqs_prepare)
+core.on("botocore.sqs.ReceiveMessage.post", handle_sqs_receive)
+core.on("botocore.kinesis.GetRecords.post", handle_kinesis_receive)

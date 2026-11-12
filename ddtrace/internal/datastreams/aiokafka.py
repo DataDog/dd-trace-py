@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 
-from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
@@ -173,9 +172,10 @@ def dsm_aiokafka_message_commit(instance: GroupCoordinator, args: Any, kwargs: A
             )
 
 
-if config._data_streams_enabled:
-    core.on("aiokafka.send.start", dsm_aiokafka_send_start)
-    core.on("aiokafka.send.completed", dsm_aiokafka_send_completed)
-    core.on("aiokafka.getone.message", dsm_aiokafka_message_consume)
-    core.on("aiokafka.getmany.message", dsm_aiokafka_many_messages_consume)
-    core.on("aiokafka.commit.end", dsm_aiokafka_message_commit)
+# DSM2-599: handlers are subscribed unconditionally, so remote config can
+# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+core.on("aiokafka.send.start", dsm_aiokafka_send_start)
+core.on("aiokafka.send.completed", dsm_aiokafka_send_completed)
+core.on("aiokafka.getone.message", dsm_aiokafka_message_consume)
+core.on("aiokafka.getmany.message", dsm_aiokafka_many_messages_consume)
+core.on("aiokafka.commit.end", dsm_aiokafka_message_commit)
