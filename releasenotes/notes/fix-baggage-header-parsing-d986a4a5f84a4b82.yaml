@@ -1,0 +1,3 @@
+fixes:
+  - |
+    tracing: Fixes inconsistent handling of oversized or malformed baggage headers.

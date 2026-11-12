@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    code origin: Fixes an issue on Python 3.10 where an exception raised from an async generator
+    decorated with ``tracer.wrap()`` would surface as ``TypeError``.
