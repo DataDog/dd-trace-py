@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._otel_remapper import select_exporter
 
 
 DEFAULT_HOSTNAME = "localhost"
@@ -74,7 +75,7 @@ def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
     if config._trace_otel_semantics_enabled:
         return True
     return (
-        env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
+        select_exporter("OTEL_TRACES_EXPORTER", env.get("OTEL_TRACES_EXPORTER", "")) == "otlp"
         and not config._trace_agent_protocol_version
         and not config._trace_api_version
     )
