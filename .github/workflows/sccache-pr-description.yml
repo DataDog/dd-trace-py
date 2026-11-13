@@ -1,0 +1,38 @@
+name: Update sccache PR description
+on:
+  push:
+    branches: [juanjo/sccache-startup-validation]
+    paths: [.github/workflows/sccache-pr-description.yml]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  update-description:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain rationale and diagnostic lifetime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          url = 'https://api.github.com/repos/DataDog/dd-trace-py/pulls/21758'
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'}
+          with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as response:
+              pr = json.load(response)
+          assert pr['head']['sha'] == '44618dce84fc87883499e714b64ee5f903382377', 'PR head changed; inspect before editing'
+          body = pr['body']
+          anchor = 'Skip sccache initialization for extension hashing.'
+          reason = "Extension hashing does not compile anything, so it does not need the compiler cache and should not wait for its server to become available."
+          lifetime = "### Intended lifetime\n\n**To keep:**\n\n- The `ext_hashes` initialization skip and its regression test.\n- Cache health-check timing, error/fallback messages on stderr, and byte-safe error rendering in `setup.py`.\n- Live cache-message forwarding in `build-wheel-helpers.sh`, full build-log preservation, and the startup/logging regression tests, CI wiring, and documentation covering these behaviors.\n\n**Temporary debugging support:**\n\n- The new `build_log_tail()` capture in `sccache-watchdog.py`, its two tail-specific tests, and the corresponding watchdog documentation.\n\nRemove this extra tail capture once the underlying slow-build/cache-server issue is understood, or when the existing macOS watchdog is retired; keep the permanent changes above.\n"
+          assert body.count(anchor) == 1, 'Rationale anchor changed'
+          assert '### Intended lifetime' not in body, 'Lifetime section already present'
+          assert body.count('## Testing\n') == 1, 'Testing heading changed'
+          updated = body.replace(anchor, anchor + ' ' + reason, 1).replace('## Testing\n', lifetime + '\n## Testing\n', 1)
+          request = urllib.request.Request(url, data=json.dumps({'body': updated}).encode(), headers=headers, method='PATCH')
+          with urllib.request.urlopen(request) as response:
+              saved = json.load(response)
+          assert reason in saved['body'] and lifetime in saved['body']
+          print('Updated PR #21758 description; code and head SHA unchanged.')
+          PY
