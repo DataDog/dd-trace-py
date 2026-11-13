@@ -209,11 +209,17 @@ def repack_wheel(wheel: Path, local_version: str, output_dir: Path) -> Path:
 
     The wheel is unpacked and packed again, because the version is also in the .dist-info
     and .data directory names and in METADATA. "wheel pack" makes a new RECORD file.
+
+    "wheel pack" takes the name in the filename from the .dist-info directory. Some build
+    backends keep the project name as it is (for example "zope.interface"), but adms accepts
+    only the normalized name (for example "zope_interface"). Thus the new directory names
+    use the normalized name.
     """
     name, version, _, tags = parse_wheel_filename(wheel.name)
     if version.local is not None:
         raise BuildError(f"{wheel.name} already has a local version")
     new_version = f"{version}+{local_version}"
+    new_name = name.replace("-", "_")
     with tempfile.TemporaryDirectory() as temporary:
         unpack_dir = Path(temporary, "unpacked")
         pack_dir = Path(temporary, "packed")
@@ -227,8 +233,8 @@ def repack_wheel(wheel: Path, local_version: str, output_dir: Path) -> Path:
         set_metadata_version(dist_info / "METADATA", old_version, new_version)
         data = root / f"{dist_name}-{old_version}.data"
         if data.is_dir():
-            data.rename(root / f"{dist_name}-{new_version}.data")
-        dist_info.rename(root / f"{dist_name}-{new_version}.dist-info")
+            data.rename(root / f"{new_name}-{new_version}.data")
+        dist_info.rename(root / f"{new_name}-{new_version}.dist-info")
         pack_dir.mkdir()
         _run([sys.executable, "-m", "wheel", "pack", "--dest-dir", str(pack_dir), str(root)])
         (packed,) = pack_dir.glob("*.whl")
