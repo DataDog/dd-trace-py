@@ -1,4 +1,4 @@
-"""Unit tests for crashtracking ↔ stack profiler handler coordination."""
+"""Unit tests for crashtracking and stack profiler handler coordination."""
 
 from __future__ import annotations
 
@@ -79,11 +79,7 @@ def test_start_reinstalls_stack_handler_on_success_before_resume() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 def test_handler_swap_lock_blocks_nested_faulthandler_during_crashtracking_start() -> None:
-    """crashtracking.start must hold handler_swap_lock across pause/swap/resume.
-
-    Sampler::pause is not nested: a concurrent faulthandler.enable that resumes
-    first would clear crashtracking's pause while handlers are still swapped.
-    """
+    """handler_swap_lock must stay held across pause/swap/resume (pause is not nested)."""
     from ddtrace.internal.core import crashtracking
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.internal.datadog.profiling.stack._handler_swap_lock import handler_swap_lock
@@ -121,12 +117,7 @@ def test_handler_swap_lock_blocks_nested_faulthandler_during_crashtracking_start
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 def test_start_reinstalls_when_keyboardinterrupt_during_uninstall() -> None:
-    """KeyboardInterrupt after uninstall must still reinstall and resume.
-
-    uninstall sits inside the try/finally with init: BaseException skips
-    except Exception, so leaving uninstall outside finally would leave sampling
-    paused without recovery handlers when the app catches the interrupt.
-    """
+    """KeyboardInterrupt after uninstall must still reinstall and resume."""
     from ddtrace.internal.core import crashtracking
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config

@@ -252,12 +252,7 @@ def test_fast_copy_fork_during_warmup() -> None:
     err=None,
 )
 def test_fast_copy_faulthandler_enable_after_foreign_during_warmup() -> None:
-    """Foreign handler then faulthandler.enable during warmup must not reclaim.
-
-    If a foreign handler sits on top of ours, uninstall is a no-op. Reclaiming after
-    faulthandler.enable would loop (us -> faulthandler -> foreign -> us) and the
-    warmup deadline would upgrade to safe_memcpy over that chain.
-    """
+    """Foreign handler then faulthandler.enable during warmup must not reclaim."""
     import faulthandler
     import signal
     import time
@@ -388,12 +383,7 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     err=None,
 )
 def test_fast_copy_successful_disable_uninstalls_handler() -> None:
-    """Successful set_fast_copy(False) must drop a dormant recovery handler.
-
-    After disable, handler ops are off so uninstall_segv_handler is a no-op for
-    coordinated installs. Leaving the handler installed lets faulthandler chain
-    to it; set_fast_copy(True) would then reclaim over that chain and form a cycle.
-    """
+    """Successful set_fast_copy(False) must drop a dormant recovery handler."""
     import faulthandler
 
     from ddtrace.internal.datadog.profiling.stack import _stack
@@ -430,13 +420,7 @@ def test_fast_copy_successful_disable_uninstalls_handler() -> None:
     err=None,
 )
 def test_fast_copy_released_uninstall_does_not_latch_foreign_takeover() -> None:
-    """A second uninstall after coordinated release must not sticky-takeover.
-
-    After stop, handlers are still installed and ops stay desired. The first
-    uninstall_segv_handler releases them; a second call sees !installed. Without
-    a released/absent guard that falsely latches foreign takeover and blocks
-    reinstall forever.
-    """
+    """A second uninstall after coordinated release must not sticky-takeover."""
     from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
@@ -471,12 +455,7 @@ def test_fast_copy_released_uninstall_does_not_latch_foreign_takeover() -> None:
     err=None,
 )
 def test_fast_copy_set_true_does_not_overwrite_foreign_while_stopped() -> None:
-    """set_fast_copy(True) must not reclaim over a foreign owner after stop.
-
-    Stop leaves our handlers installed. A library can take SIGSEGV/SIGBUS before
-    the next start; overwriting that owner would build us→foreign→us and skip
-    sticky takeover. Fall back instead.
-    """
+    """set_fast_copy(True) must not reclaim over a foreign owner after stop."""
     import signal
 
     from ddtrace.internal.datadog.profiling.stack import _stack

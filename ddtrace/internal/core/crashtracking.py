@@ -279,26 +279,13 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         # stack module if it is already imported: importing it here would load the
         # native extension and install signal handlers even when profiling is off.
         #
-        # Pause the sampler before the swap (same contract as profiling/_faulthandler.py).
-        # uninstall_segv_handler may call set_fast_copy_enabled(false) / Sampler::stop()
-        # on the sticky-foreign path; doing that while the sampling thread is in
-        # safe_memcpy races with fast_copy_active and the handler transition.
-        # pause_sampling returns:
-        #   True  — paused (safe to swap; must resume)
-        #   False — not running (safe to swap)
-        #   None  — timeout: refuse init so we do not install crashtracking over an
-        #           in-flight safe_memcpy or build a handler cycle.
-        # Gate on is_available, not mere presence in sys.modules: importing
-        # profiling_config can leave the stack package loaded with
-        # is_available=False when the native extension failed. Coordinating
-        # against that stub would treat a missing pause_sampling as a timeout
-        # and disable crash reporting.
-        #
-        # Hold handler_swap_lock for the whole pause/swap/resume so a concurrent
-        # faulthandler.enable/disable cannot resume while we still have the
-        # recovery handler uninstalled (pause is not nested). Import the lock
-        # only when stack is already loaded — a top-level import would load the
-        # native extension even when profiling is off.
+        # Pause before the swap (same as profiling/_faulthandler.py): uninstall may
+        # stop the sampler on the sticky-foreign path, which races with safe_memcpy.
+        # Require is_available, not just sys.modules — a failed native load leaves a
+        # stub whose missing pause_sampling would look like a timeout and kill crash
+        # reporting. Hold handler_swap_lock for the whole pause/swap/resume so
+        # faulthandler cannot resume mid-uninstall (pause is not nested). Import the
+        # lock only when stack is already loaded.
         stack_mod: Optional[ModuleType] = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
         if stack_mod is not None and not getattr(stack_mod, "is_available", False):
             stack_mod = None
@@ -320,9 +307,7 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 if not safe_to_swap:
                     log.error("Failed to start crashtracker: could not pause stack sampler for handler swap")
                     return False
-            # Uninstall inside try/finally (same shape as profiling/_faulthandler.py):
-            # KeyboardInterrupt is BaseException, so an except Exception around
-            # uninstall alone would skip reinstall/resume if SIGINT lands there.
+            # try/finally so KeyboardInterrupt during uninstall still reinstalls/resumes.
             try:
                 if stack_mod is not None:
                     try:
@@ -345,9 +330,7 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
 
                 forksafe.register(crashtracker_fork_handler)
             finally:
-                # Reinstall before resume even when init/register raised: uninstall ran
-                # above, and sampling must not resume without the recovery handler.
-                # Idempotent when the success path already left us installed.
+                # Always reinstall before resume (uninstall already ran; no-op if still installed).
                 if stack_mod is not None:
                     try:
                         stack_mod.reinstall_segv_handler()

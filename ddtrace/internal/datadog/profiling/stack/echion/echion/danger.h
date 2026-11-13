@@ -32,13 +32,11 @@ uninstall_segv_handler();
 bool
 segv_handler_installed();
 
-// True after uninstall_segv_handler restored our previous handlers; cleared when
-// init_segv_catcher successfully reinstalls. Distinguishes a clean release from a
+// Cleared on successful reinstall. Distinguishes a coordinated uninstall from a
 // foreign takeover that left us uninstalled without going through uninstall.
 bool
 segv_handler_released();
 
-// True when both SIGSEGV and SIGBUS are SIG_DFL or SIG_IGN.
 bool
 segv_handlers_are_absent();
 

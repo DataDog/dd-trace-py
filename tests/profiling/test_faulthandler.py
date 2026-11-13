@@ -336,12 +336,7 @@ def test_faulthandler_with_fork() -> None:
     env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_uninstall_not_called_on_pause_timeout() -> None:
-    """When pause_sampling times out (returns None), refuse to enable faulthandler.
-
-    A capture may still be in safe_memcpy; enabling would replace our recovery
-    handler. Uninstall/reinstall are also skipped (reinstall without uninstall
-    would build a handler cycle).
-    """
+    """On pause_sampling timeout, refuse to enable faulthandler (no uninstall/reinstall)."""
     import faulthandler
     from unittest.mock import MagicMock
     from unittest.mock import patch

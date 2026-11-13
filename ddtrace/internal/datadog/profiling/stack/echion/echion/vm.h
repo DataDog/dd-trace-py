@@ -78,12 +78,10 @@ mark_fast_copy_syscall_fallback()
     fast_copy_syscall_fallback = true;
 }
 
-// Install/reclaim while we still want memcpy recovery, or while memcpy is still
-// the active copy method, and no foreign takeover.
-// desired covers warmup (desired set, active cleared). active covers the brief
-// window in set_fast_copy(false) after desired is cleared and before
-// set_fast_copy_enabled finishes clearing active — keep ops enabled so a
-// coordinated uninstall can still drop a live recovery handler.
+// Install/reclaim while desired or still active, and no foreign takeover.
+// desired covers warmup; active covers the brief window in set_fast_copy(false)
+// after desired clears and before active clears — keep ops on so a coordinated
+// uninstall can still drop a live recovery handler.
 inline bool
 fast_copy_handler_ops_enabled()
 {

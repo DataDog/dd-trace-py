@@ -465,8 +465,7 @@ def test_crashtracker_start_failure_reinstalls_segv_handler() -> None:
 
     calls: list[str] = []
     stack_mod = types.ModuleType("ddtrace.internal.datadog.profiling.stack")
-    # start() only coordinates against a stack package with is_available=True
-    # (native extension present). pause_sampling False = sampler not running.
+    # start() only coordinates when is_available; False pause = sampler not running.
     stack_mod.is_available = True  # type: ignore[attr-defined]
     stack_mod.pause_sampling = lambda: False  # type: ignore[attr-defined]
     stack_mod.uninstall_segv_handler = lambda: calls.append("uninstall")  # type: ignore[attr-defined]

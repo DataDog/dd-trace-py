@@ -53,9 +53,8 @@ struct sigaction g_old_bus;
 static std::atomic<int> g_old_segv_reset{ 0 };
 static std::atomic<int> g_old_bus_reset{ 0 };
 
-// Set when uninstall_segv_handler restores at least one of our handlers; cleared
-// on a successful init_segv_catcher. Not atomic: callers hold the GIL / have the
-// sampler paused around these transitions.
+// Set by uninstall_segv_handler; cleared by init_segv_catcher. Not atomic:
+// callers hold the GIL / have the sampler paused around these transitions.
 static bool g_segv_handler_released = false;
 
 thread_local ThreadAltStack t_altstack;
@@ -277,7 +276,6 @@ segv_handler_released()
 static bool
 disposition_is_absent(const struct sigaction& current)
 {
-    // sa_handler aliases sa_sigaction; DFL/IGN are the only "no owner" cases.
     return current.sa_handler == SIG_DFL || current.sa_handler == SIG_IGN;
 }
 
