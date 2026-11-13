@@ -10,6 +10,7 @@ import pytest
 from typing_extensions import TypedDict
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.pydantic_ai import _get_tool_output
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import AgentManifest
@@ -34,6 +35,14 @@ from tests.llmobs._utils import assert_llmobs_span_data
 PYDANTIC_AI_VERSION = parse_version(pydantic_ai.__version__)
 
 TOOL_DESCRIPTION_METADATA = {"description": "Calculates the square of a number"}
+
+
+def test_tool_output_uses_tool_return_value():
+    from pydantic_ai.messages import ToolReturn
+
+    assert _get_tool_output(ToolReturn(return_value="result", content="note for the model")) == "result"
+    assert _get_tool_output(ToolReturn(return_value={"x": 1})) == {"x": 1}
+    assert _get_tool_output("raw") == "raw"
 
 
 @pytest.mark.parametrize(

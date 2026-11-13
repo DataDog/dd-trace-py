@@ -103,6 +103,21 @@ def _collect_dynamic_system_prompts(agent: Any) -> list[Any]:
     return dynamic
 
 
+def _get_tool_output(response: Any) -> Any:
+    """Return the tool result recorded on the span.
+
+    A ``ToolReturn`` keeps the result in ``return_value``; its ``content`` is extra content for the model.
+    Depending on the version, the output may otherwise be a ToolReturnPart or the raw response.
+    """
+    try:
+        from pydantic_ai.messages import ToolReturn
+    except ImportError:
+        ToolReturn = None  # type: ignore[assignment,misc]
+    if ToolReturn is not None and isinstance(response, ToolReturn):
+        return response.return_value
+    return getattr(response, "content", "") or response
+
+
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
     _running_agents: dict[int, list[int]] = {}  # dictionary mapping agent span ID to tool span ID(s)
@@ -234,8 +249,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         output_val = None
         if not span.error:
-            # depending on the version, the output may be a ToolReturnPart or the raw response
-            output_val = getattr(response, "content", "") or response
+            output_val = _get_tool_output(response)
 
         _annotate_llmobs_span_data(
             span,
