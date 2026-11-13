@@ -357,6 +357,12 @@ produce a package that AppSec cannot load.
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+With ``DD_USE_SCCACHE=1``, setup reports each cache-server health-check attempt,
+its duration, and any failure on stderr before falling back to compilation without caching.
+The ``ext_hashes`` command skips this check because hashing does not compile anything.
+CI wheel builds retain the complete output in ``debugwheelhouse/build_*.log`` and
+stream cache health messages to the job log.
+
 The build system compiles many native extensions (CMake C++, Cython, Rust). In CI,
 ``ext_cache.py`` caches compiled ``.so`` files between runs. On a warm run (extensions
 already in cache), the entire ``pip install -e .`` should complete in **under 30s**.
