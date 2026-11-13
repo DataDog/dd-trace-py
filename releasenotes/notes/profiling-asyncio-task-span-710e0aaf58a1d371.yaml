@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where CPU and wall time of an asyncio task could be attributed to another task's
+    endpoint and span when tasks on the same event loop each started their own span.

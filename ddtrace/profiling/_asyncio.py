@@ -122,6 +122,11 @@ def get_running_loop() -> typing.Optional[asyncio.AbstractEventLoop]:
     return None
 
 
+def current_task_id() -> int:
+    """Return id() of the asyncio task running on this thread, or 0 when no task is running."""
+    return 0
+
+
 def _task_get_name(task: asyncio.Task[typing.Any]) -> str:
     return "Task-%d" % id(task)
 
@@ -220,6 +225,19 @@ def _(asyncio: ModuleType) -> None:
 
     globals()["get_running_loop"] = _get_running_loop
     globals()["_task_get_name"] = lambda task: task.get_name()
+
+    # This runs on every span activation. _get_running_loop() returns None instead of raising when no loop runs.
+    _get_running_loop_or_none = asyncio.events._get_running_loop
+    _current_task = asyncio.current_task
+
+    def _current_task_id() -> int:
+        loop = _get_running_loop_or_none()
+        if loop is None:
+            return 0
+        task = _current_task(loop)
+        return 0 if task is None else id(task)
+
+    globals()["current_task_id"] = _current_task_id
 
     init_stack: bool = (config.install or config.stack.enabled) and stack.is_available
 
