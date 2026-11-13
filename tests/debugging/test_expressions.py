@@ -1,14 +1,20 @@
 from dis import dis
 import re
+from time import perf_counter_ns
+from typing import Any
 
 import pytest
 
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import DDExpressionCompilationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
+from ddtrace.debugging._expressions import _bounded
 from ddtrace.debugging._expressions import _is_one_shot_iterator
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._expressions import instanceof
+from ddtrace.debugging._expressions import isdefined
+from ddtrace.debugging._expressions import set_eval_deadline
 from ddtrace.internal.safety import SafeObjectProxy
 
 
@@ -38,12 +44,12 @@ class CustomAttr:
         return object.__getattribute__(self, prop) + "custom"
 
 
-class CustomList(list):
+class CustomList(list[Any]):
     def __getitem__(self, index):
         return str(list.__getitem__(self, index)) + "custom"
 
 
-class CustomDict(dict):
+class CustomDict(dict[str, Any]):
     def __getitem__(self, name):
         return dict.__getitem__(self, name) + "custom"
 
@@ -256,7 +262,7 @@ def test_instanceof_attribute_error_in_mro():
     """instanceof catches AttributeError during MRO attribute access (lines 84-85)."""
 
     class BrokenMeta(type):
-        __module__ = property(lambda _: (_ for _ in ()).throw(AttributeError("no module")))  # type: ignore[assignment]
+        __module__ = property(lambda _: (_ for _ in ()).throw(AttributeError("no module")))
 
     class BrokenClass(metaclass=BrokenMeta):
         pass
@@ -434,3 +440,126 @@ def test_filter_preserves_builtin_collection_type(coll_type):
     coll = coll_type([1, 2, 3])
     result = dd_compile({"filter": [{"ref": "c"}, True]})({"c": coll})
     assert type(result) is coll_type
+
+
+def test_isdefined_does_not_swallow_evaluation_timeout():
+    # A preemption timeout landing inside isDefined() must propagate: the
+    # deadline does not fire again, so swallowing it would let the rest of
+    # the expression run unbounded.
+    def predicate(_locals):
+        raise EvaluationTimeoutError()
+
+    with pytest.raises(EvaluationTimeoutError):
+        isdefined(predicate, {})
+
+
+@pytest.fixture
+def eval_deadline():
+    def _set(timeout_ms):
+        set_eval_deadline(perf_counter_ns() + int(timeout_ms * 1_000_000))
+
+    yield _set
+    set_eval_deadline(None)
+
+
+class _CountingList(list[Any]):
+    """A list subclass whose __len__ and iteration are observable."""
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.len_calls = 0
+        self.pulled = 0
+
+    def __len__(self):
+        self.len_calls += 1
+        return super().__len__()
+
+    def __iter__(self):
+        for e in super().__iter__():
+            self.pulled += 1
+            yield e
+
+
+@pytest.mark.parametrize("size", [0, 1, 3, 4, 5, 100, 1000])
+@pytest.mark.parametrize(
+    "make",
+    [list, tuple, set, frozenset, lambda r: dict.fromkeys(r).items(), lambda r: iter(list(r)), _CountingList],
+)
+def test_bounded_yields_every_element(eval_deadline, make, size):
+    eval_deadline(10_000)
+    coll = make(range(size))
+    assert sorted(e[0] if isinstance(e, tuple) else e for e in _bounded(coll)) == list(range(size))
+
+
+def test_bounded_does_not_call_user_len(eval_deadline):
+    eval_deadline(10_000)
+    coll = _CountingList(range(100))
+
+    assert any(e == 50 for e in _bounded(coll))
+    assert coll.len_calls == 0
+
+
+def test_bounded_does_not_pull_ahead_of_consumer(eval_deadline):
+    # User iteration code must not run for elements the predicate never asks for.
+    eval_deadline(10_000)
+    coll = _CountingList(range(1000))
+
+    assert any(e == 9 for e in _bounded(coll))
+    assert coll.pulled == 10
+
+
+def test_bounded_sized_visits_elements_added_while_iterating(eval_deadline):
+    # The length of sized built-ins is taken upfront; growth must not cut
+    # the iteration short.
+    eval_deadline(10_000)
+    coll = list(range(10))
+    seen = []
+    for e in _bounded(coll):
+        seen.append(e)
+        if e < 20:
+            coll.append(e + 10)
+    assert seen == coll
+
+
+@pytest.mark.parametrize("make", [list, _CountingList, lambda r: dict.fromkeys(r).items()])
+def test_bounded_times_out(eval_deadline, make):
+    eval_deadline(20)
+    coll = make(range(10**7))
+    start = perf_counter_ns()
+
+    with pytest.raises(EvaluationTimeoutError):
+        for _ in _bounded(coll):
+            pass
+
+    assert perf_counter_ns() - start < 1_000_000_000
+
+
+def test_bounded_without_deadline_is_passthrough():
+    coll = _CountingList(range(3))
+    assert _bounded(coll) is coll
+
+
+@pytest.mark.parametrize("coll", [(1, 2), frozenset({1, 2, 3}), range(4), "abcd"])
+def test_bounded_returns_small_immutable_collections_as_is(eval_deadline, coll):
+    # No deadline check would happen before the end of these anyway.
+    eval_deadline(10_000)
+    assert _bounded(coll) is coll
+
+
+def test_bounded_small_list_growing_is_still_bounded(eval_deadline):
+    # A small list can grow while it is iterated, so it is never returned
+    # as-is: the growth must stay under the deadline.
+    eval_deadline(20)
+    coll = [0]
+
+    with pytest.raises(EvaluationTimeoutError):
+        for e in _bounded(coll):
+            coll.append(e + 1)
+
+
+def test_compiled_expression_frames_are_named():
+    code = dd_compile({"any": [{"ref": "c"}, {"gt": [{"ref": "@it"}, 0]}]}).__code__
+    assert code.co_filename == "<debugger-expression>"
+    assert code.co_name == "<expr>"
+    if hasattr(code, "co_qualname"):
+        assert code.co_qualname == "<expr>"

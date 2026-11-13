@@ -1,10 +1,10 @@
 import os
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
-from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
@@ -20,18 +20,34 @@ CaptorType = Callable[[list[tuple[str, Any]], list[tuple[str, Any]], ExcInfoType
 log = get_logger(__name__)
 
 _EVAL_ERROR_KINDS: dict[str, str] = {SignalState.COND_ERROR: "condition", SignalState.EVAL_ERROR: "value"}
+_EVAL_TIMEOUT_KINDS: dict[str, str] = {SignalState.COND_TIMEOUT: "condition", SignalState.EVAL_TIMEOUT: "value"}
+
+# Log signals in these states carry a message (or evaluation errors) worth sending.
+_ENQUEUE_STATES = frozenset(
+    {
+        SignalState.DONE,
+        SignalState.COND_ERROR,
+        SignalState.COND_TIMEOUT,
+        SignalState.EVAL_ERROR,
+        SignalState.EVAL_TIMEOUT,
+    }
+)
 
 meter = metrics.get_meter("signal.collector")
 # Guardrail metrics use the unprefixed names shared by all tracers in the debugger namespace.
 guardrails_meter = metrics.get_meter("")
 
 
-def _event_type(signal: Signal) -> str:
-    probe = signal.probe
-    # Capture expressions produce snapshot data, and share the snapshot rate and budget.
-    return (
-        "snapshot" if isinstance(probe, LogProbeMixin) and (probe.take_snapshot or probe.capture_expressions) else "log"
-    )
+def _guardrail_tags(signal: Signal, reason: str, evaluation_kind: Optional[str] = None) -> dict[str, str]:
+    # __type__ is each Signal subclass's own event_type -- see model.py,
+    # log.py, snapshot.py, metric_sample.py, tracing.py, trigger.py.
+    tags = {"reason": reason, "probe_id": signal.probe.probe_id}
+    event_type = signal.__type__
+    if event_type is not None:
+        tags["event_type"] = event_type
+    if evaluation_kind is not None:
+        tags["evaluation_kind"] = evaluation_kind
+    return tags
 
 
 class SignalCollector:
@@ -57,10 +73,7 @@ class SignalCollector:
             self._tracks[log_signal.__track__].put(log_signal)
         except BufferFull:
             log.debug("Encoder buffer full")
-            guardrails_meter.increment(
-                "events.dropped",
-                tags={"reason": "queueFull", "event_type": _event_type(log_signal)},
-            )
+            guardrails_meter.increment("events.dropped", tags=_guardrail_tags(log_signal, "queueFull"))
         except KeyError:
             log.error("No encoder for signal track %s", log_signal.__track__)
 
@@ -69,9 +82,13 @@ class SignalCollector:
             # Condition evaluated to False — not a guardrail event, no metric
             pass
         elif signal.state is SignalState.SKIP_COND_ERROR:
+            # Error-throttle skips aren't part of the events.skipped reason
+            # vocabulary (evaluationErrorThrottled) — no metric.
+            pass
+        elif signal.state in _EVAL_TIMEOUT_KINDS:
             guardrails_meter.increment(
                 "events.skipped",
-                tags={"reason": "evaluationErrorThrottled", "event_type": _event_type(signal)},
+                tags=_guardrail_tags(signal, "evaluationTimeout", evaluation_kind=_EVAL_TIMEOUT_KINDS[signal.state]),
             )
         elif signal.state in _EVAL_ERROR_KINDS:
             guardrails_meter.increment(
@@ -81,20 +98,17 @@ class SignalCollector:
         elif signal.state is SignalState.SKIP_RATE_GLOBAL:
             guardrails_meter.increment(
                 "events.skipped",
-                tags={"reason": "rateLimitGlobal", "event_type": _event_type(signal)},
+                tags=_guardrail_tags(signal, "rateLimitGlobal"),
             )
         elif signal.state is SignalState.SKIP_RATE_PROBE:
             guardrails_meter.increment(
                 "events.skipped",
-                tags={"reason": "rateLimitProbe", "event_type": _event_type(signal)},
+                tags=_guardrail_tags(signal, "rateLimitProbe"),
             )
         elif signal.state is SignalState.SKIP_BUDGET or signal.state is SignalState.SKIP_CAPPED:
-            # Both a session's per-probe budget and the coordinated sampling cap
-            # of one snapshot per probe per trace are invocation budgets.
-            guardrails_meter.increment(
-                "events.skipped",
-                tags={"reason": "budgetExceededInvocation", "event_type": _event_type(signal)},
-            )
+            # budgetExceededInvocation isn't part of the events.skipped
+            # reason vocabulary — no metric.
+            pass
         elif signal.state is SignalState.DONE:
             meter.increment("signal", tags={"probe_id": signal.probe.probe_id})
 
@@ -106,13 +120,30 @@ class SignalCollector:
                 tags={"probe_type": type(signal.probe).__name__, "evaluation_kind": "condition"},
             )
 
-        # Emit capture and template evaluation durations for snapshots
+        # Emit capture/template evaluation durations and capture.incomplete for snapshots
         if isinstance(signal, Snapshot):
             if signal._template_eval_duration_ms is not None:
                 guardrails_meter.distribution(
                     "evaluation.duration",
                     signal._template_eval_duration_ms,
                     tags={"probe_type": type(signal.probe).__name__, "evaluation_kind": "template"},
+                )
+            if signal._segment_timed_out:
+                guardrails_meter.increment(
+                    "capture.incomplete",
+                    tags=_guardrail_tags(signal, "timeout", evaluation_kind="template"),
+                )
+            if signal._capture_expr_error_reason is not None:
+                guardrails_meter.increment(
+                    "capture.incomplete",
+                    tags=_guardrail_tags(
+                        signal, signal._capture_expr_error_reason, evaluation_kind="capture_expression"
+                    ),
+                )
+            if signal._capture_incomplete_reason is not None:
+                guardrails_meter.increment(
+                    "capture.incomplete",
+                    tags=_guardrail_tags(signal, signal._capture_incomplete_reason),
                 )
             if signal._capture_duration_ms is not None:
                 truncated = "true" if signal.errors else "false"
@@ -122,11 +153,7 @@ class SignalCollector:
                     tags={"probe_type": type(signal.probe).__name__, "truncated": truncated},
                 )
 
-        if (
-            isinstance(signal, LogSignal)
-            and signal.state in {SignalState.DONE, SignalState.COND_ERROR, SignalState.EVAL_ERROR}
-            and signal.has_message()
-        ):
+        if isinstance(signal, LogSignal) and signal.state in _ENQUEUE_STATES and signal.has_message():
             log.debug("Enqueueing signal %s", signal)
             # This signal emits a log message
             self._enqueue(signal)

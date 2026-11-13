@@ -8,6 +8,7 @@ from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
@@ -20,6 +21,7 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 
 
 @dataclass
@@ -29,6 +31,10 @@ class MetricSample(LogSignal):
     __default_timing__ = ProbeEvalTiming.ENTRY
 
     meter: Metrics.Meter = field(default_factory=lambda: probe_metrics.get_meter("probe"))
+
+    @property
+    def __type__(self) -> Optional[str]:
+        return "metric"
 
     def enter(self, scope: Mapping[str, Any]) -> None:
         if self._timing is ProbeEvalTiming.ENTRY:
@@ -52,6 +58,13 @@ class MetricSample(LogSignal):
         else:
             try:
                 raw = probe.value(scope)
+            except EvaluationTimeoutError:
+                self._record_evaluation_error(
+                    probe.value.dsl,
+                    f"Metric value evaluation timed out after {di_config.evaluation_timeout_ms}ms",
+                    SignalState.EVAL_TIMEOUT,
+                )
+                return
             except DDExpressionEvaluationError as e:
                 self._record_evaluation_error(e.dsl, e.error, SignalState.EVAL_ERROR)
                 return
