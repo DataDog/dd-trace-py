@@ -45,6 +45,13 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
     assert tracer.enabled is config._tracing_enabled
     assert manager._products is None
     assert "ddtrace._trace.product" not in sys.modules
+    assert "ddtrace.contrib" not in sys.modules
+    assert "ddtrace._trace.trace_handlers" not in sys.modules
+    assert not core.has_listeners("context.started.web.request")
+    assert not core.has_listeners("context.ended.web.request")
+
+    import ddtrace.contrib  # noqa: F401
+
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
 

@@ -131,13 +131,16 @@ cleanup because the manager skips `stop()` for disabled products.
 
 Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`.
 Its `register_subscribers()` helper activates every declared bundle. Product startup
-calls this helper, as does normal `ddtrace` initialization after publishing the global
-tracer. Listeners remain available with `DD_TRACE_ENABLED=false` so existing
+calls this helper directly. Normal `ddtrace` initialization installs an import hook
+that calls it after the subscriber package loads through contrib. Waiting for the
+package to finish avoids registering against partially initialized subscriber bases
+and preserves lightweight bare tracer imports.
+Listeners remain available with `DD_TRACE_ENABLED=false` so existing
 integrations can finish their spans without enabling tracing. This supports manual
 instrumentation without starting the product manager. `_DD_GLOBAL_TRACER_INIT=false` preserves deferred initialization;
-product startup can still activate the bundles explicitly. Importing the subscriber
-package alone does not activate the web bundle. Integrations emit events without
-registering tracing listeners themselves. Repeated activation does not duplicate
+product startup can still activate the bundles explicitly. The web subscriber uses
+explicit registration rather than class-definition registration. Integrations emit
+events without registering tracing listeners themselves. Repeated activation does not duplicate
 listeners and can restore listeners after a reset.
 Tracing retains its existing shutdown behavior and keeps these listeners registered.
 Other subscriber families continue using class-definition registration until their
