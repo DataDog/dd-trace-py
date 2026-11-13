@@ -869,6 +869,33 @@ def test_llmobs_streamed_chain(
 
 
 @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+def test_llmobs_streamed_chain_parents_nested_spans_to_consumed_stream(
+    langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url, consume_stream
+):
+    """Spans started while pulling a stream belong to that stream, not to whichever span is active."""
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
+    )
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o", base_url=openai_url, temperature=0.7, max_tokens=256)
+    chain = prompt | llm | langchain_core.output_parsers.StrOutputParser()
+
+    # Creating the second stream activates its span before the first stream is consumed.
+    first = chain.stream({"input": "how can langsmith help with testing?"})
+    second = chain.stream({"input": "how can langsmith help with testing?"})
+    consume_stream(first)
+    consume_stream(second)
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace if s.name == "langchain.request"]
+    spans.sort(key=lambda s: s.start_ns)
+    assert len(spans) == 4
+    first_chain, second_chain, first_chat, second_chat = spans
+    assert first_chat.parent_id == first_chain.span_id
+    assert second_chat.parent_id == second_chain.span_id
+    assert get_llmobs_parent_id(first_chat) == str(first_chain.span_id)
+    assert get_llmobs_parent_id(second_chat) == str(second_chain.span_id)
+
+
+@pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
 def test_llmobs_streamed_llm(langchain_openai, langchain_llmobs, test_spans, openai_url, consume_stream):
     llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)
 

@@ -3,6 +3,7 @@ import inspect
 import sys
 from typing import Any
 from typing import Optional
+from typing import Union
 
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
@@ -11,9 +12,14 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.streaming import AsyncStreamHandler
 from ddtrace.internal.utils.streaming import StreamHandler
 from ddtrace.internal.utils.streaming import make_traced_stream
+from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
+
+# Dispatched with the stream's span before each chunk is pulled so LLMObs can reactivate it as well.
+STREAM_PULL_EVENT = "langchain.stream.pull.before"
 
 
 class BaseLangchainStreamHandler:
@@ -113,8 +119,16 @@ def shared_stream(
                 aiguard_started_event=aiguard_started_event,
                 aiguard_finally_event=aiguard_finally_event,
             )
-            handler_cls = LangchainAsyncStreamHandler if inspect.isasyncgen(resp) else LangchainStreamHandler
-            return make_traced_stream(resp, handler_cls(None, span_from_context(ctx), args, kwargs, **handler_kwargs))
+            span = span_from_context(ctx)
+            if inspect.isasyncgen(resp):
+                handler: Union[AsyncStreamHandler, StreamHandler] = LangchainAsyncStreamHandler(
+                    None, span, args, kwargs, **handler_kwargs
+                )
+                wrapped = _pull_async_with_span_active(resp, span) if span is not None else resp
+            else:
+                handler = LangchainStreamHandler(None, span, args, kwargs, **handler_kwargs)
+                wrapped = _pull_with_span_active(resp, span) if span is not None else resp
+            return make_traced_stream(wrapped, handler)
         except BaseException:
             # BaseException covers ``DDBlockException`` (parent of ``AIGuardAbortError``),
             # so an AI Guard abort still finishes the LLM span with the error, keeping
@@ -124,6 +138,43 @@ def shared_stream(
             # ``func(...)`` raises before we return a stream wrapper.
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
+
+
+def _activate_stream_span(span: Span) -> None:
+    # Exiting context_with_event above does not deactivate the span, but anything that becomes active
+    # between pulls (another stream created before this one is consumed, or a nested stream left open by
+    # a previous pull) would otherwise parent the spans created while pulling the next chunk.
+    tracer.context_provider.activate(span)
+    core.dispatch(STREAM_PULL_EVENT, (span,))
+
+
+def _pull_with_span_active(stream: Any, span: Span) -> Any:
+    iterator = iter(stream)
+    try:
+        while True:
+            _activate_stream_span(span)
+            try:
+                chunk = next(iterator)
+            except StopIteration:
+                return
+            yield chunk
+    finally:
+        close = getattr(iterator, "close", None)
+        if close is not None:
+            close()
+
+
+async def _pull_async_with_span_active(stream: Any, span: Span) -> Any:
+    try:
+        while True:
+            _activate_stream_span(span)
+            try:
+                chunk = await stream.__anext__()
+            except StopAsyncIteration:
+                return
+            yield chunk
+    finally:
+        await stream.aclose()
 
 
 def _get_chunk_callback(interface_type, args, kwargs):
