@@ -23,6 +23,39 @@ Paths below are relative to the repository root.
   Fix ownership or dependency direction. Preserve deliberate lazy imports for startup cost or
   gevent compatibility when they are unrelated to a cycle.
 
+## Modularity and ownership
+
+Fix a concern in the layer that owns it. Before adding coordination between components,
+ask: **what owns this concern, and why doesn't it handle it itself?** Preserve modularity
+even when a local workaround looks reasonable or existing code already crosses the boundary.
+
+Pause and reassess the design when:
+
+- A callback reaches into another component's internals or private attributes.
+- Component A must be notified about a change to state or resources owned by component B.
+- The same repair must be repeated for each product consuming a shared component.
+- Safety depends on callers knowing which other component's lock must not be held.
+- Review keeps uncovering lost state, missed consumers, ordering dependencies, or hooks
+  that undo each other's work, and each finding requires another local patch.
+
+These are cues to investigate ownership, not blanket bans on callbacks, lifecycle hooks,
+or documenting lock invariants. Before extending a workaround, compare it with fixing or
+refactoring the owning layer. Prefer a shared lifecycle guarantee over requiring every
+consumer to repair itself. If the root cause is in a dependency such as libdatadog,
+investigate and pursue the fix there; do not treat this repository's boundary as the
+architectural boundary. Explain any required dependency change and any temporary workaround.
+
+For example, recovery of a shared native runtime after file descriptors are closed should
+be handled by the runtime, preserving its consumers' objects and queued work, rather than
+by replacing it and registering a rebuild hook for every product. Likewise, an exporter
+should return measurements to its caller so the caller can report them through telemetry's
+public API, rather than making the exporter follow telemetry's private worker lifecycle.
+
+Validate the failure that motivated the change, not just the new coordination mechanism.
+Regression tests should fail without the fix and check observable recovery and state
+preservation, including relevant fork, shutdown, and concurrency behavior. Passing tests
+alone do not establish that the component boundaries are sound.
+
 ## Docstrings and Comments
 
 Choose the style by **whether Sphinx renders the docstring**, not whether the symbol or module
