@@ -1,5 +1,6 @@
 #include "profiler_stats.hpp"
 
+#include <atomic>
 #include <charconv>
 
 namespace {
@@ -23,6 +24,17 @@ append_optional_bool(std::string& s, const char* key, const std::optional<bool>&
     s += "\": ";
     s += *value ? "true" : "false";
     s += ',';
+}
+
+// Skip sites run without the profile lock, so they cannot touch ProfilerStats
+// directly. The count stays here until the upload snapshot, or until a discarded
+// profile drops it.
+std::atomic<size_t> g_pending_intern_failed_count{ 0 };
+
+size_t
+take_pending_intern_failed_count()
+{
+    return g_pending_intern_failed_count.exchange(0, std::memory_order_relaxed);
 }
 
 } // namespace
@@ -59,6 +71,9 @@ Datadog::ProfilerStats::reset_state()
     sampling_interval_us = std::nullopt;
     string_table_count = std::nullopt;
     copy_memory_error_count = 0;
+    intern_failed_count = 0;
+    // This profile is being discarded, so pending skips go with it.
+    (void)take_pending_intern_failed_count();
     heap_tracker_size = std::nullopt;
     heap_tracker_cap_drops = std::nullopt;
     asyncio_task_count = std::nullopt;
@@ -175,6 +190,24 @@ Datadog::ProfilerStats::get_copy_memory_error_count() const
 }
 
 void
+Datadog::ProfilerStats::incr_intern_failed_count()
+{
+    g_pending_intern_failed_count.fetch_add(1, std::memory_order_relaxed);
+}
+
+size_t
+Datadog::ProfilerStats::get_intern_failed_count() const
+{
+    return intern_failed_count;
+}
+
+void
+Datadog::ProfilerStats::add_pending_intern_failed_count()
+{
+    intern_failed_count += take_pending_intern_failed_count();
+}
+
+void
 Datadog::ProfilerStats::set_sampling_interval_us(size_t interval_us)
 {
     sampling_interval_us = interval_us;
@@ -263,7 +296,7 @@ Datadog::ProfilerStats::get_sample_capture_cpu_time_us() const
 }
 
 std::string
-Datadog::ProfilerStats::get_internal_metadata_json()
+Datadog::ProfilerStats::get_internal_metadata_json() const
 {
     std::string internal_metadata_json;
     internal_metadata_json.reserve(128);
@@ -337,6 +370,10 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("copy_memory_error_count": )";
     append_to_string(internal_metadata_json, copy_memory_error_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("intern_failed_count": )";
+    append_to_string(internal_metadata_json, intern_failed_count);
     internal_metadata_json += ",";
 
     internal_metadata_json += R"("sample_capture_cpu_time_us": )";

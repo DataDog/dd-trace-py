@@ -749,7 +749,7 @@ integrations:
   tested_versions_by_dependency:
     mysqlclient:
       min: 2.2.1
-      max: 2.2.6
+      max: 2.3.0
 
 - integration_name: openai
   is_external_package: true
@@ -863,7 +863,7 @@ integrations:
   tested_versions_by_dependency:
     pyodbc:
       min: 4.0.39
-      max: 5.3.0
+      max: 5.5.0
 
 - integration_name: pyramid
   is_external_package: true

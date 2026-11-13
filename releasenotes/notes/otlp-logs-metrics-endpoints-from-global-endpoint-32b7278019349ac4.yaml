@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    opentelemetry: When only ``OTEL_EXPORTER_OTLP_ENDPOINT`` is set, the OTLP logs and metrics endpoints in the
+    resolved configuration now derive from it, as the OpenTelemetry SDK exporters do, instead of defaulting to the
+    Datadog Agent. Where logs and metrics are exported is unchanged.
