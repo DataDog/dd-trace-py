@@ -410,9 +410,9 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
        just toggling a boolean) and the alternative is hard-to-diagnose crashes.
 
        RAII guard automatically re-enables GC when it goes out of scope. */
-#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
+#if defined(PY310_AND_LATER) && !defined(PY312_AND_LATER)
     pygc_temp_disable_guard_t gc_guard;
-#endif // defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
+#endif // defined(PY310_AND_LATER) && !defined(PY312_AND_LATER)
 
     /* The weight of the allocation is described above, but briefly: it's the
        count of bytes allocated since the last sample, including this one, which
@@ -451,7 +451,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     double r = static_cast<double>(heap_tracker_t::instance->get_sample_size());
     double p = 1.0 - std::exp(-s / r);
     int64_t heap_count = static_cast<int64_t>(1.0 / p);
-    tb->sample.push_heap(allocated_memory_val, heap_count);
+    tb->sample.push_heap(static_cast<int64_t>(allocated_memory_val), heap_count);
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
