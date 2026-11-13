@@ -5,6 +5,7 @@ import inspect
 from inspect import iscoroutinefunction
 from inspect import unwrap
 from itertools import chain
+import json
 import logging
 import os
 from os import getpid
@@ -411,13 +412,19 @@ class Tracer:
                     partial_flush_min_spans=self._span_aggregator.partial_flush_min_spans,
                 )
                 info = debug.collect(tracer_debug_info)
+                # Values JSON cannot encode, such as an object set as a configuration value, use their str().
+                info_json = json.dumps(info, default=str)
             except Exception as e:
                 msg = "Failed to collect start-up logs: %s" % e
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
             else:
+                msg = "- DATADOG TRACER CONFIGURATION - %s" % info_json
                 if log.isEnabledFor(logging.INFO):
-                    msg = "- DATADOG TRACER CONFIGURATION - %s" % info
                     self._log_compat(logging.INFO, msg)
+                elif config._startup_logs_enabled and log.manager.disable < logging.INFO:
+                    # DD_TRACE_STARTUP_LOGS asks for the configuration even when the ddtrace logger level,
+                    # which inherits the WARNING default of the root logger, filters out INFO records.
+                    log.handle(log.makeRecord(log.name, logging.INFO, __file__, 0, msg, (), None))
 
                 # Always log errors since we're either in debug_mode or start up logs
                 # are enabled.

@@ -3,13 +3,12 @@ from typing import Optional
 
 import opentelemetry.version
 
-from ddtrace import config
-from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.opentelemetry.utils import set_http_exporter_marker
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
+from ddtrace.internal.settings._opentelemetry import otel_resource_attributes
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
@@ -81,21 +80,7 @@ def _build_resource() -> Optional[Any]:
     try:
         from opentelemetry.sdk.resources import Resource
 
-        resource_attributes = {k: v for k, v in config.tags.items() if k not in ("service", "version", "env")}
-        resource_attributes.update(
-            {
-                "service.name": config.service,
-                "service.version": config.version,
-                "deployment.environment.name": config.env,
-            }
-        )
-
-        if config._report_hostname and "host.name" not in resource_attributes:
-            resource_attributes["host.name"] = get_hostname()
-
-        resource_attributes = {k: str(v) if v is not None else "" for k, v in resource_attributes.items()}
-
-        return Resource.create(resource_attributes)
+        return Resource.create(otel_resource_attributes())
     except ImportError:
         log.warning(
             "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "

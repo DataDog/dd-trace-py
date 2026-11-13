@@ -954,6 +954,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         return self._api_key is not None
 
     @property
+    def otlp_endpoint(self) -> Optional[str]:
+        """The endpoint traces are exported to over OTLP, or None when they use the Datadog protocol."""
+        return self._otlp_endpoint
+
+    @property
     def _discarded_by_refresh(self) -> bool:
         # Only MicroVM writers have a writer lock, so this is always False elsewhere.
         return self._writer_lock is not None and not self._accepting_writes
