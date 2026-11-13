@@ -1,0 +1,7 @@
+# uv settings for the test jobs (UV_CONFIG_FILE in .gitlab/tests.yml).
+
+[pip]
+# The uwsgi wheels of the dd-trace-py-wheels index do not work. auditwheel removed the link to
+# libpython from the uwsgi program, and the tests cannot read their local version. PyPI has no
+# uwsgi wheels, thus uv builds uwsgi from the sdist.
+no-binary = ["uwsgi"]

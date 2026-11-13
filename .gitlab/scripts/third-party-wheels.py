@@ -76,8 +76,15 @@ sys.path.insert(0, str(REPO_ROOT))
 from tests.suitespec import get_test_environments  # noqa: E402
 
 
-# This repository builds its own wheels.
-EXCLUDED_PACKAGES = frozenset({"ddtrace"})
+EXCLUDED_PACKAGES = frozenset(
+    {
+        # This repository builds its own wheels.
+        "ddtrace",
+        # auditwheel removes the link to libpython from the uwsgi program, and the tests read the
+        # version of uwsgi as integers, thus they cannot use a local version.
+        "uwsgi",
+    }
+)
 UPSTREAM_INDEX_URL = "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 INDEX_URL = "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
 REPOSITORY = "datadog/dd-trace-py-wheels"
@@ -366,25 +373,32 @@ def repair_wheel(wheel: Path, output_dir: Path, log: list[str]) -> Path:
     return _single_wheel(output_dir)
 
 
-def find_python(python: str) -> str:
-    """Return the path of the python of the version on PATH.
+def build_environment(python: str) -> tuple[str, dict[str, str]]:
+    """Return the python of the version, and the environment variables for its builds.
 
-    "uv run" puts the environment of this script first on PATH. That environment has no pip,
-    thus it is not used, also when it has the same Python version.
+    "uv run" puts the environment of this script first on PATH. Thus a build that runs
+    "python3" would get the Python of this script, which can have a different version. The
+    build environment removes that directory from PATH, and puts the directory of the python
+    of the version first.
     """
     own_bin = Path(sys.executable).parent.resolve()
-    path = os.pathsep.join(
-        d for d in os.environ.get("PATH", "").split(os.pathsep) if d and Path(d).resolve() != own_bin
-    )
-    python_bin = shutil.which(f"python{python}", path=path)
-    if not python_bin:
+    path = [d for d in os.environ.get("PATH", "").split(os.pathsep) if d and Path(d).resolve() != own_bin]
+    found = shutil.which(f"python{python}", path=os.pathsep.join(path))
+    if not found:
         raise RuntimeError(f"cannot find python{python} on PATH")
-    return python_bin
+    # Get the interpreter, not the pyenv shim, which can select a different version.
+    python_bin = subprocess.run(
+        [found, "-c", "import sys; print(sys.executable)"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    env = {**os.environ, "PATH": os.pathsep.join([str(Path(python_bin).parent), *path])}
+    env.pop("VIRTUAL_ENV", None)
+    return python_bin, env
 
 
-def build_pin(pin: Pin, python: str, python_bin: str, local_version: str, output_dir: Path, log: list[str]) -> Path:
+def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: list[str]) -> Path:
     """Build, repair, repack and install the wheel of the pin. Return the path of the wheel."""
     interpreter, tags = python_tags(python)
+    python_bin, env = build_environment(python)
     with tempfile.TemporaryDirectory() as temporary:
         work_dir = Path(temporary)
         built_dir = work_dir / "built"
@@ -407,6 +421,7 @@ def build_pin(pin: Pin, python: str, python_bin: str, local_version: str, output
             ],
             log,
             timeout=BUILD_TIMEOUT,
+            env=env,
         )
         built = _single_wheel(built_dir)
         if all(tag.abi == "none" and tag.platform == "any" for tag in parse_wheel_filename(built.name)[3]):
@@ -453,14 +468,13 @@ def build(python: str, local_version: str, output_dir: Path, jobs: int, upstream
         print("Nothing to build.")
         return 0
 
-    python_bin = find_python(python)
+    build_environment(python)  # Fail now when the python of the version is not on PATH.
     output_dir.mkdir(parents=True, exist_ok=True)
     built, failed = [], []
     with concurrent.futures.ThreadPoolExecutor(jobs) as executor:
         logs: dict[Pin, list[str]] = {pin: [] for pin in to_build}
         futures = {
-            executor.submit(build_pin, pin, python, python_bin, local_version, output_dir, logs[pin]): pin
-            for pin in to_build
+            executor.submit(build_pin, pin, python, local_version, output_dir, logs[pin]): pin for pin in to_build
         }
         for number, future in enumerate(concurrent.futures.as_completed(futures)):
             pin = futures[future]
