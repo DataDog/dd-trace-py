@@ -2,6 +2,7 @@ import os
 import pathlib
 import shlex
 import subprocess
+import sys
 import tempfile
 import textwrap
 from unittest.mock import patch
@@ -181,12 +182,50 @@ def test_chaos(cmd, expected, mock_file_system):
         ("tests", True),
         ("tests.releasenotes", False),
         ("non_existing_module", False),
+        ("tests.contrib.aiohttp.app:create_app()", False),
+        ("", False),
     ],
 )
 def test_module_exists(module_name, should_exist):
     exists = _module_exists(module_name)
 
     assert exists == should_exist, f"Module {module_name} existence check failed."
+
+
+@pytest.mark.parametrize(
+    "module_name,should_exist",
+    [
+        ("sideeffectpkg.sub", True),
+        ("sideeffectpkg.missing", False),
+        ("sideeffectpkg.sub:app()", False),
+    ],
+)
+def test_module_exists_does_not_import_parent_packages(module_name, should_exist, tmp_path, monkeypatch):
+    # Regression test for APMS-20771: importlib.util.find_spec imports the parent packages of a
+    # dotted name, which ran application code (e.g. airflow/__init__.py) during bootstrap.
+    pkg = tmp_path / "sideeffectpkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("raise RuntimeError('parent package must not be imported')\n")
+    (pkg / "sub.py").write_text("")
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    assert _module_exists(module_name) == should_exist
+    assert "sideeffectpkg" not in sys.modules
+
+
+def test_detect_service_module_flag_does_not_import_app(tmp_path, monkeypatch):
+    # While site runs under ``python -m gunicorn ...``, sys.argv starts with "-m" and no longer
+    # contains the module name, so every following argument is checked as a module.
+    # The package imports cleanly, like Airflow does, so an unwanted import stays in sys.modules.
+    pkg = tmp_path / "sideeffectapp"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "www.py").write_text("")
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    detect_service(["-m", "--workers", "4", "sideeffectapp.www:cached_app()"])
+
+    assert "sideeffectapp" not in sys.modules
 
 
 @pytest.mark.parametrize(
