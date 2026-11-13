@@ -65,6 +65,18 @@ def has_downstream_openai_span(kwargs, model=None):
     return is_openai_model and not stream and _openai_is_patched()
 
 
+def has_fallbacks(kwargs):
+    """
+    Determine whether litellm will dispatch the request through its fallback runner.
+
+    The runner re-enters ``litellm.completion``/``litellm.acompletion`` (without ``fallbacks``) for each attempt,
+    so the inner call is the one that represents the LLM request.
+    """
+    import litellm
+
+    return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
+
+
 class BaseLiteLLMStreamHandler:
     """Mixed into StreamHandler/AsyncStreamHandler, which provide chunks and options.
 

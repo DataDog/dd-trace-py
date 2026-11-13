@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    litellm: Fixes an issue where ``litellm.completion`` and ``litellm.acompletion`` calls using the ``fallbacks`` parameter
+    produced two LLM Observability spans with identical token usage, double-counting tokens and cost.

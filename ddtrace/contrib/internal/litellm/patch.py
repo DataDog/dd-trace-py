@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
+from ddtrace.contrib.internal.litellm.utils import has_fallbacks
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
@@ -56,8 +57,9 @@ def _request_event(operation, args, kwargs, router=None):
         provider="",
         model=model,
         tags=tags,
-        # Router spans are always submitted; plain calls defer to the OpenAI integration's span when there is one.
-        submit_to_llmobs=router is not None or not has_downstream_openai_span(kwargs, model),
+        # Router spans are always submitted. Plain calls defer to the OpenAI integration's span when there is one,
+        # and to the inner call litellm's fallback runner makes when ``fallbacks`` is set.
+        submit_to_llmobs=router is not None or not (has_fallbacks(kwargs) or has_downstream_openai_span(kwargs, model)),
         request_args=args,
         request_kwargs=request_kwargs,
         operation=operation,
