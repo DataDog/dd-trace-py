@@ -40,6 +40,7 @@ components:
     - ddtrace/contrib/internal/azure_servicebus/*
     - ddtrace/ext/azure_servicebus.py
   botocore:
+    - ddtrace/_trace/utils_botocore/*
     - ddtrace/contrib/internal/botocore/*
     - ddtrace/contrib/internal/boto/*
     - ddtrace/contrib/internal/aiobotocore/*
@@ -77,6 +78,7 @@ components:
     # Shared test utilities
     - tests/contrib/patch.py
     - tests/contrib/config.py
+    - tests/contrib/utils.py
     - tests/contrib/otel_http_server.py
     - tests/contrib/__init__.py
     - tests/contrib/suitespec.yml
@@ -539,6 +541,8 @@ suites:
   aws_lambda:
     paths:
       - '@bootstrap'
+      - '@core'
+      - '@tracing'
       - '@contrib'
       - '@aws_lambda'
       - tests/contrib/aws_lambda/*
@@ -2432,6 +2436,7 @@ suites:
       - '@bootstrap'
       - '@contrib'
       - '@sourcecode'
+      - ddtrace/internal/gitmetadata.py
       - tests/sourcecode/*
     matrix:
       command: pytest {cmdargs} tests/sourcecode

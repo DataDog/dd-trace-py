@@ -22,6 +22,10 @@ suites:
   appsec:
     paths:
       - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - ddtrace/contrib/internal/trace_utils.py
+      - ddtrace/internal/security/*
       - '@appsec'
       - tests/appsec/*
     pattern: appsec$

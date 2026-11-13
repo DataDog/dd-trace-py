@@ -415,7 +415,6 @@ tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-
 # ASM (order matters)
 tests/**/*appsec*                       @DataDog/asm-python
 tests/**/*iast*                         @DataDog/asm-python
-tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities @DataDog/asm-python
 
 # Cross-product interaction tests (order matters)
 # tests/standalone/ covers products that interact rather than one product, so no single

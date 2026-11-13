@@ -14,7 +14,7 @@ from ddtrace.ext import http
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.rate_sampler import RateSampler
 from ddtrace.internal.utils.version import parse_version
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.contrib.utils import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
 

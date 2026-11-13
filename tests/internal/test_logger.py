@@ -18,16 +18,15 @@ class LoggerTestCase(BaseTestCase):
         super().setUp()
 
         self.manager = logging.root.manager
+        self.logger_dict = mock.patch.dict(self.manager.loggerDict)
+        self.logger_dict.start()
+        self.addCleanup(self.logger_dict.stop)
 
         # Reset to default values
         ddtrace.internal.logger._buckets.clear()
         ddtrace.internal.logger._rate_limit = 60
 
     def tearDown(self):
-        # Weeee, forget all existing loggers
-        logging.Logger.manager.loggerDict.clear()
-        self.assertEqual(logging.Logger.manager.loggerDict, dict())
-
         self.manager = None
 
         # Reset to default values
