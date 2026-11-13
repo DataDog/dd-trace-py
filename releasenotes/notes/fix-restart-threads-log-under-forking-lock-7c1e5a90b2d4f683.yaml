@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes a deadlock at startup in gevent-patched applications that fork twice within a short time. The thread restart timer
+    no longer logs while holding the internal fork lock, where the logging call could wait on a gevent lock that only the forking main
+    thread could release.

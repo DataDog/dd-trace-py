@@ -374,3 +374,40 @@ def test_restart_failures_are_logged_after_releasing_forking_lock(monkeypatch):
         ("failed to restart periodic thread %s after fork: %s", "failing-restart", False),
         ("failed to start periodic thread %s: %s", "failing-start", False),
     ]
+
+
+def test_restart_debug_logs_are_emitted_after_releasing_forking_lock(monkeypatch):
+    """Logging can block on an application (e.g. gevent-patched) lock, so it must not happen under _forking_lock."""
+
+    class RestartedThread:
+        name = "restarted"
+
+        def _after_fork(self, force):
+            pass
+
+    class QueuedThread:
+        name = "queued"
+        __autorestart__ = True
+
+        def start(self):
+            pass
+
+    logged = []
+    monkeypatch.setattr(threads.ThreadRestartTimer, "_timestamp", 0)
+    threads._threads_to_restart_after_fork.add(RestartedThread())
+    threads._threads_to_start_after_fork.append(QueuedThread().start)
+    try:
+        with mock.patch.object(
+            threads.log,
+            "debug",
+            side_effect=lambda msg, name: logged.append((msg, name, threads._forking_lock.locked())),
+        ):
+            threads.ThreadRestartTimer(force_restart=True)._restart_threads()
+    finally:
+        threads._threads_to_restart_after_fork.clear()
+        threads._threads_to_start_after_fork.clear()
+
+    assert logged == [
+        ("Restarting thread %s after fork", "restarted", False),
+        ("Starting thread %s after fork", "queued", False),
+    ]
