@@ -25,9 +25,27 @@ from .internal.utils.deprecations import deprecate  # noqa: E402
 from .version import __version__  # noqa: E402
 
 
+def _on_trace_module_imported(trace_module) -> None:
+    """Publish the global tracer's active context to the OpenTelemetry thread context.
+
+    Wired here rather than in ddtrace.trace so that the tracing product does not depend on the OpenTelemetry one.
+    Imported lazily so that skipping global tracer creation does not load the native extension.
+    """
+    from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
+
+    register_otel_thread_context_listener(trace_module.tracer)
+
+
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
-    from ddtrace.trace import tracer  # noqa: F401
+    from ddtrace.trace import tracer  # noqa: E402, F401
+
+    _on_trace_module_imported(sys.modules["ddtrace.trace"])
+else:
+    from ddtrace.internal.module import ModuleWatchdog  # noqa: E402
+
+    # An explicit import of ddtrace.trace still creates the global tracer.
+    ModuleWatchdog.register_module_hook("ddtrace.trace", _on_trace_module_imported)
 
 # Initialize DSM support and register DSM handlers (if enabled)
 import ddtrace.internal.datastreams as _  # noqa: E402, F401

@@ -23,6 +23,22 @@ import_ddtrace_django:
   <<: *defaults
   import_ddtrace: true
   import_django: true
+# With global tracer creation deferred, import ddtrace installs a ModuleWatchdog import hook;
+# the flask/django variants measure its overhead on the imports that follow.
+import_ddtrace_deferred_tracer:
+  <<: *defaults
+  env: {"_DD_GLOBAL_TRACER_INIT": "false"}
+  import_ddtrace: true
+import_ddtrace_deferred_tracer_flask:
+  <<: *defaults
+  env: {"_DD_GLOBAL_TRACER_INIT": "false"}
+  import_ddtrace: true
+  import_flask: true
+import_ddtrace_deferred_tracer_django:
+  <<: *defaults
+  env: {"_DD_GLOBAL_TRACER_INIT": "false"}
+  import_ddtrace: true
+  import_django: true
 import_ddtrace_auto:
   <<: *defaults
   import_ddtrace_auto: true
