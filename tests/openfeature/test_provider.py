@@ -2,13 +2,18 @@
 Comprehensive tests for the DataDogProvider following OpenFeature specification.
 """
 
+import json
+
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import Reason
 import pytest
 
+from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import process_ffe_configuration
+from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
@@ -278,6 +283,52 @@ class TestObjectFlagResolution:
 
 class TestEvaluationContext:
     """Test evaluation context handling."""
+
+    @pytest.mark.parametrize("opt_out", [{"timestamp": "2026-10-19T12:00:00Z"}, ["2026-10-19T12:00:00Z"]])
+    def test_default_mode_ignores_experimentation_opt_out(self, provider, opt_out):
+        flag = create_boolean_flag("test-flag", default_value=True)
+        flag["allocations"][0]["rules"] = [
+            {"conditions": [{"attribute": "tier", "operator": "ONE_OF", "value": ["premium"]}]}
+        ]
+        process_ffe_configuration(create_config(flag))
+        attributes = {"tier": "premium", "dd_experimentation_opt_out_at": opt_out}
+        context = EvaluationContext(targeting_key="user-123", attributes=attributes)
+
+        result = provider.resolve_boolean_details("test-flag", False, context)
+
+        assert result.value is True
+        assert result.reason == Reason.TARGETING_MATCH
+        assert result.error_code is None
+        assert context.targeting_key == "user-123"
+        assert context.attributes == {"tier": "premium", "dd_experimentation_opt_out_at": opt_out}
+
+    @pytest.mark.parametrize("key_name", ["targetingKey", "targeting_key"])
+    def test_dict_context_ignores_experimentation_opt_out(self, key_name):
+        config = create_config(create_boolean_flag("test-flag", default_value=True))
+        native_config = ffe.Configuration(json.dumps(config).encode())
+        attributes = {"dd_experimentation_opt_out_at": {"timestamp": "2026-10-19T12:00:00Z"}}
+        context = {key_name: "user-123", "attributes": attributes}
+
+        result = resolve_flag(native_config, "test-flag", context, VariationType.Boolean)
+
+        assert result.value is True
+        assert result.error_code is None
+        assert context == {key_name: "user-123", "attributes": attributes}
+        assert "dd_experimentation_opt_out_at" in attributes
+
+    @pytest.mark.parametrize("invalid_attributes", [{"tier": {}}, {"tier": []}])
+    def test_ignored_opt_out_preserves_other_attribute_errors(self, provider, invalid_attributes):
+        process_ffe_configuration(create_config(create_boolean_flag("test-flag", default_value=True)))
+        context = EvaluationContext(
+            targeting_key="user-123",
+            attributes={**invalid_attributes, "dd_experimentation_opt_out_at": {}},
+        )
+
+        result = provider.resolve_boolean_details("test-flag", False, context)
+
+        assert result.value is False
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.INVALID_CONTEXT
 
     def test_resolve_with_evaluation_context(self, provider, evaluation_context):
         """Should accept evaluation context without errors."""
