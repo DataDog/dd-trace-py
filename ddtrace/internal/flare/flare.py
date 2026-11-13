@@ -4,6 +4,7 @@ from logging.handlers import RotatingFileHandler
 import os
 import pathlib
 import shutil
+from typing import Any
 from typing import Optional
 
 from ddtrace._logger import _add_file_handler
@@ -30,11 +31,11 @@ class Flare:
     def __init__(
         self,
         trace_agent_url: str,
-        ddconfig: dict,
+        ddconfig: dict[str, Any],
         api_key: Optional[str] = None,
         timeout_sec: int = DEFAULT_TIMEOUT_SECONDS,
         flare_dir: str = TRACER_FLARE_DIRECTORY,
-    ):
+    ) -> None:
         self.original_log_level: int = logging.NOTSET
         self.timeout: int = timeout_sec
         self.flare_dir: pathlib.Path = pathlib.Path(flare_dir)
@@ -44,7 +45,7 @@ class Flare:
         self.ddconfig = ddconfig
         self._native_manager = native_flare.TracerFlareManager(agent_url=self.url)
 
-    def handle_remote_config_data(self, config_data: dict, product_type: str) -> native_flare.FlareAction:
+    def handle_remote_config_data(self, config_data: dict[str, Any], product_type: str) -> native_flare.FlareAction:
         """Return the flare action for a remote-config payload."""
         # Reserializing the config to let the native code handle the parsing
         json_config_data = json.dumps(config_data).encode("utf-8")
@@ -78,7 +79,7 @@ class Flare:
         self._generate_config_file(pid)
         return True
 
-    def send(self, flare_action: native_flare.FlareAction):
+    def send(self, flare_action: native_flare.FlareAction) -> None:
         """
         Revert tracer flare configurations back to original state
         before sending the flare.

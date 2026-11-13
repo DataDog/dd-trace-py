@@ -64,7 +64,7 @@ suites:
           dependencies: ['elevenlabs==2.70.0', pytest-asyncio]
         - name: elevenlabs
           python: ['3.12', '3.13', '3.14', '3.15']
-          dependencies: ['elevenlabs==2.75.0', pytest-asyncio]
+          dependencies: [elevenlabs, pytest-asyncio]
   aws_sdk_bedrock_runtime:
     paths:
       - "@bootstrap"
@@ -77,6 +77,9 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
       variants:
+        - name: aws_sdk_bedrock_runtime
+          python: ["3.12", "3.13", '3.14', '3.15']
+          dependencies: [pytest-asyncio, aws-sdk-bedrock-runtime]
         - name: aws_sdk_bedrock_runtime
           python: ["3.12", "3.13", '3.14', '3.15']
           dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
@@ -171,6 +174,7 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'google-genai~=1.21.1']
   vertexai:
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@vertexai'
@@ -181,13 +185,15 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
       variants:
+        # Oldest supported SDK (google-cloud-aiplatform 1.71.1), held by the existing locks.
+        # A fresh lock picks a newer google-cloud-aiplatform instead.
         - name: vertexai
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
-        # The standalone vertexai distribution stops at 1.71.1, which pins google-cloud-aiplatform
-        # 1.71.1; newer google-cloud-aiplatform releases ship the vertexai module themselves.
+        # Latest google-cloud-aiplatform. It ships the vertexai module, so the standalone
+        # vertexai package is left out.
         - name: vertexai
-          python: ['3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
     venvs_per_job: 5
@@ -198,6 +204,12 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
+    env:
+      # The llama-index-core~=0.11.0 venv on Python 3.13 builds numpy 1.26.4 from source
+      # (no cp313 wheel) on a uv cache miss, which can exceed the default 6Gi.
+      DD_DISABLE_VPA: 'true'
+      KUBERNETES_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_MEMORY_LIMIT: '8Gi'
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       variants:
@@ -254,11 +266,11 @@ suites:
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.65.4', 'openai==1.68.2']
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, litellm, "mcp; python_version >= '3.10'", 'openai>=2.8.0']
         # PR #20079: Python 3.14 is covered by the latest compatible dependency row only.
         - name: litellm
           python: ['3.14']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, litellm, "mcp; python_version >= '3.10'", 'openai>=2.8.0']
   llmobs:
     # TODO(py-315): the suite fails on 3.15: one variant cannot import deepeval
     # (no 3.15 support) and another hits a pyo3 panic in native code surfaced as
@@ -293,6 +305,7 @@ suites:
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@mcp'
@@ -511,7 +524,9 @@ suites:
     # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
     # run on Python 3.15 yet. Add 3.15 to the python lists once those
     # dependencies publish 3.15 wheels.
-    venvs_per_job: 1
+    venvs_per_job: 2
+    # Allow time for GPU placement in addition to the 15-minute test target.
+    timeout: 50m
     paths:
       - '@bootstrap'
       - '@llmobs'
