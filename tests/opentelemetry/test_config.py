@@ -880,6 +880,7 @@ def test_otlp_metrics_and_logs_http_endpoints_derive_from_global_endpoint():
 @pytest.mark.subprocess(
     env={
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
     }
