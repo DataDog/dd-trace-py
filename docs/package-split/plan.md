@@ -6,7 +6,7 @@ Foundation imports: `_ddtrace_internal` and `_ddtrace_native`. Future extracted 
 
 - Independent builds/tests/releases: no unrelated native rebuilds or coordinated consumer releases.
 - New imports are inert, never import ddtrace; activation is explicit/idempotent/reversible. Preserve legacy behavior, canonical state and single instrumentation.
-- Test Optimization may depend on native telemetry and writer components. A pure-Python package must not itself build compiled artifacts; that constraint does not extend to its dependencies. Approved pytest/IAST removals remain separate work.
+- Test Optimization may depend on native telemetry and writer components. A pure-Python package must not itself build compiled artifacts; that constraint does not extend to its dependencies.
 - Review narrow APIs, behavior, lifecycle, ownership and rollback for each extraction. Keep executable build/runtime metadata in the destination's pyproject; the source harness requires no duplicate package contract.
 - Inventory → approve → **freeze on main before any code moves** → negative fixtures → extract → exact standalone artifacts/coexistence/rollback → release rehearsal. Add file content hashes to main's existing frozen-paths.txt before destination work starts. Its Freeze check workflow is the single source freeze mechanism.
 - The Freeze check validates the PR merge result against both base and merge-result hashes. Main must require the check and up-to-date branches. Rewrites require a separate PR removing the freeze entry while leaving the file unchanged; coordinate subsequent source changes with the extracted copy and freeze the replacement when needed. No TOML freeze manifest or path-scoped rewrite approval is used.
