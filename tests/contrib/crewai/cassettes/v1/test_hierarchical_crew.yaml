@@ -1,0 +1,274 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Task Execution Planner. Planner agent for crew planning\nYour personal goal is: Your goal is to create an extremely detailed, step-by-step plan based on the tasks and tools available to each agent so that they can perform the tasks in an exemplary manner"},{"role":"user","content":"\nCurrent Task: Based on these tasks summary: \n                Task Number 1 - Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]\n                \"task_description\": Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]\n                \"task_expected_output\": A complete sentence showing the question and the answer.\n                \"agent\": None\n                \"agent_goal\": None\n                \"task_tools\": []\n                \"agent_tools\": \"agent has no tools\" \n                Task Number 2 - Given the average age of participants, recommend a fun activity for the group.\n                \"task_description\": Given the average age of participants, recommend a fun activity for the group.\n                \"task_expected_output\": Blog post with 3 bullet points of recommended activities.\n                \"agent\": None\n                \"agent_goal\": None\n                \"task_tools\": []\n                \"agent_tools\": \"agent has no tools\" \n Create the most descriptive plan based on the tasks descriptions, tools available, and agents'' goals for them to execute their goals with perfection.\n\nThis is the expected criteria for your final answer: Step by step plan on how the agents can execute their tasks using the available tools with mastery\nyou MUST return the actual complete content as the final answer, not a summary.\nFormat your final answer according to the following OpenAPI schema: {\n  \"description\": \"Output format for task planning results.\",\n  \"properties\": {\n    \"list_of_plans_per_task\": {\n      \"description\": \"Step by step plan on how the agents can execute their tasks using the available tools with mastery\",\n      \"items\": {\n        \"description\": \"Represents a plan for a specific task.\",\n        \"properties\": {\n          \"task_number\": {\n            \"description\": \"The 1-indexed task number this plan corresponds to\",\n            \"minimum\": 1,\n            \"title\": \"Task Number\",\n            \"type\": \"integer\"\n          },\n          \"task\": {\n            \"description\": \"The task for which the plan is created\",\n            \"title\": \"Task\",\n            \"type\": \"string\"\n          },\n          \"plan\": {\n            \"description\": \"The step by step plan on how the agents can execute their tasks using the available tools with mastery\",\n            \"title\": \"Plan\",\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\n          \"task_number\",\n          \"task\",\n          \"plan\"\n        ],\n        \"title\": \"PlanPerTask\",\n        \"type\": \"object\",\n        \"additionalProperties\": false\n      },\n      \"title\": \"List Of Plans Per Task\",\n      \"type\": \"array\"\n    }\n  },\n  \"required\": [\n    \"list_of_plans_per_task\"\n  ],\n  \"title\": \"PlannerTaskPydanticOutput\",\n  \"type\": \"object\",\n  \"additionalProperties\": false\n}\n\nIMPORTANT: Preserve the original content exactly as-is. Do NOT rewrite, paraphrase, or modify the meaning of the content. Only structure it to match the schema format.\n\nDo not include the OpenAPI schema in the final output. Ensure the final output does not include any code block markers like ```json or ```python.\n\nProvide your complete response:"}],"model":"gpt-5.4-mini","response_format":{"type":"json_schema","json_schema":{"schema":{"$defs":{"PlanPerTask":{"description":"Represents a plan for a specific task.","properties":{"task_number":{"description":"The 1-indexed task number this plan corresponds to","minimum":1,"title":"Task Number","type":"integer"},"task":{"description":"The task for which the plan is created","title":"Task","type":"string"},"plan":{"description":"The step by step plan on how the agents can execute their tasks using the available tools with mastery","title":"Plan","type":"string"}},"required":["task_number","task","plan"],"title":"PlanPerTask","type":"object","additionalProperties":false}},"description":"Output format for task planning results.","properties":{"list_of_plans_per_task":{"description":"Step by step plan on how the agents can execute their tasks using the available tools with mastery","items":{"$ref":"#/$defs/PlanPerTask"},"title":"List Of Plans Per Task","type":"array"}},"required":["list_of_plans_per_task"],"title":"PlannerTaskPydanticOutput","type":"object","additionalProperties":false},"name":"PlannerTaskPydanticOutput","strict":true}},"stream":false}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '4907'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-helper-method:
+      - chat.completions.parse
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-EfrgmlrWh9Z7iRuDPDaf0tgZesrsS","object":"chat.completion","created":1793646536,"model":"gpt-5.4-mini-2026-03-17","choices":[{"index":0,"message":{"role":"assistant","content":"{\"list_of_plans_per_task\":[{\"task_number\":1,\"task\":\"Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]\",\"plan\":\"1. Read the task carefully and identify the exact dataset provided: Ages = [10, 12, 14, 16, 18].\\n2. Since no tools are available, perform the calculation manually using arithmetic.\\n3. Add all ages together: 10 + 12 + 14 + 16 + 18 = 70.\\n4. Count the number of participants: 5.\\n5. Compute the average age by dividing the sum by the count: 70 ÷ 5 = 14.\\n6. Prepare the final response as a complete sentence that includes both the question and the answer.\\n7. Verify that the output is concise, accurate, and directly answers the task.\\n8. Deliver the final sentence in a clear format, such as: ''The average age of the participants is 14.''\"},{\"task_number\":2,\"task\":\"Given the average age of participants, recommend a fun activity for the group.\",\"plan\":\"1. Use the average age from Task 1, which is 14, as the key input for choosing age-appropriate activities.\\n2. Since no tools are available, rely on reasoning about what is generally engaging for early teenagers.\\n3. Select activities that are active, social, and enjoyable for a mixed group around age 14.\\n4. Ensure the recommendation is suitable, safe, and broadly appealing to participants of this age group.\\n5. Structure the response as a blog post with exactly 3 bullet points of recommended activities.\\n6. Make each bullet point distinct and practical, for example focusing on group games, outdoor activities, or creative challenges.\\n7. Keep the tone positive and engaging while making sure the output stays concise and relevant.\\n8. Review the final response to confirm it includes 3 bullet points and clearly recommends fun activities for the group.\"}]}","refusal":null,"annotations":[]},"finish_reason":"stop"}],"usage":{"prompt_tokens":955,"completion_tokens":439,"total_tokens":1394,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":null}'
+    headers:
+      content-length:
+      - '2386'
+      content-type:
+      - application/json
+      date:
+      - Mon, 02 Nov 2026 19:08:55 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Crew Manager. You are a seasoned manager with a knack for getting the best out of your team.\nYou are also known for your ability to delegate work to the right people, and to ask the right questions to get the best out of your team.\nEven though you don''t perform tasks by yourself, you have a lot of experience in the field, which allows you to properly evaluate the work of your team members.\nYour personal goal is: Manage the team to complete the task in the best way possible."},{"role":"user","content":"\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]1. Read the task carefully and identify the exact dataset provided: Ages = [10, 12, 14, 16, 18].\n2. Since no tools are available, perform the calculation manually using arithmetic.\n3. Add all ages together: 10 + 12 + 14 + 16 + 18 = 70.\n4. Count the number of participants: 5.\n5. Compute the average age by dividing the sum by the count: 70 ÷ 5 = 14.\n6. Prepare the final response as a complete sentence that includes both the question and the answer.\n7. Verify that the output is concise, accurate, and directly answers the task.\n8. Deliver the final sentence in a clear format, such as: ''The average age of the participants is 14.''\n\nThis is the expected criteria for your final answer: A complete sentence showing the question and the answer.\nyou MUST return the actual complete content as the final answer, not a summary."}],"model":"gpt-4o-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"delegate_work_to_coworker","description":"Delegate a specific task to one of the following coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be the coworker, the task you want them to do, and ALL necessary context to execute the task, they know nothing about the task, so share absolutely everything you know, don''t reference things but instead explain them.","strict":true,"parameters":{"properties":{"task":{"description":"The task to delegate","type":"string"},"context":{"description":"The context for the task","type":"string"},"coworker":{"description":"The role/name of the coworker to delegate to","type":"string"}},"required":["task","context","coworker"],"type":"object","additionalProperties":false}}},{"type":"function","function":{"name":"ask_question_to_coworker","description":"Ask a specific question to one of the following coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be the coworker, the question you have for them, and ALL necessary context to ask the question properly, they know nothing about the question, so share absolutely everything you know, don''t reference things but instead explain them.","strict":true,"parameters":{"properties":{"question":{"description":"The question to ask","type":"string"},"context":{"description":"The context for the question","type":"string"},"coworker":{"description":"The role/name of the coworker to ask","type":"string"}},"required":["question","context","coworker"],"type":"object","additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3133'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-EfrgpoRyvwtj9kjoKvvpjkbhdv1NX","object":"chat.completion","created":1793646539,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_aCX9SbR1M6XLBXuk2tPrSumS","type":"function","function":{"name":"delegate_work_to_coworker","arguments":"{\"task\":\"Analyze the given dataset and calculate the average age of participants. Provide a complete response in a clear format. Include the ages as the dataset: [10, 12, 14, 16, 18]. You need to add all ages together, count the number of participants, and compute the average age. Finally, prepare the response in the format: ''The average age of the participants is X.''\",\"context\":\"The dataset provided is ages: [10, 12, 14, 16, 18]. First, add all ages together: 10 + 12 + 14 + 16 + 18 = 70. Next, count the number of participants which is 5. Finally, compute the average age by dividing the sum by the count: 70 ÷ 5 = 14. The expected output should be a complete sentence that answers the initial question directly and with clarity.\",\"coworker\":\"Python Data Analyst\"}"}}],"refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":601,"completion_tokens":210,"total_tokens":811,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_5201f99262"}'
+    headers:
+      content-length:
+      - '1519'
+      content-type:
+      - application/json
+      date:
+      - Mon, 02 Nov 2026 19:08:58 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Python Data Analyst. You are an experienced data analyst with strong Python skills.\nYour personal goal is: Analyze data and provide insights using Python"},{"role":"user","content":"\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Provide a complete response in a clear format. Include the ages as the dataset: [10, 12, 14, 16, 18]. You need to add all ages together, count the number of participants, and compute the average age. Finally, prepare the response in the format: ''The average age of the participants is X.''\n\nThis is the expected criteria for your final answer: Your best answer to your coworker asking you this, accounting for the context shared.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you''re working with:\nThe dataset provided is ages: [10, 12, 14, 16, 18]. First, add all ages together: 10 + 12 + 14 + 16 + 18 = 70. Next, count the number of participants which is 5. Finally, compute the average age by dividing the sum by the count: 70 ÷ 5 = 14. The expected output should be a complete sentence that answers the initial question directly and with clarity."},{"role":"assistant","content":null,"tool_calls":[{"id":"call_4ZDIboEUKz8e9dTQDtD7BWuw","type":"function","function":{"name":"average_calculator","arguments":"{\"entries\":[10,12,14,16,18]}"}}]},{"role":"tool","tool_call_id":"call_4ZDIboEUKz8e9dTQDtD7BWuw","name":"average_calculator","content":"14.0"}],"model":"gpt-4.1-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"average_calculator","description":"This tool returns the average of a list of numbers.","strict":true,"parameters":{"properties":{"entries":{"items":{"type":"number"},"type":"array"}},"required":["entries"],"type":"object","additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1885'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-EfrgtnsvzNNUGgpM7oTdXyGAPaDmt","object":"chat.completion","created":1793646543,"model":"gpt-4.1-mini-2025-04-14","choices":[{"index":0,"message":{"role":"assistant","content":"The average age of the participants is 14.0.","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":352,"completion_tokens":13,"total_tokens":365,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_29c32828f7"}'
+    headers:
+      content-length:
+      - '637'
+      content-type:
+      - application/json
+      date:
+      - Mon, 02 Nov 2026 19:09:02 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Crew Manager. You are a seasoned manager with a knack for getting the best out of your team.\nYou are also known for your ability to delegate work to the right people, and to ask the right questions to get the best out of your team.\nEven though you don''t perform tasks by yourself, you have a lot of experience in the field, which allows you to properly evaluate the work of your team members.\nYour personal goal is: Manage the team to complete the task in the best way possible."},{"role":"user","content":"\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]1. Read the task carefully and identify the exact dataset provided: Ages = [10, 12, 14, 16, 18].\n2. Since no tools are available, perform the calculation manually using arithmetic.\n3. Add all ages together: 10 + 12 + 14 + 16 + 18 = 70.\n4. Count the number of participants: 5.\n5. Compute the average age by dividing the sum by the count: 70 ÷ 5 = 14.\n6. Prepare the final response as a complete sentence that includes both the question and the answer.\n7. Verify that the output is concise, accurate, and directly answers the task.\n8. Deliver the final sentence in a clear format, such as: ''The average age of the participants is 14.''\n\nThis is the expected criteria for your final answer: A complete sentence showing the question and the answer.\nyou MUST return the actual complete content as the final answer, not a summary."},{"role":"assistant","content":null,"tool_calls":[{"id":"call_aCX9SbR1M6XLBXuk2tPrSumS","type":"function","function":{"name":"delegate_work_to_coworker","arguments":"{\"task\":\"Analyze the given dataset and calculate the average age of participants. Provide a complete response in a clear format. Include the ages as the dataset: [10, 12, 14, 16, 18]. You need to add all ages together, count the number of participants, and compute the average age. Finally, prepare the response in the format: ''The average age of the participants is X.''\",\"context\":\"The dataset provided is ages: [10, 12, 14, 16, 18]. First, add all ages together: 10 + 12 + 14 + 16 + 18 = 70. Next, count the number of participants which is 5. Finally, compute the average age by dividing the sum by the count: 70 ÷ 5 = 14. The expected output should be a complete sentence that answers the initial question directly and with clarity.\",\"coworker\":\"Python Data Analyst\"}"}}]},{"role":"tool","tool_call_id":"call_aCX9SbR1M6XLBXuk2tPrSumS","name":"delegate_work_to_coworker","content":"The average age of the participants is 14.0."}],"model":"gpt-4o-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"delegate_work_to_coworker","description":"Delegate a specific task to one of the following coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be the coworker, the task you want them to do, and ALL necessary context to execute the task, they know nothing about the task, so share absolutely everything you know, don''t reference things but instead explain them.","strict":true,"parameters":{"properties":{"task":{"description":"The task to delegate","type":"string"},"context":{"description":"The context for the task","type":"string"},"coworker":{"description":"The role/name of the coworker to delegate to","type":"string"}},"required":["task","context","coworker"],"type":"object","additionalProperties":false}}},{"type":"function","function":{"name":"ask_question_to_coworker","description":"Ask a specific question to one of the following coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be the coworker, the question you have for them, and ALL necessary context to ask the question properly, they know nothing about the question, so share absolutely everything you know, don''t reference things but instead explain them.","strict":true,"parameters":{"properties":{"question":{"description":"The question to ask","type":"string"},"context":{"description":"The context for the question","type":"string"},"coworker":{"description":"The role/name of the coworker to ask","type":"string"}},"required":["question","context","coworker"],"type":"object","additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '4242'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-EfrguQEF2HB8RLdGyDPfPwBFc8Xe9","object":"chat.completion","created":1793646544,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":"The average age of the participants is 14.0.","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":836,"completion_tokens":13,"total_tokens":849,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_5201f99262"}'
+    headers:
+      content-length:
+      - '636'
+      content-type:
+      - application/json
+      date:
+      - Mon, 02 Nov 2026 19:09:03 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Crew Manager. You are a seasoned manager with a knack for getting the best out of your team.\nYou are also known for your ability to delegate work to the right people, and to ask the right questions to get the best out of your team.\nEven though you don''t perform tasks by yourself, you have a lot of experience in the field, which allows you to properly evaluate the work of your team members.\nYour personal goal is: Manage the team to complete the task in the best way possible."},{"role":"user","content":"\nCurrent Task: Given the average age of participants, recommend a fun activity for the group.1. Use the average age from Task 1, which is 14, as the key input for choosing age-appropriate activities.\n2. Since no tools are available, rely on reasoning about what is generally engaging for early teenagers.\n3. Select activities that are active, social, and enjoyable for a mixed group around age 14.\n4. Ensure the recommendation is suitable, safe, and broadly appealing to participants of this age group.\n5. Structure the response as a blog post with exactly 3 bullet points of recommended activities.\n6. Make each bullet point distinct and practical, for example focusing on group games, outdoor activities, or creative challenges.\n7. Keep the tone positive and engaging while making sure the output stays concise and relevant.\n8. Review the final response to confirm it includes 3 bullet points and clearly recommends fun activities for the group.\n\nThis is the expected criteria for your final answer: Blog post with 3 bullet points of recommended activities.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you''re working with:\nThe average age of the participants is 14.0."}],"model":"gpt-4o-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"delegate_work_to_coworker","description":"Delegate a specific task to one of the following coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be the coworker, the task you want them to do, and ALL necessary context to execute the task, they know nothing about the task, so share absolutely everything you know, don''t reference things but instead explain them.","strict":true,"parameters":{"properties":{"task":{"description":"The task to delegate","type":"string"},"context":{"description":"The context for the task","type":"string"},"coworker":{"description":"The role/name of the coworker to delegate to","type":"string"}},"required":["task","context","coworker"],"type":"object","additionalProperties":false}}},{"type":"function","function":{"name":"ask_question_to_coworker","description":"Ask a specific question to one of the following coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be the coworker, the question you have for them, and ALL necessary context to ask the question properly, they know nothing about the question, so share absolutely everything you know, don''t reference things but instead explain them.","strict":true,"parameters":{"properties":{"question":{"description":"The question to ask","type":"string"},"context":{"description":"The context for the question","type":"string"},"coworker":{"description":"The role/name of the coworker to ask","type":"string"}},"required":["question","context","coworker"],"type":"object","additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3424'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-EfrgvzDVs8WPSKzlc6URbngMkeFUP","object":"chat.completion","created":1793646545,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":"# Fun Activities for a Group of 14-Year-Olds\n\nEngaging a group of early teenagers can be a blast when activities are active, social, and suitable for their age. Here are three recommendations that are sure to bring excitement and fun to the gathering!\n\n- **Ultimate Frisbee**: This fast-paced, action-packed game is perfect for participants around age 14. Ultimate Frisbee combines elements of soccer and football, fostering teamwork and communication while getting everyone on their feet. It’s a great way to enjoy the outdoors and encourage friendly competition!\n\n- **Escape Room Challenge**: Organizing an escape room activity caters to the problem-solving and teamwork skills of 14-year-olds. Participants can work together to solve puzzles and riddles within a time limit, making it thrilling and intellectually stimulating. It promotes communication and collaboration in a fun and interactive setting!\n\n- **Creative Arts and Crafts Station**: Set up a space with supplies for painting, tie-dyeing, or crafting unique items. This hands-on activity allows participants to express their creativity and create something they can take home! It’s a more relaxed environment where they can socialize and unwind while making art.\n\nBy incorporating these activities, the group will have a memorable time filled with laughter and engagement!","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":614,"completion_tokens":254,"total_tokens":868,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_5201f99262"}'
+    headers:
+      content-length:
+      - '1944'
+      content-type:
+      - application/json
+      date:
+      - Mon, 02 Nov 2026 19:09:04 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

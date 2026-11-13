@@ -1,0 +1,164 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Python Data Analyst. You are an experienced data analyst with strong Python skills.\nYour personal goal is: Analyze data and provide insights using Python"},{"role":"user","content":"\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]\n\nThis is the expected criteria for your final answer: A complete sentence showing the question and the answer.\nyou MUST return the actual complete content as the final answer, not a summary."}],"model":"gpt-4.1-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"average_calculator","description":"This tool returns the average of a list of numbers.","strict":true,"parameters":{"properties":{"entries":{"items":{"type":"number"},"type":"array"}},"required":["entries"],"type":"object","additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '893'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-Efrgh2d2tjPlRtBY7wxEO2dfnIGmv","object":"chat.completion","created":1793646531,"model":"gpt-4.1-mini-2025-04-14","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_cyMcfN44ybstvpX2YLlwCTcB","type":"function","function":{"name":"average_calculator","arguments":"{\"entries\":[10,12,14,16,18]}"}}],"refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":149,"completion_tokens":23,"total_tokens":172,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_29c32828f7"}'
+    headers:
+      content-length:
+      - '759'
+      content-type:
+      - application/json
+      date:
+      - Mon, 02 Nov 2026 19:08:50 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Python Data Analyst. You are an experienced data analyst with strong Python skills.\nYour personal goal is: Analyze data and provide insights using Python"},{"role":"user","content":"\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]\n\nThis is the expected criteria for your final answer: A complete sentence showing the question and the answer.\nyou MUST return the actual complete content as the final answer, not a summary."},{"role":"assistant","content":null,"tool_calls":[{"id":"call_cyMcfN44ybstvpX2YLlwCTcB","type":"function","function":{"name":"average_calculator","arguments":"{\"entries\":[10,12,14,16,18]}"}}]},{"role":"tool","tool_call_id":"call_cyMcfN44ybstvpX2YLlwCTcB","name":"average_calculator","content":"14.0"}],"model":"gpt-4.1-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"average_calculator","description":"This tool returns the average of a list of numbers.","strict":true,"parameters":{"properties":{"entries":{"items":{"type":"number"},"type":"array"}},"required":["entries"],"type":"object","additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1195'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-Efrgig19ZzMZQnygeFM9pNvhBAqxP","object":"chat.completion","created":1793646532,"model":"gpt-4.1-mini-2025-04-14","choices":[{"index":0,"message":{"role":"assistant","content":"The average age of participants in the dataset [10, 12, 14, 16, 18] is 14.0 years.","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":184,"completion_tokens":31,"total_tokens":215,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_29c32828f7"}'
+    headers:
+      content-length:
+      - '675'
+      content-type:
+      - application/json
+      date:
+      - Mon, 02 Nov 2026 19:08:51 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Tour Guide. You are a tour guide with a passion for finding the best activities for groups of people.\nYour personal goal is: Recommend fun activities for a group of humans."},{"role":"user","content":"\nCurrent Task: Given the average age of participants, recommend a fun activity for the group.\n\nThis is the expected criteria for your final answer: Blog post with 3 bullet points of recommended activities.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you''re working with:\nThe average age of participants in the dataset [10, 12, 14, 16, 18] is 14.0 years.\n\nProvide your complete response:"}],"model":"gpt-4.1-mini"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '730'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-Efrgj5crDy2NcgLHPnI2rCQP8tuiT","object":"chat.completion","created":1793646533,"model":"gpt-4.1-mini-2025-04-14","choices":[{"index":0,"message":{"role":"assistant","content":"**Fun Activities for a Group with an Average Age of 14**\n\nPlanning activities for a group of teenagers averaging around 14 years old can be exciting, as this age is full of energy, curiosity, and a desire for fun and social interaction. Here are three great activity ideas that will keep everyone engaged and having a blast:\n\n- **Outdoor Adventure Challenge**  \nOrganize a scavenger hunt or an obstacle course in a local park. This encourages teamwork, problem-solving, and physical activity. Teens love a good challenge, and being outdoors adds an exciting element of exploration.\n\n- **Creative Workshop or DIY Craft Session**  \nSet up a creative space where participants can try their hand at making something fun—like customized T-shirts, friendship bracelets, or simple robotics kits. This gives a chance to express creativity and create memorable keepsakes.\n\n- **Interactive Game Night**  \nHost a game night with a mix of board games, card games, and interactive video games that cater to this age group. Games like “Mario Kart,” “Minecraft,” or group party games such as “Charades” or “Pictionary” can spark laughter and friendly competition.\n\nThese activities balance fun, creativity, and social interaction, making them perfect for a group of 14-year-olds to enjoy together!","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":147,"completion_tokens":256,"total_tokens":403,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_a39d4f1b74"}'
+    headers:
+      content-length:
+      - '1907'
+      content-type:
+      - application/json
+      date:
+      - Mon, 02 Nov 2026 19:08:52 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1
