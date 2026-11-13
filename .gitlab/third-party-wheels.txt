@@ -1,0 +1,23 @@
+# Third-party wheels that PyPI does not publish, but that CI installs. Without a wheel, each
+# CI job builds the package from its sdist again.
+#
+# The "build third-party wheels" jobs in .gitlab/third-party-wheels.yml build each entry one
+# time and upload the wheel to the Depot repository datadog/dd-trace-py-wheels, with the local
+# version "+dd.repackaging.<pipeline ID>". The jobs do not build an entry again when the index
+# has a wheel for the same package, version and tag. Thus, to build a wheel again, you must
+# first remove the wheel from Depot.
+#
+# Each job builds only the entries of its platform. Before you add an entry for a different
+# platform, add a job for that platform.
+#
+# The jobs repair each wheel with auditwheel, which needs a compiled extension. Thus, do not add
+# pure-Python packages, or packages that compile their extension only with a system library that
+# the image does not have (for example, pyyaml needs libyaml).
+#
+# Format: <package> <version> <python tag> <platform tag>
+
+markupsafe      3.0.3   cp315-cp315  manylinux_2_17_x86_64
+numpy           1.26.4  cp313-cp313  manylinux_2_17_x86_64
+zope-interface  7.2     cp314-cp314  manylinux_2_17_x86_64
+zope-interface  7.2     cp315-cp315  manylinux_2_17_x86_64
+zstandard       0.25.0  cp315-cp315  manylinux_2_17_x86_64

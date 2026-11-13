@@ -43,6 +43,15 @@ variables:
   # Use Depot as the default PyPI mirror for Python packages.
   PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
   UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
+  # Also use the wheels that .gitlab/third-party-wheels.yml builds for packages that have no
+  # PyPI wheel for some Python versions or platforms. This index has only those wheels and
+  # does not mirror PyPI, thus it must be an extra index.
+  PIP_EXTRA_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
+  UV_EXTRA_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
+  # By default, uv uses only the first index that has a package, and uv examines the extra
+  # index first. Thus, uv would not find the PyPI wheels of a package that the extra index
+  # has for one Python version only. This strategy compares the versions of all indexes.
+  UV_INDEX_STRATEGY: "unsafe-best-match"
 
 default:
   interruptible: true
@@ -87,6 +96,7 @@ include:
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
+  - local: ".gitlab/third-party-wheels.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
   - local: ".gitlab/debugging-exploration.yml"
@@ -651,6 +661,16 @@ test_sccache_watchdog:
   timeout: 5m
   script:
     - python3 .gitlab/scripts/test_sccache_watchdog.py -v
+
+# Exercises the list, index, repack and upload logic without a manylinux image, the
+# dd-trace-py-wheels index or adms.
+test_third_party_wheels:
+  extends: .ci_utils
+  stage: tests
+  needs: []
+  timeout: 5m
+  script:
+    - uv run --script .gitlab/scripts/test_third_party_wheels.py -v
 
 # Fails when test jobs stop collecting core dumps and backtraces on crash.
 # Runs the collector in script, since after_script failures don't fail the job.

@@ -1,0 +1,73 @@
+# Build the third-party wheels in .gitlab/third-party-wheels.txt that the Depot repository
+# datadog/dd-trace-py-wheels does not have yet, and upload them to that repository.
+# .gitlab-ci.yml adds the index of the repository as an extra index for pip and uv.
+#
+# Each platform has one build job and one upload job. To add a platform, copy the two jobs
+# and change the platform, the image and the runner architecture.
+
+.build_third_party_wheels:
+  extends: .retry_on_infrastructure_failure
+  stage: package
+  needs: []
+  timeout: 1h
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_main]
+    # A branch that changes the list or the jobs builds and uploads the new wheels before the merge.
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        paths:
+          - .gitlab/third-party-wheels.txt
+          - .gitlab/third-party-wheels.yml
+          - .gitlab/scripts/third-party-wheels.py
+        compare_to: refs/heads/main
+    - when: manual
+      allow_failure: true
+  variables:
+    KUBERNETES_CPU_REQUEST: "4"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+  script:
+    # The manylinux images have no Python on PATH. This interpreter runs only the script, which
+    # builds each wheel with the interpreter of the Python tag of the entry.
+    - uv run --python /opt/python/cp312-cp312/bin/python --script .gitlab/scripts/third-party-wheels.py build --platform "${WHEEL_PLATFORM}" --output-dir third-party-wheels
+  artifacts:
+    paths:
+      - third-party-wheels/*.whl
+    expire_in: 1 week
+
+.upload_third_party_wheels:
+  # The ci-utils image has the adms binary.
+  extends: .ci_utils
+  stage: package
+  # Upload from one pipeline at a time, so that two pipelines cannot upload the same wheel.
+  resource_group: third-party-wheels
+  # Do not stop the job between two uploads.
+  interruptible: false
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - when: on_success
+  script:
+    # adms parseRepositoryURL accepts only host/org/repo (5 slash parts).
+    # GitLab sets CI_REPOSITORY_URL to DataDog/apm-reliability/dd-trace-py.
+    - export CI_REPOSITORY_URL="https://github.com/DataDog/dd-trace-py"
+    - uv run --script .gitlab/scripts/third-party-wheels.py upload third-party-wheels
+
+"build third-party wheels manylinux_x86_64":
+  extends: .build_third_party_wheels
+  image: ${IMAGE_BASE_URL}:${MANYLINUX_AMD64_IMAGE_TAG}
+  tags: [ "arch:amd64" ]
+  variables:
+    WHEEL_PLATFORM: "manylinux_2_17_x86_64"
+
+"upload third-party wheels manylinux_x86_64":
+  extends: .upload_third_party_wheels
+  needs:
+    - job: "build third-party wheels manylinux_x86_64"
+      artifacts: true
