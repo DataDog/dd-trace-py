@@ -10,7 +10,7 @@ from ddtrace.internal.utils.formats import asbool
 
 
 if TYPE_CHECKING:
-    from logging.handlers import RotatingFileHandler
+    import logging.handlers
 
 
 log = get_logger(__name__)
