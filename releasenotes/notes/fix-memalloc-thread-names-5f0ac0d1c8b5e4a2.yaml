@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Thread names are now properly populated on memory profile samples.

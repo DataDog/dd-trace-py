@@ -12,6 +12,31 @@
 #include <unordered_map>
 
 void
+ddup_register_thread_name(int64_t thread_id, std::string_view name) // cppcheck-suppress unusedFunction
+{
+    Datadog::ProfilerState::get().thread_name_registry.register_name(thread_id, name);
+}
+
+void
+ddup_unregister_thread_name(int64_t thread_id) // cppcheck-suppress unusedFunction
+{
+    Datadog::ProfilerState::get().thread_name_registry.unregister_name(thread_id);
+}
+
+void
+ddup_replace_thread_names(
+  std::unordered_map<int64_t, std::string_view> const& names) // cppcheck-suppress unusedFunction
+{
+    Datadog::ProfilerState::get().thread_name_registry.replace_all(names);
+}
+
+size_t
+ddup_thread_name_count() // cppcheck-suppress unusedFunction
+{
+    return Datadog::ProfilerState::get().thread_name_registry.size();
+}
+
+void
 ddup_set_profiler_settings_json(std::string_view settings_json) // cppcheck-suppress unusedFunction
 {
     // Store the caller-supplied compact JSON object on ProfilerState

@@ -2,6 +2,7 @@ from types import ModuleType
 import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.profiling import config
@@ -114,6 +115,27 @@ def _install_thread_hook(name: str, after: typing.Callable[[ddtrace_threading.Th
     setattr(Thread, name, hook)
 
 
+def _register_thread_name(thread: ddtrace_threading.Thread) -> None:
+    if not ddup.is_available or thread.ident is None:
+        return
+
+    # CPython calls _set_native_id before setting the started event, so an exception here
+    # would make Thread.start block forever.
+    try:
+        ddup.register_thread_name(thread.ident, thread.name)
+    except Exception:
+        log.debug("[profiling] Failed to register thread name for %r", thread.ident, exc_info=True)
+
+
+def _unregister_thread_name(thread: ddtrace_threading.Thread) -> None:
+    if not ddup.is_available or thread.ident is None:
+        return
+    try:
+        ddup.unregister_thread_name(thread.ident)
+    except Exception:
+        log.debug("[profiling] Failed to unregister thread name for %r", thread.ident, exc_info=True)
+
+
 def _register_thread(thread: ddtrace_threading.Thread) -> None:
     if thread.ident is not None and thread.native_id is not None:
         # CPython calls _set_native_id before setting the started event, so an exception here
@@ -123,15 +145,53 @@ def _register_thread(thread: ddtrace_threading.Thread) -> None:
         except Exception:
             log.debug("[profiling] Failed to register thread %r with the stack profiler", thread.ident, exc_info=True)
 
+    _register_thread_name(thread)
+
 
 def _unregister_thread(thread: ddtrace_threading.Thread) -> None:
     if thread.ident is not None:
         stack.unregister_thread(thread.ident)
+    _unregister_thread_name(thread)
 
 
 def _install_thread_hooks() -> None:
     _install_thread_hook("_set_native_id", _register_thread)
     _install_thread_hook("_bootstrap_inner", _unregister_thread)
+
+
+_thread_names_initialized: bool = False
+
+
+def init_thread_names() -> None:
+    """Record thread names in ddup so the memory profiler can label its samples."""
+    global _thread_names_initialized
+
+    if _thread_names_initialized or not ddup.is_available:
+        return
+    _thread_names_initialized = True
+
+    # Threads that start later are named from the stack hooks, or from the memory
+    # collector when those hooks are absent. Name the threads that are already running.
+    for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
+        ddup.register_thread_name(thread_id, thread.name)
+
+
+def sync_thread_names() -> None:
+    """Drop the names of threads that are gone, and pick up renames."""
+    if not _thread_names_initialized or not ddup.is_available:
+        return
+
+    # Copy first: the loop reads thread.name, which can switch threads and let
+    # them resize the dicts. A starting thread is registered while still in
+    # _limbo, before it moves to _active.
+    active: list[tuple[int, ddtrace_threading.Thread]] = list(ddtrace_threading._active.items())  # type: ignore[attr-defined]
+    limbo: list[ddtrace_threading.Thread] = list(ddtrace_threading._limbo)  # type: ignore[attr-defined]
+    names: dict[int, str] = {thread_id: thread.name for thread_id, thread in active}
+    for thread in limbo:
+        if thread.ident is not None:
+            names[thread.ident] = thread.name
+
+    ddup.replace_thread_names(names)
 
 
 # Also patch threading.Thread so echion can track thread lifetimes
