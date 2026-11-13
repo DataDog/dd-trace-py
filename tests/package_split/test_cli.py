@@ -6,6 +6,7 @@ import json
 
 from package_split.cli import _scope_dir
 from package_split.cli import main
+import pytest
 
 from ._support import make_tree
 
@@ -55,6 +56,32 @@ def test_scope_encoding_distinguishes_ambiguous_paths():
     assert _scope_dir(["foo/bar"]) != _scope_dir(["foo_bar"])
     assert _scope_dir(["foo", "bar"]) != _scope_dir(["foo__bar"])
     assert _scope_dir(["/foo"]) != _scope_dir(["foo"])
+
+
+def test_different_targets_keep_separate_evidence(tmp_path, monkeypatch):
+    make_tree(tmp_path, "pkg", FILES | {"other.py": "from pkg.lib import f\nf()\n"})
+    monkeypatch.chdir(tmp_path)
+    for target in ("pkg.lib", "pkg.other"):
+        assert main(["--output", "out", "api-usage", "--module", target, "--source-path", "pkg"]) == 0
+    evidence = list((tmp_path / "out/api-usage").rglob("api-usage.json"))
+    assert len(evidence) == 2
+    assert {json.loads(path.read_text())["target"] for path in evidence} == {"pkg.lib", "pkg.other"}
+
+
+def test_similarly_named_scopes_keep_separate_evidence(tmp_path, monkeypatch):
+    make_tree(tmp_path, "a/b", FILES)
+    make_tree(tmp_path, "a_b", FILES)
+    monkeypatch.chdir(tmp_path)
+    for scope in ("a/b", "a_b"):
+        assert main(["--output", "out", "api-surface", "--source-path", scope]) == 0
+    assert len(list((tmp_path / "out/api-surface").rglob("api-surface.json"))) == 2
+
+
+@pytest.mark.parametrize("command", ["freeze", "gates"])
+def test_legacy_freeze_commands_are_retired(command):
+    with pytest.raises(SystemExit) as excinfo:
+        main([command])
+    assert excinfo.value.code == 2
 
 
 def test_api_surface_writes_evidence(tmp_path, monkeypatch, capsys):

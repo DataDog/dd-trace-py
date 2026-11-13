@@ -12,7 +12,7 @@ migration reasoning:
   must survive extraction into the foundation;
 - symbols with no external consumers can stay private.
 
-Zones come from a layers.json-style config (``{"zones": {prefix: zone}}``,
+Zones come from a layers.json-style config ({"zones": {prefix: zone}},
 longest prefix wins; unclassified modules are "foundation"), reusing
 scripts/import-analysis/layers.json when present so consumer clustering
 matches the repository's own architectural vocabulary.
@@ -108,8 +108,8 @@ def _default_zones(roots: Iterable[str]) -> dict[str, str]:
 def _package_root(module: str, modules: dict[str, Path]) -> str:
     """The package a module belongs to (itself for packages).
 
-    ``shared/base.py`` -> ``shared``; ``shared/sub/__init__.py`` ->
-    ``shared.sub``. Used as the bundling unit: consumers inside the owner's
+    shared/base.py -> shared; shared/sub/__init__.py ->
+    shared.sub. Used as the bundling unit: consumers inside the owner's
     own package move with it during extraction, so they do not block
     bundling suggestions.
     """

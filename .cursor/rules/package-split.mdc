@@ -1,0 +1,6 @@
+---
+description: Package extraction inventories and workflow
+globs: scripts/package_split/**,scripts/package-split,tests/package_split/**,docs/package-split/**,frozen-paths.txt,.github/workflows/freeze-check.yml
+alwaysApply: false
+---
+Follow `.agents/skills/package-split/SKILL.md`, `docs/package-split/plan.md` and `scripts/package_split/README.md`. Report inventory limitations explicitly. Source freezes use main's `frozen-paths.txt` and `freeze-check.yml`; do not introduce another freeze mechanism or report unrun checks as passing.

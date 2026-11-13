@@ -9,8 +9,8 @@
 # as well as merge-result rules, so editing this list cannot bypass a freeze.
 ddtrace/internal/codeowners.py=79ba689aac82d7f54ceb30661ffed6d8bb5ff76697dc3a87eb05718d6301ed9b
 
-# Native extraction (src/native -> ddtrace-internal-native) and the Python
-# modules the Rust extension imports at init (-> ddtrace-internal-base).
+# Native extraction (src/native -> _ddtrace_native) and the Python
+# modules the Rust extension imports at init (-> _ddtrace_internal).
 # ddtrace/internal/native/ and src/native build wiring in setup.py are not
 # frozen: they become the bridge and must change at cutover.
 ddtrace/internal/_unpatched.py=124a2e35188faad3fc6b2daa53f1960c031f101cfda74640080f227962072666

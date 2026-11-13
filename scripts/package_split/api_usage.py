@@ -2,25 +2,25 @@
 
 Computes what the rest of the repository actually uses from a module -- the
 de-facto API surface that must survive an extraction (e.g. when moving
-``ddtrace.internal.coverage`` to its own package).
+ddtrace.internal.coverage to its own package).
 
 Detection is static and over-approximating by design:
 
-- every import binding of the target (``import a.b as c``, ``from a.b import
-  x``, relative imports, star imports) is tracked per consumer module;
+- every import binding of the target (import a.b as c, from a.b import
+  x, relative imports, star imports) is tracked per consumer module;
 - usages are resolved through alias tracking and attribute chains rooted at
-  module bindings (``c.x.y`` -> ``a.b.x.y``), and *through re-export
-  chains*: ``from m import x`` where m does ``from a.b import x`` is
-  attributed to ``a.b.x`` (this is how public facades re-extract into a
+  module bindings (c.x.y -> a.b.x.y), and *through re-export
+  chains*: from m import x where m does from a.b import x is
+  attributed to a.b.x (this is how public facades re-extract into a
   used-API surface -- a direct-import-only view misses those consumers);
 - each usage is classified by context: call, subclassed, exception-caught,
   raised, or plain read;
 - usages inside the target itself are excluded (self-usage is not an
-  external contract), and usages behind ``try/except ImportError`` still
+  external contract), and usages behind try/except ImportError still
   count as usages (the fallback exists because the symbol is consumed).
 
 Over-approximation is the safe direction for pinning a stable API: chains
-that look like ``module.Class.attr`` are reported as deep symbol paths, and a
+that look like module.Class.attr are reported as deep symbol paths, and a
 human decides which paths are really part of the supported surface.
 """
 
@@ -86,14 +86,14 @@ class ApiUsageReport:
 class _UsageCollector(ast.NodeVisitor):
     """Two passes per consumer module: bind imports, then record usages.
 
-    With a ``target`` prefix, only usages of that module are recorded
-    (api-usage mode). With ``target=None`` and ``roots``, every usage whose
-    resolved path starts at one of ``roots`` is recorded with its full
+    With a target prefix, only usages of that module are recorded
+    (api-usage mode). With target=None and roots, every usage whose
+    resolved path starts at one of roots is recorded with its full
     resolved path, so a single pass can later be attributed to owning modules
     (api-surface mode).
 
-    ``origins`` maps each scanned module's import bindings
-    (``{module: {name: {dotted origin}}}``); it is what makes re-export
+    origins maps each scanned module's import bindings
+    ({module: {name: {dotted origin}}}); it is what makes re-export
     chains resolvable. It stays empty in api-surface mode, which remains
     direct-import only.
     """
@@ -209,7 +209,7 @@ class _UsageCollector(ast.NodeVisitor):
         """Classify a usage by its syntactic context (nearest few parents).
 
         All candidate kinds in the enclosing window are collected, then the
-        strongest wins: the node inside ``raise E('x')`` is both called (to
+        strongest wins: the node inside raise E('x') is both called (to
         construct the instance) and raised, and "raised" is the decisive
         fact for API stability (removing the class breaks the raise site).
         """
@@ -267,8 +267,8 @@ class _UsageCollector(ast.NodeVisitor):
     def _resolve_chain(self, binding: str, attrs: list[str]) -> list[str]:
         """Every dotted path a module-rooted chain can mean, through re-exports.
 
-        ``r.x.y`` with r bound to m means ``m.x.y``; if m binds x via
-        ``from a.b import x`` it also means ``a.b.x.y`` -- and x may be
+        r.x.y with r bound to m means m.x.y; if m binds x via
+        from a.b import x it also means a.b.x.y -- and x may be
         re-exported through any depth of facades (m -> m2 -> a.b), so every
         new path's re-export bindings are followed transitively. The walk is
         iterative and cycle-safe (each path expands once); the branch factor
@@ -354,9 +354,9 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
     """Map each Python source file under the source paths to its dotted name.
 
     Names are relative to root: ddtrace/internal/x.py is ddtrace.internal.x.
-    Module trees may also live under a ``src`` directory -- at the scan root
+    Module trees may also live under a src directory -- at the scan root
     (src/pkg/x.py) or in a workspace layout (packages/<dist>/src/pkg/x.py).
-    Treat ``src`` as a layout boundary when it contains the selected source
+    Treat src as a layout boundary when it contains the selected source
     path or is at the scan root, unless a package initializer identifies it or
     an ancestor as a package. Vendored code (vendor/) is skipped.
 
@@ -424,8 +424,8 @@ def analyze_api_usage(
 ) -> ApiUsageReport:
     """Compute the used-API report for target across the source paths.
 
-    ``require_target=False`` is for consumer-only scopes (e.g. scanning
-    ``tests/`` for a module that lives under ``ddtrace/``): the target
+    require_target=False is for consumer-only scopes (e.g. scanning
+    tests/ for a module that lives under ddtrace/): the target
     itself is not scanned, so only its consumers are reported. Note that
     re-export attribution needs the re-exporting module inside the scanned
     scope; when in doubt, scan the target's source paths too.

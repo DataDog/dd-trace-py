@@ -1,6 +1,6 @@
 """Command-line interface for the package-split API inventories.
 
-Invoked by the thin ``scripts/package-split`` wrapper.
+Invoked by the thin scripts/package-split wrapper.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from pathlib import Path
 import sys
 from typing import Optional
 
+from . import __version__
 from .api_usage import module_names_for
 
 
@@ -24,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="scripts/package-split",
         description="Static API inventories for choosing package-split boundaries.",
     )
+    parser.add_argument("--version", action="version", version="package-split harness %s" % __version__)
     parser.add_argument(
         "--output",
         default=DEFAULT_OUTPUT,
