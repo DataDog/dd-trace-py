@@ -49,7 +49,7 @@ class SetupSccacheTests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        self.root = Path(directory.name)
+        self.root = Path(directory.name).resolve()
         for name in ("sccache", "cc", "c++"):
             executable = self.root / name
             executable.write_text("#!/bin/sh\nexit 0\n")
