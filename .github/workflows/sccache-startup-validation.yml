@@ -4,6 +4,7 @@ on:
     branches: [juanjo/sccache-startup-validation]
 permissions:
   contents: read
+  checks: write
 jobs:
   unit:
     strategy:
@@ -20,8 +21,35 @@ jobs:
       - name: Hermetic build and watchdog tests
         run: |
           /bin/bash --version
-          python3 .gitlab/scripts/test_setup_sccache.py -v
-          python3 .gitlab/scripts/test_sccache_watchdog.py -v
+          python3 .gitlab/scripts/test_setup_sccache.py -v 2>&1 | tee /tmp/sccache-validation.log
+          python3 .gitlab/scripts/test_sccache_watchdog.py -v 2>&1 | tee -a /tmp/sccache-validation.log
+      - name: Publish diagnostic details
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT_SHA: ${{ github.sha }}
+          REPORT_REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, urllib.request
+          path = pathlib.Path('/tmp/sccache-validation.log')
+          report = path.read_text(errors='replace') if path.exists() else 'No command output captured.'
+          payload = {
+              'name': 'Sccache validation details (' + os.environ.get('RUNNER_OS', 'unknown') + ')',
+              'head_sha': os.environ['REPORT_SHA'],
+              'status': 'completed',
+              'conclusion': 'neutral',
+              'output': {'title': 'Sccache validation diagnostics', 'summary': '```text\n' + report[-55000:] + '\n```'},
+          }
+          request = urllib.request.Request(
+              'https://api.github.com/repos/' + os.environ['REPORT_REPOSITORY'] + '/check-runs',
+              data=json.dumps(payload).encode(),
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'},
+              method='POST',
+          )
+          with urllib.request.urlopen(request) as response:
+              print('Published validation diagnostics:', response.status)
+          PY
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -36,10 +64,37 @@ jobs:
       - name: Repository formatting
         run: |
           git update-ref refs/remotes/origin/main HEAD^
-          scripts/lint fmt -- setup.py .gitlab/scripts/sccache-watchdog.py .gitlab/scripts/test_sccache_watchdog.py .gitlab/scripts/test_setup_sccache.py
+          scripts/lint fmt -- setup.py .gitlab/scripts/sccache-watchdog.py .gitlab/scripts/test_sccache_watchdog.py .gitlab/scripts/test_setup_sccache.py 2>&1 | tee /tmp/sccache-validation.log
           git diff --exit-code
       - name: Repository checks
-        run: scripts/lint checks
+        run: scripts/lint checks 2>&1 | tee -a /tmp/sccache-validation.log
       - name: Formatting diff
         if: failure()
-        run: git diff
+        run: git diff | tee -a /tmp/sccache-validation.log
+      - name: Publish diagnostic details
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT_SHA: ${{ github.sha }}
+          REPORT_REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, urllib.request
+          path = pathlib.Path('/tmp/sccache-validation.log')
+          report = path.read_text(errors='replace') if path.exists() else 'No command output captured.'
+          payload = {
+              'name': 'Sccache validation details (' + os.environ.get('RUNNER_OS', 'unknown') + ')',
+              'head_sha': os.environ['REPORT_SHA'],
+              'status': 'completed',
+              'conclusion': 'neutral',
+              'output': {'title': 'Sccache validation diagnostics', 'summary': '```text\n' + report[-55000:] + '\n```'},
+          }
+          request = urllib.request.Request(
+              'https://api.github.com/repos/' + os.environ['REPORT_REPOSITORY'] + '/check-runs',
+              data=json.dumps(payload).encode(),
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'},
+              method='POST',
+          )
+          with urllib.request.urlopen(request) as response:
+              print('Published validation diagnostics:', response.status)
+          PY
