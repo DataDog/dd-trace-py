@@ -59,11 +59,69 @@ def _remap_traces_sampler(otel_value: str) -> Optional[str]:
     return None
 
 
+_SUPPORTED_EXPORTERS = ("none", "otlp")
+
+OTEL_EXPORTER_ENV_VARS = ("OTEL_TRACES_EXPORTER", "OTEL_METRICS_EXPORTER", "OTEL_LOGS_EXPORTER")
+
+
+def _exporter_names(otel_value: str) -> list[str]:
+    names = (name.strip().lower() for name in otel_value.split(","))
+    return [name for name in names if name]
+
+
+def is_unset_exporter_list(otel_value: str) -> bool:
+    """Whether an OTEL_{TRACES,METRICS,LOGS}_EXPORTER value holds no entry, like an empty value."""
+    return not _exporter_names(otel_value)
+
+
+def _select(names: list[str]) -> Optional[str]:
+    # otlp is the only exporter ddtrace supports. Combining it with none is not expected, so
+    # picking otlp in that case is a compromise.
+    if "otlp" in names:
+        return "otlp"
+    if "none" in names:
+        return "none"
+    return None
+
+
+def has_ignored_exporter(otel_value: str) -> bool:
+    """Whether an OTEL_{TRACES,METRICS,LOGS}_EXPORTER list selects an exporter but ignores other entries."""
+    names = _exporter_names(otel_value)
+    selected = _select(names)
+    return selected is not None and any(name != selected for name in names)
+
+
+def select_exporter(otel_env: str, otel_value: str, warn: bool = False) -> Optional[str]:
+    """Select the exporter to use from an OTEL_{TRACES,METRICS,LOGS}_EXPORTER value.
+
+    The OpenTelemetry spec allows the value to be a comma-separated list of exporters. ddtrace does
+    not export to several exporters at once: it falls back to the supported entry of the list and
+    ignores the others. Entries are trimmed and matched ignoring case, and blank entries are
+    skipped. Returns "otlp" or "none", or None when the list holds no supported exporter. When warn
+    is true, every ignored entry of a list that selects an exporter is logged.
+    """
+    names = _exporter_names(otel_value)
+    selected = _select(names)
+    if selected is None:
+        return None
+
+    if warn:
+        for name in names:
+            if name == selected:
+                continue
+            if name in _SUPPORTED_EXPORTERS:
+                log.warning("%s: ignoring %s combined with %s.", otel_env, name, selected)
+            else:
+                log.warning("%s: ignoring unsupported exporter %s.", otel_env, name)
+    return selected
+
+
 def _remap_traces_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel trace exporter to ddtrace trace enabled"""
-    if otel_value == "none":
+    exporter = select_exporter("OTEL_TRACES_EXPORTER", otel_value, warn=True)
+    if exporter == "none":
         return "False"
-    if otel_value == "otlp":
+    if exporter == "otlp":
         # OTLP export is handled natively by ddtrace; tracing remains enabled.
         return "True"
     return None
@@ -71,16 +129,17 @@ def _remap_traces_exporter(otel_value: str) -> Optional[str]:
 
 def _remap_metrics_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel metrics exporter to ddtrace metrics exporter"""
-    if otel_value == "none":
+    if select_exporter("OTEL_METRICS_EXPORTER", otel_value) == "none":
         return "False"
     return None
 
 
 def _remap_logs_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel logs exporter to ddtrace logs enabled"""
-    if otel_value == "none":
+    exporter = select_exporter("OTEL_LOGS_EXPORTER", otel_value, warn=True)
+    if exporter == "none":
         return "False"
-    if otel_value == "otlp":
+    if exporter == "otlp":
         return "True"
     return None
 
