@@ -75,6 +75,8 @@ APMCapabilities = (
     RemoteConfigCapabilities.ApmTracingCustomTags,
     RemoteConfigCapabilities.ApmTracingEnabled,
     RemoteConfigCapabilities.ApmTracingSampleRules,
+    # DSM2-599: declared so the backend offers data_streams_enabled overrides.
+    RemoteConfigCapabilities.ApmTracingDataStreamsEnabled,
 )
 
 
@@ -189,6 +191,18 @@ def _apply_config_change(config_name, config_value, dd_config):
         log.debug("Updated HTTP header tags configuration via remote_config: %s", config_value)
     elif config_name == "_logs_injection":
         log.debug("Updated logs injection configuration via remote_config: %s", config_value)
+    elif config_name == "_data_streams_enabled":
+        # DSM2-599: toggle classic data streams monitoring at runtime. Deliberately
+        # lazy, like the tracer import above: the datastreams package imports
+        # integration modules that pull in messaging client libraries.
+        from ddtrace.internal.datastreams import start_data_streams_processor
+        from ddtrace.internal.datastreams import stop_data_streams_processor
+
+        if config_value is True:
+            start_data_streams_processor()
+        else:
+            stop_data_streams_processor()
+        log.debug("Data streams monitoring set to %s via remote_config", config_value)
     else:
         log.error("Unsupported config: name=%s, value=%s", config_name, config_value)
 
@@ -202,6 +216,7 @@ def apm_tracing_rc(lib_config, dd_config):
         "tags": _convert_rc_tags(lib_config, "tracing_tags", dd_config),
         "_tracing_enabled": _convert_optional_bool(lib_config, "tracing_enabled"),
         "_trace_http_header_tags": _convert_rc_tags(lib_config, "tracing_header_tags", dd_config),
+        "_data_streams_enabled": _convert_optional_bool(lib_config, "data_streams_enabled"),
     }
 
     for config_name, new_rc_value in config_mapping.items():

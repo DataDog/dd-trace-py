@@ -140,8 +140,9 @@ class DataStreamsProcessor(PeriodicService):
             initial_wait=0.618 * self.interval / (1.618**retry_attempts) / 2,
         )(self._flush_stats)
 
-        register_on_exit_signal(partial(_atexit, obj=self))
-        ddtrace_atexit.register(partial(_atexit, obj=self))
+        self._atexit_func = partial(_atexit, obj=self)
+        register_on_exit_signal(self._atexit_func)
+        ddtrace_atexit.register(self._atexit_func)
         self.start()
 
     def on_checkpoint_creation(
@@ -315,6 +316,8 @@ class DataStreamsProcessor(PeriodicService):
             )
 
     def shutdown(self, timeout: Optional[float]) -> None:
+        # A shut-down processor must not be flushed (and warn) again at exit.
+        ddtrace_atexit.unregister(self._atexit_func)
         self.periodic()
         self.stop(timeout)
 

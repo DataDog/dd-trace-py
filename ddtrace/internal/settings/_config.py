@@ -408,6 +408,11 @@ def _default_config() -> dict[str, _ConfigItem]:
             otel_env="OTEL_TRACES_EXPORTER",
             modifier=asbool,
         ),
+        "_data_streams_enabled": _ConfigItem(
+            default=False,
+            envs=["DD_DATA_STREAMS_ENABLED"],
+            modifier=asbool,
+        ),
         "_llmobs_enabled": _ConfigItem(
             default=False,
             envs=["DD_LLMOBS_ENABLED"],
@@ -720,7 +725,6 @@ class Config:
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
-        self._data_streams_enabled: bool = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
         dd_trace_obfuscation_query_string_regexp = _get_config(

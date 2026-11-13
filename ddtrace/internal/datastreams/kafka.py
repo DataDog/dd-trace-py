@@ -4,7 +4,6 @@ from typing import Optional
 
 from confluent_kafka import TopicPartition
 
-from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
@@ -47,6 +46,11 @@ def dsm_kafka_message_produce(
 ) -> None:
     from . import data_streams_processor as processor
 
+    # Registered unconditionally (DSM2-599): no-op, one call, while DSM is inactive.
+    p = processor()
+    if p is None:
+        return
+
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
     message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
@@ -65,14 +69,13 @@ def dsm_kafka_message_produce(
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
-    if (p := processor()) is not None:
-        ctx = p.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
-        if not disable_header_injection:
-            if isinstance(headers, dict):
-                DsmPathwayCodec.encode(ctx, headers)
-                kwargs["headers"] = headers
-            elif isinstance(headers, (list, tuple)):
-                kwargs["headers"] = _with_pathway_header(headers, ctx)
+    ctx = p.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
+    if not disable_header_injection:
+        if isinstance(headers, dict):
+            DsmPathwayCodec.encode(ctx, headers)
+            kwargs["headers"] = headers
+        elif isinstance(headers, (list, tuple)):
+            kwargs["headers"] = _with_pathway_header(headers, ctx)
 
     on_delivery_kwarg = "on_delivery"
     on_delivery_arg = 5
@@ -110,6 +113,10 @@ def dsm_kafka_message_produce(
 def dsm_kafka_message_consume(instance, message, span):
     from . import data_streams_processor as processor
 
+    p = processor()
+    if p is None:
+        return
+
     if message.error() is not None:
         return
 
@@ -128,10 +135,6 @@ def dsm_kafka_message_consume(instance, message, span):
 
     payload_size += _calculate_byte_size(message.key())
     payload_size += _headers_byte_size(header_list)
-
-    p = processor()
-    if p is None:
-        return
 
     ctx = DsmPathwayCodec.decode(headers, p)
 
@@ -162,6 +165,10 @@ def dsm_kafka_message_consume(instance, message, span):
 def dsm_kafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
+    p = processor()
+    if p is None:
+        return
+
     cluster_id = core.find_item("kafka_cluster_id") or ""
     message = get_argument_value(args, kwargs, 0, "message", optional=True)
 
@@ -172,10 +179,6 @@ def dsm_kafka_message_commit(instance, args, kwargs):
         offsets = [TopicPartition(message.topic(), message.partition(), reported_offset)]
     else:
         offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
-
-    p = processor()
-    if p is None:
-        return
 
     for offset in offsets:
         reported_offset = offset.offset if isinstance(offset.offset, INT_TYPES) else -1
@@ -189,7 +192,8 @@ def dsm_kafka_message_commit(instance, args, kwargs):
         )
 
 
-if config._data_streams_enabled:
-    core.on("kafka.produce.start", dsm_kafka_message_produce)
-    core.on("kafka.consume.start", dsm_kafka_message_consume)
-    core.on("kafka.commit.start", dsm_kafka_message_commit)
+# DSM2-599: handlers are subscribed unconditionally, so remote config can
+# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+core.on("kafka.produce.start", dsm_kafka_message_produce)
+core.on("kafka.consume.start", dsm_kafka_message_consume)
+core.on("kafka.commit.start", dsm_kafka_message_commit)
