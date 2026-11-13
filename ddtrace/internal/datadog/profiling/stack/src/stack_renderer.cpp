@@ -164,6 +164,7 @@ StackRenderer::render_frame(Frame& frame)
 
         auto maybe_interned_name_id = Datadog::intern_string(name_str);
         if (!maybe_interned_name_id) {
+            ProfilerStats::incr_intern_failed_count();
             return;
         }
         name_id = *maybe_interned_name_id;
@@ -185,6 +186,7 @@ StackRenderer::render_frame(Frame& frame)
 
         auto maybe_interned_filename_id = Datadog::intern_string(filename_str);
         if (!maybe_interned_filename_id) {
+            ProfilerStats::incr_intern_failed_count();
             return;
         }
         filename_id = *maybe_interned_filename_id;
@@ -198,6 +200,7 @@ StackRenderer::render_frame(Frame& frame)
     if (maybe_function_id == function_id_cache.end()) {
         auto maybe_interned_function_id = Datadog::intern_function(name_id, filename_id);
         if (!maybe_interned_function_id) {
+            ProfilerStats::incr_intern_failed_count();
             return;
         }
         function_id = *maybe_interned_function_id;
@@ -238,6 +241,7 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
     std::string display_name = module.empty() ? name : module + "." + name;
     auto maybe_name_id = Datadog::intern_string(display_name);
     if (!maybe_name_id) {
+        ProfilerStats::incr_intern_failed_count();
         return;
     }
     auto name_id = *maybe_name_id;
@@ -248,6 +252,7 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
     static constexpr std::string_view native_filename = "<native>";
     auto maybe_filename_id = Datadog::intern_string(native_filename);
     if (!maybe_filename_id) {
+        ProfilerStats::incr_intern_failed_count();
         return;
     }
     auto filename_id = *maybe_filename_id;
@@ -258,6 +263,7 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
     if (cached == function_id_cache.end()) {
         auto maybe_fid = Datadog::intern_function(name_id, filename_id);
         if (!maybe_fid) {
+            ProfilerStats::incr_intern_failed_count();
             return;
         }
         fid = *maybe_fid;
