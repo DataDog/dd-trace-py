@@ -97,6 +97,11 @@ BUILD_TIMEOUT = 30 * 60
 
 _PIN_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?==([^\s;]+)$")
 _METADATA_VERSION_RE = re.compile(rb"(?m)^Version:[ \t]*(\S+)[ \t]*\r?$")
+_METADATA_FORMAT_RE = re.compile(rb"(?m)^Metadata-Version:[ \t]*(\S+)[ \t]*\r?$")
+# adms cannot parse METADATA files after version 2.4. Version 2.5 only adds these fields (PEP 794).
+ADMS_METADATA_FORMAT = "2.4"
+# Match the line break before the field, because the last header field has no line break after it.
+_METADATA_2_5_FIELDS_RE = re.compile(rb"\r?\nImport-Name(?:space)?:[^\r\n]*")
 _LEGACY_MANYLINUX = {17: "manylinux2014", 12: "manylinux2010", 5: "manylinux1"}
 
 
@@ -256,7 +261,10 @@ def has_sdist(filenames: Iterable[str], name: str, version: str) -> bool:
 
 
 def set_metadata_version(metadata: Path, old_version: str, new_version: str) -> None:
-    """Replace the Version header field of a METADATA file."""
+    """Replace the Version header field of a METADATA file.
+
+    Also change a Metadata-Version 2.5 file to version 2.4, because adms cannot parse 2.5.
+    """
     content = metadata.read_bytes()
     # Examine only the header fields. The description after the first blank line can also
     # contain a line that starts with "Version:".
@@ -267,6 +275,15 @@ def set_metadata_version(metadata: Path, old_version: str, new_version: str) -> 
     if len(values) != 1 or Version(values[0].decode()) != Version(old_version):
         raise BuildError(f"expected one 'Version: {old_version}' header field in {metadata}, found {values}")
     headers = _METADATA_VERSION_RE.sub(b"Version: " + new_version.encode(), headers, count=1)
+    formats = _METADATA_FORMAT_RE.findall(headers)
+    if len(formats) != 1:
+        raise BuildError(f"expected one Metadata-Version header field in {metadata}, found {formats}")
+    metadata_format = Version(formats[0].decode())
+    if metadata_format == Version("2.5"):
+        headers = _METADATA_2_5_FIELDS_RE.sub(b"", headers)
+        headers = _METADATA_FORMAT_RE.sub(b"Metadata-Version: " + ADMS_METADATA_FORMAT.encode(), headers, count=1)
+    elif metadata_format > Version(ADMS_METADATA_FORMAT):
+        raise BuildError(f"adms cannot parse Metadata-Version {metadata_format} in {metadata}")
     metadata.write_bytes(headers + body)
 
 
