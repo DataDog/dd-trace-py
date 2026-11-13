@@ -100,19 +100,22 @@ class BoundMethod(t.Protocol):
 _threads_to_start_after_fork: list[BoundMethod] = []
 
 
-def _safe_restart(start: t.Callable[[], None], name: t.Optional[str] = None) -> None:
-    """Invoke a post-fork thread-start callable, logging resource errors instead of raising.
+def _safe_restart(start: t.Callable[[], None]) -> t.Optional[Exception]:
+    """Invoke a post-fork thread-start callable, returning resource errors instead of raising.
 
     The native layer translates pthread_create failures (EAGAIN, ENOMEM) into
     OSError. Post-fork restart is triggered automatically by forksafe hooks —
     there is no explicit caller that can handle the error, so losing a
     periodic thread to resource exhaustion must not crash the host.
     Explicit start() calls let OSError propagate so the caller can react.
+    The error is returned rather than logged so the caller can log it after
+    releasing _forking_lock.
     """
     try:
         start()
     except Exception as e:
-        log.error("failed to start periodic thread %s: %s", name, e)
+        return e
+    return None
 
 
 class PeriodicThread(_PeriodicThread):
@@ -185,6 +188,21 @@ class ThreadRestartTimer(PeriodicThread):
 
     def _restart_threads(self) -> None:
         # Restart the threads after we have stopped calling fork for a while.
+        # Errors are logged only after _forking_lock is released: a log handler
+        # (e.g. telemetry log forwarding) can take a lock whose holder is itself
+        # waiting for _forking_lock, such as a thread stopping a periodic service.
+        # Each entry is (failed_after_fork_restart, thread name, error).
+        errors: list[tuple[bool, str, Exception]] = []
+        try:
+            self._restart_threads_locked(errors)
+        finally:
+            for restarting, name, error in errors:
+                if restarting:
+                    log.error("failed to restart periodic thread %s after fork: %s", name, error)
+                else:
+                    log.error("failed to start periodic thread %s: %s", name, error)
+
+    def _restart_threads_locked(self, errors: list[tuple[bool, str, Exception]]) -> None:
         with _forking_lock:
             # If we are forking, we will try again later.
             if _forking:
@@ -210,7 +228,7 @@ class ThreadRestartTimer(PeriodicThread):
                     try:
                         thread._after_fork(force=self._force_restart)
                     except Exception as e:
-                        log.error("failed to restart periodic thread %s after fork: %s", thread.name, e)
+                        errors.append((True, thread.name, e))
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
@@ -220,7 +238,9 @@ class ThreadRestartTimer(PeriodicThread):
                         # above: don't start it in the child either.
                         continue
                     log.debug("Starting thread %s after fork", thread_start.__self__.name)
-                    _safe_restart(thread_start, thread_start.__self__.name)
+                    error = _safe_restart(thread_start)
+                    if error is not None:
+                        errors.append((False, thread_start.__self__.name, error))
                 _threads_to_start_after_fork.clear()
 
                 # We no longer need this thread so we clear it.

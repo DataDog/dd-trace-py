@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: ddtrace no longer overrides ``SIGTERM`` and ``SIGINT`` when the application ignores them. Before this fix,
+    those signals caused the process to exit when running with ddtrace.
