@@ -5,15 +5,25 @@ use pyo3::pymodule;
 #[pymodule]
 pub mod ffe {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
-    use pyo3::{exceptions::PyValueError, prelude::*};
+    use pyo3::{exceptions::PyValueError, prelude::*, types::PyTuple};
     use tracing::debug;
 
     use libdd_ffe::rules_based as ffe;
     use libdd_ffe::rules_based::{
         get_assignment, now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
-        EvaluationError, Str, UniversalFlagConfig,
+        EvaluationError, Feature, Str, UniversalFlagConfig,
     };
+
+    /// UFC extensions supported by both the linked evaluator and this binding.
+    /// Only add a token after its evaluation semantics, error propagation, and
+    /// exposure reporting are supported. In particular, the linked evaluator does not support dependent
+    /// flags yet, so transports must not advertise that capability.
+    #[pyfunction]
+    fn get_evaluator_capabilities() -> Vec<&'static str> {
+        Vec::new()
+    }
 
     #[pyclass(frozen)]
     #[pyo3(name = "Configuration")]
@@ -55,6 +65,7 @@ pub mod ffe {
         // assignment field is Option<i32>; cast to i64 to match the Python stub.
         #[pyo3(get)]
         serial_id: Option<i64>,
+        features: Option<Arc<[Feature]>>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -152,11 +163,33 @@ pub mod ffe {
                         .collect(),
                     do_log: assignment.do_log,
                     serial_id: assignment.serial_id.map(|id| id as i64),
+                    features: assignment.features,
                 },
                 Err(err) => err.into(),
             };
 
             Ok(result)
+        }
+    }
+
+    #[pymethods]
+    impl ResolutionDetails {
+        /// Features of the selected split as `(key, value, destinations)` tuples, or `None` when
+        /// the split has none. Destinations are passed through unfiltered.
+        #[getter]
+        fn features<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyTuple>>> {
+            let Some(features) = self.features.as_deref() else {
+                return Ok(None);
+            };
+            let items = features
+                .iter()
+                .map(|feature| {
+                    let destinations =
+                        PyTuple::new(py, feature.destinations.iter().map(|d| d.as_str()))?;
+                    (feature.key.as_str(), &feature.value, destinations).into_pyobject(py)
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            PyTuple::new(py, items).map(Some)
         }
     }
 
@@ -172,6 +205,7 @@ pub mod ffe {
                 flag_metadata: HashMap::new(),
                 do_log: false,
                 serial_id: None,
+                features: None,
             }
         }
 
@@ -186,6 +220,7 @@ pub mod ffe {
                 flag_metadata: HashMap::new(),
                 do_log: false,
                 serial_id: None,
+                features: None,
             }
         }
     }

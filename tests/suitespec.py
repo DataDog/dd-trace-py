@@ -29,7 +29,6 @@ DEFAULT_DEPENDENCIES = (
     "pytest-mock",
     "coverage",
     "pytest-cov",
-    "opentracing",
     "hypothesis<6.45.1",
 )
 DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15")

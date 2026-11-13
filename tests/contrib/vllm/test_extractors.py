@@ -1,4 +1,4 @@
-from ddtrace.contrib.internal.vllm.extractors import parse_prompt_to_messages
+from ddtrace.llmobs._integrations.vllm_utils import parse_prompt_to_messages
 
 
 class TestParsePromptToMessages:

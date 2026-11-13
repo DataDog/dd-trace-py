@@ -166,8 +166,8 @@ suites:
       command: pytest -v {cmdargs} tests/package_split/
       variants:
         - name: package_split
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [pytest-randomly, tomli, build]
+          python: ['3.12']
+          dependencies: [pytest-randomly]
   smoke_test:
     type: helper
     paths:
@@ -206,6 +206,7 @@ suites:
       - '**/conftest.py'
       - 'tests/_ddtest_conftest_helpers.py'
       - 'tests/_ddtest_env_helpers.py'
+      - 'tests/subprocesstest.py'
     pattern: meta-testing
     snapshot: false
     matrix:

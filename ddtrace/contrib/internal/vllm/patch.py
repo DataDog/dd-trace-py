@@ -7,10 +7,15 @@ from typing import Optional
 import vllm
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations.vllm import VLLMIntegration
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
 
 
@@ -20,14 +25,16 @@ if TYPE_CHECKING:
 from ._constants import ARG_POSITION_ADD_REQUEST_TRACE_HEADERS
 from ._constants import ARG_POSITION_LOG_STATS
 from ._constants import ARG_POSITION_TRACE_HEADERS
-from ._constants import ATTR_DATADOG_INTEGRATION
 from ._constants import ATTR_DATADOG_PATCH
 from ._constants import ATTR_MODEL_NAME
 from ._constants import MIN_VERSION
+from ._constants import OPERATION_ID
+from ._constants import PROVIDER_NAME
+from ._constants import TAG_MODEL
+from ._constants import TAG_PROVIDER
 from .extractors import extract_latency_metrics
 from .extractors import extract_request_data
 from .extractors import get_model_name
-from .utils import create_span
 from .utils import inject_trace_context
 from .utils import set_latency_metrics
 
@@ -35,6 +42,9 @@ from .utils import set_latency_metrics
 logger = get_logger(__name__)
 
 config._add("vllm", {})
+
+# LLMObs subscribes to shared lifecycle events for this component; see ddtrace/llmobs/_contrib/vllm.
+COMPONENT = "vllm"
 
 
 def _supported_versions() -> dict[str, str]:
@@ -138,8 +148,28 @@ def _capture_request_states(
     return spans_data
 
 
+def _request_event(model_name: Optional[str], trace_headers: Optional[dict[str, str]]) -> LlmRequestEvent:
+    """Build the LlmRequestEvent for a finished request.
+
+    The request runs outside the caller's context, so the parent comes from the trace headers
+    injected by process_inputs when they are present.
+    """
+    parent_ctx = HTTPPropagator.extract(trace_headers) if trace_headers else None
+    return LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.vllm,
+        service=int_service(None, config.vllm),
+        resource=OPERATION_ID,
+        provider=PROVIDER_NAME,
+        model=model_name,
+        tags={TAG_MODEL: model_name, TAG_PROVIDER: PROVIDER_NAME} if model_name else {},
+        submit_to_llmobs=True,
+        use_active_context=parent_ctx is None,
+        distributed_context=parent_ctx,
+    )
+
+
 def _create_finished_spans(
-    integration: VLLMIntegration,
     model_name: Optional[str],
     instance: OutputProcessor,
     spans_data: dict[str, dict[str, Any]],
@@ -149,47 +179,39 @@ def _create_finished_spans(
         if req_id in instance.request_states:
             continue
 
-        span = create_span(
-            integration=integration,
-            model_name=model_name,
-            trace_headers=span_info["trace_headers"],
-            arrival_time=span_info["arrival_time"],
-        )
+        event = _request_event(model_name, span_info["trace_headers"])
 
-        # The span is active once created. Always finish it, so that an error here cannot leave it
-        # active as the parent of later spans. Catch errors per request, so that one failure does not
-        # drop the spans of the other finished requests in the batch.
-        try:
-            data = span_info["data"]
-            operation = "embedding" if data.embedding_dim is not None else "completion"
+        # The span is active once created. Catch errors per request inside the context, so that an
+        # error here cannot leave the span active as the parent of later spans, and so that one failure
+        # does not drop the spans of the other finished requests in the batch.
+        # LLMObs reads request_kwargs and operation from the event when the span finishes.
+        with core.context_with_event(event) as ctx:
+            span = span_from_context(ctx)
+            try:
+                if span_info["arrival_time"]:
+                    span.start_ns = int(span_info["arrival_time"] * 1e9)
 
-            if operation == "completion" and span_info["stats"]:
-                data.output_tokens = span_info["stats"].num_generation_tokens
+                data = span_info["data"]
+                operation = "embedding" if data.embedding_dim is not None else "completion"
 
-            latency_metrics = extract_latency_metrics(span_info["stats"])
+                if operation == "completion" and span_info["stats"]:
+                    data.output_tokens = span_info["stats"].num_generation_tokens
 
-            integration.llmobs_set_tags(
-                span,
-                args=[],
-                kwargs={
+                latency_metrics = extract_latency_metrics(span_info["stats"])
+
+                event.operation = operation
+                event.request_kwargs = {
                     "request_data": data,
                     "latency_metrics": latency_metrics,
-                },
-                response=None,
-                operation=operation,
-            )
+                }
 
-            set_latency_metrics(span, latency_metrics)
-        except Exception:
-            logger.warning("Failed to tag vLLM span for request %s", req_id, exc_info=True)
-        finally:
-            span.finish()
+                set_latency_metrics(span, latency_metrics)
+            except Exception:
+                logger.warning("Failed to tag vLLM span for request %s", req_id, exc_info=True)
 
 
 def traced_output_processor_process_outputs(func, instance, args, kwargs):
     """Create Datadog spans for finished requests."""
-    integration = getattr(vllm, ATTR_DATADOG_INTEGRATION)
-
     engine_core_outputs = args[0] if args else kwargs.get("engine_core_outputs")
 
     if not engine_core_outputs:
@@ -208,7 +230,7 @@ def traced_output_processor_process_outputs(func, instance, args, kwargs):
 
     if spans_data:
         try:
-            _create_finished_spans(integration, model_name, instance, spans_data)
+            _create_finished_spans(model_name, instance, spans_data)
         except Exception:
             logger.warning("Failed to create vLLM spans", exc_info=True)
 
@@ -250,9 +272,6 @@ def patch():
 
     setattr(vllm, ATTR_DATADOG_PATCH, True)
 
-    integration = VLLMIntegration(integration_config=config.vllm)
-    setattr(vllm, ATTR_DATADOG_INTEGRATION, integration)
-
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.add_request", traced_async_llm_add_request)
@@ -270,12 +289,18 @@ def patch():
         traced_output_processor_process_outputs,
     )
 
+    # Let products (LLMObs) attach their shared lifecycle subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
+
 
 def unpatch():
     if not getattr(vllm, ATTR_DATADOG_PATCH, False):
         return
 
     setattr(vllm, ATTR_DATADOG_PATCH, False)
+
+    integration_hooks.on_unpatch(COMPONENT)
 
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
@@ -285,5 +310,3 @@ def unpatch():
     else:
         unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
-
-    delattr(vllm, ATTR_DATADOG_INTEGRATION)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from package_split.cli import _scope_dir
 from package_split.cli import main
 import pytest
 
@@ -27,7 +28,7 @@ def test_api_usage_writes_evidence(tmp_path, monkeypatch, capsys):
 
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
 
-    data = json.loads(next((tmp_path / "out" / "api-usage").glob("*/api-usage.json")).read_text())
+    data = json.loads((tmp_path / "out" / "api-usage" / _scope_dir(["pkg"]) / "pkg.lib" / "api-usage.json").read_text())
     assert data["target"] == "pkg.lib"
     assert data["source_paths"] == ["pkg"]
     assert data["consumer_files"] == 1
@@ -44,9 +45,17 @@ def test_evidence_is_scoped_and_never_clobbers(tmp_path, monkeypatch, capsys):
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "."]) == 0
 
-    evidence = list((tmp_path / "out" / "api-usage").glob("*/api-usage.json"))
-    assert len(evidence) == 2
-    assert {tuple(json.loads(path.read_text())["source_paths"]) for path in evidence} == {("pkg",), (".",)}
+    scoped = tmp_path / "out" / "api-usage" / _scope_dir(["pkg"]) / "pkg.lib" / "api-usage.json"
+    whole = tmp_path / "out" / "api-usage" / _scope_dir(["."]) / "pkg.lib" / "api-usage.json"
+    assert scoped.is_file() and whole.is_file()
+    assert json.loads(scoped.read_text())["source_paths"] == ["pkg"]
+    assert json.loads(whole.read_text())["source_paths"] == ["."]
+
+
+def test_scope_encoding_distinguishes_ambiguous_paths():
+    assert _scope_dir(["foo/bar"]) != _scope_dir(["foo_bar"])
+    assert _scope_dir(["foo", "bar"]) != _scope_dir(["foo__bar"])
+    assert _scope_dir(["/foo"]) != _scope_dir(["foo"])
 
 
 def test_different_targets_keep_separate_evidence(tmp_path, monkeypatch):
@@ -54,7 +63,7 @@ def test_different_targets_keep_separate_evidence(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     for target in ("pkg.lib", "pkg.other"):
         assert main(["--output", "out", "api-usage", "--module", target, "--source-path", "pkg"]) == 0
-    evidence = list((tmp_path / "out/api-usage").glob("*/api-usage.json"))
+    evidence = list((tmp_path / "out/api-usage").rglob("api-usage.json"))
     assert len(evidence) == 2
     assert {json.loads(path.read_text())["target"] for path in evidence} == {"pkg.lib", "pkg.other"}
 
@@ -65,7 +74,7 @@ def test_similarly_named_scopes_keep_separate_evidence(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     for scope in ("a/b", "a_b"):
         assert main(["--output", "out", "api-surface", "--source-path", scope]) == 0
-    assert len(list((tmp_path / "out/api-surface").glob("*/api-surface.json"))) == 2
+    assert len(list((tmp_path / "out/api-surface").rglob("api-surface.json"))) == 2
 
 
 @pytest.mark.parametrize("command", ["freeze", "gates"])
@@ -80,7 +89,7 @@ def test_api_surface_writes_evidence(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
 
     assert main(["--output", "out", "api-surface", "--source-path", "pkg"]) == 0
-    assert next((tmp_path / "out" / "api-surface").glob("*/api-surface.json")).is_file()
+    assert (tmp_path / "out" / "api-surface" / _scope_dir(["pkg"]) / "api-surface.json").is_file()
 
 
 def test_missing_source_path_exits_two(tmp_path, monkeypatch, capsys):
@@ -102,7 +111,7 @@ def test_import_roots_follow_src_layout(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
 
     assert main(["--output", "out", "api-surface", "--source-path", "src/pkg"]) == 0
-    data = json.loads(next((tmp_path / "out" / "api-surface").glob("*/api-surface.json")).read_text())
+    data = json.loads((tmp_path / "out" / "api-surface" / _scope_dir(["src/pkg"]) / "api-surface.json").read_text())
     assert data["report"]["roots"] == ["pkg"]
 
 
@@ -130,9 +139,28 @@ def test_allow_absent_target_scans_consumer_only_scope(tmp_path, monkeypatch, ca
         main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "tests", "--allow-absent-target"])
         == 0
     )
-    data = json.loads(next((tmp_path / "out" / "api-usage").glob("*/api-usage.json")).read_text())
+    data = json.loads(
+        (tmp_path / "out" / "api-usage" / _scope_dir(["tests"]) / "pkg.lib" / "api-usage.json").read_text()
+    )
     assert data["consumer_files"] == 1
     assert set(data["symbols"]) == {"f"}
+
+
+def test_invalid_target_cannot_escape_output(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+    outside = tmp_path / "outside"
+    assert main(["--output", "out", "api-usage", "--module", str(outside), "--allow-absent-target"]) == 2
+    assert not outside.exists()
+    assert "dotted module name" in capsys.readouterr().err
+
+
+def test_zones_values_must_be_strings(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    (tmp_path / "layers.json").write_text('{"zones": {"pkg": []}}', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert main(["api-surface", "--source-path", "pkg", "--zones", "layers.json"]) == 2
+    assert "map strings to strings" in capsys.readouterr().err
 
 
 def test_zones_file_without_mapping_exits_two(tmp_path, monkeypatch, capsys):
@@ -150,6 +178,6 @@ def test_unparsable_files_are_skipped_and_reported(tmp_path, monkeypatch, capsys
 
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
     assert "pkg/broken.py" in capsys.readouterr().err
-    data = json.loads(next((tmp_path / "out" / "api-usage").glob("*/api-usage.json")).read_text())
+    data = json.loads((tmp_path / "out" / "api-usage" / _scope_dir(["pkg"]) / "pkg.lib" / "api-usage.json").read_text())
     assert data["consumer_files"] == 1
     assert data["unparsed"][0].startswith("pkg/broken.py")

@@ -116,12 +116,9 @@ def _package_root(module: str, modules: dict[str, Path]) -> str:
     path = modules.get(module)
     if path is None:
         return module
-    if path.name == "__init__.py":
+    if path.name in ("__init__.py", "__init__.pyi", "__init__.pyx"):
         return module
-    parent = module.rsplit(".", 1)[0]
-    if parent in modules and modules[parent].name == "__init__.py":
-        return parent
-    return module
+    return module.rsplit(".", 1)[0] if "." in module else module
 
 
 def analyze_api_surfaces(
@@ -143,7 +140,7 @@ def analyze_api_surfaces(
     # collects every usage rooted at the import roots, attribution happens
     # afterwards.
     sink = ApiUsageReport(target="<surfaces>")
-    # Package -> name bound in its __init__ -> modules or symbols it re-exports.
+    # Module -> imported name -> modules or symbols it re-exports.
     reexports: dict[str, dict[str, set[str]]] = {}
     for module, path in sorted(module_paths.items()):
         try:
@@ -157,9 +154,11 @@ def analyze_api_surfaces(
                 collector.visit_Import(node)
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
+        collector._bind_assignments(tree)
         collector._scan_usages(tree)
-        if path.name == "__init__.py":
-            reexports[module] = collector.bindings
+        # Every module's bindings can be re-exports, including ordinary facades.
+        # Attribution follows only bindings that match the resolved usage path.
+        reexports[module] = collector.bindings
 
     # Attribute each usage to its owning module: the longest module prefix
     # of the resolved path that exists in the module index. A use through a
@@ -184,25 +183,29 @@ def _attributions(
 ) -> list[tuple[str, str]]:
     """(owner, symbol relative to owner) pairs for a resolved path, following re-exports."""
     attributions: list[tuple[str, str]] = []
-    pending = [resolved]
-    seen: set[str] = set()
+    pending: list[tuple[str, frozenset[tuple[str, str, str]]]] = [(resolved, frozenset())]
     while pending:
-        path = pending.pop()
-        if path in seen:
-            continue
-        seen.add(path)
+        path, visited_edges = pending.pop()
         owner = _owning_module(path, modules, import_roots)
         if owner is None:
             continue
-        if path == owner:
-            attributions.append((owner, "<module>"))
-            continue
-        rest = path[len(owner) + 1 :]
+        rest = path[len(owner) + 1 :] if path != owner else "<module>"
         attributions.append((owner, rest))
-        name, _, tail = rest.partition(".")
-        for target in reexports.get(owner, {}).get(name, ()):
-            if target != path:
-                pending.append(target + "." + tail if tail else target)
+        # A package attribute may shadow an indexed submodule of the same
+        # name. Preserve both possible owners rather than choosing one.
+        parts = path.split(".")
+        for depth in range(1, len(parts)):
+            prefix = ".".join(parts[:depth])
+            name = parts[depth]
+            tail = ".".join(parts[depth + 1 :])
+            bindings = reexports.get(prefix, {})
+            targets = set(bindings.get(name, ()))
+            targets.update("%s.%s" % (origin, name) for origin in bindings.get("*", ()))
+            for target in targets:
+                edge = (prefix, name, target)
+                next_path = target + "." + tail if tail else target
+                if edge not in visited_edges and next_path != path:
+                    pending.append((next_path, visited_edges | {edge}))
     return attributions
 
 

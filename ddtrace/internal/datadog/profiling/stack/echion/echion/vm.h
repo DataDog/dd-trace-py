@@ -5,6 +5,8 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -54,7 +56,14 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 // Whether safe_copy is currently set to the memcpy-based wrapper.
 inline bool fast_copy_active = false;
 
-// User opted out via _DD_PROFILING_STACK_FAST_COPY or set_fast_copy(false).
+// Persistent intent (!= fast_copy_active): true when handlers installed at init
+// (safe_memcpy_initialized) and the user has not opted out. Warmup clears
+// active but keeps this set so faulthandler reclaim can reinstall during warmup.
+inline bool fast_copy_desired = false;
+
+// User opted out via _DD_PROFILING_STACK_FAST_COPY, embedded Python, or
+// set_fast_copy(false). Cleared again by set_fast_copy(true). Orthogonal to
+// desired: desired also requires safe_memcpy_initialized.
 inline bool fast_copy_user_disabled = false;
 
 // Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
@@ -64,6 +73,16 @@ inline void
 mark_fast_copy_syscall_fallback()
 {
     fast_copy_syscall_fallback = true;
+}
+
+// Install/reclaim while we still want memcpy recovery, or while memcpy is still
+// the active copy method. desired covers warmup (desired set, active cleared).
+// Once syscall fallback is sticky (usually a foreign handler), do not reclaim
+// through the desired-only path — that would steal the foreign owner's handler.
+inline bool
+fast_copy_handler_ops_enabled()
+{
+    return fast_copy_active || (fast_copy_desired && !fast_copy_syscall_fallback);
 }
 
 // Set at init; survives toggling fast_copy_active.
@@ -96,8 +115,9 @@ init_safe_copy();
 
 // Switch the active copy method at runtime.  Must be called before the
 // sampling thread is started.
-// Returns true on success, false if the requested method (and its fallback) are unavailable
-// (in which case failed_safe_copy is set and stack profiling should be disabled).
+// Returns true on success (and clears failed_safe_copy), false if the requested
+// method and its fallback are unavailable (sets failed_safe_copy; stack profiling
+// should be disabled until a later successful switch).
 bool
 set_fast_copy_enabled(bool enabled);
 
@@ -127,6 +147,15 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
 int
 copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf);
 #endif
+
+// Copies size bytes of this process's memory at address into buffer with a syscall (process_vm_readv on Linux,
+// mach_vm_read_overwrite on macOS). Returns false, without faulting, when any part of the range is unreadable.
+// Addresses are integers because callers take them from memory that has not been validated yet.
+//
+// Unlike copy_memory, this never uses safe_memcpy, whose signal handler faulthandler and crashtracking can swap out
+// while another thread is reading.
+bool
+read_own_memory(uintptr_t address, void* buffer, size_t size);
 
 inline pid_t pid = 0;
 

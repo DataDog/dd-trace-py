@@ -24,11 +24,14 @@ architectural zones in `scripts/import-analysis/layers.json`.
 These are static inventories, not compatibility proofs. Unsupported syntax and
 source encodings are reported as skipped files on stderr and in JSON. Review
 those gaps and search non-Python configuration before approving an API boundary.
+Type stubs and native extension sources participate in module discovery; Cython
+sources are indexed for target matching and reported as unparsed consumers.
 
-Evidence is written under `.package-split/api-usage/<scope>/api-usage.json` and
+Evidence is written under `.package-split/api-usage/<scope>/<target>/api-usage.json` and
 `.package-split/api-surface/<scope>/api-surface.json`. Scope identifiers include
-source paths and, for api-usage, the target, so production, tests and different
-targets do not overwrite one another. The JSON records the source paths and target.
+source paths; api-usage also separates targets into their own directories, so
+production, tests and different targets do not overwrite one another. The JSON
+records the source paths and target.
 Use `--output` to choose another evidence root.
 
 ## Freeze extracted sources

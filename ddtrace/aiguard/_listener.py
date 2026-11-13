@@ -22,6 +22,8 @@ from ddtrace.aiguard._streaming import _is_traced_stream
 from ddtrace.aiguard._streaming import _stream_analysis_enabled
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
+from ddtrace.aiguard.integrations._anthropic_mcp import install_anthropic_mcp
+from ddtrace.aiguard.integrations._anthropic_mcp import uninstall_anthropic_mcp
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_stream_before
@@ -403,6 +405,8 @@ def _anthropic_listen(client: AIGuardClient) -> None:
     core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
     core.on("anthropic.patch", partial(_install_anthropic_wrappers, client))
     core.on("anthropic.unpatch", _uninstall_anthropic_wrappers)
+    core.on("anthropic.patch", partial(install_anthropic_mcp, client))
+    core.on("anthropic.unpatch", uninstall_anthropic_mcp)
 
 
 def _install_anthropic_wrappers(client: AIGuardClient) -> None:

@@ -1,4 +1,4 @@
-"""Command-line interface for package-split source inventories.
+"""Command-line interface for the package-split API inventories.
 
 Invoked by the thin scripts/package-split wrapper.
 """
@@ -23,7 +23,7 @@ DEFAULT_SOURCE_PATHS = ["ddtrace"]
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="scripts/package-split",
-        description="Source inventories for choosing package extraction boundaries.",
+        description="Static API inventories for choosing package-split boundaries.",
     )
     parser.add_argument("--version", action="version", version="package-split harness %s" % __version__)
     parser.add_argument(
@@ -77,7 +77,7 @@ def _inventory_inputs(args: argparse.Namespace) -> tuple[Path, list[Path], list[
     return root, source_paths, import_roots, raw_source_paths
 
 
-def _scope_dir(raw_source_paths: list[str], target: str = "") -> str:
+def _scope_dir(raw_source_paths: list[str]) -> str:
     """Deterministic evidence subdirectory for a scan scope.
 
     The port workflow inventories the same target over several scopes
@@ -85,8 +85,13 @@ def _scope_dir(raw_source_paths: list[str], target: str = "") -> str:
     earlier runs, so the scope -- the source paths -- is part of the path.
     """
 
-    scope = json.dumps({"source_paths": sorted(raw_source_paths), "target": target}, sort_keys=True)
-    return hashlib.sha256(scope.encode()).hexdigest()[:16]
+    def clean(value: str) -> str:
+        value = value.strip("./")
+        return "_".join(value.split("/")) if value else "root"
+
+    label = "__".join(clean(path) for path in raw_source_paths)[:100]
+    digest = hashlib.sha256(json.dumps(raw_source_paths, ensure_ascii=True).encode("utf-8")).hexdigest()
+    return "%s-%s" % (label, digest)
 
 
 def _warn_unparsed(unparsed: list[str]) -> None:
@@ -103,9 +108,14 @@ def _api_usage_command(args: argparse.Namespace) -> int:
     """
     from .api_usage import analyze_api_usage
 
+    if not all(part.isidentifier() for part in args.module.split(".")):
+        raise ValueError("target must be a dotted module name: %s" % args.module)
     root, source_paths, _, raw_source_paths = _inventory_inputs(args)
     report = analyze_api_usage(root, source_paths, args.module, require_target=not args.allow_absent_target)
-    output_dir = Path(args.output) / "api-usage" / _scope_dir(raw_source_paths, args.module)
+    # The target module is part of the evidence path: two different
+    # --module values with the same source-path scope would otherwise
+    # write the same file, silently overwriting each other's results.
+    output_dir = Path(args.output) / "api-usage" / _scope_dir(raw_source_paths) / args.module
     output_dir.mkdir(parents=True, exist_ok=True)
     evidence = output_dir / "api-usage.json"
     evidence.write_text(
@@ -144,10 +154,21 @@ def _api_surface_command(args: argparse.Namespace) -> int:
     zones = None
     # An explicit --zones path must exist; only the default is optional.
     zones_path = Path(args.zones) if args.zones else root / "scripts" / "import-analysis" / "layers.json"
-    if args.zones or zones_path.is_file():
+    if args.zones:
+        # A user-supplied path is an input, not an optional default: a
+        # misspelled or missing file is an error, not a silently empty
+        # clustering pass.
+        if not zones_path.is_file():
+            raise ValueError("zones file not found: %s" % zones_path)
+        data = json.loads(zones_path.read_text(encoding="utf-8"))
+        zones = data.get("zones")
+    elif zones_path.is_file():
         zones = json.loads(zones_path.read_text(encoding="utf-8")).get("zones")
+    if zones_path.is_file():
         if not isinstance(zones, dict):
             raise ValueError("%s has no 'zones' mapping" % zones_path)
+        if not all(isinstance(prefix, str) and isinstance(zone, str) for prefix, zone in zones.items()):
+            raise ValueError("%s zones must map strings to strings" % zones_path)
 
     report = analyze_api_surfaces(root, source_paths, import_roots, zones)
 

@@ -1,3 +1,4 @@
+import ctypes
 import json
 import logging
 import os.path
@@ -12,6 +13,7 @@ from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._ddwaf.waf import py_ddwaf_builder_get_config_paths
+from ddtrace.appsec._metrics import log_waf_error
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
@@ -19,6 +21,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.trace import Span
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import get_waf_addresses
@@ -66,6 +69,74 @@ def test_enable_custom_rules():
 
     assert processor.enabled
     assert processor.rule_filename == rules.RULES_GOOD_PATH
+
+
+def test_waf_address_discovery_failure_disables_waf_without_raising(caplog):
+    processor = AppSecSpanProcessor()
+    with caplog.at_level(logging.ERROR, logger="ddtrace.appsec._processor"):
+        with mock.patch("ddtrace.appsec._processor.log_waf_error") as log_waf_error:
+            with mock.patch("ddtrace.appsec._processor.set_waf_init_metric") as set_waf_init_metric:
+                with mock.patch.object(
+                    DDWaf,
+                    "required_data",
+                    new_callable=mock.PropertyMock,
+                    side_effect=ctypes.ArgumentError("argument 2"),
+                ):
+                    processor.on_span_start(Span("test", span_type=SpanTypes.SYSTEM))
+
+    assert processor._ddwaf is None
+    assert "[DDAS-0005-00] WAF address discovery failed" in caplog.text
+    log_waf_error.assert_called_once()
+    assert log_waf_error.call_args.args[0] == "appsec.waf.error::address_discovery::ArgumentError::argument 2"
+    set_waf_init_metric.assert_called_once()
+    assert set_waf_init_metric.call_args.args[1] is False
+
+
+def test_waf_address_refresh_failure_on_rules_update_is_reported():
+    processor = AppSecSpanProcessor()
+    processor.delayed_init()
+    previous_addresses = set(processor._addresses_to_keep)
+
+    with override_global_config(dict(_asm_static_rule_file=None)):
+        with mock.patch("ddtrace.appsec._processor.log_waf_error") as log_waf_error:
+            with mock.patch("ddtrace.appsec._processor.set_waf_updates_metric") as set_waf_updates_metric:
+                with mock.patch.object(
+                    DDWaf,
+                    "required_data",
+                    new_callable=mock.PropertyMock,
+                    side_effect=ctypes.ArgumentError("argument 2"),
+                ):
+                    assert processor._update_rules([], []) is False
+
+    assert processor.enabled
+    assert processor._addresses_to_keep == previous_addresses
+    log_waf_error.assert_called_once()
+    set_waf_updates_metric.assert_called_once()
+    assert set_waf_updates_metric.call_args.args[1] is False
+
+
+def test_log_waf_error_does_not_count_a_config_error():
+    with override_global_config(dict(_asm_deduplication_enabled=False)):
+        with mock.patch("ddtrace.appsec._metrics.telemetry.telemetry_writer") as telemetry_writer:
+            log_waf_error("appsec.waf.error::address_discovery::test_log_waf_error_does_not_count", "1.19.0")
+
+    telemetry_writer.add_log.assert_called_once()
+    telemetry_writer.add_count_metric.assert_not_called()
+
+
+def test_failed_waf_address_refresh_keeps_previous_addresses():
+    processor = AppSecSpanProcessor()
+    processor.delayed_init()
+    previous_addresses = set(processor._addresses_to_keep)
+    assert previous_addresses
+
+    with mock.patch.object(
+        DDWaf, "required_data", new_callable=mock.PropertyMock, side_effect=ctypes.ArgumentError("argument 2")
+    ):
+        with pytest.raises(ctypes.ArgumentError):
+            processor._update_required()
+
+    assert processor._addresses_to_keep == previous_addresses
 
 
 def test_ddwaf_ctx(tracer):

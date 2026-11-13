@@ -4,7 +4,7 @@
 # requires-python = ">=3.9"
 # dependencies = []
 # ///
-"""Source inventories for package extractions."""
+"""Thin wrapper around the package-split API inventories in scripts/package_split/."""
 
 from pathlib import Path
 import sys

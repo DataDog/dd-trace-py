@@ -23,7 +23,7 @@ def record_api_request(
     duration: float,
     response_bytes: Optional[int] = None,
     error: Optional[ERROR_TYPES] = None,
-):
+) -> None:
     log.debug(
         "Recording Test Optimization telemetry for %s: %s, %s, %s",
         metric_names.count,
@@ -46,6 +46,6 @@ def record_api_request(
         record_api_request_error(metric_names.error, error)
 
 
-def record_api_request_error(error_metric_name: str, error: ERROR_TYPES):
+def record_api_request_error(error_metric_name: str, error: ERROR_TYPES) -> None:
     log.debug("Recording Test Optimization request error telemetry: %s", error)
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, error_metric_name, 1, (("error_type", error),))
