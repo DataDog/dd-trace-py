@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
+import time
 
 import pytest
 
@@ -18,9 +20,10 @@ def _interpose_sccache():
         "os": os,
         "shutil": shutil,
         "subprocess": subprocess,
+        "sys": sys,
         "Path": Path,
         "SCCACHE_COMPILE": True,
-        "time": type("NoSleep", (), {"sleep": staticmethod(lambda _: None)}),
+        "time": type("NoSleep", (), {"sleep": staticmethod(lambda _: None), "monotonic": staticmethod(time.monotonic)}),
     }
     exec(code, namespace)  # noqa: S102
     return namespace["interpose_sccache"], namespace["SCCACHE_START_MAX_ATTEMPTS"]
@@ -101,4 +104,18 @@ def test_warning_includes_sccache_output(tmp_path, clean_env, capsys):
 
     interpose()
 
-    assert "backend-unreachable" in capsys.readouterr().out
+    assert "backend-unreachable" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("arguments", [[], ["--inplace"]])
+def test_hashing_does_not_start_sccache(tmp_path, clean_env, arguments):
+    interpose, _ = _interpose_sccache()
+    script, counter = _fake_sccache(tmp_path, failures=0)
+    clean_env.setenv("SCCACHE_PATH", str(script))
+    clean_env.setattr(sys, "argv", ["setup.py", "ext_hashes", *arguments])
+    before = dict(os.environ)
+
+    interpose()
+
+    assert not counter.exists()
+    assert dict(os.environ) == before
