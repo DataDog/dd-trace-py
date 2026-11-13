@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    App and API Protection: Fixes missing user attributes on later requests when
+    the same metadata dictionary is reused for authenticated-user tracking.

@@ -310,6 +310,43 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("mode", (LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON))
+@pytest.mark.parametrize("success", (False, True))
+@pytest.mark.parametrize("login_field,name_field", (("email", ""), ("", "first_name"), ("email", "first_name")))
+def test_django_login_field_overrides(client, test_spans, tracer, mode, success, login_field, name_field):
+    from django.contrib.auth.models import User
+
+    test_user = User.objects.create_user(username="fred", password="secret", first_name="Fred", email="fred@test.com")
+    with (
+        override_global_config(
+            dict(
+                _asm_enabled=True,
+                _auto_user_instrumentation_local_mode=mode,
+                _user_model_login_field=login_field,
+                _user_model_name_field=name_field,
+                _django_include_user_login=True,
+                _django_include_user_realname=True,
+            )
+        ),
+        update_django_config(),
+    ):
+        assert client.login(username="fred", password="secret" if success else "wrong") is success
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        expected_login = test_user.email if login_field else test_user.username
+        expected_id = test_user.email if login_field else str(test_user.pk)
+        if mode == LOGIN_EVENTS_MODE.ANON:
+            expected_login = _hash_user_id(expected_login)
+            if login_field:
+                expected_id = _hash_user_id(expected_id)
+        event = "success" if success else "failure"
+        assert login_span.get_tag(f"{APPSEC.USER_LOGIN_EVENT_PREFIX}.{event}.login") == expected_login
+        id_tag = user.ID if success else f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.{user.ID}"
+        assert login_span.get_tag(id_tag) == expected_id
+        if success and mode == LOGIN_EVENTS_MODE.IDENT:
+            assert login_span.get_tag("usr.name") == "Fred"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("mode", (LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON))
 def test_django_authenticated_request_tags_session_id(client, test_spans, tracer, mode):
     """
     Per-request auto-user path must tag both `usr.id` and `usr.session_id` on the entry span

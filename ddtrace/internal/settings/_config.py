@@ -614,10 +614,14 @@ class Config:
         self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
         self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
-        self._runtime_metrics_enabled = (
-            _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
-            and validate_and_report_otel_metrics_exporter_enabled()
-        )
+        # Validate OTEL_METRICS_EXPORTER at most once, so its warnings and telemetry are not duplicated.
+        runtime_metrics_enabled = _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
+        otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        otel_metrics_exporter_enabled = (
+            runtime_metrics_enabled or otel_metrics_enabled
+        ) and validate_and_report_otel_metrics_exporter_enabled()
+        # An explicit OTEL_METRICS_EXPORTER=none also disables runtime metrics.
+        self._runtime_metrics_enabled = runtime_metrics_enabled and otel_metrics_exporter_enabled
         self._runtime_metrics_runtime_id_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
         )
@@ -775,10 +779,7 @@ class Config:
                     1,
                     (("config_datadog", "dd_trace_span_attribute_schema"),),
                 )
-        self._otel_metrics_enabled = (
-            _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-            and validate_and_report_otel_metrics_exporter_enabled()
-        )
+        self._otel_metrics_enabled = otel_metrics_enabled and otel_metrics_exporter_enabled
         self._otel_logs_enabled = _get_config(
             "DD_LOGS_OTEL_ENABLED",
             False,

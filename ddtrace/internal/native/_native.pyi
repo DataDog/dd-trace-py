@@ -1050,9 +1050,10 @@ class SerializationError(Exception):
     ...
 
 class ffe:
-    """
-    Native Feature Flags and Experimentation module.
-    """
+    """Native Feature Flags and Experimentation module."""
+
+    @staticmethod
+    def get_evaluator_capabilities() -> list[str]: ...
 
     class FlagType(Enum):
         String = ...
@@ -1100,6 +1101,8 @@ class ffe:
         def do_log(self) -> bool: ...
         @property
         def serial_id(self) -> Optional[int]: ...
+        @property
+        def features(self) -> Optional[tuple[tuple[str, Union[str, float, bool], tuple[str, ...]], ...]]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
@@ -1363,6 +1366,27 @@ def process_metrics() -> tuple[int, int, int, int, int, int]:
 
 def total_memory_bytes() -> int:
     """Return total physical RAM plus swap, in bytes."""
+    ...
+
+def list_distributions(entry: str) -> list[tuple[str, str]]:
+    """List the metadata directories under one sys.path entry, a directory or a zip archive.
+
+    Only the entry is listed; no metadata is read.
+
+    :return: ``(normalized_name, directory)`` pairs in ``importlib.metadata`` lookup order, with
+        names normalized as ``importlib.metadata`` does, using underscores as separators.
+    :raises RuntimeError: If the listing fails unexpectedly; never ``PanicException``.
+    """
+    ...
+
+def read_distribution(entry: str, directory: str) -> Optional[tuple[Optional[str], Optional[str]]]:
+    """Read the name and version of one metadata directory returned by ``list_distributions``.
+
+    :return: ``(name, version)``, either of which is ``None`` when missing, as with
+        ``importlib.metadata``; or ``None`` if the distribution is gone.
+    :raises ValueError: If the metadata cannot be read or decoded.
+    :raises RuntimeError: If the read fails unexpectedly; never ``PanicException``.
+    """
     ...
 
 def scan_distributions(
