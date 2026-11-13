@@ -711,11 +711,59 @@ def test_otel_resource_attributes_tags_warning():
     }, config.tags
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false", "DD_TRACE_OTEL_ENABLED": None})
-def test_otel_sdk_disabled_configuration():
+@pytest.mark.subprocess(
+    env={
+        "OTEL_SDK_DISABLED": "false",
+        "DD_TRACE_OTEL_ENABLED": None,
+        "DD_METRICS_OTEL_ENABLED": None,
+        "DD_LOGS_OTEL_ENABLED": None,
+    },
+    err=b"",
+)
+def test_otel_sdk_disabled_false_does_not_enable_otel():
     from ddtrace import config
 
-    assert config._otel_trace_enabled is True
+    assert config._otel_trace_enabled is False, config._otel_trace_enabled
+    assert config._otel_metrics_enabled is False, config._otel_metrics_enabled
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_SDK_DISABLED": "",
+        "DD_TRACE_OTEL_ENABLED": None,
+        "DD_METRICS_OTEL_ENABLED": None,
+        "DD_LOGS_OTEL_ENABLED": None,
+    },
+    err=b"",
+)
+def test_otel_sdk_disabled_empty_is_treated_as_unset():
+    from ddtrace import config
+
+    assert config._otel_trace_enabled is False, config._otel_trace_enabled
+    assert config._otel_metrics_enabled is False, config._otel_metrics_enabled
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_LOGS_EXPORTER": "otlp", "OTEL_SDK_DISABLED": "false"}, err=b"")
+def test_otel_sdk_disabled_false_keeps_otel_logs_exporter():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is True, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_LOGS_EXPORTER": "none", "OTEL_SDK_DISABLED": "false"}, err=b"")
+def test_otel_sdk_disabled_false_does_not_override_otel_logs_exporter():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false", "DD_TRACE_OTEL_ENABLED": "true"}, err=b"")
+def test_dd_trace_otel_enabled_with_otel_sdk_disabled_false():
+    from ddtrace import config
+
+    assert config._otel_trace_enabled is True, config._otel_trace_enabled
 
 
 @pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": None})
