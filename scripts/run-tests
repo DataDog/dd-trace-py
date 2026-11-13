@@ -28,6 +28,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -144,6 +145,52 @@ def _atomic_write(path: Path, contents: str) -> None:
         temporary.write(contents)
         temporary_path = Path(temporary.name)
     temporary_path.replace(path)
+
+
+def _signal_process_group(pid: int, signum: int) -> None:
+    try:
+        os.killpg(pid, signum)
+    except ProcessLookupError:
+        return
+
+
+def _run_in_process_group(
+    command: list[str],
+    *,
+    env: dict[str, str],
+    cwd: Path,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run command in a new process group and forward SIGINT and SIGTERM.
+
+    Locally the child is scripts/ddtest, which replaces itself with docker compose.
+    Compose stops the testrunner container only when it receives the signal.
+    A signal that reaches only this process leaves that container running.
+    """
+    received: list[int] = []
+    child_pid: list[int | None] = [None]
+
+    def _forward(signum: int, _frame: object) -> None:
+        received.append(signum)
+        pid = child_pid[0]
+        if pid is None:
+            return
+        _signal_process_group(pid, signum)
+
+    previous_int = signal.signal(signal.SIGINT, _forward)
+    previous_term = signal.signal(signal.SIGTERM, _forward)
+    try:
+        process = subprocess.Popen(command, env=env, cwd=cwd, start_new_session=True)
+        child_pid[0] = process.pid
+        if received:
+            _signal_process_group(process.pid, received[-1])
+        returncode = process.wait()
+    finally:
+        signal.signal(signal.SIGINT, previous_int)
+        signal.signal(signal.SIGTERM, previous_term)
+
+    if received and returncode == 0:
+        returncode = 128 + received[-1]
+    return subprocess.CompletedProcess(command, returncode)
 
 
 class TestRunner:
@@ -533,7 +580,7 @@ class TestRunner:
             )
             for command in commands:
                 wrapped = self._container_command(command, command_env)
-                result = subprocess.run(wrapped, env=os.environ.copy(), cwd=self.root)
+                result = _run_in_process_group(wrapped, env=os.environ.copy(), cwd=self.root)
                 if result.returncode != 0:
                     raise TestEnvironmentError(f"build failed for {environment.hash} (exit code {result.returncode})")
 
@@ -637,7 +684,7 @@ class TestRunner:
                     return False
 
                 print(f"\n▶️  Executing {environment.hash}: {' '.join(command)}")
-                result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
+                result = _run_in_process_group(command, env=os.environ.copy(), cwd=self.root)
                 if result.returncode != 0:
                     print(f"❌ {environment.hash} failed with exit code {result.returncode}")
                     return False
