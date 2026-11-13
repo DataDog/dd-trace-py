@@ -604,8 +604,6 @@ def incremental_translation(self, incr_coder, funcode, empty):
     result_list, new_ranges = [], []
     result_length, i = 0, 0
     tainted_range = next(tainted_ranges, None)
-    tainted_new_length = 0
-    in_tainted = False
     tainted_start = 0
     try:
         for i in range(len(self)):
@@ -617,29 +615,23 @@ def incremental_translation(self, incr_coder, funcode, empty):
             if i == tainted_range.start:
                 # start new tainted range
                 tainted_start = result_length
-                tainted_new_length = 0
-                in_tainted = True
 
             new_prod = funcode(self[i : i + 1])
             result_list.append(new_prod)
             result_length += len(new_prod)
 
-            if in_tainted:
-                tainted_new_length += len(new_prod)
-
-            if i + 1 == tainted_range.start + tainted_range.length and tainted_new_length > 0:
+            if i + 1 == tainted_range.start + tainted_range.length:
                 # end range. Do no taint partial multi-bytes character that comes next.
-                new_ranges.append(
-                    TaintRange(
-                        start=tainted_start,
-                        length=tainted_new_length,
-                        source=tainted_range.source,
-                        secure_marks=tainted_range.secure_marks,
+                if result_length > tainted_start:
+                    new_ranges.append(
+                        TaintRange(
+                            start=tainted_start,
+                            length=result_length - tainted_start,
+                            source=tainted_range.source,
+                            secure_marks=tainted_range.secure_marks,
+                        )
                     )
-                )
-
                 tainted_range = next(tainted_ranges, None)
-                in_tainted = False
         result_list.append(funcode(self[:0], True))
     except UnicodeDecodeError as e:
         offset = -len(incr_coder.getstate()[0])

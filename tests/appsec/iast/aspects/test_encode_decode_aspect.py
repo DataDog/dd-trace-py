@@ -39,6 +39,18 @@ def test_encode_decode_multiple_ranges(method, parts, separator):
     ]
 
 
+def test_decode_range_ending_mid_character_keeps_next_range():
+    first = taint_pyobject(b"\xc3", source_name="first", source_value="\xc3")
+    second = taint_pyobject(b"abc", source_name="second", source_value="abc")
+    value = ddtrace_aspects.add_aspect(first, b"\xa9/")
+    value = ddtrace_aspects.add_aspect(value, second)
+
+    result = mod.do_decode(value, "utf-8")
+
+    assert result == "\xe9/abc"
+    assert [(r.start, r.length, r.source.name) for r in get_tainted_ranges(result)] == [(2, 3, "second")]
+
+
 def catch_all(fun, args, kwargs):
     try:
         return True, fun(*args, **kwargs)
