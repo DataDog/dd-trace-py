@@ -1232,9 +1232,20 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         return payload
 
 
-def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
-    event["meta"]["input"] = {"value": DROPPED_VALUE_TEXT}
-    event["meta"]["output"] = {"value": DROPPED_VALUE_TEXT}
+# Fields replaced, largest first, until an oversized span event fits. Input/output go before the
+# experiment row's expected output and metadata, which are kept whenever possible.
+_TRUNCATION_FIELD_GROUPS = (("input", "output"), ("expected_output", "metadata"))
 
+
+def _truncate_span_event(event: LLMObsSpanEvent, limit: Optional[int] = None) -> LLMObsSpanEvent:
+    limit = config._llmobs_event_size_limit if limit is None else limit
+    meta = cast(dict[str, Any], event["meta"])
     event["collection_errors"] = [DROPPED_IO_COLLECTION_ERROR]
+    for group in _TRUNCATION_FIELD_GROUPS:
+        present = [key for key in group if key in meta]
+        # Measure the serialized field so string escaping counts toward its size.
+        for key in sorted(present, key=lambda k: len(safe_json({k: meta[k]})), reverse=True):
+            meta[key] = {"value": DROPPED_VALUE_TEXT}
+            if len(safe_json(event)) < limit:
+                return event
     return event

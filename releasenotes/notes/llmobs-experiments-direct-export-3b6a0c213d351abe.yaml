@@ -1,0 +1,9 @@
+fixes:
+  - |
+    LLM Observability: Experiment spans are now always sent directly to LLM Observability instead of
+    inside the APM trace, so APM pipeline limits and drops (oversized trace chunks, rejected agent
+    payloads, sampling) no longer lose experiment rows. The APM trace itself is still sent to APM.
+  - |
+    LLM Observability: When a span event exceeds the event size limit, the largest fields are now
+    dropped one at a time until the event fits, instead of always dropping both input and output.
+    Experiment expected output and metadata are only dropped if dropping the input and output is not enough.
