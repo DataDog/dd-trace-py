@@ -127,8 +127,7 @@ def _derive_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
-    protocol = get_config(["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
-    return _normalize_signal_protocol(protocol, "Metrics")
+    return _normalize_signal_protocol(get_config("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", config.PROTOCOL), "Metrics")
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
