@@ -1,5 +1,6 @@
 from typing import Optional
 
+from ddtrace.internal import forksafe as _forksafe
 from ddtrace.internal.settings import env
 
 from ._native import AgentError  # noqa: F401
@@ -58,6 +59,12 @@ try:
     from ._native import ffe  # noqa: F401
 except ImportError:
     pass
+
+
+# Child processes must reseed the RNG after fork. Without a new seed, they use the
+# RNG state of the parent and generate the same trace and span IDs. Register the
+# hook here, at import time, to set it up as early as possible.
+_forksafe.register(seed)
 
 
 def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[str, Optional[str]]]:
