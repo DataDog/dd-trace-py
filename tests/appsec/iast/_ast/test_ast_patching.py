@@ -594,3 +594,17 @@ def test_package_list_read_inside_a_finder_query_is_not_kept(tmp_path):
     finally:
         reset()
         ast_patching.initialize_iast_lists()
+
+
+@pytest.mark.parametrize("invalid, error", [([None], TypeError), (["new_dependency", "\ud800"], UnicodeEncodeError)])
+def test_package_publication_failure_preserves_previous_inventory(invalid, error):
+    from ddtrace.appsec._iast._ast import ast_patching
+
+    try:
+        iastpatch.set_packages_distributions({"previous_dependency"})
+        with pytest.raises(error):
+            iastpatch.set_packages_distributions(invalid)
+        assert iastpatch.should_iast_patch("previous_dependency") == iastpatch.DENIED_NOT_FOUND
+        assert iastpatch.should_iast_patch("new_dependency") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    finally:
+        ast_patching.initialize_iast_lists()

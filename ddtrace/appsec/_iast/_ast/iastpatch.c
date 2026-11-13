@@ -629,60 +629,47 @@ py_set_packages_distributions(PyObject* Py_UNUSED(self), PyObject* args)
     if (!PyArg_ParseTuple(args, "O", &packages_set)) {
         return NULL;
     }
-
-    // Clear any existing cached packages when setting new packages
-    if (cached_packages != NULL) {
-        free_list(cached_packages, cached_packages_count);
-        cached_packages = NULL;
-        cached_packages_count = 0;
-    }
-
-    // Convert the set to a fast sequence (e.g., list or tuple).
     PyObject* fast = PySequence_Fast(packages_set, "expected a sequence");
-    if (!fast)
-        return NULL;
-
-    Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
-    cached_packages = (char**)malloc(n * sizeof(char*));
-    if (!cached_packages) {
-        Py_DECREF(fast);
+    if (fast == NULL) {
         return NULL;
     }
-    cached_packages_count = (size_t)n;
-
+    Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
+    char** replacement = NULL;
+    if (n > 0) {
+        replacement = (char**)calloc((size_t)n, sizeof(char*));
+        if (replacement == NULL) {
+            Py_DECREF(fast);
+            return PyErr_NoMemory();
+        }
+    }
     for (Py_ssize_t i = 0; i < n; i++) {
-        PyObject* item = PySequence_Fast_GET_ITEM(fast, i); // Borrowed reference.
-        if (!PyUnicode_Check(item)) {
-            cached_packages[i] = NULL;
-        } else {
-            const char* s = PyUnicode_AsUTF8(item);
-            if (s) {
-                char* dup = strdup(s);
-                if (dup) {
-                    // Convert to lowercase.
-                    for (char* p = dup; *p; p++) {
-                        *p = tolower(*p);
-                    }
-                    cached_packages[i] = dup;
-                } else {
-                    cached_packages[i] = NULL;
-                }
-            } else {
-                cached_packages[i] = NULL;
-            }
+        const char* name = PyUnicode_AsUTF8(PySequence_Fast_GET_ITEM(fast, i));
+        if (name == NULL) {
+            goto error;
+        }
+        replacement[i] = strdup(name);
+        if (replacement[i] == NULL) {
+            PyErr_NoMemory();
+            goto error;
+        }
+        for (char* c = replacement[i]; *c; c++) {
+            *c = (char)tolower((unsigned char)*c);
         }
     }
     Py_DECREF(fast);
 
-    // Print all cached_packages for debugging
-    // printf("cached_packages (count: %zu):\n", cached_packages_count);
-    // for (size_t i = 0; i < cached_packages_count; i++) {
-    //    if (cached_packages[i]) {
-    //         printf("  [%zu]: %s\n", i, cached_packages[i]);
-    //    }
-    //}
-
+    // Publish only after every entry succeeds, preserving the last usable cache on failure.
+    char** previous = cached_packages;
+    size_t previous_count = cached_packages_count;
+    cached_packages = replacement;
+    cached_packages_count = (size_t)n;
+    free_list(previous, previous_count);
     Py_RETURN_NONE;
+
+error:
+    Py_DECREF(fast);
+    free_list(replacement, (size_t)n);
+    return NULL;
 }
 
 static PyMethodDef IastPatchMethods[] = {
