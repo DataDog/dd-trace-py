@@ -1,4 +1,4 @@
-"""Command-line interface for source inventories and extraction freezes.
+"""Command-line interface for package-split source inventories.
 
 Invoked by the thin scripts/package-split wrapper.
 """
@@ -14,8 +14,6 @@ from typing import Optional
 
 from . import __version__
 from .api_usage import module_names_for
-from .evidence import GateReport
-from .gates import freeze
 
 
 DEFAULT_OUTPUT = ".package-split"
@@ -25,7 +23,7 @@ DEFAULT_SOURCE_PATHS = ["ddtrace"]
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="scripts/package-split",
-        description="Source inventories and freeze enforcement for package extractions.",
+        description="Source inventories for choosing package extraction boundaries.",
     )
     parser.add_argument("--version", action="version", version="package-split harness %s" % __version__)
     parser.add_argument(
@@ -60,12 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="layers.json-style zone config for clustering (default: scripts/import-analysis/layers.json)",
     )
     api_surface.add_argument("--top", type=int, default=30, help="how many bundling candidates to print")
-
-    frozen = subparsers.add_parser("freeze", help="check source drift against the protected base's freeze rules")
-    frozen.add_argument("--base", required=True, help="revision supplying the protected freeze manifest")
-    frozen.add_argument("--head", default="HEAD", help="revision to check for drift (default: HEAD)")
-    frozen.add_argument("--freeze", default="package-freeze.toml", help="repository-relative freeze manifest path")
-    subparsers.add_parser("gates", help="list the available gates")
 
     for command in subparsers.choices.values():
         command.add_argument("--output", default=argparse.SUPPRESS)
@@ -189,20 +181,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.command is None:
         parser.print_help(sys.stderr)
         return 2
-    if args.command == "gates":
-        print("freeze")
-        return 0
-    if args.command == "freeze":
-        root = Path.cwd()
-        report = GateReport("freeze", root / args.freeze, __version__)
-        try:
-            freeze.run_gate(root, args, report)
-        except Exception as exc:  # noqa: BLE001 - preserve evidence when a gate crashes
-            report.error = "%s: %s" % (type(exc).__name__, exc)
-        evidence = report.finish(Path(args.output) / "freeze")
-        print(report.summary())
-        print("evidence: %s" % evidence)
-        return report.exit_code
     try:
         return _api_usage_command(args) if args.command == "api-usage" else _api_surface_command(args)
     except (OSError, ValueError, SyntaxError) as exc:

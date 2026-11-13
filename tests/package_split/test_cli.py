@@ -8,7 +8,6 @@ from package_split.cli import main
 import pytest
 
 from ._support import make_tree
-from .test_freeze import FreezeRepo
 
 
 FILES = {
@@ -69,35 +68,11 @@ def test_similarly_named_scopes_keep_separate_evidence(tmp_path, monkeypatch):
     assert len(list((tmp_path / "out/api-surface").glob("*/api-surface.json"))) == 2
 
 
-def test_only_source_freeze_is_a_gate(capsys):
-    assert main(["gates"]) == 0
-    assert capsys.readouterr().out.splitlines() == ["freeze"]
-
-
-@pytest.mark.parametrize("drift", [False, True])
-def test_freeze_cli_without_a_package_contract(tmp_path, monkeypatch, drift):
-    repo = FreezeRepo(tmp_path)
-    if drift:
-        (tmp_path / "sample/mod.py").write_text("value = 3\n", encoding="utf-8")
-        repo.commit_change("source drift")
-    monkeypatch.chdir(tmp_path)
-    assert not (tmp_path / "package-contract.toml").exists()
-    assert main(["freeze", "--base", "HEAD", "--output", "out"]) == int(drift)
-    data = json.loads((tmp_path / "out/freeze/freeze.json").read_text())
-    assert data["status"] == ("fail" if drift else "pass")
-
-
-def test_freeze_cli_records_a_crash(tmp_path, monkeypatch):
-    from package_split.gates import freeze
-
-    def crashing(*args):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(freeze, "run_gate", crashing)
-    monkeypatch.chdir(tmp_path)
-    assert main(["freeze", "--base", "HEAD", "--output", "out"]) == 1
-    data = json.loads((tmp_path / "out/freeze/freeze.json").read_text())
-    assert data["error"] == "RuntimeError: boom"
+@pytest.mark.parametrize("command", ["freeze", "gates"])
+def test_legacy_freeze_commands_are_retired(command):
+    with pytest.raises(SystemExit) as excinfo:
+        main([command])
+    assert excinfo.value.code == 2
 
 
 def test_api_surface_writes_evidence(tmp_path, monkeypatch, capsys):

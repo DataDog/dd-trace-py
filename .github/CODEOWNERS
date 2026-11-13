@@ -427,9 +427,7 @@ tests/standalone/                       @DataDog/python-guild
 # Package-split contracts, guardrails and cross-package validation
 .agents/skills/package-split/             @DataDog/python-guild @DataDog/apm-core-python
 .cursor/rules/package-split.mdc           @DataDog/python-guild @DataDog/apm-core-python
-.github/workflows/package-split-freeze-guard.yml @DataDog/python-guild @DataDog/apm-core-python
 docs/package-split/                       @DataDog/python-guild @DataDog/apm-core-python
-/package-freeze.toml                      @DataDog/python-guild @DataDog/apm-core-python
 scripts/package-split                     @DataDog/python-guild @DataDog/apm-core-python
 scripts/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
 tests/package_split/                      @DataDog/python-guild @DataDog/apm-core-python

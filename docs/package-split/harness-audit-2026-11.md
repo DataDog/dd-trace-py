@@ -1,10 +1,11 @@
 # Package split harness scope
 
-The source harness now keeps API consumer inventories and source freeze
-enforcement. Six generic gates and their build, virtual environment, probe and
-matrix helpers are removed. The existing import-analysis and wheel pipelines
-remain responsible for their checks; extracted package tests and concrete
-consumer tests establish the additional extraction guarantees.
+The source harness now keeps API consumer inventories. Source freeze enforcement
+belongs to main's existing `frozen-paths.txt` and Freeze check workflow. The
+legacy freeze command, six generic gates, and their build, virtual environment,
+probe and matrix helpers are removed. The existing import-analysis and wheel
+pipelines remain responsible for their checks; extracted package tests and
+concrete consumer tests establish the additional extraction guarantees.
 
 The investigation at `f9cda8db85` found that the root boundaries invocation
 rejected 11 existing strongly connected components while allowing every one of
@@ -17,9 +18,11 @@ matrices exercised compatibility or migration.
 Those defaults did not justify a second general-purpose validation framework.
 The [CLI reference](../../scripts/package_split/README.md) maps each removed
 command to its replacement or the concrete coverage still required for an
-extraction. Sdist parity, native-free dependency closure, dynamic imports and
+extraction. Sdist parity, a package's own build constraints, dynamic imports and
 actual instrumentation counts remain explicit requirements when applicable;
-ordinary wheel smoke tests do not establish them.
+ordinary wheel smoke tests do not establish them. A pure-Python package must not
+itself build compiled artifacts, but Test Optimization may depend on native
+telemetry and writers. Its dependency closure need not be native-free.
 
 ## Retained guardrails
 
@@ -29,20 +32,22 @@ unless a consumer-only scan is explicitly requested. Evidence is separated by
 scope and target so one scan cannot overwrite another. These changes reuse the
 existing inventory implementation and fixtures rather than adding a new scanner.
 
-Freeze manifests use schema version 2. Each approved rewrite pins its exact
-replacement hash, and the candidate must match the approval from the protected
-base. Later edits, deletions and reversions fail, including when a PR changes its
-own freeze file. Evidence hashes the protected rules rather than the candidate's
-copy. The source workflow no longer requires a package contract just to enforce
-an extraction freeze.
+The existing main workflow validates frozen content against both base and
+merge-result rules. Changing a frozen file requires a separate unfreeze PR
+that leaves the source unchanged. The legacy TOML freeze and its rewrite hashes
+are retired, so existing freezes remain in `frozen-paths.txt` without migration.
+See the [freeze instructions](../../scripts/package_split/README.md#freeze-extracted-sources)
+for the required branch protections and source synchronization procedure.
 
 ## Compatibility and ownership
 
 Existing source commands for artifacts, boundaries, lifecycle, contracts,
-compatibility and migration are retired. Package build and runtime metadata have
-one executable source of truth in the destination. Keep the reviewed extraction
-scope, ownership and rollback decisions with the extraction, and encode actual
-consumer scenarios in the existing test suites.
+compatibility, migration and freeze are retired. Package build and runtime
+metadata have one executable source of truth in the destination. Keep the
+reviewed extraction scope, ownership and rollback decisions with the extraction,
+and encode actual consumer scenarios in the existing test suites. The source
+uses `--source-path` for scan scope; the destination's `--package` option selects
+metadata and has no source-side counterpart to synchronize.
 
 This change does not extract or release a package. Each extraction must still
 prove its supported behavior with exact artifacts before cutover. The earlier

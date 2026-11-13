@@ -1,8 +1,8 @@
-# Package split source guardrails
+# Package split source inventories
 
-The source-side tool keeps the work dd-trace-py owns: finding consumers and
-preventing source drift during extraction. Package builds, dependencies, API
-contracts and import inertness belong to the destination package's checks.
+The source CLI finds consumers before package extraction. Source freezes use
+main's existing frozen-paths check. Package builds, dependencies, API contracts
+and import inertness belong to the destination package's checks.
 
 ## Inventory consumers
 
@@ -33,38 +33,43 @@ Use `--output` to choose another evidence root.
 
 ## Freeze extracted sources
 
-Land `package-freeze.toml` and the freeze workflow on the protected base before
-copying code. The schema and example live in `freeze_manifest.py`.
+Use main's existing [frozen-paths.txt](https://github.com/DataDog/dd-trace-py/blob/main/frozen-paths.txt)
+and [Freeze check workflow](https://github.com/DataDog/dd-trace-py/blob/main/.github/workflows/freeze-check.yml).
+They are the single freeze mechanism, including for native extraction. Add
+repository-relative `path=SHA-256` entries before copying code. The workflow
+checks the PR merge result against both the base and merge-result lists.
+Require the Freeze check status and up-to-date branches on main.
 
-```sh
-scripts/package-split freeze --base <protected-revision> --head <candidate-revision>
-```
+To change a frozen file, first remove its entry in a separate PR that leaves
+the file unchanged. After that merges, coordinate the source change with the
+extracted copy and freeze the new content again when needed. A PR cannot bypass
+the freeze by changing a file and its recorded hash together.
 
-Freeze manifests use schema version 2. Every approved rewrite requires a
-`post_hash`, the SHA-256 of its approved replacement, and a sync record. The
-protected base supplies the approval; the file at `--head` must match it. A later
-edit, deletion or reversion requires a new approval on the base. Version 1 is
-rejected because it cannot establish this guarantee.
-
-The gate inspects Git objects and never executes candidate code. Its evidence
-records the protected manifest hash, source revision, environment and individual
-checks under `.package-split/freeze/freeze.json`. Missing required inputs fail.
-Exit codes are 0 for success, 1 for a failed freeze, and 2 for usage/inventory errors.
-The PR workflow skips enforcement only when its base has no freeze manifest.
+The source CLI has no freeze command, TOML freeze manifest, or rewrite-approval
+schema. Existing entries stay in frozen-paths.txt; no migration is needed.
 
 ## Checks owned elsewhere
 
 | Former gate | Replacement or required extraction coverage |
 | --- | --- |
 | `boundaries` | Existing cycle and layering regression jobs for ddtrace; destination import and dependency policy for the extracted package. Review dynamic imports explicitly where static tooling cannot resolve them. |
-| `artifacts` | Existing wheel build/install/smoke pipeline and destination package checks. Add explicit coverage for sdist parity, resources, entry points and a native-free dependency closure where promised; wheel smoke alone does not prove them. |
+| `artifacts` | Existing wheel build/install/smoke pipeline and destination package checks. Add explicit coverage for sdist parity, resources, entry points and restrictions on a package's own compiled artifacts; wheel smoke alone does not prove them. |
 | `lifecycle` | The destination's import-inertness probe and package-owned activation tests, with runtime dependencies installed. Legacy ddtrace startup has its own behavior contract. |
 | `contracts` | A reviewed API and consumer-owned behavior tests against exact artifacts. Signature snapshots alone miss method behavior and shared state. |
 | `compatibility`, `migration` | Concrete consumer tests selected through `scripts/run-tests`: released/candidate combinations, bridge/provider identity using `is`, absent versus broken providers, single instrumentation, install order and rollback. No generic matrix runner supplies that coverage automatically. |
 
-The source CLI no longer accepts these six commands or `--manifest`; the root
-package contract and its duplicate dependency declarations are removed.
-Use `scripts/package-split --help` for current options and `gates` to list the
-single gate. Validate changes with `scripts/run-tests` and `scripts/lint`.
+A pure-Python package must not itself build compiled artifacts. Its runtime
+dependencies may include native telemetry and writers; there is no transitive
+native-free requirement for Test Optimization.
+
+The source CLI accepts only `api-usage` and `api-surface`; the generic gates,
+`freeze`, `gates`, and `--manifest` are retired. The root package contract and
+its duplicate dependency declarations are removed. `--source-path` selects
+source scan scope; the destination CLI's `--package DIR` selects package
+metadata for its own checks. These CLIs and their modules are maintained
+independently rather than synchronized as copies of one harness.
+
+Use `scripts/package-split --help` for current options. Validate changes with
+`scripts/run-tests` and `scripts/lint`.
 
 [Extraction plan](../../docs/package-split/plan.md) · [Audit and disposition](../../docs/package-split/harness-audit-2026-11.md)

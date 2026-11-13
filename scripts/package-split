@@ -2,11 +2,9 @@
 # -*- mode: python -*-
 # /// script
 # requires-python = ">=3.9"
-# dependencies = [
-#     "tomli; python_version < '3.11'",
-# ]
+# dependencies = []
 # ///
-"""Source inventories and freeze enforcement for package extractions."""
+"""Source inventories for package extractions."""
 
 from pathlib import Path
 import sys
