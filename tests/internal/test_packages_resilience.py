@@ -1763,3 +1763,70 @@ def test_directory_probes_follow_snapshot_replacement(
     assert _p._is_install_root(vendor) is True
     pkg = _p.filename_to_package(vendor / "vendored.py")
     assert pkg is not None and pkg.name == "vendored"
+
+
+@pytest.mark.parametrize("phase", ["call", "iterate", "close"])
+@pytest.mark.parametrize("lookup", ["version", "availability"])
+def test_named_finder_reentry_is_guarded_through_cleanup(tmp_path, monkeypatch, phase, lookup):
+    from importlib.machinery import PathFinder
+    import importlib.metadata as metadata
+    import sys
+    import threading
+
+    from ddtrace.internal import packages
+
+    info = tmp_path / "guarded_finder-1.0.dist-info"
+    info.mkdir()
+    (info / "METADATA").write_text("Name: guarded-finder\nVersion: 1.0\n")
+    lock = threading.Lock()
+    observed = []
+    errors = []
+    calls = []
+
+    def observe():
+        observed.append(packages.is_querying_finders())
+        packages.get_package_distributions()
+
+    class Finder:
+        def find_spec(self, *args, **kwargs):
+            return None
+
+        def find_distributions(self, context):
+            calls.append(context.name)
+            if not lock.acquire(blocking=False):
+                errors.append("reentered a finder holding its own lock")
+                return iter(())
+            if phase == "call":
+                observe()
+
+            def distributions():
+                try:
+                    if phase == "iterate":
+                        observe()
+                    yield metadata.PathDistribution(info)
+                finally:
+                    try:
+                        if phase == "close":
+                            observe()
+                    finally:
+                        lock.release()
+
+            return distributions()
+
+    packages._clear_lookup_caches()
+    try:
+        with monkeypatch.context() as mp:
+            mp.setattr(sys, "meta_path", [Finder(), PathFinder])
+            mp.setattr(packages, "_INSTALLED", None)
+            mp.setattr(packages, "_PREFETCH_THREAD", None)
+            if lookup == "version":
+                assert packages.get_version_for_package("guarded-finder") == "1.0"
+            else:
+                assert packages.is_distribution_available("guarded-finder")
+            assert observed == [True]
+            assert calls == ["guarded-finder"]
+            assert not errors, errors
+            assert not packages.is_querying_finders()
+            assert not lock.locked()
+    finally:
+        packages._clear_lookup_caches()

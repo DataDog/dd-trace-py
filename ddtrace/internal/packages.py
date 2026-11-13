@@ -1,4 +1,5 @@
 import collections
+from contextlib import contextmanager
 from functools import lru_cache as cached
 from functools import partial
 from functools import singledispatch
@@ -725,6 +726,25 @@ def _entry_index(entry: str) -> t.Optional[dict[str, list[str]]]:
 _Headers = tuple[t.Optional[str], t.Optional[str]]
 
 
+@contextmanager
+def _named_finder_query() -> t.Iterator[None]:
+    active = getattr(_FINDER_QUERY, "active", False)
+    nested = getattr(_FINDER_QUERY, "nested", False)
+    _FINDER_QUERY.active = True
+    if not active:
+        _FINDER_QUERY.nested = False
+    try:
+        yield
+    finally:
+        _FINDER_QUERY.active = active
+        if not active:
+            if getattr(_FINDER_QUERY, "nested", False):
+                if _INSTALLED is not None:
+                    _INSTALLED.checked = False
+                _clear_lookup_caches()
+            _FINDER_QUERY.nested = nested
+
+
 def _distribution_candidates(name: str) -> t.Iterator[tuple[t.Any, t.Callable[[], t.Optional[_Headers]]]]:
     """The distributions called name in importlib discovery order, as (source, read).
 
@@ -747,8 +767,25 @@ def _distribution_candidates(name: str) -> t.Iterator[tuple[t.Any, t.Callable[[]
 
         try:
             context = importlib_metadata.DistributionFinder.Context(name=name)
-            for found in getattr(finder, "find_distributions")(context):
-                yield finder, partial(_read_headers, found)
+            # Mark both the call and lazy iteration; never keep thread-local state
+            # active while yielding a candidate back to the caller.
+            with _named_finder_query():
+                distributions = iter(getattr(finder, "find_distributions")(context))
+            try:
+                while True:
+                    with _named_finder_query():
+                        try:
+                            found = next(distributions)
+                        except StopIteration:
+                            break
+                    yield finder, partial(_read_headers, found)
+            finally:
+                # A named lookup may stop at the first candidate. Its generator's
+                # finally block can import too, so close it while still guarded.
+                with _named_finder_query():
+                    close = getattr(distributions, "close", None)
+                    if close is not None:
+                        close()
         except Exception as exc:
             _warn_bad_dist(finder, exc)
 
