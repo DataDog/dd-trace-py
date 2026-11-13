@@ -2281,7 +2281,11 @@ def test_product_start_restores_bundle_with_real_enable(subscriber_lifecycle):
         f"{name}:false"
         for name in list(SUPPORTED_LLMOBS_INTEGRATIONS.values()) + list(_INTEGRATIONS_W_PROPAGATION_SUPPORT.values())
     )
-    with patch.dict("os.environ", {"DD_PATCH_MODULES": modules + ",anthropic:true"}):
+    # The product manager only calls start() when LLMObs is enabled, and disable() above turned it off.
+    with (
+        patch.dict("os.environ", {"DD_PATCH_MODULES": modules + ",anthropic:true"}),
+        override_global_config({"_llmobs_enabled": True}),
+    ):
         _product.start()
     assert LLMObs.enabled
     assert core.has_listeners("span.finishing.llm.request")
