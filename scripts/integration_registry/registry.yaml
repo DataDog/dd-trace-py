@@ -883,7 +883,7 @@ integrations:
   tested_versions_by_dependency:
     pytest:
       min: 6.2.5
-      max: 9.1.1
+      max: 9.2.0
 
 - integration_name: pytest_bdd
   is_external_package: true
