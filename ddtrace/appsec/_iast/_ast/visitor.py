@@ -346,15 +346,6 @@ class AstVisitor(ast.NodeTransformer):
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
         return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
 
-    def _assign_node(self, from_node: Any, targets: list[Any], value: Any) -> Any:
-        return self._node(
-            ast.Assign,
-            from_node,
-            targets=targets,
-            value=value,
-            type_comment=None,
-        )
-
     @staticmethod
     def find_insert_position(module_node: ast.Module) -> int:
         insert_position = 0
