@@ -1,0 +1,8 @@
+features:
+  - |
+    elevenlabs: Adds opt-in conversation cost reporting with
+    ``LLMObs.submit_conversation_cost`` using completed conversation details or
+    application-verified post-call webhook data, preserving USD billing, user overrides,
+    and known zero costs without extra provider requests. The boolean result reports
+    local queue acceptance; delivery and missing-value updates are supported for 24 hours
+    after the first known total is accepted.
