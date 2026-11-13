@@ -14,13 +14,14 @@ from tests.utils import override_global_config
 from .app.web import setup_app
 
 
-async def test_full_request(test_spans, patched_app, aiohttp_client):
+async def test_full_request(test_spans, patched_app, aiohttp_client, request_completed):
     client = await aiohttp_client(patched_app)
     # it should create a root span when there is a handler hit
     # with the proper tags
     request = await client.request("GET", "/")
     assert 200 == request.status
     await request.text()
+    await request_completed()
     # the trace is created
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
@@ -35,7 +36,9 @@ async def test_full_request(test_spans, patched_app, aiohttp_client):
 
 
 @pytest.mark.parametrize("path", ["/", "/stream/"])
-async def test_request_task_callbacks(test_spans, patched_app, aiohttp_client, path):
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+async def test_request_task_callbacks(test_spans, patched_app, aiohttp_client, path, finish_on_prepare, monkeypatch):
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
     request_tasks = []
 
     async def capture_request_task(app, handler):
@@ -72,7 +75,77 @@ async def test_request_task_callbacks(test_spans, patched_app, aiohttp_client, p
         assert trace[0].resource == f"GET {path}"
 
 
-async def test_full_request_w_mem_leak_prevention_flag(test_spans, patched_app, aiohttp_client):
+@pytest.mark.parametrize("path", ["/", "/stream/"])
+async def test_request_completion_does_not_wait_for_keepalive(test_spans, patched_app, aiohttp_client, path):
+    from ddtrace.internal import core
+
+    completed = asyncio.Queue()
+    connection_tasks = []
+
+    async def capture_connection_task(app, handler):
+        async def handle(request):
+            connection_tasks.append(request.task)
+            return await handler(request)
+
+        return handle
+
+    def ended(ctx, exc_info):
+        completed.put_nowait(ctx)
+
+    patched_app.middlewares.append(capture_connection_task)
+    core.on("context.ended.web.request", ended)
+    try:
+        async with await aiohttp_client(patched_app) as client:
+            for _ in range(2):
+                response = await client.get(path)
+                assert response.status == 200
+                await response.read()
+                ctx = await asyncio.wait_for(completed.get(), timeout=5)
+                assert ctx._event is None
+                assert not connection_tasks[-1].done()
+                spans = test_spans.pop()
+                assert len(spans) == 1
+                assert spans[0].finished
+                assert spans[0].resource == f"GET {path}"
+    finally:
+        core.reset_listeners("context.ended.web.request", ended)
+
+
+@pytest.mark.parametrize("streaming_subclass", [False, True])
+async def test_stream_prepare_in_child_task(test_spans, aiohttp_client, request_completed, streaming_subclass):
+    from aiohttp import web
+
+    from ddtrace.trace import tracer
+
+    class StreamingResponse(web.StreamResponse):
+        pass
+
+    async def handler(request):
+        span = tracer.current_span()
+        assert span is not None
+        response_type = StreamingResponse if streaming_subclass else web.StreamResponse
+        response = response_type()
+        await asyncio.wait_for(response.prepare(request), timeout=5)
+        await asyncio.sleep(0)
+        assert not span.finished
+        await response.write(b"body after preparation")
+        await response.write_eof()
+        return response
+
+    app = web.Application()
+    app.router.add_get("/", handler)
+    trace_app(app)
+    async with await aiohttp_client(app) as client:
+        response = await client.get("/")
+        assert await response.text() == "body after preparation"
+        await request_completed()
+    spans = test_spans.pop()
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].error == 0
+
+
+async def test_full_request_w_mem_leak_prevention_flag(test_spans, patched_app, aiohttp_client, request_completed):
     config.aiohttp.disable_stream_timing_for_mem_leak = True
     try:
         client = await aiohttp_client(patched_app)
@@ -81,6 +154,7 @@ async def test_full_request_w_mem_leak_prevention_flag(test_spans, patched_app, 
         request = await client.request("GET", "/")
         assert 200 == request.status
         await request.text()
+        await request_completed()
         # the trace is created
         traces = test_spans.pop_traces()
         assert 1 == len(traces)
@@ -107,7 +181,7 @@ async def test_stream_request(test_spans, patched_app, aiohttp_client):
     assert abs(0.5 - request_span.duration) < 0.05
 
 
-async def test_multiple_full_request(test_spans, patched_app, aiohttp_client):
+async def test_multiple_full_request(test_spans, patched_app, aiohttp_client, request_completed):
     client = await aiohttp_client(patched_app)
 
     # it should handle multiple requests using the same loop
@@ -122,9 +196,9 @@ async def test_multiple_full_request(test_spans, patched_app, aiohttp_client):
         t.daemon = True
         t.start()
 
-    # we should yield so that this loop can handle
-    # threads' requests
-    await asyncio.sleep(0.5)
+    # Yield until the server has completed every request.
+    for _ in threads:
+        await request_completed()
     for t in threads:
         t.join(timeout=0.5)
 
@@ -134,7 +208,7 @@ async def test_multiple_full_request(test_spans, patched_app, aiohttp_client):
     assert 1 == len(traces[0])
 
 
-async def test_user_specified_service(test_spans, aiohttp_client):
+async def test_user_specified_service(test_spans, aiohttp_client, request_completed):
     """
     When a service name is specified by the user
         The aiohttp integration should use it as the service name
@@ -145,6 +219,7 @@ async def test_user_specified_service(test_spans, aiohttp_client):
         client = await aiohttp_client(app)
         request = await client.request("GET", "/")
         await request.text()
+        await request_completed()
         traces = test_spans.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
@@ -152,12 +227,13 @@ async def test_user_specified_service(test_spans, aiohttp_client):
         assert request_span.service == "mysvc"
 
 
-async def test_http_request_header_tracing(test_spans, patched_app, aiohttp_client):
+async def test_http_request_header_tracing(test_spans, patched_app, aiohttp_client, request_completed):
     client = await aiohttp_client(patched_app)
 
     config.aiohttp.http.trace_headers(["my-header"])
     request = await client.request("GET", "/", headers={"my-header": "my_value"})
     await request.text()
+    await request_completed()
 
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
@@ -170,12 +246,13 @@ async def test_http_request_header_tracing(test_spans, patched_app, aiohttp_clie
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def test_http_response_header_tracing(test_spans, patched_app, aiohttp_client):
+async def test_http_response_header_tracing(test_spans, patched_app, aiohttp_client, request_completed):
     client = await aiohttp_client(patched_app)
 
     config.aiohttp.http.trace_headers(["my-response-header"])
     request = await client.request("GET", "/response_headers/")
     await request.text()
+    await request_completed()
 
     traces = test_spans.pop_traces()
     assert 1 == len(traces)

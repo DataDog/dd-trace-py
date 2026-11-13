@@ -37,6 +37,13 @@ See `ddtrace/internal/core/__init__.py` for the API. An event is available throu
 its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
+Report deferred request exceptions synchronously through WebFrameworkRequestExceptionEvent
+rather than retaining exceptions or tracebacks on a deferred context. Completion carries final
+response metadata separately. For nested middleware, each completion callback must retain
+its own execution context rather than resolve a request key that inner middleware can replace.
+Response preparation must reach all contexts for the request, including request clones.
+Retain the returned response until deferred completion as a fallback if an earlier preparation
+callback fails, while preserving metadata supplied by successful response preparation.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

@@ -11,13 +11,14 @@ from urllib import request
 from tests.utils import assert_is_measured
 
 
-async def test_full_request(test_spans, patched_app, aiohttp_client):
+async def test_full_request(test_spans, patched_app, aiohttp_client, request_completed):
     client = await aiohttp_client(patched_app)
     # it should create a root span when there is a handler hit
     # with the proper tags
     request = await client.request("GET", "/")
     assert 200 == request.status
     await request.text()
+    await request_completed()
     # the trace is created
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
@@ -31,7 +32,7 @@ async def test_full_request(test_spans, patched_app, aiohttp_client):
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def test_multiple_full_request(test_spans, patched_app, aiohttp_client):
+async def test_multiple_full_request(test_spans, patched_app, aiohttp_client, request_completed):
     NUMBER_REQUESTS = 10
     responses = []
 
@@ -58,6 +59,9 @@ async def test_multiple_full_request(test_spans, patched_app, aiohttp_client):
 
     for t in threads:
         t.join()
+
+    for _ in range(NUMBER_REQUESTS):
+        await request_completed()
 
     # the trace is wrong but the spans are finished and written
     spans = test_spans.pop_traces()

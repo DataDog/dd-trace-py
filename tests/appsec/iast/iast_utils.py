@@ -14,8 +14,8 @@ from hypothesis.strategies import builds
 from hypothesis.strategies import one_of
 from hypothesis.strategies import text
 
+from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
-from ddtrace.appsec._iast._ast.ast_patching import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import initialize_iast_lists
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter

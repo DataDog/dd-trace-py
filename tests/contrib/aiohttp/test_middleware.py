@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import pytest
@@ -25,7 +26,7 @@ from .app.web import setup_app
 PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 
 
-async def test_handler(app, test_spans, aiohttp_client):
+async def test_handler(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
     # with the proper tags
@@ -34,6 +35,7 @@ async def test_handler(app, test_spans, aiohttp_client):
     text = await request.text()
     assert "What's tracing?" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -117,7 +119,7 @@ if __name__ == "__main__":
         ("json=%7B%20%22sign%22%7D", True),
     ),
 )
-async def test_param_handler(app, test_spans, aiohttp_client, query_string, trace_query_string):
+async def test_param_handler(app, test_spans, aiohttp_client, query_string, trace_query_string, request_completed):
     if trace_query_string:
         app[CONFIG_KEY]["trace_query_string"] = True
     client = await aiohttp_client(app)
@@ -131,6 +133,7 @@ async def test_param_handler(app, test_spans, aiohttp_client, query_string, trac
     text = await request.text()
     assert "Hello team" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -154,13 +157,16 @@ async def test_param_handler(app, test_spans, aiohttp_client, query_string, trac
         ("foo=bar", True),
     ),
 )
-async def test_param_handler_otel_semantics(app, test_spans, aiohttp_client, query_string, trace_query_string):
+async def test_param_handler_otel_semantics(
+    app, test_spans, aiohttp_client, query_string, trace_query_string, request_completed
+):
     app[CONFIG_KEY]["trace_query_string"] = trace_query_string
     client = await aiohttp_client(app)
     with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         request = await client.request("GET", "/echo/team?" + query_string)
         assert 200 == request.status
         await request.text()
+        await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     span = traces[0][0]
@@ -171,12 +177,14 @@ async def test_param_handler_otel_semantics(app, test_spans, aiohttp_client, que
         assert span.get_tag(otel_http.URL_QUERY) is None
 
 
-async def test_404_handler(app, test_spans, aiohttp_client):
+async def test_404_handler(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     # it should not pollute the resource space
     request = await client.request("GET", "/404/not_found")
     assert 404 == request.status
     # the trace is created
+    await request.read()
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -201,11 +209,15 @@ async def test_404_handler(app, test_spans, aiohttp_client):
         ("/statics/absent.txt", 404, "/statics"),
     ],
 )
-async def test_route_reporting_plain_url(req_url, status, expected_route, app, test_spans, aiohttp_client):
+async def test_route_reporting_plain_url(
+    req_url, status, expected_route, app, test_spans, aiohttp_client, request_completed
+):
     client = await aiohttp_client(app)
     request = await client.request("GET", req_url)
     assert status == request.status
     # the trace is created
+    await request.read()
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -214,7 +226,7 @@ async def test_route_reporting_plain_url(req_url, status, expected_route, app, t
     assert span.get_tag("http.route") == expected_route
 
 
-async def test_server_error(app, test_spans, aiohttp_client):
+async def test_server_error(app, test_spans, aiohttp_client, request_completed):
     """
     When a server error occurs (uncaught exception)
         The span should be flagged as an error
@@ -223,6 +235,8 @@ async def test_server_error(app, test_spans, aiohttp_client):
     client = await aiohttp_client(app)
     request = await client.request("GET", "/uncaught_server_error")
     assert request.status == 500
+    await request.read()
+    await request_completed()
     traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
@@ -234,7 +248,7 @@ async def test_server_error(app, test_spans, aiohttp_client):
     assert span.error == 1
 
 
-async def test_500_response_code(app, test_spans, aiohttp_client):
+async def test_500_response_code(app, test_spans, aiohttp_client, request_completed):
     """
     When a 5XX response code is returned
         The span should be flagged as an error
@@ -243,6 +257,8 @@ async def test_500_response_code(app, test_spans, aiohttp_client):
     client = await aiohttp_client(app)
     request = await client.request("GET", "/caught_server_error")
     assert request.status == 503
+    await request.read()
+    await request_completed()
     traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
@@ -254,7 +270,7 @@ async def test_500_response_code(app, test_spans, aiohttp_client):
     assert span.error == 1
 
 
-async def test_coroutine_chaining(app, test_spans, aiohttp_client):
+async def test_coroutine_chaining(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     # it should create a trace with multiple spans
     request = await client.request("GET", "/chaining/")
@@ -262,6 +278,7 @@ async def test_coroutine_chaining(app, test_spans, aiohttp_client):
     text = await request.text()
     assert "OK" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 3 == len(traces[0])
@@ -286,7 +303,7 @@ async def test_coroutine_chaining(app, test_spans, aiohttp_client):
     assert root.get_tag("span.kind") == "server"
 
 
-async def test_static_handler(app, test_spans, aiohttp_client):
+async def test_static_handler(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     # it should create a trace with multiple spans
     request = await client.request("GET", "/statics/empty.txt")
@@ -294,6 +311,7 @@ async def test_static_handler(app, test_spans, aiohttp_client):
     text = await request.text()
     assert "Static file\n" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -325,12 +343,13 @@ async def test_middleware_applied_twice(app, test_spans):
     assert noop_middleware == app.middlewares[1]
 
 
-async def test_exception(app, test_spans, aiohttp_client):
+async def test_exception(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     request = await client.request("GET", "/exception")
     assert 500 == request.status
     await request.text()
 
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     spans = traces[0]
@@ -344,12 +363,13 @@ async def test_exception(app, test_spans, aiohttp_client):
     assert span.get_tag("span.kind") == "server"
 
 
-async def test_async_exception(app, test_spans, aiohttp_client):
+async def test_async_exception(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     request = await client.request("GET", "/async_exception")
     assert 500 == request.status
     await request.text()
 
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     spans = traces[0]
@@ -363,13 +383,14 @@ async def test_async_exception(app, test_spans, aiohttp_client):
     assert span.get_tag("span.kind") == "server"
 
 
-async def test_wrapped_coroutine(app, test_spans, aiohttp_client):
+async def test_wrapped_coroutine(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     request = await client.request("GET", "/wrapped_coroutine")
     assert 200 == request.status
     text = await request.text()
     assert "OK" == text
 
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     spans = traces[0]
@@ -381,7 +402,7 @@ async def test_wrapped_coroutine(app, test_spans, aiohttp_client):
     assert span.duration > 0.25, f"span.duration={span.duration}"
 
 
-async def test_distributed_tracing(app, test_spans, aiohttp_client):
+async def test_distributed_tracing(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     # distributed tracing is enabled by default
     tracing_headers = {
@@ -394,6 +415,7 @@ async def test_distributed_tracing(app, test_spans, aiohttp_client):
     text = await request.text()
     assert "What's tracing?" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -404,7 +426,7 @@ async def test_distributed_tracing(app, test_spans, aiohttp_client):
     assert span.get_metric(_SAMPLING_PRIORITY_KEY) is AUTO_KEEP
 
 
-async def test_distributed_tracing_with_sampling_true(app, tracer, test_spans, aiohttp_client):
+async def test_distributed_tracing_with_sampling_true(app, tracer, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     tracer._priority_sampler = RateSampler(0.1)
 
@@ -419,6 +441,7 @@ async def test_distributed_tracing_with_sampling_true(app, tracer, test_spans, a
     text = await request.text()
     assert "What's tracing?" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -429,7 +452,7 @@ async def test_distributed_tracing_with_sampling_true(app, tracer, test_spans, a
     assert 1 == span.get_metric(_SAMPLING_PRIORITY_KEY)
 
 
-async def test_distributed_tracing_with_sampling_false(app, tracer, test_spans, aiohttp_client):
+async def test_distributed_tracing_with_sampling_false(app, tracer, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     tracer._priority_sampler = RateSampler(0.9)
 
@@ -444,6 +467,7 @@ async def test_distributed_tracing_with_sampling_false(app, tracer, test_spans, 
     text = await request.text()
     assert "What's tracing?" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -454,7 +478,7 @@ async def test_distributed_tracing_with_sampling_false(app, tracer, test_spans, 
     assert 0 == span.get_metric(_SAMPLING_PRIORITY_KEY)
 
 
-async def test_distributed_tracing_disabled(app, test_spans, aiohttp_client):
+async def test_distributed_tracing_disabled(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     # pass headers for distributed tracing
     app["datadog_trace"]["distributed_tracing_enabled"] = False
@@ -468,6 +492,7 @@ async def test_distributed_tracing_disabled(app, test_spans, aiohttp_client):
     text = await request.text()
     assert "What's tracing?" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -477,7 +502,7 @@ async def test_distributed_tracing_disabled(app, test_spans, aiohttp_client):
     assert span.parent_id != 42
 
 
-async def test_distributed_tracing_sub_span(app, tracer, test_spans, aiohttp_client):
+async def test_distributed_tracing_sub_span(app, tracer, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     tracer._priority_sampler = RateSampler(1.0)
 
@@ -493,6 +518,7 @@ async def test_distributed_tracing_sub_span(app, tracer, test_spans, aiohttp_cli
     text = await request.text()
     assert "OK" == text
     # the trace is created
+    await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 2 == len(traces[0])
@@ -536,7 +562,7 @@ def _assert_200_parenting(client, traces):
     assert 0 == inner_span.error
 
 
-async def test_parenting_200_dd(app, tracer, test_spans, aiohttp_client):
+async def test_parenting_200_dd(app, tracer, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     with tracer.trace("aiohttp_op"):
         request = await client.request("GET", "/")
@@ -544,6 +570,7 @@ async def test_parenting_200_dd(app, tracer, test_spans, aiohttp_client):
         text = await request.text()
 
     assert "What's tracing?" == text
+    await request_completed()
     traces = test_spans.pop_traces()
     _assert_200_parenting(client, traces)
 
@@ -589,7 +616,7 @@ async def test_parenting_200_dd(app, tracer, test_spans, aiohttp_client):
 )
 @pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
 async def test_inferred_spans_api_gateway(
-    app, test_spans, aiohttp_client, test_app, inferred_proxy_enabled, test_headers
+    app, test_spans, aiohttp_client, test_app, inferred_proxy_enabled, test_headers, request_completed
 ):
     """
     When making a request to an aiohttp middleware app,
@@ -600,6 +627,7 @@ async def test_inferred_spans_api_gateway(
     with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
         resp = await client.request(test_app["http_method"], test_app["path"], headers=test_headers["headers"])
         assert resp.status == test_app["status_code"]
+        await request_completed()
         traces = test_spans.pop_traces()
 
         if inferred_proxy_enabled is False:
@@ -692,3 +720,281 @@ assert config.aiohttp["disable_stream_timing_for_mem_leak"] is True
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+
+@pytest.mark.parametrize("tracing_enabled", [True, False])
+@pytest.mark.parametrize("prepared", [True, False])
+@pytest.mark.parametrize("finish_on_prepare", [True, False])
+async def test_request_exception_does_not_retain_frames(
+    test_spans, monkeypatch, tracing_enabled, prepared, finish_on_prepare
+):
+    import gc
+    from unittest.mock import Mock
+    import weakref
+
+    from aiohttp import web
+    from aiohttp.test_utils import make_mocked_request
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.aiohttp import middlewares
+    from ddtrace.internal import core
+    from ddtrace.trace import tracer
+
+    class RequestPayload:
+        pass
+
+    class RequestFailure(Exception):
+        pass
+
+    monkeypatch.setattr(tracer, "enabled", tracing_enabled)
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    app = web.Application()
+    middlewares.trace_app(app)
+    request = make_mocked_request("GET", "/", app=app)
+    request.match_info.route.resource.get_info.return_value = {"path": "/"}
+    request.match_info.route.resource.canonical = "/"
+    task = asyncio.get_running_loop().create_future()
+    request._task = task
+    monkeypatch.setattr(middlewares, "current_task", lambda: task)
+    response = web.StreamResponse()
+    response._req = request
+    contexts = []
+    payload_refs = []
+    completions = []
+
+    def ended(ctx, exc_info):
+        completions.append(ctx)
+
+    core.on("context.ended.web.request", ended)
+
+    async def fail(ctx, request, handler):
+        contexts.append(ctx)
+        payload = RequestPayload()
+        payload_refs.append(weakref.ref(payload))
+        if prepared:
+            await middlewares.on_prepare(request, response)
+        raise RequestFailure("request failed")
+
+    monkeypatch.setattr(middlewares, "_handle_request", fail)
+    wrapped = await middlewares.trace_middleware(app, Mock())
+    was_gc_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        try:
+            await wrapped(request)
+        except RequestFailure:
+            pass
+        else:
+            raise AssertionError("The request failure must propagate")
+        ctx = contexts[0]
+        assert ctx.get_item("aiohttp.request.exc_info") is None
+        assert payload_refs[0]() is None, "The context must not retain the failing handler frame"
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        assert span.error == 1
+        assert span.get_tag("error.type").endswith("RequestFailure")
+        assert "request failed" in span.get_tag("error.stack")
+        # Completion is independent of exception reporting for either timing mode.
+        await middlewares.on_prepare(request, web.Response(status=500))
+        task.set_result(None)
+        await asyncio.sleep(0)
+        assert completions == [ctx]
+        assert ctx._event is None
+        if span is not None:
+            assert span.finished
+        middlewares.finish_request_span(request, response)
+        assert completions == [ctx]
+    finally:
+        if was_gc_enabled:
+            gc.enable()
+        core.reset_listeners("context.ended.web.request", ended)
+
+
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+async def test_sub_app_completes_all_contexts(
+    test_spans, monkeypatch, request_completed, tracing_enabled, finish_on_prepare
+):
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient
+    from aiohttp.test_utils import TestServer
+
+    from ddtrace import config
+    from ddtrace.internal import core
+    from ddtrace.trace import tracer
+
+    monkeypatch.setattr(tracer, "enabled", tracing_enabled)
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    contexts = []
+
+    def started(ctx):
+        contexts.append(ctx)
+
+    async def handler(request):
+        return web.Response(text="ok")
+
+    app = web.Application()
+    sub_app = web.Application()
+    sub_app.router.add_get("/", handler)
+    trace_app(sub_app)
+    app.add_subapp("/sub", sub_app)
+    trace_app(app)
+    core.on("context.started.web.request", started)
+    try:
+        async with TestClient(TestServer(app)) as client:
+            response = await client.get("/sub/")
+            assert await response.text() == "ok"
+            completed = [await request_completed(), await request_completed()]
+        assert len(contexts) == 2
+        assert {id(ctx) for ctx in completed} == {id(ctx) for ctx in contexts}
+        assert all(ctx._event is None for ctx in contexts)
+        for ctx in contexts:
+            span = ctx.get_item("_inner_span")
+            assert span.finished
+            assert_span_http_status_code(span, 200)
+    finally:
+        core.reset_listeners("context.started.web.request", started)
+
+
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+async def test_cancelled_request_completes_without_response(test_spans, monkeypatch, tracing_enabled, nested):
+    import asyncio
+
+    from aiohttp import web
+    from aiohttp.test_utils import make_mocked_request
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.aiohttp import middlewares
+    from ddtrace.internal import core
+    from ddtrace.trace import tracer
+
+    monkeypatch.setattr(tracer, "enabled", tracing_enabled)
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", False)
+    app = web.Application()
+    middlewares.trace_app(app)
+    request = make_mocked_request("GET", "/", app=app)
+    request.match_info.route.resource.canonical = "/"
+    owner = asyncio.get_running_loop().create_future()
+    monkeypatch.setattr(middlewares, "current_task", lambda: owner)
+    completed = []
+
+    async def cancel(request):
+        raise asyncio.CancelledError
+
+    def ended(ctx, exc_info):
+        completed.append(ctx)
+
+    core.on("context.ended.web.request", ended)
+    try:
+        wrapped = await middlewares.trace_middleware(app, cancel)
+        if nested:
+            wrapped = await middlewares.trace_middleware(app, wrapped)
+        with pytest.raises(asyncio.CancelledError):
+            await wrapped(request)
+        ctx = request[middlewares.REQUEST_EXECUTION_CONTEXT_KEY]
+        assert ctx._event is not None
+        assert middlewares.REQUEST_STARTED_RESPONSE_KEY not in request
+        owner.cancel()
+        await asyncio.sleep(0)
+        assert len(completed) == (2 if nested else 1)
+        assert completed[-1] is ctx
+        for completed_ctx in completed:
+            assert completed_ctx._event is None
+            span = completed_ctx.get_item("_inner_span")
+            assert span.finished
+    finally:
+        core.reset_listeners("context.ended.web.request", ended)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+async def test_response_metadata_survives_prepare_callback_failure(
+    test_spans, aiohttp_client, request_completed, nested
+):
+    from aiohttp import ServerDisconnectedError
+    from aiohttp import web
+
+    from ddtrace.internal import core
+
+    metadata = []
+
+    async def handler(request):
+        return web.Response(status=201, headers={"x-response-id": "retained"}, text="created")
+
+    async def fail_prepare(request, response):
+        raise RuntimeError("prepare callback failed")
+
+    def ended(ctx, exc_info):
+        event = ctx.event
+        metadata.append((event.response_status_code, event.response_headers, event.resource))
+
+    app = web.Application()
+    target = web.Application() if nested else app
+    target.router.add_post("/response/{name}", handler)
+    app.on_response_prepare.append(fail_prepare)
+    if nested:
+        trace_app(target)
+        app.add_subapp("/sub", target)
+    trace_app(app)
+    core.on("context.ended.web.request", ended)
+    try:
+        async with await aiohttp_client(app) as client:
+            with pytest.raises(ServerDisconnectedError):
+                await client.post("/sub/response/test" if nested else "/response/test")
+            contexts = [await request_completed() for _ in range(2 if nested else 1)]
+        resource = "POST /sub/response/{name}" if nested else "POST /response/{name}"
+        assert len(metadata) == len(contexts)
+        for status, headers, completed_resource in metadata:
+            assert status == 201
+            assert headers["x-response-id"] == "retained"
+            assert completed_resource == resource
+        for ctx in contexts:
+            assert ctx._event is None
+            assert ctx.get_item("aiohttp.response") is None
+            span = ctx.get_item("_inner_span")
+            assert span.finished
+            assert span.resource == resource
+            assert_span_http_status_code(span, 201)
+    finally:
+        core.reset_listeners("context.ended.web.request", ended)
+
+
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+@pytest.mark.parametrize("prepare_in_handler", [False, True])
+async def test_prepared_response_overrides_deferred_fallback(
+    test_spans, monkeypatch, finish_on_prepare, prepare_in_handler
+):
+    from aiohttp import web
+    from aiohttp.test_utils import make_mocked_request
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.aiohttp import middlewares
+
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    app = web.Application()
+    trace_app(app)
+    request = make_mocked_request("GET", "/", app=app)
+    request.match_info.route.resource.get_info.return_value = {"path": "/"}
+    request.match_info.route.resource.canonical = "/"
+    owner = asyncio.get_running_loop().create_future()
+    monkeypatch.setattr(middlewares, "current_task", lambda: owner)
+    returned_response = web.Response(status=201)
+    prepared_response = web.Response(status=202)
+
+    async def handler(request):
+        if prepare_in_handler:
+            await middlewares.on_prepare(request, prepared_response)
+        return returned_response
+
+    wrapped = await trace_middleware(app, handler)
+    assert await wrapped(request) is returned_response
+    if not prepare_in_handler:
+        await middlewares.on_prepare(request, prepared_response)
+    owner.set_result(None)
+    await asyncio.sleep(0)
+    ctx = request[middlewares.REQUEST_EXECUTION_CONTEXT_KEY]
+    assert ctx._event is None
+    assert ctx.get_item("aiohttp.response") is None
+    span = ctx.get_item("_inner_span")
+    assert span.finished
+    assert_span_http_status_code(span, 202)

@@ -11,8 +11,10 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.internal import core
+from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.span_bus import span_from_context
@@ -89,3 +91,14 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
         _set_inferred_proxy_tags(span, status_code)
         for tk, tv in event.additional_tags.items():
             span._set_attribute(tk, tv)
+
+
+class WebFrameworkRequestExceptionSubscriber(Subscriber):
+    event_names = (WebFrameworkRequestExceptionEvent.event_name,)
+
+    @classmethod
+    def on_event(cls, event: WebFrameworkRequestExceptionEvent) -> None:
+        span = event.request_context.get_item("_inner_span")
+        exc_type, exc_value, traceback = event.exc_info
+        if span is not None and exc_type is not None and exc_value is not None and traceback is not None:
+            span.set_exc_info(exc_type, exc_value, traceback)

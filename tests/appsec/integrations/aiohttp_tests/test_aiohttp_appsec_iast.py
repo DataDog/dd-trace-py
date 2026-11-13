@@ -15,6 +15,7 @@ from multidict import CIMultiDictProxy
 from multidict import MultiDictProxy
 import pytest
 
+from ddtrace import config
 from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._iast import _aiohttp as iast_aiohttp
 from ddtrace.appsec._iast._handlers import _on_aiohttp_request_start
@@ -23,6 +24,7 @@ from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.internal import core
@@ -766,3 +768,42 @@ def test_read_only_match_info_is_left_untouched():
     request = mock.Mock(_cache={}, match_info=MappingProxyType({"table": "users"}))
     iast_aiohttp._wrap_request(request, headers=False, url=False)
     assert request.match_info == {"table": "users"}
+
+
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+@pytest.mark.parametrize("clone", [False, True])
+def test_sub_app_requests_release_iast_contexts(monkeypatch, finish_on_prepare, clone):
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    initialize_native_state()
+    free_slots = debug_context_array_free_slots_number()
+    contexts = []
+    completed = []
+
+    def started(ctx):
+        contexts.append(ctx)
+
+    def ended(ctx, exc_info):
+        completed.append((ctx, ctx.event.response_status_code))
+
+    core.on("context.started.web.request", started)
+    core.on("context.ended.web.request", ended)
+    try:
+        for _ in range(3):
+            contexts.clear()
+            completed.clear()
+            assert _call(
+                _no_query,
+                "/sub/sources/users",
+                sub_app=True,
+                parent_middlewares=[_replace_headers] if clone else [],
+            ) == {"path": PATH}
+            assert len(contexts) == 2
+            assert all(ctx._end_event_dispatched for ctx in contexts)
+            assert all(ctx.get_item("_inner_span").finished for ctx in contexts)
+            assert len(completed) == 2
+            assert {id(ctx) for ctx, status in completed} == {id(ctx) for ctx in contexts}
+            assert all(status == 200 for ctx, status in completed)
+            assert debug_context_array_free_slots_number() == free_slots
+    finally:
+        core.reset_listeners("context.started.web.request", started)
+        core.reset_listeners("context.ended.web.request", ended)

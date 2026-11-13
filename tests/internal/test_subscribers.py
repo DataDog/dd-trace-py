@@ -1,5 +1,6 @@
 from dataclasses import InitVar
 from dataclasses import dataclass
+import sys
 
 import pytest
 
@@ -453,3 +454,41 @@ def test_span_context_event_end_span_false(test_spans):
 
     # Span should be started but not finished
     test_spans.assert_span_count(0)
+
+
+@pytest.mark.parametrize("completed", [False, True])
+def test_web_request_exception_is_reported_synchronously(test_spans, completed):
+    from ddtrace import config
+    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestExceptionSubscriber
+    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
+
+    WebFrameworkRequestSubscriber.register()
+    WebFrameworkRequestExceptionSubscriber.register()
+    event = WebFrameworkRequestEvent(
+        http_operation="aiohttp.request",
+        component="aiohttp",
+        integration_config=config.aiohttp,
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        if completed:
+            ctx.dispatch_ended_event()
+            assert ctx._event is None
+        try:
+            raise ValueError("request failed")
+        except ValueError:
+            core.dispatch_event(WebFrameworkRequestExceptionEvent(request_context=ctx, exc_info=sys.exc_info()))
+            assert span.error == 1
+            assert span.get_tag("error.type").endswith("ValueError")
+            assert "request failed" in span.get_tag("error.stack")
+        assert ctx.get_item("aiohttp.request.exc_info") is None
+        ctx.dispatch_ended_event()
+    assert span.finished
+    test_spans.assert_span_count(1)

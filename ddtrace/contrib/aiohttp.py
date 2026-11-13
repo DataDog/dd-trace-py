@@ -57,6 +57,10 @@ the provided ``trace_app`` function must be used::
     trace_app(app, service='async-api')
     web.run_app(app, port=8000)
 
+Request spans complete when request execution finishes for both ordinary and streaming
+responses. The existing ``disable_stream_timing_for_mem_leak`` integration option still
+completes spans when response headers are prepared.
+
 Integration settings are attached to your application under the ``datadog_trace``
 namespace. You can read or update them as follows::
 

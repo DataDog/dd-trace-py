@@ -6,7 +6,10 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.constants import WEB_REQUEST_STARTING_EVENT
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
@@ -50,3 +53,13 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
         self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.INBOUND
         )
+
+
+@dataclass
+class WebFrameworkRequestExceptionEvent(Event):
+    """Synchronous exception notification; consumers must not retain its traceback."""
+
+    event_name = "web.request.exception"
+
+    request_context: core.ExecutionContext[WebFrameworkRequestEvent]
+    exc_info: ExcInfoType

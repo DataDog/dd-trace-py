@@ -122,6 +122,18 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
+Deferred request integrations report exceptions synchronously with `WebFrameworkRequestExceptionEvent`.
+The tracing subscriber consumes the live exception immediately; deferred contexts never
+store the exception or its traceback. Completion dispatch carries response metadata, while
+exception details are available during the separate notification. Consumers must not retain
+that notification or its exception tuple. Late errors can update a finished span object, but
+cannot guarantee updating an already exported trace.
+
+Aiohttp completes all response kinds when the executing request task finishes. Each nested
+middleware callback retains its own context, and response preparation visits every context
+shared by request clones. The existing `disable_stream_timing_for_mem_leak` option still
+completes at header preparation to release request state sooner.
+
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
 `LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
