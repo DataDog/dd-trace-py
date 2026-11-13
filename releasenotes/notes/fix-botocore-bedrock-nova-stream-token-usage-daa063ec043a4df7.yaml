@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where Amazon Nova calls made with ``invoke_model_with_response_stream`` through
+    the botocore integration reported 0 input and output tokens.
