@@ -1,7 +1,11 @@
+import asyncio
+import contextvars
 from functools import partial
+import gc
 from inspect import unwrap
 from pathlib import Path
 import typing as t
+import weakref
 
 import pytest
 
@@ -198,6 +202,30 @@ class SpanProbeTestCase(TracerTestCase):
             entry.get_tag("_dd.code_origin.frames.0.method")
             == "SpanProbeTestCase.test_span_origin_tracer_wrap.<locals>.entry_call"
         )
+
+    def test_span_origin_tracer_wrap_async_copied_context(self):
+        class Payload:
+            pass
+
+        refs = []
+        copies = []
+
+        @self.tracer.wrap("entry")
+        async def entry_call():
+            payload = Payload()
+            refs.append(weakref.ref(payload))
+            copies.append(contextvars.copy_context())
+            await asyncio.sleep(0)
+
+        async def main():
+            with self.tracer.trace("root"):
+                await entry_call()
+
+        asyncio.run(main())
+        gc.collect()
+
+        assert len(copies) == 1
+        assert refs[0]() is None, "locals of a finished wrapped call are kept alive by a copied Context"
 
     def test_span_origin_tracer_wrap_method(self):
         class App:
