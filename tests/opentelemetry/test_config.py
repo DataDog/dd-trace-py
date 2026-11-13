@@ -821,23 +821,28 @@ def test_otlp_metrics_and_logs_target_the_agent_without_agentless():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
-        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
-    }
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:9999",
+    },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["http/protobuf", "grpc"]},
 )
 def test_explicit_otlp_settings_win_over_agentless():
     """A user pointing OTLP at their own collector must keep it, agentless or not."""
+    import os
+
     from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
     from ddtrace.internal.settings import env
     from ddtrace.internal.settings._opentelemetry import otel_config
 
-    assert otel_config.exporter.METRICS_PROTOCOL == "http/json"
+    protocol = os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]
+    assert otel_config.exporter.METRICS_PROTOCOL == protocol
     # ddtrace must not override the global endpoint the user set...
     _prepare_agentless_export(
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/json", "metrics"
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", protocol, "metrics"
     )
     # ...nor attach Datadog credentials to a third-party collector.
     assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") is None
+    assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector:9999"
+    assert otel_config.exporter.ENDPOINT == "http://collector:9999"
 
 
 @pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
@@ -1067,3 +1072,219 @@ def test_native_trace_metrics_exporter_sends_custom_headers_and_the_api_key():
     headers = dict(NativeWriter._parse_otlp_headers(otel_config.exporter.METRICS_HEADERS))
     assert headers["x-team"] == "apm"
     assert headers["dd-api-key"] == "foobarkey"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LOGS_OTEL_ENABLED": "false",
+        "DD_METRICS_OTEL_ENABLED": "false",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+        "DD_TRACE_LOGGING_RATE": "0",
+        "OTEL_EXPORTER_OTLP_COMPRESSION": "invalid-global-compression",
+        "OTEL_EXPORTER_OTLP_LOGS_COMPRESSION": "invalid-logs-compression",
+        "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION": "invalid-metrics-compression",
+    },
+    err=lambda err: err.count("Falling back") == 4
+    and "OpenTelemetry Logs exporter protocol 'http/json'" in err
+    and "OpenTelemetry Metrics exporter protocol 'http/json'" in err
+    and "invalid-logs-compression" in err
+    and "invalid-metrics-compression" in err
+    and "invalid-global-compression" not in err,
+)
+def test_global_json_protocol_and_invalid_compression_warn_for_disabled_signals():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/json"
+    for signal in ("LOGS", "METRICS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "http/protobuf"
+        assert getattr(otel_config.exporter, signal + "_COMPRESSION") == "none"
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc", "DD_TRACE_LOGGING_RATE": "0"},
+    parametrize={
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": ["HTTP/PROTOBUF", "unsupported", "http/json"],
+        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": ["HTTP/PROTOBUF", "unsupported", "http/json"],
+    },
+)
+def test_log_and_metric_protocol_fallback_uses_http_endpoint():
+    from contextlib import redirect_stderr
+    from io import StringIO
+    import os
+
+    stderr = StringIO()
+    with redirect_stderr(stderr):
+        from ddtrace.internal.settings._opentelemetry import otel_config
+
+    expected_warnings = "".join(
+        f"OpenTelemetry {signal.title()} exporter protocol {protocol!r} is not supported. "
+        "Falling back to 'http/protobuf'.\n"
+        for signal in ("LOGS", "METRICS")
+        if (protocol := os.environ["OTEL_EXPORTER_OTLP_" + signal + "_PROTOCOL"]) != "HTTP/PROTOBUF"
+    )
+    assert stderr.getvalue() == expected_warnings
+    for signal in ("LOGS", "METRICS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "http/protobuf"
+        assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(":4318/v1/" + signal.lower())
+    assert otel_config.exporter.TRACES_PROTOCOL == "grpc"
+
+
+@pytest.mark.subprocess(
+    env={"DD_TRACE_LOGGING_RATE": "0"},
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["HTTP/PROTOBUF", " HTTP/PROTOBUF ", "unsupported", "http/json"]},
+)
+def test_global_otlp_protocol_fallback_uses_http_endpoint():
+    from contextlib import redirect_stderr
+    from io import StringIO
+    import os
+
+    stderr = StringIO()
+    with redirect_stderr(stderr):
+        from ddtrace.internal.settings._opentelemetry import otel_config
+
+    protocol = os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]
+    expected_warnings = "".join(
+        f"OpenTelemetry {signal} exporter protocol {protocol!r} is not supported. Falling back to 'http/protobuf'.\n"
+        for signal in ("Logs", "Metrics")
+        if protocol in ("unsupported", "http/json")
+    )
+    assert stderr.getvalue() == expected_warnings
+    for signal in ("LOGS", "METRICS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "http/protobuf"
+        assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(":4318/v1/" + signal.lower())
+
+
+@pytest.mark.parametrize("signal", ["LOGS", "METRICS"])
+@pytest.mark.parametrize("signal_specific", [False, True])
+@pytest.mark.parametrize(
+    "local_value,env_value,fleet_value,protocol,expected,invalid_value",
+    [
+        (None, None, None, "http/protobuf", "none", None),
+        (" GZIP ", None, None, "http/protobuf", "gzip", None),
+        ("invalid-local", None, None, "http/protobuf", "none", "invalid-local"),
+        ("gzip", "none", None, "http/protobuf", "none", None),
+        ("none", "gzip", "none", "http/protobuf", "none", None),
+        ("none", "none", " GZIP ", "grpc", "gzip", None),
+        ("gzip", "gzip", "invalid-fleet", "grpc", "none", "invalid-fleet"),
+        ("deflate", None, None, "http/protobuf", "deflate", None),
+        (None, None, "deflate", "grpc", "none", "deflate"),
+    ],
+)
+def test_otlp_compression_stable_config_sources(
+    signal,
+    signal_specific,
+    local_value,
+    env_value,
+    fleet_value,
+    protocol,
+    expected,
+    invalid_value,
+    tmp_path,
+    run_python_code_in_subprocess,
+):
+    import os
+
+    env = os.environ.copy()
+    for key in ("COMPRESSION", "LOGS_COMPRESSION", "METRICS_COMPRESSION"):
+        env.pop("OTEL_EXPORTER_OTLP_" + key, None)
+    variable = "OTEL_EXPORTER_OTLP_" + (signal + "_" if signal_specific else "") + "COMPRESSION"
+    for source, value, override in (
+        ("local", local_value, "_DD_SC_LOCAL_FILE_OVERRIDE"),
+        ("fleet", fleet_value, "_DD_SC_MANAGED_FILE_OVERRIDE"),
+    ):
+        config_file = tmp_path / (source + ".yaml")
+        if value is not None:
+            config_file.write_text(f"apm_configuration_default:\n  {variable}: {value!r}\n")
+        env[override] = str(config_file)
+    if env_value is not None:
+        env[variable] = env_value
+    env["OTEL_EXPORTER_OTLP_PROTOCOL"] = protocol
+    other_signal = "METRICS" if signal == "LOGS" else "LOGS"
+    env["OTEL_EXPORTER_OTLP_" + other_signal + "_COMPRESSION"] = "none"
+    env["DD_LOGS_OTEL_ENABLED"] = "false"
+    env["DD_METRICS_OTEL_ENABLED"] = "false"
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+    env["DD_TRACE_LOGGING_RATE"] = "0"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(
+        code=(
+            "from ddtrace.internal.settings._opentelemetry import otel_config\n"
+            f"print(otel_config.exporter.{signal}_COMPRESSION)\n"
+        ),
+        env=env,
+    )
+    assert status == 0, (stdout, stderr)
+    assert stdout.decode().strip() == expected
+    expected_warning = ""
+    if invalid_value is not None:
+        expected_warning = (
+            f"Unsupported value {invalid_value!r} for {variable} with {protocol} export. "
+            "Falling back to no compression.\n"
+        )
+    assert stderr.decode() == expected_warning
+
+
+@pytest.mark.parametrize("signal", ["LOGS", "METRICS"])
+@pytest.mark.parametrize(
+    "signal_source,signal_value,global_source,global_value,expected,invalid_value",
+    [
+        ("local", "gzip", "env", "none", "gzip", None),
+        ("env", "gzip", "fleet", "none", "gzip", None),
+        ("local", "invalid-signal", "env", "gzip", "none", "invalid-signal"),
+        ("fleet", "none", "env", "gzip", "none", None),
+    ],
+)
+def test_otlp_compression_signal_precedence_across_sources(
+    signal,
+    signal_source,
+    signal_value,
+    global_source,
+    global_value,
+    expected,
+    invalid_value,
+    tmp_path,
+    run_python_code_in_subprocess,
+):
+    import os
+
+    env = os.environ.copy()
+    for key in ("COMPRESSION", "LOGS_COMPRESSION", "METRICS_COMPRESSION"):
+        env.pop("OTEL_EXPORTER_OTLP_" + key, None)
+    variable = "OTEL_EXPORTER_OTLP_" + signal + "_COMPRESSION"
+    files = {"local": {}, "fleet": {}}
+    for source, key, value in (
+        (signal_source, variable, signal_value),
+        (global_source, "OTEL_EXPORTER_OTLP_COMPRESSION", global_value),
+    ):
+        if source == "env":
+            env[key] = value
+        else:
+            files[source][key] = value
+    for source, override in (("local", "_DD_SC_LOCAL_FILE_OVERRIDE"), ("fleet", "_DD_SC_MANAGED_FILE_OVERRIDE")):
+        config_file = tmp_path / (source + ".yaml")
+        if files[source]:
+            config_file.write_text(
+                "apm_configuration_default:\n"
+                + "".join(f"  {key}: {value!r}\n" for key, value in files[source].items())
+            )
+        env[override] = str(config_file)
+    env["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf"
+    env["DD_LOGS_OTEL_ENABLED"] = "false"
+    env["DD_METRICS_OTEL_ENABLED"] = "false"
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+    env["DD_TRACE_LOGGING_RATE"] = "0"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(
+        code=(
+            "from ddtrace.internal.settings._opentelemetry import otel_config\n"
+            f"print(otel_config.exporter.{signal}_COMPRESSION)\n"
+        ),
+        env=env,
+    )
+    assert status == 0, (stdout, stderr)
+    assert stdout.decode().strip() == expected
+    expected_warning = ""
+    if invalid_value is not None:
+        expected_warning = (
+            f"Unsupported value {invalid_value!r} for {variable} with http/protobuf export. "
+            "Falling back to no compression.\n"
+        )
+    assert stderr.decode() == expected_warning
