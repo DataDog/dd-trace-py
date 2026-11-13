@@ -29,7 +29,6 @@ build_sarif_uploader() {
 }
 
 # Clone Code Scanning repository to download custom CodeQL packs from.
-git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
 git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
 
 dd-octo-sts debug --scope DataDog/dd-trace-py --policy codeql || true
