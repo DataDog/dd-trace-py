@@ -364,6 +364,11 @@ class SonicState:
         if self.current is None or self.pending.has_input:
             if self.current is not None:
                 self.current.partial = self.current.generation_end_ns is None
+                # A whole turn can end without a usageEvent. Preserve that gap
+                # before the next turn advances the cumulative counters.
+                for key in self.totals:
+                    if key not in self.current.metrics and key not in self.current.missing_metrics:
+                        self._mark_usage_gap(key, self.current)
                 self._emit(self.current, now)
             turn = self.pending
             self.pending = Turn()
@@ -499,6 +504,16 @@ class SonicState:
         elif name == "completionEnd":
             self.finish()
 
+    def _mark_usage_gap(self, key: str, target: Turn) -> None:
+        if key not in self.usage_gaps:
+            self.usage_gaps[key] = target
+        elif self.usage_gaps[key] is not target:
+            previous = self.usage_gaps[key]
+            if previous is not None:
+                previous.missing_metrics.add(key)
+            target.missing_metrics.add(key)
+            self.usage_gaps[key] = None
+
     def _usage(self, data: dict[str, Any]) -> None:
         # Cumulative completion totals repeat across turns. Difference them once.
         details = data.get("details")
@@ -510,16 +525,15 @@ class SonicState:
                 if self.current is None or (key == "input_tokens" and self.pending.has_input)
                 else self.current
             )
+            if target is self.pending and self.current is not None:
+                # Input attribution moves before the next response starts. Register an
+                # unobserved direction before advancing its cumulative baseline.
+                if key not in self.current.metrics and key not in self.current.missing_metrics:
+                    self._mark_usage_gap(key, self.current)
+                    self.current.missing_metrics.add(key)
             total = data.get(field)
             if not isinstance(total, int) or isinstance(total, bool) or total < 0:
-                if key not in self.usage_gaps:
-                    self.usage_gaps[key] = target
-                elif self.usage_gaps[key] is not target:
-                    previous = self.usage_gaps[key]
-                    if previous is not None:
-                        previous.missing_metrics.add(key)
-                    target.missing_metrics.add(key)
-                    self.usage_gaps[key] = None
+                self._mark_usage_gap(key, target)
                 continue
             if total < self.totals[key]:
                 # A valid older cumulative counter is a stale event, not a reset.
