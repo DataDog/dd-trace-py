@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Fixes a segmentation fault that could occur when the process was
+    close to its memory limit (for example ``RLIMIT_AS``). Out-of-memory errors
+    from libdatadog are now detected and the affected frame is dropped instead
+    of being recorded with an invalid ID.
