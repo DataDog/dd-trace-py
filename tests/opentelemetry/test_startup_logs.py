@@ -118,8 +118,10 @@ def test_startup_logs_report_otel_defaults():
     assert configuration["OTEL_LOGS_EXPORTER"] == "none"
     assert configuration["OTEL_TRACES_SAMPLER"] == "datadog_agent_rates"
     assert configuration["OTEL_PROPAGATORS"] == "datadog,tracecontext,baggage"
-    assert configuration["OTEL_EXPORTER_OTLP_PROTOCOL"] == "grpc"
+    assert configuration["OTEL_EXPORTER_OTLP_PROTOCOL"] == "http/protobuf"
     assert configuration["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] == "http/protobuf"
+    assert configuration["OTEL_EXPORTER_OTLP_LOGS_PROTOCOL"] == "http/protobuf"
+    assert configuration["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"] == "http/protobuf"
     assert configuration["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"].endswith(":4318/v1/traces")
     assert configuration["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] == {}
     assert configuration["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] == "delta"
