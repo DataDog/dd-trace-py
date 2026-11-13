@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    CI Visibility: Reduces the per-test overhead of the ``pytest`` plugin by creating the
+    per-test root span directly instead of through the full tracer pipeline. Spans emitted
+    from tests are unchanged, including their ``service``, ``env`` and ``version`` tags.
