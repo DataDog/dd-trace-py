@@ -21,7 +21,7 @@ stages:
 
 variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
-  MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
+  MICROBENCHMARKS_CI_IMAGE: registry.ddbuild.io/ci/benchmarking-platform:dd-trace-py-152974475
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   # Known flaky benchmarks
   # See https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/7223313012/Flaky+Benchmarks+Monitoring for more details.
