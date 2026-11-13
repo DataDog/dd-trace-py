@@ -115,10 +115,10 @@ def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
         rowcount = 0
         raise
     finally:
-        if rowcount is None:
-            rowcount = determine_row_count(redis_command=redis_command, result=result)
         if redis_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
+        elif rowcount is None:
+            rowcount = determine_row_count(redis_command=redis_command, result=result)
         core.dispatch("redis.command.post", (ctx, rowcount))
 
 
