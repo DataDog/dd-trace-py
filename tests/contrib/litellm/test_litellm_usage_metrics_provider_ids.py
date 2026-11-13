@@ -31,7 +31,7 @@ def writer():
 
 @pytest.fixture
 def logger(writer):
-    return UsageMetricsLogger(writer, frozenset(), None, {})
+    return UsageMetricsLogger(writer, frozenset(), None)
 
 
 ACCOUNT = "trajectory.request.provider_account_id"
@@ -85,7 +85,7 @@ def _attributes_by_profile(writer):
     ],
 )
 def test_provider_ids_come_from_the_provider_response_headers(writer, source, provider, headers, expected):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider=provider)
@@ -108,7 +108,7 @@ def test_provider_ids_from_headers_are_opt_in(logger, writer):
 
 
 def test_each_provider_id_tag_enables_its_own_attribute(writer):
-    logger = UsageMetricsLogger(writer, frozenset({"project"}), None, {})
+    logger = UsageMetricsLogger(writer, frozenset({"project"}), None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0)
@@ -130,7 +130,7 @@ def test_each_provider_id_tag_enables_its_own_attribute(writer):
     ],
 )
 def test_missing_or_foreign_headers_give_no_provider_ids(writer, provider, headers):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider=provider)
@@ -154,7 +154,7 @@ def test_missing_or_foreign_headers_give_no_provider_ids(writer, provider, heade
     ],
 )
 def test_a_bedrock_model_arn_names_the_aws_account(writer, model, account):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider="bedrock", model=model)
@@ -165,7 +165,7 @@ def test_a_bedrock_model_arn_names_the_aws_account(writer, model, account):
 
 
 def test_a_bedrock_model_id_arn_names_the_aws_account(writer):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider="bedrock", model="anthropic.claude-sonnet-4-5-20250929-v1:0")
@@ -184,7 +184,7 @@ OPERATOR_IDS = {KEY_ID: "key_01H8XYZ", ACCOUNT: "org-operator", PROJECT: "proj_o
 
 @pytest.mark.parametrize("tags", [frozenset(), PROVIDER_ID_TAGS])
 def test_operator_ids_from_model_info_are_sent_and_win(writer, tags):
-    logger = UsageMetricsLogger(writer, tags, None, {})
+    logger = UsageMetricsLogger(writer, tags, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, model_info=OPERATOR_INFO)
@@ -197,7 +197,7 @@ def test_operator_ids_from_model_info_are_sent_and_win(writer, tags):
 
 
 def test_operator_ids_fill_in_what_the_headers_do_not_say(writer):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider="anthropic", model_info={"datadog_project_id": "wrkspc_01"})
@@ -225,7 +225,7 @@ def test_operator_ids_are_on_failed_attempts_and_requests(logger, writer):
 
 
 def test_the_gateway_request_has_the_provider_ids_of_its_last_attempt(writer):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, model_id="primary", model_info={"datadog_provider_account_id": "acct-primary"})
@@ -240,7 +240,7 @@ def test_the_gateway_request_has_the_provider_ids_of_its_last_attempt(writer):
 
 
 def test_a_cache_hit_has_no_provider_ids(writer):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.succeeded(0.1, usage=CHAT_USAGE, cost=0.0, cache_hit=True, response=Response(OPENAI_HEADERS))
@@ -282,7 +282,7 @@ def test_service_tier_is_the_tier_the_provider_served(logger, writer, payload_ex
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 def test_native_points_carry_the_service_tier_and_provider_ids():
     writer = NativeWriter()
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, model_info={"datadog_api_key_id": "key_01H8XYZ"})
