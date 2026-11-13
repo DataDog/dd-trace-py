@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    MCP: Fixes a ``ModuleNotFoundError`` raised when patching mcp 2.0 or later,
+    which no longer provides ``mcp.shared.session``. The integration is now
+    skipped on those versions.
