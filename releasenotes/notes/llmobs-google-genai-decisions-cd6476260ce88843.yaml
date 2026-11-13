@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for tracing Google GenAI Decisions API calls (``client.decisions.create`` and
+    ``client.aio.decisions.create``, google-genai 3.2.0 and later), capturing the request with its questions, the
+    answers, and token usage.

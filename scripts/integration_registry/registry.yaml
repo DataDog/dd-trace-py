@@ -497,7 +497,7 @@ integrations:
   tested_versions_by_dependency:
     google-genai:
       min: 1.21.1
-      max: 2.34.0
+      max: 3.2.0
 
 - integration_name: graphql
   is_external_package: true
