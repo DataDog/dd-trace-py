@@ -133,9 +133,9 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    # An explicit integration service (DD_AIOBOTOCORE_SERVICE) is used as-is; otherwise match botocore's
+    # An explicit integration service (service or service_name) is used as-is; otherwise match botocore's
     # ``aws.<endpoint>`` rather than falling back to DD_SERVICE.
-    service = ext_service(None, config.aiobotocore) if config.aiobotocore.service else None
+    service = ext_service(None, config.aiobotocore)
     if service is None:
         service = schematize_service_name(f"aws.{endpoint_name}")
     with tracer.trace(

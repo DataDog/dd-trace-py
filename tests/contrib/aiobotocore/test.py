@@ -334,6 +334,13 @@ async def test_integration_service_override(tracer, test_spans):
     spans = test_spans.pop_traces()[0]
     assert spans[0].service == "custom"
 
+    with override_config("aiobotocore", dict(service_name="custom2")):
+        async with aiobotocore_client("ec2", tracer) as ec2:
+            await ec2.describe_instances()
+
+    spans = test_spans.pop_traces()[0]
+    assert spans[0].service == "custom2"
+
 
 @pytest.mark.parametrize(
     "schema_params",
