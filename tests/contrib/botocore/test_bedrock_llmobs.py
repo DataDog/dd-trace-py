@@ -4,8 +4,8 @@ from unittest.mock import patch as mock_patch
 
 import pytest
 
+from ddtrace.contrib.internal.bedrock_inference_profiles import _clear_inference_profile_cache
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import _clear_inference_profile_cache
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_output_messages

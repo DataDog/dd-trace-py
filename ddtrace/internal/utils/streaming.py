@@ -97,6 +97,15 @@ class BaseStreamHandler(ABC):
         """
         pass
 
+    def wrap_iterator(self, iterator):
+        """Return the object TracedStream pulls chunks from.
+
+        Default returns it unchanged. Override to run code around each pull while
+        the traced stream keeps proxying the original object, so callers can still
+        use its other attributes and its context-manager protocol.
+        """
+        return iterator
+
     def should_yield_chunk(self, chunk) -> bool:
         """Whether a processed chunk should be surfaced to the caller.
 
@@ -214,7 +223,7 @@ class TracedStream(wrapt.ObjectProxy):
         super().__init__(wrapped)
         self._self_handler = handler
         self._self_on_stream_created = on_stream_created
-        self._self_stream_iter = self.__wrapped__
+        self._self_stream_iter = handler.wrap_iterator(self.__wrapped__)
         # Tracks whether `handler.start_stream()` has fired.
         # Guards against double-firing when both ``__iter__`` and ``__next__``
         # are used on the same stream. It also ensures the hook does not run
@@ -285,7 +294,7 @@ class TracedStream(wrapt.ObjectProxy):
         if result is self.__wrapped__:
             return self
         # update iterator in case we are wrapping a stream manager
-        self._self_stream_iter = result
+        self._self_stream_iter = self._self_handler.wrap_iterator(result)
         traced_stream = TracedStream(result, self._self_handler, self._self_on_stream_created)
         return _bind_entered_stream(self, traced_stream)
 
@@ -339,7 +348,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         super().__init__(wrapped)
         self._self_handler = handler
         self._self_on_stream_created = on_stream_created
-        self._self_async_stream_iter = self.__wrapped__
+        self._self_async_stream_iter = handler.wrap_iterator(self.__wrapped__)
         # see ``TracedStream._self_started`` for rationale.
         self._self_started = False
         self._self_entered_stream: Optional[TracedAsyncStream] = None
@@ -403,7 +412,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         if result is self.__wrapped__:
             return self
         # update iterator in case we are wrapping a stream manager
-        self._self_async_stream_iter = result
+        self._self_async_stream_iter = self._self_handler.wrap_iterator(result)
         traced_stream = TracedAsyncStream(result, self._self_handler, self._self_on_stream_created)
         return _bind_entered_stream(self, traced_stream)
 

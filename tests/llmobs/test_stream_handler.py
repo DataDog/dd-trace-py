@@ -552,14 +552,18 @@ async def test_traced_async_stream_finalizes_when_on_stream_created_raises():
 def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
     from ddtrace.contrib.internal.langchain.utils import LangchainStreamHandler
 
-    span = Mock()
-    handler = LangchainStreamHandler(None, span, (), {}, aiguard_finally_event="langchain.llm.stream.finally")
+    ctx = Mock()
+    handler = LangchainStreamHandler(
+        None, Mock(), (), {}, ctx=ctx, aiguard_finally_event="langchain.llm.stream.finally"
+    )
     with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
         handler.finalize_stream()
     dispatch.assert_not_called()
-    span.finish.assert_called_once()
+    ctx.dispatch_ended_event.assert_called_once_with()
 
-    started = LangchainStreamHandler(None, Mock(), (), {}, aiguard_finally_event="langchain.llm.stream.finally")
+    started = LangchainStreamHandler(
+        None, Mock(), (), {}, ctx=Mock(), aiguard_finally_event="langchain.llm.stream.finally"
+    )
     started._stream_started = True
     with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
         started.finalize_stream()
@@ -677,3 +681,83 @@ async def test_traced_async_stream_early_break_is_not_an_error():
     assert handler.finalize_stream_calls == 1
     assert handler.handle_exception_calls == []
     assert handler.finalize_exceptions == [None]
+
+
+class _SyncPullCountingHandler(_SyncRecordingHandler):
+    """Counts pulls through ``wrap_iterator`` so tests can see it is the iteration source."""
+
+    def __init__(self):
+        super().__init__()
+        self.pulls = 0
+
+    def wrap_iterator(self, iterator):
+        def _counting():
+            for chunk in iterator:
+                self.pulls += 1
+                yield chunk
+
+        return _counting()
+
+
+class _AsyncPullCountingHandler(_AsyncRecordingHandler):
+    def __init__(self):
+        super().__init__()
+        self.pulls = 0
+
+    def wrap_iterator(self, iterator):
+        async def _counting():
+            async for chunk in iterator:
+                self.pulls += 1
+                yield chunk
+
+        return _counting()
+
+
+def test_base_handler_wrap_iterator_default_returns_iterator_unchanged():
+    handler = _SyncRecordingHandler()
+    chunks = _sync_chunks(1)
+    assert handler.wrap_iterator(chunks) is chunks
+
+
+@pytest.mark.parametrize("consume", ["for", "next"])
+def test_traced_stream_pulls_through_wrap_iterator_and_keeps_context_manager(consume):
+    """``wrap_iterator`` replaces the iteration source only, so a stream that is also a
+    context manager can still be entered through the traced proxy.
+    """
+    handler = _SyncPullCountingHandler()
+    traced = make_traced_stream(_CtxStream(3), handler)
+    with traced as stream:
+        chunks = list(stream) if consume == "for" else [next(stream) for _ in range(3)]
+    assert chunks == [0, 1, 2]
+    assert handler.pulls == 3
+    assert handler.finalize_stream_calls == 1
+
+
+def test_traced_stream_manager_pulls_through_wrap_iterator():
+    handler = _SyncPullCountingHandler()
+    with make_traced_stream(_StreamManager(3), handler) as stream:
+        assert list(stream) == [0, 1, 2]
+    assert handler.pulls == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("consume", ["for", "next"])
+async def test_traced_async_stream_pulls_through_wrap_iterator_and_keeps_context_manager(consume):
+    handler = _AsyncPullCountingHandler()
+    traced = make_traced_stream(_AsyncCtxStream(3), handler)
+    async with traced as stream:
+        if consume == "for":
+            chunks = [chunk async for chunk in stream]
+        else:
+            chunks = [await stream.__anext__() for _ in range(3)]
+    assert chunks == [0, 1, 2]
+    assert handler.pulls == 3
+    assert handler.finalize_stream_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_manager_pulls_through_wrap_iterator():
+    handler = _AsyncPullCountingHandler()
+    async with make_traced_stream(_AsyncStreamManager(3), handler) as stream:
+        assert [chunk async for chunk in stream] == [0, 1, 2]
+    assert handler.pulls == 3

@@ -81,6 +81,13 @@ and integration start hooks. The lifecycle phases are:
   before children start. Preserve APM shadow tags and proxy handling from the reference.
 - `SpanLifecycleEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.
 
+The finishing subscriber passes `event.request_args` and `event.request_kwargs` to
+`llmobs_set_tags()`. Override `_on_request_span_started()` for per-span setup that must run
+before the wrapped call, such as LangChain's instance recording and prompt tagging.
+For LLMObs-only hooks that do not create a span (for example LangChain prompt-template
+propagation), the contrib dispatches a plain `core` event and `listen()` attaches the
+listener with `core.on()`; see `ddtrace/llmobs/_contrib/langchain/`.
+
 Provide `listen()` / `unlisten()` in `ddtrace/llmobs/_contrib/<name>/__init__.py`.
 Call the shared `register(component, integration_cls)` from `listen()` and
 `unregister(component)` from `unlisten()`; do not create per-integration subscriber classes.

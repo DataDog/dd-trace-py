@@ -1,11 +1,26 @@
+from collections.abc import Callable
 import inspect
 import sys
+from typing import Any
+from typing import Optional
 
-from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
-from ddtrace.contrib.internal.stream_handler import StreamHandler
-from ddtrace.contrib.internal.stream_handler import make_traced_stream
+from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import StreamHandler
+from ddtrace.internal.utils.streaming import make_traced_stream
+from ddtrace.trace import Span
+from ddtrace.trace import tracer
+
+
+log = get_logger(__name__)
+
+# Dispatched with the stream's span and a per-pull state dict around each chunk pull, so LLMObs can
+# activate the span for the pull and restore the caller's LLMObs context afterwards.
+STREAM_PULL_BEFORE_EVENT = "langchain.stream.pull.before"
+STREAM_PULL_AFTER_EVENT = "langchain.stream.pull.after"
 
 
 class BaseLangchainStreamHandler:
@@ -37,9 +52,18 @@ class BaseLangchainStreamHandler:
             core.dispatch(started_event, (self._event_state(),))
 
     def finalize_stream(self, exception=None):
-        on_span_finish = self.options.get("on_span_finish", None)
-        if on_span_finish:
-            on_span_finish(self.primary_span, self.chunks)
+        """Set the joined response on the event, then dispatch the deferred ended event.
+
+        The tracing subscriber sets the LLMObs tags (via the SPAN_FINISHING subscribers) and
+        finishes the span.
+        """
+        ctx = self.options["ctx"]
+        on_stream_finished = self.options.get("on_stream_finished", None)
+        if on_stream_finished:
+            try:
+                ctx.event.response = on_stream_finished(self.chunks)
+            except Exception:
+                log.warning("Error processing streamed LangChain response.", exc_info=True)
         # Dispatch the AI Guard finally event before finishing the span so
         # the active-context counter set by start_stream is released on every
         # exit path: success, exception, early break, aclose, or
@@ -51,81 +75,124 @@ class BaseLangchainStreamHandler:
         finally_event = self.options.get("aiguard_finally_event")
         if finally_event and getattr(self, "_stream_started", False):
             core.dispatch(finally_event, (self._event_state(),))
-        self.primary_span.finish()
+        if exception:
+            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
+        else:
+            ctx.dispatch_ended_event()
 
 
 class LangchainStreamHandler(BaseLangchainStreamHandler, StreamHandler):
+    def wrap_iterator(self, iterator):
+        if self.primary_span is None:
+            return iterator
+        return _pull_with_span_active(iterator, self.primary_span)
+
     def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk)
 
 
 class LangchainAsyncStreamHandler(BaseLangchainStreamHandler, AsyncStreamHandler):
+    def wrap_iterator(self, iterator):
+        if self.primary_span is None:
+            return iterator
+        return _pull_async_with_span_active(iterator, self.primary_span)
+
     async def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk)
 
 
 def shared_stream(
-    integration,
-    func,
-    instance,
-    args,
-    kwargs,
-    interface_type,
-    on_span_started,
-    on_span_finished,
-    **extra_options,
-):
-    options = {
-        "operation_id": f"{instance.__module__}.{instance.__class__.__name__}",
-        "interface_type": interface_type,
-        "submit_to_llmobs": True,
-        "instance": instance,
-    }
-
-    options.update(extra_options)
-
-    aiguard_before_event = options.pop("aiguard_before_event", None)
-    aiguard_started_event = options.pop("aiguard_started_event", None)
-    aiguard_finally_event = options.get("aiguard_finally_event")
-
-    span = integration.trace(**options)
-    span.set_tag("langchain.request.stream", "True")
-    on_span_started(span)
-
-    try:
-        # dispatch AI Guard hook after span is created so blocked requests still emit LLMObs span
-        if aiguard_before_event:
-            core.dispatch(aiguard_before_event, (instance, args, kwargs), allow_raise=True)
-        resp = func(*args, **kwargs)
-        chunk_callback = _get_chunk_callback(interface_type, args, kwargs)
-        handler_kwargs = dict(
-            on_span_finish=on_span_finished,
-            chunk_callback=chunk_callback,
-            aiguard_started_event=aiguard_started_event,
-            aiguard_finally_event=aiguard_finally_event,
-        )
-        if inspect.isasyncgen(resp):
-            return make_traced_stream(
-                resp,
-                LangchainAsyncStreamHandler(integration, span, args, kwargs, **handler_kwargs),
+    event: LlmRequestEvent,
+    func: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    interface_type: str,
+    on_stream_finished: Callable[[list[Any]], Any],
+    aiguard_before_event: Optional[str] = None,
+    aiguard_started_event: Optional[str] = None,
+    aiguard_finally_event: Optional[str] = None,
+) -> Any:
+    # dispatch_end_event=False defers the ended event until the stream handler calls
+    # ctx.dispatch_ended_event() in finalize_stream(). Errors before the wrapped stream is returned
+    # must dispatch it manually so the span finishes with the error info.
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            # dispatch AI Guard hook after span is created so blocked requests still emit LLMObs span
+            if aiguard_before_event:
+                core.dispatch(aiguard_before_event, (instance, args, kwargs), allow_raise=True)
+            resp = func(*args, **kwargs)
+            chunk_callback = _get_chunk_callback(interface_type, args, kwargs)
+            handler_kwargs = dict(
+                ctx=ctx,
+                on_stream_finished=on_stream_finished,
+                chunk_callback=chunk_callback,
+                aiguard_started_event=aiguard_started_event,
+                aiguard_finally_event=aiguard_finally_event,
             )
-        return make_traced_stream(
-            resp,
-            LangchainStreamHandler(integration, span, args, kwargs, **handler_kwargs),
-        )
-    except (DDBlockException, Exception):
-        # catch ``DDBlockException`` explicitly (parent of
-        # ``AIGuardAbortError``) since it inherits from ``BaseException`` —
-        # otherwise the AI Guard abort would slip past ``except Exception:``
-        # and the LLM span would never get ``set_exc_info`` / ``finish``,
-        # leaving a hole between the AI Guard span (block decision) and the
-        # LLM span (no link back to the abort). No counter cleanup is needed
-        # here: ``.stream.started`` is dispatched lazily by ``start_stream``
-        # on iteration entry, which never runs when ``func(...)`` raises
-        # before we return a stream wrapper.
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
-        raise
+            handler_cls = LangchainAsyncStreamHandler if inspect.isasyncgen(resp) else LangchainStreamHandler
+            return make_traced_stream(resp, handler_cls(None, span_from_context(ctx), args, kwargs, **handler_kwargs))
+        except BaseException:
+            # BaseException covers ``DDBlockException`` (parent of ``AIGuardAbortError``),
+            # so an AI Guard abort still finishes the LLM span with the error, keeping
+            # the link between the AI Guard span (block decision) and the LLM span.
+            # No counter cleanup is needed here: ``.stream.started`` is dispatched
+            # lazily by ``start_stream`` on iteration entry, which never runs when
+            # ``func(...)`` raises before we return a stream wrapper.
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+
+
+def _activate_stream_span(span: Span) -> dict[str, Any]:
+    # Exiting context_with_event above does not deactivate the span, but anything that becomes active
+    # between pulls (another stream created before this one is consumed, or a nested stream left open by
+    # a previous pull) would otherwise parent the spans created while pulling the next chunk.
+    state: dict[str, Any] = {"apm": tracer.context_provider.active()}
+    tracer.context_provider.activate(span)
+    core.dispatch(STREAM_PULL_BEFORE_EVENT, (span, state))
+    return state
+
+
+def _restore_caller_context(span: Span, state: dict[str, Any]) -> None:
+    # The consumer's code between chunks must keep its own active context, not the stream's.
+    tracer.context_provider.activate(state["apm"])
+    core.dispatch(STREAM_PULL_AFTER_EVENT, (span, state))
+
+
+def _pull_with_span_active(stream: Any, span: Span) -> Any:
+    iterator = iter(stream)
+    try:
+        while True:
+            state = _activate_stream_span(span)
+            try:
+                chunk = next(iterator)
+            except StopIteration:
+                return
+            finally:
+                _restore_caller_context(span, state)
+            yield chunk
+    finally:
+        close = getattr(iterator, "close", None)
+        if close is not None:
+            close()
+
+
+async def _pull_async_with_span_active(stream: Any, span: Span) -> Any:
+    iterator = stream.__aiter__()
+    try:
+        while True:
+            state = _activate_stream_span(span)
+            try:
+                chunk = await iterator.__anext__()
+            except StopAsyncIteration:
+                return
+            finally:
+                _restore_caller_context(span, state)
+            yield chunk
+    finally:
+        aclose = getattr(iterator, "aclose", None)
+        if aclose is not None:
+            await aclose()
 
 
 def _get_chunk_callback(interface_type, args, kwargs):

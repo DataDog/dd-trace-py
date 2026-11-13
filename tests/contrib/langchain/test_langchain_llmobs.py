@@ -11,6 +11,7 @@ import ddtrace
 from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._contrib._subscribers import get_integration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -177,6 +178,30 @@ def test_llmobs_openai_chat_model_no_usage(langchain_core, langchain_openai, lan
     assert metrics.get("input_tokens") is None
     assert metrics.get("output_tokens") is None
     assert metrics.get("total_tokens") is None
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_stream_ignores_prompt_from_earlier_invoke(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url
+):
+    if parse_version(importlib.metadata.version("langchain_openai")) < (0, 2, 0):
+        pytest.skip("langchain-openai <0.2.0 does not support stream_usage=False")
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url, stream_usage=False)
+    prompt_template = langchain_core.prompts.PromptTemplate(
+        input_variables=["question"], template="Please answer this question: {question}"
+    )
+    (prompt_template | chat_model).invoke({"question": "What is the capital of France?"})
+    test_spans.pop_traces()
+
+    for _ in chat_model.stream(
+        [langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")]
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    assert len(spans) == 1
+    assert get_llmobs_input_prompt(spans[0]) is None
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
@@ -844,6 +869,56 @@ def test_llmobs_streamed_chain(
 
 
 @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+def test_llmobs_streamed_chain_parents_nested_spans_to_consumed_stream(
+    langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url, consume_stream
+):
+    """Spans started while pulling a stream belong to that stream, not to whichever span is active."""
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
+    )
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o", base_url=openai_url, temperature=0.7, max_tokens=256)
+    chain = prompt | llm | langchain_core.output_parsers.StrOutputParser()
+
+    # Creating the second stream activates its span before the first stream is consumed.
+    first = chain.stream({"input": "how can langsmith help with testing?"})
+    second = chain.stream({"input": "how can langsmith help with testing?"})
+    consume_stream(first)
+    consume_stream(second)
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace if s.name == "langchain.request"]
+    spans.sort(key=lambda s: s.start_ns)
+    assert len(spans) == 4
+    first_chain, second_chain, first_chat, second_chat = spans
+    assert first_chat.parent_id == first_chain.span_id
+    assert second_chat.parent_id == second_chain.span_id
+    assert get_llmobs_parent_id(first_chat) == str(first_chain.span_id)
+    assert get_llmobs_parent_id(second_chat) == str(second_chain.span_id)
+
+
+def test_llmobs_streamed_chain_restores_consumer_context_between_chunks(
+    langchain_core, langchain_openai, langchain_llmobs, tracer, test_spans, openai_url
+):
+    """The stream's span is active only while a chunk is pulled, not in the consumer's loop body."""
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
+    )
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o", base_url=openai_url, temperature=0.7, max_tokens=256)
+    chain = prompt | llm | langchain_core.output_parsers.StrOutputParser()
+
+    stream = chain.stream({"input": "how can langsmith help with testing?"})
+    chunk_spans = []
+    with LLMObs.workflow("consumer") as consumer:
+        for _ in stream:
+            assert tracer.current_span() is consumer
+            assert LLMObs._instance._llmobs_context_provider.active() is consumer
+            with LLMObs.task("per_chunk") as per_chunk:
+                chunk_spans.append(per_chunk)
+
+    assert chunk_spans
+    assert all(span.parent_id == consumer.span_id for span in chunk_spans)
+
+
+@pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
 def test_llmobs_streamed_llm(langchain_openai, langchain_llmobs, test_spans, openai_url, consume_stream):
     llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)
 
@@ -865,6 +940,51 @@ def test_llmobs_streamed_llm(langchain_openai, langchain_llmobs, test_spans, ope
         metrics={},
         tags=COMMON_TAGS,
     )
+
+
+@pytest.mark.parametrize("repatch", [False, True])
+def test_llmobs_streamed_llm_finishes_after_unpatch(
+    langchain_openai, langchain_llmobs, test_spans, openai_url, repatch
+):
+    from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
+    from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
+
+    llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)
+    stream = llm.stream("What is 2+2?\n\n")
+    langchain_unpatch()
+    try:
+        if repatch:
+            langchain_patch()
+        for _ in stream:
+            pass
+    finally:
+        # langchain_core is patched once per module; restore it for the remaining tests.
+        langchain_patch()
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert get_llmobs_output_messages(spans[0])[0]["content"] == "The answer is 4."
+
+
+@pytest.mark.parametrize("error_cls", [RuntimeError, KeyboardInterrupt])
+def test_llmobs_stream_creation_error_finishes_span(
+    langchain_openai, langchain_llmobs, test_spans, openai_url, error_cls
+):
+    from ddtrace.contrib.internal.langchain.patch import traced_chat_stream
+
+    def stream(*args, **kwargs):
+        raise error_cls("stream creation failed")
+
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+    with pytest.raises(error_cls, match="stream creation failed"):
+        traced_chat_stream(stream, model, ("hi",), {})
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].error == 1
+    assert get_llmobs_span_kind(spans[0]) == "llm"
 
 
 def test_llmobs_non_ascii_completion(langchain_openai, openai_url, langchain_llmobs, test_spans):
@@ -1047,7 +1167,7 @@ def test_llmobs_runnable_with_span_links(langchain_core, langchain_llmobs, test_
 
 
 def test_llmobs_set_tags_with_none_response(langchain_core):
-    integration = langchain_core._datadog_integration
+    integration = get_integration("langchain")
     integration._llmobs_set_tags(
         span=Span("test_span", service="test_service"),
         args=[],
@@ -1066,7 +1186,7 @@ def test_llmobs_chat_model_empty_stream(langchain_core, langchain_llmobs):
     'list' object has no attribute 'content'``. The error was swallowed and logged once
     per empty stream. The span should instead carry an empty output message.
     """
-    integration = langchain_core._datadog_integration
+    integration = get_integration("langchain")
     span = integration.trace("langchain.request", submit_to_llmobs=True)
     span.set_tag("langchain.request.stream", "True")
     span.set_tag("langchain.request.provider", "fake")
