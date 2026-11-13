@@ -3,7 +3,6 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.http_tags import set_instrumentation_resource
-from ddtrace._trace.http_tags import set_query_string_tag
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
@@ -21,13 +20,13 @@ from ddtrace.internal.span_bus import span_from_context
 log = get_logger(__name__)
 
 
-class WebFrameworkRequestSubscriber(TracingSubscriber):
+class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent]):
     """Shared tracing logic for web framework integrations."""
 
     event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
         event: WebFrameworkRequestEvent = ctx.event
 
         if event.allow_default_resource:
@@ -45,7 +44,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: WebFrameworkRequestEvent = ctx.event
@@ -67,11 +66,8 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
                 integration_config=event.integration_config,
                 method=method,
                 url=event.request_url,
-                # set_http_meta checks only integration_config when deciding
-                # whether to trace the query string. aiohttp supports a
-                # per-application override instead.
-                query=event.query if event.trace_query_string is None else None,
-                query_tagged_separately=event.trace_query_string is not None,
+                query=event.query,
+                trace_query_string=event.trace_query_string,
                 status_code=status_code,
                 request_headers=event.request_headers,
                 response_headers=dict(res_headers) if res_headers is not None else None,
@@ -80,11 +76,6 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
-
-        # aiohttp supports per-app trace_query_string overrides that may differ from
-        # integration_config.trace_query_string.
-        if event.trace_query_string and event.query is not None:
-            set_query_string_tag(span, event.query)
 
         _set_inferred_proxy_tags(span, status_code)
         for tk, tv in event.additional_tags.items():

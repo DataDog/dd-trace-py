@@ -67,7 +67,6 @@ from tests.subprocesstest import PythonProcess
 from tests.subprocesstest import check_scenario_outcome
 from tests.subprocesstest import run_process
 from tests.utils import TracerSpanContainer
-from tests.utils import call_program
 from tests.utils import request_token
 from tests.utils import scoped_tracer
 from tests.utils import snapshot_context as _snapshot_context
@@ -125,7 +124,6 @@ def get_original_test_name(request_or_item):
 
 # Hack to try and capture more logging data from pytest failing on `internal` jobs on
 # pytest shutdown. This is a temporary workaround until we can figure out... why....
-# https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/68751/workflows/8939123d-e0bf-4fd5-a4f2-2368eb9fc141/jobs/4201092
 # OSError: [Errno 9] Bad file descriptor
 if os.environ.get("CI") == "true":
     try:
@@ -287,54 +285,22 @@ def clear_context_after_every_test():
 
 
 def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
-    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
-    # inferred path service name as a fallback to DD_SERVICE
-    ddtrace_dir = tmpdir.join(DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
-    if not ddtrace_dir.exists():
-        ddtrace_dir.mkdir()
-
-    # Check for __init__.py and create it if it doesn't exist
-    # The first dir without an init file aka 'ddtrace_subprocess_dir' will be our service name
-    init_file = ddtrace_dir.join("__init__.py")
-    if not init_file.exists():
-        init_file.write("")  # Create an empty __init__.py file
-
-    pyfile = ddtrace_dir.join("test.py")
-    return pyfile
+    # TODO(mabdinur): remove and replace with python_process(code) or python_process.start(code).
+    runner = PythonProcess(Path(str(tmpdir)) / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
+    path = runner._source("")
+    return tmpdir.join(DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME, path.name)
 
 
 @pytest.fixture
-def ddtrace_tmp_path(tmp_path):
-    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
-    ddtrace_dir = tmp_path / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-    ddtrace_dir.mkdir(exist_ok=True)  # Create the directory if it doesn't exist
-
-    # Check for __init__.py and create it if it doesn't exist
-    init_file = ddtrace_dir / "__init__.py"
-    if not init_file.exists():
-        init_file.write_text("")  # Create an empty __init__.py file
-
-    return ddtrace_dir
+def run_python_code_in_subprocess(python_process):
+    # TODO(mabdinur): remove and replace with python_process(code).
+    return python_process
 
 
 @pytest.fixture
-def run_python_code_in_subprocess(tmpdir):
-    def _run(code, **kwargs):
-        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
-        pyfile.write(code)
-        return call_program(sys.executable, str(pyfile), **kwargs)
-
-    yield _run
-
-
-@pytest.fixture
-def ddtrace_run_python_code_in_subprocess(tmpdir):
-    def _run(code, **kwargs):
-        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
-        pyfile.write(code)
-        return call_program(DDTRACE_RUN, sys.executable, str(pyfile), **kwargs)
-
-    yield _run
+def ddtrace_run_python_code_in_subprocess(python_process):
+    # TODO(mabdinur): remove and replace with python_process(code, ddtrace_run=True).
+    return functools.partial(python_process, ddtrace_run=True)
 
 
 @pytest.fixture
@@ -463,7 +429,7 @@ def run_function_from_file(item, params=None):
 
     args = [sys.executable]
 
-    timeout = marker.kwargs.get("timeout", DEFAULT_TIMEOUT if isinstance(item, ClassSubprocessItem) else None)
+    timeout = marker.kwargs.get("timeout", DEFAULT_TIMEOUT)
     check_logs = marker.kwargs.get("check_logs", True)
 
     # Add ddtrace-run prefix in ddtrace-run mode
@@ -515,8 +481,7 @@ def run_function_from_file(item, params=None):
         args.extend(marker.kwargs.get("args", []))
         out: Union[bytes, str]
         err: Union[bytes, str]
-        runner = run_process if isinstance(item, ClassSubprocessItem) else call_program
-        result = runner(*args, env=env, cwd=cwd, timeout=timeout)
+        result = run_process(*args, env=env, cwd=cwd, timeout=timeout)
         out, err, status, _ = result
         check_scenario_outcome(ProcessResult(*result))
 
