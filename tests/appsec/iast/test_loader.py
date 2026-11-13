@@ -107,3 +107,51 @@ def test_lazy_import_instruments_module_on_first_use():
         finally:
             _iast_finish_request()
             sys.path.remove(directory)
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="coverage_customer"),
+    parametrize=dict(_DD_TEST_IMPORT_ERROR=("ValueError", "TypeError", "SystemExit", "KeyboardInterrupt")),
+)
+def test_iast_import_coverage_context_is_closed_on_error():
+    import builtins
+    from importlib import import_module
+    import os
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+
+    from ddtrace.appsec._iast import enable_iast_propagation
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.context_state import ctx_collectors
+
+    error = os.environ["_DD_TEST_IMPORT_ERROR"]
+    builtins._iast_coverage_attempts = 0
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        path = root / "coverage_customer.py"
+        path.write_text(
+            "import builtins\n"
+            "builtins._iast_coverage_attempts += 1\n"
+            "def combine(a, b):\n    return a + b\n"
+            f"if builtins._iast_coverage_attempts == 1:\n    raise {error}('import failed')\n"
+        )
+        sys.path.insert(0, directory)
+        enable_iast_propagation()
+        ModuleCodeCollector.install(include_paths=[root], collect_import_time_coverage=True, file_level_coverage=False)
+        before = ctx_collectors.get()
+        if error != "TypeError":
+            try:
+                import_module("coverage_customer")
+            except BaseException as exc:
+                assert type(exc).__name__ == error
+                assert str(exc) == "import failed"
+            else:
+                raise AssertionError("the import should fail")
+        else:
+            module = import_module("coverage_customer")
+            assert module.combine("a", "b") == "ab"
+            assert builtins._iast_coverage_attempts == 2
+        assert str(path) in ModuleCodeCollector._instance.lines
+        assert not ModuleCodeCollector._instance._import_time_contexts
+        assert ctx_collectors.get() == before

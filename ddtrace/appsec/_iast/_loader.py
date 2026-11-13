@@ -54,12 +54,19 @@ def _exec_iast_patched_module(module_watchdog, module):
             compiled_code = None
 
     if compiled_code:
+        transformed_code = compiled_code
+        for transform in module_watchdog.transformers.values():
+            transformed_code = transform(transformed_code, module)
         iast_compiling_debug_log(f"INSTRUMENTED CODE. executing {module_path}")
         try:
             # Patched source is executed instead of original module
-            exec(compiled_code, module.__dict__)  # nosec B102
+            exec(transformed_code, module.__dict__)  # nosec B102
         except TypeError:
             iast_compiling_debug_log("INSTRUMENTED CODE. Unexpected exception", exc_info=True)
+            # Close transform-owned import contexts before retrying original code.
+            exception_hook = module_watchdog._find_first_exception_hook(module)
+            if exception_hook is not None:
+                exception_hook(module_watchdog, module)
             module_watchdog.loader.exec_module(module)
     elif module_watchdog.loader is not None:
         try:

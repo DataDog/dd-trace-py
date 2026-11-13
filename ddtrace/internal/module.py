@@ -272,7 +272,13 @@ class _ImportHookChainedLoader:
         pre_exec_hook = self._find_first_pre_exec_hook(module)
 
         if pre_exec_hook:
-            pre_exec_hook(self, module)
+            try:
+                pre_exec_hook(self, module)
+            except BaseException:
+                exception_hook = self._find_first_exception_hook(module)
+                if exception_hook is not None:
+                    exception_hook(self, module)
+                raise
             # The hook (e.g. IAST) executes the module itself, bypassing self.loader.
             # Run wrapt's post-import hooks it would have run (once: wrapt pops them).
             if type(self.loader) is getattr(wrapt_importer, "_ImportHookChainedLoader", None):
