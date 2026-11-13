@@ -77,6 +77,14 @@ _MODULE_RUN_LOOP_WRAP_TARGETS = [
 ]
 
 
+def _current_task() -> Optional["asyncio.Task[Any]"]:
+    # None outside an asyncio task (e.g. under trio): markers then match on their liveness only.
+    try:
+        return asyncio.current_task()
+    except RuntimeError:
+        return None
+
+
 async def _dispatch_mcp_event(event: str, args: tuple[Any, ...]) -> None:
     # Listeners may block on network calls, so they run off the event loop; skipped with no listener.
     if core.has_listeners(event):
@@ -84,7 +92,11 @@ async def _dispatch_mcp_event(event: str, args: tuple[Any, ...]) -> None:
 
 
 class _AgentMCPCall:
-    """The tool call an MCPUtil.invoke_mcp_tool run announced, consumed by its server.call_tool."""
+    """The tool call an MCPUtil.invoke_mcp_tool run announced, consumed once by its server.call_tool.
+
+    Newer SDKs run that call_tool in a task of their own, so any task may consume it, but only for the same
+    server, tool and arguments: the call already evaluated.
+    """
 
     __slots__ = ("server", "tool_name", "arguments", "consumed")
 
@@ -93,6 +105,24 @@ class _AgentMCPCall:
         self.tool_name = tool_name
         self.arguments = arguments
         self.consumed = False
+
+
+class _CallToolInvocation:
+    """A running wrapped server.call_tool, which an override calling super() reaches again.
+
+    Tasks created during it inherit the ContextVar and may outlive it, so only the same task skips, and only
+    while the invocation runs.
+    """
+
+    __slots__ = ("server_id", "task", "running")
+
+    def __init__(self, server: Any) -> None:
+        self.server_id = id(server)
+        self.task = _current_task()
+        self.running = True
+
+    def is_reentry(self, server: Any) -> bool:
+        return self.running and self.server_id == id(server) and self.task is _current_task()
 
 
 _agent_mcp_call: ContextVar[Optional[_AgentMCPCall]] = ContextVar("dd_openai_agents_agent_mcp_call", default=None)
@@ -135,10 +165,10 @@ async def _patched_invoke_mcp_tool(
         _agent_mcp_call.reset(token)
 
 
-# The server whose wrapped call_tool is running, so an override calling super() dispatches once while a
-# call it forwards to another server is still dispatched.
-_mcp_server_in_call_tool: ContextVar[Optional[int]] = ContextVar(
-    "dd_openai_agents_mcp_server_in_call_tool", default=None
+# The wrapped call_tool running, so an override calling super() dispatches once while a call forwarded to
+# another server, or made by a task created during it, is still dispatched.
+_call_tool_invocation: ContextVar[Optional[_CallToolInvocation]] = ContextVar(
+    "dd_openai_agents_call_tool_invocation", default=None
 )
 
 
@@ -146,9 +176,11 @@ async def _patched_mcp_server_call_tool(
     func: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
     # Lowest MCP call boundary of the SDK servers, also reached by direct server.call_tool calls.
-    if _mcp_server_in_call_tool.get() == id(instance):
+    current = _call_tool_invocation.get()
+    if current is not None and current.is_reentry(instance):
         return await func(*args, **kwargs)
-    token = _mcp_server_in_call_tool.set(id(instance))
+    invocation = _CallToolInvocation(instance)
+    token = _call_tool_invocation.set(invocation)
     try:
         tool_name = get_argument_value(args, kwargs, 0, "tool_name", optional=True)
         arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True)
@@ -166,7 +198,8 @@ async def _patched_mcp_server_call_tool(
             await _dispatch_mcp_event("openai_agents.mcp.call_tool.before", (instance, tool_name, arguments))
         return await func(*args, **kwargs)
     finally:
-        _mcp_server_in_call_tool.reset(token)
+        invocation.running = False
+        _call_tool_invocation.reset(token)
 
 
 # The SDK imports agents.mcp lazily, as it needs the optional mcp package: wrap it once it is imported.

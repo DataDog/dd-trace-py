@@ -395,6 +395,38 @@ def test_agent_call_skip_needs_the_same_arguments(mock_execute_request, argument
     assert mock_execute_request.called is evaluated
 
 
+@patch(EXECUTE_REQUEST)
+def test_task_created_during_a_call_is_evaluated_after_it(mock_execute_request):
+    """A task created during call_tool inherits its context; once the call ends it must not skip evaluation."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    server = _atlassian_server()
+    children = []
+
+    async def run():
+        first_call_done = asyncio.Event()
+
+        async def later_call():
+            await first_call_done.wait()
+            await server.call_tool("delete_issue", {"key": "APPSEC-1"})
+
+        class SpawningSession(FakeSession):
+            async def call_tool(self, name, arguments, *args, **kwargs):
+                if not children:
+                    children.append(asyncio.create_task(later_call()))
+                return await super().call_tool(name, arguments, *args, **kwargs)
+
+        server.session = SpawningSession()
+        await server.call_tool("search_issues", {"query": "APPSEC"})
+        first_call_done.set()
+        await children[0]
+
+    asyncio.run(run())
+
+    evaluated = [_single_tool_call(_messages(mock_execute_request, i))["function"]["name"] for i in range(2)]
+    assert evaluated == ["search_issues", "delete_issue"]
+    assert [name for name, _ in server.session.calls] == ["search_issues", "delete_issue"]
+
+
 def test_unpatch_restores_the_invoke_mcp_tool_classmethod():
     openai_agents_patch.unpatch()
     try:
