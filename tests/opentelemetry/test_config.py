@@ -1080,6 +1080,17 @@ def test_a_user_supplied_api_key_header_is_left_alone():
 
 
 @pytest.mark.subprocess(
+    env={"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317/", "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"}
+)
+def test_grpc_endpoints_drop_the_trailing_slash_of_the_global_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert exporter.LOGS_ENDPOINT == "http://collector:4317"
+    assert exporter.METRICS_ENDPOINT == "http://collector:4317"
+
+
+@pytest.mark.subprocess(
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",

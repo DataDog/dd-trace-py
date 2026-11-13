@@ -11,14 +11,23 @@ from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
 
 
-def _agentless_endpoint(signal_path: str = "") -> str:
-    return f"https://otlp.{agentless_config.site}{signal_path}"
+_HTTP_PROTOCOLS = ("http/json", "http/protobuf")
+
+
+def _is_http(protocol: str) -> bool:
+    return protocol.lower() in _HTTP_PROTOCOLS
+
+
+def _agent_endpoint(protocol: str, signal_path: str = "") -> str:
+    """The OTLP receiver of the Datadog Agent: HTTP on port 4318 under the signal path, or gRPC on port 4317."""
+    if _is_http(protocol):
+        return f"http://{get_agent_hostname()}:4318{signal_path}"
+    return f"http://{get_agent_hostname()}:4317"
 
 
 def _targets_agentless_intake(signal_endpoint_env_var: str = "") -> bool:
-    if not agentless_config.enabled:
-        return False
-    if env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+    """Whether a signal is exported to the Datadog OTLP intake: in agentless mode, when no endpoint is set for it."""
+    if not agentless_config.enabled or env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
         return False
     return not (signal_endpoint_env_var and env.get(signal_endpoint_env_var))
 
@@ -32,26 +41,27 @@ def _with_intake_auth(configured: str, signal_endpoint_env_var: str) -> str:
     return f"{configured},{api_key_header}" if configured else api_key_header
 
 
-def _default_endpoint(config: "ExporterConfig", protocol: str, signal_path: str = "") -> str:
-    # Without a signal-specific endpoint, the OpenTelemetry SDK exporters derive it from the global
-    # endpoint: HTTP appends the signal path to it, and gRPC uses it as-is.
+def _default_endpoint(protocol: str, signal_path: str, agentless_intake: bool = True) -> str:
+    """The endpoint of a signal that has no endpoint of its own.
+
+    As in the OpenTelemetry SDK exporters, HTTP appends the signal path to the global endpoint, and gRPC uses it as-is.
+    Without a global endpoint, the signal goes to the Datadog OTLP intake in agentless mode, when agentless_intake
+    allows it, and to the Datadog Agent otherwise.
+    """
     if global_endpoint := env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
-        if protocol.lower() in ("http/json", "http/protobuf"):
-            return global_endpoint.rstrip("/") + signal_path
-        return global_endpoint
-    if agentless_config.enabled and "OTEL_EXPORTER_OTLP_ENDPOINT" not in env:
-        return _agentless_endpoint(signal_path)
-    return ExporterConfig._get_default_endpoint(protocol, signal_path)
+        base = global_endpoint.rstrip("/")
+        return base + signal_path if _is_http(protocol) else base
+    if agentless_intake and agentless_config.enabled:
+        return f"https://otlp.{agentless_config.site}{signal_path}"
+    return _agent_endpoint(protocol, signal_path)
 
 
 def _derive_endpoint(config: "ExporterConfig"):
-    default_endpoint = ExporterConfig._get_default_endpoint(config.PROTOCOL)
-    return get_config("OTEL_EXPORTER_OTLP_ENDPOINT", default_endpoint)
+    return get_config("OTEL_EXPORTER_OTLP_ENDPOINT", _agent_endpoint(config.PROTOCOL))
 
 
 def _derive_logs_endpoint(config: "ExporterConfig"):
-    default_endpoint = _default_endpoint(config, config.LOGS_PROTOCOL, config.LOGS_PATH)
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", default_endpoint)
+    return get_config("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", _default_endpoint(config.LOGS_PROTOCOL, config.LOGS_PATH))
 
 
 def _derive_logs_protocol(config: "ExporterConfig"):
@@ -69,8 +79,9 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 
 
 def _derive_metrics_endpoint(config: "ExporterConfig"):
-    default_endpoint = _default_endpoint(config, config.METRICS_PROTOCOL, config.METRICS_PATH)
-    return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", default_endpoint)
+    return get_config(
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", _default_endpoint(config.METRICS_PROTOCOL, config.METRICS_PATH)
+    )
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
@@ -125,17 +136,10 @@ def _derive_traces_timeout(config: "ExporterConfig"):
 
 
 def _derive_traces_endpoint(config: "ExporterConfig"):
-    # Signal-specific endpoint takes precedence (full URL, no path appended).
-    if traces_endpoint := env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
-        return traces_endpoint
-    protocol = config.TRACES_PROTOCOL
-    # A global HTTP endpoint is a base URL; gRPC uses it as-is.
-    global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    if global_endpoint:
-        if protocol == "grpc":
-            return global_endpoint.rstrip("/")
-        return global_endpoint.rstrip("/") + ExporterConfig.TRACES_PATH
-    return ExporterConfig._get_default_endpoint(protocol, ExporterConfig.TRACES_PATH)
+    # libdatadog cannot export OTLP traces in agentless mode, so the intake is never their default.
+    return env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or _default_endpoint(
+        config.TRACES_PROTOCOL, config.TRACES_PATH, agentless_intake=False
+    )
 
 
 def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
@@ -144,18 +148,7 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
     Unlike the protocol-aware METRICS_ENDPOINT, this always resolves an HTTP /v1/metrics
     endpoint because libdatadog only supports HTTP/JSON for trace metrics.
     """
-    # Signal-specific endpoint takes precedence (full URL, no path appended).
-    if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
-        return metrics_endpoint
-    # Global endpoint is a base URL; append the metrics signal path.
-    global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    if global_endpoint:
-        return global_endpoint.rstrip("/") + ExporterConfig.METRICS_PATH
-    # Agentless has no agent OTLP receiver to fall back on.
-    if _targets_agentless_intake():
-        return _agentless_endpoint(ExporterConfig.METRICS_PATH)
-    # Default to HTTP/JSON endpoint since libdatadog currently only supports http/json here.
-    return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.METRICS_PATH}"
+    return env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or _default_endpoint("http/json", config.METRICS_PATH)
 
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
@@ -194,8 +187,6 @@ class ExporterConfig(DDConfig):
     LOGS_PATH: str = "/v1/logs"
     METRICS_PATH: str = "/v1/metrics"
     TRACES_PATH: str = "/v1/traces"
-    DEFAULT_GRPC_ENDPOINT: str = f"http://{get_agent_hostname()}:4317"
-    DEFAULT_HTTP_ENDPOINT: str = f"http://{get_agent_hostname()}:4318"
     DEFAULT_METRICS_TEMPORALITY_PREFERENCE: str = "delta"
     DEFAULT_METRICS_METRIC_READER_EXPORT_INTERVAL: int = 10000
     DEFAULT_METRICS_METRIC_READER_EXPORT_TIMEOUT: int = 7500
@@ -227,12 +218,6 @@ class ExporterConfig(DDConfig):
     # Endpoint for the native (libdatadog) OTLP trace-metrics exporter. Distinct from the SDK's
     # protocol-aware METRICS_ENDPOINT because the native exporter is HTTP/JSON only.
     TRACE_METRICS_ENDPOINT = DDConfig.d(str, _derive_trace_metrics_endpoint)
-
-    @staticmethod
-    def _get_default_endpoint(protocol: str, endpoint: str = ""):
-        if protocol.lower() in ("http/json", "http/protobuf"):
-            return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{endpoint}"
-        return f"{ExporterConfig.DEFAULT_GRPC_ENDPOINT}"
 
 
 OpenTelemetryConfig.include(ExporterConfig, namespace="exporter")
