@@ -7,6 +7,8 @@ We create a release candidate, test it, and repeat until the test shows no error
 
 The first release candidate (``rc1``) of a minor line is based on the main branch. After it is tagged, a release branch named ``X.Y`` is
 created from it, and every later release candidate and the final release are cut from that branch.
+The main branch's version string is ``X.Y.0rc1`` for the minor line under development, and moves to the next line's ``rc1``
+when ``X.Y.0`` is released.
 
 Prerequisites
 -------------
@@ -56,11 +58,11 @@ First release candidate (``rc1``)
 
 1. Set / Validate version strings on branches
 
-    * main's version string is already ``X.Y.0rc1``. No version change is needed.
+    * main's version string should already be ``X.Y.0rc1``.
 
 2. Make a GitHub release
 
-    * Target: the main commit you are releasing
+    * Target: ``main``
     * "Pre-release" checked
 
 3. Create the release branch from the ``rc1`` tag:
@@ -83,11 +85,11 @@ Later release candidates (``rc2`` and up)
 2. Set / Validate version strings on branches
 
     * Pull request a change to the version string on the ``X.Y`` branch that increments the ``rcN`` number by one
-        (for example, ``4.17.0rc1`` to ``4.17.0rc2``). main's version string does not change.
+        (for example, ``4.17.0rc1`` to ``4.17.0rc2``).
 
 3. Make a GitHub release
 
-    * Target: the merged commit on ``X.Y`` from the version string pull request above
+    * Target: ``X.Y``
     * "Pre-release" checked
 
 Minor or Major Release
