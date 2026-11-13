@@ -1,7 +1,6 @@
 """Exercise watchdog timing and cleanup without macOS or a real compiler cache."""
 
 import importlib.util
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -44,7 +43,6 @@ class WatchdogTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            env={**os.environ, "CI_PROJECT_DIR": str(self.root)},
         )
         self.addCleanup(self.finish, process)
         return process
@@ -60,30 +58,6 @@ class WatchdogTests(unittest.TestCase):
         output, _ = process.communicate(timeout=3)
         self.assertEqual(process.returncode, 0, output)
         self.assertEqual(output.count("SNAPSHOT stalled"), 1, output)
-
-    def test_snapshot_includes_only_latest_build_log_tail(self) -> None:
-        logs = self.root / "debugwheelhouse"
-        logs.mkdir()
-        old = logs / "build_cp312.log"
-        old.write_text("old build output\n")
-        latest = logs / "build_cp313.log"
-        latest.write_text("".join(f"compiler line {number}\n" for number in range(150)))
-        os.utime(old, ns=(1, 1))
-        process = self.start(0.05)
-        output, _ = process.communicate(timeout=3)
-        self.assertEqual(process.returncode, 0, output)
-        self.assertIn("build_cp313.log (last 100 lines)", output)
-        self.assertNotIn("old build output", output)
-        self.assertNotIn("compiler line 49\n", output)
-        self.assertIn("compiler line 50\n", output)
-        self.assertIn("compiler line 149\n", output)
-
-    def test_snapshot_without_build_logs_still_collects_diagnostics(self) -> None:
-        process = self.start(0.05)
-        output, _ = process.communicate(timeout=3)
-        self.assertEqual(process.returncode, 0, output)
-        self.assertIn("SNAPSHOT stalled", output)
-        self.assertNotIn("latest wheel build log", output)
 
     def test_snapshot_inside_shell_subshell(self) -> None:
         result = subprocess.run(

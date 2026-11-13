@@ -35,20 +35,7 @@ def probe(command: list[str], timeout: float = 15) -> None:
         process.wait()
 
 
-def build_log_tail() -> None:
-    log_dir = Path(os.environ.get("CI_PROJECT_DIR", ".")) / "debugwheelhouse"
-    try:
-        latest = max(log_dir.glob("build_*.log"), key=lambda path: path.stat().st_mtime_ns, default=None)
-    except OSError as error:
-        print(f"WARNING: cannot find wheel build log: {error}", flush=True)
-        return
-    if latest is not None:
-        print(f"--- latest wheel build log: {latest.name} (last 100 lines) ---", flush=True)
-        probe(["tail", "-n", "100", str(latest)], timeout=5)
-
-
 def snapshot(parent_pid: int) -> None:
-    build_log_tail()
     probe(["bash", str(Path(__file__).with_name("sccache-diagnostics.sh")), "stalled"])
     try:
         result = subprocess.run(
