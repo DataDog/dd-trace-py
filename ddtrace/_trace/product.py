@@ -4,7 +4,6 @@ import typing as t
 from envier import En
 
 from ddtrace._trace._registration import register_subscribers
-from ddtrace._trace._registration import subscriber_bundles as subscriber_bundles
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env

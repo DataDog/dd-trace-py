@@ -53,12 +53,13 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
 def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     import sys
 
-    from ddtrace._trace import product
+    from ddtrace._trace import product  # noqa: F401
     from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace._trace._registration import subscriber_bundles
 
-    assert product.subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
+    assert subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
-    assert product.subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS,)
+    assert subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS,)
 
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
