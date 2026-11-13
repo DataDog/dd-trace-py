@@ -8,12 +8,14 @@ from urllib.parse import urlsplit
 
 import pytest
 
+from ddtrace import config as ddconfig
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.native import ConnectionFailedError
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import MAX_POLL_INTERVAL_SECONDS
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 import ddtrace.internal.openfeature._native as native_mod
+from tests.utils import override_global_config
 
 
 ENDPOINT = "https://ufc-server.ff-cdn.datadoghq.com/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"
@@ -305,6 +307,153 @@ def test_client_library_headers_and_gzip_accept(harness):
     assert headers["Accept-Encoding"] == "gzip"
     assert headers["DD-Client-Library-Language"] == "python"
     assert headers["DD-Client-Library-Version"]
+
+
+def _has_service_header(request):
+    return any(name.lower() == "dd-service" for name in request["headers"])
+
+
+def test_dd_service_header_sent_on_every_poll(harness):
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)])
+    with override_global_config({"service": "checkout"}):
+        src.periodic()
+        src.periodic()
+
+    assert len(src._requests) == 2
+    assert src._requests[0]["headers"]["DD-Service"] == "checkout"
+    assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
+    assert src._requests[1]["headers"]["DD-Service"] == "checkout"
+
+
+@pytest.mark.parametrize("service", [None, ""])
+def test_dd_service_header_omitted_without_service(harness, caplog, service):
+    src = harness([_FakeResponse(200, _ufc_body())])
+    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert len(src._applied) == 1  # Polling continues.
+    # No service is not a rejected service, so there is no log.
+    assert not any("DD-Service header not sent" in m for m in caplog.messages)
+
+
+def test_dd_service_header_follows_service_changes_after_start(harness):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    for service in (None, "checkout", "My Billing"):
+        with override_global_config({"service": service}):
+            src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert src._requests[1]["headers"]["DD-Service"] == "checkout"
+    assert src._requests[2]["headers"]["DD-Service"] == "my_billing"
+
+
+_USAGE_SERVICE_REJECTED = "Feature Flags: service %r has no ASCII APM name; DD-Service header not sent"
+
+
+# Each row: the service, the name that APM shows, and the DD-Service header (None: no header).
+# The APM names are the output of the Agent's NormalizeService
+# (datadog-agent pkg/trace/traceutil/normalize v0.82.3).
+# "" is an empty result. The Agent replaces it with a placeholder name.
+# The header is the APM name if it is not empty and is printable ASCII.
+# Otherwise there is no header. Usage never goes to a name that APM does not show.
+_AGENT_SERVICE_NAMES = [
+    ("checkout", "checkout", "checkout"),
+    ("My Service", "my_service", "my_service"),
+    ("My-API", "my-api", "my-api"),
+    ("UPPER", "upper", "upper"),
+    ("bad\nvalue", "bad_value", "bad_value"),
+    ("a\tb", "a_b", "a_b"),
+    ("a  b!", "a_b", "a_b"),
+    ("svc ", "svc", "svc"),
+    (" svc", "_svc", "_svc"),
+    ("a_", "a", "a"),
+    ("svc-", "svc-", "svc-"),
+    ("a..b", "a..b", "a..b"),
+    ("2fa-service", "2fa-service", "2fa-service"),
+    ("9lives", "9lives", "9lives"),
+    ("unnamed-service", "unnamed-service", "unnamed-service"),
+    ("svc_name.v2:api/edge-1", "svc_name.v2:api/edge-1", "svc_name.v2:api/edge-1"),
+    ("my__service", "my_service", "my_service"),
+    ("Default Web Site/Shop", "default_web_site/shop", "default_web_site/shop"),
+    ("a" + "b" * 99, "a" + "b" * 99, "a" + "b" * 99),
+    ("a" + "b" * 100, "a" + "b" * 99, "a" + "b" * 99),
+    ("a" * 100 + " b", "a" * 100, "a" * 100),
+    ("a" * 99 + "é", "a" * 99, "a" * 99),  # 101 bytes. The cut splits the "é", so it is dropped.
+    ("_svc", "_svc", "_svc"),
+    ("-svc", "-svc", "-svc"),
+    (".svc", ".svc", ".svc"),
+    (":svc", ":svc", ":svc"),
+    ("café-api", "café-api", None),
+    ("Café", "café", None),
+    ("支付", "支付", None),
+    ("a🐶b", "a_b", "a_b"),
+    ("İstanbul", "İstanbul", None),
+    ("é" * 60, "é" * 50, None),
+    ("___", "", None),
+    ("-", "-", "-"),
+    ("", "", None),
+    ("   ", "", None),
+]
+
+
+@pytest.mark.parametrize(
+    "service, apm_name, header", _AGENT_SERVICE_NAMES, ids=[repr(case[0]) for case in _AGENT_SERVICE_NAMES]
+)
+def test_dd_service_header_is_the_name_apm_shows_or_nothing(harness, caplog, service, apm_name, header):
+    assert source_mod._normalize_service(service) == apm_name
+
+    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src = harness([_FakeResponse(200, _ufc_body())])
+        src.periodic()
+        # Only the header value changes. The tracer service does not change.
+        assert ddconfig.service == service
+
+    if header is None:
+        assert not _has_service_header(src._requests[0])
+    else:
+        assert src._requests[0]["headers"]["DD-Service"] == header
+    assert len(src._applied) == 1  # Polling continues.
+    rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
+    # No service is not a rejected service, so there is no log.
+    assert rejected == ([_USAGE_SERVICE_REJECTED % (service,)] if service and header is None else [])
+
+
+def test_dd_service_header_omitted_for_a_name_that_is_not_valid_text(harness):
+    # os.environ gives a lone surrogate for bytes that are not UTF-8.
+    # It has no UTF-8 form, so the APM name is not known. The poll must not fail.
+    with override_global_config({"service": "svc\udcff"}):
+        src = harness([_FakeResponse(200, _ufc_body())])
+        src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert len(src._applied) == 1
+
+
+def test_dd_service_normalized_once_when_source_is_built(harness, monkeypatch):
+    calls = []
+    normalize = source_mod._normalize_service
+    monkeypatch.setattr(source_mod, "_normalize_service", lambda name: calls.append(name) or normalize(name))
+
+    with override_global_config({"service": "My Service"}):
+        src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304), _FakeResponse(304)])
+        assert calls == ["My Service"]
+        for _ in range(3):
+            src.periodic()
+
+    assert calls == ["My Service"]  # Not again on each poll.
+    assert [r["headers"]["DD-Service"] for r in src._requests] == ["my_service"] * 3
+
+
+def test_dd_service_rejection_logged_once_per_value(harness, caplog):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        for service in ("café-api", "café-api", "支付"):
+            with override_global_config({"service": service}):
+                src.periodic()
+
+    rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
+    assert rejected == [_USAGE_SERVICE_REJECTED % (service,) for service in ("café-api", "支付")]
 
 
 def test_self_tracing_suppressed(harness):

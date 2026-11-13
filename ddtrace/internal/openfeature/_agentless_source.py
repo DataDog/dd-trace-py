@@ -26,6 +26,7 @@ from urllib.parse import unquote_plus
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
+from ddtrace import config as ddconfig
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import decode_response_body
@@ -72,6 +73,11 @@ _WAIT_EPSILON_S = 1e-6
 # It is inside the optional group so a bare "//" is still redacted anywhere.
 _URL_RE = re.compile(r"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
 
+_USAGE_SERVICE_REJECTED_MESSAGE = "Feature Flags: service %r has no ASCII APM name; DD-Service header not sent"
+# The ASCII characters that the Agent keeps in a service name, after it lowercases ASCII letters.
+_SERVICE_KEPT_ASCII = frozenset("abcdefghijklmnopqrstuvwxyz0123456789:./-")
+_SERVICE_MAX_BYTES = 100
+
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
 _PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding", "body", "error"])
@@ -89,6 +95,61 @@ def _describe_error(error: BaseException) -> str:
     except Exception:
         return name
     return f"{name}: {message}" if message else name
+
+
+def _normalize_service(service: str) -> str:
+    """Return the service name that APM shows. This is a port of the Agent's ``NormalizeService``.
+
+    - Cut the name to 100 bytes of UTF-8. Do not split a character.
+    - Lowercase ASCII letters. Do not change other characters.
+    - Keep letters, digits and ``:./-``.
+    - Replace each run of other characters (``_``, spaces, punctuation, emoji) with one ``_``.
+    - Drop a run at the end. Keep a run at the start: ``" svc"`` becomes ``"_svc"``.
+
+    For an empty result, the Agent uses a placeholder name. This function returns ``""``.
+    The Agent also lowercases some non-ASCII letters. The header stays the same, because a name
+    that has non-ASCII characters gets no header.
+
+    Raises UnicodeEncodeError if the name has a lone surrogate.
+    """
+    truncated = service.encode("utf-8")[:_SERVICE_MAX_BYTES].decode("utf-8", "ignore")
+    normalized = []
+    pending_separator = False
+    for c in truncated:
+        if "A" <= c <= "Z":
+            c = chr(ord(c) + 32)
+        if c in _SERVICE_KEPT_ASCII or (not c.isascii() and (c.isalpha() or c.isdecimal())):
+            if pending_separator:
+                normalized.append("_")
+                pending_separator = False
+            normalized.append(c)
+        else:
+            pending_separator = True
+    return "".join(normalized)
+
+
+def _usage_service_header(service: Any) -> Optional[str]:
+    """Return the DD-Service header value for a tracer service, or None to omit the header.
+
+    The value is the exact name that APM shows. For example, ``My Service`` becomes ``my_service``.
+    If that name is empty or is not printable ASCII, for example ``café-api``, omit the header.
+    Never send a different name: usage must go to a service that APM shows.
+    """
+    if not service or not isinstance(service, str):
+        return None
+    try:
+        normalized = _normalize_service(service)
+    except UnicodeEncodeError:
+        # A lone surrogate has no UTF-8 form, so the APM name is not known.
+        normalized = ""
+    # Only the CDN decides which values it accepts; this check does not copy its rules.
+    # Some SDK HTTP clients refuse non-ASCII header values. The HTTP client of this library
+    # accepts them, but all SDKs omit them, so a service gets the same header in each language.
+    # "!" to "~" is printable ASCII (0x21-0x7E).
+    if normalized and all("!" <= c <= "~" for c in normalized):
+        return normalized
+    log.debug(_USAGE_SERVICE_REJECTED_MESSAGE, service)
+    return None
 
 
 def _is_retryable_status(status: Optional[int]) -> bool:
@@ -163,6 +224,10 @@ class AgentlessConfigurationSource(PeriodicService):
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
 
         self._etag: Optional[str] = None
+        # Compute the DD-Service value once here, not on each poll.
+        # This changes only the header value. ddtrace.config.service does not change.
+        self._service = ddconfig.service
+        self._service_header = _usage_service_header(self._service)
         self._failure_warnings: set[str] = set()
         self._malformed_payload_logged = False
         self._application_failure_logged = False
@@ -330,9 +395,26 @@ class AgentlessConfigurationSource(PeriodicService):
         }
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
+        service = self._dd_service_header()
+        if service:
+            # The CDN uses this header to attribute the usage of this request to the service.
+            headers["DD-Service"] = service
         if self._etag:
             headers["If-None-Match"] = self._etag
         return headers
+
+    def _dd_service_header(self) -> Optional[str]:
+        """Return the DD-Service header value, or None to omit the header.
+
+        The value is computed when the source is built. Code can change the service later
+        (``ddtrace.config.service = "checkout"``). Then the next poll computes the new value
+        once, and later polls use it again.
+        """
+        service = ddconfig.service
+        if service != self._service:
+            self._service = service
+            self._service_header = _usage_service_header(service)
+        return self._service_header
 
     def _request(self) -> _PollResponse:
         conn = None
