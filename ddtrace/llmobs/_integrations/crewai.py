@@ -221,6 +221,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_tool(self, span, args, kwargs, response, unpack_input):
         tool_instance = kwargs.pop("_dd.instance", None)
+        tool_call_id = kwargs.pop("_dd.tool_call_id", None)
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
         if unpack_input:
@@ -247,7 +248,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (tool_name, safe_json(tool_input), "function", span),
+            (tool_name, safe_json(tool_input), "function", span, tool_call_id),
         )
 
     def _tag_agent_manifest(self, span, agent):
@@ -377,12 +378,12 @@ class CrewAIIntegration(BaseLLMIntegration):
         ran = {method for method, span_dict in flow_methods_to_spans.items() if span_dict.get("span_id")}
         triggered = False
         for listener_name, condition in listeners.items():
-            satisfying_methods = _satisfying_methods(condition, ran, trigger_method)
+            satisfying = satisfying_methods(condition, ran, trigger_method)
             # Skip listeners this trigger does not satisfy, including an AND whose other branches have not run yet.
-            if not satisfying_methods or trigger_method not in satisfying_methods:
+            if not satisfying or trigger_method not in satisfying:
                 continue
             triggered = True
-            satisfying_span_ids = [str(flow_methods_to_spans[method]["span_id"]) for method in satisfying_methods]
+            satisfying_span_ids = [str(flow_methods_to_spans[method]["span_id"]) for method in satisfying]
             span_links = flow_methods_to_spans.setdefault(listener_name, {}).setdefault("span_links", [])
             span_links.extend(
                 _SpanLink(
@@ -515,14 +516,14 @@ def _get_flow_structure(flow_instance: Any) -> tuple[Collection[str], Collection
     crewai 1.15.0 replaced Flow._start_methods, _routers and _listeners with a flow definition.
     """
     if hasattr(flow_instance, "_listeners"):
-        listeners = {name: _listener_condition(condition) for name, condition in flow_instance._listeners.items()}
+        listeners = {name: listener_condition(condition) for name, condition in flow_instance._listeners.items()}
         return flow_instance._start_methods, flow_instance._routers, listeners
     routers = {name for name, method in flow_instance._definition.methods.items() if method.router}
-    listeners = {name: _listener_condition(condition) for name, _, condition in flow_instance._listener_methods()}
+    listeners = {name: listener_condition(condition) for name, _, condition in flow_instance._listener_methods()}
     return flow_instance._start_method_names(), routers, listeners
 
 
-def _listener_condition(condition: Any) -> _Condition:
+def listener_condition(condition: Any) -> _Condition:
     """Convert a stored listen condition to a _Condition, keeping nested and_/or_ conditions.
 
     Simple listeners are stored as (condition_type, methods) before crewai 1.15.0 and as a method name since. Listeners
@@ -538,10 +539,10 @@ def _listener_condition(condition: Any) -> _Condition:
     else:
         condition_type = "AND" if "and" in condition else "OR"
         branches = condition[condition_type.lower()]
-    return condition_type, [branch if isinstance(branch, str) else _listener_condition(branch) for branch in branches]
+    return condition_type, [branch if isinstance(branch, str) else listener_condition(branch) for branch in branches]
 
 
-def _satisfying_methods(
+def satisfying_methods(
     condition: Union[str, _Condition], ran: Collection[str], trigger_method: str
 ) -> Optional[list[str]]:
     """Return the methods that satisfy a condition given the methods that ran, or None if it is not satisfied.
@@ -552,7 +553,7 @@ def _satisfying_methods(
     if isinstance(condition, str):
         return [condition] if condition in ran else None
     condition_type, branches = condition
-    results = [_satisfying_methods(branch, ran, trigger_method) for branch in branches]
+    results = [satisfying_methods(branch, ran, trigger_method) for branch in branches]
     satisfied = [result for result in results if result is not None]
     if condition_type == "AND":
         return [method for result in satisfied for method in result] if len(satisfied) == len(results) else None

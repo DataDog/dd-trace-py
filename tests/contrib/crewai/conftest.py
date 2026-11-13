@@ -195,6 +195,30 @@ def failing_llm_crew(crewai):
 
 
 @pytest.fixture
+def openai_traced_tool_crew(crewai):
+    """tool_crew with a fresh agent, so its LLM creates its OpenAI client after openai is patched."""
+    from ddtrace.contrib.internal.openai.patch import patch as patch_openai
+    from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
+
+    patch_openai()
+    agent = Agent(
+        role=analytics_agent.role,
+        goal=analytics_agent.goal,
+        backstory=analytics_agent.backstory,
+        tools=[calculate_average_tool],
+    )
+    task = Task(
+        name=data_analysis_task_1.name,
+        description=data_analysis_task_1.description,
+        expected_output=data_analysis_task_1.expected_output,
+        agent=agent,
+        async_execution=True,
+    )
+    yield Crew(agents=[agent], tasks=[task], process=Process.sequential)
+    unpatch_openai()
+
+
+@pytest.fixture
 def streaming_crew(crewai):
     # Its own agent, because a streaming kickoff turns on streaming for the LLM of every agent in the crew.
     agent = Agent(

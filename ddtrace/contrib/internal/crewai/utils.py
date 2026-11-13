@@ -4,9 +4,11 @@ The integration is the CrewAIIntegration that patch.py stores on crewai._datadog
 because only patch.py may depend on the LLM Observability package.
 """
 
+from contextvars import ContextVar
 import sys
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 import crewai
 
@@ -17,6 +19,9 @@ from ddtrace.trace import tracer
 
 
 CREWAI_VERSION = parse_version(getattr(crewai, "__version__", ""))
+# The id of the native tool call crewai is running, set by _patch_v1. The tool span hands it to LLM Observability, which
+# links the span to the LLM span that requested the call.
+native_tool_call_id: ContextVar[Optional[str]] = ContextVar("ddtrace_crewai_native_tool_call_id", default=None)
 
 
 def _start_span(integration: Any, instance: Any, operation: str) -> Any:
@@ -60,13 +65,23 @@ def _finish_span(
     kwargs: Any,
     result: Any,
     operation: str,
+    tool_call_id: Optional[str] = None,
 ) -> None:
     kwargs["_dd.instance"] = instance
+    if tool_call_id is not None:
+        kwargs["_dd.tool_call_id"] = tool_call_id
     integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation=operation)
     span.finish()
 
 
-def trace_call(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any, operation: str) -> Any:
+def trace_call(
+    func: Callable[..., Any],
+    instance: Any,
+    args: Any,
+    kwargs: Any,
+    operation: str,
+    tool_call_id: Optional[str] = None,
+) -> Any:
     integration = crewai._datadog_integration
     span = _start_span(integration, instance, operation)
     result = None
@@ -77,7 +92,7 @@ def trace_call(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any, 
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        _finish_span(integration, span, instance, args, kwargs, result, operation)
+        _finish_span(integration, span, instance, args, kwargs, result, operation, tool_call_id)
 
 
 async def atrace_call(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any, operation: str) -> Any:
@@ -103,7 +118,13 @@ def traced_agent_execute(func: Callable[..., Any], instance: Any, args: Any, kwa
 
 
 def traced_tool_run(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    return trace_call(func, instance, args, kwargs, "tool")
+    tool_call_id = native_tool_call_id.get()
+    # Cleared so that tools this tool runs, such as those of a crew it kicks off, do not take its call id.
+    token = native_tool_call_id.set(None)
+    try:
+        return trace_call(func, instance, args, kwargs, "tool", tool_call_id)
+    finally:
+        native_tool_call_id.reset(token)
 
 
 # CrewStructuredTool.invoke/ainvoke take the tool arguments as one input argument, unlike BaseTool.run and Tool.run.

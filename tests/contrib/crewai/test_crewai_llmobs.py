@@ -3,12 +3,13 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.llmobs._integrations.crewai import _listener_condition
-from ddtrace.llmobs._integrations.crewai import _satisfying_methods
+from ddtrace.llmobs._integrations.crewai import listener_condition
+from ddtrace.llmobs._integrations.crewai import satisfying_methods
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.contrib.crewai.utils import CREWAI_VERSION
 from tests.contrib.crewai.utils import FailingTool
@@ -544,7 +545,7 @@ async def test_router_flow_async(crewai, router_flow_async, crewai_llmobs, test_
     ids=["tuple", "method_name", "type_conditions", "and_dict", "or_dict"],
 )
 def test_listener_condition(condition, expected):
-    assert _listener_condition(condition) == expected
+    assert listener_condition(condition) == expected
 
 
 @pytest.mark.parametrize(
@@ -558,7 +559,7 @@ def test_listener_condition(condition, expected):
     ids=["and_waits", "or_branch_b", "or_branch_c", "or_prefers_trigger"],
 )
 def test_satisfying_methods(ran, trigger_method, expected):
-    assert _satisfying_methods(("AND", ["a", ("OR", ["b", "c"])]), ran, trigger_method) == expected
+    assert satisfying_methods(("AND", ["a", ("OR", ["b", "c"])]), ran, trigger_method) == expected
 
 
 @pytest.mark.skipif(CREWAI_VERSION < (1, 0, 0), reason="nested and_/or_ conditions require crewai>=1.0")
@@ -683,3 +684,14 @@ async def test_tool_error(crewai, crewai_llmobs, test_spans, use_ainvoke):
         error=mock.ANY,
         tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
     )
+
+
+@pytest.mark.skipif(CREWAI_VERSION < (1, 0, 0), reason="crewai 0.x has no native tool calls")
+def test_native_tool_call_links_to_llm_span(openai_traced_tool_crew, request_vcr, crewai_llmobs, test_spans):
+    with request_vcr.use_cassette("test_crew_with_tool.yaml"):
+        openai_traced_tool_crew.kickoff(inputs=AGES)
+    spans = _ordered_spans(test_spans)
+    tool_span = next(span for span in spans if get_llmobs_span_kind(span) == "tool")
+    llm_spans = [span for span in spans if get_llmobs_span_kind(span) == "llm"]
+    llm_span = [span for span in llm_spans if span.start_ns < tool_span.start_ns][-1]
+    _assert_span_link(llm_span, tool_span, "output", "input")
