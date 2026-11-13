@@ -53,6 +53,9 @@ class CrewAIIntegration(BaseLLMIntegration):
         span = super().trace(operation_id, submit_to_llmobs, **kwargs)
 
         if kwargs.get("operation") == "crew":
+            # Only LLM Observability reads and clears this bookkeeping, so skip it otherwise.
+            if not self.llmobs_enabled:
+                return span
             crew_id = _get_crew_id(span, "crew")
             self._crews_to_task_span_ids[crew_id] = []
             self._crews_to_tasks[crew_id] = {}
@@ -160,7 +163,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         }
         computed_span_links = None
         if task_id:
-            span_links = self._crews_to_tasks[crew_id].get(str(task_id), {}).get("span_links", [])
+            span_links = self._crews_to_tasks.get(crew_id, {}).get(str(task_id), {}).get("span_links", [])
             if self._is_planning_task(span):
                 parent_span = _get_nearest_llmobs_ancestor(span)
                 span_link = _SpanLink(
