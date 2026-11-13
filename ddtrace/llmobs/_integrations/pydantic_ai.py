@@ -234,8 +234,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         output_val = None
         if not span.error:
-            # depending on the version, the output may be a ToolReturnPart or the raw response
-            output_val = getattr(response, "content", "") or response
+            output_val = self._tool_output_value(response)
 
         _annotate_llmobs_span_data(
             span,
@@ -255,6 +254,27 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 tool_id,
             ),
         )
+
+    @staticmethod
+    def _tool_output_value(response: Any) -> Any:
+        """Value recorded as a tool span's output.
+
+        ToolReturn.return_value is the tool result. ToolReturn.content is extra context sent to
+        the model as a separate user message, so reading .content records the note and drops the
+        result. ToolReturnPart stores the result on content, and older versions pass the raw
+        response through.
+        """
+        tool_return_type: Any = None
+        try:
+            from pydantic_ai.messages import ToolReturn
+
+            tool_return_type = ToolReturn
+        except ImportError:
+            pass
+        if tool_return_type is not None and isinstance(response, tool_return_type):
+            return response.return_value
+        # depending on the version, the output may be a ToolReturnPart or the raw response
+        return getattr(response, "content", "") or response
 
     def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
