@@ -6,12 +6,16 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.trace import tracer
+
+
+log = get_logger(__name__)
 
 
 def get_version():
@@ -354,7 +358,10 @@ def patched_create_react_agent(func, instance, args, kwargs):
     integration: LangGraphIntegration = langgraph._datadog_integration
     agent = func(*args, **kwargs)
 
-    integration.llmobs_handle_agent_manifest(agent, args, kwargs)
+    try:
+        integration.llmobs_handle_agent_manifest(agent, args, kwargs)
+    except Exception:
+        log.debug("Error extracting the agent manifest from create_react_agent", exc_info=True)
 
     return agent
 

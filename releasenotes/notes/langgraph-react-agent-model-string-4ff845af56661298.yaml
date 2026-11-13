@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langgraph: Fixes an issue where ``create_react_agent`` raised a ``ValueError`` when LLM Observability
+    was enabled and the model was passed as a string without a provider prefix, such as ``"gpt-4o"``.
