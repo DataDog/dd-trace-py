@@ -339,7 +339,7 @@ class TestWriterAttachDependencyMetadata:
 
         writer, tracker = _make_writer_and_tracker(sca_enabled=True)
 
-        with patch("importlib.metadata.version", return_value="2.28.0"):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.get_version_for_package", return_value="2.28.0"):
             result = writer.attach_dependency_metadata("requests", "CVE-1", "mod", "func", 1)
 
         assert result is True
@@ -599,7 +599,7 @@ class TestWriterRegisterCveMetadata:
 
         writer, tracker = _make_writer_and_tracker(sca_enabled=True)
 
-        with patch("importlib.metadata.version", return_value="1.0"):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.get_version_for_package", return_value="1.0"):
             result = writer.register_cve_metadata("flask", "CVE-NEW")
 
         assert result is True
@@ -685,7 +685,7 @@ class TestTrackerNameNormalization:
         appsec_telemetry_config.SCA_ENABLED = True
         tracker = DependencyTracker()
 
-        with patch("importlib.metadata.version", return_value="6.0"):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.get_version_for_package", return_value="6.0"):
             # Telemetry discovers "PyYAML" first
             tracker._imported_dependencies["pyyaml"] = DependencyEntry(name="PyYAML", version="6.0", metadata=[])
             # SCA tries to ensure "pyyaml" — should find the existing entry
