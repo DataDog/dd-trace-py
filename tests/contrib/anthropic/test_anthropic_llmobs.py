@@ -101,6 +101,31 @@ class TestLLMObsAnthropic:
         message = {"content": []}
         assert _on_content_block_stop_chunk(chunk=None, message=message) == message
 
+    def test_stream_handler_retention_is_linear_in_deltas(self):
+        """messages.stream() yields a derived event carrying the cumulative snapshot after every raw delta.
+        Only raw events are retained, so retained data grows linearly with the deltas instead of quadratically.
+        """
+        from types import SimpleNamespace as NS
+
+        from ddtrace.contrib.internal.anthropic._streaming import AnthropicStreamHandler
+        from ddtrace.contrib.internal.anthropic._streaming import _construct_message
+
+        n = 1000
+        handler = AnthropicStreamHandler(None, None, (), {})
+        handler.process_chunk(NS(type="message_start", message=NS(role="assistant", usage=NS(input_tokens=1))))
+        handler.process_chunk(NS(type="content_block_start", content_block=NS(type="text", text="")))
+        snapshot = ""
+        for _ in range(n):
+            handler.process_chunk(NS(type="content_block_delta", delta=NS(type="text_delta", text="ab")))
+            snapshot += "ab"
+            handler.process_chunk(NS(type="text", text="ab", snapshot=snapshot))
+        handler.process_chunk(NS(type="content_block_stop"))
+        handler.process_chunk(NS(type="message_stop"))
+
+        assert len(handler.chunks) == n + 3
+        assert sum(len(c.delta.text) for c in handler.chunks if c.type == "content_block_delta") == 2 * n
+        assert _construct_message(handler.chunks)["content"] == [{"type": "text", "text": "ab" * n}]
+
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_beta_server_tool_use_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
