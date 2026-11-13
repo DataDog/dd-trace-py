@@ -32,6 +32,10 @@ components:
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py
+  package_split:
+    - scripts/package-split
+    - scripts/package_split/*
+    - tests/package_split/*
   crashtracker:
     - ddtrace/internal/core/crashtracking.py
     - ddtrace/internal/settings/crashtracker.py
@@ -158,6 +162,15 @@ components:
   vendor:
     - ddtrace/vendor/*
 suites:
+  package_split:
+    paths:
+      - '@package_split'
+    matrix:
+      command: pytest -v {cmdargs} tests/package_split/
+      variants:
+        - name: package_split
+          python: ['3.12']
+          dependencies: [pytest-randomly]
   smoke_test:
     type: helper
     paths:
