@@ -13,7 +13,7 @@ from tests.utils import TracerTestCase
 
 
 @pytest.fixture
-def preapare_test_env(mypackage_example):
+def preapare_test_env(mypackage_example, remove_git_repo_url_from_test_env):
     subprocess.check_output("python setup.py bdist_wheel", shell=True)
     pkgfile = glob.glob(os.path.join(mypackage_example, "dist", "*.whl"))[0]
 

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    opentelemetry: Fixes an issue where setting ``OTEL_SDK_DISABLED=false`` enabled OpenTelemetry traces, metrics,
+    and logs support, and overrode ``OTEL_LOGS_EXPORTER=none``. ``OTEL_SDK_DISABLED=false`` and an empty value are now
+    treated as the default and no longer enable these features; use ``DD_TRACE_OTEL_ENABLED``,
+    ``DD_METRICS_OTEL_ENABLED``, or ``DD_LOGS_OTEL_ENABLED`` instead.
