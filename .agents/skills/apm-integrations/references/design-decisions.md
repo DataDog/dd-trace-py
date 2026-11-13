@@ -47,10 +47,17 @@ Importing the subscriber package alone does not activate the web bundle. Do not 
 shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 
+Flask and WSGI defer their shared request context through response iteration.
+The iterable reports completion without owning spans; `WebFrameworkResponseEvent`
+lets tracing create the response child. Keep application-return security cleanup
+separate from response completion: AppSec and IAST consume
+`wsgi.application.returned` while the request context remains current. Retain
+Flask's metadata and blocking phase hooks rather than adding a second request owner.
+
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,
-flask and django. This pattern decouples patch code from span creation.
+Flask child operations and django. This pattern decouples patch code from span creation.
 
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call
