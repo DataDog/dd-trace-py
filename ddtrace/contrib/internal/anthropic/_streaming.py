@@ -87,15 +87,23 @@ class BaseAnthropicStreamHandler:
         else:
             ctx.dispatch_ended_event()
 
+    def _retain_chunk(self, chunk):
+        # messages.stream() also yields derived events (text, input_json, thinking, ...) that carry the
+        # cumulative snapshot so far. They are not needed to rebuild the response, and keeping them until
+        # the stream ends grows memory quadratically with the output length.
+        chunk_type = _get_attr(chunk, "type", "")
+        if isinstance(chunk_type, str) and chunk_type in _CHUNK_TRANSFORMATIONS:
+            self.chunks.append(chunk)
+
 
 class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
-        self.chunks.append(chunk)
+        self._retain_chunk(chunk)
 
 
 class AnthropicAsyncStreamHandler(BaseAnthropicStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
-        self.chunks.append(chunk)
+        self._retain_chunk(chunk)
 
 
 def _construct_message(streamed_chunks):
@@ -112,16 +120,8 @@ def _construct_message(streamed_chunks):
 
 def _extract_from_chunk(chunk, message) -> tuple[dict[str, str], bool]:
     """Constructs a chat message dictionary from streamed chunks given chunk type"""
-    TRANSFORMATIONS_BY_BLOCK_TYPE = {
-        "message_start": _on_message_start_chunk,
-        "content_block_start": _on_content_block_start_chunk,
-        "content_block_delta": _on_content_block_delta_chunk,
-        "content_block_stop": _on_content_block_stop_chunk,
-        "message_delta": _on_message_delta_chunk,
-        "error": _on_error_chunk,
-    }
     chunk_type = _get_attr(chunk, "type", "")
-    transformation = TRANSFORMATIONS_BY_BLOCK_TYPE.get(chunk_type)
+    transformation = _CHUNK_TRANSFORMATIONS.get(chunk_type)
     if transformation is not None:
         message = transformation(chunk, message)
 
@@ -257,6 +257,16 @@ def _on_error_chunk(chunk, message):
         if _get_attr(chunk.error, "message"):
             message["error"]["message"] = chunk.error.message
     return message
+
+
+_CHUNK_TRANSFORMATIONS = {
+    "message_start": _on_message_start_chunk,
+    "content_block_start": _on_content_block_start_chunk,
+    "content_block_delta": _on_content_block_delta_chunk,
+    "content_block_stop": _on_content_block_stop_chunk,
+    "message_delta": _on_message_delta_chunk,
+    "error": _on_error_chunk,
+}
 
 
 def _is_stream(resp: Any) -> bool:
