@@ -1,5 +1,6 @@
 from _queue import SimpleQueue
 from _thread import get_ident as _get_ident
+from functools import partial
 import threading as _threading
 from time import monotonic_ns
 from types import ModuleType
@@ -118,6 +119,15 @@ def _safe_restart(start: t.Callable[[], None]) -> t.Optional[Exception]:
     return None
 
 
+def _restart_error_logger(name: str, error: Exception) -> t.Callable[[], None]:
+    # One call site per message keeps the line-based log rate limiter's buckets distinct.
+    return lambda: log.error("failed to restart periodic thread %s after fork: %s", name, error)
+
+
+def _start_error_logger(name: str, error: Exception) -> t.Callable[[], None]:
+    return lambda: log.error("failed to start periodic thread %s: %s", name, error)
+
+
 class PeriodicThread(_PeriodicThread):
     """A fork-safe periodic thread."""
 
@@ -188,21 +198,19 @@ class ThreadRestartTimer(PeriodicThread):
 
     def _restart_threads(self) -> None:
         # Restart the threads after we have stopped calling fork for a while.
-        # Errors are logged only after _forking_lock is released: a log handler
-        # (e.g. telemetry log forwarding) can take a lock whose holder is itself
-        # waiting for _forking_lock, such as a thread stopping a periodic service.
-        # Each entry is (failed_after_fork_restart, thread name, error).
-        errors: list[tuple[bool, str, Exception]] = []
+        # Nothing is logged while _forking_lock is held: a log handler (e.g.
+        # telemetry log forwarding, or a gevent-patched logging lock that only
+        # the main thread's hub can release) can wait for a lock whose holder is
+        # itself waiting for _forking_lock, such as a thread about to fork or one
+        # stopping a periodic service. Log calls are queued and emitted afterwards.
+        deferred_logs: list[t.Callable[[], None]] = []
         try:
-            self._restart_threads_locked(errors)
+            self._restart_threads_locked(deferred_logs)
         finally:
-            for restarting, name, error in errors:
-                if restarting:
-                    log.error("failed to restart periodic thread %s after fork: %s", name, error)
-                else:
-                    log.error("failed to start periodic thread %s: %s", name, error)
+            for emit in deferred_logs:
+                emit()
 
-    def _restart_threads_locked(self, errors: list[tuple[bool, str, Exception]]) -> None:
+    def _restart_threads_locked(self, deferred_logs: list[t.Callable[[], None]]) -> None:
         with _forking_lock:
             # If we are forking, we will try again later.
             if _forking:
@@ -224,11 +232,11 @@ class ThreadRestartTimer(PeriodicThread):
                         # __autorestart__, so they must be excluded explicitly
                         # to avoid re-running their target in the parent.
                         continue
-                    log.debug("Restarting thread %s after fork", thread.name)
+                    deferred_logs.append(partial(log.debug, "Restarting thread %s after fork", thread.name))
                     try:
                         thread._after_fork(force=self._force_restart)
                     except Exception as e:
-                        errors.append((True, thread.name, e))
+                        deferred_logs.append(_restart_error_logger(thread.name, e))
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
@@ -237,10 +245,12 @@ class ThreadRestartTimer(PeriodicThread):
                         # actually ran in the parent. Same __autorestart__ contract as
                         # above: don't start it in the child either.
                         continue
-                    log.debug("Starting thread %s after fork", thread_start.__self__.name)
+                    deferred_logs.append(
+                        partial(log.debug, "Starting thread %s after fork", thread_start.__self__.name)
+                    )
                     error = _safe_restart(thread_start)
                     if error is not None:
-                        errors.append((False, thread_start.__self__.name, error))
+                        deferred_logs.append(_start_error_logger(thread_start.__self__.name, error))
                 _threads_to_start_after_fork.clear()
 
                 # We no longer need this thread so we clear it.
