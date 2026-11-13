@@ -12,6 +12,7 @@ from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._logs import iast_ast_debug_log
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _ImportHookChainedLoader
 from ddtrace.internal.module import origin
@@ -31,6 +32,8 @@ _VISITOR = AstVisitor()
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 IAST_PATCHING_LAZY_LOADED = True
+_IAST_LISTS_LOCK = forksafe.Lock()
+_IAST_LISTS_RETRY_GENERATION = 0
 _SOURCE_LOADER_METHODS = {
     name: getattr(SourceFileLoader, name)
     for name in (
@@ -170,14 +173,20 @@ def _should_iast_patch(module_name: str) -> bool:
         When asm_config._iast_debug is True, the function will log detailed information about
         why a module was allowed or denied patching.
     """
-    global IAST_PATCHING_LAZY_LOADED
+    global IAST_PATCHING_LAZY_LOADED, _IAST_LISTS_RETRY_GENERATION
     incomplete_packages = None
     discovery = is_distribution_discovery_in_progress()
     if IAST_PATCHING_LAZY_LOADED or discovery:
+        with _IAST_LISTS_LOCK:
+            generation = _IAST_LISTS_RETRY_GENERATION
         complete, incomplete_packages = initialize_iast_lists()
         if discovery and not complete and incomplete_packages is None:
             incomplete_packages = set()
-        IAST_PATCHING_LAZY_LOADED = not complete
+        with _IAST_LISTS_LOCK:
+            if not complete:
+                _IAST_LISTS_RETRY_GENERATION += 1
+            # An older initializer must not clear a retry requested by a later import.
+            IAST_PATCHING_LAZY_LOADED = not complete or generation != _IAST_LISTS_RETRY_GENERATION
     result = iastpatch.DENIED_NOT_FOUND
     try:
         result = iastpatch.should_iast_patch(module_name, incomplete_packages)

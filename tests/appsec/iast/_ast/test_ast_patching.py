@@ -970,6 +970,64 @@ def test_failed_discovery_reentry_keeps_loader_and_static_guards():
             packages._FINDER_QUERY.active = False
 
 
+@pytest.mark.subprocess()
+def test_completed_reader_cannot_clear_a_newer_retry():
+    import threading
+    from unittest import mock
+
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+    from ddtrace.internal import packages
+
+    pending = threading.Event()
+    release = threading.Event()
+    errors = []
+    initialize = ap.initialize_iast_lists
+
+    def inventory():
+        if threading.current_thread().name == "completed-reader":
+            return {"old_dependency": ["old"]}, True
+        if packages.is_distribution_discovery_in_progress():
+            return {}, False
+        return {"new_dependency": ["new"]}, True
+
+    def pause_after_publication():
+        result = initialize()
+        if threading.current_thread().name == "completed-reader":
+            pending.set()
+            assert release.wait(5)
+        return result
+
+    def read_complete():
+        try:
+            ap._should_iast_patch("application_a")
+        except BaseException as exc:
+            errors.append(exc)
+
+    ap.IAST_PATCHING_LAZY_LOADED = True
+    with (
+        mock.patch.object(ap, "get_package_distributions_with_status", side_effect=inventory),
+        mock.patch.object(ap, "initialize_iast_lists", side_effect=pause_after_publication),
+    ):
+        thread = threading.Thread(target=read_complete, name="completed-reader")
+        thread.start()
+        try:
+            assert pending.wait(5)
+            packages._FINDER_QUERY.active = True
+            try:
+                ap._should_iast_patch("application_during_later_discovery")
+            finally:
+                packages._FINDER_QUERY.active = False
+            assert ap.IAST_PATCHING_LAZY_LOADED
+        finally:
+            release.set()
+            thread.join(5)
+        assert not thread.is_alive()
+        assert not errors, errors
+        assert ap.IAST_PATCHING_LAZY_LOADED
+        assert not ap._should_iast_patch("new_dependency")
+        assert not ap.IAST_PATCHING_LAZY_LOADED
+
+
 @pytest.mark.subprocess(
     env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="", _DD_IAST_DENY_MODULES=""),
     parametrize=dict(
