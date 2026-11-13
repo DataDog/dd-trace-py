@@ -11,6 +11,34 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
+@pytest.mark.parametrize("method", ["encode", "decode"])
+@pytest.mark.parametrize("parts", [("one", "two"), ("é", "ñ")])
+@pytest.mark.parametrize("separator", ["/", ""])
+def test_encode_decode_multiple_ranges(method, parts, separator):
+    def input_value(value):
+        return value.encode("utf-8") if method == "decode" else value
+
+    def output_value(value):
+        return value.encode("utf-8") if method == "encode" else value
+
+    first, second = (
+        taint_pyobject(input_value(value), source_name=name, source_value=value)
+        for value, name in zip(parts, ("first", "second"))
+    )
+    value = ddtrace_aspects.add_aspect(input_value("http://"), first)
+    value = ddtrace_aspects.add_aspect(value, input_value(separator))
+    value = ddtrace_aspects.add_aspect(value, second)
+    value = ddtrace_aspects.add_aspect(value, input_value("/"))
+
+    result = getattr(mod, "do_" + method)(value, "utf-8")
+
+    assert result == output_value("http://" + parts[0] + separator + parts[1] + "/")
+    assert [(r.start, r.length, r.source.name) for r in get_tainted_ranges(result)] == [
+        (7, len(output_value(parts[0])), "first"),
+        (len(output_value("http://" + parts[0] + separator)), len(output_value(parts[1])), "second"),
+    ]
+
+
 def catch_all(fun, args, kwargs):
     try:
         return True, fun(*args, **kwargs)

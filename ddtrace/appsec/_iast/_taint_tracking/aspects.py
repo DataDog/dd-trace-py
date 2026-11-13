@@ -607,7 +607,6 @@ def incremental_translation(self, incr_coder, funcode, empty):
     tainted_new_length = 0
     in_tainted = False
     tainted_start = 0
-    bytes_iterated = 0
     try:
         for i in range(len(self)):
             if tainted_range is None:
@@ -617,7 +616,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
                 break
             if i == tainted_range.start:
                 # start new tainted range
-                tainted_start = bytes_iterated
+                tainted_start = result_length
                 tainted_new_length = 0
                 in_tainted = True
 
@@ -627,8 +626,6 @@ def incremental_translation(self, incr_coder, funcode, empty):
 
             if in_tainted:
                 tainted_new_length += len(new_prod)
-            else:
-                bytes_iterated += len(new_prod)
 
             if i + 1 == tainted_range.start + tainted_range.length and tainted_new_length > 0:
                 # end range. Do no taint partial multi-bytes character that comes next.
@@ -642,6 +639,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
                 )
 
                 tainted_range = next(tainted_ranges, None)
+                in_tainted = False
         result_list.append(funcode(self[:0], True))
     except UnicodeDecodeError as e:
         offset = -len(incr_coder.getstate()[0])
