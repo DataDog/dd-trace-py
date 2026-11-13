@@ -440,10 +440,7 @@ suites:
           python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
   crewai:
-    # TODO(py-315): crewai requires chromadb, which has no cp315 wheels in
-    # stable releases (pre-releases only), and the onnxruntime it pulls in
-    # (1.31.0 ships cp311–cp314t only) lacks 3.15 support too. Add 3.15 to the
-    # python lists once those dependencies support Python 3.15.
+    # Python versions follow crewai's requires-python: 0.102 supports <3.13 and 1.x <3.14.
     venvs_per_job: 2
     retry: 2
     paths:
@@ -462,7 +459,7 @@ suites:
           dependencies: [pytest-asyncio, openai, 'crewai~=0.102.0', 'vcrpy==7.0.0']
         # crewai 1.x resolves aiohttp 3.14, whose streams module no longer has the class vcrpy 7.0.0 patches.
         - name: crewai
-          python: ['3.10', '3.11', '3.12']
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==8.3.0']
   openai_agents:
     venvs_per_job: 5
