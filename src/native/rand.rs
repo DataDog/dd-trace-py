@@ -7,8 +7,9 @@ use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::warn;
 
-// Set once at module init (Release) when a MicroVM environment is detected; every read is an
-// Acquire load so the store is visible to threads that did not participate in module import.
+// Set once at module init (Release) when a MicroVM or SnapStart environment is detected; every
+// read is an Acquire load so the store is visible to threads that did not participate in module
+// import.
 static SECURE_RANDOM: AtomicBool = AtomicBool::new(false);
 static OS_RNG_FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
 
@@ -18,6 +19,16 @@ static OS_RNG_FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
 fn is_microvm_environment() -> bool {
     std::env::var("AWS_LAMBDA_MICROVM_IMAGE_ARN")
         .map(|v| !v.is_empty())
+        .unwrap_or(false)
+}
+
+// Returns true when running in an AWS Lambda SnapStart environment. The runtime is initialized
+// once, its memory (including the thread-local SmallRng state) is snapshotted, and the snapshot is
+// restored into many execution environments, so they would all generate the same ID sequence.
+// AWS Lambda sets AWS_LAMBDA_INITIALIZATION_TYPE=snap-start during the snapshotted initialization.
+fn is_snapstart_environment() -> bool {
+    std::env::var("AWS_LAMBDA_INITIALIZATION_TYPE")
+        .map(|v| v == "snap-start")
         .unwrap_or(false)
 }
 
@@ -162,6 +173,28 @@ mod tests {
     }
 
     #[test]
+    fn test_is_snapstart_environment() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AWS_LAMBDA_INITIALIZATION_TYPE", "snap-start");
+        assert!(
+            is_snapstart_environment(),
+            "expected is_snapstart_environment() == true when initialization type is snap-start"
+        );
+
+        std::env::set_var("AWS_LAMBDA_INITIALIZATION_TYPE", "on-demand");
+        assert!(
+            !is_snapstart_environment(),
+            "expected is_snapstart_environment() == false when initialization type is on-demand"
+        );
+
+        std::env::remove_var("AWS_LAMBDA_INITIALIZATION_TYPE");
+        assert!(
+            !is_snapstart_environment(),
+            "expected is_snapstart_environment() == false when initialization type is unset"
+        );
+    }
+
+    #[test]
     fn test_secure_random_flag_reflects_stored_value() {
         with_secure_random(true, || {
             assert!(
@@ -267,7 +300,10 @@ mod tests {
 pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Release store: any thread that subsequently does an Acquire load will see this value,
     // even if it was created before module import.
-    SECURE_RANDOM.store(is_microvm_environment(), Ordering::Release);
+    SECURE_RANDOM.store(
+        is_microvm_environment() || is_snapstart_environment(),
+        Ordering::Release,
+    );
 
     m.add_function(wrap_pyfunction!(seed, m)?)?;
     m.add_function(wrap_pyfunction!(rand64bits, m)?)?;
