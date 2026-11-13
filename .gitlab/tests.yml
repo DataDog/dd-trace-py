@@ -70,6 +70,8 @@ extract_test_artifacts:
     # are on the same filesystem. The default cache is in the home directory, which is
     # not on the filesystem of the checkout, so uv copies every file into each venv.
     UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
+    # Do not install the uwsgi wheels of the dd-trace-py-wheels index. See .gitlab/uv.toml.
+    UV_CONFIG_FILE: "${CI_PROJECT_DIR}/.gitlab/uv.toml"
   before_script:
     - |
       # These suites need LiteLLM versions that the internal index does not permit.

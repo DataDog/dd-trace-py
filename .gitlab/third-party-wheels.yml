@@ -1,0 +1,74 @@
+# Find the pins of the test locks that have no wheel on PyPI for the test image, build the
+# wheels that the Depot repository datadog/dd-trace-py-wheels does not have yet, and upload them
+# to that repository. .gitlab-ci.yml adds the index of the repository as an extra index for pip
+# and uv. See .gitlab/scripts/third-party-wheels.py.
+
+"build third-party wheels":
+  extends: .retry_on_infrastructure_failure
+  stage: package
+  # The test image has the system libraries that the test jobs use to build the packages.
+  image: !reference [.testrunner, image]
+  tags: [ "arch:amd64" ]
+  needs: []
+  timeout: 1h
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_main]
+    # A branch that changes the locks or the jobs builds and uploads the new wheels before the merge.
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        paths:
+          - tests/requirements_locks/*.txt
+          - .gitlab/third-party-wheels.yml
+          - .gitlab/scripts/third-party-wheels.py
+        compare_to: refs/heads/main
+    - when: manual
+      allow_failure: true
+  # The script exits with 3 when it cannot build some wheels. The upload job still uploads the
+  # wheels that it could build.
+  allow_failure:
+    exit_codes: [3]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
+  variables:
+    KUBERNETES_CPU_REQUEST: "8"
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+  before_script:
+    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15
+  script:
+    # Python 3.12 runs only the script, which builds the wheels with the python of PYTHON_VERSION.
+    - uv run --python 3.12 --script .gitlab/scripts/third-party-wheels.py build --python "${PYTHON_VERSION}" --output-dir third-party-wheels --jobs 4
+  artifacts:
+    # Also keep the wheels of a job that cannot build all its wheels (exit code 3).
+    when: always
+    paths:
+      - third-party-wheels/*.whl
+    expire_in: 1 week
+
+"upload third-party wheels":
+  # The ci-utils image has the adms binary.
+  extends: .ci_utils
+  stage: package
+  needs:
+    - job: "build third-party wheels"
+      artifacts: true
+  # Upload from one pipeline at a time, so that two pipelines cannot upload the same wheel.
+  resource_group: third-party-wheels
+  # Do not stop the job between two uploads.
+  interruptible: false
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - when: on_success
+  script:
+    # adms parseRepositoryURL accepts only host/org/repo (5 slash parts).
+    # GitLab sets CI_REPOSITORY_URL to DataDog/apm-reliability/dd-trace-py.
+    - export CI_REPOSITORY_URL="https://github.com/DataDog/dd-trace-py"
+    - uv run --script .gitlab/scripts/third-party-wheels.py upload third-party-wheels
