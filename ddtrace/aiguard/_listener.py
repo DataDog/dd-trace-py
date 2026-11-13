@@ -37,6 +37,7 @@ from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_call_tool_before
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_invoke_tool_before
+from ddtrace.aiguard.integrations._openai_agents import _openai_agents_turn_started
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
@@ -138,6 +139,7 @@ def _openai_agents_listen(client: AIGuardClient) -> None:
     # not gate them; DD_AI_GUARD_MCP_ENABLED is checked per call by the listeners.
     core.on("openai_agents.mcp.invoke_tool.before", partial(_openai_agents_mcp_invoke_tool_before, client))
     core.on("openai_agents.mcp.call_tool.before", partial(_openai_agents_mcp_call_tool_before, client))
+    core.on("openai_agents.turn.started", _openai_agents_turn_started)
 
 
 def _with_listed_tools(kwargs: dict[str, Any]) -> dict[str, Any]:

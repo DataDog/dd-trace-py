@@ -22,6 +22,7 @@ from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import MCPTransport
+from ddtrace.aiguard.integrations._mcp import clear_model_tool_calls
 from ddtrace.aiguard.integrations._mcp import local_tool_call_id
 from ddtrace.aiguard.integrations._mcp import mcp_reference
 from ddtrace.aiguard.integrations._mcp import mcp_server
@@ -98,6 +99,14 @@ def _evaluate(client: AIGuardClient, messages: list[Message], mcp_servers: Optio
         raise
     except Exception:
         logger.debug("Failed to evaluate openai-agents MCP tool call", exc_info=True)
+
+
+def _openai_agents_turn_started() -> None:
+    """Listener for openai_agents.turn.started: tool calls recorded in an earlier turn never describe this one's.
+
+    Covers custom model providers, which never reach the OpenAI listeners that also clear them.
+    """
+    clear_model_tool_calls()
 
 
 def _openai_agents_mcp_invoke_tool_before(

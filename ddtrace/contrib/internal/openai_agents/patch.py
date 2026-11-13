@@ -38,6 +38,8 @@ def _supported_versions() -> dict[str, str]:
 
 
 async def _patched_run_single_turn(func, instance, args, kwargs):
+    # A turn runs one model call and the tools it selects, whatever the model provider.
+    core.dispatch("openai_agents.turn.started", ())
     current_span = tracer.current_span()
     result = await func(*args, **kwargs)
 

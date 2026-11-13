@@ -456,6 +456,23 @@ def test_new_model_request_forgets_the_previous_operation(mock_execute_request):
 
 
 @patch(EXECUTE_REQUEST)
+def test_agent_turn_forgets_the_previous_operation(mock_execute_request):
+    """A turn run by a custom model provider never reaches the OpenAI listeners, so the turn itself clears."""
+    from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    _record_atlassian_response()
+    seen_by_the_turn = []
+
+    async def run_turn():
+        seen_by_the_turn.append(_model_tool_calls.get())
+        return "turn result"
+
+    assert asyncio.run(_patched_run_single_turn(run_turn, None, (), {})) == "turn result"
+    assert seen_by_the_turn == [None]
+
+
+@patch(EXECUTE_REQUEST)
 def test_unknown_call_id_sends_only_the_tool_call(mock_execute_request):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     _openai_response_create_after(
@@ -539,7 +556,11 @@ def test_openai_kill_switch_keeps_the_mcp_listeners():
             _listener.ai_guard_listen()
 
     events = {c.args[0] for c in core_on.call_args_list}
-    assert {"openai_agents.mcp.invoke_tool.before", "openai_agents.mcp.call_tool.before"} <= events
+    assert {
+        "openai_agents.mcp.invoke_tool.before",
+        "openai_agents.mcp.call_tool.before",
+        "openai_agents.turn.started",
+    } <= events
     assert not any(event.startswith("openai.") for event in events)
 
 
