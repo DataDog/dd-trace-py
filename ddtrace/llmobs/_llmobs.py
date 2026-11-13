@@ -2055,17 +2055,17 @@ class LLMObs(Service):
 
     @classmethod
     @_serialized
-    def _reconcile_remote_config(cls) -> None:
+    def _reconcile_enabled(cls) -> None:
         """Enable or disable LLMObs to match config._llmobs_enabled.
 
-        The check and the change happen under the lock, so a Remote Config update that arrives while
-        product start is inside enable() is applied once enable() returns, not lost.
+        Product start and the Remote Config handler both go through here. The check and the change
+        happen under the lock, so neither can act on a value the other has already changed.
         """
         if config._llmobs_enabled and not cls.enabled:
-            log.debug("Enabling LLMObs via Remote Config (ml_app=%r)", config._llmobs_ml_app)
+            log.debug("Enabling LLMObs to match configuration (ml_app=%r)", config._llmobs_ml_app)
             cls.enable(ml_app=config._llmobs_ml_app, _auto=True)
         elif not config._llmobs_enabled and cls.enabled:
-            log.debug("Disabling LLMObs via Remote Config")
+            log.debug("Disabling LLMObs to match configuration")
             cls.disable(_auto=True)
 
     @classmethod

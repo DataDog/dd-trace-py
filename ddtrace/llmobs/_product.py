@@ -25,7 +25,9 @@ def enabled() -> bool:
 def start() -> None:
     from ddtrace.llmobs import LLMObs
 
-    LLMObs.enable(_auto=True)
+    # Decide under the lifecycle lock, so a Remote Config update that lands after the product
+    # manager checked enabled() is not overridden.
+    LLMObs._reconcile_enabled()
 
 
 def restart(join: bool = False) -> None:
@@ -74,4 +76,4 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
     ml_app_config = dd_config._config["_llmobs_ml_app"]
     ml_app_config.set_value(llmobs_config.get("ml_app_name"), "remote_config")
 
-    LLMObs._reconcile_remote_config()
+    LLMObs._reconcile_enabled()

@@ -253,3 +253,18 @@ def test_rc_disable_during_llmobs_product_start_disables_llmobs():
 
     assert ddtrace.config._llmobs_enabled is False
     assert not LLMObs.enabled
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "true", "DD_REMOTE_CONFIGURATION_ENABLED": "false"})
+def test_product_start_after_rc_disable_keeps_llmobs_disabled():
+    """Regression: Remote Config can disable LLMObs after the product manager checked enabled()
+    but before product start runs. Product start must not enable LLMObs anyway.
+    """
+    import ddtrace
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs import _product
+
+    ddtrace.config._config["_llmobs_enabled"].set_value(False, "remote_config")
+    _product.start()
+
+    assert not LLMObs.enabled
