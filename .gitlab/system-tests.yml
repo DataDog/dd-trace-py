@@ -65,6 +65,7 @@
       source ${CI_PROJECT_DIR}/system-tests/venv/bin/activate
       uv pip install --upgrade pip "setuptools==75.8.0"
       uv pip install -e ${CI_PROJECT_DIR}/system-tests
+      cp ${CI_PROJECT_DIR}/system-tests/requirements.txt ${CI_PROJECT_DIR}/system-tests/venv/requirements.txt
       echo -e "\e[0Ksection_end:`date +%s`:build_runner\r\e[0K"
   after_script:
     - |
