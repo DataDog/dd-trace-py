@@ -6,6 +6,7 @@ Add all monkey-patching that needs to run by default here
 import typing as t
 
 from ddtrace import config  # noqa:F401
+from ddtrace.internal import uwsgi
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.packages import prefetch_distributions
@@ -13,6 +14,7 @@ from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config  # noqa:F401
+from ddtrace.internal.threads import Thread
 from ddtrace.trace import tracer
 
 
@@ -118,4 +120,16 @@ def _(_):
 
 @register_post_preload
 def _():
-    tracer._generate_diagnostic_logs()
+    if not (config._debug_mode or config._startup_logs_enabled):
+        return
+    # The diagnostics probe the agent, which can take up to the agent timeout, so they run off the startup path.
+    # Forks join the thread, and so does the exit, so short-lived processes still log them.
+    if uwsgi.will_fork_without_fork_hooks():
+        # The fork hooks that join the thread won't run, and a worker forked while it holds the GIL hangs.
+        tracer._generate_diagnostic_logs()
+        return
+    try:
+        Thread(tracer._generate_diagnostic_logs, name=f"{__name__}:diagnostic_logs").start()
+    except Exception:
+        log.debug("Failed to start the startup diagnostics thread", exc_info=True)
+        tracer._generate_diagnostic_logs()

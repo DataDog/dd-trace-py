@@ -1448,8 +1448,12 @@ Logs
 
    DD_TRACE_STARTUP_LOGS:
      type: Boolean
-     default: False
-     description: Enable or disable start up diagnostic logging.
+     default: True
+     description: |
+         Enable or disable start up diagnostic logging. The diagnostics are collected in a background thread,
+         so checking that the agent is reachable does not delay the application start.
+     version_added:
+       v4.18.0: The default changed from ``False`` to ``True``.
 
 Sampling
 --------

@@ -484,7 +484,7 @@ class Config:
         self._integration_default_services: frozenset[str] = frozenset()
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
-        self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
+        self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", True, asbool)
 
         agentless = AgentlessConfig()
         self._dd_api_key = agentless.api_key
