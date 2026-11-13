@@ -52,7 +52,6 @@ TRACED_ARGS = {"params", "path", "verb"}
 config._add(
     "aiobotocore",
     {
-        "_default_service": "aws",
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
@@ -134,13 +133,18 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
+    # An explicit integration service (DD_AIOBOTOCORE_SERVICE) is used as-is; otherwise match botocore's
+    # ``aws.<endpoint>`` rather than falling back to DD_SERVICE.
+    service = ext_service(None, config.aiobotocore) if config.aiobotocore.service else None
+    if service is None:
+        service = schematize_service_name(f"aws.{endpoint_name}")
     with tracer.trace(
         schematize_cloud_api_operation(f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
         set_service_and_source(
             span,
-            schematize_service_name(f"{ext_service(None, config.aiobotocore)}.{endpoint_name}"),
+            service,
             config.aiobotocore,
         )
         span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
