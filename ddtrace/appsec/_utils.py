@@ -280,24 +280,6 @@ def _hash_user_id(user_id: str) -> str:
     return f"anon_{hashlib.sha256(user_id.encode()).hexdigest()[:32]}"
 
 
-def _safe_userid(user_id: Any) -> Optional[Any]:
-    try:
-        _ = int(user_id)
-        return user_id
-    except ValueError:
-        try:
-            # Import uuid lazily because this also imports threading via the
-            # platform module
-            import uuid
-
-            _ = uuid.UUID(user_id)
-            return user_id
-        except ValueError:
-            pass
-
-    return None
-
-
 class _UserExtraInfo(TypedDict, total=False):
     login: Optional[str]
     email: Optional[str]
@@ -338,7 +320,7 @@ class _UserInfoRetriever:
         return user_login
 
     def get_username(self) -> Optional[str]:
-        username = getattr(self.user, asm_config._user_model_name_field, None)
+        username = getattr(self.user, asm_config._user_model_login_field, None)
         if username is not None:
             return str(username)
 
