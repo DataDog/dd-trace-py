@@ -9,6 +9,58 @@ requires_grpc_test_server = pytest.mark.skipif(
 )
 
 
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:14318/v1/traces",
+        "DD_TRACE_SAMPLE_RATE": "1",
+        "DD_TAGS": "team:core,region:us1,workers:7",
+    },
+    parametrize={"DD_TRACE_OTEL_SEMANTICS_ENABLED": ["true", "false"]},
+)
+def test_otlp_resource_attributes():
+    import json
+
+    from ddtrace.trace import tracer
+    from tests.opentelemetry.utils import _capture_http_requests
+
+    with _capture_http_requests(port=14318) as requests:
+        with tracer.trace("root") as root:
+            assert root.get_tag("team") == "core"
+            with tracer.trace("child") as child:
+                child.set_tag("region", "eu1")
+                child._set_attribute("workers", 7)
+        tracer.flush()
+        tracer.set_tags({"team": "updated", "workers": 8})
+        tracer.configure(trace_processors=[])
+        with tracer.trace("updated"):
+            pass
+        tracer.flush()
+
+    assert len(requests) == 2
+    [resource_spans] = json.loads(requests[0])["resourceSpans"]
+    resource = {a["key"]: a["value"] for a in resource_spans["resource"]["attributes"]}
+    spans = {
+        span["name"]: {a["key"]: a["value"] for a in span["attributes"]}
+        for scope in resource_spans["scopeSpans"]
+        for span in scope["spans"]
+    }
+    assert resource["team"] == {"stringValue": "core"}
+    assert resource["workers"] == {"stringValue": "7"}
+    assert all("team" not in attributes for attributes in spans.values())
+    assert "workers" not in spans["root"]
+    assert spans["child"]["workers"] == {"intValue": "7"}
+    assert spans["root"]["region"] == {"stringValue": "us1"}
+    assert spans["child"]["region"] == {"stringValue": "eu1"}
+    [updated] = json.loads(requests[1])["resourceSpans"]
+    attributes = {a["key"]: a["value"] for a in updated["resource"]["attributes"]}
+    assert attributes["team"] == {"stringValue": "updated"}
+    assert "workers" not in attributes
+    span_attributes = {a["key"]: a["value"] for a in updated["scopeSpans"][0]["spans"][0]["attributes"]}
+    assert span_attributes["workers"] == {"intValue": "8"}
+
+
 @requires_grpc_test_server
 @pytest.mark.subprocess(
     env={

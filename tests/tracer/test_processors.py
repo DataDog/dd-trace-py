@@ -1,3 +1,4 @@
+from threading import Thread
 from unittest import mock
 
 import pytest
@@ -1104,7 +1105,8 @@ def test_register_unregister_span_processor(tracer):
     assert span.get_tag("on_finish") is None
 
 
-def test_configure_agentless_writer_releases_an_unstarted_exporter():
+@pytest.mark.parametrize("agentless", [False, True])
+def test_configure_agentless_writer_releases_an_unstarted_exporter(agentless):
     """Swapping away from a writer that never started must still release its native exporter.
 
     NativeWriter builds the exporter in __init__ rather than on first write, so stop() raises
@@ -1113,20 +1115,61 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter():
     """
     from ddtrace._trace.processor import SpanAggregator
 
-    with override_global_config(dict(_trace_agentless_enabled=True, _dd_api_key="an-api-key")):
-        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    tags = {"team": "core", "region": "us1", "workers": 7}
+    with override_global_config(dict(_trace_agentless_enabled=agentless, _dd_api_key="an-api-key")):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1, tracer_tags=tags)
         old_writer = aggregator.writer
-        assert old_writer.agentless is True
+        assert old_writer.agentless is agentless
         assert old_writer.status is ServiceStatus.STOPPED, "writer should not have started yet"
 
         try:
             with mock.patch.object(type(old_writer), "shutdown_exporter", autospec=True) as shutdown:
-                assert aggregator.configure_agentless_writer(False) is True
+                assert aggregator.configure_agentless_writer(not agentless) is True
 
             assert shutdown.called, "the unstarted writer's exporter was never released"
-            assert aggregator.writer.agentless is False
+            assert aggregator.writer.agentless is not agentless
+            assert aggregator.writer._resource_attributes == {"team": "core", "region": "us1"}
         finally:
             try:
                 aggregator.writer.stop()
             except ServiceStatusError:
                 pass
+
+
+def test_resource_tags_update_during_writer_recreation():
+    writer = NativeWriter(
+        "http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces", resource_attributes={"team": "core"}
+    )
+    with mock.patch("ddtrace._trace.processor.create_trace_writer", return_value=writer):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    recreate = writer._recreate
+
+    def update_during_recreation(*args, **kwargs):
+        replacement = recreate(*args, **kwargs)
+        aggregator._set_resource_attributes({"team": "updated"})
+        return replacement
+
+    try:
+        with mock.patch.object(writer, "_recreate", side_effect=update_during_recreation):
+            aggregator.reset()
+        assert aggregator.writer is not writer
+        assert aggregator.writer._resource_attributes == {"team": "updated"}
+    finally:
+        aggregator.writer.shutdown_exporter()
+
+
+@pytest.mark.parametrize("otlp_endpoint", [None, "http://localhost:4318/v1/traces"])
+def test_resource_tags_update_does_not_wait_for_export(otlp_endpoint):
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint=otlp_endpoint, resource_attributes={"team": "core"})
+    with mock.patch("ddtrace._trace.processor.create_trace_writer", return_value=writer):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    update = Thread(target=aggregator._set_resource_attributes, args=({"team": "updated"},))
+    try:
+        with writer._exporter_lock:
+            update.start()
+            update.join(timeout=2)
+            assert not update.is_alive(), "Tag updates waited for the exporter while holding the aggregation lock"
+        assert writer._resource_attributes == {"team": "updated"}
+    finally:
+        update.join(timeout=2)
+        writer.shutdown_exporter()

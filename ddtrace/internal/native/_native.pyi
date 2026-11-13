@@ -591,6 +591,9 @@ class TraceExporter:
         :param data: The msgpack encoded trace payload to send.
         """
         ...
+    def set_otlp_resource_attributes(self, attributes: dict[str, str]) -> None:
+        """Replace the resource attributes used by subsequent OTLP trace exports."""
+        ...
     def shutdown(self, timeout_ns: int) -> None:
         """
         Shutdown the TraceExporter, releasing any resources and ensuring all pending stats are sent.

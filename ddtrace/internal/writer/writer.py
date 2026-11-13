@@ -846,6 +846,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         otlp_metrics_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
         agentless_stats_endpoint: Optional[str] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -881,6 +882,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
+        # Keep a copy so in-place tracer tag updates remain detectable.
+        self._resource_attributes = {
+            key: value for key, value in (resource_attributes or {}).items() if isinstance(value, str)
+        }
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._api_key = api_key
         self._agentless_stats_endpoint = agentless_stats_endpoint
@@ -1015,6 +1020,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
         return exporter
 
+    def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
+        self._resource_attributes = {key: value for key, value in attributes.items() if isinstance(value, str)}
+
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
         try:
@@ -1045,8 +1053,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._test_session_token = token
         if compute_stats_enabled is not None:
             self._compute_stats_enabled = compute_stats_enabled
-        old_exporter = self._exporter
-        self._exporter = self._create_exporter()
+        new_exporter = self._create_exporter()
+        with self._exporter_lock:
+            old_exporter, self._exporter = self._exporter, new_exporter
         self._shutdown_exporter(old_exporter)
 
     def _begin_shutdown(self) -> None:
@@ -1149,6 +1158,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_metrics_endpoint=otlp_metrics_endpoint,
             api_key=self._api_key,
             agentless_stats_endpoint=agentless_stats_endpoint,
+            resource_attributes=self._resource_attributes,
         )
 
     def _downgrade(self, status, client):
@@ -1250,6 +1260,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 # starts after a refresh and none reaches a dropped exporter.
                 if self._discarded_by_refresh:
                     return
+                if self._otlp_endpoint is not None:
+                    self._exporter.set_otlp_resource_attributes(self._resource_attributes)
                 response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
@@ -1543,6 +1555,7 @@ def _drop_conflicting_otlp_metrics_endpoint(
 def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
+    resource_attributes: Optional[dict[str, str]] = None,
 ) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
@@ -1575,6 +1588,7 @@ def create_trace_writer(
             # combined with agentless. OTLP trace metrics are permitted, and go to the intake.
             otlp_metrics_endpoint=otlp_metrics_endpoint,
             agentless_stats_endpoint=agentless_stats_endpoint,
+            resource_attributes=resource_attributes,
         )
 
     verify_url(agent_config.trace_agent_url)
@@ -1589,5 +1603,6 @@ def create_trace_writer(
         response_callback=response_callback,
         stats_opt_out=standalone_config.apm_opt_out,
         otlp_endpoint=otlp_endpoint,
+        resource_attributes=resource_attributes,
         otlp_metrics_endpoint=otlp_metrics_endpoint,
     )

@@ -42,6 +42,7 @@ from ddtrace.internal.utils.time import Time
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
+from ddtrace.internal.writer import TraceWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -314,6 +315,7 @@ class SpanAggregator(SpanProcessor):
         partial_flush_min_spans: int,
         dd_processors: Optional[list[TraceProcessor]] = None,
         user_processors: Optional[list[TraceProcessor]] = None,
+        tracer_tags: Optional[dict[str, str]] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
@@ -330,6 +332,7 @@ class SpanAggregator(SpanProcessor):
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
+            resource_attributes=tracer_tags,
         )
         # MicroVM only: (generation, runtime ID the writer was built for). A refresh publishes both as
         # one value, so span start and finish read them without taking a lock.
@@ -615,6 +618,17 @@ class SpanAggregator(SpanProcessor):
                     exc_info=(type(retirement_error), retirement_error, retirement_error.__traceback__),
                 )
 
+    def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
+        with self._lock:
+            if isinstance(self.writer, NativeWriter):
+                self.writer._set_resource_attributes(attributes)
+
+    def _replace_writer(self, writer: TraceWriter) -> None:
+        with self._lock:
+            if isinstance(self.writer, NativeWriter) and isinstance(writer, NativeWriter):
+                writer._set_resource_attributes(self.writer._resource_attributes)
+            self.writer = writer
+
     def configure_agentless_writer(self, enable: bool) -> bool:
         """
         Swap the writer between intake and agent submission. Returns True if a swap occurred.
@@ -633,7 +647,12 @@ class SpanAggregator(SpanProcessor):
 
         old_writer = self.writer
         try:
-            self.writer = create_trace_writer(response_callback=self._agent_response_callback, agentless=enable)
+            replacement = create_trace_writer(
+                response_callback=self._agent_response_callback,
+                agentless=enable,
+                resource_attributes=old_writer._resource_attributes if isinstance(old_writer, NativeWriter) else None,
+            )
+            self._replace_writer(replacement)
         except Exception:
             log.error(
                 "Failed to create %s APM trace writer; writer swap aborted.",
@@ -789,12 +808,13 @@ class SpanAggregator(SpanProcessor):
             for writer in self._retired_writers.copy():
                 writer.drop_buffered_traces()
             self.writer.drop_buffered_traces()
-            self.writer = self.writer.recreate(
+            replacement = self.writer.recreate(
                 appsec_enabled=appsec_enabled,
                 llmobs_enabled=llmobs_enabled,
                 compute_stats_enabled=compute_stats,
                 stats_opt_out=apm_opt_out,
             )
+            self._replace_writer(replacement)
             return None
 
         if self._identity_refresh_enabled and flush_writer and isinstance(self.writer, NativeWriter):
@@ -803,7 +823,7 @@ class SpanAggregator(SpanProcessor):
             replacement = old_writer._recreate(appsec_enabled, llmobs_enabled, compute_stats, apm_opt_out)
             retired_writer = _RetiredWriter(old_writer)
             self._retired_writers[old_writer] = retired_writer
-            self.writer = replacement
+            self._replace_writer(replacement)
             self._runtime_identity = (cast(tuple[int, str], self._runtime_identity)[0], get_runtime_id())
             if reset_buffer:
                 self.reset_trace_buffer_after_fork()
@@ -816,12 +836,13 @@ class SpanAggregator(SpanProcessor):
         elif drop_buffered_traces:
             self.writer.drop_buffered_traces()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(
+        replacement = self.writer.recreate(
             appsec_enabled=appsec_enabled,
             llmobs_enabled=llmobs_enabled,
             compute_stats_enabled=compute_stats,
             stats_opt_out=apm_opt_out,
         )
+        self._replace_writer(replacement)
         if self._runtime_identity is not None:
             # A writer rebuilt after a fork is built for the child's runtime ID.
             self._runtime_identity = (self._runtime_identity[0], get_runtime_id())

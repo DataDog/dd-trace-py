@@ -176,6 +176,7 @@ def _apply_config_change(config_name, config_value, dd_config):
         )
     elif config_name == "tags":
         tracer._tags = (config_value or {}).copy()
+        tracer._span_aggregator._set_resource_attributes(tracer._tags)
         log.debug("Updated tracer tags via remote_config: %s", tracer._tags)
     elif config_name == "_tracing_enabled":
         if tracer.enabled and config_value is False:
