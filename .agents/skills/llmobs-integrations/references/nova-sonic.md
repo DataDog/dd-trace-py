@@ -58,7 +58,9 @@ corresponding audio metric unknown; recover the baseline before pricing later
 turns, without attributing earlier unknown usage to them.
 Aggregate token counters are also unknown until valid usage is reported for that
 turn. A later valid counter can recover a gap within the same turn. Across turns,
-use the recovered counter only to reestablish the aggregate and audio baselines;
+register entirely unobserved directions at turn boundaries too, before a pending
+input counter can advance the baseline. Use the recovered counter only to
+reestablish the aggregate and audio baselines;
 omit affected metrics and derived totals rather than charging the gap to a later
 turn. Valid older cumulative counters remain stale events, not resets.
 Preserve explicit zeros and derive total_tokens only when both input and output
