@@ -1,5 +1,3 @@
-from collections.abc import Iterable
-from collections.abc import Iterator
 from collections.abc import Mapping
 import functools
 import sys
@@ -95,81 +93,6 @@ log = get_logger(__name__)
 _DJANGO_OTEL_ROUTE_APPLIED = "_dd.django_otel_route_applied"
 _WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 _WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
-
-
-class _TracedIterableSpan(Protocol):
-    def finish(self) -> None: ...
-
-    def set_exc_info(
-        self,
-        exc_type: type[BaseException],
-        exc_val: BaseException,
-        exc_tb: Optional[TracebackType],
-    ) -> None: ...
-
-
-class _TracedIterable:
-    __slots__ = ("__wrapped__", "_wrapped_iterator", "_self_span", "_self_parent_span", "_self_span_finished")
-
-    def __init__(
-        self,
-        wrapped: Iterable[Any],
-        span: _TracedIterableSpan,
-        parent_span: _TracedIterableSpan,
-        wrapped_is_iterator: bool = False,
-    ) -> None:
-        self._wrapped_iterator: Iterator[Any] = iter(wrapped)
-        self.__wrapped__ = wrapped if wrapped_is_iterator else self._wrapped_iterator
-        self._self_span = span
-        self._self_parent_span = parent_span
-        self._self_span_finished = False
-
-    def __iter__(self) -> "_TracedIterable":
-        return self
-
-    def __next__(self) -> Any:
-        try:
-            return next(self._wrapped_iterator)
-        except StopIteration:
-            self._finish_spans()
-            raise
-        except Exception:
-            self._self_span.set_exc_info(*sys.exc_info())
-            self._finish_spans()
-            raise
-
-    def close(self) -> None:
-        if (close := getattr(self.__wrapped__, "close", None)) is not None:
-            close()
-        self._finish_spans()
-
-    def _finish_spans(self) -> None:
-        if not self._self_span_finished:
-            self._self_span.finish()
-            self._self_parent_span.finish()
-            self._self_span_finished = True
-
-    @property  # type: ignore[misc]
-    def __class__(self) -> type[Any]:
-        return self.__wrapped__.__class__
-
-    def __getattr__(self, name: str) -> Any:
-        if name == "__len__":
-            # WSGI iterables must not expose the wrapped object's length.
-            raise AttributeError("__len__ is not supported")
-        return getattr(self.__wrapped__, name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in self.__slots__:
-            object.__setattr__(self, name, value)
-        else:
-            setattr(self.__wrapped__, name, value)
-
-    def __delattr__(self, name: str) -> None:
-        if name in self.__slots__:
-            object.__delattr__(self, name)
-        else:
-            delattr(self.__wrapped__, name)
 
 
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> dict[str, Any]:
@@ -506,38 +429,9 @@ def _on_app_exception(ctx):
     req_span = ctx.get_item("req_span")
     app_span = ctx.get_item("app_span")
     req_span.set_exc_info(*sys.exc_info())
-    app_span.set_exc_info(*sys.exc_info())
-    app_span.finish()
-    req_span.finish()
-
-
-def _on_request_complete(
-    ctx: core.ExecutionContext, closing_iterable: Iterable[Any], app_is_iterator: bool
-) -> _TracedIterable:
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
-    # start flask.response span. This span will be finished after iter(result) is closed.
-    # start_span(child_of=...) is used to ensure correct parenting.
-    resp_span = tracer.start_span(
-        (
-            middleware._response_call_name
-            if hasattr(middleware, "_response_call_name")
-            else middleware._response_span_name
-        ),
-        child_of=req_span,
-        activate=True,
-    )
-
-    resp_span._set_attribute(COMPONENT, middleware._config.integration_name)
-
-    modifier = (
-        middleware._response_call_modifier
-        if hasattr(middleware, "_response_call_modifier")
-        else middleware._response_span_modifier
-    )
-    modifier(resp_span, closing_iterable)
-
-    return _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator)
+    if app_span is not None:
+        app_span.set_exc_info(*sys.exc_info())
+        app_span.finish()
 
 
 def _on_response_prepared(resp_span, response):
@@ -1851,7 +1745,6 @@ def listen():
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
     core.on("wsgi.app.exception", _on_app_exception)
-    core.on("wsgi.request.complete", _on_request_complete, "traced_iterable")
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.request_call_modifier", _on_request_span_modifier)
@@ -1958,7 +1851,6 @@ def listen():
         "asgi.websocket.disconnect.message",
         "asgi.websocket.receive.message",
         "asgi.websocket.send.message",
-        "wsgi.__call__",
         "django.cache",
         "django.middleware.__call__",
         "django.middleware.func",

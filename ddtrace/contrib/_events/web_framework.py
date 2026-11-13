@@ -1,12 +1,16 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
+from typing import Callable
 from typing import Optional
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import WEB_REQUEST_STARTING_EVENT
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
@@ -50,3 +54,15 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
         self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.INBOUND
         )
+
+
+@dataclass
+class WebFrameworkResponseEvent(Event):
+    """A deferred response is ready for iteration after its application returns."""
+
+    event_name = "web.response"
+
+    request_context: core.ExecutionContext[WebFrameworkRequestEvent]
+    operation_name: str
+    response: Any
+    span_modifier: Callable[[Any, Any], None]
