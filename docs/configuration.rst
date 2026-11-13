@@ -746,6 +746,16 @@ Application & API Security
      default: None
      description: Whether to enable/disable SCA (Software Composition Analysis).
 
+   _DD_APPSEC_SCA_CVE_FILE:
+     type: String
+     default: None
+     description: |
+       Internal override for the local JSON file containing SCA vulnerability targets.
+       When set, this file replaces the bundled CVE data at startup without merging.
+       It must use the same schema as the bundled data. When unset, the bundled file is used.
+       If the file cannot be read or contains invalid JSON, no targets are loaded and
+       the tracer does not fall back to the bundled file. This option does not enable SCA.
+
    DD_APPSEC_MAX_STACK_TRACES:
      type: Integer
      default: 2
@@ -1569,6 +1579,16 @@ Feature Flagging
      description: |
          The per-request timeout in seconds for agentless Universal Flag
          Configuration polls.
+
+   DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Controls whether feature flag exposure events are sent to Datadog. When
+         ``False``, the provider sends no exposures to Datadog. It does not stop
+         flag evaluation counts, which ``DD_FLAGGING_EVALUATION_COUNTS_ENABLED``
+         controls. ``DD_FFE_INTAKE_ENABLED`` is a deprecated alias that will be
+         removed in 5.0.0; when both are set, this setting takes precedence.
 
 Other
 -----

@@ -403,7 +403,7 @@ suites:
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.0']
         - name: aiopg
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.4.0']
+          dependencies: [sqlalchemy, pytest-randomly, aiopg]
   algoliasearch:
     paths:
       - '@bootstrap'
@@ -926,7 +926,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/ddtrace_api
       variants:
         - name: ddtrace_api
-          dependencies: ['ddtrace-api==0.0.1', requests]
+          dependencies: [ddtrace-api, requests]
   django:
     venvs_per_job: 4
     env:
@@ -1384,7 +1384,7 @@ suites:
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, 'flask-caching~=1.10.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14', '3.15']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, flask-caching]
   gevent:
@@ -1417,6 +1417,11 @@ suites:
     env:
       TEST_PUBSUB_HOST: pubsub
       TEST_PUBSUB_PORT: '8085'
+      PYTHONWARNINGS: >-
+        ignore:pkg_resources is deprecated as an API:UserWarning,
+        ignore:You are using a:FutureWarning:google.api_core._python_version_support,
+        ignore:You are using a Python version:FutureWarning:google.auth,
+        ignore:You are using a Python version:FutureWarning:google.oauth2
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1792,8 +1797,6 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'mariadb~=1.1.2']
   mlflow:
-    # TODO(py-315): mlflow pulls pyarrow, which has no cp315 wheels and whose
-    # sdist build fails on 3.15. Re-add 3.15 once pyarrow supports it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1810,7 +1813,7 @@ suites:
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82', 'sqlalchemy<2.1']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
     venvs_per_job: 7
@@ -1863,6 +1866,7 @@ suites:
           python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mysql-connector-python]
   mysqlpython:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1871,9 +1875,9 @@ suites:
       - tests/contrib/mysql/*
       - tests/contrib/shared_tests.py
     pattern: mysqldb$
-    skip: true
     services:
       - mysql
+    snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/mysqldb
       variants:
@@ -1884,11 +1888,8 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'mysqlclient~=2.1']
         - name: mysqldb
-          python: ['3.9', '3.10', '3.11', '3.12']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mysqlclient]
-        - name: mysqldb
-          python: ['3.13', '3.14']
-          dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
     venvs_per_job: 8
     paths:
@@ -1979,13 +1980,13 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, 'psycopg~=3.0.0', 'pytest-asyncio==0.21.1']
         - name: psycopg
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio==0.21.1']
         - name: psycopg
           python: ['3.12']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio==0.23.7']
         - name: psycopg
-          python: ['3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio>=1.0']
   pylibmc:
     paths:
@@ -2102,10 +2103,10 @@ suites:
           dependencies: ['pynamodb~=5.3', pytest-randomly, pytest-xdist, 'moto==5.2.3']
         - name: pynamodb
           python: ['3.9']
-          dependencies: ['pynamodb~=6.1', pytest-randomly, pytest-xdist, 'moto==5.1.22']
+          dependencies: [pynamodb, pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: ['pynamodb~=6.1', pytest-randomly, pytest-xdist, 'moto==5.2.3']
+          dependencies: [pynamodb, pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
     venvs_per_job: 3
     paths:
@@ -2176,6 +2177,8 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pyodbc]
   pyramid:
+    env:
+      PYTHONWARNINGS: ignore:pkg_resources is deprecated as an API:UserWarning
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -2530,7 +2533,7 @@ suites:
           dependencies: [gevent, pytest-randomly]
           command: pytest {cmdargs} tests/contrib/futures
         - name: sqlite3
-          python: ['3.9', '3.10', '3.11', '3.12']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.14']
           integration: sqlite3
           dependencies: [pytest-randomly, pysqlite3-binary]
           command: pytest {cmdargs} tests/contrib/sqlite3
@@ -2626,7 +2629,7 @@ suites:
           dependencies: [pytest-randomly, 'tornado==6.3.1']
         - name: tornado
           python: ['3.13', '3.14', '3.15']
-          dependencies: [pytest-randomly, 'tornado==6.4.1']
+          dependencies: [pytest-randomly, tornado]
   trio:
     paths:
       - '@bootstrap'

@@ -122,6 +122,15 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
+LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
+LLMObs registers the shared lifecycle listener, including when product startup calls
+`LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
+integration adapters also register it when an integration is patched, including direct
+patching while LLMObs is disabled, so APM shadow tags remain available. Unpatching a
+component removes its factory and cached integration; shared listeners stay registered
+so other components and in-flight requests can finish. Product stop and LLMObs disable
+also retain these completion listeners.
+
 AppSec declares exploit-prevention bundles in
 `ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
 only after AppSec is active and exploit prevention is enabled. Direct activation,
@@ -365,6 +374,30 @@ from ddtrace.internal import forksafe
 forksafe.register_before_fork(my_before_hook)
 forksafe.register(my_after_child_hook)  # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
+```
+
+When something must happen before and/or after all the `after_in_child` hooks
+in the child (for example, deferring work until every hook has run), register a
+generator function with `forksafe.register`. It becomes a wrapper around the
+hooks: the code before its `yield` runs before them, in registration order, and
+the code after it runs once they have all completed, in reverse order. Either
+part can be empty. A wrapper must yield exactly once; one that raises before
+its `yield` is skipped. Wrappers are always resumed normally: hook exceptions
+are logged and are not propagated to them.
+
+> **Careful:** wrappers are detected with `inspect.isgeneratorfunction`, which
+> recognizes generator functions and bound methods or `functools.partial`
+> objects of them. A callable that only *returns* a generator (a decorator
+> around a generator function, an object whose `__call__` yields, a lambda) is
+> registered as a plain hook instead, and none of its code runs, silently.
+> Register the generator function itself.
+
+```python
+@forksafe.register
+def my_child_wrapper():
+    pause_something()
+    yield  # the after_in_child hooks run here
+    resume_something()
 ```
 
 **Keep hooks non-blocking.** By the time a hook registered *after*

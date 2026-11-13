@@ -8,6 +8,9 @@ MLFLOW_RUN_NAME_TAG = "mlflow.run_name"
 LOG_ATTR_MLFLOW_RUN_ID = "dd.mlflow.run_id"
 MLFLOW_STEP_TAG = "mlflow.step"
 
+# Dispatched with (span, run_id) when an LLM span starts inside an MLflow run.
+MLFLOW_LLM_SPAN_START_EVENT = "mlflow.llm_span.start"
+
 
 class MLflowLogType(Enum):
     METRICS = "metrics"

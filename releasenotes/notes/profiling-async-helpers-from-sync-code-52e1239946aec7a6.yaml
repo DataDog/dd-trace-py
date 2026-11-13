@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Profiling: Fixes an issue where ``asyncio.as_completed`` and ``asyncio.shield`` raise ``RuntimeError`` when called from synchronous code.

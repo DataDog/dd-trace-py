@@ -93,8 +93,8 @@ def test_all_cookies_deduplication(iast_context_deduplication_enabled):
             _iast_response_cookies(
                 lambda *args, **kwargs: None,
                 None,
-                ("insecure", "cookie"),
-                dict(secure=False, httponly=False, samesite="None"),
+                ("insecure",),
+                dict(value="cookie", secure=False, httponly=False, samesite="None"),
             )
 
         span_report = get_iast_reporter()

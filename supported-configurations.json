@@ -1802,11 +1802,14 @@
         "default": "true"
       }
     ],
-    "DD_FFE_INTAKE_ENABLED": [
+    "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "aliases": [
+          "DD_FFE_INTAKE_ENABLED"
+        ]
       }
     ],
     "DD_FFE_INTAKE_HEARTBEAT_INTERVAL": [
@@ -5626,9 +5629,9 @@
     ],
     "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": [
       {
-        "implementation": "C",
+        "implementation": "D",
         "type": "string",
-        "default": "grpc"
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT": [
@@ -5690,9 +5693,9 @@
     ],
     "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "string",
-        "default": null
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": [
@@ -5711,9 +5714,9 @@
     ],
     "OTEL_EXPORTER_OTLP_PROTOCOL": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_TIMEOUT": [
@@ -5919,6 +5922,14 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_APPSEC_SCA_CVE_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
         "internal": true
       }
     ],
@@ -6220,9 +6231,9 @@
     ],
     "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],
