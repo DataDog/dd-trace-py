@@ -158,3 +158,31 @@ def test_apm_tracing_rc_remote_reenable_when_no_env_override(monkeypatch):
 def test_apm_capabilities_value():
     assert APMCapabilities == (RemoteConfigCapabilities.ApmTracingEnableDynamicInstrumentation,)
     assert int(APMCapabilities[0]) == 38
+
+
+@pytest.mark.subprocess
+def test_rc_enable_instruments_preimported_module():
+    import os
+    from unittest.mock import patch
+
+    os.environ.pop("DD_DYNAMIC_INSTRUMENTATION_ENABLED", None)
+    import ddtrace.auto  # noqa:F401
+    from ddtrace.debugging._products.dynamic_instrumentation import apm_tracing_rc
+    from tests.debugging.mocking import TestDebugger
+    from tests.debugging.utils import create_snapshot_line_probe
+    import tests.submod.stuff as stuff
+
+    assert TestDebugger._instance is None
+    with patch("ddtrace.debugging.DynamicInstrumentation", TestDebugger):
+        try:
+            apm_tracing_rc({"dynamic_instrumentation_enabled": True}, None)
+            debugger = TestDebugger._instance
+            assert debugger is not None
+            probe = create_snapshot_line_probe(probe_id="rc-decorated", source_file=stuff.__file__, line=48)
+            debugger.add_probes(probe)
+            instance = stuff.Stuff()
+            assert instance.decoratedstuff() is instance
+            assert [snapshot.probe.probe_id for snapshot in debugger.snapshots] == [probe.probe_id]
+        finally:
+            apm_tracing_rc({"dynamic_instrumentation_enabled": False}, None)
+    assert TestDebugger._instance is None
