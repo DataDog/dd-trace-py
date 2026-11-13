@@ -1,5 +1,8 @@
 # Port trial report: `ddtrace.internal.codeowners` (Nov 2026)
 
+Historical report: package and layer names below describe the trial setup. Use
+the foundation layout in the [current extraction plan](plan.md) for new extractions.
+
 First end-to-end exercise of the package-split workflow (skill + harness + gates)
 against a minimal module, for the purpose of finding friction and inconsistencies
 **before** real extractions start. The trial ran through skill steps 1 (inventory,
