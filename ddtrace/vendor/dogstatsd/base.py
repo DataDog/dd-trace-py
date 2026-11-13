@@ -16,6 +16,7 @@ import errno
 import threading
 import time
 from threading import Lock, RLock
+import weakref
 
 try:
     import queue
@@ -93,6 +94,24 @@ TELEMETRY_FORMATTING_STR = "\n".join(
         "datadog.dogstatsd.client.packets_dropped_writer:%s|c|#%s",
     ]
 ) + "\n"
+
+
+# DDTRACE-NOTE: local patch, not part of upstream datadogpy.
+# A forked child inherits the parent's cached sockets. Drop them (without closing: the parent still owns
+# them) so the child lazily opens its own and can never write into a recycled fd number. Also replace the
+# lock, which could have been held by a thread that does not exist in the child.
+_fork_registry = weakref.WeakSet()
+
+
+def _reset_after_fork():
+    for client in list(_fork_registry):
+        client._socket_lock = Lock()
+        client.socket = None
+        client.telemetry_socket = None
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_after_fork)
 
 
 # pylint: disable=useless-object-inheritance,too-many-instance-attributes
@@ -287,6 +306,7 @@ class DogStatsd(object):
         """
 
         self._socket_lock = Lock()
+        _fork_registry.add(self)
 
         # Check for deprecated option
         if max_buffer_size is not None:
