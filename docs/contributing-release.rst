@@ -6,7 +6,7 @@ Most of the time spent “running the release” is actually spent creating and 
 We create a release candidate, test it, and repeat until the test shows no errors or regressions.
 
 The first release candidate (``rc1``) of a minor line is based on the main branch. After it is tagged, a release branch named ``X.Y`` is
-created from it, and every later release candidate and the final release are cut from that branch.
+created from it, and every later release candidate and the final release are cut from that branch. The main branch's version string is always set to the release candidate version that will be released next.
 The main branch's version string is ``X.Y.0rc1`` for the minor line under development, and moves to the next line's ``rc1``
 when ``X.Y.0`` is released.
 
