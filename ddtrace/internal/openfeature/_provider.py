@@ -153,7 +153,8 @@ class DataDogProvider(AbstractProvider):
         self._config_received = Event()
         self._initialization_failed = False
         # Makes the failure decision in initialize() atomic with on_configuration_received().
-        self._initialization_lock = forksafe.Lock()
+        # _reset_provider_locks() reinitializes it in a forked child.
+        self._initialization_lock = Lock()
 
         # Read through a fresh config instance so values reflect the environment at
         # provider-construction time rather than at import time (see the killswitch
@@ -174,7 +175,7 @@ class DataDogProvider(AbstractProvider):
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
         self._exposure_cache: LRUCache[ExposureCacheKey, ExposureCacheValue] = LRUCache(maxsize=65536)
         self._exposure_cache_lock = Lock()
-        _providers_with_exposure_cache.add(self)
+        _providers_with_plain_locks.add(self)
         self._exposure_logging_hook = ExposureLoggingHook()
 
         # Master gate: the resolved configuration source (stable kill switch +
@@ -854,15 +855,19 @@ class DataDogProvider(AbstractProvider):
 
 
 # A plain lock is much cheaper than forksafe.Lock() on every evaluation, so the provider
-# resets its own lock in a forked child instead. The reset is in place because pending
-# exposure decisions keep a reference to the lock.
-_providers_with_exposure_cache: "weakref.WeakSet[DataDogProvider]" = weakref.WeakSet()
+# resets its own locks in a forked child instead. The reset is in place because pending
+# exposure decisions keep a reference to the exposure cache lock.
+_providers_with_plain_locks: "weakref.WeakSet[DataDogProvider]" = weakref.WeakSet()
 
 
 @forksafe.register
-def _reset_exposure_cache_locks() -> None:
-    for provider in list(_providers_with_exposure_cache):
+def _reset_provider_locks() -> typing.Iterator[None]:
+    # A wrapper, so the reset runs before the other child hooks: they can start threads that take
+    # these locks, and _at_fork_reinit() does not wake a thread that already waits.
+    for provider in list(_providers_with_plain_locks):
         provider._exposure_cache_lock._at_fork_reinit()  # type: ignore[attr-defined]
+        provider._initialization_lock._at_fork_reinit()  # type: ignore[attr-defined]
+    yield
 
 
 class ExposureLoggingHook(Hook):

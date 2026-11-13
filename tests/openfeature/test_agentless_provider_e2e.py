@@ -388,6 +388,58 @@ def test_configuration_received_while_recording_the_failure_emits_ready(agentles
             provider.shutdown()
 
 
+# The interpreter warns about forking a multi-threaded process.
+@pytest.mark.subprocess(err=None)
+def test_initialization_lock_is_released_in_a_forked_child():
+    import os
+
+    from ddtrace.openfeature import DataDogProvider
+
+    provider = DataDogProvider()
+    # Configuration delivery or a failing initialize() can hold this lock when the process forks.
+    lock = provider._initialization_lock
+    lock.acquire()
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0 if lock.acquire(timeout=1) else 1)
+    _, status = os.waitpid(pid, 0)
+
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
+# The interpreter warns about forking a multi-threaded process.
+@pytest.mark.subprocess(err=None)
+def test_initialization_lock_is_reset_before_other_fork_hooks():
+    import os
+    import sys
+    import threading
+    import time
+
+    from ddtrace.internal import forksafe
+
+    # Registered before the provider module, like the product restarts under ddtrace-run.
+    assert "ddtrace.internal.openfeature._provider" not in sys.modules
+    child = {}
+
+    @forksafe.register
+    def deliver_configuration_in_child():
+        child["delivery"] = threading.Thread(target=child["provider"].on_configuration_received, daemon=True)
+        child["delivery"].start()
+        time.sleep(0.2)  # let the delivery wait on the lock before the remaining hooks run
+
+    from ddtrace.openfeature import DataDogProvider
+
+    child["provider"] = provider = DataDogProvider()
+    provider._initialization_lock.acquire()
+    pid = os.fork()
+    if pid == 0:
+        child["delivery"].join(timeout=2)
+        os._exit(1 if child["delivery"].is_alive() else 0)
+    _, status = os.waitpid(pid, 0)
+
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
 def test_initialize_retries_source_start_after_shutdown(agentless_source, mock_cdn):
     """Each initialization re-checks the source and rebuilds the hooks that shutdown() removed."""
     mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
