@@ -76,6 +76,11 @@ Datadog::ProfilerStats::reset_state()
     (void)take_pending_intern_failed_count();
     heap_tracker_size = std::nullopt;
     heap_tracker_cap_drops = std::nullopt;
+    asyncio_initialized = std::nullopt;
+    asyncio_runtime_offsets_discovered = std::nullopt;
+    asyncio_interpreter_tasks_head_offset = std::nullopt;
+    asyncio_thread_tasks_head_offset = std::nullopt;
+    asyncio_loop_count = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     sample_capture_cpu_time_us = 0;
@@ -241,6 +246,58 @@ Datadog::ProfilerStats::get_heap_tracker_cap_drops() const
 }
 
 void
+Datadog::ProfilerStats::set_asyncio_initialized(bool initialized)
+{
+    asyncio_initialized = initialized;
+}
+
+void
+Datadog::ProfilerStats::set_asyncio_runtime_offsets_discovered(bool discovered)
+{
+    asyncio_runtime_offsets_discovered = discovered;
+}
+
+void
+Datadog::ProfilerStats::set_asyncio_interpreter_tasks_head_offset(size_t offset)
+{
+    asyncio_interpreter_tasks_head_offset = offset;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_asyncio_interpreter_tasks_head_offset() const
+{
+    return asyncio_interpreter_tasks_head_offset;
+}
+
+void
+Datadog::ProfilerStats::set_asyncio_thread_tasks_head_offset(size_t offset)
+{
+    asyncio_thread_tasks_head_offset = offset;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_asyncio_thread_tasks_head_offset() const
+{
+    return asyncio_thread_tasks_head_offset;
+}
+
+void
+Datadog::ProfilerStats::set_asyncio_loop_count(size_t count)
+{
+    // Track the peak (max) asyncio loop count observed across sampling cycles
+    // within a profile period
+    if (!asyncio_loop_count.has_value() || count > *asyncio_loop_count) {
+        asyncio_loop_count = count;
+    }
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_asyncio_loop_count() const
+{
+    return asyncio_loop_count;
+}
+
+void
 Datadog::ProfilerStats::set_asyncio_task_count(size_t count)
 {
     // Track the peak (max) asyncio task count observed across sampling cycles
@@ -334,6 +391,31 @@ Datadog::ProfilerStats::get_internal_metadata_json() const
     if (maybe_heap_cap_drops) {
         internal_metadata_json += R"("heap_tracker_cap_drops": )";
         append_to_string(internal_metadata_json, *maybe_heap_cap_drops);
+        internal_metadata_json += ",";
+    }
+
+    append_optional_bool(internal_metadata_json, "asyncio_initialized", asyncio_initialized);
+    append_optional_bool(
+      internal_metadata_json, "asyncio_runtime_offsets_discovered", asyncio_runtime_offsets_discovered);
+
+    auto maybe_asyncio_interpreter_offset = get_asyncio_interpreter_tasks_head_offset();
+    if (maybe_asyncio_interpreter_offset) {
+        internal_metadata_json += R"("asyncio_interpreter_tasks_head_offset": )";
+        append_to_string(internal_metadata_json, *maybe_asyncio_interpreter_offset);
+        internal_metadata_json += ",";
+    }
+
+    auto maybe_asyncio_thread_offset = get_asyncio_thread_tasks_head_offset();
+    if (maybe_asyncio_thread_offset) {
+        internal_metadata_json += R"("asyncio_thread_tasks_head_offset": )";
+        append_to_string(internal_metadata_json, *maybe_asyncio_thread_offset);
+        internal_metadata_json += ",";
+    }
+
+    auto maybe_asyncio_loop_count = get_asyncio_loop_count();
+    if (maybe_asyncio_loop_count) {
+        internal_metadata_json += R"("asyncio_loop_count": )";
+        append_to_string(internal_metadata_json, *maybe_asyncio_loop_count);
         internal_metadata_json += ",";
     }
 
