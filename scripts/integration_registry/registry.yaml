@@ -769,7 +769,7 @@ integrations:
   tested_versions_by_dependency:
     openai-agents:
       min: 0.0.16
-      max: 0.22.3
+      max: 0.24.0
 
 - integration_name: protobuf
   is_external_package: true

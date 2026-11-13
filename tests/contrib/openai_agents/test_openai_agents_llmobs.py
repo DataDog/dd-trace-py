@@ -335,6 +335,7 @@ async def test_llmobs_streamed_single_agent(agents, openai_agents_llmobs, test_s
     )
 
 
+@pytest.mark.usefixtures("sync_runner_loop")
 def test_llmobs_single_agent_sync(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
@@ -520,6 +521,14 @@ async def test_llmobs_single_agent_with_ootb_tools(
         metadata={},
         tags=COMMON_TAGS,
     )
+    expected_search = openai.types.responses.ResponseFunctionWebSearch.model_validate(
+        {
+            "id": "ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce",
+            "status": "completed",
+            "type": "web_search_call",
+            "action": {"type": "search", "query": "current weather in New York"},
+        }
+    )
     _assert_expected_agent_run(
         ["Weather Agent", "Weather Agent (LLM)"],
         spans[1:],
@@ -531,9 +540,7 @@ async def test_llmobs_single_agent_with_ootb_tools(
                 ],
                 [
                     {
-                        "content": "ResponseFunctionWebSearch(id='ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce',"
-                        " status='completed', type='web_search_call', action={'type': 'search', 'query': 'current "
-                        "weather in New York'})",
+                        "content": str(expected_search),
                         "role": "assistant",
                     },
                     {"role": "assistant", "content": result.final_output},
@@ -663,8 +670,23 @@ async def test_llmobs_multiple_agent_handoffs(agents, openai_agents_llmobs, test
 async def test_llmobs_single_agent_with_tool_errors(
     agents, openai_agents_llmobs, test_spans, request_vcr, addition_agent_with_tool_errors
 ):
+    # A custom formatter explicitly approves these fake details for model output
+    # and tracing. SDK logging defaults do not define the provider error payload.
+    def format_test_error(context, error):
+        return f"An error occurred while running the tool. Please try again. Error: {error}"
+
+    @agents.function_tool(name_override="add", failure_error_function=format_test_error)
+    async def add_with_test_error(a: int, b: int) -> int:
+        """Add two numbers together"""
+        raise ValueError("This is a test error")
+
+    addition_agent_with_tool_errors.tools = [add_with_test_error]
     with request_vcr.use_cassette("test_agent_with_tool_errors.yaml"):
-        result = await agents.Runner.run(addition_agent_with_tool_errors, "What is the sum of 1 and 2?")
+        result = await agents.Runner.run(
+            addition_agent_with_tool_errors,
+            "What is the sum of 1 and 2?",
+            run_config=agents.RunConfig(trace_include_sensitive_data=True),
+        )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
 
@@ -728,8 +750,8 @@ async def test_llmobs_single_agent_with_tool_errors(
                             {
                                 "tool_id": mock.ANY,
                                 "name": "",
-                                "result": "An error occurred while running the tool."
-                                " Please try again. Error: This is a test error",
+                                "result": "An error occurred while running the tool. Please try again."
+                                " Error: This is a test error",
                                 "type": "function_call_output",
                             }
                         ],

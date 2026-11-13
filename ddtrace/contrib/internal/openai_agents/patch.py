@@ -4,6 +4,8 @@ import agents
 from agents.tracing import add_trace_processor
 
 from ddtrace import config
+from ddtrace.contrib.internal.openai_agents._realtime import patch_realtime
+from ddtrace.contrib.internal.openai_agents._realtime import unpatch_realtime
 from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcessor
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
@@ -65,7 +67,7 @@ _MODULE_RUN_LOOP_WRAP_TARGETS = [
 ]
 
 
-def patch():
+def patch() -> None:
     """
     Patch the instrumented methods
     """
@@ -77,6 +79,7 @@ def patch():
     integration = OpenAIAgentsIntegration(integration_config=config.openai_agents)
     add_trace_processor(LLMObsTraceProcessor(integration))
     agents._datadog_integration = integration
+    patch_realtime()
 
     if _has_module_level_run_loop():
         for module_path, attr_name, wrapper in _MODULE_RUN_LOOP_WRAP_TARGETS:
@@ -92,7 +95,7 @@ def patch():
                 wrap(runner_cls, "_run_single_turn_streamed", _patched_run_single_turn)
 
 
-def unpatch():
+def unpatch() -> None:
     """
     Remove instrumentation from patched methods
     """
@@ -100,6 +103,7 @@ def unpatch():
         return
 
     agents._datadog_patch = False
+    unpatch_realtime()
 
     if _has_module_level_run_loop():
         for module_path, attr_name, _ in _MODULE_RUN_LOOP_WRAP_TARGETS:
