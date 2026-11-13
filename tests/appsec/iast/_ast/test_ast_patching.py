@@ -739,3 +739,321 @@ def test_discovery_import_preserves_custom_loader_setup():
             packages._FINDER_QUERY.active = False
         assert builtins._iast_loader_ready
         assert "add_aspect" not in module.combine.__code__.co_names
+
+
+@pytest.mark.subprocess(parametrize=dict(_DD_TEST_FAILURE=("discovery", "setter")))
+def test_failed_initialization_after_finder_reentry_is_retried():
+    import os
+    from unittest import mock
+
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+    from ddtrace.internal import packages
+
+    known = {"known_dependency": ["known"]}
+    ap.iastpatch.set_packages_distributions(set(known))
+    setter = ap.iastpatch.set_packages_distributions
+    setter_calls = []
+
+    def publish(names):
+        setter_calls.append(names)
+        if os.environ["_DD_TEST_FAILURE"] == "setter" and len(setter_calls) == 1:
+            raise RuntimeError("publication failed")
+        return setter(names)
+
+    failure = RuntimeError("discovery failed") if os.environ["_DD_TEST_FAILURE"] == "discovery" else (known, True)
+    ap.IAST_PATCHING_LAZY_LOADED = True
+    with (
+        mock.patch.object(
+            ap, "get_package_distributions_with_status", side_effect=[({}, False), failure, (known, True)]
+        ) as discover,
+        mock.patch.object(ap.iastpatch, "set_packages_distributions", side_effect=publish),
+    ):
+        packages._FINDER_QUERY.active = True
+        try:
+            ap._should_iast_patch("application_during_discovery")
+        finally:
+            packages._FINDER_QUERY.active = False
+        assert not setter_calls
+        assert not ap._should_iast_patch("known_dependency")
+        assert ap.IAST_PATCHING_LAZY_LOADED
+        assert ap._should_iast_patch("application_next")
+        assert not ap.IAST_PATCHING_LAZY_LOADED
+        assert not ap._should_iast_patch("known_dependency")
+        assert discover.call_count == 3
+
+
+@pytest.mark.subprocess(parametrize=dict(_DD_TEST_DISCOVERY_CONTEXT=("finder", "prefetch")))
+def test_discovery_reentry_after_completed_initialization_stays_local():
+    import os
+    from unittest import mock
+
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+    from ddtrace.internal import packages
+
+    # A later finder query or prefetch can expose an unpublished view after IAST
+    # was initialized already; this must still arrange a refresh for the next import.
+    ap.iastpatch.set_packages_distributions({"previous_dependency"})
+    ap.IAST_PATCHING_LAZY_LOADED = False
+    context = packages._FINDER_QUERY if os.environ["_DD_TEST_DISCOVERY_CONTEXT"] == "finder" else packages._IN_PREFETCH
+    with mock.patch.object(
+        ap, "get_package_distributions_with_status", side_effect=[({}, False), ({"known": ["known"]}, True)]
+    ):
+        context.active = True
+        try:
+            ap._should_iast_patch("application_during_discovery")
+        finally:
+            context.active = False
+        assert ap.IAST_PATCHING_LAZY_LOADED
+        assert ap.iastpatch.should_iast_patch("previous_dependency") == ap.iastpatch.DENIED_NOT_FOUND
+        assert ap._should_iast_patch("application")
+        assert not ap.IAST_PATCHING_LAZY_LOADED
+        assert not ap._should_iast_patch("known")
+
+
+@pytest.mark.subprocess()
+def test_prefetch_package_view_is_not_published_to_iast():
+    from importlib.machinery import PathFinder
+    import sys
+    from unittest import mock
+
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+    from ddtrace.internal import packages
+
+    finder_calls = []
+
+    class Finder:
+        def find_spec(self, *args, **kwargs):
+            return None
+
+        def find_distributions(self, context):
+            finder_calls.append(context)
+            return []
+
+    packages._reset_installed_distributions()
+    packages._clear_lookup_caches()
+    ap.iastpatch.set_packages_distributions({"previous_dependency"})
+    ap.IAST_PATCHING_LAZY_LOADED = True
+    with mock.patch.object(sys, "meta_path", [Finder(), PathFinder]):
+        packages._IN_PREFETCH.active = True
+        try:
+            names, published = packages.get_package_distributions_with_status()
+            assert not published
+            assert not finder_calls
+            assert not packages.is_querying_finders()
+            assert packages.is_distribution_discovery_in_progress()
+            ap._should_iast_patch("application_during_prefetch")
+            assert ap.IAST_PATCHING_LAZY_LOADED
+            assert ap.iastpatch.should_iast_patch("previous_dependency") == ap.iastpatch.DENIED_NOT_FOUND
+        finally:
+            packages._IN_PREFETCH.active = False
+
+
+@pytest.mark.parametrize(
+    "module_name, expected",
+    [
+        ("customer", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("user_allowed", iastpatch.ALLOWED_USER_ALLOWLIST),
+        ("user_denied", iastpatch.DENIED_USER_DENYLIST),
+        ("os", iastpatch.DENIED_BUILTINS_DENYLIST),
+        ("pygments", iastpatch.ALLOWED_STATIC_ALLOWLIST),
+        ("customer.vendor.requests", iastpatch.DENIED_NOT_FOUND),
+        ("vendored.requests", iastpatch.DENIED_NOT_FOUND),
+        ("vendored", iastpatch.DENIED_NOT_FOUND),
+        ("app.vendor", iastpatch.DENIED_NOT_FOUND),
+        ("app._vendor", iastpatch.DENIED_NOT_FOUND),
+        ("ddtrace.internal.module", iastpatch.DENIED_NOT_FOUND),
+        ("mysqlsh", iastpatch.DENIED_STATIC_DENYLIST),
+        ("partial_dependency", iastpatch.DENIED_NOT_FOUND),
+        ("previous_dependency", iastpatch.DENIED_NOT_FOUND),
+    ],
+)
+def test_incomplete_package_list_preserves_patch_rules(module_name, expected):
+    from ddtrace.appsec._iast._ast import ast_patching
+
+    try:
+        with override_env({IAST.PATCH_MODULES: "user_allowed", IAST.DENY_MODULES: "user_denied"}):
+            iastpatch.build_list_from_env(IAST.PATCH_MODULES)
+            iastpatch.build_list_from_env(IAST.DENY_MODULES)
+            iastpatch.set_packages_distributions({"previous_dependency"})
+            assert iastpatch.should_iast_patch(module_name, {"partial_dependency"}) == expected
+    finally:
+        ast_patching.initialize_iast_lists()
+
+
+def test_incomplete_package_list_is_not_cached():
+    from ddtrace.appsec._iast._ast import ast_patching
+
+    try:
+        iastpatch.set_packages_distributions(set())
+        assert iastpatch.should_iast_patch("customer") == iastpatch.DENIED_NOT_FOUND
+        assert iastpatch.should_iast_patch("customer", set()) == iastpatch.DENIED_NOT_FOUND
+        assert iastpatch.should_iast_patch("customer") == iastpatch.DENIED_NOT_FOUND
+        with pytest.raises(TypeError):
+            iastpatch.should_iast_patch("customer", {None})
+        assert iastpatch.should_iast_patch("customer") == iastpatch.DENIED_NOT_FOUND
+    finally:
+        ast_patching.initialize_iast_lists()
+
+
+@pytest.mark.subprocess()
+def test_incomplete_reader_cannot_overwrite_completed_initialization():
+    import threading
+    from unittest import mock
+
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+    from ddtrace.internal import packages
+
+    pending = threading.Event()
+    release = threading.Event()
+    errors = []
+
+    def inventory():
+        if threading.current_thread().name == "incomplete-reader":
+            pending.set()
+            assert release.wait(5)
+            return {}, False
+        return {"known_dependency": ["known"]}, True
+
+    def read_partial():
+        packages._FINDER_QUERY.active = True
+        try:
+            ap._should_iast_patch("application_a")
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            packages._FINDER_QUERY.active = False
+
+    ap.IAST_PATCHING_LAZY_LOADED = True
+    with mock.patch.object(ap, "get_package_distributions_with_status", side_effect=inventory):
+        thread = threading.Thread(target=read_partial, name="incomplete-reader")
+        thread.start()
+        try:
+            assert pending.wait(5)
+            assert ap._should_iast_patch("application_b")
+            assert not ap.IAST_PATCHING_LAZY_LOADED
+        finally:
+            release.set()
+            thread.join(5)
+        assert not thread.is_alive()
+        assert not errors, errors
+        assert ap.iastpatch.should_iast_patch("known_dependency") == ap.iastpatch.DENIED_NOT_FOUND
+        assert not ap._should_iast_patch("known_dependency")
+        assert ap._should_iast_patch("application_next")
+
+
+@pytest.mark.subprocess()
+def test_failed_discovery_reentry_keeps_loader_and_static_guards():
+    from importlib.machinery import SourceFileLoader
+    from importlib.util import spec_from_file_location
+    import sys
+    from types import ModuleType
+    from unittest import mock
+
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+    from ddtrace.internal import packages
+
+    class CustomLoader(SourceFileLoader):
+        pass
+
+    module = ModuleType("finder_owned")
+    module.__spec__ = spec_from_file_location("finder_owned", __file__, loader=CustomLoader("finder_owned", __file__))
+    sys.modules[module.__name__] = module
+    ap.iastpatch.set_packages_distributions({"previous_dependency"})
+    ap.IAST_PATCHING_LAZY_LOADED = False
+    with mock.patch.object(ap, "get_package_distributions_with_status", side_effect=MemoryError):
+        packages._FINDER_QUERY.active = True
+        try:
+            assert not ap._should_iast_patch("mysqlsh")
+            assert not ap._should_iast_patch(module.__name__)
+            assert ap.IAST_PATCHING_LAZY_LOADED
+        finally:
+            packages._FINDER_QUERY.active = False
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="", _DD_IAST_DENY_MODULES=""),
+    parametrize=dict(
+        _DD_TEST_NATIVE_PACKAGES=("nonempty",), _DD_TEST_DISCOVERY=("packages", "iast", "version", "available")
+    ),
+)
+def test_application_imported_during_discovery_is_instrumented_immediately():
+    import builtins
+    from importlib import import_module
+    from importlib.machinery import PathFinder
+    import importlib.metadata as metadata
+    import os
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+
+    from ddtrace.appsec._iast import enable_iast_propagation
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+    from ddtrace.internal import packages
+
+    metadata.version("ddtrace")
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        app = root / "app"
+        app.mkdir()
+        source = "def combine(a, b):\n    return a + b\n"
+        (app / "customer_helper.py").write_text(source)
+        denied_source = "import builtins\nbuiltins._iast_imports.append(__name__)\nglobals = []\n" + source
+        (app / "mysqlsh.py").write_text(denied_source)
+        (app / "vendored").mkdir()
+        (app / "vendored" / "__init__.py").write_text(denied_source)
+        builtins._iast_imports = []
+        info = root / "finder_dependency-1.0.dist-info"
+        info.mkdir()
+        (info / "METADATA").write_text("Name: finder-dependency\nVersion: 1.0\n")
+        (info / "top_level.txt").write_text("finder_dependency\n")
+        if os.environ["_DD_TEST_NATIVE_PACKAGES"] == "nonempty":
+            native = app / "native_package-1.0.dist-info"
+            native.mkdir()
+            (native / "METADATA").write_text("Name: native-package\nVersion: 1.0\n")
+            (native / "top_level.txt").write_text("native_package\n")
+        observations = []
+        errors = []
+
+        class Finder:
+            ready = True
+
+            def find_spec(self, *args, **kwargs):
+                return None
+
+            def find_distributions(self, context):
+                if not self.ready:
+                    return []
+                try:
+                    modules = [import_module(name) for name in ("customer_helper", "mysqlsh", "vendored")]
+                    observations.append(tuple("add_aspect" in m.combine.__code__.co_names for m in modules))
+                except Exception as exc:
+                    errors.append(repr(exc))
+                return [metadata.PathDistribution(info)]
+
+        packages._reset_installed_distributions()
+        packages._clear_lookup_caches()
+        finder = Finder()
+        sys.path[:] = [str(app), str(packages.stdlib_path), str(packages.stdlib_path / "lib-dynload")]
+        sys.meta_path.insert(sys.meta_path.index(PathFinder), finder)
+        enable_iast_propagation()
+        ap.iastpatch.set_packages_distributions(set())
+        ap.IAST_PATCHING_LAZY_LOADED = True
+        discovery = os.environ["_DD_TEST_DISCOVERY"]
+        if discovery in ("version", "available"):
+            finder.ready = False
+            packages.get_package_distributions()
+            finder.ready = True
+            ap.IAST_PATCHING_LAZY_LOADED = False
+            if discovery == "version":
+                assert packages.get_version_for_package("finder-dependency") == "1.0"
+            else:
+                assert packages.is_distribution_available("finder-dependency")
+        elif discovery == "packages":
+            packages.get_package_distributions()
+        else:
+            ap._should_iast_patch("customer_entry")
+        assert not errors, errors
+        assert observations and all(row == (True, False, False) for row in observations)
+        assert builtins._iast_imports == ["mysqlsh", "vendored"]
+        assert ap._should_iast_patch("customer_next")
+        assert not ap._should_iast_patch("finder_dependency")

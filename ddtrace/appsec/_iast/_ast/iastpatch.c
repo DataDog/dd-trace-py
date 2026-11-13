@@ -285,32 +285,64 @@ get_first_part_lower(const char* module_name, char* first_part, size_t max_len)
 }
 
 /* --- Helper function: is_first_party ---
-   Returns 1 (true) if the module is considered first-party, 0 otherwise.
+   Returns 1 (true) for first-party code, 0 otherwise, or -1 on conversion error.
    Uses the pre-populated cached_packages list to determine if a module
    is first-party by checking if its first component is NOT in the packages list.
 */
 static int
-is_first_party(const char* module_name)
+is_first_party(const char* module_name, PyObject* incomplete_packages)
 {
     // If the module name contains "vendor." or "vendored.", return false.
     if (strstr(module_name, "vendor.") || strstr(module_name, "vendored.")) {
         return 0;
     }
 
-    // If no cached packages are available, assume it's not first-party
+    // An incomplete view is used only for this import, never stored in the cache.
     if (cached_packages == NULL || cached_packages_count == 0) {
-        return 0;
+        if (incomplete_packages == Py_None) {
+            return 0;
+        }
+        Py_ssize_t observed_count = PyObject_Length(incomplete_packages);
+        if (observed_count < 0) {
+            return -1;
+        }
+        if (observed_count == 0) {
+            return 0;
+        }
     }
 
     // Extract the first component from module_name (up to the first dot) and convert it to lowercase.
     char first_part[256];
     get_first_part_lower(module_name, first_part, sizeof(first_part));
 
+    if (incomplete_packages != Py_None && strcmp(first_part, "ddtrace") == 0) {
+        return 0;
+    }
     // If the first part is found in the cached packages, it's not a first-party module.
     for (size_t i = 0; i < cached_packages_count; i++) {
         if (cached_packages[i] && strncmp(first_part, cached_packages[i], strlen(cached_packages[i])) == 0) {
             return 0;
         }
+    }
+    if (incomplete_packages != Py_None) {
+        PyObject* fast = PySequence_Fast(incomplete_packages, "expected package names");
+        if (fast == NULL) {
+            return -1;
+        }
+        int first_party = 1;
+        for (Py_ssize_t i = 0; i < PySequence_Fast_GET_SIZE(fast); i++) {
+            const char* package = PyUnicode_AsUTF8(PySequence_Fast_GET_ITEM(fast, i));
+            if (package == NULL) {
+                first_party = -1;
+                break;
+            }
+            if (strncmp(first_part, package, strlen(package)) == 0) {
+                first_party = 0;
+                break;
+            }
+        }
+        Py_DECREF(fast);
+        return first_party;
     }
     return 1;
 }
@@ -486,8 +518,9 @@ static PyObject*
 py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
 {
     const char* module_name;
+    PyObject* incomplete_packages = Py_None;
 
-    if (!PyArg_ParseTuple(args, "s", &module_name)) {
+    if (!PyArg_ParseTuple(args, "s|O", &module_name, &incomplete_packages)) {
         return NULL;
     }
 
@@ -547,8 +580,16 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
         return PyLong_FromLong(ALLOWED_STATIC_ALLOWLIST);
     }
 
+    if (incomplete_packages != Py_None && str_in_list(lower_module, static_denylist, static_denylist_count)) {
+        return PyLong_FromLong(DENIED_STATIC_DENYLIST);
+    }
+
     /* Allow if it's a first-party module */
-    if (is_first_party(module_name)) {
+    int first_party = is_first_party(incomplete_packages == Py_None ? module_name : lower_module, incomplete_packages);
+    if (first_party < 0) {
+        return NULL;
+    }
+    if (first_party) {
         return PyLong_FromLong(ALLOWED_FIRST_PARTY_ALLOWLIST);
     }
 

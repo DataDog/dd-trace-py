@@ -15,9 +15,8 @@ from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_l
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _ImportHookChainedLoader
 from ddtrace.internal.module import origin
-from ddtrace.internal.packages import get_package_distributions
+from ddtrace.internal.packages import get_package_distributions_with_status
 from ddtrace.internal.packages import is_distribution_discovery_in_progress
-from ddtrace.internal.packages import is_querying_finders
 from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import purelib_path
@@ -50,8 +49,8 @@ _SOURCE_LOADER_METHODS = {
 log = get_logger(__name__)
 
 
-def initialize_iast_lists():
-    """Initialize IAST module lists safely from Python.
+def initialize_iast_lists() -> tuple[bool, Optional[set[str]]]:
+    """Initialize lists, returning completeness and any import-local package view.
 
     This function initializes the user allowlist and denylist for IAST module patching.
     It is critical that this initialization happens from Python rather than from C code
@@ -85,14 +84,24 @@ def initialize_iast_lists():
     This approach is safer than C-level initialization in init_globals() which can
     lead to inconsistent state or crashes due to GIL-related issues.
     """
-    # Set the top-level names of the installed packages for the C extension
+    # Only complete inventories belong in the shared cache. A finder can import
+    # while another thread completes initialization; its partial view must stay local.
+    complete = False
+    incomplete_packages = None
     try:
-        iastpatch.set_packages_distributions(set(get_package_distributions()))
+        package_names, published = get_package_distributions_with_status()
+        packages = set(package_names)
+        if not published:
+            incomplete_packages = {package.lower() for package in packages}
+        else:
+            iastpatch.set_packages_distributions(packages)
+            complete = True
     except Exception:
         log.debug("Failed to set packages in C extension", exc_info=True)
 
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
+    return complete, incomplete_packages
 
 
 def _is_application_source(module_name: str) -> bool:
@@ -162,17 +171,17 @@ def _should_iast_patch(module_name: str) -> bool:
         why a module was allowed or denied patching.
     """
     global IAST_PATCHING_LAZY_LOADED
+    incomplete_packages = None
     discovery = is_distribution_discovery_in_progress()
-    if IAST_PATCHING_LAZY_LOADED:
-        initialize_iast_lists()
-        # A module imported by a custom finder while it lists its distributions
-        # gets a package list without them: initialize again on the next module.
-        if not is_querying_finders():
-            IAST_PATCHING_LAZY_LOADED = False
+    if IAST_PATCHING_LAZY_LOADED or discovery:
+        complete, incomplete_packages = initialize_iast_lists()
+        if discovery and not complete and incomplete_packages is None:
+            incomplete_packages = set()
+        IAST_PATCHING_LAZY_LOADED = not complete
     result = iastpatch.DENIED_NOT_FOUND
     try:
-        result = iastpatch.should_iast_patch(module_name)
-        if discovery and result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
+        result = iastpatch.should_iast_patch(module_name, incomplete_packages)
+        if incomplete_packages is not None and result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
             result = iastpatch.DENIED_NOT_FOUND
             if _is_application_source(module_name):
                 result = iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST

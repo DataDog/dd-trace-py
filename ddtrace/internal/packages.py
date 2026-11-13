@@ -89,6 +89,20 @@ def get_package_distributions() -> t.Mapping[str, list[str]]:
     return _installed().packages
 
 
+def get_package_distributions_with_status() -> tuple[t.Mapping[str, list[str]], bool]:
+    """Return package names and whether discovery is settled for this read.
+
+    Reentrant and prefetch reads stay local, even when an older published snapshot
+    is readable. Published snapshots retain the scanner's best-effort metadata policy.
+    """
+    snapshot = _installed()
+    discovery = is_distribution_discovery_in_progress()
+    if discovery:
+        # An older published cache may be readable during a new finder query.
+        _FINDER_QUERY.nested = True
+    return snapshot.packages, snapshot is _INSTALLED and not discovery
+
+
 def is_distribution_discovery_in_progress() -> bool:
     """Whether this thread can observe a finder-less package view."""
     return getattr(_FINDER_QUERY, "active", False) or getattr(_IN_PREFETCH, "active", False)
