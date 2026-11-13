@@ -1069,7 +1069,8 @@ def test_activate_distributed_headers_existing_context_different_trace_id(int_co
 @pytest.mark.parametrize("configured", [False, True])
 @pytest.mark.parametrize("capture_url_query", [False, True])
 @pytest.mark.parametrize("override", [None, False, True])
-def test_http_query_string_override(otel_semantics, client, configured, capture_url_query, override):
+@pytest.mark.parametrize("query_in_url", [False, True])
+def test_http_query_string_override(otel_semantics, client, configured, capture_url_query, override, query_in_url):
     cfg = Config()
     cfg._http.trace_query_string = not configured
     integration_config = IntegrationConfig(cfg, "query_override")
@@ -1082,13 +1083,20 @@ def test_http_query_string_override(otel_semantics, client, configured, capture_
     enabled = configured if override is None else override
 
     with override_global_config({"_otel_trace_semantics_enabled": otel_semantics}):
-        trace_utils.set_http_meta(span, integration_config, url=url, query=query, trace_query_string=override)
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            url=url if query_in_url else "http://example.com/search",
+            query=query,
+            trace_query_string=override,
+        )
 
     if not otel_semantics:
         assert span.get_tag(http.QUERY_STRING) == (query if enabled else None)
         assert span.get_tag(http.URL) == (url if capture_url_query else "http://example.com/search")
     elif client:
-        assert span.get_tag("url.full") == (url if capture_url_query or enabled else "http://example.com/search")
+        expected_capture = capture_url_query or configured if override is None else override
+        assert span.get_tag("url.full") == (url if expected_capture else "http://example.com/search")
         assert span.get_tag("url.query") is None
     else:
         expected_capture = capture_url_query or configured if override is None else override

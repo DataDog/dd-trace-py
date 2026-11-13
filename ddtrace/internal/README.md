@@ -22,6 +22,8 @@ URLs independently of span processing.
 
 HTTP tagging resolves optional query-string overrides alongside the integration policy;
 web subscribers pass request data without duplicating URL or query-tag decisions.
+For OpenTelemetry HTTP tags, an explicit override takes precedence over both integration
+query-string settings for clients and servers.
 
 ## Coverage collection contexts
 
