@@ -1577,6 +1577,60 @@ def test_native_writer_recreate_after_sync_drop_does_not_wait_for_active_send(mo
         real_exporter.drop()
 
 
+def test_native_writer_shutdown_rechecks_discard_after_waiting_for_exporter_lock(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    real_exporter = writer._exporter
+    shutdown_started = threading.Event()
+    errors = []
+
+    def shutdown():
+        shutdown_started.set()
+        try:
+            writer.shutdown_exporter()
+        except BaseException as error:
+            errors.append(error)
+
+    with _stuck_native_send(writer) as (exporter, send_started, release_send):
+        send_thread = threading.Thread(target=writer.write, args=([Span("in-flight")],))
+        shutdown_thread = threading.Thread(target=shutdown)
+        try:
+            send_thread.start()
+            assert send_started.wait(timeout=5)
+            shutdown_thread.start()
+            assert shutdown_started.wait(timeout=5)
+            writer.drop_buffered_traces()
+            release_send.set()
+            send_thread.join(timeout=5)
+            shutdown_thread.join(timeout=5)
+            assert not send_thread.is_alive()
+            assert not shutdown_thread.is_alive()
+            assert not errors
+            exporter.drop.assert_called_once()
+            exporter.shutdown.assert_not_called()
+        finally:
+            release_send.set()
+            send_thread.join(timeout=5)
+            if shutdown_thread.ident is not None:
+                shutdown_thread.join(timeout=5)
+            real_exporter.shutdown(3_000_000_000)
+
+
+def test_native_writer_refresh_during_final_flush_skips_native_shutdown(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    real_exporter = writer._exporter
+    exporter = writer._exporter = mock.Mock()
+    try:
+        # Refresh can win after on_shutdown() checks its gate, during the final trace flush.
+        with mock.patch.object(writer, "periodic", side_effect=writer.drop_buffered_traces):
+            writer.on_shutdown()
+        exporter.drop.assert_called_once()
+        exporter.shutdown.assert_not_called()
+    finally:
+        real_exporter.shutdown(3_000_000_000)
+
+
 def test_native_writer_discarded_stop_does_not_join_and_on_shutdown_drops_exporter(monkeypatch):
     """recreate() must not wait for a discarded writer's stuck send; its own thread drops the exporter."""
     monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")

@@ -1,8 +1,10 @@
 import logging
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 
+from ddtrace.internal.openfeature import _remoteconfiguration
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -21,6 +23,42 @@ def clear_config():
     _set_ffe_config(None)
     yield
     _set_ffe_config(None)
+
+
+@pytest.mark.parametrize("has_rc_capability", [False, True])
+@pytest.mark.parametrize("evaluator_capabilities", [(), ("unknown-capability",), ("dependent-flag-variant-key-v1",)])
+def test_enable_rc_advertises_only_supported_evaluator_capabilities(has_rc_capability, evaluator_capabilities):
+    rules = object()
+    dependent_flags = object()
+    native_capabilities = SimpleNamespace(FfeFlagConfigurationRules=rules)
+    if has_rc_capability:
+        native_capabilities.FfeFlagDependentFlagVariantKeyV1 = dependent_flags
+
+    with (
+        mock.patch.object(_remoteconfiguration, "RemoteConfigCapabilities", native_capabilities),
+        mock.patch.object(_remoteconfiguration, "get_evaluator_capabilities", return_value=evaluator_capabilities),
+        mock.patch.object(_remoteconfiguration, "remoteconfig_poller") as poller,
+    ):
+        _remoteconfiguration.enable_featureflags_rc()
+
+    expected = [rules]
+    if has_rc_capability and "dependent-flag-variant-key-v1" in evaluator_capabilities:
+        expected.append(dependent_flags)
+    poller.register_callback.assert_called_once_with(
+        _remoteconfiguration.FFE_FLAGS_PRODUCT,
+        _remoteconfiguration._featureflag_rc_callback,
+        capabilities=expected,
+    )
+    poller.enable_product.assert_called_once_with(_remoteconfiguration.FFE_FLAGS_PRODUCT)
+
+
+def test_current_evaluator_does_not_advertise_dependent_flags():
+    with mock.patch.object(_remoteconfiguration, "remoteconfig_poller") as poller:
+        _remoteconfiguration.enable_featureflags_rc()
+
+    assert poller.register_callback.call_args.kwargs["capabilities"] == [
+        _remoteconfiguration.RemoteConfigCapabilities.FfeFlagConfigurationRules
+    ]
 
 
 def _payload(path, content):

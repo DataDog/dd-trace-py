@@ -73,7 +73,8 @@ class InstrumentationRegistry:
     ) -> None:
         with self._lock:
             if qualified_name not in self._targets:
-                ids = cve_ids or []
+                # One advisory can register multiple targets with the same input list.
+                ids = list(cve_ids) if cve_ids is not None else []
                 state = InstrumentationState(
                     qualified_name=qualified_name,
                     package_name=package_name,

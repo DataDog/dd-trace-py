@@ -1,6 +1,10 @@
 import fnmatch
+import re
 
 from mappings import EXCLUDED_FROM_TESTING
+from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING
+from packaging.requirements import InvalidRequirement
+from packaging.requirements import Requirement
 import pytest
 
 from ddtrace.internal.compat import MAX_PY
@@ -129,3 +133,63 @@ def test_contrib_environments_use_valid_integration_names(integration_dir_names:
     assert not invalid_environments, "Contrib environments use unknown integration names: " + ", ".join(
         environment.name for environment in invalid_environments
     )
+
+
+# Integrations whose package cannot be tested unpinned, with the reason.
+LATEST_NOT_TESTED = {
+    "algoliasearch": "only capped versions are tested",
+    "botocore": "SigV4 propagation tests fail on the latest botocore (traceparent missing from SignedHeaders)",
+    "claude_agent_sdk": "PyPI deletes old releases, so unpinned locks go stale",
+    "pydantic_ai": "only capped versions are tested",
+    "ray": "ray tests fail on the latest ray (local_mode is no longer supported)",
+    "ray_serve": "ray_serve tests fail on the latest ray",
+    "vertica": "only capped versions are tested",
+}
+
+
+def _canonical(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def test_every_integration_tests_latest_package_version(registry_content):
+    """Each integration needs a suitespec environment with its package unpinned (or floor-only), so the
+    nightly lock bump tests the newest release. Pinned-only integrations go in LATEST_NOT_TESTED.
+    """
+    tested_latest = set()
+    seen = set()
+    for environments in get_test_environments(nightly=False).values():
+        for environment in environments:
+            integration = environment.integration_name
+            if integration in EXCLUDED_FROM_TESTING:
+                continue
+            names = {_canonical(n) for n in INTEGRATION_TO_DEPENDENCY_MAPPING.get(integration) or {integration}}
+            names.add(_canonical(integration))
+            for raw in environment.direct_dependencies:
+                try:
+                    requirement = Requirement(raw)
+                except InvalidRequirement:
+                    continue
+                if _canonical(requirement.name) not in names:
+                    continue
+                seen.add(integration)
+                if {s.operator for s in requirement.specifier} <= {">=", ">"}:
+                    tested_latest.add(integration)
+
+    registry = {entry["integration_name"]: entry for entry in registry_content["integrations"]}
+    tracked = {name for name, entry in registry.items() if entry["is_external_package"] and entry["is_tested"]} - set(
+        EXCLUDED_FROM_TESTING
+    )
+    unmatched = tracked - seen
+    assert not unmatched, (
+        f"no environment lists the package of {sorted(unmatched)} as a direct dependency, so its version "
+        "coverage cannot be checked; fix the dependency name mapping"
+    )
+    unknown = LATEST_NOT_TESTED.keys() - registry.keys() - seen
+    assert not unknown, f"remove from LATEST_NOT_TESTED, no such integration: {sorted(unknown)}"
+
+    missing = seen - tested_latest - LATEST_NOT_TESTED.keys()
+    assert not missing, (
+        f"no environment tests the latest package version for {sorted(missing)}; unpin one or allowlist it"
+    )
+    stale = LATEST_NOT_TESTED.keys() & tested_latest
+    assert not stale, f"remove from LATEST_NOT_TESTED, latest is now tested: {sorted(stale)}"
