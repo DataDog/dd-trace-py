@@ -600,6 +600,12 @@ def format_value_aspect(
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
+    """Encode or decode self one item at a time, mapping each taint range to its output position.
+
+    Ranges are expected in ascending, non-overlapping order. A range covers the output produced
+    while consuming its input. A character split across a range boundary is produced by the item
+    that completes it, so it belongs to the range holding its last byte.
+    """
     tainted_ranges = iter(get_tainted_ranges(self))
     result_list, new_ranges = [], []
     result_length, i = 0, 0
@@ -608,12 +614,11 @@ def incremental_translation(self, incr_coder, funcode, empty):
     try:
         for i in range(len(self)):
             if tainted_range is None:
-                # no more tainted ranges, finish decoding all at once
+                # No ranges left to map, so the rest can be converted in a single call.
                 new_prod = funcode(self[i:])
                 result_list.append(new_prod)
                 break
             if i == tainted_range.start:
-                # start new tainted range
                 tainted_start = result_length
 
             new_prod = funcode(self[i : i + 1])
@@ -621,7 +626,8 @@ def incremental_translation(self, incr_coder, funcode, empty):
             result_length += len(new_prod)
 
             if i + 1 == tainted_range.start + tainted_range.length:
-                # end range. Do no taint partial multi-bytes character that comes next.
+                # A range holding only part of a character produces no output and is dropped,
+                # but the next range must still be mapped.
                 if result_length > tainted_start:
                     new_ranges.append(
                         TaintRange(

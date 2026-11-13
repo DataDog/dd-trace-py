@@ -40,6 +40,7 @@ def test_encode_decode_multiple_ranges(method, parts, separator):
 
 
 def test_decode_range_ending_mid_character_keeps_next_range():
+    """The first range holds only the lead byte of "é", so it produces no output of its own."""
     first = taint_pyobject(b"\xc3", source_name="first", source_value="\xc3")
     second = taint_pyobject(b"abc", source_name="second", source_value="abc")
     value = ddtrace_aspects.add_aspect(first, b"\xa9/")
