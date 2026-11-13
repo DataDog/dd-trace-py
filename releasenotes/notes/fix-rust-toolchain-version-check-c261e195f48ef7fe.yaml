@@ -1,0 +1,4 @@
+fixes:
+  - |
+    internal: Fixes an issue where source installations fail with Rust or Cargo
+    1.100.0 or newer.
