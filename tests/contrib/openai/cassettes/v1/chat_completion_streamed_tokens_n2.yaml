@@ -1,0 +1,22 @@
+interactions:
+- request:
+    body: "{\"messages\": [{\"role\": \"user\", \"content\": \"Say hello\"}], \"model\": \"gpt-4o-mini\", \"n\": 2, \"stream\": true, \"stream_options\": {\"include_usage\": true}}"
+    headers:
+      accept:
+      - application/json
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "data: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":1,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":1,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" friend\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":1,\"delta\":{\"content\":\" there\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":1,\"delta\":{\"content\":\" friend\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":1,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"id\":\"chatcmpl-n2streamedtokens\",\"object\":\"chat.completion.chunk\",\"created\":1761700000,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[],\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":5,\"total_tokens\":14}}\n\ndata: [DONE]\n\n"
+    headers:
+      Content-Type:
+      - text/event-stream; charset=utf-8
+    status:
+      code: 200
+      message: OK
+version: 1
