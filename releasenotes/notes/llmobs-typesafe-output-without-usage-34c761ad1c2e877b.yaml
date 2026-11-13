@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    LLM Observability: TypeSafe System One spans no longer include token usage in the span output, matching OpenAI
+    Decisions API spans. Token counts are still recorded as span metrics.

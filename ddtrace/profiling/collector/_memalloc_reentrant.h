@@ -17,7 +17,7 @@
 /* True while the malloc allocator hook is running on this thread.
  * Used to prevent reentrant heap tracking (which would corrupt the heap
  * tracker's data structures) and to detect reentrant calls in assert builds. */
-extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
+extern MEMALLOC_TLS bool MEMALLOC_ON_THREAD;
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
 static inline void
@@ -37,10 +37,10 @@ _memalloc_abort_free_reentry(void)
 }
 #endif // MEMALLOC_ASSERT_ON_REENTRY
 
-/* RAII guard for reentrancy protection. Sets _MEMALLOC_ON_THREAD in the
+/* RAII guard for reentrancy protection. Sets MEMALLOC_ON_THREAD in the
  * constructor and clears it in the destructor.
  *
- * If _MEMALLOC_ON_THREAD is already set (reentrant call), the guard does
+ * If MEMALLOC_ON_THREAD is already set (reentrant call), the guard does
  * not acquire:
  *  - In assert builds, it aborts immediately for early detection.
  *  - In production builds, callers check acquired() / operator bool() to
@@ -53,8 +53,8 @@ class memalloc_reentrant_guard_t
     memalloc_reentrant_guard_t()
       : acquired_(false)
     {
-        if (!_MEMALLOC_ON_THREAD) {
-            _MEMALLOC_ON_THREAD = true;
+        if (!MEMALLOC_ON_THREAD) {
+            MEMALLOC_ON_THREAD = true;
             acquired_ = true;
         }
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
@@ -66,11 +66,11 @@ class memalloc_reentrant_guard_t
 
     ~memalloc_reentrant_guard_t()
     {
-        /* We only release _MEMALLOC_ON_THREAD if this guard object successfully
+        /* We only release MEMALLOC_ON_THREAD if this guard object successfully
          * acquired it (acquired_ == true). This is important because if acquisition failed
          * (we're already in a reentrant call), we don't own the lock and shouldn't release it. */
         if (acquired_) {
-            _MEMALLOC_ON_THREAD = false;
+            MEMALLOC_ON_THREAD = false;
         }
     }
 

@@ -9,6 +9,9 @@ from ddtrace.internal.settings import env
 
 log = get_logger(__name__)
 
+# Returned by a remapper when a valid OpenTelemetry value leaves the Datadog setting unchanged.
+NO_OVERRIDE = "__otel_no_override__"
+
 OTEL_UNIFIED_TAG_MAPPINGS = {
     "deployment.environment.name": ENV_KEY,
     "deployment.environment": ENV_KEY,
@@ -179,11 +182,15 @@ def _remap_otel_tags(otel_value: str) -> Optional[str]:
 
 
 def _remap_otel_sdk_config(otel_value: str) -> Optional[str]:
-    """Remaps the otel sdk config to ddtrace sdk config"""
-    if otel_value == "false":
-        return "True"
-    elif otel_value == "true":
+    """Remaps OTEL_SDK_DISABLED to a ddtrace enabled setting.
+
+    OTEL_SDK_DISABLED=true disables the setting. False is the specification default, and an empty value is
+    treated as unset, so neither enables anything.
+    """
+    if otel_value == "true":
         return "False"
+    elif otel_value in ("false", ""):
+        return NO_OVERRIDE
     return None
 
 
@@ -249,6 +256,11 @@ SUPPORTED_OTEL_ENV_VARS = {
 
 
 def parse_otel_env(otel_env: str) -> tuple[str, Optional[str]]:
+    """Returns the raw and remapped values of otel_env.
+
+    The remapped value is None when the value is invalid, and NO_OVERRIDE when it is valid but does not
+    change the Datadog setting.
+    """
     _, otel_config_validator = ENV_VAR_MAPPINGS[otel_env]
     raw_value = env.get(otel_env, "")
     if otel_env not in ("OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"):
