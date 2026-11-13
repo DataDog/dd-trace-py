@@ -1,21 +1,30 @@
+from typing import Any
+from typing import Optional
+
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
 
 
 class BaseVertexAIStreamHandler:
+    """Mixed into StreamHandler/AsyncStreamHandler, which provide chunks and options."""
+
+    chunks: list[Any]
+    options: dict[str, Any]
+
     def _process_chunk(self, chunk):
         # only keep track of the first chunk for chat messages since
         # it is modified during the streaming process
         if not self.options.get("is_chat", False) or not self.chunks:
             self.chunks.append(chunk)
 
-    def finalize_stream(self, exception=None):
-        self.request_kwargs["instance"] = self.options.get("model_instance", None)
-        self.request_kwargs["history"] = self.options.get("history", None)
-        self.integration.llmobs_set_tags(
-            self.primary_span, args=self.request_args, kwargs=self.request_kwargs, response=self.chunks
-        )
-        self.primary_span.finish()
+    def finalize_stream(self, exception: Optional[BaseException] = None) -> None:
+        """Dispatch the deferred ended event with the streamed chunks, which finishes the span."""
+        ctx = self.options["ctx"]
+        ctx.event.response = self.chunks
+        if exception:
+            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
+        else:
+            ctx.dispatch_ended_event()
 
 
 class VertexAIStreamHandler(BaseVertexAIStreamHandler, StreamHandler):

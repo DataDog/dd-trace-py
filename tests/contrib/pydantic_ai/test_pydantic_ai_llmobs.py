@@ -10,6 +10,7 @@ import pytest
 from typing_extensions import TypedDict
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._subscribers import integration_for
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import AgentManifest
@@ -923,8 +924,8 @@ class TestPydanticAIAgentManifest:
         # system prompts are not all strings, so the span path can never reach the builder with one.
         # The guard is defense in depth: the attribute is public and unvalidated, so a framework change
         # or a caller reaching in gets filtered rather than shipping a repr with a memory address.
-        # The integration instance is the one the patch installed, so no config has to be synthesized.
-        manifest = pydantic_ai._datadog_integration._build_agent_manifest(agent)
+        # The integration instance is the one the patch registered, so no config has to be synthesized.
+        manifest = integration_for("pydantic_ai")._build_agent_manifest(agent)
 
         assert manifest["system_prompts"] == ["real prompt"]
         # The sentinel's own repr, not a memory-address pattern: a provider sentinel like NOT_GIVEN
@@ -1100,7 +1101,7 @@ class TestPydanticAIAgentManifest:
         agent = pydantic_ai.Agent(model=_test_model(), name="test_agent", metadata=tenant_metadata)
         # Built directly rather than through a run: pydantic-ai resolves metadata itself during a run,
         # so a run-scoped call counter cannot tell its calls apart from ours.
-        manifest = pydantic_ai._datadog_integration._build_agent_manifest(agent)
+        manifest = integration_for("pydantic_ai")._build_agent_manifest(agent)
 
         assert "metadata" not in manifest
         assert not called, "building the manifest must not evaluate a caller-supplied resolver"

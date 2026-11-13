@@ -1,5 +1,8 @@
 import pytest
 
+from ddtrace.contrib.internal.pydantic_ai import patch as pydantic_ai_patch
+from ddtrace.contrib.internal.pydantic_ai.patch import patch
+from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
 
 
@@ -29,6 +32,22 @@ async def test_agent_iter(pydantic_ai, snapshot_context, request_vcr):
     with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run"):
         with request_vcr.use_cassette("agent_iter.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.iter("Hello, world!") as agent_run:
+                async for _ in agent_run:
+                    pass
+
+
+async def test_agent_iter_after_unentered_run_stream_and_repatch(pydantic_ai, snapshot_context, request_vcr):
+    # A run_stream() context manager that is never entered leaves the guard set; a repatch must clear it
+    # so that the next iter() call is still traced.
+    pydantic_ai_patch._run_stream_active = True
+    unpatch()
+    patch()
+
+    agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+
+    with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run"):
+        with request_vcr.use_cassette("agent_iter.yaml"):
             async with agent.iter("Hello, world!") as agent_run:
                 async for _ in agent_run:
                     pass

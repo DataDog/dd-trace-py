@@ -46,6 +46,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
 
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Nothing to do: spans are tagged from the OpenAI span or trace they mirror."""
+
     def trace(
         self,
         operation_id: str = "",
