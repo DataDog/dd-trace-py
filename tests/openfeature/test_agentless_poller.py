@@ -348,16 +348,14 @@ def test_dd_service_header_follows_service_changes_after_start(harness):
     assert src._requests[2]["headers"]["DD-Service"] == "my_billing"
 
 
-_USAGE_SERVICE_REJECTED = (
-    "Feature Flags: the CDN does not accept the APM name of service %r; DD-Service header not sent"
-)
+_USAGE_SERVICE_REJECTED = "Feature Flags: service %r has no ASCII APM name; DD-Service header not sent"
 
 
 # Each row: the service, the name that APM shows, and the DD-Service header (None: no header).
 # The APM names are the output of the Agent's NormalizeService
-# (datadog-agent pkg/trace/traceutil/normalize v0.82.3) plus the CDN pattern check.
+# (datadog-agent pkg/trace/traceutil/normalize v0.82.3).
 # "" is an empty result. The Agent replaces it with a placeholder name.
-# The header is the APM name if it matches ^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,99}$.
+# The header is the APM name if it is not empty and is printable ASCII.
 # Otherwise there is no header. Usage never goes to a name that APM does not show.
 _AGENT_SERVICE_NAMES = [
     ("checkout", "checkout", "checkout"),
@@ -368,7 +366,7 @@ _AGENT_SERVICE_NAMES = [
     ("a\tb", "a_b", "a_b"),
     ("a  b!", "a_b", "a_b"),
     ("svc ", "svc", "svc"),
-    (" svc", "_svc", None),
+    (" svc", "_svc", "_svc"),
     ("a_", "a", "a"),
     ("svc-", "svc-", "svc-"),
     ("a..b", "a..b", "a..b"),
@@ -382,10 +380,10 @@ _AGENT_SERVICE_NAMES = [
     ("a" + "b" * 100, "a" + "b" * 99, "a" + "b" * 99),
     ("a" * 100 + " b", "a" * 100, "a" * 100),
     ("a" * 99 + "é", "a" * 99, "a" * 99),  # 101 bytes. The cut splits the "é", so it is dropped.
-    ("_svc", "_svc", None),
-    ("-svc", "-svc", None),
-    (".svc", ".svc", None),
-    (":svc", ":svc", None),
+    ("_svc", "_svc", "_svc"),
+    ("-svc", "-svc", "-svc"),
+    (".svc", ".svc", ".svc"),
+    (":svc", ":svc", ":svc"),
     ("café-api", "café-api", None),
     ("Café", "café", None),
     ("支付", "支付", None),
@@ -393,7 +391,7 @@ _AGENT_SERVICE_NAMES = [
     ("İstanbul", "İstanbul", None),
     ("é" * 60, "é" * 50, None),
     ("___", "", None),
-    ("-", "-", None),
+    ("-", "-", "-"),
     ("", "", None),
     ("   ", "", None),
 ]
@@ -450,12 +448,12 @@ def test_dd_service_normalized_once_when_source_is_built(harness, monkeypatch):
 def test_dd_service_rejection_logged_once_per_value(harness, caplog):
     src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
     with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
-        for service in ("_svc", "_svc", "café-api"):
+        for service in ("café-api", "café-api", "支付"):
             with override_global_config({"service": service}):
                 src.periodic()
 
     rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
-    assert rejected == [_USAGE_SERVICE_REJECTED % (service,) for service in ("_svc", "café-api")]
+    assert rejected == [_USAGE_SERVICE_REJECTED % (service,) for service in ("café-api", "支付")]
 
 
 def test_self_tracing_suppressed(harness):

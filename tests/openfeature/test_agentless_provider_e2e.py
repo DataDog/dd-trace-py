@@ -199,7 +199,9 @@ def test_agentless_request_sends_dd_service_from_environment():
     assert request["headers"]["DD-Service"] == "checkout"
 
 
-@pytest.mark.parametrize("service, expected", [("My Service", "my_service"), ("bad\nvalue", "bad_value")], ids=repr)
+@pytest.mark.parametrize(
+    "service, expected", [("My Service", "my_service"), ("bad\nvalue", "bad_value"), (" svc", "_svc")], ids=repr
+)
 def test_request_carries_the_service_name_apm_shows(local_cdn, service, expected):
     url, received = local_cdn
 
@@ -210,9 +212,9 @@ def test_request_carries_the_service_name_apm_shows(local_cdn, service, expected
     assert _get_ffe_config() is not None  # The configuration is applied.
 
 
-# APM shows these as "_svc", "café-api", "支付" and no name. The CDN accepts none of them.
-@pytest.mark.parametrize("service", ["_svc", "café-api", "支付", "___"], ids=repr)
-def test_request_sent_without_service_when_the_cdn_rejects_the_apm_name(local_cdn, service):
+# APM shows these as "café-api", "支付" and no name. None of them is a printable ASCII name.
+@pytest.mark.parametrize("service", ["café-api", "支付", "___"], ids=repr)
+def test_request_sent_without_service_when_the_apm_name_is_empty_or_not_ascii(local_cdn, service):
     url, received = local_cdn
 
     _poll_local_cdn(url, service)

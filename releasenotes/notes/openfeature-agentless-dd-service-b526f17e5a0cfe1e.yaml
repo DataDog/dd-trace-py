@@ -3,5 +3,5 @@ features:
   - |
     openfeature: Agentless Feature Flagging configuration requests now send the service name. This
     lets you break down Feature Flags usage by service. The name is the service name that APM shows,
-    from ``DD_SERVICE`` or the inferred name. If the Feature Flags CDN does not accept that name, the
+    from ``DD_SERVICE`` or the inferred name. If that name is empty or has non-ASCII characters, the
     requests do not send it.

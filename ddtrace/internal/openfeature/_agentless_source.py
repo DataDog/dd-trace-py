@@ -73,12 +73,7 @@ _WAIT_EPSILON_S = 1e-6
 # It is inside the optional group so a bare "//" is still redacted anywhere.
 _URL_RE = re.compile(r"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
 
-# The CDN attributes usage to a DD-Service value only if the full value matches this.
-# The CDN ignores all other values.
-_USAGE_SERVICE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,99}")
-_USAGE_SERVICE_REJECTED_MESSAGE = (
-    "Feature Flags: the CDN does not accept the APM name of service %r; DD-Service header not sent"
-)
+_USAGE_SERVICE_REJECTED_MESSAGE = "Feature Flags: service %r has no ASCII APM name; DD-Service header not sent"
 # The ASCII characters that the Agent keeps in a service name, after it lowercases ASCII letters.
 _SERVICE_KEPT_ASCII = frozenset("abcdefghijklmnopqrstuvwxyz0123456789:./-")
 _SERVICE_MAX_BYTES = 100
@@ -112,8 +107,8 @@ def _normalize_service(service: str) -> str:
     - Drop a run at the end. Keep a run at the start: ``" svc"`` becomes ``"_svc"``.
 
     For an empty result, the Agent uses a placeholder name. This function returns ``""``.
-    The Agent also lowercases some non-ASCII letters. The header stays the same, because the
-    CDN rejects all names that have non-ASCII characters.
+    The Agent also lowercases some non-ASCII letters. The header stays the same, because a name
+    that has non-ASCII characters gets no header.
 
     Raises UnicodeEncodeError if the name has a lone surrogate.
     """
@@ -137,7 +132,7 @@ def _usage_service_header(service: Any) -> Optional[str]:
     """Return the DD-Service header value for a tracer service, or None to omit the header.
 
     The value is the exact name that APM shows. For example, ``My Service`` becomes ``my_service``.
-    If the CDN does not accept that name, for example ``_svc`` or ``café-api``, omit the header.
+    If that name is empty or is not printable ASCII, for example ``café-api``, omit the header.
     Never send a different name: usage must go to a service that APM shows.
     """
     if not service or not isinstance(service, str):
@@ -147,7 +142,11 @@ def _usage_service_header(service: Any) -> Optional[str]:
     except UnicodeEncodeError:
         # A lone surrogate has no UTF-8 form, so the APM name is not known.
         normalized = ""
-    if _USAGE_SERVICE_RE.fullmatch(normalized):
+    # Only the CDN decides which values it accepts; this check does not copy its rules.
+    # Some SDK HTTP clients refuse non-ASCII header values. The HTTP client of this library
+    # accepts them, but all SDKs omit them, so a service gets the same header in each language.
+    # "!" to "~" is printable ASCII (0x21-0x7E).
+    if normalized and all("!" <= c <= "~" for c in normalized):
         return normalized
     log.debug(_USAGE_SERVICE_REJECTED_MESSAGE, service)
     return None
