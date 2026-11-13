@@ -14,5 +14,5 @@ __version__ = "0.1.0"
 # added, removed, or changes meaning; loaders reject unknown versions so a
 # newer manifest is never silently misread by an older harness.
 MANIFEST_SCHEMA_VERSION = 1
-FREEZE_SCHEMA_VERSION = 1
+FREEZE_SCHEMA_VERSION = 2
 MATRIX_SCHEMA_VERSION = 1

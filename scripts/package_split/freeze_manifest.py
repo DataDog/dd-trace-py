@@ -1,12 +1,12 @@
 """package-freeze.toml: the protected extraction provenance manifest.
 
-Schema v1. One file per repository, describing what was frozen at extraction
+Schema v2. One file per repository, describing what was frozen at extraction
 time. The freeze gate loads it from the *base* revision (git show) whenever
 possible, so a pull request cannot weaken its own rules by editing the file.
 
 ::
 
-    schema_version = 1
+    schema_version = 2
 
     [[frozen]]
     destination_repository = "datadog-apm-python"
@@ -23,6 +23,7 @@ possible, so a pull request cannot weaken its own rules by editing the file.
     reason = "import shim for the compatibility window"
     approver = "@DataDog/apm-core-python"
     sync_record = "https://github.com/DataDog/datadog-apm-python/pull/1"
+    post_hash = "<sha256 of the approved replacement>"
 
     [[freeze_exceptions]]
     path = "ddtrace/internal/ci_visibility/"
@@ -101,6 +102,9 @@ def validate_freeze(data: Any) -> list[str]:
                 value = rewrite.get(field)
                 if not isinstance(value, str) or not value.strip():
                     issues.append("%s.approved_rewrites[%d]: missing or empty %r" % (where, j, field))
+            post_hash = rewrite.get("post_hash")
+            if not isinstance(post_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", post_hash):
+                issues.append("%s.approved_rewrites[%d]: post_hash must be a SHA-256 hash" % (where, j))
 
     exceptions = data.get("freeze_exceptions", [])
     if not isinstance(exceptions, list):

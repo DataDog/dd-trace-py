@@ -7,3 +7,8 @@ Exit 0/pass, 1/fail (required `not_run` fails), 2/usage or contract error. Evide
 Schemas/examples: root `package-contract.toml`, `matrices.py`, `freeze_manifest.py`. Add negative fixtures in `tests/package_split/`; use `scripts/run-tests` and `scripts/lint`. Extend registry/CLI, version schema changes. [Plan](../../docs/package-split/plan.md).
 
 [Harness audit](../../docs/package-split/harness-audit-2026-11.md): proposed ownership, overlap with existing checks, and gaps to resolve before trimming gates.
+
+Freeze manifests use schema version 2. Every approved rewrite must include
+`post_hash`, the SHA-256 of its approved replacement. The protected base supplies
+the approval; the file at `--head` must match it. A later edit, deletion, or
+reversion requires a new approval on the base branch.

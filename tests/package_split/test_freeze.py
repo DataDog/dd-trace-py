@@ -16,6 +16,7 @@ from package_split.evidence import FAIL
 from package_split.evidence import NOT_RUN
 from package_split.evidence import PASS
 from package_split.gates import freeze
+import pytest
 
 from ._support import Args
 from ._support import make_report
@@ -33,7 +34,7 @@ def sha256(path: Path) -> str:
 
 
 FREEZE_TEMPLATE = """\
-schema_version = 1
+schema_version = 2
 
 [[frozen]]
 destination_repository = "datadog-apm-python-test"
@@ -49,12 +50,15 @@ build_inputs = ["pyproject.toml"]
 {rewrites}{exceptions}
 """
 
-REWRITE = """
+APPROVED_SOURCE = "value = 2\n"
+
+REWRITE = f"""
 [[frozen.approved_rewrites]]
 path = "sample/mod.py"
 reason = "compatibility shim"
 approver = "test-owner"
 sync_record = "recorded"
+post_hash = "{hashlib.sha256(APPROVED_SOURCE.encode()).hexdigest()}"
 """
 
 EXCEPTION = """
@@ -175,11 +179,66 @@ def test_head_option_measures_pr_drift_not_base(tmp_path):
 
 def test_approved_rewrite_tolerated(tmp_path):
     repo = FreezeRepo(tmp_path, rewrites=REWRITE)
-    (repo.root / "sample" / "mod.py").write_text("value = 2\n", encoding="utf-8")
+    (repo.root / "sample" / "mod.py").write_text(APPROVED_SOURCE, encoding="utf-8")
     repo.commit_change("approved rewrite")
     report = repo.run()
     assert report.status == PASS, report.summary()
     assert any(c.name == "approved-rewrites" for c in report.checks)
+
+
+@pytest.mark.parametrize("source", ["value = 3\n", "value = 1\n", None])
+def test_approved_rewrite_rejects_other_content(tmp_path, source):
+    repo = FreezeRepo(tmp_path, rewrites=REWRITE)
+    path = repo.root / "sample" / "mod.py"
+    path.write_text(APPROVED_SOURCE, encoding="utf-8")
+    repo.commit_change("approved rewrite")
+    if source is None:
+        path.unlink()
+    else:
+        path.write_text(source, encoding="utf-8")
+    repo.commit_change("unapproved content")
+    report = repo.run()
+    assert report.status == FAIL, report.summary()
+    assert any("approved rewrite" in str(check.data.get("problems", [])) for check in report.checks)
+    assert not any(check.name == "approved-rewrites" and check.status == PASS for check in report.checks)
+
+
+@pytest.mark.parametrize("post_hash", [None, "", "x" * 64, "A" * 64])
+def test_approved_rewrite_requires_sha256(tmp_path, post_hash):
+    rewrite = "\n".join(line for line in REWRITE.splitlines() if not line.startswith("post_hash"))
+    if post_hash is not None:
+        rewrite += '\npost_hash = "%s"\n' % post_hash
+    repo = FreezeRepo(tmp_path, rewrites=rewrite)
+    report = repo.run()
+    assert report.status == FAIL, report.summary()
+    assert any(check.name == "freeze-manifest" and "post_hash" in check.detail for check in report.checks)
+
+
+def test_pr_cannot_reapprove_its_own_rewrite(tmp_path):
+    repo = FreezeRepo(tmp_path, rewrites=REWRITE)
+    base = git(repo.root, "rev-parse", "HEAD")
+    (repo.root / "sample" / "mod.py").write_text("value = 3\n", encoding="utf-8")
+    manifest = repo.root / "package-freeze.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            hashlib.sha256(APPROVED_SOURCE.encode()).hexdigest(), sha256(repo.root / "sample/mod.py")
+        ),
+        encoding="utf-8",
+    )
+    repo.commit_change("change source and approve it on the PR head")
+    report = repo.run(base=base)
+    assert report.status == FAIL, report.summary()
+    assert any("approved rewrite" in str(check.data.get("problems", [])) for check in report.checks)
+
+
+def test_old_freeze_schema_is_rejected(tmp_path):
+    repo = FreezeRepo(tmp_path)
+    manifest = repo.root / "package-freeze.toml"
+    manifest.write_text(manifest.read_text().replace("schema_version = 2", "schema_version = 1"), encoding="utf-8")
+    repo.commit_change("old freeze schema")
+    report = repo.run()
+    assert report.status == FAIL, report.summary()
+    assert any(check.name == "freeze-manifest" and "schema_version" in check.detail for check in report.checks)
 
 
 def test_expired_exception_fails(tmp_path):

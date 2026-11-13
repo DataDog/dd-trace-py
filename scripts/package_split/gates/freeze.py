@@ -116,7 +116,18 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
         extraction_revision = entry["extraction_revision"]
         source_paths = entry["source_paths"]
         hashes = entry.get("hashes", {})
-        approved = {rewrite["path"] for rewrite in entry.get("approved_rewrites", [])}
+        approved = set()
+        rewrites = []
+        for rewrite in entry.get("approved_rewrites", []):
+            path = rewrite["path"]
+            content = _path_content(root, path, head)
+            if content is None:
+                problems.append("approved rewrite %r is missing at the head revision" % path)
+            elif hashlib.sha256(content).hexdigest() != rewrite["post_hash"]:
+                problems.append("approved rewrite %r does not match its post_hash" % path)
+            else:
+                approved.add(path)
+                rewrites.append(rewrite)
 
         # 1. Recorded hashes must match the content at the extraction
         # revision (freeze manifest integrity).
@@ -151,12 +162,8 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
                 change = {"M": "edit", "A": "addition", "D": "deletion"}.get(status, "change")
                 problems.append("unauthorized %s to frozen path %r" % (change, path))
 
-        # 3. Approved rewrites must still differ from the frozen baseline only
-        # in the ways their owners approved; record them as evidence.
-        rewrites = [
-            {"path": r["path"], "reason": r["reason"], "approver": r["approver"]}
-            for r in entry.get("approved_rewrites", [])
-        ]
+        # Only replacements matching the protected base's approval are evidence
+        # of a synchronized rewrite; a PR cannot approve its own new content.
         if rewrites:
             report.record(
                 "approved-rewrites",
