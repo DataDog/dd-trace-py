@@ -9,15 +9,15 @@ def _supported_versions() -> dict[str, str]:
     return {"webbrowser": "*"}
 
 
-def patch():
+def patch() -> None:
     """patch the built-in webbrowser methods for tracing"""
     if getattr(webbrowser, "__datadog_patch", False):
         return
-    webbrowser.__datadog_patch = True
+    setattr(webbrowser, "__datadog_patch", True)
 
 
-def unpatch():
+def unpatch() -> None:
     """unpatch any previously patched modules"""
     if not getattr(webbrowser, "__datadog_patch", False):
         return
-    webbrowser.__datadog_patch = False
+    setattr(webbrowser, "__datadog_patch", False)
