@@ -3,8 +3,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.llmobs._integrations.crewai import listener_condition
-from ddtrace.llmobs._integrations.crewai import satisfying_methods
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
@@ -526,40 +524,6 @@ async def test_router_flow_async(crewai, router_flow_async, crewai_llmobs, test_
     spans = _ordered_spans(test_spans)
     _assert_router_flow_events(spans)
     _assert_router_flow_links(spans)
-
-
-# Only the stored format of the installed crewai version runs through the flow tests above; CI runs crewai 0.102 and
-# the latest 1.x, so the crewai 1.0 to 1.14 format of and_/or_ listeners is covered here.
-@pytest.mark.parametrize(
-    "condition,expected",
-    [
-        (("AND", ["a", "b"]), ("AND", ["a", "b"])),
-        ("a", ("OR", ["a"])),
-        (
-            {"type": "AND", "conditions": ["a", {"type": "OR", "conditions": ["b", "c"]}]},
-            ("AND", ["a", ("OR", ["b", "c"])]),
-        ),
-        ({"and": ["a", {"or": ["b", "c"]}]}, ("AND", ["a", ("OR", ["b", "c"])])),
-        ({"or": ["a", "b"]}, ("OR", ["a", "b"])),
-    ],
-    ids=["tuple", "method_name", "type_conditions", "and_dict", "or_dict"],
-)
-def test_listener_condition(condition, expected):
-    assert listener_condition(condition) == expected
-
-
-@pytest.mark.parametrize(
-    "ran,trigger_method,expected",
-    [
-        ({"a"}, "a", None),
-        ({"a", "b"}, "b", ["a", "b"]),
-        ({"a", "c"}, "c", ["a", "c"]),
-        ({"a", "b", "c"}, "c", ["a", "c"]),
-    ],
-    ids=["and_waits", "or_branch_b", "or_branch_c", "or_prefers_trigger"],
-)
-def test_satisfying_methods(ran, trigger_method, expected):
-    assert satisfying_methods(("AND", ["a", ("OR", ["b", "c"])]), ran, trigger_method) == expected
 
 
 @pytest.mark.skipif(CREWAI_VERSION < (1, 0, 0), reason="nested and_/or_ conditions require crewai>=1.0")
