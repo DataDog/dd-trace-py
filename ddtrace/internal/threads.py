@@ -1,5 +1,6 @@
 from _queue import SimpleQueue
 from _thread import get_ident as _get_ident
+from functools import partial
 import threading as _threading
 from time import monotonic_ns
 from types import ModuleType
@@ -118,6 +119,15 @@ def _safe_restart(start: t.Callable[[], None]) -> t.Optional[Exception]:
     return None
 
 
+def _restart_error_logger(name: str, error: Exception) -> t.Callable[[], None]:
+    # One call site per message keeps the line-based log rate limiter's buckets distinct.
+    return lambda: log.error("failed to restart periodic thread %s after fork: %s", name, error)
+
+
+def _start_error_logger(name: str, error: Exception) -> t.Callable[[], None]:
+    return lambda: log.error("failed to start periodic thread %s: %s", name, error)
+
+
 class PeriodicThread(_PeriodicThread):
     """A fork-safe periodic thread."""
 
@@ -193,14 +203,14 @@ class ThreadRestartTimer(PeriodicThread):
         # the main thread's hub can release) can wait for a lock whose holder is
         # itself waiting for _forking_lock, such as a thread about to fork or one
         # stopping a periodic service. Log calls are queued and emitted afterwards.
-        deferred_logs: list[tuple[t.Callable[..., None], tuple[t.Any, ...]]] = []
+        deferred_logs: list[t.Callable[[], None]] = []
         try:
             self._restart_threads_locked(deferred_logs)
         finally:
-            for emit, log_args in deferred_logs:
-                emit(*log_args)
+            for emit in deferred_logs:
+                emit()
 
-    def _restart_threads_locked(self, deferred_logs: list[tuple[t.Callable[..., None], tuple[t.Any, ...]]]) -> None:
+    def _restart_threads_locked(self, deferred_logs: list[t.Callable[[], None]]) -> None:
         with _forking_lock:
             # If we are forking, we will try again later.
             if _forking:
@@ -222,13 +232,11 @@ class ThreadRestartTimer(PeriodicThread):
                         # __autorestart__, so they must be excluded explicitly
                         # to avoid re-running their target in the parent.
                         continue
-                    deferred_logs.append((log.debug, ("Restarting thread %s after fork", thread.name)))
+                    deferred_logs.append(partial(log.debug, "Restarting thread %s after fork", thread.name))
                     try:
                         thread._after_fork(force=self._force_restart)
                     except Exception as e:
-                        deferred_logs.append(
-                            (log.error, ("failed to restart periodic thread %s after fork: %s", thread.name, e))
-                        )
+                        deferred_logs.append(_restart_error_logger(thread.name, e))
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
@@ -237,12 +245,12 @@ class ThreadRestartTimer(PeriodicThread):
                         # actually ran in the parent. Same __autorestart__ contract as
                         # above: don't start it in the child either.
                         continue
-                    deferred_logs.append((log.debug, ("Starting thread %s after fork", thread_start.__self__.name)))
+                    deferred_logs.append(
+                        partial(log.debug, "Starting thread %s after fork", thread_start.__self__.name)
+                    )
                     error = _safe_restart(thread_start)
                     if error is not None:
-                        deferred_logs.append(
-                            (log.error, ("failed to start periodic thread %s: %s", thread_start.__self__.name, error))
-                        )
+                        deferred_logs.append(_start_error_logger(thread_start.__self__.name, error))
                 _threads_to_start_after_fork.clear()
 
                 # We no longer need this thread so we clear it.
