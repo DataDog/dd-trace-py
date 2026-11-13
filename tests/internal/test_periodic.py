@@ -1438,3 +1438,61 @@ def test_concurrent_stop_join():
         th.join()
 
     assert not errors, f"errors in concurrent stop/join: {errors}"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_timer_usable_in_child_when_forked_while_lock_held():
+    """A fork while another thread holds the Timer's worker lock must not leave the child unable to use the timer."""
+    import os
+    from threading import Event
+    from threading import Thread
+
+    from ddtrace.internal import periodic
+
+    fired = Event()
+
+    class T(periodic.Timer):
+        def timeout(self):
+            fired.set()
+
+    timer = T(0.1)
+
+    held = Event()
+    release = Event()
+
+    def hold():
+        with timer._worker_lock:
+            held.set()
+            release.wait(timeout=10)
+
+    holder = Thread(target=hold)
+    holder.start()
+    assert held.wait(timeout=5)
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            # The holding thread does not exist in the child: the lock must
+            # have been replaced rather than inherited locked.
+            assert timer._worker_lock.acquire(timeout=2), "worker lock inherited locked"
+            timer._worker_lock.release()
+
+            timer.start()
+            assert fired.wait(timeout=5), "timer did not fire in the child"
+            fired.clear()
+            timer.reset()
+            assert fired.wait(timeout=5), "timer did not fire after reset in the child"
+            timer.stop()
+        except BaseException:
+            import traceback
+
+            traceback.print_exc()
+            os._exit(1)
+        os._exit(0)
+
+    release.set()
+    holder.join()
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child exited with status {status}"
