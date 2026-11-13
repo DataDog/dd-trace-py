@@ -608,3 +608,134 @@ def test_package_publication_failure_preserves_previous_inventory(invalid, error
         assert iastpatch.should_iast_patch("new_dependency") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
     finally:
         ast_patching.initialize_iast_lists()
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "ordinary",
+        "subclass",
+        "instance",
+        "class",
+        "bound_exec",
+        "bound_code",
+        "custom_code",
+        "mismatched",
+        "site",
+        "symlink",
+        "no_spec",
+        "module_subclass",
+    ],
+)
+def test_discovery_source_eligibility(tmp_path, monkeypatch, kind):
+    from importlib.machinery import SourceFileLoader
+    from importlib.util import spec_from_file_location
+    import sys
+    from types import ModuleType
+
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+
+    name = "eligibility_customer"
+    source = tmp_path / "customer.py"
+    source.write_text("value = 1\n")
+    if kind in ("site", "symlink"):
+        installed = tmp_path / "site-packages" / "customer.py"
+        installed.parent.mkdir()
+        if kind == "symlink":
+            installed.symlink_to(source)
+        else:
+            installed.write_text("value = 1\n")
+        source = installed
+    loader = SourceFileLoader(name, str(source))
+    if kind == "subclass":
+
+        class CustomLoader(SourceFileLoader):
+            pass
+
+        loader = CustomLoader(name, str(source))
+    elif kind == "instance":
+        loader.exec_module = lambda module: None
+    elif kind == "class":
+        monkeypatch.setattr(SourceFileLoader, "exec_module", lambda self, module: None)
+    elif kind in ("bound_exec", "bound_code"):
+        other = SourceFileLoader(name, str(tmp_path / "other.py"))
+        method = "exec_module" if kind == "bound_exec" else "get_code"
+        setattr(loader, method, getattr(other, method))
+    elif kind == "custom_code":
+        loader.get_code = lambda name: None
+    module = ModuleType(name)
+    if kind == "module_subclass":
+
+        class CustomModule(ModuleType):
+            pass
+
+        module = CustomModule(name)
+    module.__spec__ = spec_from_file_location(name, source, loader=loader)
+    if kind == "mismatched":
+        module.__spec__.origin = str(tmp_path / "different.py")
+    module.__file__ = module.__spec__.origin
+    if kind == "no_spec":
+        module.__spec__ = None
+    monkeypatch.setitem(sys.modules, name, module)
+    assert ap._is_application_source(name) is (kind == "ordinary")
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES=""),
+    parametrize=dict(_DD_TEST_LOADER_SETUP=("exec_module", "set_data", "_cache_bytecode")),
+)
+def test_discovery_import_preserves_custom_loader_setup():
+    import builtins
+    from importlib import import_module
+    from importlib.machinery import PathFinder
+    from importlib.machinery import SourceFileLoader
+    from importlib.util import spec_from_file_location
+    import os
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+
+    from ddtrace.appsec._iast import enable_iast_propagation
+    from ddtrace.appsec._iast._ast import ast_patching as ap
+    from ddtrace.internal import packages
+
+    builtins._iast_loader_ready = False
+    sys.dont_write_bytecode = False
+    mode = os.environ["_DD_TEST_LOADER_SETUP"]
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "loader_customer.py"
+        path.write_text("import builtins\nassert builtins._iast_loader_ready\ndef combine(a, b):\n    return a + b\n")
+
+        class Loader(SourceFileLoader):
+            def exec_module(self, module):
+                builtins._iast_loader_ready = True
+                return super().exec_module(module)
+
+        class Finder:
+            def find_spec(self, fullname, *args, **kwargs):
+                if fullname == "loader_customer":
+                    loader = (
+                        Loader(fullname, str(path)) if mode == "exec_module" else SourceFileLoader(fullname, str(path))
+                    )
+                    if mode != "exec_module":
+                        original = getattr(loader, mode)
+
+                        def setup(*args, **kwargs):
+                            builtins._iast_loader_ready = True
+                            return original(*args, **kwargs)
+
+                        setattr(loader, mode, setup)
+                    return spec_from_file_location(fullname, path, loader=loader)
+                return None
+
+        sys.meta_path.insert(sys.meta_path.index(PathFinder), Finder())
+        enable_iast_propagation()
+        ap.iastpatch.set_packages_distributions({"ddtrace", "known"})
+        ap.IAST_PATCHING_LAZY_LOADED = False
+        packages._FINDER_QUERY.active = True
+        try:
+            module = import_module("loader_customer")
+        finally:
+            packages._FINDER_QUERY.active = False
+        assert builtins._iast_loader_ready
+        assert "add_aspect" not in module.combine.__code__.co_names

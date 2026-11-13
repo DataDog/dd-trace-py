@@ -89,6 +89,11 @@ def get_package_distributions() -> t.Mapping[str, list[str]]:
     return _installed().packages
 
 
+def is_distribution_discovery_in_progress() -> bool:
+    """Whether this thread can observe a finder-less package view."""
+    return getattr(_FINDER_QUERY, "active", False) or getattr(_IN_PREFETCH, "active", False)
+
+
 def is_querying_finders() -> bool:
     """Whether this thread is asking custom meta path finders for their distributions.
 

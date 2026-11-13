@@ -1,5 +1,8 @@
 import ast
+from importlib.machinery import SourceFileLoader
 import os
+from pathlib import Path
+import sys
 import textwrap
 from types import ModuleType
 from typing import Optional
@@ -10,9 +13,14 @@ from ddtrace.appsec._iast._logs import iast_ast_debug_log
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import _ImportHookChainedLoader
 from ddtrace.internal.module import origin
 from ddtrace.internal.packages import get_package_distributions
+from ddtrace.internal.packages import is_distribution_discovery_in_progress
 from ddtrace.internal.packages import is_querying_finders
+from ddtrace.internal.packages import is_stdlib
+from ddtrace.internal.packages import platlib_path
+from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
@@ -24,6 +32,20 @@ _VISITOR = AstVisitor()
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 IAST_PATCHING_LAZY_LOADED = True
+_SOURCE_LOADER_METHODS = {
+    name: getattr(SourceFileLoader, name)
+    for name in (
+        "exec_module",
+        "get_code",
+        "get_data",
+        "get_filename",
+        "get_source",
+        "source_to_code",
+        "path_stats",
+        "set_data",
+        "_cache_bytecode",
+    )
+}
 
 log = get_logger(__name__)
 
@@ -73,6 +95,40 @@ def initialize_iast_lists():
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
 
+def _is_application_source(module_name: str) -> bool:
+    module = sys.modules.get(module_name)
+    if type(module) is not ModuleType:
+        return False
+    spec = object.__getattribute__(module, "__spec__")
+    if spec is None:
+        return False
+    loader = spec.loader
+    if isinstance(loader, _ImportHookChainedLoader):
+        loader = loader.loader
+    # Rewritten code bypasses loader execution, including instance overrides.
+    if type(loader) is not SourceFileLoader:
+        return False
+    for name, original in _SOURCE_LOADER_METHODS.items():
+        method = getattr(loader, name)
+        if name == "get_code" and getattr(method, "_dd_get_code", False):
+            method = getattr(method, "__wrapped__", None)
+        if getattr(method, "__func__", None) is not original or getattr(method, "__self__", None) is not loader:
+            return False
+    path = origin(module)
+    source = Path(loader.path)
+    if path is None or source.resolve() != path:
+        return False
+    # Keep the lexical path too: resolving a symlink can erase its installation root.
+    return not any(
+        is_stdlib(candidate)
+        or candidate.is_relative_to(purelib_path)
+        or candidate.is_relative_to(platlib_path)
+        or "site-packages" in candidate.parts
+        or "dist-packages" in candidate.parts
+        for candidate in (path, source.absolute(), Path(spec.origin).absolute())
+    )
+
+
 def _should_iast_patch(module_name: str) -> bool:
     """Determines whether a module should be patched by IAST instrumentation.
 
@@ -106,15 +162,20 @@ def _should_iast_patch(module_name: str) -> bool:
         why a module was allowed or denied patching.
     """
     global IAST_PATCHING_LAZY_LOADED
+    discovery = is_distribution_discovery_in_progress()
     if IAST_PATCHING_LAZY_LOADED:
         initialize_iast_lists()
         # A module imported by a custom finder while it lists its distributions
         # gets a package list without them: initialize again on the next module.
         if not is_querying_finders():
             IAST_PATCHING_LAZY_LOADED = False
-    result = False
+    result = iastpatch.DENIED_NOT_FOUND
     try:
         result = iastpatch.should_iast_patch(module_name)
+        if discovery and result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
+            result = iastpatch.DENIED_NOT_FOUND
+            if _is_application_source(module_name):
+                result = iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
         if asm_config._iast_debug:
             if result == iastpatch.DENIED_BUILTINS_DENYLIST:
                 iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")

@@ -266,6 +266,7 @@ class _ImportHookChainedLoader:
                 return code
 
             setattr(get_code, "_dd_get_code", True)
+            setattr(get_code, "__wrapped__", _get_code)
 
             self.loader.get_code = get_code.__get__(self.loader, type(self.loader))  # type: ignore[union-attr]
 
