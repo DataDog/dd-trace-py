@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: a ``ChatLiteLLM`` call made with the LangChain and LiteLLM integrations both enabled is now
+    one ``llm`` span (the LiteLLM span) with the LangChain span as a ``workflow`` span around it, as for the
+    providers LangChain already knows (OpenAI, Anthropic, Bedrock, Vertex AI, Google GenAI). Before, both were
+    ``llm`` spans, so the call's tokens and estimated cost were counted twice.

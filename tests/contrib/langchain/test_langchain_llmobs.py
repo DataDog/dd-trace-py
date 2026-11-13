@@ -1116,6 +1116,13 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         DD_API_KEY="<not-a-real-key>",
     )
 
+    litellm_env_config = dict(
+        AWS_ACCESS_KEY_ID="testing",
+        AWS_SECRET_ACCESS_KEY="testing",
+        AWS_DEFAULT_REGION="us-east-1",
+        DD_API_KEY="<not-a-real-key>",
+    )
+
     def setUp(self):
         # Install a DummyWriter so we can pop spans off the global tracer in-process.
         ddtrace.tracer._span_aggregator.writer = DummyWriter()
@@ -1186,6 +1193,15 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             kwargs["base_url"] = "http://localhost:9126/vcr/anthropic"
 
         llm = Anthropic(**kwargs)
+        llm.invoke("When do you use 'whom' instead of 'who'?")
+
+    @staticmethod
+    def _call_litellm_chat(ChatLiteLLM):
+        # litellm answers `mock_response` itself, after the ddtrace-patched `completion` has started its span.
+        llm = ChatLiteLLM(
+            model="bedrock/converse/anthropic.claude-3-haiku-20240307-v1:0",
+            model_kwargs={"mock_response": "You use 'whom' as the object of a verb or preposition."},
+        )
         llm.invoke("When do you use 'whom' instead of 'who'?")
 
     @staticmethod
@@ -1376,6 +1392,33 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
 
         self._call_anthropic_chat(ChatAnthropic)
+        self._assert_span_kinds(["llm"])
+
+    @run_in_subprocess(env_overrides=litellm_env_config)
+    def test_llmobs_with_litellm_enabled(self):
+        try:
+            from langchain_litellm import ChatLiteLLM
+        except ImportError:
+            self.skipTest("langchain-litellm not installed")
+
+        patch(langchain=True, litellm=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_litellm_chat(ChatLiteLLM)
+        # the LangChain span wraps the litellm one; only the inner one is an llm span, so the call is counted once
+        self._assert_span_kinds(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=litellm_env_config)
+    def test_llmobs_with_litellm_disabled(self):
+        try:
+            from langchain_litellm import ChatLiteLLM
+        except ImportError:
+            self.skipTest("langchain-litellm not installed")
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_litellm_chat(ChatLiteLLM)
         self._assert_span_kinds(["llm"])
 
     @run_in_subprocess(env_overrides=google_genai_env_config)
