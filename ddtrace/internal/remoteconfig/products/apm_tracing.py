@@ -94,6 +94,10 @@ class APMTracingCallback(RCCallback):
 
     def _process_payloads(self, payloads: t.Sequence[Payload]) -> t.ChainMap:
         config_map = self._config_map
+        # Previous versions of records that were deleted or retargeted. The
+        # settings they applied to this process are dispatched as None, so that
+        # handlers can tell a removed override from a record that never set one.
+        removed: list[Payload] = []
         for payload in payloads:
             if payload.metadata is None:
                 log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
@@ -102,8 +106,9 @@ class APMTracingCallback(RCCallback):
             log.debug("Received APM tracing config payload: %s", payload)
 
             if payload.content is None:
-                if config_map.pop(payload.path, None) is not None:
+                if (previous := config_map.pop(payload.path, None)) is not None:
                     log.debug("Deleting config %s", payload.path)
+                    removed.append(previous)
                 continue
 
             # A malformed update keeps the previous version of the record, which
@@ -118,8 +123,21 @@ class APMTracingCallback(RCCallback):
             previous = config_map.get(payload.path)
             if previous is not None and previous.metadata.tuf_version != payload.metadata.tuf_version:
                 del config_map[payload.path]
+                if not targets_this_process(payload):
+                    removed.append(previous)
             config_map[payload.path] = payload
-        return self._get_chained_lib_config(config_map)
+
+        chain = self._get_chained_lib_config(config_map)
+        cleared = {
+            key: None
+            for p in removed
+            if targets_this_process(p)
+            for key in t.cast(dict, p.content).get("lib_config", {})
+            if key not in chain
+        }
+        if cleared:
+            chain.maps.append(cleared)
+        return chain
 
     def __call__(self, payloads: t.Sequence[Payload]) -> None:
         """Process APM tracing configuration payloads.

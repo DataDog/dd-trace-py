@@ -38,6 +38,12 @@ APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableExceptionReplay,)
 
 
 def apm_tracing_rc(lib_config: Any, _config: Any) -> None:
-    if (enabled := lib_config.get("exception_replay_enabled")) is not None:
-        should_start = (config.spec.enabled.full_name not in config.source or config.enabled) and enabled
-        start() if should_start else stop()
+    # A missing key means no record overrides this feature, so the current state
+    # is left untouched. A null one means the override was removed (e.g. its
+    # record was deleted on the backend), so fall back to the local value.
+    if "exception_replay_enabled" not in lib_config:
+        return
+    if (enabled := lib_config["exception_replay_enabled"]) is None:
+        enabled = config.parsed.enabled
+    should_start = (config.spec.enabled.full_name not in config.source or config.enabled) and enabled
+    start() if should_start else stop()
