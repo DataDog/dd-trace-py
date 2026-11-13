@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    botocore: Adds the ``aws.sqs.queue.url``, ``aws.stream.arn`` and
+    ``aws.step_functions.state_machine.arn`` tags to SQS, Kinesis and Step Functions client
+    spans when the request parameters include a queue URL, stream ARN or state machine ARN,
+    and the ``aws.table.arn`` and ``aws.function.arn`` tags to DynamoDB and Lambda client spans
+    when the request names the table or function by its full ARN. This also applies to the
+    ``aiobotocore`` integration. The tags are not set when ``DD_AWS_TAG_NO_PARAMS`` is enabled.

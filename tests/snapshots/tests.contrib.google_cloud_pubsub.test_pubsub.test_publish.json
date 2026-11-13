@@ -70,6 +70,7 @@
          "_dd.svc_src": "google_cloud_pubsub",
          "component": "google_cloud_pubsub",
          "gcloud.project_id": "test-project",
+         "gcp.pubsub.topic.name": "projects/test-project/topics/test-topic",
          "messaging.destination.name": "test-topic",
          "messaging.message_id": "8",
          "messaging.operation": "send",

@@ -97,6 +97,7 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, subscripti
         propagated_context=propagated_context if config.google_cloud_pubsub.propagation_as_span_links else None,
         project_id=project_id,
         subscription_id=subscription_id,
+        subscription_path=subscription,
         message=message,
     ) as ctx:
         core.dispatch("google_cloud_pubsub.receive.pre", (subscription, message, span_from_context(ctx)))
@@ -222,6 +223,7 @@ def _traced_publish(func, instance, args, kwargs):
         child_of=tracer.context_provider.active(),
         project_id=project_id,
         topic_id=topic_id,
+        topic_path=topic,
         publish_kwargs=kwargs,
     ) as ctx:
         core.dispatch("google_cloud_pubsub.send.pre", (args, kwargs, span_from_context(ctx)))
