@@ -194,3 +194,4 @@ class Codeowners:
             if pattern.search(path):
                 return owners
         return []
+# Temporary: test that the freeze check catches this change
