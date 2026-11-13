@@ -25,6 +25,7 @@ from ddtrace.debugging._function.store import FullyNamedContextWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.debugging._import import DebuggerModuleWatchdog
 from ddtrace.debugging._metrics import metrics
+from ddtrace.debugging._otel import probe_metrics_client
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineLocationMixin
@@ -46,7 +47,6 @@ from ddtrace.internal.bytecode_injection import HOOK_FRAME_DEPTH
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.metrics import DogStatsdClient
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
@@ -71,7 +71,7 @@ class TracerProtocol(Protocol):
     def current_trace_context(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
-_probe_metrics = Metrics(client=DogStatsdClient(namespace="dynamic.instrumentation.metric"))
+_probe_metrics = Metrics(client=probe_metrics_client("dynamic.instrumentation.metric"))
 _probe_metrics.enable()
 
 T = TypeVar("T")

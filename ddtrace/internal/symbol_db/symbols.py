@@ -31,6 +31,7 @@ from ddtrace.internal._runtime_id import get_ancestor_runtime_id
 from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.debugger_transport import get_debugger_transport
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
@@ -682,6 +683,14 @@ class ScopeContext:
         payload["final"] = False
         n = len(self._scopes)
         self._scopes.clear()
+
+        if (transport := get_debugger_transport()) is not None:
+            transport.emit(
+                "dd.debugger.symbols",
+                {"event": dict(self._event_data, batchNum=batch_num), "symbols": payload},
+                di_config.tags,
+            )
+            return
 
         compressed = gzip.compress(json.dumps(payload).encode("utf-8"))
 
