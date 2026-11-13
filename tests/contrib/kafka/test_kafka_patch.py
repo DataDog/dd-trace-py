@@ -8,6 +8,7 @@ from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import _cluster_id_by_bootstrap
 from ddtrace.contrib.internal.kafka.patch import _get_cluster_id
+from ddtrace.contrib.internal.kafka.patch import _normalize_bootstrap_servers
 from ddtrace.contrib.internal.kafka.patch import get_version
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
@@ -100,3 +101,41 @@ class TestGetClusterId:
         """Without a prior producer call the consumer still returns ''."""
         consumer = self._make_consumer("localhost:9092")
         assert _get_cluster_id(consumer, "test-topic") == ""
+
+    def test_consumer_shares_cache_with_differently_formatted_bootstrap(self) -> None:
+        """Producer and consumer listing the same brokers in a different order/format share the cluster ID."""
+        producer = self._make_producer("broker-b:9092,broker-a:9092")
+        mock_metadata = MagicMock()
+        mock_metadata.cluster_id = "test-cluster-123"
+        with mock_patch.object(type(producer), "list_topics", return_value=mock_metadata):
+            assert _get_cluster_id(producer, "test-topic") == "test-cluster-123"
+
+        assert _cluster_id_by_bootstrap == {"broker-a:9092,broker-b:9092": "test-cluster-123"}
+
+        consumer = self._make_consumer("broker-a:9092, broker-b:9092,broker-a:9092")
+        consumer.list_topics = MagicMock()  # type: ignore[method-assign]
+        assert _get_cluster_id(consumer, "test-topic") == "test-cluster-123"
+        consumer.list_topics.assert_not_called()
+
+    def test_consumer_does_not_share_cache_with_other_brokers(self) -> None:
+        """A cluster ID cached for one set of brokers is not reused for a different set."""
+        _cluster_id_by_bootstrap["broker-a:9092,broker-b:9092"] = "test-cluster-123"
+        consumer = self._make_consumer("broker-a:9092")
+        assert _get_cluster_id(consumer, "test-topic") == ""
+
+
+@pytest.mark.parametrize(
+    "bootstrap_servers,expected",
+    [
+        ("localhost:9092", "localhost:9092"),
+        ("b:9092,a:9092", "a:9092,b:9092"),
+        (" a:9092 ,  b:9092 ", "a:9092,b:9092"),
+        ("a:9092,b:9092,a:9092", "a:9092,b:9092"),
+        ("a:9092,,b:9092,", "a:9092,b:9092"),
+        ("", None),
+        (" , ", None),
+        (None, None),
+    ],
+)
+def test_normalize_bootstrap_servers(bootstrap_servers, expected) -> None:
+    assert _normalize_bootstrap_servers(bootstrap_servers) == expected

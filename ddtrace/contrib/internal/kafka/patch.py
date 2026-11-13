@@ -1,5 +1,7 @@
 from time import time
 from time import time_ns
+from typing import Any
+from typing import Optional
 
 import confluent_kafka
 
@@ -31,9 +33,19 @@ _DeserializingConsumer = (
 
 log = get_logger(__name__)
 
-# Process-wide cache: bootstrap_servers -> cluster_id.
+# Process-wide cache: normalized bootstrap_servers -> cluster_id.
 # Populated by producers (which safely call list_topics); read by consumers
 # (which cannot call list_topics without risking a librdkafka crash).
+# Keys come from _normalize_bootstrap_servers so that clients listing the same
+# brokers in a different order or format share an entry.
+#
+# Known gaps for consumers: a process that only consumes never gets a cluster ID,
+# and consumer spans created before a producer's first successful lookup have
+# none. Only identical normalized broker sets match, so different addresses for
+# the same cluster (IP vs DNS name, a subset of brokers, letter case, a
+# PLAINTEXT:// prefix) stay unresolved. Empty polls never look up a cluster ID.
+# Consumers cannot call list_topics (see _get_cluster_id), and the remaining
+# options (e.g. an AdminClient) would open a new connection to the cluster.
 _cluster_id_by_bootstrap: dict[str, str] = {}
 
 config._add(
@@ -61,6 +73,18 @@ _SerializationContext = confluent_kafka.serialization.SerializationContext if KA
 _MessageField = confluent_kafka.serialization.MessageField if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None
 
 
+def _normalize_bootstrap_servers(bootstrap_servers: Any) -> Optional[str]:
+    """Return a cluster ID cache key that ignores broker order, whitespace and duplicates.
+
+    Returns None when no broker is configured.
+    """
+    if not bootstrap_servers or not isinstance(bootstrap_servers, str):
+        return None
+    servers = {server.strip() for server in bootstrap_servers.split(",")}
+    servers.discard("")
+    return ",".join(sorted(servers)) or None
+
+
 class TracedProducerMixin:
     def __init__(self, config=None, *args, **kwargs):
         if not config:
@@ -71,6 +95,7 @@ class TracedProducerMixin:
             if config.get("bootstrap.servers") is not None
             else config.get("metadata.broker.list")
         )
+        self._dd_cluster_id_cache_key = _normalize_bootstrap_servers(self._dd_bootstrap_servers)
 
     # Preserve the truthiness behavior exposed by the traced producer across
     # older confluent_kafka versions.
@@ -92,6 +117,7 @@ class TracedConsumerMixin:
             if config.get("bootstrap.servers") is not None
             else config.get("metadata.broker.list")
         )
+        self._dd_cluster_id_cache_key = _normalize_bootstrap_servers(self._dd_bootstrap_servers)
 
 
 class TracedConsumer(TracedConsumerMixin, confluent_kafka.Consumer):
@@ -262,6 +288,7 @@ def _instrument_message(messages, start_ns, instance, err):
         provider="kafka",
         direction=SpanDirection.PROCESSING,
         topic=topic,
+        bootstrap_servers=instance._dd_bootstrap_servers,
         group_id=instance._group_id,
         message_headers=[dict(message.headers() or []) if message is not None else {} for message in messages],
         propagation_as_span_links=config.kafka.propagation_as_span_links,
@@ -364,12 +391,12 @@ def _get_cluster_id(instance, topic):
     # For DSM correctness we still want a real cluster ID on consumers so that
     # offset checkpoints are stored under the same key as producer offsets.
     # We achieve this by reading the _cluster_id_by_bootstrap cache
-    # populated by producers on the same bootstrap address.
+    # populated by producers on the same (normalized) bootstrap address.
     if isinstance(instance, _Consumer) or (
         _DeserializingConsumer is not None and isinstance(instance, _DeserializingConsumer)
     ):
-        if bootstrap := getattr(instance, "_dd_bootstrap_servers", None):
-            if cached := _cluster_id_by_bootstrap.get(bootstrap):
+        if cache_key := getattr(instance, "_dd_cluster_id_cache_key", None):
+            if cached := _cluster_id_by_bootstrap.get(cache_key):
                 instance._dd_cluster_id = cached
                 return cached
 
@@ -387,8 +414,8 @@ def _get_cluster_id(instance, topic):
         cluster_metadata = instance.list_topics(topic=topic, timeout=1.0)
         if cluster_metadata and getattr(cluster_metadata, "cluster_id", None):
             instance._dd_cluster_id = cluster_metadata.cluster_id
-            if bootstrap := getattr(instance, "_dd_bootstrap_servers", None):
-                _cluster_id_by_bootstrap[bootstrap] = cluster_metadata.cluster_id
+            if cache_key := getattr(instance, "_dd_cluster_id_cache_key", None):
+                _cluster_id_by_bootstrap[cache_key] = cluster_metadata.cluster_id
             return cluster_metadata.cluster_id
     except Exception:
         # Cache the failure time to avoid repeated slow calls
