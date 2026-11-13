@@ -9,7 +9,7 @@ import pytest
     err=None,
 )
 def test_copy_memory_error_count_present() -> None:
-    """copy_memory_error_count is always emitted (even when 0) and is non-negative."""
+    """copy_memory_error_count and intern_failed_count are always emitted (even when 0)."""
     import json
     import os
     import time
@@ -32,6 +32,8 @@ def test_copy_memory_error_count_present() -> None:
             metadata = json.load(fp)
         assert "copy_memory_error_count" in metadata, f"Missing copy_memory_error_count in {f}: {metadata}"
         assert metadata["copy_memory_error_count"] >= 0, f"copy_memory_error_count must be non-negative: {metadata}"
+        assert "intern_failed_count" in metadata, f"Missing intern_failed_count in {f}: {metadata}"
+        assert metadata["intern_failed_count"] >= 0, f"intern_failed_count must be non-negative: {metadata}"
         assert "fast_copy_memory_user_disabled" in metadata, (
             f"Missing fast_copy_memory_user_disabled in {f}: {metadata}"
         )
