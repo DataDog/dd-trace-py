@@ -51,6 +51,70 @@ def test_auto():
         )
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true",
+        # Coverage preloads stdlib modules, which would change what cloning drops.
+        COVERAGE_PROCESS_START=None,
+        COVERAGE_PROCESS_CONFIG=None,
+        COV_CORE_SOURCE=None,
+        COV_CORE_CONFIG=None,
+        COV_CORE_DATAFILE=None,
+    ),
+    timeout=60,
+)
+def test_module_cloning_does_not_break_remote_config_imports():
+    """Module cloning must not unload a package while a remote config callback imports from it."""
+    import sys
+    import time
+
+    import ddtrace
+    from ddtrace.bootstrap import cloning
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+    from ddtrace.internal.threads import Event
+    from ddtrace.internal.threads import Thread
+
+    import http  # noqa:F401  # isort:skip
+
+    assert cloning.enabled
+    assert "http" not in ddtrace.LOADED_MODULES
+    sys.modules.pop("http.cookies", None)
+
+    importing = Event()
+
+    class PauseImport:
+        # Hold the callback inside the import of http.cookies until cloning drops its parent.
+        def find_spec(self, name, path=None, target=None):
+            if name == "http.cookies":
+                sys.meta_path.remove(self)
+                importing.set()
+                deadline = time.monotonic() + 2
+                while "http" in sys.modules and time.monotonic() < deadline:
+                    time.sleep(0.01)
+            return None
+
+    errors = []
+
+    def callback(payloads):
+        try:
+            from http.cookies import SimpleCookie  # noqa:F401
+        except Exception as e:
+            errors.append(e)
+
+    client = RemoteConfigClient()
+    client.register_callback("TEST", callback)
+    sys.meta_path.insert(0, PauseImport())
+
+    worker = Thread(lambda: client._dispatch_payloads({"TEST": []}), name="remote-config")
+    worker.start()
+    assert importing.wait(10)
+    cloning.cleanup_loaded_modules()
+    worker.join()
+
+    assert not errors, errors
+    assert "http" not in sys.modules
+
+
 def test_pytest_with_gevent_and_ddtrace_auto():
     """
     Test that pytest works when a module imports ddtrace.auto and gevent is installed.
