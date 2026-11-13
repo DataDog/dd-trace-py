@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LiteLLM: Adds usage and cost metrics for calls made through a LiteLLM proxy, following the OpenTelemetry GenAI
+    semantic conventions. Set ``DD_LITELLM_USAGE_METRICS_ENABLED=true`` to send them to the Datadog Agent's DogStatsD
+    endpoint. ``DD_LITELLM_USAGE_METRICS_EXPORTER=otlp`` sends them over OTLP/HTTP instead, for backends other than
+    Datadog: with a Datadog destination, the counters would be stored as ``count`` metrics, which conflict with the
+    ``rate`` metrics other sources send under the same names.

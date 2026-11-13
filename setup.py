@@ -188,7 +188,7 @@ LIBDDWAF_CHECKSUMS = {
 }
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v48.0.0 requires rust 1.91.1.
+# libdatadog v49.0.0 requires rust 1.91.1.
 RUST_MINIMUM_VERSION = "1.91.1"
 
 
@@ -349,6 +349,7 @@ if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info
         rust_features.append("crashtracker")
 if not SERVERLESS_BUILD:
     rust_features.append("ffe")
+    rust_features.append("ai_usage")
 
 
 class PatchedDistribution(Distribution):
