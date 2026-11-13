@@ -365,10 +365,11 @@ def test_stack_labels_eager_task_with_its_own_span() -> None:
 
     from ddtrace import ext
     from ddtrace.profiling import profiler
+    from ddtrace.trace import Span
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    span_ids: dict[str, int] = {}
+    spans: dict[str, Span] = {}
 
     def eager_child_work() -> None:
         deadline = time.thread_time_ns() + 400_000_000
@@ -381,14 +382,15 @@ def test_stack_labels_eager_task_with_its_own_span() -> None:
         with tracer.start_span(
             "eager.child", resource="eager-child-endpoint", span_type=ext.SpanTypes.WEB, activate=True
         ) as span:
-            span_ids["child"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
+            spans["child"] = span
             eager_child_work()
 
     async def main() -> None:
         loop = asyncio.get_running_loop()
         loop.set_task_factory(asyncio.eager_task_factory)  # type: ignore[attr-defined]
         try:
-            with tracer.trace("eager.parent", resource="eager-parent-endpoint", span_type=ext.SpanTypes.WEB):
+            with tracer.trace("eager.parent", resource="eager-parent-endpoint", span_type=ext.SpanTypes.WEB) as span:
+                spans["parent"] = span
                 await asyncio.create_task(child(), name="eager-child")
         finally:
             loop.set_task_factory(None)
@@ -402,9 +404,23 @@ def test_stack_labels_eager_task_with_its_own_span() -> None:
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
     wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     samples = pprof_utils.get_samples_with_function(profile, wall_samples, "eager_child_work")
-    span_id = span_ids["child"]
+    # The child must start its own trace, otherwise this test checks the wrong scenario.
+    assert spans["child"].trace_id != spans["parent"].trace_id
+    assert spans["child"]._local_root is spans["child"]
+
+    span_id = pprof_utils.reinterpret_int_as_int64(spans["child"].span_id)
+    parent_span_id = pprof_utils.reinterpret_int_as_int64(spans["parent"].span_id)
 
     assert samples
+    # None of the child's work may be attributed to the parent, e.g. through the parent task's copy of the
+    # child's frames during the eager step.
+    assert not any(
+        pprof_utils.get_str_label(profile, sample, "trace endpoint") == "eager-parent-endpoint" for sample in samples
+    )
+    assert not any(pprof_utils.get_num_label(profile, sample, "span id") == parent_span_id for sample in samples)
+    assert not any(
+        pprof_utils.get_num_label(profile, sample, "local root span id") == parent_span_id for sample in samples
+    )
     assert all(
         pprof_utils.get_str_label(profile, sample, "trace endpoint") == "eager-child-endpoint" for sample in samples
     )
