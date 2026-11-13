@@ -77,8 +77,7 @@ ddtrace/aiguard/
     ├── _anthropic_streaming.py # Anthropic stream reconstruction
     ├── _anthropic_errors.py    # Anthropic-compatible abort error class
     ├── _langchain.py       # LangChain agent/chatmodel/llm listeners
-    ├── _mcp.py             # MCP server IDs and entries, model tool-call registry (real call
-    │                       #   IDs + conversation), OpenAI MCP approval decision cache,
+    ├── _mcp.py             # MCP server IDs and entries, OpenAI MCP approval decision cache,
     │                       #   MCP SDK client transport capture
     └── _openai_agents.py   # openai-agents MCP server tool listeners
 ```

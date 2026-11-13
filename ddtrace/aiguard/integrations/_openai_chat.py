@@ -17,8 +17,6 @@ from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
-from ddtrace.aiguard.integrations._mcp import clear_model_tool_calls
-from ddtrace.aiguard.integrations._mcp import record_model_tool_calls
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
 
@@ -151,8 +149,6 @@ def _convert_openai_response(resp: Any) -> list[Message]:
 
 def _openai_chat_completion_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``openai.chat.completions.create.before``."""
-    # A new operation: the previous response's tool calls must not outlive it if this one is not recorded.
-    clear_model_tool_calls()
     if is_aiguard_context_active():
         logger.debug("AI Guard openai before-hook skipped: framework context active (e.g. Strands plugin)")
         return None
@@ -221,5 +217,4 @@ def _openai_chat_completion_after(client: AIGuardClient, kwargs: dict[str, Any],
         raise _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate OpenAI chat completion response", exc_info=True)
-    record_model_tool_calls(all_messages, len(request_messages))
     return None

@@ -37,7 +37,6 @@ from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_call_tool_before
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_invoke_tool_before
-from ddtrace.aiguard.integrations._openai_agents import _openai_agents_turn_started
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
@@ -135,11 +134,12 @@ def _openai_listen(client: AIGuardClient) -> None:
 
 
 def _openai_agents_listen(client: AIGuardClient) -> None:
-    # openai-agents MCP server tools run whatever the model provider, so DD_AI_GUARD_OPENAI_ENABLED does
-    # not gate them; DD_AI_GUARD_MCP_ENABLED is checked per call by the listeners.
+    # openai-agents MCP server tools run whatever the model provider, so only DD_AI_GUARD_MCP_ENABLED
+    # gates them. Without listeners the contrib dispatches nothing, so disabled MCP costs no thread hop.
+    if not aiguard_config._ai_guard_mcp_enabled:
+        return
     core.on("openai_agents.mcp.invoke_tool.before", partial(_openai_agents_mcp_invoke_tool_before, client))
     core.on("openai_agents.mcp.call_tool.before", partial(_openai_agents_mcp_call_tool_before, client))
-    core.on("openai_agents.turn.started", _openai_agents_turn_started)
 
 
 def _with_listed_tools(kwargs: dict[str, Any]) -> dict[str, Any]:

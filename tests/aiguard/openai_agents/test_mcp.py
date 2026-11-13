@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import subprocess
+import sys
 import threading
 import types
 from unittest.mock import patch
@@ -26,15 +28,10 @@ except ImportError:
 from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
-from ddtrace.aiguard.integrations._mcp import _model_tool_calls
-from ddtrace.aiguard.integrations._mcp import mcp_reference
-from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_server_id
-from ddtrace.aiguard.integrations._mcp import record_model_tool_calls
-from ddtrace.aiguard.integrations._mcp import tool_call_conversation
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_call_tool_before
-from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
-from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
+from ddtrace.contrib.internal.openai_agents import patch as openai_agents_patch
+from ddtrace.internal.module import ModuleWatchdog
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 
@@ -60,13 +57,6 @@ class FakeSession:
     async def call_tool(self, name, arguments, *args, **kwargs):
         self.calls.append((name, arguments))
         return CallToolResult(content=[TextContent(type="text", text="ok")])
-
-
-@pytest.fixture(autouse=True)
-def _reset_model_tool_calls():
-    token = _model_tool_calls.set(None)
-    yield
-    _model_tool_calls.reset(token)
 
 
 def _connected(server):
@@ -255,238 +245,6 @@ def test_blocked_agent_call_does_not_excuse_a_direct_call(mock_execute_request):
 
 
 @patch(EXECUTE_REQUEST)
-def test_model_call_reuses_the_conversation(mock_execute_request):
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    response = {
-        "output": [
-            {
-                "type": "function_call",
-                "call_id": "call_1",
-                "name": "atlassian_search_issues",
-                "arguments": '{"query": "APPSEC"}',
-            },
-            {"type": "function_call", "call_id": "call_2", "name": "other_tool", "arguments": "{}"},
-        ]
-    }
-    _openai_response_create_after(new_ai_guard_client(), {"input": "Find APPSEC issues"}, response)
-
-    _invoke(_atlassian_server())
-
-    assert _messages(mock_execute_request) == [
-        {"role": "user", "content": "Find APPSEC issues"},
-        {
-            "role": "assistant",
-            "tool_calls": [
-                {
-                    "id": "call_1",
-                    "function": {"name": "atlassian_search_issues", "arguments": '{"query": "APPSEC"}'},
-                    "mcp": {"server_id": ATLASSIAN_ID},
-                }
-            ],
-        },
-    ]
-    assert _mcp_servers(mock_execute_request) == [ATLASSIAN_SERVER]
-
-
-@patch(EXECUTE_REQUEST)
-def test_history_keeps_the_hosted_servers_it_references(mock_execute_request):
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    kwargs = {
-        "input": "Find APPSEC issues",
-        "tools": [{"type": "mcp", "server_label": "deepwiki", "server_url": "https://mcp.deepwiki.com/mcp"}],
-    }
-    response = {
-        "output": [
-            {
-                "type": "mcp_call",
-                "id": "mcp_1",
-                "server_label": "deepwiki",
-                "name": "ask_question",
-                "arguments": "{}",
-                "output": "answer",
-            },
-            {
-                "type": "function_call",
-                "call_id": "call_1",
-                "name": "atlassian_search_issues",
-                "arguments": '{"query": "APPSEC"}',
-            },
-        ]
-    }
-    _openai_response_create_after(new_ai_guard_client(), kwargs, response)
-
-    _invoke(_atlassian_server())
-
-    servers = _mcp_servers(mock_execute_request)
-    assert [server["id"] for server in servers] == [mcp_server_id(url="https://mcp.deepwiki.com"), ATLASSIAN_ID]
-    assert servers[0]["managed_by"] == "provider"
-    referenced = {
-        tool_call["mcp"]["server_id"]
-        for message in _messages(mock_execute_request)
-        for tool_call in message.get("tool_calls") or []
-    }
-    assert referenced == {server["id"] for server in servers}
-
-
-@patch(EXECUTE_REQUEST)
-def test_history_server_sharing_the_id_never_describes_the_evaluated_call(mock_execute_request):
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    kwargs = {
-        "input": "Find APPSEC issues",
-        "tools": [{"type": "mcp", "server_label": "atlassian_hosted", "server_url": "https://mcp.example.com/sse"}],
-    }
-    response = {
-        "output": [
-            {
-                "type": "mcp_call",
-                "id": "mcp_1",
-                "server_label": "atlassian_hosted",
-                "name": "get_issue",
-                "arguments": "{}",
-                "output": "issue",
-            },
-            {
-                "type": "function_call",
-                "call_id": "call_1",
-                "name": "atlassian_search_issues",
-                "arguments": '{"query": "APPSEC"}',
-            },
-        ]
-    }
-    _openai_response_create_after(new_ai_guard_client(), kwargs, response)
-
-    _invoke(_atlassian_server())
-
-    # Same endpoint, same ID: the evaluated client call keeps its own entry, and the hosted call it
-    # cannot share an entry with is sent as an ordinary tool call.
-    assert _mcp_servers(mock_execute_request) == [ATLASSIAN_SERVER]
-    hosted_call = _messages(mock_execute_request)[1]["tool_calls"][0]
-    assert hosted_call == {"id": "mcp_1", "function": {"name": "get_issue", "arguments": "{}"}}
-
-
-def _history_call(call_id, name, server, original_name):
-    return {
-        "id": call_id,
-        "function": {"name": name, "arguments": "{}"},
-        "mcp": mcp_reference(server, name, original_name),
-    }
-
-
-def _current_call(server, name="search", original_name="search"):
-    tool_call = {"id": "call_2", "function": {"name": name, "arguments": "{}"}}
-    tool_call["mcp"] = mcp_reference(server, name, original_name)
-    return tool_call
-
-
-def _record(history_call, history_server):
-    messages = [
-        {"role": "user", "content": "Find issues"},
-        {"role": "assistant", "tool_calls": [history_call]},
-        {"role": "tool", "tool_call_id": history_call["id"], "content": "done"},
-        {"role": "assistant", "tool_calls": [{"id": "call_2", "function": {"name": "search", "arguments": "{}"}}]},
-    ]
-    record_model_tool_calls(messages, 3, [history_server])
-    return messages
-
-
-def test_conflicting_tool_mapping_on_a_shared_id_is_not_sent():
-    """Same description, but the history maps the evaluated call's name to another original tool."""
-    history_server = mcp_server("client", "streamable_http", name="atlassian", url="https://mcp.example.com")
-    server = mcp_server("client", "streamable_http", name="atlassian", url="https://mcp.example.com")
-    messages = _record(_history_call("call_1", "search", history_server, "search_v1"), history_server)
-
-    conversation, servers = tool_call_conversation(_current_call(server), server)
-
-    assert servers == [dict(server, tools={"search": "search"})]
-    assert "mcp" not in conversation[1]["tool_calls"][0]
-    assert "mcp" in messages[1]["tool_calls"][0], "the recorded history is never mutated"
-
-
-def test_matching_history_on_a_shared_id_keeps_its_reference():
-    history_server = mcp_server("client", "streamable_http", name="atlassian", url="https://mcp.example.com")
-    server = mcp_server("client", "streamable_http", name="atlassian", url="https://mcp.example.com")
-    _record(_history_call("call_1", "get_issue", history_server, "get_issue"), history_server)
-
-    conversation, servers = tool_call_conversation(_current_call(server), server)
-
-    assert conversation[1]["tool_calls"][0]["mcp"] == {"server_id": server["id"]}
-    assert servers == [dict(server, tools={"get_issue": "get_issue", "search": "search"})]
-
-
-def _record_atlassian_response(name="atlassian_search_issues", arguments='{"query": "APPSEC"}'):
-    response = {"output": [{"type": "function_call", "call_id": "call_1", "name": name, "arguments": arguments}]}
-    _openai_response_create_after(new_ai_guard_client(), {"input": "Earlier operation"}, response)
-
-
-@pytest.mark.parametrize(
-    "name,arguments",
-    [("other_tool", '{"query": "APPSEC"}'), ("atlassian_search_issues", '{"query": "OTHER"}')],
-    ids=["other_tool", "other_arguments"],
-)
-@patch(EXECUTE_REQUEST)
-def test_reused_call_id_of_another_call_sends_only_the_tool_call(mock_execute_request, name, arguments):
-    """A call ID alone does not tie an MCP call to a recorded conversation: an earlier operation may reuse it."""
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    _record_atlassian_response(name, arguments)
-
-    _invoke(_atlassian_server())
-
-    assert _single_tool_call(_messages(mock_execute_request))["id"] == "call_1"
-
-
-@patch(EXECUTE_REQUEST)
-def test_equivalent_json_arguments_still_match(mock_execute_request):
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    _record_atlassian_response(arguments='{ "query" : "APPSEC" }')
-
-    _invoke(_atlassian_server())
-
-    assert _messages(mock_execute_request)[0] == {"role": "user", "content": "Earlier operation"}
-
-
-@patch(EXECUTE_REQUEST)
-def test_new_model_request_forgets_the_previous_operation(mock_execute_request):
-    """A request whose response is never recorded (e.g. an unevaluated stream) leaves no stale calls behind."""
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    _record_atlassian_response()
-
-    _openai_response_create_before(new_ai_guard_client(), {"input": "Next operation", "stream": True})
-
-    assert _model_tool_calls.get() is None
-
-
-@patch(EXECUTE_REQUEST)
-def test_agent_turn_forgets_the_previous_operation(mock_execute_request):
-    """A turn run by a custom model provider never reaches the OpenAI listeners, so the turn itself clears."""
-    from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn
-
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    _record_atlassian_response()
-    seen_by_the_turn = []
-
-    async def run_turn():
-        seen_by_the_turn.append(_model_tool_calls.get())
-        return "turn result"
-
-    assert asyncio.run(_patched_run_single_turn(run_turn, None, (), {})) == "turn result"
-    assert seen_by_the_turn == [None]
-
-
-@patch(EXECUTE_REQUEST)
-def test_unknown_call_id_sends_only_the_tool_call(mock_execute_request):
-    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    _openai_response_create_after(
-        new_ai_guard_client(),
-        {"input": "Find APPSEC issues"},
-        {"output": [{"type": "function_call", "call_id": "call_9", "name": "x", "arguments": "{}"}]},
-    )
-
-    _invoke(_atlassian_server())
-
-    assert _single_tool_call(_messages(mock_execute_request))["id"] == "call_1"
-
-
-@patch(EXECUTE_REQUEST)
 def test_same_tool_on_two_servers_keeps_each_identity(mock_execute_request):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
@@ -556,11 +314,7 @@ def test_openai_kill_switch_keeps_the_mcp_listeners():
             _listener.ai_guard_listen()
 
     events = {c.args[0] for c in core_on.call_args_list}
-    assert {
-        "openai_agents.mcp.invoke_tool.before",
-        "openai_agents.mcp.call_tool.before",
-        "openai_agents.turn.started",
-    } <= events
+    assert {"openai_agents.mcp.invoke_tool.before", "openai_agents.mcp.call_tool.before"} <= events
     assert not any(event.startswith("openai.") for event in events)
 
 
@@ -575,6 +329,96 @@ def test_openai_kill_switch_still_guards_mcp_calls(mock_execute_request):
             asyncio.run(server.call_tool("search_issues", {"query": "APPSEC"}))
 
     assert server.session.calls == []
+
+
+def test_mcp_disabled_registers_no_listener():
+    """Without listeners the contrib dispatches nothing, so MCP calls take no thread hop."""
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_mcp_enabled=False)):
+        with patch.object(_listener.core, "on") as core_on:
+            _listener.ai_guard_listen()
+
+    assert not any(c.args[0].startswith("openai_agents.") for c in core_on.call_args_list)
+
+
+@patch(EXECUTE_REQUEST)
+def test_listener_errors_fail_open(mock_execute_request):
+    """Only AIGuardAbortError leaves the listeners: a failure building the evaluation lets the call run."""
+    server = _atlassian_server()
+    circular = {}
+    circular["self"] = circular
+
+    with patch("ddtrace.aiguard.integrations._openai_agents.evaluate_auto", side_effect=RecursionError):
+        _invoke(server)
+    asyncio.run(server.call_tool("search_issues", circular))
+
+    mock_execute_request.assert_not_called()
+    assert [name for name, _ in server.session.calls] == ["search_issues", "search_issues"]
+
+
+@patch(EXECUTE_REQUEST)
+def test_call_forwarded_to_another_server_is_evaluated(mock_execute_request):
+    """The re-entrancy guard is per server: a call one server forwards to another is still evaluated."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    backend = _atlassian_server(url="https://backend.example.com/mcp", name="backend")
+    router = _atlassian_server(name="router")
+
+    class ForwardingSession(FakeSession):
+        async def call_tool(self, name, arguments, *args, **kwargs):
+            return await backend.call_tool(name, arguments)
+
+    router.session = ForwardingSession()
+    asyncio.run(router.call_tool("search_issues", {"query": "APPSEC"}))
+
+    assert [_mcp_servers(mock_execute_request, i)[0]["name"] for i in range(2)] == ["router", "backend"]
+    assert backend.session.calls == [("search_issues", {"query": "APPSEC"})]
+
+
+@pytest.mark.parametrize("arguments,evaluated", [({"query": "APPSEC"}, False), ({"query": "OTHER"}, True)])
+@patch(EXECUTE_REQUEST)
+def test_agent_call_skip_needs_the_same_arguments(mock_execute_request, arguments, evaluated):
+    """Only the call the adapter announced skips the direct check, not another call to the same tool."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    server = _atlassian_server()
+
+    async def call_in_adapter_context():
+        announced = openai_agents_patch._AgentMCPCall(server, "search_issues", {"query": "APPSEC"})
+        token = openai_agents_patch._agent_mcp_call.set(announced)
+        try:
+            await server.call_tool("search_issues", arguments)
+        finally:
+            openai_agents_patch._agent_mcp_call.reset(token)
+
+    asyncio.run(call_in_adapter_context())
+
+    assert mock_execute_request.called is evaluated
+
+
+def test_unpatch_restores_the_invoke_mcp_tool_classmethod():
+    openai_agents_patch.unpatch()
+    try:
+        assert isinstance(MCPUtil.__dict__["invoke_mcp_tool"], classmethod)
+        assert not any(owner is MCPUtil for owner, _, _ in openai_agents_patch._mcp_wrapped)
+    finally:
+        openai_agents_patch.patch()
+
+
+def test_mcp_is_wrapped_when_imported_not_on_patch():
+    """The SDK imports agents.mcp lazily (it needs the mcp package): patching registers import hooks instead."""
+    hook_map = ModuleWatchdog._instance._hook_map
+    for module_name in openai_agents_patch._MCP_MODULES:
+        assert openai_agents_patch._wrap_mcp_module in hook_map[module_name]
+
+    code = (
+        "import sys, agents\n"
+        "before = 'agents.mcp' in sys.modules\n"
+        "from ddtrace.contrib.internal.openai_agents.patch import patch\n"
+        "patch()\n"
+        "assert ('agents.mcp' in sys.modules) == before, 'patch imported agents.mcp'\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 @patch(EXECUTE_REQUEST)
