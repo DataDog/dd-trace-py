@@ -1,5 +1,8 @@
 ---
 components:
+  ai_usage:
+    - ddtrace/internal/ai_usage/*
+    - src/native/ai_usage.rs
   $harness:
     - docker/*
     - docker-compose.base.yml
@@ -424,6 +427,18 @@ suites:
         - name: openfeature
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, openfeature-sdk]
+  ai_usage:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@ai_usage'
+      - tests/ai_usage/*
+    matrix:
+      command: pytest {cmdargs} tests/ai_usage
+      variants:
+        - name: ai_usage
+          python: ['3.9', '3.12', '3.14']
+          dependencies: [opentelemetry-proto]
   telemetry:
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
