@@ -57,6 +57,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_M
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._native import VariationType
+from ddtrace.internal.openfeature._native import _native_attributes
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
 from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
@@ -560,12 +561,21 @@ class DataDogProvider(AbstractProvider):
             # Resolve against the same snapshot that supplied consent.
             config = snapshot.config if snapshot is not None else None
 
+            # Filter once: the exposure event reuses the same attributes. Other context
+            # shapes keep being filtered where they are read.
+            native_attributes = (
+                _native_attributes(evaluation_context.attributes or {})
+                if isinstance(evaluation_context, EvaluationContext)
+                else None
+            )
+
             # Resolve flag using native implementation
             details = resolve_flag(
                 config,
                 flag_key=flag_key,
                 context=evaluation_context,
                 expected_type=variation_type,
+                attributes=native_attributes,
             )
 
             # No configuration available - return error with PROVIDER_NOT_READY code
@@ -619,6 +629,7 @@ class DataDogProvider(AbstractProvider):
                     evaluation_context=evaluation_context,
                     serial_id=details.serial_id,
                     has_split_features=split_features is not None,
+                    attributes=native_attributes,
                 )
             else:
                 logger.debug(
@@ -676,6 +687,7 @@ class DataDogProvider(AbstractProvider):
         evaluation_context: typing.Optional[EvaluationContext],
         serial_id: typing.Optional[int] = None,
         has_split_features: bool = False,
+        attributes: typing.Any = None,
     ) -> None:
         """
         Stamp a provisional exposure-cache verdict and attach the pending decision.
@@ -691,6 +703,7 @@ class DataDogProvider(AbstractProvider):
                 allocation_key=allocation_key,
                 evaluation_context=evaluation_context,
                 serial_id=serial_id,
+                attributes=attributes,
             )
             if not exposure_event:
                 return
