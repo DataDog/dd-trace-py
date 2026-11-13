@@ -1,5 +1,6 @@
 #include "thread_name_tracker.hpp"
 
+#include <algorithm>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
@@ -27,6 +28,26 @@ ThreadNameRegistry::unregister_name(int64_t thread_id)
 {
     std::unique_lock lock(mtx);
     thread_names.erase(thread_id);
+}
+
+void
+ThreadNameRegistry::replace_all(std::unordered_map<int64_t, std::string_view> const& names)
+{
+    // Build and free the maps outside the lock: their allocations can be
+    // sampled, and lookup gives up while the write lock is held.
+    std::unordered_map<int64_t, std::string> new_names;
+    new_names.reserve(std::min(names.size(), max_thread_names));
+    for (auto const& [thread_id, name] : names) {
+        if (new_names.size() >= max_thread_names) {
+            break;
+        }
+        new_names.emplace(thread_id, std::string(name));
+    }
+
+    {
+        std::unique_lock lock(mtx);
+        thread_names.swap(new_names);
+    }
 }
 
 std::string_view
@@ -58,14 +79,24 @@ ThreadNameRegistry::reset()
 }
 
 void
+ThreadNameRegistry::prefork()
+{
+    mtx.lock();
+}
+
+void
+ThreadNameRegistry::postfork_parent()
+{
+    mtx.unlock();
+}
+
+void
 ThreadNameRegistry::postfork_child()
 {
-    // NB placement-new to re-init the mutex because doing anything else is UB.
-    // We intentionally do NOT clear thread_names. Only the forking thread
-    // survives in the child, and it keeps its thread id, so dropping the map
-    // would lose that thread's name with nothing to re-populate it until the
-    // profiler restarts. Entries for threads that did not survive are inert:
-    // lookups are keyed by thread id, and those ids are no longer running.
+    // prefork holds the write lock, so the map is consistent.
+    // Re-create the mutex instead of unlocking it: the inherited lock still records waiters
+    // that do not exist in the child, and glibc hands a released write lock
+    // directly to a waiting writer, which would leave it held forever.
     new (&mtx) std::shared_mutex();
 }
 

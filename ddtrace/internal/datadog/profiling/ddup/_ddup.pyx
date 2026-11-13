@@ -133,6 +133,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_start()
     void ddup_register_thread_name(int64_t thread_id, string_view name)
     void ddup_unregister_thread_name(int64_t thread_id)
+    void ddup_replace_thread_names(const unordered_map[int64_t, string_view]& names)
     size_t ddup_thread_name_count()
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
@@ -300,14 +301,35 @@ cdef call_ddup_push_threadinfo(Sample* sample, int64_t thread_id, int64_t thread
 cdef call_ddup_register_thread_name(int64_t thread_id, name: StringType):
     if not name:
         return
+
     if isinstance(name, bytes):
         ddup_register_thread_name(thread_id, string_view(<const char*>name, len(name)))
         return
+
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(name, &utf8_size)
     if utf8_data != NULL:
         ddup_register_thread_name(thread_id, string_view(utf8_data, utf8_size))
+
+cdef call_ddup_replace_thread_names(thread_names):
+    # The string_views point into these objects, so keep them alive until the
+    # registry has copied them.
+    name_list = []
+    cdef unordered_map[int64_t, string_view] names = unordered_map[int64_t, string_view]()
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    for thread_id, name in thread_names.items():
+        if not name:
+            continue
+        name_list.append(name)
+        if isinstance(name, bytes):
+            names.insert(pair[int64_t, string_view](thread_id, string_view(<const char*>name, len(name))))
+            continue
+        utf8_data = PyUnicode_AsUTF8AndSize(name, &utf8_size)
+        if utf8_data != NULL:
+            names.insert(pair[int64_t, string_view](thread_id, string_view(utf8_data, utf8_size)))
+    ddup_replace_thread_names(names)
 
 cdef call_ddup_push_task_name(Sample* sample, task_name: StringType):
     if not task_name:
@@ -471,6 +493,10 @@ def register_thread_name(thread_id: int, name: StringType) -> None:
 
 def unregister_thread_name(thread_id: int) -> None:
     ddup_unregister_thread_name(thread_id)
+
+
+def replace_thread_names(thread_names: dict[int, StringType]) -> None:
+    call_ddup_replace_thread_names(thread_names)
 
 
 def thread_name_count() -> int:

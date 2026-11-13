@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import _thread
 from collections.abc import Sequence
 import gc
 import inspect
@@ -205,6 +206,33 @@ def test_memory_collector_names_worker_threads(tmp_path: Path) -> None:
             ],
         ),
     )
+
+
+def test_memory_collector_drops_names_of_threads_that_are_gone(tmp_path: Path) -> None:
+    """Threads that never run the exit hook do not stay in the thread name registry."""
+    _setup_profiling_prelude(tmp_path, "test_memory_collector_drops_names_of_threads_that_are_gone")
+
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
+    with mc:
+        # Foreign threads get a _DummyThread, which is registered but never runs _bootstrap_inner.
+        done = threading.Semaphore(0)
+
+        def foreign() -> None:
+            threading.current_thread()
+            done.release()
+
+        for _ in range(16):
+            _thread.start_new_thread(foreign, ())
+        for _ in range(16):
+            assert done.acquire(timeout=30)
+
+        # Stands in for a thread that exited without unregistering, e.g. one that did not survive a fork.
+        ddup.register_thread_name(-1, "ghost")
+
+        mc.snapshot()
+
+        live: set[int] = set(threading._active)  # type: ignore[attr-defined]
+        assert ddup.thread_name_count() == len(live)
 
 
 def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
