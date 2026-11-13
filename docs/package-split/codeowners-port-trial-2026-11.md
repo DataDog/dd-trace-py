@@ -1,7 +1,7 @@
 # Port trial report: `ddtrace.internal.codeowners` (Nov 2026)
 
-Historical report: package and layer names below describe the trial setup. Use
-the foundation layout in the [current extraction plan](plan.md) for new extractions.
+This report records the trial's tooling and findings. Use the foundation layout
+in the [current extraction plan](plan.md) for new extractions.
 
 First end-to-end exercise of the package-split workflow (skill + harness + gates)
 against a minimal module, for the purpose of finding friction and inconsistencies
@@ -14,8 +14,8 @@ fail. Stop on unproven contracts.").
 - Source branch: `gnufede-ddtracepy-split-guardrails` @ `92ca90c4e4`
 - Destination branch: `gnufede-port-codeowners` @ `e453159e7` (worktree)
 - Approved contract: `Codeowners.__init__(path=None, cwd=None)` + `.of(path)` only;
-  module + its two 20-line test files; `ddtrace_internal_base` layer; native-free;
-  stdlib-only. Approved by owner during the trial.
+  module + its two 20-line test files; pure Python and stdlib-only. Approved by
+  owner during the trial. Its destination is `_ddtrace_internal`.
 
 ## Inventory results (step 1)
 
@@ -109,10 +109,9 @@ Grouped: (A) inventory, (B) gates/harness, (C) destination port, (D) process/doc
   because the target lives outside the scope. **Fixed** on the api-inventory
   branch with `--allow-absent-target` (opt-in) plus a better error message.
 - **F14 — No stdlib exemption in edge-policy.** `typing` and `__future__` count
-  as undeclared external dependencies; a stdlib-only package (exactly the
-  `ddtrace_internal_base` rule) must enumerate every stdlib module in
-  `external`, conflating stdlib imports with packaged dependencies and inviting
-  wildcard openings. Recommend `sys.stdlib_module_names` exemption.
+  as undeclared external dependencies; a stdlib-only package must enumerate
+  every stdlib module in `external`, conflating stdlib imports with packaged
+  dependencies and inviting wildcard openings. Recommend `sys.stdlib_module_names` exemption.
 - **F15 — uv workspace virtual root breaks `artifacts` (false FAIL).** Every
   artifacts sub-check passes, but fresh-install also installs
   `datadog-apm-python-workspace` (virtual, no RECORD) and the fail-closed

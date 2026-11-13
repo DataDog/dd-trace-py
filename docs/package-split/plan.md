@@ -2,7 +2,7 @@
 
 Approve names, boundaries, native replacements, compatibility windows and freeze activation; review the extraction POC first.
 Destination: https://github.com/DataDog/datadog-apm-python/, a uv workspace (`packages/<name>/`, src layout, package-local build/tests). Register `.importlinter` roots; follow `scripts/validate_packages.py`, `scripts/api_semver_check.py` and `release/<package>:<level>` labels.
-Foundation imports: `_ddtrace_internal` and `_ddtrace_native`, with no separate base package. Future extracted packages depend on these foundations as needed; keep the dependency graph acyclic. Coverage/products have separate contracts.
+Foundation imports: `_ddtrace_internal` and `_ddtrace_native`. Future extracted packages depend on these foundations as needed; keep the dependency graph acyclic. Coverage/products have separate contracts.
 
 - Independent builds/tests/releases: no unrelated native rebuilds or coordinated consumer releases.
 - New imports are inert, never import ddtrace; activation is explicit/idempotent/reversible. Preserve legacy behavior, canonical state and single instrumentation.
