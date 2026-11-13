@@ -26,16 +26,16 @@ local version to its wheels. Thus a wheel that an earlier pipeline uploaded prev
 build. For each pin that the index does not have, the command builds the wheel from the sdist
 in the test image, because that image has the system libraries that the test jobs use to build
 the packages. auditwheel copies the system libraries into a platform wheel and gives it the
-most compatible manylinux tag. When auditwheel cannot do this, the wheel keeps its
-linux_x86_64 tag, because the test jobs run in the same image. A pure-Python wheel gets the tag
+most compatible manylinux tag. When auditwheel cannot do this (for example, when an optional
+extension does not compile and the wheel has no compiled code), the wheel keeps its
+linux_x86_64 tag. The test jobs run in the same image, thus they build the same wheel from the
+sdist today. A pure-Python wheel gets the tag
 of the CPython version (for example cp313-none-any), because the metadata of a wheel can
 depend on the Python version that built it. Then the command adds the local version
 "+dd.repackaging.<CI_PIPELINE_ID>".
 
 The upload command examines the index again, then uploads each wheel that the index does not
 have with adms.
-
-.gitlab/third-party-wheels-exclude.txt lists the packages that the command does not build.
 """
 
 from __future__ import annotations
@@ -76,7 +76,8 @@ sys.path.insert(0, str(REPO_ROOT))
 from tests.suitespec import get_test_environments  # noqa: E402
 
 
-EXCLUDE_FILE = REPO_ROOT / ".gitlab" / "third-party-wheels-exclude.txt"
+# This repository builds its own wheels.
+EXCLUDED_PACKAGES = frozenset({"ddtrace"})
 UPSTREAM_INDEX_URL = "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 INDEX_URL = "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
 REPOSITORY = "datadog/dd-trace-py-wheels"
@@ -88,8 +89,6 @@ ADMS_ALREADY_EXISTS = 10
 EXIT_BUILD_FAILURES = 3
 # The test image (TESTRUNNER_IMAGE) is Debian 13 on x86_64, with glibc 2.41.
 TEST_IMAGE_GLIBC_MINOR = 41
-# auditwheel exits with this message when the wheel has no compiled code.
-AUDITWHEEL_NOT_PLATFORM_WHEEL = "This does not look like a platform wheel"
 INDEX_ATTEMPTS = 5
 INDEX_RETRY_DELAY = 2.0
 INDEX_THREADS = 16
@@ -140,21 +139,6 @@ def read_pins(python: str) -> list[Pin]:
                 if version.local is None:
                     pins.add(Pin(canonicalize_name(match[1]), match[2]))
     return sorted(pins, key=lambda pin: (pin.name, Version(pin.version)))
-
-
-def read_exclusions(path: Path) -> set[tuple[str, str | None]]:
-    """Read the exclusion file. Each line is "name" (all versions) or "name==version"."""
-    exclusions: set[tuple[str, str | None]] = set()
-    for line in path.read_text().splitlines():
-        line = line.split("#", 1)[0].strip()
-        if line:
-            name, _, version = line.partition("==")
-            exclusions.add((canonicalize_name(name.strip()), version.strip() or None))
-    return exclusions
-
-
-def is_excluded(pin: Pin, exclusions: set[tuple[str, str | None]]) -> bool:
-    return (pin.name, None) in exclusions or (pin.name, pin.version) in exclusions
 
 
 def python_tags(python: str) -> tuple[str, frozenset[Tag]]:
@@ -370,16 +354,14 @@ def _print_section(name: str, header: str, lines: list[str]) -> None:
 def repair_wheel(wheel: Path, output_dir: Path, log: list[str]) -> Path:
     """Repair a platform wheel with auditwheel, and return the path of the wheel to use.
 
-    Return the wheel as it is when auditwheel cannot give it a manylinux tag.
+    Return the wheel as it is when auditwheel cannot repair it.
     """
     # auditwheel runs the patchelf of the environment of this script.
     env = {**os.environ, "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ.get('PATH', '')}"}
     try:
         _run([sys.executable, "-m", "auditwheel", "repair", "--wheel-dir", str(output_dir), str(wheel)], log, env=env)
     except BuildError:
-        if AUDITWHEEL_NOT_PLATFORM_WHEEL in log[-1]:
-            raise BuildError("the platform wheel has no compiled code") from None
-        log.append(f"auditwheel cannot give a manylinux tag to {wheel.name}. Keep the wheel as it is.")
+        log.append(f"auditwheel cannot repair {wheel.name}. Keep the wheel as it is.")
         return wheel
     return _single_wheel(output_dir)
 
@@ -449,8 +431,7 @@ def build_pin(pin: Pin, python: str, python_bin: str, local_version: str, output
 
 def build(python: str, local_version: str, output_dir: Path, jobs: int, upstream_url: str, index_url: str) -> int:
     _, tags = python_tags(python)
-    exclusions = read_exclusions(EXCLUDE_FILE)
-    pins = read_pins(python)
+    pins = [pin for pin in read_pins(python) if pin.name not in EXCLUDED_PACKAGES]
     upstream = fetch_many(upstream_url, (pin.name for pin in pins))
     missing = [
         pin
@@ -465,8 +446,6 @@ def build(python: str, local_version: str, output_dir: Path, jobs: int, upstream
         matches = find_matching_wheels(index[pin.name], pin.name, pin.version, tags)
         if matches:
             print(f"  {pin}: the index has {matches[0]}")
-        elif is_excluded(pin, exclusions):
-            print(f"  {pin}: excluded by {EXCLUDE_FILE.name}")
         else:
             print(f"  {pin}: build")
             to_build.append(pin)
@@ -498,7 +477,7 @@ def build(python: str, local_version: str, output_dir: Path, jobs: int, upstream
         print(f"ERROR: cannot build {len(failed)} wheels:", file=sys.stderr)
         for pin, error in sorted(failed, key=lambda item: item[0].name):
             print(f"  {pin}: {error}", file=sys.stderr)
-        print(f"To stop the builds of a package, add it to {EXCLUDE_FILE.name}.", file=sys.stderr)
+        print("To stop the builds of a package, add it to EXCLUDED_PACKAGES.", file=sys.stderr)
         return EXIT_BUILD_FAILURES
     return 0
 

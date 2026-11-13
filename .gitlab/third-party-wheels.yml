@@ -22,7 +22,6 @@
       changes:
         paths:
           - tests/requirements_locks/*.txt
-          - .gitlab/third-party-wheels-exclude.txt
           - .gitlab/third-party-wheels.yml
           - .gitlab/scripts/third-party-wheels.py
         compare_to: refs/heads/main
