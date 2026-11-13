@@ -39,7 +39,7 @@ if [ -f "$BASELINE_WHL" ]; then
   # CPU cores 0-23 are used for Gitlab / OS-specific things and are on CPU socket 0,
   # cores 24-47 are for benchmarks and are on separate CPU socket 1.
   # CPUs 36-37 are skipped to match the candidate's CPU count.
-  CPU_AFFINITY=38-47 "$(cd "$(dirname "$0")" && pwd)/run-baseline.sh" &
+  CPU_AFFINITY=38-47 "$SCRIPT_DIR/run-baseline.sh" &
 
   # baseline_branch.txt is used by big regression check
   # TODO: Deprecate after we switch to new way of running benchmarks in other lang repos
