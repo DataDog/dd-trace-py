@@ -3,31 +3,40 @@
 # requires-python = ">=3.9"
 # dependencies = [
 #     "packaging>=24,<27",
+#     "ruamel.yaml>=0.17.21",
 #     "wheel>=0.42,<1",
 # ]
 # ///
-"""Build the third-party wheels that PyPI does not publish, and upload them to Depot.
+"""Build the wheels that PyPI does not publish for the test locks, and upload them to Depot.
 
 Usage:
-  third-party-wheels.py build --platform <platform> --output-dir <dir>
+  third-party-wheels.py build --python <version> --output-dir <dir>
   third-party-wheels.py upload <dir>
 
-.gitlab/third-party-wheels.txt lists the wheels: package, version, Python tag and platform tag.
+The build command reads the pins (name==version) of the test locks in tests/requirements_locks
+for one Python version. tests/suitespec.py gives the Python version of each lock. A pin needs
+a wheel when the PyPI mirror has its sdist, but no wheel that the test image can install. The
+test image is x86_64 Linux with glibc 2.41.
 
-The build command reads the index of the Depot repository datadog/dd-trace-py-wheels. For each
-entry of the platform that the index does not have, it builds the wheel from the sdist in a
-manylinux image, repairs it with auditwheel, and adds the local version
-"+dd.repackaging.<CI_PIPELINE_ID>". The comparison with the index ignores the local version,
-thus a wheel that an earlier pipeline uploaded prevents a new build.
+The command then reads the index of the Depot repository datadog/dd-trace-py-wheels. The
+comparison with the index ignores the local version, because each pipeline gives a different
+local version to its wheels. Thus a wheel that an earlier pipeline uploaded prevents a new
+build. For each pin that the index does not have, the command builds the wheel from the sdist
+in a manylinux image. It repairs a platform wheel with auditwheel. It gives a pure-Python wheel
+the tag of the CPython version (for example cp313-none-any), because the metadata of a wheel
+can depend on the Python version that built it. Then it adds the local version
+"+dd.repackaging.<CI_PIPELINE_ID>".
 
 The upload command examines the index again, then uploads each wheel that the index does not
 have with adms.
+
+.gitlab/third-party-wheels-exclude.txt lists the packages that the command does not build.
 """
 
 from __future__ import annotations
 
 import argparse
-import contextlib
+import concurrent.futures
 from dataclasses import dataclass
 from html.parser import HTMLParser
 import http.client
@@ -40,84 +49,119 @@ import sys
 import tempfile
 import time
 from typing import Iterable
-from typing import Iterator
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from packaging.tags import Tag
+from packaging.tags import compatible_tags
+from packaging.tags import cpython_tags
+from packaging.utils import InvalidSdistFilename
 from packaging.utils import InvalidWheelFilename
 from packaging.utils import canonicalize_name
+from packaging.utils import parse_sdist_filename
 from packaging.utils import parse_wheel_filename
 from packaging.version import InvalidVersion
 from packaging.version import Version
 
 
-LIST_FILE = Path(__file__).resolve().parents[1] / "third-party-wheels.txt"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+
+from tests.suitespec import get_test_environments  # noqa: E402
+
+
+EXCLUDE_FILE = REPO_ROOT / ".gitlab" / "third-party-wheels-exclude.txt"
+UPSTREAM_INDEX_URL = "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 INDEX_URL = "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
 REPOSITORY = "datadog/dd-trace-py-wheels"
 # adms accepts only this local version form for repackaged third-party wheels.
 LOCAL_VERSION_PREFIX = "dd.repackaging."
 # adms exits with this code when the repository already has the same file.
 ADMS_ALREADY_EXISTS = 10
+# The build command exits with this code when it cannot build some of the wheels.
+EXIT_BUILD_FAILURES = 3
+# The test image (TESTRUNNER_IMAGE) is Debian 13 on x86_64, with glibc 2.41.
+TEST_IMAGE_GLIBC_MINOR = 41
+# The platform tag that auditwheel gives to the wheels. The manylinux2014 image has glibc 2.17.
+BUILD_PLATFORM = "manylinux_2_17_x86_64"
 # The manylinux images install each CPython in /opt/python/<python tag>.
 MANYLINUX_PYTHONS = Path("/opt/python")
 INDEX_ATTEMPTS = 5
 INDEX_RETRY_DELAY = 2.0
+INDEX_THREADS = 16
+BUILD_TIMEOUT = 30 * 60
 
-_PYTHON_TAG_RE = re.compile(r"cp3\d+-cp3\d+t?")
+_PIN_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?==([^\s;]+)$")
 _METADATA_VERSION_RE = re.compile(rb"(?m)^Version:[ \t]*(\S+)[ \t]*\r?$")
+_LEGACY_MANYLINUX = {17: "manylinux2014", 12: "manylinux2010", 5: "manylinux1"}
 
 
 class BuildError(Exception):
-    """The build of an entry did not give the expected wheel."""
+    """The build of a pin did not give the expected wheel."""
 
 
 @dataclass(frozen=True)
-class Entry:
-    """One wheel to build: a package version for one Python tag and one platform tag."""
+class Pin:
+    """A name==version pin of a test lock."""
 
     name: str
     version: str
-    python: str
-    platform: str
-
-    @property
-    def tag(self) -> Tag:
-        interpreter, abi = self.python.split("-")
-        return Tag(interpreter, abi, self.platform)
 
     def __str__(self) -> str:
-        return f"{self.name}=={self.version} ({self.tag})"
+        return f"{self.name}=={self.version}"
 
 
-def read_entries(path: Path) -> list[Entry]:
-    """Read the entries of the list file. Raise ValueError if a line is not valid."""
-    entries = []
-    seen = set()
-    for number, line in enumerate(path.read_text().splitlines(), start=1):
-        fields = line.split("#", 1)[0].split()
-        if not fields:
-            continue
-        location = f"{path.name}:{number}"
-        if len(fields) != 4:
-            raise ValueError(f"{location}: expected 4 fields (package version python platform), found {len(fields)}")
-        name, version, python, platform = fields
-        try:
-            parsed = Version(version)
-        except InvalidVersion as error:
-            raise ValueError(f"{location}: {error}") from error
-        if parsed.local is not None:
-            raise ValueError(f"{location}: use the upstream version without a local version: {version}")
-        if not _PYTHON_TAG_RE.fullmatch(python):
-            raise ValueError(f"{location}: expected a CPython tag such as cp313-cp313, found {python}")
-        entry = Entry(canonicalize_name(name), version, python, platform)
-        key = (entry.name, parsed, entry.tag)
-        if key in seen:
-            raise ValueError(f"{location}: duplicate entry {entry}")
-        seen.add(key)
-        entries.append(entry)
-    return entries
+def read_pins(python: str) -> list[Pin]:
+    """Return the pins of all the test locks for the Python version, for example "3.13"."""
+    pins = set()
+    for environments in get_test_environments(nightly=False).values():
+        for environment in environments:
+            lockfile = REPO_ROOT / environment.lockfile
+            if environment.python != python or not lockfile.is_file():
+                continue
+            for line in lockfile.read_text().splitlines():
+                match = _PIN_RE.match(line.strip())
+                if not match:
+                    continue
+                try:
+                    version = Version(match[2])
+                except InvalidVersion:
+                    continue
+                # A pin with a local version cannot get the repackaging local version.
+                if version.local is None:
+                    pins.add(Pin(canonicalize_name(match[1]), match[2]))
+    return sorted(pins, key=lambda pin: (pin.name, Version(pin.version)))
+
+
+def read_exclusions(path: Path) -> set[tuple[str, str | None]]:
+    """Read the exclusion file. Each line is "name" (all versions) or "name==version"."""
+    exclusions: set[tuple[str, str | None]] = set()
+    for line in path.read_text().splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            name, _, version = line.partition("==")
+            exclusions.add((canonicalize_name(name.strip()), version.strip() or None))
+    return exclusions
+
+
+def is_excluded(pin: Pin, exclusions: set[tuple[str, str | None]]) -> bool:
+    return (pin.name, None) in exclusions or (pin.name, pin.version) in exclusions
+
+
+def python_tags(python: str) -> tuple[str, frozenset[Tag]]:
+    """Return the CPython tag (for example "cp313") and the wheel tags that the test image accepts."""
+    major, minor = (int(part) for part in python.split("."))
+    interpreter = f"cp{major}{minor}"
+    platforms = []
+    for glibc_minor in range(TEST_IMAGE_GLIBC_MINOR, 4, -1):
+        platforms.append(f"manylinux_2_{glibc_minor}_x86_64")
+        if glibc_minor in _LEGACY_MANYLINUX:
+            platforms.append(f"{_LEGACY_MANYLINUX[glibc_minor]}_x86_64")
+    platforms.append("linux_x86_64")
+    tags = set(cpython_tags((major, minor), [interpreter], platforms))
+    tags.update(compatible_tags((major, minor), interpreter, platforms))
+    return interpreter, frozenset(tags)
 
 
 class _LinkParser(HTMLParser):
@@ -166,6 +210,13 @@ def fetch_index_filenames(index_url: str, name: str) -> list[str]:
     raise AssertionError("unreachable")
 
 
+def fetch_many(index_url: str, names: Iterable[str]) -> dict[str, list[str]]:
+    """Return the filenames that the index has for each project name."""
+    names = sorted(set(names))
+    with concurrent.futures.ThreadPoolExecutor(INDEX_THREADS) as executor:
+        return dict(zip(names, executor.map(lambda name: fetch_index_filenames(index_url, name), names)))
+
+
 def find_matching_wheels(filenames: Iterable[str], name: str, version: str, tags: Iterable[Tag]) -> list[str]:
     """Return the wheels for the project name and version that have one of the tags.
 
@@ -182,11 +233,23 @@ def find_matching_wheels(filenames: Iterable[str], name: str, version: str, tags
         try:
             wheel_name, wheel_version, _, wheel_tags = parse_wheel_filename(filename)
         except (InvalidWheelFilename, InvalidVersion):
-            print(f"Ignore the file with a name that is not valid: {filename}", file=sys.stderr)
             continue
         if wheel_name == wanted_name and Version(wheel_version.public) == wanted_version and wheel_tags & wanted_tags:
             matches.append(filename)
     return matches
+
+
+def has_sdist(filenames: Iterable[str], name: str, version: str) -> bool:
+    for filename in filenames:
+        if filename.endswith(".whl"):
+            continue
+        try:
+            sdist_name, sdist_version = parse_sdist_filename(filename)
+        except (InvalidSdistFilename, InvalidVersion):
+            continue
+        if sdist_name == canonicalize_name(name) and sdist_version == Version(version):
+            return True
+    return False
 
 
 def set_metadata_version(metadata: Path, old_version: str, new_version: str) -> None:
@@ -204,11 +267,18 @@ def set_metadata_version(metadata: Path, old_version: str, new_version: str) -> 
     metadata.write_bytes(headers + body)
 
 
-def repack_wheel(wheel: Path, local_version: str, output_dir: Path) -> Path:
+def set_wheel_tag(wheel_file: Path, tag: str) -> None:
+    """Replace the Tag fields of a WHEEL file with one tag."""
+    lines = [line for line in wheel_file.read_text().splitlines() if line.strip() and not line.startswith("Tag:")]
+    wheel_file.write_text("\n".join([*lines, f"Tag: {tag}"]) + "\n")
+
+
+def repack_wheel(wheel: Path, local_version: str, output_dir: Path, log: list[str], tag: str | None = None) -> Path:
     """Write a copy of the wheel with a local version to output_dir, and return its path.
 
     The wheel is unpacked and packed again, because the version is also in the .dist-info
-    and .data directory names and in METADATA. "wheel pack" makes a new RECORD file.
+    and .data directory names and in METADATA. "wheel pack" makes a new RECORD file. If tag
+    is set, it replaces the tags of the wheel.
 
     "wheel pack" takes the name in the filename from the .dist-info directory. Some build
     backends keep the project name as it is (for example "zope.interface"), but adms accepts
@@ -220,10 +290,11 @@ def repack_wheel(wheel: Path, local_version: str, output_dir: Path) -> Path:
         raise BuildError(f"{wheel.name} already has a local version")
     new_version = f"{version}+{local_version}"
     new_name = name.replace("-", "_")
+    new_tags = frozenset([Tag(*tag.split("-"))]) if tag else tags
     with tempfile.TemporaryDirectory() as temporary:
         unpack_dir = Path(temporary, "unpacked")
         pack_dir = Path(temporary, "packed")
-        _run([sys.executable, "-m", "wheel", "unpack", "--dest", str(unpack_dir), str(wheel)])
+        _run([sys.executable, "-m", "wheel", "unpack", "--dest", str(unpack_dir), str(wheel)], log)
         (root,) = unpack_dir.iterdir()
         dist_infos = list(root.glob("*.dist-info"))
         if len(dist_infos) != 1:
@@ -231,23 +302,35 @@ def repack_wheel(wheel: Path, local_version: str, output_dir: Path) -> Path:
         dist_info = dist_infos[0]
         dist_name, _, old_version = dist_info.name[: -len(".dist-info")].rpartition("-")
         set_metadata_version(dist_info / "METADATA", old_version, new_version)
+        if tag:
+            set_wheel_tag(dist_info / "WHEEL", tag)
         data = root / f"{dist_name}-{old_version}.data"
         if data.is_dir():
             data.rename(root / f"{new_name}-{new_version}.data")
         dist_info.rename(root / f"{new_name}-{new_version}.dist-info")
         pack_dir.mkdir()
-        _run([sys.executable, "-m", "wheel", "pack", "--dest-dir", str(pack_dir), str(root)])
+        _run([sys.executable, "-m", "wheel", "pack", "--dest-dir", str(pack_dir), str(root)], log)
         (packed,) = pack_dir.glob("*.whl")
         packed_name, packed_version, _, packed_tags = parse_wheel_filename(packed.name)
-        if (packed_name, str(packed_version), packed_tags) != (name, new_version, tags):
+        if (packed_name, str(packed_version), packed_tags) != (name, new_version, new_tags):
             raise BuildError(f"unexpected name, version or tags in the repacked wheel {packed.name}")
         output_dir.mkdir(parents=True, exist_ok=True)
         return Path(shutil.move(str(packed), str(output_dir / packed.name)))
 
 
-def _run(command: list[str]) -> None:
-    print("+ " + " ".join(command), flush=True)
-    subprocess.run(command, check=True)
+def _run(command: list[str], log: list[str], timeout: float | None = None) -> str:
+    """Run the command, add the command and its output to the log, and return the output."""
+    log.append("+ " + " ".join(command))
+    try:
+        result = subprocess.run(
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout, check=False
+        )
+    except subprocess.TimeoutExpired as error:
+        raise BuildError(f"{Path(command[0]).name} did not stop in {timeout:.0f} s") from error
+    log.append(result.stdout)
+    if result.returncode != 0:
+        raise BuildError(f"{' '.join(command[:4])} ... exited with code {result.returncode}")
+    return result.stdout
 
 
 def _single_wheel(directory: Path) -> Path:
@@ -257,113 +340,115 @@ def _single_wheel(directory: Path) -> Path:
     return wheels[0]
 
 
-@contextlib.contextmanager
-def _section(name: str, header: str) -> Iterator[None]:
+def _print_section(name: str, header: str, lines: list[str]) -> None:
     # Collapsible section in the GitLab job log.
-    print(f"\x1b[0Ksection_start:{int(time.time())}:{name}[collapsed=true]\r\x1b[0K{header}", flush=True)
-    try:
-        yield
-    finally:
-        print(f"\x1b[0Ksection_end:{int(time.time())}:{name}\r\x1b[0K", flush=True)
+    print(f"\x1b[0Ksection_start:{int(time.time())}:{name}[collapsed=true]\r\x1b[0K{header}")
+    print("\n".join(line.rstrip("\n") for line in lines))
+    print(f"\x1b[0Ksection_end:{int(time.time())}:{name}\r\x1b[0K", flush=True)
 
 
-def _check_install(python: Path, wheel: Path, name: str, version: str, work_dir: Path) -> None:
-    """Install the wheel in a new virtual environment, and make sure that it has the version."""
-    venv = work_dir / "venv"
-    _run([str(python), "-m", "venv", str(venv)])
-    venv_python = venv / "bin" / "python"
-    _run(
-        [str(venv_python), "-m", "pip", "install", "--no-deps", "--no-index", "--disable-pip-version-check", str(wheel)]
-    )
-    installed = subprocess.run(
-        [
-            str(venv_python),
-            "-c",
-            "import importlib.metadata, sys; print(importlib.metadata.version(sys.argv[1]))",
-            name,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    if installed != version:
-        raise BuildError(f"the installed {name} has the version {installed}, expected {version}")
+def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: list[str]) -> Path:
+    """Build, repair, repack and install the wheel of the pin. Return the path of the wheel."""
+    interpreter, tags = python_tags(python)
+    python_bin = MANYLINUX_PYTHONS / f"{interpreter}-{interpreter}" / "bin" / "python"
+    with tempfile.TemporaryDirectory() as temporary:
+        work_dir = Path(temporary)
+        built_dir = work_dir / "built"
+        repaired_dir = work_dir / "repaired"
+        _run(
+            [
+                str(python_bin),
+                "-m",
+                "pip",
+                "wheel",
+                "--no-deps",
+                "--no-cache-dir",
+                "--disable-pip-version-check",
+                # Build from the sdist, also if the index has a wheel.
+                "--no-binary",
+                pin.name,
+                "--wheel-dir",
+                str(built_dir),
+                str(pin),
+            ],
+            log,
+            timeout=BUILD_TIMEOUT,
+        )
+        built = _single_wheel(built_dir)
+        if all(tag.abi == "none" and tag.platform == "any" for tag in parse_wheel_filename(built.name)[3]):
+            wheel = repack_wheel(built, local_version, output_dir, log, tag=f"{interpreter}-none-any")
+        else:
+            _run(["auditwheel", "repair", "--plat", BUILD_PLATFORM, "--wheel-dir", str(repaired_dir), str(built)], log)
+            wheel = repack_wheel(_single_wheel(repaired_dir), local_version, output_dir, log)
+        name, version, _, wheel_tags = parse_wheel_filename(wheel.name)
+        if name != pin.name or Version(version.public) != Version(pin.version):
+            raise BuildError(f"expected a wheel for {pin}, found {wheel.name}")
+        if not wheel_tags & tags:
+            raise BuildError(f"Python {python} on the test image cannot install {wheel.name}")
+        # Make sure that the wheel installs, and that the installed version is the new version.
+        venv = work_dir / "venv"
+        _run([str(python_bin), "-m", "venv", str(venv)], log)
+        pip = [str(venv / "bin" / "python"), "-m", "pip", "--disable-pip-version-check"]
+        _run([*pip, "install", "--no-deps", "--no-index", str(wheel)], log)
+        installed = re.search(r"(?m)^Version: (\S+)$", _run([*pip, "show", pin.name], log))
+        if not installed or installed[1] != str(version):
+            raise BuildError(f"the installed {pin.name} does not have the version {version}")
+        return wheel
 
 
-def build_entry(entry: Entry, local_version: str, output_dir: Path, work_dir: Path) -> Path:
-    """Build, repair, repack and install the wheel of the entry. Return the path of the wheel."""
-    python = MANYLINUX_PYTHONS / entry.python / "bin" / "python"
-    if shutil.which("manylinux-interpreters"):
-        _run(["manylinux-interpreters", "ensure", entry.python])
-    built_dir = work_dir / "built"
-    repaired_dir = work_dir / "repaired"
-    _run(
-        [
-            str(python),
-            "-m",
-            "pip",
-            "wheel",
-            "--no-deps",
-            "--no-cache-dir",
-            "--disable-pip-version-check",
-            # Build from the sdist, also if the index has a wheel.
-            "--no-binary",
-            entry.name,
-            "--wheel-dir",
-            str(built_dir),
-            f"{entry.name}=={entry.version}",
-        ]
-    )
-    _run(
-        [
-            "auditwheel",
-            "repair",
-            "--plat",
-            entry.platform,
-            "--wheel-dir",
-            str(repaired_dir),
-            str(_single_wheel(built_dir)),
-        ]
-    )
-    repaired = _single_wheel(repaired_dir)
-    name, version, _, tags = parse_wheel_filename(repaired.name)
-    if name != entry.name or version != Version(entry.version):
-        raise BuildError(f"expected a wheel for {entry.name}=={entry.version}, found {repaired.name}")
-    if entry.tag not in tags:
-        raise BuildError(f"{repaired.name} does not have the tag {entry.tag}")
-    wheel = repack_wheel(repaired, local_version, output_dir)
-    _check_install(python, wheel, entry.name, str(parse_wheel_filename(wheel.name)[1]), work_dir)
-    return wheel
-
-
-def build(entries: list[Entry], platform: str, index_url: str, local_version: str, output_dir: Path) -> int:
-    selected = [entry for entry in entries if entry.platform == platform]
-    print(f"{len(selected)} of {len(entries)} entries are for {platform}.")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    index: dict[str, list[str]] = {}
-    built, failed = [], []
-    for number, entry in enumerate(selected):
-        if entry.name not in index:
-            index[entry.name] = fetch_index_filenames(index_url, entry.name)
-        matches = find_matching_wheels(index[entry.name], entry.name, entry.version, [entry.tag])
+def build(python: str, local_version: str, output_dir: Path, jobs: int, upstream_url: str, index_url: str) -> int:
+    interpreter, tags = python_tags(python)
+    exclusions = read_exclusions(EXCLUDE_FILE)
+    pins = read_pins(python)
+    upstream = fetch_many(upstream_url, (pin.name for pin in pins))
+    missing = [
+        pin
+        for pin in pins
+        if has_sdist(upstream[pin.name], pin.name, pin.version)
+        and not find_matching_wheels(upstream[pin.name], pin.name, pin.version, tags)
+    ]
+    print(f"Python {python}: {len(pins)} pins, {len(missing)} with no wheel on {upstream_url}")
+    index = fetch_many(index_url, (pin.name for pin in missing))
+    to_build = []
+    for pin in missing:
+        matches = find_matching_wheels(index[pin.name], pin.name, pin.version, tags)
         if matches:
-            print(f"Skip {entry}: the index has {matches[0]}")
-            continue
-        with _section(f"build_{number}", f"Build {entry}"), tempfile.TemporaryDirectory() as work_dir:
+            print(f"  {pin}: the index has {matches[0]}")
+        elif is_excluded(pin, exclusions):
+            print(f"  {pin}: excluded by {EXCLUDE_FILE.name}")
+        else:
+            print(f"  {pin}: build")
+            to_build.append(pin)
+    if not to_build:
+        print("Nothing to build.")
+        return 0
+
+    if shutil.which("manylinux-interpreters"):
+        subprocess.run(["manylinux-interpreters", "ensure", f"{interpreter}-{interpreter}"], check=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    built, failed = [], []
+    with concurrent.futures.ThreadPoolExecutor(jobs) as executor:
+        logs: dict[Pin, list[str]] = {pin: [] for pin in to_build}
+        futures = {
+            executor.submit(build_pin, pin, python, local_version, output_dir, logs[pin]): pin for pin in to_build
+        }
+        for number, future in enumerate(concurrent.futures.as_completed(futures)):
+            pin = futures[future]
             try:
-                wheel = build_entry(entry, local_version, output_dir, Path(work_dir))
-            except (BuildError, OSError, ValueError, subprocess.CalledProcessError) as error:
-                print(f"ERROR: cannot build {entry}: {error}", file=sys.stderr)
-                failed.append(entry)
-                continue
-        print(f"Built {wheel.name}")
-        built.append(wheel)
+                wheel = future.result()
+            except (BuildError, OSError, ValueError) as error:
+                failed.append((pin, error))
+                _print_section(f"build_{number}", f"FAILED: {pin}: {error}", logs[pin])
+            else:
+                built.append(wheel)
+                _print_section(f"build_{number}", f"Built {wheel.name}", logs[pin])
     print(f"Built {len(built)} wheels in {output_dir}.")
     if failed:
-        print("ERROR: cannot build these entries:", file=sys.stderr)
-        for entry in failed:
-            print(f"  {entry}", file=sys.stderr)
-        return 1
+        print(f"ERROR: cannot build {len(failed)} wheels:", file=sys.stderr)
+        for pin, error in sorted(failed, key=lambda item: item[0].name):
+            print(f"  {pin}: {error}", file=sys.stderr)
+        print(f"To stop the builds of a package, add it to {EXCLUDE_FILE.name}.", file=sys.stderr)
+        return EXIT_BUILD_FAILURES
     return 0
 
 
@@ -401,10 +486,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--index-url", default=INDEX_URL, help="PEP 503 index to examine (default: %(default)s)")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    build_parser = subparsers.add_parser("build", help="Build the wheels that the index does not have.")
-    build_parser.add_argument("--platform", required=True, help="platform tag, e.g. manylinux_2_17_x86_64")
+    build_parser = subparsers.add_parser("build", help="Build the wheels that PyPI and the index do not have.")
+    build_parser.add_argument("--python", required=True, help="Python version of the test locks, e.g. 3.13")
     build_parser.add_argument("--output-dir", required=True, type=Path, help="directory for the built wheels")
-    build_parser.add_argument("--list", type=Path, default=LIST_FILE, help="list file (default: %(default)s)")
+    build_parser.add_argument("--jobs", type=int, default=4, help="number of builds at the same time")
+    build_parser.add_argument(
+        "--upstream-index-url", default=UPSTREAM_INDEX_URL, help="PyPI mirror (default: %(default)s)"
+    )
     build_parser.add_argument(
         "--pipeline-id",
         default=os.environ.get("CI_PIPELINE_ID", ""),
@@ -419,11 +507,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "build":
         if not args.pipeline_id.isdigit():
             parser.error(f"--pipeline-id must be a number, found {args.pipeline_id!r}")
-        try:
-            entries = read_entries(args.list)
-        except ValueError as error:
-            parser.error(str(error))
-        return build(entries, args.platform, args.index_url, LOCAL_VERSION_PREFIX + args.pipeline_id, args.output_dir)
+        if not re.fullmatch(r"3\.\d+", args.python):
+            parser.error(f"--python must be a CPython 3 version such as 3.13, found {args.python!r}")
+        return build(
+            args.python,
+            LOCAL_VERSION_PREFIX + args.pipeline_id,
+            args.output_dir,
+            args.jobs,
+            args.upstream_index_url,
+            args.index_url,
+        )
     return upload(args.directory, args.index_url, args.repository)
 
 

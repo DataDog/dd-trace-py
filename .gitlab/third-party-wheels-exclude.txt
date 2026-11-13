@@ -1,0 +1,25 @@
+# Packages that the "build third-party wheels" jobs do not build. A line is a package name (all
+# versions) or name==version. Add a package when the job cannot build it in the manylinux image.
+
+# This repository builds its own wheels.
+ddtrace
+
+# The wheel needs a system library that the manylinux image does not have.
+cffi            # libffi
+mariadb         # MariaDB Connector/C
+mysqlclient     # MySQL or MariaDB client library
+psycopg2-binary # libpq
+pylibmc         # libmemcached
+pyodbc          # unixODBC
+
+# The optional extension does not compile, thus the wheel has no compiled code and auditwheel
+# refuses it.
+logbook
+pyyaml          # libyaml
+yaaredis
+
+# The NVX extension needs GCC 11 or later. The manylinux2014 image has GCC 10.
+autobahn
+
+# uwsgi links to libpython, but the Python builds of the manylinux image have no libpython.
+uwsgi
