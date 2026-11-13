@@ -65,7 +65,7 @@ def initialize_iast_lists():
     """
     # Set the top-level names of the installed packages for the C extension
     try:
-        iastpatch.set_packages_distributions(set(get_package_distributions()))
+        iastpatch.set_packages_distributions(set(get_package_distributions(allow_finder_reentry=True)))
     except Exception:
         log.debug("Failed to set packages in C extension", exc_info=True)
 

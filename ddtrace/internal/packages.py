@@ -83,8 +83,24 @@ def get_distributions() -> t.Mapping[str, str]:
     return _installed().versions
 
 
-def get_package_distributions() -> t.Mapping[str, list[str]]:
-    """a mapping of importable package names to their distribution name(s)"""
+def get_package_distributions(*, allow_finder_reentry: bool = False) -> t.Mapping[str, list[str]]:
+    """A mapping of importable package names to their distribution name(s)."""
+    if allow_finder_reentry and is_querying_finders():
+        # IAST needs the complete inventory before executing a finder's import.
+        # Like its former Python resolver, this read can reenter the finders.
+        # Keep it local: the outer discovery owns publication and lookup caches.
+        problems: list[tuple[t.Any, t.Union[BaseException, str]]] = []
+
+        def warn(dist: t.Any, exc: t.Union[BaseException, str]) -> None:
+            problems.append((dist, exc))
+
+        key = _cache_key()
+        segments = _meta_path_segments(key[1], warn)
+        with _INSTALLED_DISTRIBUTIONS_LOCK:
+            packages = _Installed(key, list(_distribution_records(key, segments, warn))).packages
+        for dist, exc in problems:
+            _warn_bad_dist(dist, exc)
+        return packages
     return _installed().packages
 
 
