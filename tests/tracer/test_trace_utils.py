@@ -423,6 +423,24 @@ def test_int_service_integration(int_config, tracer):
 
 
 @pytest.mark.parametrize(
+    "is_user_provided_service,expected",
+    [
+        # DD_SERVICE was set and happens to equal the inferred base service: it must win.
+        (True, "app"),
+        # The service was only inferred: keep the integration default.
+        (False, "myint-default"),
+    ],
+)
+def test_int_service_global_service_equal_to_inferred_base_service(int_config, is_user_provided_service, expected):
+    int_config.service = "app"
+    int_config._inferred_base_service = "app"
+    int_config._is_user_provided_service = is_user_provided_service
+    int_config.myint._default_service = "myint-default"
+
+    assert trace_utils.int_service(None, int_config.myint) == expected
+
+
+@pytest.mark.parametrize(
     "pin,config_val,default,expected",
     [
         (Pin(), None, "default-svc", "default-svc"),

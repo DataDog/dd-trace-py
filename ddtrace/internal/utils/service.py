@@ -51,7 +51,12 @@ def int_service(
     # defaults to _inferred_base_service when no DD_SERVICE is set. In this case, we want to not
     # use the inferred base service value, and instead use the integration default service. If we
     # didn't do this, we would have a massive breaking change from adding inferred_base_service.
-    if global_service and global_service != int_config.global_config._inferred_base_service:
+    # A user-provided service (e.g. DD_SERVICE) must still win when it happens to equal the
+    # inferred base service, matching Config._get_service().
+    if global_service and (
+        int_config.global_config._is_user_provided_service
+        or global_service != int_config.global_config._inferred_base_service
+    ):
         return cast(str, global_service)
 
     if "_default_service" in int_config and int_config._default_service is not None:
