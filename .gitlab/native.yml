@@ -37,6 +37,18 @@ include:
       cargo test --no-fail-fast --locked
       echo -e "\e[0Ksection_end:`date +%s`:gotter_cargo_test\r\e[0K"
 
+# libdatadog crates are released together: every Cargo.toml dependency on libdatadog must
+# pin the same release tag (not a commit SHA or branch). See scripts/check-libdatadog-pins.sh.
+"libdatadog pins":
+  stage: tests
+  image: !reference [.testrunner, image]
+  tags: !reference [.testrunner, tags]
+  timeout: 5m
+  needs: []
+  script:
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - bash scripts/check-libdatadog-pins.sh
+
 "clang-tidy profiling":
   stage: tests
   image: registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native
