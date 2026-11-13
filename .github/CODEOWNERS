@@ -75,6 +75,7 @@ static-analysis.datadog.yml         @DataDog/python-guild
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 /README.md                          @DataDog/python-guild  @DataDog/apm-core-python
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+/frozen-paths.txt                   @DataDog/apm-core-python
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 setup.py                            @DataDog/python-guild
