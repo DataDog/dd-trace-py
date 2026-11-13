@@ -12,7 +12,9 @@ from ddtrace.contrib.internal.litellm._constants import model_map
 from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
+from ddtrace.contrib.internal.litellm.utils import _fallback_dispatch_attempts
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
+from ddtrace.contrib.internal.litellm.utils import fallback_dispatch
 from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
@@ -37,6 +39,9 @@ def _supported_versions() -> dict[str, str]:
 
 def _request_event(operation, args, kwargs, router=None):
     model = get_argument_value(args, kwargs, 0, "model", None)
+    attempts = _fallback_dispatch_attempts.get()
+    if attempts is not None and router is None:
+        attempts["model"] = model
     host = extract_host_tag(kwargs)
     tags = {}
     if model is not None:
@@ -56,8 +61,10 @@ def _request_event(operation, args, kwargs, router=None):
         provider="",
         model=model,
         tags=tags,
-        # Router spans are always submitted; plain calls defer to the OpenAI integration's span when there is one.
-        submit_to_llmobs=router is not None or not has_downstream_openai_span(kwargs, model),
+        # Router spans are always submitted. Plain calls defer to the OpenAI integration's span when there is one,
+        # and to the span of the outer call when litellm's fallback runner re-enters ``completion``.
+        submit_to_llmobs=router is not None
+        or not (_fallback_dispatch_attempts.get() is not None or has_downstream_openai_span(kwargs, model)),
         request_args=args,
         request_kwargs=request_kwargs,
         operation=operation,
@@ -85,12 +92,14 @@ def traced_completion(func, instance, args, kwargs):
     event = _request_event(func.__name__, args, kwargs)
     if not kwargs.get("stream", False):
         with core.context_with_event(event):
-            event.response = func(*args, **kwargs)
+            with fallback_dispatch(event):
+                event.response = func(*args, **kwargs)
             return event.response
     # The stream handler dispatches the ended event once the stream is consumed or closed.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            resp = func(*args, **kwargs)
+            with fallback_dispatch(event):
+                resp = func(*args, **kwargs)
         except Exception:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
@@ -101,11 +110,13 @@ async def traced_acompletion(func, instance, args, kwargs):
     event = _request_event(func.__name__, args, kwargs)
     if not kwargs.get("stream", False):
         with core.context_with_event(event):
-            event.response = await func(*args, **kwargs)
+            with fallback_dispatch(event):
+                event.response = await func(*args, **kwargs)
             return event.response
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            resp = await func(*args, **kwargs)
+            with fallback_dispatch(event):
+                resp = await func(*args, **kwargs)
         except Exception:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise

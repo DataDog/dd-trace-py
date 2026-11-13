@@ -1,5 +1,8 @@
 from collections import defaultdict
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import FrozenInstanceError
+from typing import Optional
 
 from ddtrace._monkey import _get_patched_modules
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
@@ -63,6 +66,40 @@ def has_downstream_openai_span(kwargs, model=None):
     # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
     is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
     return is_openai_model and not stream and _openai_is_patched()
+
+
+# Set while a call that submits an LLM span runs litellm's fallback runner, which re-enters
+# ``litellm.completion``/``acompletion`` once per attempt. Those inner calls skip their own span and record the model
+# they were asked for here, so the outer span can be attributed to the attempt that produced the response.
+_fallback_dispatch_attempts: ContextVar[Optional[dict]] = ContextVar("ddtrace_litellm_fallback_attempts", default=None)
+
+
+def has_fallbacks(kwargs):
+    """Determine whether litellm will dispatch the request through its fallback runner."""
+    import litellm
+
+    return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
+
+
+@contextmanager
+def fallback_dispatch(event):
+    """Mark the wrapped call so the fallback runner's inner calls do not submit a second LLM span."""
+    if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
+        yield
+        return
+    attempts: dict = {}
+    token = _fallback_dispatch_attempts.set(attempts)
+    try:
+        yield
+    finally:
+        _fallback_dispatch_attempts.reset(token)
+        # The runner returns the first successful attempt, which is the last one made.
+        model = attempts.get("model")
+        if model:
+            event.model = model
+            event.request_kwargs["model"] = model
+            if event.request_args:
+                event.request_args = (model, *event.request_args[1:])
 
 
 class BaseLiteLLMStreamHandler:
