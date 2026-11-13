@@ -749,6 +749,7 @@ def test_crashtracker_otel_thread_context(run_python_code_in_subprocess):
             assert context["span_id"] is not None
             assert context["trace_id"] is not None
 
+
 # Subprocess code for test_crashtracker_native_extension_crash.
 #
 # Using C++ means the symbol is name-mangled in the binary

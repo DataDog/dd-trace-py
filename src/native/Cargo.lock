@@ -146,15 +146,6 @@ checksum = "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c"
 
 [[package]]
 name = "build_common"
-version = "48.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v48.0.0#0be9d869494c0d8b1732b03b1658ac45db0ca454"
-dependencies = [
- "cbindgen",
- "serde_json",
-]
-
-[[package]]
-name = "build_common"
 version = "49.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v49.0.0#34293ad29c09cca7f8d6bb1b0be9c9d5164cba08"
 dependencies = [
@@ -441,7 +432,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64",
- "build_common 48.0.0",
+ "build_common",
  "bytes",
  "libc",
  "libdd-capabilities-impl",
@@ -1458,7 +1449,7 @@ version = "49.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v49.0.0#34293ad29c09cca7f8d6bb1b0be9c9d5164cba08"
 dependencies = [
  "anyhow",
- "build_common 49.0.0",
+ "build_common",
  "chrono",
  "crossbeam-queue",
  "function_name",
@@ -1574,7 +1565,7 @@ name = "libdd-data-pipeline-ffi"
 version = "49.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v49.0.0#34293ad29c09cca7f8d6bb1b0be9c9d5164cba08"
 dependencies = [
- "build_common 49.0.0",
+ "build_common",
  "libdd-capabilities-impl",
  "libdd-common",
  "libdd-common-ffi",
@@ -1729,7 +1720,7 @@ name = "libdd-library-config-ffi"
 version = "0.0.2"
 source = "git+https://github.com/DataDog/libdatadog?rev=v49.0.0#34293ad29c09cca7f8d6bb1b0be9c9d5164cba08"
 dependencies = [
- "build_common 49.0.0",
+ "build_common",
  "constcat",
  "function_name",
  "libdd-common-ffi",
@@ -1825,7 +1816,7 @@ name = "libdd-otel-thread-ctx-ffi"
 version = "1.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v49.0.0#34293ad29c09cca7f8d6bb1b0be9c9d5164cba08"
 dependencies = [
- "build_common 49.0.0",
+ "build_common",
  "libdd-common-ffi",
  "libdd-otel-thread-ctx",
 ]
@@ -1882,7 +1873,7 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v49.0.0#34293ad29c09cca7
 dependencies = [
  "allocator-api2",
  "anyhow",
- "build_common 49.0.0",
+ "build_common",
  "function_name",
  "hyper",
  "libc",
@@ -1975,7 +1966,7 @@ name = "libdd-shared-runtime-ffi"
 version = "49.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v49.0.0#34293ad29c09cca7f8d6bb1b0be9c9d5164cba08"
 dependencies = [
- "build_common 49.0.0",
+ "build_common",
  "libdd-regex",
  "libdd-shared-runtime",
  "tracing",

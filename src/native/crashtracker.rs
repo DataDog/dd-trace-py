@@ -59,7 +59,6 @@ impl From<StacktraceCollectionPy> for StacktraceCollection {
 }
 
 #[pyclass(
-    skip_from_py_object,
     name = "CrashtrackerConfiguration",
     module = "datadog.internal._native"
 )]
@@ -140,7 +139,6 @@ impl RustWrapper for CrashtrackerConfigurationPy {
 }
 
 #[pyclass(
-    skip_from_py_object,
     name = "CrashtrackerReceiverConfig",
     module = "datadog.internal._native"
 )]
@@ -181,15 +179,11 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
-// TODO(py-315)(pyo3 0.28): `skip_from_py_object` opts out of the Clone-driven
-// automatic FromPyObject derive that pyo3 deprecated in 0.28. This type is
-// only consumed through `PyRefMut<CrashtrackerMetadataPy>`, never extracted
-// as an owned value, so skipping is safe.
-#[pyclass(
-    name = "CrashtrackerMetadata",
-    module = "datadog.internal._native",
-    skip_from_py_object
-)]
+// TODO(py-315)(pyo3 0.30): pyo3 0.30 no longer derives FromPyObject for Clone
+// pyclasses by default, so `skip_from_py_object` is gone. This type is only
+// consumed through `PyRefMut<CrashtrackerMetadataPy>`, never extracted as an
+// owned value, so it does not need `from_py_object`.
+#[pyclass(name = "CrashtrackerMetadata", module = "datadog.internal._native")]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
     metadata: Option<Metadata>,
