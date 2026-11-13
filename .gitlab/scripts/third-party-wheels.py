@@ -2,7 +2,9 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
+#     "auditwheel>=6.7,<7",
 #     "packaging>=24,<27",
+#     "patchelf>=0.17,<1",
 #     "ruamel.yaml>=0.17.21",
 #     "wheel>=0.42,<1",
 # ]
@@ -22,9 +24,12 @@ The command then reads the index of the Depot repository datadog/dd-trace-py-whe
 comparison with the index ignores the local version, because each pipeline gives a different
 local version to its wheels. Thus a wheel that an earlier pipeline uploaded prevents a new
 build. For each pin that the index does not have, the command builds the wheel from the sdist
-in a manylinux image. It repairs a platform wheel with auditwheel. It gives a pure-Python wheel
-the tag of the CPython version (for example cp313-none-any), because the metadata of a wheel
-can depend on the Python version that built it. Then it adds the local version
+in the test image, because that image has the system libraries that the test jobs use to build
+the packages. auditwheel copies the system libraries into a platform wheel and gives it the
+most compatible manylinux tag. When auditwheel cannot do this, the wheel keeps its
+linux_x86_64 tag, because the test jobs run in the same image. A pure-Python wheel gets the tag
+of the CPython version (for example cp313-none-any), because the metadata of a wheel can
+depend on the Python version that built it. Then the command adds the local version
 "+dd.repackaging.<CI_PIPELINE_ID>".
 
 The upload command examines the index again, then uploads each wheel that the index does not
@@ -83,10 +88,8 @@ ADMS_ALREADY_EXISTS = 10
 EXIT_BUILD_FAILURES = 3
 # The test image (TESTRUNNER_IMAGE) is Debian 13 on x86_64, with glibc 2.41.
 TEST_IMAGE_GLIBC_MINOR = 41
-# The platform tag that auditwheel gives to the wheels. The manylinux2014 image has glibc 2.17.
-BUILD_PLATFORM = "manylinux_2_17_x86_64"
-# The manylinux images install each CPython in /opt/python/<python tag>.
-MANYLINUX_PYTHONS = Path("/opt/python")
+# auditwheel exits with this message when the wheel has no compiled code.
+AUDITWHEEL_NOT_PLATFORM_WHEEL = "This does not look like a platform wheel"
 INDEX_ATTEMPTS = 5
 INDEX_RETRY_DELAY = 2.0
 INDEX_THREADS = 16
@@ -318,12 +321,12 @@ def repack_wheel(wheel: Path, local_version: str, output_dir: Path, log: list[st
         return Path(shutil.move(str(packed), str(output_dir / packed.name)))
 
 
-def _run(command: list[str], log: list[str], timeout: float | None = None) -> str:
+def _run(command: list[str], log: list[str], timeout: float | None = None, env: dict[str, str] | None = None) -> str:
     """Run the command, add the command and its output to the log, and return the output."""
     log.append("+ " + " ".join(command))
     try:
         result = subprocess.run(
-            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout, check=False
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout, check=False, env=env
         )
     except subprocess.TimeoutExpired as error:
         raise BuildError(f"{Path(command[0]).name} did not stop in {timeout:.0f} s") from error
@@ -347,17 +350,49 @@ def _print_section(name: str, header: str, lines: list[str]) -> None:
     print(f"\x1b[0Ksection_end:{int(time.time())}:{name}\r\x1b[0K", flush=True)
 
 
-def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: list[str]) -> Path:
+def repair_wheel(wheel: Path, output_dir: Path, log: list[str]) -> Path:
+    """Repair a platform wheel with auditwheel, and return the path of the wheel to use.
+
+    Return the wheel as it is when auditwheel cannot give it a manylinux tag.
+    """
+    # auditwheel runs the patchelf of the environment of this script.
+    env = {**os.environ, "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ.get('PATH', '')}"}
+    try:
+        _run([sys.executable, "-m", "auditwheel", "repair", "--wheel-dir", str(output_dir), str(wheel)], log, env=env)
+    except BuildError:
+        if AUDITWHEEL_NOT_PLATFORM_WHEEL in log[-1]:
+            raise BuildError("the platform wheel has no compiled code") from None
+        log.append(f"auditwheel cannot give a manylinux tag to {wheel.name}. Keep the wheel as it is.")
+        return wheel
+    return _single_wheel(output_dir)
+
+
+def find_python(python: str) -> str:
+    """Return the path of the python of the version on PATH.
+
+    "uv run" puts the environment of this script first on PATH. That environment has no pip,
+    thus it is not used, also when it has the same Python version.
+    """
+    own_bin = Path(sys.executable).parent.resolve()
+    path = os.pathsep.join(
+        d for d in os.environ.get("PATH", "").split(os.pathsep) if d and Path(d).resolve() != own_bin
+    )
+    python_bin = shutil.which(f"python{python}", path=path)
+    if not python_bin:
+        raise RuntimeError(f"cannot find python{python} on PATH")
+    return python_bin
+
+
+def build_pin(pin: Pin, python: str, python_bin: str, local_version: str, output_dir: Path, log: list[str]) -> Path:
     """Build, repair, repack and install the wheel of the pin. Return the path of the wheel."""
     interpreter, tags = python_tags(python)
-    python_bin = MANYLINUX_PYTHONS / f"{interpreter}-{interpreter}" / "bin" / "python"
     with tempfile.TemporaryDirectory() as temporary:
         work_dir = Path(temporary)
         built_dir = work_dir / "built"
         repaired_dir = work_dir / "repaired"
         _run(
             [
-                str(python_bin),
+                python_bin,
                 "-m",
                 "pip",
                 "wheel",
@@ -378,8 +413,7 @@ def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: 
         if all(tag.abi == "none" and tag.platform == "any" for tag in parse_wheel_filename(built.name)[3]):
             wheel = repack_wheel(built, local_version, output_dir, log, tag=f"{interpreter}-none-any")
         else:
-            _run(["auditwheel", "repair", "--plat", BUILD_PLATFORM, "--wheel-dir", str(repaired_dir), str(built)], log)
-            wheel = repack_wheel(_single_wheel(repaired_dir), local_version, output_dir, log)
+            wheel = repack_wheel(repair_wheel(built, repaired_dir, log), local_version, output_dir, log)
         name, version, _, wheel_tags = parse_wheel_filename(wheel.name)
         if name != pin.name or Version(version.public) != Version(pin.version):
             raise BuildError(f"expected a wheel for {pin}, found {wheel.name}")
@@ -387,7 +421,7 @@ def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: 
             raise BuildError(f"Python {python} on the test image cannot install {wheel.name}")
         # Make sure that the wheel installs, and that the installed version is the new version.
         venv = work_dir / "venv"
-        _run([str(python_bin), "-m", "venv", str(venv)], log)
+        _run([python_bin, "-m", "venv", str(venv)], log)
         pip = [str(venv / "bin" / "python"), "-m", "pip", "--disable-pip-version-check"]
         _run([*pip, "install", "--no-deps", "--no-index", str(wheel)], log)
         installed = re.search(r"(?m)^Version: (\S+)$", _run([*pip, "show", pin.name], log))
@@ -397,7 +431,7 @@ def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: 
 
 
 def build(python: str, local_version: str, output_dir: Path, jobs: int, upstream_url: str, index_url: str) -> int:
-    interpreter, tags = python_tags(python)
+    _, tags = python_tags(python)
     exclusions = read_exclusions(EXCLUDE_FILE)
     pins = read_pins(python)
     upstream = fetch_many(upstream_url, (pin.name for pin in pins))
@@ -423,14 +457,14 @@ def build(python: str, local_version: str, output_dir: Path, jobs: int, upstream
         print("Nothing to build.")
         return 0
 
-    if shutil.which("manylinux-interpreters"):
-        subprocess.run(["manylinux-interpreters", "ensure", f"{interpreter}-{interpreter}"], check=True)
+    python_bin = find_python(python)
     output_dir.mkdir(parents=True, exist_ok=True)
     built, failed = [], []
     with concurrent.futures.ThreadPoolExecutor(jobs) as executor:
         logs: dict[Pin, list[str]] = {pin: [] for pin in to_build}
         futures = {
-            executor.submit(build_pin, pin, python, local_version, output_dir, logs[pin]): pin for pin in to_build
+            executor.submit(build_pin, pin, python, python_bin, local_version, output_dir, logs[pin]): pin
+            for pin in to_build
         }
         for number, future in enumerate(concurrent.futures.as_completed(futures)):
             pin = futures[future]

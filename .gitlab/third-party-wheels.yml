@@ -3,10 +3,11 @@
 # to that repository. .gitlab-ci.yml adds the index of the repository as an extra index for pip
 # and uv. See .gitlab/scripts/third-party-wheels.py.
 
-"build third-party wheels manylinux_x86_64":
+"build third-party wheels":
   extends: .retry_on_infrastructure_failure
   stage: package
-  image: ${IMAGE_BASE_URL}:${MANYLINUX_AMD64_IMAGE_TAG}
+  # The test image has the system libraries that the test jobs use to build the packages.
+  image: !reference [.testrunner, image]
   tags: [ "arch:amd64" ]
   needs: []
   timeout: 1h
@@ -38,10 +39,11 @@
     KUBERNETES_CPU_REQUEST: "8"
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
+  before_script:
+    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15
   script:
-    # The manylinux images have no Python on PATH. This interpreter runs only the script, which
-    # builds the wheels with the interpreter of PYTHON_VERSION.
-    - uv run --python /opt/python/cp312-cp312/bin/python --script .gitlab/scripts/third-party-wheels.py build --python "${PYTHON_VERSION}" --output-dir third-party-wheels --jobs 4
+    # Python 3.12 runs only the script, which builds the wheels with the python of PYTHON_VERSION.
+    - uv run --python 3.12 --script .gitlab/scripts/third-party-wheels.py build --python "${PYTHON_VERSION}" --output-dir third-party-wheels --jobs 4
   artifacts:
     # Also keep the wheels of a job that cannot build all its wheels (exit code 3).
     when: always
@@ -49,12 +51,12 @@
       - third-party-wheels/*.whl
     expire_in: 1 week
 
-"upload third-party wheels manylinux_x86_64":
+"upload third-party wheels":
   # The ci-utils image has the adms binary.
   extends: .ci_utils
   stage: package
   needs:
-    - job: "build third-party wheels manylinux_x86_64"
+    - job: "build third-party wheels"
       artifacts: true
   # Upload from one pipeline at a time, so that two pipelines cannot upload the same wheel.
   resource_group: third-party-wheels
