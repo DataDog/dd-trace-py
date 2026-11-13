@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -ex -o pipefail
 
+# Resolve the script directory now, before the cd below makes the
+# invocation-relative path unresolvable.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 export ARTIFACTS_DIR="/artifacts/${CI_JOB_ID}-${SCENARIO}"
 mkdir -p "${ARTIFACTS_DIR}"
 mkdir -p "${ARTIFACTS_DIR}/baseline"
@@ -25,7 +29,7 @@ fi
 # cores 24-47 are for benchmarks and are on separate CPU socket 1.
 # CPU 24 is skipped because it is noisier than the other cores, and CPU 25 is skipped so the
 # candidate and baseline each get the same number of CPUs.
-CPU_AFFINITY=26-35 "$(cd "$(dirname "$0")" && pwd)/run-candidate.sh" &
+CPU_AFFINITY=26-35 "$SCRIPT_DIR/run-candidate.sh" &
 
 # Run baseline benchmarks
 export BASELINE_WHL="${CI_PROJECT_DIR}/${BASELINE_WHL}"
