@@ -338,7 +338,7 @@ class _UserInfoRetriever:
         return user_login
 
     def get_username(self) -> Optional[str]:
-        username = getattr(self.user, asm_config._user_model_name_field, None)
+        username = getattr(self.user, asm_config._user_model_login_field, None)
         if username is not None:
             return str(username)
 

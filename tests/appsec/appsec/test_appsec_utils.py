@@ -7,6 +7,7 @@ from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 import ddtrace.internal.utils.http as utils
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 SECID: str = "[security_response_id]"
@@ -198,12 +199,15 @@ def test_block_config_get_preserves_attribute_access():
     assert config.type == config.get("type")
 
 
-def test_user_info_retriever_preserves_id_and_stringifies_extra_values():
+@pytest.mark.parametrize("login_field", ("", "email", "missing"))
+@pytest.mark.parametrize("name_field", ("", "name"))
+def test_user_info_retriever_preserves_id_and_stringifies_extra_values(login_field, name_field):
     from ddtrace.appsec._utils import _UserInfoRetriever
 
     retriever = _UserInfoRetriever(SimpleNamespace(pk=1, username=2, email=3, name=4))
 
-    assert retriever.get_user_info(login=True, email=True, name=True) == (
-        1,
-        {"login": "2", "email": "3", "name": "4"},
-    )
+    with override_global_config(dict(_user_model_login_field=login_field, _user_model_name_field=name_field)):
+        assert retriever.get_user_info(login=True, email=True, name=True) == (
+            3 if login_field == "email" else 1,
+            {"login": "3" if login_field == "email" else "2", "email": "3", "name": "4"},
+        )
