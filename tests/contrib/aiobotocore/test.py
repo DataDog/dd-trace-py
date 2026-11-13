@@ -307,7 +307,7 @@ async def test_double_patch(tracer, test_spans):
 async def test_user_specified_service(tracer, test_spans):
     """
     When a service name is specified by the user
-        The aiobotocore integration should use it as the service name
+        The aiobotocore integration should still report ``aws.<endpoint>`` (as botocore does)
     """
     with override_global_config(dict(service="mysvc")):
         # Repatch to take config into account
@@ -321,7 +321,7 @@ async def test_user_specified_service(tracer, test_spans):
         assert len(traces[0]) == 1
         span = traces[0][0]
 
-        assert span.service == "mysvc"
+        assert span.service == "aws.ec2"
 
 
 @pytest.mark.parametrize(
@@ -330,14 +330,14 @@ async def test_user_specified_service(tracer, test_spans):
         (None, None, "aws.{}", "{}.command"),
         (None, "v0", "aws.{}", "{}.command"),
         (None, "v1", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME, "aws.{}.request"),
-        ("mysvc", None, "mysvc", "{}.command"),
-        ("mysvc", "v0", "mysvc", "{}.command"),
+        ("mysvc", None, "aws.{}", "{}.command"),
+        ("mysvc", "v0", "aws.{}", "{}.command"),
         ("mysvc", "v1", "mysvc", "aws.{}.request"),
     ],
 )
 def test_schematized_env_specified_service(ddtrace_run_python_code_in_subprocess, schema_params):
     """
-    v0: use 'aws.<INTEGRATION>" for service name
+    v0: use 'aws.<INTEGRATION>" for service name, even if DD_SERVICE is set (matches botocore)
     v1: use the env-specified service (if specified) else internal.schema.DEFAULT_SPAN_SERVICE_NAME
     """
     service_name, schema_version, expected_service_name, expected_operation_name = schema_params
