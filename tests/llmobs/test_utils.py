@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+import threading
 
 from pydantic import BaseModel
 import pytest
@@ -896,3 +897,46 @@ def test_link_tracker_links_tool_round_trip(tracer):
     assert [link["span_id"] for link in llm_links] == [str(tool_span.span_id)]
     assert tracker._tool_calls == {}
     assert tracker._lookup_tool_id == {}
+
+
+def test_link_tracker_registration_is_atomic_with_eviction():
+    """Eviction from another thread must not run between storing a tool call and its lookup entry."""
+    tracker = LinkTracker()
+    other_thread_progressed = threading.Event()
+
+    class _ContentionSignalingLock:
+        def __init__(self, lock):
+            self._lock = lock
+
+        def __enter__(self):
+            if not self._lock.acquire(blocking=False):
+                other_thread_progressed.set()
+                self._lock.acquire()
+
+        def __exit__(self, *exc_info):
+            self._lock.release()
+
+    def register_newer_calls():
+        for i in range(_MAX_TRACKED_TOOL_CALLS):
+            tracker.on_llm_tool_choice(f"call_{i}", "extract", f'{{"i":{i}}}', _llm_span_context(i))
+        other_thread_progressed.set()
+
+    other_thread = threading.Thread(target=register_newer_calls)
+
+    class _InterleavingLookup(dict):
+        def __setitem__(self, key, value):
+            if value == "call_paused" and not other_thread.is_alive():
+                # Let another thread register enough calls to evict this one before its lookup is stored.
+                other_thread.start()
+                assert other_thread_progressed.wait(timeout=10)
+            super().__setitem__(key, value)
+
+    tracker._lock = _ContentionSignalingLock(tracker._lock)
+    tracker._lookup_tool_id = _InterleavingLookup()
+    tracker.on_llm_tool_choice("call_paused", "extract", '{"i":"paused"}', _llm_span_context(0))
+    other_thread.join(timeout=10)
+
+    assert not other_thread.is_alive()
+    assert len(tracker._tool_calls) == _MAX_TRACKED_TOOL_CALLS
+    assert len(tracker._lookup_tool_id) == _MAX_TRACKED_TOOL_CALLS
+    assert all(tool_id in tracker._tool_calls for tool_id in tracker._lookup_tool_id.values())

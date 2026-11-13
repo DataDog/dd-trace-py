@@ -23,6 +23,7 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -978,6 +979,8 @@ class LinkTracker:
         # Bounded by _MAX_TRACKED_TOOL_CALLS, oldest entries are evicted first.
         self._tool_calls: OrderedDict[str, TrackedToolCall] = OrderedDict()  # maps tool id's to tool call data
         self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
+        # Keeps both tool call maps consistent across registration, eviction and removal.
+        self._lock = Lock()
         self._active_guardrail_spans: set[Span] = set()
         self._last_llm_span: Optional[Span] = None
 
@@ -997,9 +1000,6 @@ class LinkTracker:
         This is to avoid some issues with parsing tool calls from ReAct agents which format tool calls as plain text.
         """
         formatted_arguments = format_tool_call_arguments(arguments)
-        if self._lookup_tool_id.get((tool_name, formatted_arguments)):
-            return
-
         tool_call = TrackedToolCall(
             tool_id=tool_id,
             tool_name=tool_name,
@@ -1007,16 +1007,19 @@ class LinkTracker:
             llm_span_context=llm_span_context,
             tool_version=tool_version,
         )
-        # A re-registered tool id replaces the previous call and moves to the newest position.
-        previous = self._tool_calls.pop(tool_id, None)
-        if previous is not None:
-            self._forget_lookup(previous)
-        self._tool_calls[tool_id] = tool_call
-        self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
-        # Every lookup entry points at a tracked call, so bounding the calls also bounds the lookup.
-        while len(self._tool_calls) > _MAX_TRACKED_TOOL_CALLS:
-            _, evicted = self._tool_calls.popitem(last=False)
-            self._forget_lookup(evicted)
+        with self._lock:
+            if self._lookup_tool_id.get((tool_name, formatted_arguments)):
+                return
+            # A re-registered tool id replaces the previous call and moves to the newest position.
+            previous = self._tool_calls.pop(tool_id, None)
+            if previous is not None:
+                self._forget_lookup(previous)
+            self._tool_calls[tool_id] = tool_call
+            self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
+            # Every lookup entry points at a tracked call, so bounding the calls also bounds the lookup.
+            while len(self._tool_calls) > _MAX_TRACKED_TOOL_CALLS:
+                _, evicted = self._tool_calls.popitem(last=False)
+                self._forget_lookup(evicted)
 
     def _forget_lookup(self, tool_call: TrackedToolCall) -> None:
         key = (tool_call.tool_name, tool_call.arguments)
@@ -1055,7 +1058,8 @@ class LinkTracker:
             "trace_id": format_trace_id(tool_span.trace_id),
         }
         tool_call.tool_kind = tool_kind
-        self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)
+        with self._lock:
+            self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)
 
     def on_tool_call_output_used(self, tool_id: str, llm_span: Span) -> None:
         """
@@ -1065,9 +1069,10 @@ class LinkTracker:
         The tool call is removed from the tracker since we only want to link the output of a tool call to the FIRST
         LLM call that has that tool call as an input to reduce noisy links.
         """
-        tool_call = self._tool_calls.pop(tool_id, None)
-        if tool_call is not None:
-            self._forget_lookup(tool_call)
+        with self._lock:
+            tool_call = self._tool_calls.pop(tool_id, None)
+            if tool_call is not None:
+                self._forget_lookup(tool_call)
         if not tool_call or not tool_call.tool_span_context:
             return
 
