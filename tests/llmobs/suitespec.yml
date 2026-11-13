@@ -250,7 +250,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
   litellm:
-    venvs_per_job: 3
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@ai_usage'
