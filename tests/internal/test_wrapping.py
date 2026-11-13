@@ -1191,6 +1191,55 @@ async def test_wrapping_context_async_generator():
 
 
 @pytest.mark.asyncio
+async def test_wrapping_context_async_generator_exc():
+    # On Python 3.10 the context head must be placed after GEN_START, otherwise
+    # GEN_START pops the __exit__ method and the exception surfaces as a
+    # TypeError instead of the original one.
+    async def arange(count):
+        for i in range(count):
+            yield i
+            await asyncio.sleep(0.0)
+        raise ValueError("foo")
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    a = []
+    with pytest.raises(ValueError, match="foo"):
+        async for _ in arange(3):
+            a.append(_)
+
+    assert a == list(range(3))
+
+    assert wc.entered
+    assert wc.return_value is NOTSET
+    assert wc.exited
+
+    assert wc.exc_info is not None
+    _type, exc, _ = wc.exc_info
+    assert _type is ValueError
+    assert exc.args == ("foo",)
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_async_generator_aclose():
+    async def arange(count):
+        for i in range(count):
+            yield i
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    agen = arange(10)
+    assert await agen.__anext__() == 0
+    await agen.aclose()
+
+    assert wc.entered
+    assert wc.exited
+    assert wc.exc_info[0] is GeneratorExit
+
+
+@pytest.mark.asyncio
 async def test_wrapping_context_async_happy() -> None:
     async def coro():
         return 1
