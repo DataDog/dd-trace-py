@@ -5,7 +5,6 @@ import warnings
 import ddtrace
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import is_module_installed
-from ddtrace.internal.module import sys_modules_lock
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 
@@ -84,6 +83,12 @@ def cleanup_loaded_modules() -> None:
             "runpy",
         ]
     )
+    for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
+        if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
+            continue
+
+        drop(m)
+
     # TODO: The better strategy is to identify the core modules in LOADED_MODULES
     # that should not be unloaded, and then unload as much as possible.
     UNLOAD_MODULES = frozenset(
@@ -104,18 +109,10 @@ def cleanup_loaded_modules() -> None:
             "reprlib",
         ]
     )
-    # Remote configuration may already be running product code that imports on its thread.
-    with sys_modules_lock:
-        for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
-            if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
-                continue
-
-            drop(m)
-
-        for u in UNLOAD_MODULES:
-            for m in list(sys.modules):
-                if m == u or m.startswith(u + "."):
-                    drop(m)
+    for u in UNLOAD_MODULES:
+        for m in list(sys.modules):
+            if m == u or m.startswith(u + "."):
+                drop(m)
 
     # Because we are not unloading it, the logging module requires a reference
     # to the newly imported threading module to allow it to retrieve the correct

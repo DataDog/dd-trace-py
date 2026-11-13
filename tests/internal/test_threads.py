@@ -335,3 +335,117 @@ def test_local_and_event_follow_gevent_patching():
     setter = gevent.spawn(event.set)
     assert event.wait(timeout=5)
     setter.join()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_thread_started_with_boot_gate_closed_runs_once_it_opens():
+    from ddtrace.internal import threads
+
+    calls = []
+    threads.boot_gate.clear()
+
+    t = threads.Thread(target=lambda: calls.append(1), name="test-thread-gated")
+    t.start()
+    # The worker holds the GIL from its start to its target, unless it waits on the gate.
+    assert calls == []
+
+    threads.boot_gate.set()
+    t.join()
+    assert calls == [1]
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_boot_gate_is_open_by_default():
+    from ddtrace.internal import threads
+
+    assert threads.boot_gate.is_set()
+
+    ran = threads.original_Event()
+    t = threads.Thread(target=ran.set, name="test-thread-ungated")
+    t.start()
+    assert ran.wait(10)
+    t.join()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_stop_and_join_with_boot_gate_closed_do_not_run_target():
+    from ddtrace.internal import threads
+
+    calls = []
+    threads.boot_gate.clear()
+
+    periodic = threads.PeriodicThread(
+        0.01, lambda: calls.append("periodic"), name="test-gated-periodic", no_wait_at_start=True
+    )
+    one_shot = threads.Thread(target=lambda: calls.append("one-shot"), name="test-gated-one-shot")
+    periodic.start()
+    one_shot.start()
+
+    periodic.stop()
+    one_shot.stop()
+    periodic.join()
+    one_shot.join()
+
+    assert threads.boot_gate.is_set()
+    assert calls == []
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_exit_with_boot_gate_closed_does_not_hang_or_run_target():
+    from ddtrace.internal import threads
+
+    threads.boot_gate.clear()
+
+    t = threads.PeriodicThread(0.01, lambda: print("ran"), name="test-gated-at-exit", no_wait_at_start=True)
+    t.start()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_fork_with_boot_gate_closed_releases_threads():
+    import os
+
+    from ddtrace.internal import threads
+
+    calls = []
+    threads.boot_gate.clear()
+
+    def record(name):
+        return lambda: calls.append((name, threads._forking))
+
+    periodic = threads.PeriodicThread(60, record("periodic"), name="test-gated-fork", no_wait_at_start=True)
+    one_shot = threads.Thread(target=record("one-shot"), name="test-gated-fork-one-shot")
+    periodic.start()
+    one_shot.start()
+
+    pid = os.fork()
+    if pid == 0:
+        # The child inherits the gate open.
+        os._exit(0 if threads.boot_gate.is_set() else 1)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WEXITSTATUS(status) == 0
+    assert threads.boot_gate.is_set()
+
+    # The periodic thread stopped for the fork without running, while the one-shot thread, which is not restarted
+    # after it, ran before it.
+    assert ("periodic", True) not in calls, calls
+    assert ("one-shot", True) in calls, calls
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_stopped_periodic_thread_is_freed_without_gc():
+    import gc
+    import weakref
+
+    from ddtrace.internal import threads
+
+    gc.disable()
+
+    t = threads.PeriodicThread(60, lambda: None, name="test-freed-without-gc", no_wait_at_start=True)
+    t.start()
+    t.stop()
+    t.join()
+
+    ref = weakref.ref(t)
+    del t
+    assert ref() is None

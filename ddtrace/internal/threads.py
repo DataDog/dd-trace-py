@@ -1,5 +1,6 @@
 from _queue import SimpleQueue
 from _thread import get_ident as _get_ident
+import atexit
 import threading as _threading
 from time import monotonic_ns
 from types import ModuleType
@@ -81,6 +82,12 @@ def local() -> _threading.local:
     return _app_threading.local()
 
 
+# Closed by sitecustomize until module cloning is done, so that ddtrace threads do
+# not run, and import, while modules are dropped. Never closed again once opened.
+boot_gate = original_Event()
+boot_gate.set()
+
+
 # Forking state management. This is a barrier to either prevent new threads
 # from being started while forking, or to allow a thread to be started
 # completely if a fork comes in the middle of it. The forksafe hooks are
@@ -119,6 +126,41 @@ class PeriodicThread(_PeriodicThread):
     """A fork-safe periodic thread."""
 
     __autorestart__ = True
+
+    def __init__(
+        self,
+        interval: float,
+        target: t.Callable[[], object],
+        name: t.Optional[str] = None,
+        on_shutdown: t.Optional[t.Callable[[], None]] = None,
+        no_wait_at_start: bool = False,
+    ) -> None:
+        # Shared with the gated target, which must not reference the thread, so that refcounting alone frees it.
+        self._stop_requested = stop_requested = [False]
+        one_shot = isinstance(self, Thread)
+
+        def gated() -> object:
+            if not boot_gate.is_set():
+                boot_gate.wait()
+                # Opened early to stop the thread, which must not run its target. One-shot threads still run before
+                # a fork, as they are not restarted after it.
+                if stop_requested[0] or (_forking and not one_shot):
+                    return None
+            return target()
+
+        super().__init__(interval, gated, name=name, on_shutdown=on_shutdown, no_wait_at_start=no_wait_at_start)
+
+    def stop(self) -> None:
+        # A thread waiting on the boot gate only sees this once the gate opens.
+        self._stop_requested[0] = True
+        super().stop()
+
+    def join(self, timeout: t.Optional[float] = None) -> None:
+        # A started thread waiting on the boot gate cannot finish until the gate opens.
+        if self.is_started() and not boot_gate.is_set():
+            log.debug("Opening the boot gate early to join thread %s", self.name)
+            boot_gate.set()
+        super().join(timeout)
 
     def start(self) -> None:
         with _forking_lock:
@@ -310,7 +352,25 @@ def _before_fork() -> None:
         log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
 
+    # Threads waiting on the boot gate must be able to stop for the fork to proceed.
+    boot_gate.set()
+
     # Join all the threads to ensure they are stopped before the fork.
     for thread in _threads_to_restart_after_fork:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()
+
+
+def _open_boot_gate_at_exit() -> None:
+    # Runs before the native exit hook, registered earlier, joins the threads.
+    if boot_gate.is_set():
+        return
+    for thread in list(periodic_threads.values()):
+        try:
+            thread.stop()
+        except Exception:
+            log.debug("failed to stop periodic thread %s at exit", thread.name, exc_info=True)
+    boot_gate.set()
+
+
+atexit.register(_open_boot_gate_at_exit)

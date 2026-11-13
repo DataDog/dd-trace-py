@@ -63,56 +63,56 @@ def test_auto():
     ),
     timeout=60,
 )
-def test_module_cloning_does_not_break_remote_config_imports():
-    """Module cloning must not unload a package while a remote config callback imports from it."""
+def test_module_cloning_holds_threads_started_during_boot():
+    """A ddtrace thread started during boot runs only once module cloning is done, so its imports cannot race it."""
     import sys
-    import time
 
     import ddtrace
     from ddtrace.bootstrap import cloning
-    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-    from ddtrace.internal.threads import Event
     from ddtrace.internal.threads import Thread
 
-    import http  # noqa:F401  # isort:skip
-
     assert cloning.enabled
-    assert "http" not in ddtrace.LOADED_MODULES
-    sys.modules.pop("http.cookies", None)
 
-    importing = Event()
+    # Keep the worker on the GIL once it runs, so that without the gate it runs before cleanup goes on.
+    sys.setswitchinterval(30)
 
-    class PauseImport:
-        # Hold the callback inside the import of http.cookies until cloning drops its parent.
-        def find_spec(self, name, path=None, target=None):
-            if name == "http.cookies":
-                sys.meta_path.remove(self)
-                importing.set()
-                deadline = time.monotonic() + 2
-                while "http" in sys.modules and time.monotonic() < deadline:
-                    time.sleep(0.01)
-            return None
-
+    cleaned_up = []
+    observed = []
     errors = []
 
-    def callback(payloads):
+    def target():
+        observed.append(bool(cleaned_up))
         try:
             from http.cookies import SimpleCookie  # noqa:F401
         except Exception as e:
             errors.append(e)
 
-    client = RemoteConfigClient()
-    client.register_callback("TEST", callback)
-    sys.meta_path.insert(0, PauseImport())
+    cleanup_loaded_modules = cloning.cleanup_loaded_modules
+    workers = []
 
-    worker = Thread(lambda: client._dispatch_payloads({"TEST": []}), name="remote-config")
-    worker.start()
-    assert importing.wait(10)
-    cloning.cleanup_loaded_modules()
+    def cleanup():
+        # Like a remote config callback enabling AppSec on the poller thread started by preload.
+        import http  # noqa:F401
+
+        assert "http" not in ddtrace.LOADED_MODULES
+        sys.modules.pop("http.cookies", None)
+
+        worker = Thread(target, name="remote-config")
+        worker.start()
+        workers.append(worker)
+
+        cleanup_loaded_modules()
+        cleaned_up.append(True)
+
+    cloning.cleanup_loaded_modules = cleanup
+
+    import ddtrace.auto  # noqa:F401
+
+    (worker,) = workers
     worker.join()
 
+    assert observed == [True], observed
     assert not errors, errors
-    assert "http" not in sys.modules
 
 
 def test_pytest_with_gevent_and_ddtrace_auto():

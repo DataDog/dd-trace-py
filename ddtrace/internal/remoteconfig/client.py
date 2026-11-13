@@ -13,7 +13,6 @@ from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.module import sys_modules_lock
 from ddtrace.internal.native import uuid4
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata
@@ -309,8 +308,7 @@ class RemoteConfigClient:
         """
         for product, callback in self._product_callbacks.copy().items():
             try:
-                # Product code may import, so it must not overlap with module cloning.
-                with sys_modules_lock, StopWatch() as sw:
+                with StopWatch() as sw:
                     callback.periodic()
 
                 if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
@@ -347,8 +345,7 @@ class RemoteConfigClient:
                         len(product_payload_list),
                         product,
                     )
-                    # Product code may import, so it must not overlap with module cloning.
-                    with sys_modules_lock, StopWatch() as sw:
+                    with StopWatch() as sw:
                         product_callback(product_payload_list)
 
                     if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:

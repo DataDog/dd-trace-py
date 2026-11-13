@@ -14,7 +14,6 @@ from weakref import WeakValueDictionary as wvdict
 
 from wrapt import importer as wrapt_importer
 
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 
@@ -34,9 +33,6 @@ ImportExceptionHookCond = t.Union[str, t.Callable[[str], bool]]
 
 log = get_logger(__name__)
 
-# Held while ddtrace deletes entries from sys.modules, and by ddtrace threads that run
-# product code (which may import) concurrently with it, so imports never see a parent vanish.
-sys_modules_lock = forksafe.RLock()
 
 _run_code = None
 _post_run_module_hooks: list[ModuleHookType] = []

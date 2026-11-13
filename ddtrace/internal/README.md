@@ -406,6 +406,14 @@ the parent.
 > must use their own timeouts — an unbounded block will prevent `fork()` from
 > returning until the operation completes, which can hang pre-fork servers.
 
+**Boot gate**
+
+When module cloning is pending, sitecustomize closes `threads.boot_gate`, so
+that threads started during preload wait on it before their first call, and
+opens it once `cleanup_loaded_modules()` has finished. The gate is released
+early before a fork, when a started thread is joined, and at exit; threads
+released to stop, or to fork if they are periodic, skip their target.
+
 **Phase 2 — after fork**
 
 Both the parent and the child call `_after_fork()` on every thread. In the
