@@ -1,5 +1,6 @@
 import typing as t
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agent import get_agent_hostname
@@ -7,6 +8,9 @@ from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
+
+
+log = get_logger(__name__)
 
 
 def _agentless_endpoint(signal_path: str = "") -> str:
@@ -52,8 +56,43 @@ def _derive_logs_endpoint(config: "ExporterConfig"):
     return get_config("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", default_endpoint)
 
 
+def _normalize_signal_protocol(protocol: str, signal: str) -> str:
+    normalized = protocol.strip().lower()
+    if normalized in ("grpc", "http/protobuf"):
+        return normalized
+    log.warning(
+        "OpenTelemetry %s exporter protocol %r is not supported. Falling back to 'http/protobuf'.",
+        signal,
+        protocol,
+    )
+    return "http/protobuf"
+
+
+def _normalize_signal_compression(compression: str, protocol: str, variable: str) -> str:
+    normalized = compression.strip().lower()
+    supported = ("none", "gzip") if protocol == "grpc" else ("none", "gzip", "deflate")
+    if normalized in supported:
+        return normalized
+    log.warning(
+        "Unsupported value %r for %s with %s export. Falling back to no compression.",
+        compression,
+        variable,
+        protocol,
+    )
+    return "none"
+
+
+def _derive_signal_compression(signal: str, protocol: str) -> str:
+    variable = f"OTEL_EXPORTER_OTLP_{signal}_COMPRESSION"
+    compression = get_config(variable)
+    if compression is None:
+        variable = "OTEL_EXPORTER_OTLP_COMPRESSION"
+        compression = get_config(variable, "none")
+    return _normalize_signal_compression(compression, protocol, variable)
+
+
 def _derive_logs_protocol(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", config.PROTOCOL)
+    return _normalize_signal_protocol(get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", config.PROTOCOL), "Logs")
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
@@ -72,10 +111,8 @@ def _derive_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
-    return get_config(
-        ["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"],
-        config.PROTOCOL,
-    )
+    protocol = get_config(["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
+    return _normalize_signal_protocol(protocol, "Metrics")
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
@@ -184,11 +221,13 @@ class ExporterConfig(DDConfig):
     TIMEOUT = DDConfig.v(int, "otlp.timeout", default=DEFAULT_TIMEOUT)
 
     LOGS_PROTOCOL = DDConfig.d(str, _derive_logs_protocol)
+    LOGS_COMPRESSION = DDConfig.d(str, lambda config: _derive_signal_compression("LOGS", config.LOGS_PROTOCOL))
     LOGS_ENDPOINT = DDConfig.d(str, _derive_logs_endpoint)
     LOGS_HEADERS = DDConfig.d(str, _derive_logs_headers)
     LOGS_TIMEOUT = DDConfig.d(int, _derive_logs_timeout)
 
     METRICS_PROTOCOL = DDConfig.d(str, _derive_metrics_protocol)
+    METRICS_COMPRESSION = DDConfig.d(str, lambda config: _derive_signal_compression("METRICS", config.METRICS_PROTOCOL))
     METRICS_ENDPOINT = DDConfig.d(str, _derive_metrics_endpoint)
     METRICS_HEADERS = DDConfig.d(str, _derive_metrics_headers)
     METRICS_TIMEOUT = DDConfig.d(int, _derive_metrics_timeout)

@@ -7,6 +7,7 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.utils import get_sdk_compression
 from ddtrace.internal.opentelemetry.utils import set_http_exporter_marker
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
@@ -116,6 +117,8 @@ def _dd_logs_exporter(otel_exporter: type[Any], protocol: str, encoding: str) ->
         """A custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
 
         def __init__(self, *args: Any, **kwargs: Any) -> None:
+            if kwargs.get("compression") is None:
+                kwargs["compression"] = get_sdk_compression(otel_config.exporter.LOGS_COMPRESSION, protocol)
             super().__init__(*args, **kwargs)
             if protocol == "http":
                 set_http_exporter_marker(self)
