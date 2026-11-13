@@ -29,7 +29,7 @@ def _validate_schema(version: str) -> bool:
     return True
 
 
-def _get_schema_version() -> t.Any:
+def _get_schema_version() -> str:
     version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
     if not _validate_schema(version) or agent_config._trace_otel_semantics_enabled:
         # Two module scopes call this, so the conflict is reported once from Config instead.
