@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.contrib.internal.crewai.patch import get_version
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
@@ -34,3 +36,16 @@ class TestCrewAIPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(crewai.Task.execute_async)
         self.assert_not_double_wrapped(crewai.Agent.execute_task)
         self.assert_not_double_wrapped(crewai.tools.structured_tool.CrewStructuredTool.invoke)
+
+
+@pytest.mark.subprocess()
+def test_patch_module_does_not_import_llmobs():
+    # patch() loads the LLMObs hooks through the ddtrace.integration_hooks entry point,
+    # but importing the contrib itself must not pull in the product.
+    import sys
+
+    import crewai  # noqa: F401
+
+    import ddtrace.contrib.internal.crewai.patch  # noqa: F401
+
+    assert "ddtrace.llmobs" not in sys.modules, [m for m in sys.modules if m.startswith("ddtrace.llmobs")]

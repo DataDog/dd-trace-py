@@ -226,6 +226,25 @@ def test_execute_code_with_error_creates_span(mock_invocation_context, test_span
     assert span.error == 0
 
 
+def test_execute_code_interrupted_is_recorded(mock_invocation_context, test_spans):
+    """An interrupt escaping the code executor is recorded on its span."""
+    from ddtrace.contrib.internal.google_adk.patch import _traced_code_executor_execute_code
+
+    def interrupted(*args, **kwargs):
+        raise KeyboardInterrupt()
+
+    code_input = CodeExecutionInput(code='print("hello world")')
+    with pytest.raises(KeyboardInterrupt):
+        _traced_code_executor_execute_code(
+            interrupted, UnsafeLocalCodeExecutor(), (mock_invocation_context, code_input), {}
+        )
+
+    spans = [s for t in test_spans.pop_traces() for s in t]
+    assert len(spans) == 1
+    assert spans[0].error == 1
+    assert spans[0].get_tag("error.type") == "builtins.KeyboardInterrupt"
+
+
 @pytest.mark.asyncio
 async def test_error_handling_e2e(test_runner, test_spans, request_vcr):
     """Test error handling in E2E agent execution."""

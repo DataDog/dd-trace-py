@@ -8,6 +8,7 @@ from mcp.types import TextContent
 import pytest
 
 from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
+from ddtrace.llmobs import LLMObs
 
 
 @pytest.mark.snapshot(ignores=["meta.runtime-id"])
@@ -32,7 +33,7 @@ def test_mcp_tool_error_without_llmobs(mcp_setup, mcp_call_tool, test_spans, mon
 
         monkeypatch.setattr(RequestResponder, "respond", respond_with_keyword)
 
-    assert not mcp_setup._datadog_integration.llmobs_enabled
+    assert not LLMObs.enabled
     result = asyncio.run(mcp_call_tool("failing_tool", {"param": "test"}))
     assert result.isError
     spans = [span for trace in test_spans.pop_traces() for span in trace]
@@ -48,7 +49,7 @@ def test_mcp_direct_tool_error(mcp_setup, tracer, keyword_response):
     respond = AsyncMock()
     args, kwargs = ((), {"response": response}) if keyword_response else ((response,), {})
 
-    assert not mcp_setup._datadog_integration.llmobs_enabled
+    assert not LLMObs.enabled
     with tracer.trace("mcp.server") as span:
         asyncio.run(traced_request_responder_respond(respond, SimpleNamespace(_dd_span=span), args, kwargs))
 

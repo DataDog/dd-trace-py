@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.contrib.internal.mcp.patch import MCP_VERSION
 from ddtrace.contrib.internal.mcp.patch import get_version
 from ddtrace.contrib.internal.mcp.patch import patch
@@ -87,3 +89,16 @@ except ModuleNotFoundError as error:
 
     assert status == 0, stderr.decode()
     assert b"failed to enable ddtrace support for mcp" not in stderr
+
+
+@pytest.mark.subprocess()
+def test_patch_module_does_not_import_llmobs():
+    # patch() loads the LLMObs hooks through the ddtrace.integration_hooks entry point,
+    # but importing the contrib itself must not pull in the product.
+    import sys
+
+    import mcp  # noqa: F401
+
+    import ddtrace.contrib.internal.mcp.patch  # noqa: F401
+
+    assert "ddtrace.llmobs" not in sys.modules, [m for m in sys.modules if m.startswith("ddtrace.llmobs")]
