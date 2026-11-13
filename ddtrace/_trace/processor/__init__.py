@@ -242,20 +242,22 @@ class TraceTagsProcessor(TraceProcessor):
 
 
 class _Trace:
-    __slots__ = ("spans", "num_finished", "discarded")
+    __slots__ = ("spans", "pending", "discarded")
 
-    def __init__(self, spans: Optional[list[Span]] = None, num_finished: int = 0):
+    def __init__(self, spans: Optional[list[Span]] = None):
         self.spans: list[Span] = spans if spans is not None else []
-        self.num_finished: int = num_finished
+        # Buffered spans whose finish has not reached SpanAggregator.on_span_finish yet. A span's duration_ns
+        # is set before its finish callbacks run, so another thread can see it as finished too early; only
+        # membership here is authoritative. Span hashes by identity, so finishes of spans that were never
+        # buffered here (or duplicate finishes) are no-ops.
+        self.pending: set[Span] = set()
         self.discarded: bool = False
 
     def remove_finished(self) -> list[Span]:
-        # perf: Avoid Span.finished which is a computed property and has function call overhead
-        #       so check Span.duration_ns manually.
-        finished = [s for s in self.spans if s.duration_ns is not None]
+        pending = self.pending
+        finished = [s for s in self.spans if s not in pending]
         if finished:
-            self.spans[:] = [s for s in self.spans if s.duration_ns is None]
-            self.num_finished = 0
+            self.spans[:] = [s for s in self.spans if s in pending]
         return finished
 
 
@@ -421,6 +423,7 @@ class SpanAggregator(SpanProcessor):
                     return
             trace = self._traces[trace_id]
             trace.spans.append(span)
+            trace.pending.add(span)
         integration_name = span._get_str_attribute(COMPONENT) or span._span_api
         recorder = _SPANS_CREATED_RECORDERS.get(integration_name)
         if recorder is None:
@@ -453,10 +456,15 @@ class SpanAggregator(SpanProcessor):
                 and span._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY) != identity_generation
             ):
                 return
-            trace.num_finished += 1
+            pending = trace.pending
+            if span not in pending:
+                # Never buffered in this trace (for example, started before the buffer was reset after a fork)
+                # or already counted, so it cannot complete or partially flush the trace.
+                return
+            pending.discard(span)
             num_buffered = len(trace.spans)
-            is_trace_complete = trace.num_finished >= num_buffered
-            num_finished = trace.num_finished
+            num_finished = num_buffered - len(pending)
+            is_trace_complete = not pending
             should_partial_flush = False
             if is_trace_complete:
                 finished = trace.spans
@@ -464,11 +472,7 @@ class SpanAggregator(SpanProcessor):
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
                 should_partial_flush = True
                 finished = trace.remove_finished()
-                if finished:
-                    finished[0]._set_attribute("_dd.py.partial_flush", num_finished)
-                else:
-                    # num_finished was out of sync with the actual finished spans, skip partial flush
-                    return
+                finished[0]._set_attribute("_dd.py.partial_flush", num_finished)
             else:
                 return
             # Capture the generation before processing so an identity refresh can invalidate this trace.

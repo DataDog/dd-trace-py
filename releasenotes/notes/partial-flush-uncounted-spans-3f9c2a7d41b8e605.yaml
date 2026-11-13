@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Fixes a race where a partial flush could send a span that another thread was still finishing.
+    The trace's finished-span count then ran ahead of the spans actually finished, so the trace was sent
+    before its remaining spans ended. Those spans were exported unfinished, their final state was dropped,
+    and LLM Observability data on them was discarded.
