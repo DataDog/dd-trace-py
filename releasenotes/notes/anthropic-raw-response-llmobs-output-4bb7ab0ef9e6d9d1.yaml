@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    anthropic: Fixes an issue where ``messages.with_raw_response.create()`` and
+    ``messages.with_streaming_response.create()`` produced LLM Observability spans with no output messages or
+    token usage, and skipped AI Guard response evaluation, for non-streaming requests.
