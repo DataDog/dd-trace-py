@@ -12,7 +12,7 @@ from ddtrace.contrib.internal.litellm._constants import model_map
 from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
-from ddtrace.contrib.internal.litellm.utils import _in_fallback_dispatch
+from ddtrace.contrib.internal.litellm.utils import _fallback_dispatch_attempts
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.internal.litellm.utils import fallback_dispatch
 from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
@@ -39,6 +39,9 @@ def _supported_versions() -> dict[str, str]:
 
 def _request_event(operation, args, kwargs, router=None):
     model = get_argument_value(args, kwargs, 0, "model", None)
+    attempts = _fallback_dispatch_attempts.get()
+    if attempts is not None and router is None:
+        attempts["model"] = model
     host = extract_host_tag(kwargs)
     tags = {}
     if model is not None:
@@ -61,7 +64,7 @@ def _request_event(operation, args, kwargs, router=None):
         # Router spans are always submitted. Plain calls defer to the OpenAI integration's span when there is one,
         # and to the span of the outer call when litellm's fallback runner re-enters ``completion``.
         submit_to_llmobs=router is not None
-        or not (_in_fallback_dispatch.get() or has_downstream_openai_span(kwargs, model)),
+        or not (_fallback_dispatch_attempts.get() is not None or has_downstream_openai_span(kwargs, model)),
         request_args=args,
         request_kwargs=request_kwargs,
         operation=operation,

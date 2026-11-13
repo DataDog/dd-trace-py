@@ -1116,3 +1116,29 @@ def test_completion_with_fallbacks_without_reentry_keeps_llm_span(litellm, litel
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert [s.resource for s in spans if s.span_type == "llm"] == ["completion"]
 
+
+def test_completion_with_fallbacks_attributes_span_to_successful_model(litellm, litellm_llmobs, test_spans):
+    """When a fallback model produces the response, the single LLM span is attributed to that model."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    fallback_model = "anthropic/claude-3-haiku-20240307"
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="claude-3-haiku-20240307")
+
+    def completion(*args, **kwargs):
+        # The fallback runner re-enters ``litellm.completion`` once per attempt, without ``fallbacks``.
+        traced_completion(inner_completion, None, (), {"model": "anthropic/claude-sonnet-4-5-20250929"})
+        return traced_completion(inner_completion, None, (), {"model": fallback_model, "messages": messages})
+
+    traced_completion(
+        completion,
+        None,
+        (),
+        {"model": "anthropic/claude-sonnet-4-5-20250929", "messages": messages, "fallbacks": [fallback_model]},
+    )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    llm_spans = [s for s in spans if s.span_type == "llm"]
+    assert len(llm_spans) == 1
+    assert _get_llmobs_data_metastruct(llm_spans[0])["meta"]["model_name"] == fallback_model

@@ -2,6 +2,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import FrozenInstanceError
+from typing import Optional
 
 from ddtrace._monkey import _get_patched_modules
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
@@ -68,8 +69,9 @@ def has_downstream_openai_span(kwargs, model=None):
 
 
 # Set while a call that submits an LLM span runs litellm's fallback runner, which re-enters
-# ``litellm.completion``/``acompletion`` once per attempt. Those inner calls would duplicate the outer span.
-_in_fallback_dispatch: ContextVar[bool] = ContextVar("ddtrace_litellm_in_fallback_dispatch", default=False)
+# ``litellm.completion``/``acompletion`` once per attempt. Those inner calls skip their own span and record the model
+# they were asked for here, so the outer span can be attributed to the attempt that produced the response.
+_fallback_dispatch_attempts: ContextVar[Optional[dict]] = ContextVar("ddtrace_litellm_fallback_attempts", default=None)
 
 
 def has_fallbacks(kwargs):
@@ -85,11 +87,19 @@ def fallback_dispatch(event):
     if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
         yield
         return
-    token = _in_fallback_dispatch.set(True)
+    attempts: dict = {}
+    token = _fallback_dispatch_attempts.set(attempts)
     try:
         yield
     finally:
-        _in_fallback_dispatch.reset(token)
+        _fallback_dispatch_attempts.reset(token)
+        # The runner returns the first successful attempt, which is the last one made.
+        model = attempts.get("model")
+        if model:
+            event.model = model
+            event.request_kwargs["model"] = model
+            if event.request_args:
+                event.request_args = (model, *event.request_args[1:])
 
 
 class BaseLiteLLMStreamHandler:
