@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Profiling: A bug where child processes could hang after fork when using profiling has been fixed.
