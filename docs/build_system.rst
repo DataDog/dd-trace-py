@@ -358,7 +358,7 @@ Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 With ``DD_USE_SCCACHE=1``, setup reports each cache-server health-check attempt,
-its duration, and any failure on stderr before falling back to uncached compilation.
+its duration, and any failure on stderr before falling back to compilation without caching.
 The ``ext_hashes`` command skips this check because hashing does not compile anything.
 CI wheel builds retain the complete output in ``debugwheelhouse/build_*.log`` and
 stream cache health messages to the job log.
