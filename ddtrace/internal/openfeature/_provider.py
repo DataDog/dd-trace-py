@@ -15,6 +15,7 @@ import weakref
 if typing.TYPE_CHECKING:
     from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 
+from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.event import ProviderEventDetails
 from openfeature.exception import ErrorCode
@@ -865,3 +866,18 @@ def _apply_agentless_configuration(configuration: "dict[str, typing.Any]") -> No
 
     if not process_ffe_configuration(configuration):
         raise ValueError("Feature Flagging configuration was rejected by the evaluator")
+
+
+def set_domain_provider(provider: DataDogProvider, domain: str) -> None:
+    """Register provider for domain so its first evaluation can use configuration that is already local.
+
+    openfeature-sdk 0.10+ runs initialize() on a background thread in set_provider(), so an evaluation
+    made right after registration sees PROVIDER_NOT_READY even when configuration has been delivered.
+    When configuration is already local, finish initialization before returning. This does not wait
+    for configuration delivery: initialize() is bounded by the provider's own initialization timeout.
+    Older SDK versions without set_provider_and_wait() initialize inline in set_provider().
+    """
+    register = api.set_provider
+    if _get_ffe_snapshot() is not None:
+        register = getattr(api, "set_provider_and_wait", register)
+    register(provider, domain)
