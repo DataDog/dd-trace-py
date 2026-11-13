@@ -30,6 +30,8 @@ else
     else
       echo "Rust toolchain already available, skipping rustup install"
     fi
+    # Older baseline checkouts also reject Rust 1.100+ in their version check.
+    rustup default 1.99.0
     echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
     git checkout "${BASELINE_COMMIT_SHA}"
     mkdir ./tmp
