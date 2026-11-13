@@ -208,6 +208,12 @@ def start_sccache_server(sccache_path):
     when a server is already running, and --show-stats exits 0 with default stats even when no server can start.
     """
     for attempt in range(1, SCCACHE_START_MAX_ATTEMPTS + 1):
+        started = time.monotonic()
+        print(
+            "INFO: sccache server check (attempt %d/%d)" % (attempt, SCCACHE_START_MAX_ATTEMPTS),
+            file=sys.stderr,
+            flush=True,
+        )
         try:
             subprocess.run(
                 [str(sccache_path), "--dist-status"],
@@ -216,13 +222,18 @@ def start_sccache_server(sccache_path):
                 text=True,
                 timeout=SCCACHE_START_TIMEOUT,
             )
+            print("INFO: sccache server ready after %.1fs" % (time.monotonic() - started), file=sys.stderr, flush=True)
             return True
         except (subprocess.SubprocessError, OSError) as e:
             # sccache reports why it failed on stderr, not in the exception text
             reason = (getattr(e, "stderr", None) or "").strip() or e
+            if isinstance(reason, bytes):
+                reason = reason.decode(errors="replace")
             print(
-                "WARNING: sccache server unavailable (attempt %d/%d): %s"
-                % (attempt, SCCACHE_START_MAX_ATTEMPTS, reason)
+                "WARNING: sccache server unavailable (attempt %d/%d) after %.1fs: %s"
+                % (attempt, SCCACHE_START_MAX_ATTEMPTS, time.monotonic() - started, reason),
+                file=sys.stderr,
+                flush=True,
             )
             if attempt < SCCACHE_START_MAX_ATTEMPTS:
                 time.sleep(2**attempt)
@@ -233,7 +244,8 @@ def interpose_sccache():
     """
     Injects sccache into the relevant build commands if it's allowed and we think it'll work
     """
-    if not SCCACHE_COMPILE:
+    # Hashing extensions never invokes a compiler and must not wait for the cache server.
+    if not SCCACHE_COMPILE or "ext_hashes" in sys.argv[1:]:
         return
 
     # Check for sccache.  We don't do multi-step failover (e.g., if the path is set, but the binary is invalid)
@@ -245,7 +257,7 @@ def interpose_sccache():
     sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
         if not start_sccache_server(sccache_path):
-            print("WARNING: sccache server did not start, building without sccache")
+            print("WARNING: sccache server did not start, building without sccache", file=sys.stderr, flush=True)
             return
         # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
         # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
