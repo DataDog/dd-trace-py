@@ -13,6 +13,7 @@ from urllib import parse
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
+from ddtrace._trace._inferred_proxy import _set_inferred_proxy_tags as _set_inferred_proxy_tags
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -29,7 +30,6 @@ from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -78,9 +78,7 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.inferred_spans import PUBSUB_PUSH_SPAN_NAME
-from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
@@ -289,28 +287,6 @@ def _on_web_framework_finish_request(
 
     if finish:
         span.finish()
-
-
-def _set_inferred_proxy_tags(span: Span, status_code):
-    if span._parent and is_inferred_span(span._parent):
-        inferred_span = span._parent
-        # Proxy spans keep Datadog status attributes; only the source lookup follows active semantics.
-        if not status_code and config._otel_trace_semantics_enabled:
-            # The OTel status attribute is numeric, but the proxy's Datadog attribute is a string.
-            otel_status = span._get_attribute(otel_http.RESPONSE_STATUS_CODE)
-            status_code = str(otel_status) if otel_status else None
-        else:
-            status_code = status_code or span._get_attribute(http.STATUS_CODE)
-        if status_code:
-            inferred_span._set_attribute("http.status_code", status_code)
-        if span.error == 1:
-            inferred_span.error = span.error
-            if (error_msg := span._get_attribute(ERROR_MSG)) is not None:
-                inferred_span._set_attribute(ERROR_MSG, error_msg)
-            if (error_type := span._get_attribute(ERROR_TYPE)) is not None:
-                inferred_span._set_attribute(ERROR_TYPE, error_type)
-            if (error_stack := span._get_attribute(ERROR_STACK)) is not None:
-                inferred_span._set_attribute(ERROR_STACK, error_stack)
 
 
 def _set_pubsub_receive_attributes(
