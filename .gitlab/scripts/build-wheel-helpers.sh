@@ -23,8 +23,7 @@ setup_rust() {
       [ "$i" -eq 3 ] && { echo "Failed to install rustup after 3 attempts"; exit 1; }
     done
   fi
-  # Temporarily pin Rust until setup.py compares 1.100+ versions numerically.
-  rustup default 1.99.0
+  rustup default stable
   which rustc && rustc --version
   section_end "install_rust"
 }
