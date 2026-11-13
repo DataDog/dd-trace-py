@@ -11,6 +11,7 @@ import inspect
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 from tempfile import TemporaryFile
@@ -54,6 +55,15 @@ def child_environment(env: Optional[Mapping[str, Optional[str]]] = None) -> dict
     return strip_ddtest_leaked_env(result)
 
 
+def restore_default_sigint() -> None:
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+
+def _set_default_preexec_fn(kwargs: dict[str, Any]) -> None:
+    if sys.platform != "win32":
+        kwargs.setdefault("preexec_fn", restore_default_sigint)
+
+
 def run_process(
     *args: str,
     env: Optional[Mapping[str, Optional[str]]] = None,
@@ -62,6 +72,7 @@ def run_process(
 ) -> ProcessResult:
     """Run a command without changing its session, process group, or working directory."""
     kwargs.setdefault("close_fds", sys.platform != "win32")
+    _set_default_preexec_fn(kwargs)
     process = subprocess.Popen(
         args,
         stdout=subprocess.PIPE,
@@ -99,6 +110,7 @@ class ManagedProcess:
         self._stdout = TemporaryFile()
         self._stderr = TemporaryFile()
         env = child_environment(kwargs.pop("env", None))
+        _set_default_preexec_fn(kwargs)
         try:
             self.process = subprocess.Popen(
                 args,

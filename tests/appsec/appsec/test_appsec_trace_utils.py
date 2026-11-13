@@ -300,17 +300,18 @@ class EventsSDKTestCase(TracerTestCase):
         assert is_blocked(span)
 
     def test_track_user_blocked(self):
+        metadata = {
+            "email": "usr.email",
+            "name": "usr.name",
+            "role": "usr.role",
+            "scope": "usr.scope",
+        }
         with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
             track_user(
                 "login",
                 user_id=self._BLOCKED_USER,
                 session_id="usr.session_id",
-                metadata={
-                    "email": "usr.email",
-                    "name": "usr.name",
-                    "role": "usr.role",
-                    "scope": "usr.scope",
-                },
+                metadata=metadata,
             )
         assert span.get_tag(user.ID)
         assert span.get_tag(user.EMAIL)
@@ -325,17 +326,26 @@ class EventsSDKTestCase(TracerTestCase):
         assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
         assert is_blocked(span)
 
+        # Reusing the caller's metadata on another request preserves user attributes.
+        with asm_context(tracer=self.tracer, span_name="next_request", config=config_asm) as next_span:
+            track_user("login", user_id=self._BLOCKED_USER, metadata=metadata)
+        assert next_span.get_tag(user.EMAIL) == "usr.email"
+        assert next_span.get_tag(user.NAME) == "usr.name"
+        assert next_span.get_tag(user.ROLE) == "usr.role"
+        assert next_span.get_tag(user.SCOPE) == "usr.scope"
+
     def test_track_user_id_blocked(self):
+        metadata = {
+            "usr.email": "usr.email",
+            "usr.name": "usr.name",
+            "usr.role": "usr.role",
+            "usr.scope": "usr.scope",
+        }
         with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
             track_user_id(
                 self._BLOCKED_USER,
                 session_id="usr.session_id",
-                metadata={
-                    "email": "usr.email",
-                    "name": "usr.name",
-                    "role": "usr.role",
-                    "scope": "usr.scope",
-                },
+                metadata=metadata,
             )
         assert span.get_tag(user.ID)
         assert span.get_tag(user.EMAIL)
@@ -349,6 +359,14 @@ class EventsSDKTestCase(TracerTestCase):
         assert span.get_tag("appsec.events.auth_sdk.track") is None
         assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
         assert is_blocked(span)
+
+        # Reusing the caller's metadata on another request preserves user attributes.
+        with asm_context(tracer=self.tracer, span_name="next_request", config=config_asm) as next_span:
+            track_user_id(self._BLOCKED_USER, metadata=metadata)
+        assert next_span.get_tag(user.EMAIL) == "usr.email"
+        assert next_span.get_tag(user.NAME) == "usr.name"
+        assert next_span.get_tag(user.ROLE) == "usr.role"
+        assert next_span.get_tag(user.SCOPE) == "usr.scope"
 
     def test_no_span_doesnt_raise(self):
         from ddtrace.trace import tracer

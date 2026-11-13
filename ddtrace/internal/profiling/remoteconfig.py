@@ -1,7 +1,6 @@
 """Remote Config callback that reconfigures and restarts the profiler."""
 
 from collections.abc import Sequence
-import logging
 import re
 import typing as t
 
@@ -16,14 +15,7 @@ from ddtrace.internal.settings.profiling import exception_is_available
 from ddtrace.internal.settings.profiling import stack_is_available
 
 
-# This logger will be removed / replaced by the usual ddtrace logger in the future.
-# While this feature is experimental, we want to keep this configuration to help
-# debug issues.
 log = get_logger(__name__)
-_handler: "logging.StreamHandler[t.TextIO]" = logging.StreamHandler()
-_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
-log.addHandler(_handler)
-log.propagate = False
 
 # All the profiling configurations delivered to the current tracer through Remote Config that target it.
 # - The key is the Remote Config id of the configuration
@@ -262,14 +254,17 @@ class ProfilingRCCallback(RCCallback):
         changed = False
         for raw_payload in payloads:
             config_id = raw_payload.metadata.id
-            content = raw_payload.content
+            content: t.Any = raw_payload.content
 
             # A removed configuration has no content. An updated configuration can also become invalid.
             if debug_configs.pop(config_id, None) is not None:
                 changed = True
                 log.debug("[profiling-remote-config] Removed the previous version of config %s", config_id)
 
-            if content is None or not isinstance(content, dict):
+            if content is None:
+                continue
+
+            if not isinstance(content, dict):
                 log.warning("[profiling-remote-config] Skipping invalid payload %s", content)
                 continue
 
