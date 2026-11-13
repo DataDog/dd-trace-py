@@ -106,11 +106,8 @@ class FreezeRepo:
         git(root, "commit", "-m", "freeze")
 
     def run(self, base: str = "main", head: str | None = None):
-        from package_split.manifest import load_manifest
-
-        manifest = load_manifest(self.root / "package-contract.toml")
-        report = make_report("freeze", self.root / "package-contract.toml")
-        freeze.run_gate(manifest, Args(base=base, head=head), report)
+        report = make_report("freeze", self.root / "package-freeze.toml")
+        freeze.run_gate(self.root, Args(base=base, head=head), report)
         return report
 
     def commit_change(self, message: str) -> None:
@@ -229,6 +226,27 @@ def test_pr_cannot_reapprove_its_own_rewrite(tmp_path):
     report = repo.run(base=base)
     assert report.status == FAIL, report.summary()
     assert any("approved rewrite" in str(check.data.get("problems", [])) for check in report.checks)
+    protected = subprocess.check_output(["git", "show", "%s:package-freeze.toml" % base], cwd=repo.root)
+    assert report.manifest_sha256 == hashlib.sha256(protected).hexdigest()
+
+
+def test_git_failure_never_passes(tmp_path):
+    repo = FreezeRepo(tmp_path)
+    report = repo.run(head="nonexistent-revision")
+    assert report.status == FAIL
+    assert any("git failed" in check.detail for check in report.checks)
+
+
+def test_freeze_does_not_trust_working_tree_fallback(tmp_path):
+    repo = FreezeRepo(tmp_path)
+    assert repo.run(base=repo.extraction_revision).status == FAIL
+
+
+def test_freeze_covers_build_inputs(tmp_path):
+    repo = FreezeRepo(tmp_path)
+    (tmp_path / "pyproject.toml").write_text("# changed build input\n", encoding="utf-8")
+    repo.commit_change("build drift")
+    assert repo.run().status == FAIL
 
 
 def test_old_freeze_schema_is_rejected(tmp_path):

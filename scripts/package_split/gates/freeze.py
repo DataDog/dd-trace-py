@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 from pathlib import Path
 import subprocess  # nosec B404
 from typing import Any
@@ -14,10 +15,9 @@ from ..evidence import NOT_RUN
 from ..evidence import PASS
 from ..freeze_manifest import FreezeManifestError
 from ..freeze_manifest import validate_freeze
-from ..manifest import Manifest
 
 
-def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
+def run_gate(root: Path, args: Any, report: Any) -> None:
     base = getattr(args, "base", None)
     if not base:
         report.record("base-revision", NOT_RUN, "--base <target-revision> is required")
@@ -27,11 +27,12 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
 
     # Prefer the freeze manifest from the base revision: a PR must not be
     # able to weaken the gate by editing its own rules.
-    content = _content_at_revision(manifest.root, base, freeze_path)
+    content = _content_at_revision(root, base, freeze_path)
     source = "git revision %s" % base
     if content is None:
         report.record("freeze-manifest", NOT_RUN, "no readable protected freeze manifest at %r" % base)
         return
+    report.manifest_sha256 = hashlib.sha256(content.encode()).hexdigest()
 
     try:
         data = tomllib.loads(content)
@@ -44,7 +45,7 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
     report.record("freeze-manifest", PASS, "validated (read from %s)" % source)
 
     try:
-        problems = _verify_freeze(manifest.root, data, report, head=getattr(args, "head", None) or "HEAD")
+        problems = _verify_freeze(root, data, report, head=getattr(args, "head", None) or "HEAD")
     except RuntimeError as exc:
         report.record("source-freeze", FAIL, str(exc))
         return
@@ -101,8 +102,6 @@ def _path_content(root: Path, path: str, revision: Optional[str]) -> Optional[by
 
 
 def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "HEAD") -> list[str]:
-    import hashlib
-
     problems: list[str] = []
     today = datetime.date.today()
 

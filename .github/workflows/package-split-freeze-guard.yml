@@ -63,7 +63,6 @@ jobs:
         if: steps.active.outputs.active == 'true'
         run: |
           scripts/package-split freeze \
-            --manifest package-contract.toml \
             --output .package-split \
             --base "${{ github.event.pull_request.base.sha }}" \
             --head refs/remotes/pr/head

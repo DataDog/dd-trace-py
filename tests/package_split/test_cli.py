@@ -1,112 +1,180 @@
-"""CLI: dispatch, exit codes, evidence files and the wrapper path."""
+"""CLI: dispatch, exit codes and evidence files."""
 
 from __future__ import annotations
 
-from package_split.cli import build_parser
+import json
+
 from package_split.cli import main
 import pytest
 
-from ._support import REPO_ROOT
 from ._support import make_tree
-from ._support import write_pyproject
+from .test_freeze import FreezeRepo
 
 
-def test_gates_listing(capsys):
+FILES = {
+    "__init__.py": "",
+    "lib.py": "def f():\n    pass\n",
+    "consumer.py": "from pkg.lib import f\nf()\n",
+}
+
+
+def test_no_command_exits_two(capsys):
+    assert main([]) == 2
+
+
+def test_api_usage_writes_evidence(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
+
+    data = json.loads(next((tmp_path / "out" / "api-usage").glob("*/api-usage.json")).read_text())
+    assert data["target"] == "pkg.lib"
+    assert data["source_paths"] == ["pkg"]
+    assert data["consumer_files"] == 1
+    assert set(data["symbols"]) == {"f"}
+
+
+def test_evidence_is_scoped_and_never_clobbers(tmp_path, monkeypatch, capsys):
+    # The workflow inventories the same target over several scopes
+    # (production, then tests); each scope writes its own evidence file so
+    # earlier runs survive instead of being silently overwritten.
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
+    assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "."]) == 0
+
+    evidence = list((tmp_path / "out" / "api-usage").glob("*/api-usage.json"))
+    assert len(evidence) == 2
+    assert {tuple(json.loads(path.read_text())["source_paths"]) for path in evidence} == {("pkg",), (".",)}
+
+
+def test_different_targets_keep_separate_evidence(tmp_path, monkeypatch):
+    make_tree(tmp_path, "pkg", FILES | {"other.py": "from pkg.lib import f\nf()\n"})
+    monkeypatch.chdir(tmp_path)
+    for target in ("pkg.lib", "pkg.other"):
+        assert main(["--output", "out", "api-usage", "--module", target, "--source-path", "pkg"]) == 0
+    evidence = list((tmp_path / "out/api-usage").glob("*/api-usage.json"))
+    assert len(evidence) == 2
+    assert {json.loads(path.read_text())["target"] for path in evidence} == {"pkg.lib", "pkg.other"}
+
+
+def test_similarly_named_scopes_keep_separate_evidence(tmp_path, monkeypatch):
+    make_tree(tmp_path, "a/b", FILES)
+    make_tree(tmp_path, "a_b", FILES)
+    monkeypatch.chdir(tmp_path)
+    for scope in ("a/b", "a_b"):
+        assert main(["--output", "out", "api-surface", "--source-path", scope]) == 0
+    assert len(list((tmp_path / "out/api-surface").glob("*/api-surface.json"))) == 2
+
+
+def test_only_source_freeze_is_a_gate(capsys):
     assert main(["gates"]) == 0
-    listing = capsys.readouterr().out.split()
-    assert set(listing) == {
-        "artifacts",
-        "boundaries",
-        "compatibility",
-        "contracts",
-        "freeze",
-        "lifecycle",
-        "migration",
-    }
+    assert capsys.readouterr().out.splitlines() == ["freeze"]
 
 
-def test_version_flag():
-    with pytest.raises(SystemExit) as excinfo:
-        build_parser().parse_args(["--version"])
-    assert excinfo.value.code == 0
+@pytest.mark.parametrize("drift", [False, True])
+def test_freeze_cli_without_a_package_contract(tmp_path, monkeypatch, drift):
+    repo = FreezeRepo(tmp_path)
+    if drift:
+        (tmp_path / "sample/mod.py").write_text("value = 3\n", encoding="utf-8")
+        repo.commit_change("source drift")
+    monkeypatch.chdir(tmp_path)
+    assert not (tmp_path / "package-contract.toml").exists()
+    assert main(["freeze", "--base", "HEAD", "--output", "out"]) == int(drift)
+    data = json.loads((tmp_path / "out/freeze/freeze.json").read_text())
+    assert data["status"] == ("fail" if drift else "pass")
 
 
-def test_invalid_manifest_exits_two(tmp_path, capsys):
-    assert main(["--manifest", str(tmp_path / "missing.toml"), "boundaries"]) == 2
+def test_freeze_cli_records_a_crash(tmp_path, monkeypatch):
+    from package_split.gates import freeze
 
-
-def test_gate_crash_reports_error_and_exits_one(tmp_path, capsys):
-    # A crashing gate must surface as a gate error (exit 1) with the
-    # evidence file recording it, never a traceback-less silent pass.
-    from package_split.gates import REGISTRY
-
-    original = REGISTRY["boundaries"]
-
-    def crashing(manifest, args, report):
+    def crashing(*args):
         raise RuntimeError("boom")
 
-    REGISTRY["boundaries"] = crashing
-    try:
-        make_tree(tmp_path, "sample", {"__init__.py": ""})
-        write_pyproject(tmp_path, "sample")
-        exit_code = main(
-            [
-                "--manifest",
-                str(tmp_path / "package-contract.toml"),
-                "--output",
-                str(tmp_path / "out"),
-                "boundaries",
-            ]
-        )
-    finally:
-        REGISTRY["boundaries"] = original
-    assert exit_code == 1
-    assert "RuntimeError: boom" in capsys.readouterr().out
+    monkeypatch.setattr(freeze, "run_gate", crashing)
+    monkeypatch.chdir(tmp_path)
+    assert main(["freeze", "--base", "HEAD", "--output", "out"]) == 1
+    data = json.loads((tmp_path / "out/freeze/freeze.json").read_text())
+    assert data["error"] == "RuntimeError: boom"
 
 
-def test_boundaries_end_to_end_failing_fixture(tmp_path, capsys):
-    make_tree(
-        tmp_path,
-        "sample",
-        {"__init__.py": "", "a.py": "from sample import b\n", "b.py": "from sample import a\n"},
+def test_api_surface_writes_evidence(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-surface", "--source-path", "pkg"]) == 0
+    assert next((tmp_path / "out" / "api-surface").glob("*/api-surface.json")).is_file()
+
+
+def test_missing_source_path_exits_two(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["api-usage", "--module", "pkg.lib", "--source-path", "missing"]) == 2
+    assert "source path does not exist" in capsys.readouterr().err
+
+
+def test_missing_explicit_zones_exits_two(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["api-surface", "--source-path", "pkg", "--zones", "missing.json"]) == 2
+
+
+def test_import_roots_follow_src_layout(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path / "src", "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-surface", "--source-path", "src/pkg"]) == 0
+    data = json.loads(next((tmp_path / "out" / "api-surface").glob("*/api-surface.json")).read_text())
+    assert data["report"]["roots"] == ["pkg"]
+
+
+def test_current_directory_source_path(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "."]) == 0
+
+
+def test_allow_absent_target_scans_consumer_only_scope(tmp_path, monkeypatch, capsys):
+    # tests/ contains consumers of a module that lives under ddtrace/ (or
+    # here: pkg-consumers of a target defined outside the scanned scope).
+    make_tree(tmp_path, "pkg", FILES)
+    consumer_only = tmp_path / "tests" / "test_it.py"
+    consumer_only.parent.mkdir(parents=True)
+    consumer_only.write_text("from pkg.lib import f\nf()\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    # Without the flag this fails closed (typo protection).
+    assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "tests"]) == 2
+    assert "--allow-absent-target" in capsys.readouterr().err
+
+    assert (
+        main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "tests", "--allow-absent-target"])
+        == 0
     )
-    write_pyproject(tmp_path, "sample")
-    exit_code = main(
-        [
-            "--manifest",
-            str(tmp_path / "package-contract.toml"),
-            "--output",
-            str(tmp_path / "out"),
-            "boundaries",
-        ]
-    )
-    assert exit_code == 1
-    evidence = tmp_path / "out" / "boundaries" / "boundaries.json"
-    assert evidence.is_file()
-    import json
-
-    data = json.loads(evidence.read_text())
-    assert data["gate"] == "boundaries"
-    assert data["status"] == "fail"
-    assert any(c["name"] == "import-cycles" and c["status"] == "fail" for c in data["checks"])
+    data = json.loads(next((tmp_path / "out" / "api-usage").glob("*/api-usage.json")).read_text())
+    assert data["consumer_files"] == 1
+    assert set(data["symbols"]) == {"f"}
 
 
-def test_lifecycle_end_to_end_passing(tmp_path, capsys):
-    make_tree(tmp_path, "sample", {"__init__.py": "__version__ = '1.0'\n"})
-    write_pyproject(tmp_path, "sample")
-    exit_code = main(
-        [
-            "--manifest",
-            str(tmp_path / "package-contract.toml"),
-            "--output",
-            str(tmp_path / "out"),
-            "lifecycle",
-        ]
-    )
-    assert exit_code == 0, capsys.readouterr().out
-    assert (tmp_path / "out" / "lifecycle" / "lifecycle.json").is_file()
+def test_zones_file_without_mapping_exits_two(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    (tmp_path / "layers.json").write_text('{"zone": {}}', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["api-surface", "--source-path", "pkg", "--zones", "layers.json"]) == 2
+    assert "no 'zones' mapping" in capsys.readouterr().err
 
 
-def test_repository_manifest_is_valid():
-    exit_code = main(["--manifest", str(REPO_ROOT / "package-contract.toml"), "gates"])
-    assert exit_code == 0
+def test_unparsable_files_are_skipped_and_reported(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES | {"broken.py": "def (:\n"})
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
+    assert "pkg/broken.py" in capsys.readouterr().err
+    data = json.loads(next((tmp_path / "out" / "api-usage").glob("*/api-usage.json")).read_text())
+    assert data["consumer_files"] == 1
+    assert data["unparsed"][0].startswith("pkg/broken.py")

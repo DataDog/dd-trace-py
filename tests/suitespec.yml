@@ -32,7 +32,6 @@ components:
   package_split:
     - scripts/package-split
     - scripts/package_split/*
-    - package-contract.toml
     - tests/package_split/*
   crashtracker:
     - ddtrace/internal/core/crashtracking.py

@@ -7,9 +7,10 @@ Working graph: `ddtrace_internal` → `ddtrace_internal_base` (stdlib-only) + `d
 - Independent builds/tests/releases: no unrelated native rebuilds or coordinated consumer releases.
 - New imports are inert, never import ddtrace; activation is explicit/idempotent/reversible. Preserve legacy behavior, canonical state and single instrumentation.
 - Default Test Optimization is transitively native-free; optional native adapters never auto-activate. Approved pytest/IAST removals remain separate work.
-- Declare narrow APIs/behavior/dependencies/lifecycle/ownership/rollback in `package-contract.toml`.
+- Review narrow APIs, behavior, lifecycle, ownership and rollback for each extraction. Keep executable build/runtime metadata in the destination's pyproject; the source harness requires no duplicate package contract.
 - Inventory → approve → **freeze on main before any code moves** → negative fixtures → extract → exact standalone artifacts/coexistence/rollback → release rehearsal. Freeze-first is the entry point of every extraction: the freeze manifest and freeze guard land on main before the destination work starts, so changes to frozen paths are policed from day one (the codeowners extraction proved the window is real: an unrelated typing PR touched the frozen module mid-flight).
 - Freeze pins source/build/test provenance; base-owned rules only, never execute PR code. Rewrites/exceptions need approval/sync records; exceptions expire. Approved rewrites pin their exact post-rewrite content (post_hash): a path-scoped approval alone pre-authorizes every future edit and the head must match a pinned content, so further changes need a new approved rewrite absorbed by the extracted copy in the same window.
 - Missing prerequisites fail. Stop on unproven contracts, dependency closure, native policy, shared identity or parity; never auto-accept baselines or publish/cut over without approval.
+- The source tool owns consumer inventories and freeze enforcement. Reuse existing source import/wheel CI and destination package checks; encode compatibility and bridge behavior in concrete consumer tests through scripts/run-tests. The CLI reference maps retired generic gates to their coverage owners and remaining requirements.
 
 [Workflow](../../.agents/skills/package-split/SKILL.md) · [Commands/schemas](../../scripts/package_split/README.md)

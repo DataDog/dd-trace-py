@@ -429,7 +429,6 @@ tests/standalone/                       @DataDog/python-guild
 .cursor/rules/package-split.mdc           @DataDog/python-guild @DataDog/apm-core-python
 .github/workflows/package-split-freeze-guard.yml @DataDog/python-guild @DataDog/apm-core-python
 docs/package-split/                       @DataDog/python-guild @DataDog/apm-core-python
-/package-contract.toml                    @DataDog/python-guild @DataDog/apm-core-python
 /package-freeze.toml                      @DataDog/python-guild @DataDog/apm-core-python
 scripts/package-split                     @DataDog/python-guild @DataDog/apm-core-python
 scripts/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
