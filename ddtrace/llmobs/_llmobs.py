@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
 from dataclasses import field
+import functools
 import inspect
 import math
 import sys
@@ -12,6 +13,7 @@ from typing import Callable
 from typing import Iterator
 from typing import Literal
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 import urllib.parse
@@ -232,6 +234,24 @@ from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
+
+_F = TypeVar("_F", bound=Callable[..., None])
+
+# Product start and the Remote Config handler can both call LLMObs.enable() at boot, on different threads.
+# Without this lock both pass the enabled check, and the second instance registers a second set of span hooks.
+_LIFECYCLE_LOCK = forksafe.RLock()
+
+
+def _serialized(func: _F) -> _F:
+    """Run func while holding _LIFECYCLE_LOCK, so that enable() and disable() never overlap."""
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        with _LIFECYCLE_LOCK:
+            return func(*args, **kwargs)
+
+    return cast(_F, wrapper)
+
 
 _STANDARD_INTEGRATION_SPAN_NAMES = (
     CLAUDE_AGENT_SDK_APM_SPAN_NAME,
@@ -1042,6 +1062,7 @@ class LLMObs(Service):
         forksafe.unregister(self._child_after_fork)
 
     @classmethod
+    @_serialized
     def enable(
         cls,
         ml_app: Optional[str] = None,
@@ -2011,6 +2032,7 @@ class LLMObs(Service):
         return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
+    @_serialized
     def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)

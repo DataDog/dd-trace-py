@@ -131,3 +131,68 @@ def test_rc_missing_llmobs_does_not_disable_programmatically_enabled_llmobs():
 
         mock_disable.assert_not_called()
         assert LLMObs.enabled
+
+
+@pytest.mark.subprocess(
+    env={"DD_LLMOBS_ENABLED": "true", "DD_LLMOBS_ML_APP": "assistant_api", "DD_REMOTE_CONFIGURATION_ENABLED": "true"}
+)
+def test_apm_tracing_payload_during_llmobs_product_start_does_not_self_parent_spans():
+    """Regression: a service enables LLMObs with DD_LLMOBS_ENABLED and gets an APM_TRACING
+    record without an llmobs directive. If the poller delivers it while product start is still
+    inside LLMObs.enable(), the RC handler used to enable LLMObs a second time on the poller
+    thread. Both instances hooked span start, and every span became its own parent.
+    """
+    import threading
+    import time
+    from unittest import mock
+
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.llmobs import _llmobs
+
+    def deliver_apm_tracing_record():
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+        callback = remoteconfig_poller._client._product_callbacks[RemoteConfigProduct.ApmTracing]
+        callback(
+            [
+                Payload(
+                    ConfigMetadata(
+                        id="sampling", product_name="APM_TRACING", sha256_hash=None, length=None, tuf_version=1
+                    ),
+                    "datadog/2/APM_TRACING/sampling/config",
+                    {"lib_config": {"tracing_sampling_rate": 1.0}, "service_target": {"service": "*", "env": "*"}},
+                )
+            ]
+        )
+
+    poller = []
+    resolve_git_metadata = _llmobs.resolve_llmobs_git_metadata
+
+    def resolve_git_metadata_while_poller_delivers():
+        if not poller:
+            # Product start is inside LLMObs.enable() on the main thread. Deliver the record on
+            # another thread, like the poller, and keep enable() going while it is handled.
+            poller.append(threading.Thread(target=deliver_apm_tracing_record))
+            poller[0].start()
+            time.sleep(0.5)
+        return resolve_git_metadata()
+
+    with mock.patch.object(_llmobs, "resolve_llmobs_git_metadata", resolve_git_metadata_while_poller_delivers):
+        import ddtrace.auto  # noqa: F401
+    assert poller, "product start did not enable LLMObs"
+    poller[0].join()
+
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import ROOT_PARENT_ID
+    from ddtrace.llmobs._utils import get_llmobs_parent_id
+
+    with LLMObs.agent("assistant") as agent:
+        with LLMObs.workflow("get_answer_from_model_step") as workflow:
+            with LLMObs.llm(model_name="claude", name="anthropic.request") as llm:
+                pass
+
+    assert get_llmobs_parent_id(agent) == ROOT_PARENT_ID
+    assert get_llmobs_parent_id(workflow) == str(agent.span_id)
+    assert get_llmobs_parent_id(llm) == str(workflow.span_id)
