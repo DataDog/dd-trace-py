@@ -31,8 +31,12 @@ pyenv shell 3.14.4 && pip3 install awscli && pyenv shell --unset
 
 echo "Install Rust toolchain"
 
-curl https://sh.rustup.rs -sSf | \
-  sh -s -- --default-toolchain stable -y
+# The base image already carries a toolchain; reinstalling on top of it fails
+# with a cross-device link error across Docker layers.
+if ! command -v cargo >/dev/null 2>&1; then
+  curl https://sh.rustup.rs -sSf | \
+    sh -s -- --default-toolchain stable -y
+fi
 
 echo "Copying bp-install from benchmarking-platform-tools repo..."
 
