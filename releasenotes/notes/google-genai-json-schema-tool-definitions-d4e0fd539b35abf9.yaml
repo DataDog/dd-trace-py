@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where ``google_genai`` LLM spans recorded a tool definition's
+    schema as ``{"value": "{}"}`` when the function declaration used ``parameters_json_schema``, and as a
+    stringified ``{"value": ...}`` when the request config was passed as a dict.
