@@ -1,0 +1,10 @@
+# Files frozen during package extraction: repository-relative path=SHA-256.
+# On main, require the freeze check and enable "Require branches to be up to date
+# before merging" so a PR cannot merge with a check from before a new freeze.
+# Add an entry using: sha256sum path/to/file
+# Copy the result below as path/to/file=hash (no spaces around the equals sign).
+# Commit freezes before starting extraction. Only file contents are frozen.
+# To unfreeze, remove the entry in a separate PR that leaves the file unchanged;
+# changes to the file can land after that PR merges. The check reads base rules
+# as well as merge-result rules, so editing this list cannot bypass a freeze.
+ddtrace/internal/codeowners.py=79ba689aac82d7f54ceb30661ffed6d8bb5ff76697dc3a87eb05718d6301ed9b

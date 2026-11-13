@@ -14,7 +14,6 @@ from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
-from ddtrace.internal.inferred_spans import is_inferred_span as is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
@@ -279,24 +278,6 @@ def _hash_user_id(user_id: str) -> str:
     import hashlib
 
     return f"anon_{hashlib.sha256(user_id.encode()).hexdigest()[:32]}"
-
-
-def _safe_userid(user_id: Any) -> Optional[Any]:
-    try:
-        _ = int(user_id)
-        return user_id
-    except ValueError:
-        try:
-            # Import uuid lazily because this also imports threading via the
-            # platform module
-            import uuid
-
-            _ = uuid.UUID(user_id)
-            return user_id
-        except ValueError:
-            pass
-
-    return None
 
 
 class _UserExtraInfo(TypedDict, total=False):

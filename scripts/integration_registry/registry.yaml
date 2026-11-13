@@ -143,7 +143,7 @@ integrations:
   tested_versions_by_dependency:
     aws-durable-execution-sdk-python:
       min: 1.4.0
-      max: 1.4.0
+      max: 3.0.1
 
 - integration_name: aws_lambda
   is_external_package: true
@@ -168,10 +168,10 @@ integrations:
   tested_versions_by_dependency:
     aws-sdk-bedrock-runtime:
       min: 0.11.0
-      max: 0.11.0
+      max: 0.12.0
     aws_sdk_bedrock_runtime:
       min: 0.11.0
-      max: 0.11.0
+      max: 0.12.0
 
 - integration_name: azure_cosmos
   is_external_package: true
@@ -409,7 +409,7 @@ integrations:
   tested_versions_by_dependency:
     elevenlabs:
       min: 2.70.0
-      max: 2.70.0
+      max: 2.77.0
 
 - integration_name: falcon
   is_external_package: true
@@ -429,7 +429,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.141.1
+      max: 0.162.0
 
 - integration_name: flask
   is_external_package: true
@@ -453,7 +453,7 @@ integrations:
       max: 0.13.1
     flask-caching:
       min: 1.10.1
-      max: 2.3.0
+      max: 2.5.1
 
 - integration_name: futures
   is_external_package: false
@@ -497,7 +497,7 @@ integrations:
   tested_versions_by_dependency:
     google-genai:
       min: 1.21.1
-      max: 2.25.0
+      max: 2.34.0
 
 - integration_name: graphql
   is_external_package: true
@@ -581,7 +581,7 @@ integrations:
   tested_versions_by_dependency:
     kombu:
       min: 4.6.11
-      max: 5.6.2
+      max: 5.7.0
 
 - integration_name: langchain
   is_external_package: true
@@ -603,10 +603,10 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.2.17
+      max: 1.2.19
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.3.0
+      max: 4.3.1
     langgraph-prebuilt:
       min: 0.1.8
       max: 1.1.1
@@ -619,7 +619,7 @@ integrations:
   tested_versions_by_dependency:
     litellm:
       min: 1.65.4
-      max: 1.80.16
+      max: 1.108.2
 
 - integration_name: llama_index
   is_external_package: true
@@ -713,13 +713,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.5
-      max: 3.17.2
+      max: 3.18.0
     mlflow-skinny:
-      min: 3.17.2
-      max: 3.17.2
+      min: 3.18.0
+      max: 3.18.0
     mlflow-tracing:
-      min: 3.17.2
-      max: 3.17.2
+      min: 3.18.0
+      max: 3.18.0
 
 - integration_name: molten
   is_external_package: true
@@ -749,7 +749,7 @@ integrations:
   tested_versions_by_dependency:
     mysqlclient:
       min: 2.2.1
-      max: 2.2.6
+      max: 2.3.0
 
 - integration_name: openai
   is_external_package: true
@@ -790,7 +790,7 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.0.18
-      max: 3.3.6
+      max: 3.3.8
     psycopg2-binary:
       min: 2.9.10
       max: 2.9.13
@@ -853,7 +853,7 @@ integrations:
   tested_versions_by_dependency:
     pynamodb:
       min: 5.5.1
-      max: 5.5.1
+      max: 6.1.0
 
 - integration_name: pyodbc
   is_external_package: true
@@ -893,7 +893,7 @@ integrations:
   tested_versions_by_dependency:
     pytest-bdd:
       min: 4.1.0
-      max: 6.0.1
+      max: 9.0.1
 
 - integration_name: pytest_benchmark
   is_external_package: true
@@ -909,7 +909,7 @@ integrations:
   tested_versions_by_dependency:
     torch:
       min: 2.0.1
-      max: 2.14.0
+      max: 2.15.0
 
 - integration_name: ray
   is_external_package: true
@@ -1043,7 +1043,7 @@ integrations:
   tested_versions_by_dependency:
     tornado:
       min: 6.1.0
-      max: 6.5.1
+      max: 6.6.0
 
 - integration_name: trio
   is_external_package: true
@@ -1053,7 +1053,7 @@ integrations:
   tested_versions_by_dependency:
     trio:
       min: 0.21.0
-      max: 0.34.0
+      max: 0.35.0
 
 - integration_name: typesafe
   is_external_package: true
@@ -1102,7 +1102,7 @@ integrations:
   tested_versions_by_dependency:
     google-cloud-aiplatform:
       min: 1.71.1
-      max: 1.71.1
+      max: 2.7.0
     vertexai:
       min: 1.71.1
       max: 1.71.1

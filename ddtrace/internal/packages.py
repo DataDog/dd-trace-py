@@ -1,5 +1,6 @@
 import collections
 from functools import lru_cache as cached
+from functools import partial
 from functools import singledispatch
 from importlib.machinery import PathFinder
 from importlib.machinery import all_suffixes
@@ -7,13 +8,17 @@ import inspect
 import logging
 import os
 from pathlib import Path
+import re
 import sys
 import sysconfig
 from types import ModuleType
 import typing as t
 
 from ddtrace.internal import forksafe
+from ddtrace.internal import uwsgi
 from ddtrace.internal.module import origin
+from ddtrace.internal.native import list_distributions
+from ddtrace.internal.native import read_distribution
 from ddtrace.internal.native import scan_distributions
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings.third_party import config as tp_config
@@ -83,6 +88,15 @@ def get_package_distributions() -> t.Mapping[str, list[str]]:
     return _installed().packages
 
 
+def is_querying_finders() -> bool:
+    """Whether this thread is asking custom meta path finders for their distributions.
+
+    Code that a finder runs meanwhile, such as an import hook, reads maps that
+    lack those finders' distributions. They are not kept, so read again later.
+    """
+    return getattr(_FINDER_QUERY, "active", False)
+
+
 @cached(maxsize=1024)
 def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, str]]:
     if not module_name:
@@ -118,12 +132,11 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, 
 @cached(maxsize=1024)
 def get_version_for_package(name: str) -> str:
     """returns the version of a package"""
-    import importlib.metadata as importlib_metadata
-
     try:
-        return importlib_metadata.version(name)
+        dist = _find_distribution(name)
     except Exception:
         return ""
+    return (dist[1] or "") if dist is not None else ""
 
 
 @cached(maxsize=256)
@@ -420,6 +433,9 @@ class _Installed:
 _INSTALLED: t.Optional[_Installed] = None
 # (mtime, records) per sys.path entry, so only new or changed entries are rescanned.
 _ENTRY_RECORDS: dict[str, tuple[t.Optional[int], list[_DistributionRecord]]] = {}
+# (mtime, metadata directories by normalized name) per sys.path entry, for lookups by
+# name: like importlib, list an entry again only when its mtime changes.
+_ENTRY_INDEX: dict[str, tuple[t.Optional[int], dict[str, list[str]]]] = {}
 # Fork-safe, as lazy scans run on threads that may fork; reentrant, so a stray
 # re-entry repeats work rather than deadlocks.
 _INSTALLED_DISTRIBUTIONS_LOCK = forksafe.RLock()
@@ -441,6 +457,7 @@ def _reset_installed_distributions() -> None:
     with _INSTALLED_DISTRIBUTIONS_LOCK:
         _INSTALLED = None
         _ENTRY_RECORDS.clear()
+    _ENTRY_INDEX.clear()
     _PREFETCH_THREAD = None
     _PREFETCH_DONE.clear()
 
@@ -483,10 +500,13 @@ def _meta_path_layout() -> tuple[t.Any, ...]:
     return tuple(layout)
 
 
-def _cache_key() -> _CacheKey:
+def _sys_path_entries() -> t.Iterable[str]:
     # A repeated entry would list its distributions twice.
-    entries = dict.fromkeys(_resolve_entry(e) for e in sys.path if isinstance(e, str))
-    return tuple((entry, _mtime(entry)) for entry in entries), _meta_path_layout()
+    return dict.fromkeys(_resolve_entry(e) for e in sys.path if isinstance(e, str))
+
+
+def _cache_key() -> _CacheKey:
+    return tuple((entry, _mtime(entry)) for entry in _sys_path_entries()), _meta_path_layout()
 
 
 def _installed(check: bool = True) -> _Installed:
@@ -506,7 +526,8 @@ def _installed(check: bool = True) -> _Installed:
         return snapshot
 
     if _PREFETCH_THREAD is not None and not getattr(_IN_PREFETCH, "active", False):
-        # The boot-time scan is pending: wait for it rather than race it.
+        # The boot-time scan is pending: wait for it rather than race it. Safe
+        # from import hooks too, as the prefetch runs no custom finders: see below.
         _PREFETCH_DONE.wait()
         snapshot = _INSTALLED
 
@@ -525,9 +546,14 @@ def _installed(check: bool = True) -> _Installed:
     def warn(dist: t.Any, exc: t.Union[BaseException, str]) -> None:
         problems.append((dist, exc))
 
-    if getattr(_FINDER_QUERY, "active", False):
-        # A custom finder is reading the maps: don't recurse into it. Its
-        # distributions are missing, so neither publish nor keep lookups from this.
+    if getattr(_FINDER_QUERY, "active", False) or (custom and getattr(_IN_PREFETCH, "active", False)):
+        # Either a custom finder is reading the maps, so asking it again would
+        # recurse, or this is the prefetch, which must not ask finders: they run
+        # arbitrary Python, which may import. A reader can wait for the prefetch
+        # from an import hook, holding that module's import lock; were a finder
+        # on the prefetch thread to import the same module, both would wait
+        # forever. The first reader asks them instead. Their distributions are
+        # missing, so neither publish nor keep lookups from this.
         _FINDER_QUERY.nested = True
         segments: list[t.Optional[list[_DistributionRecord]]] = [None] if None in layout else []
         with _INSTALLED_DISTRIBUTIONS_LOCK:
@@ -574,6 +600,8 @@ def _clear_lookup_caches() -> None:
         _is_user_code_str,
         _shipped_distributions,
         _is_regular_package,
+        get_version_for_package,
+        is_distribution_available,
     ):
         lookup.cache_clear()
 
@@ -583,8 +611,7 @@ def _installed_distributions() -> list[_DistributionRecord]:
     return _installed().records
 
 
-def _prefetch() -> None:
-    _IN_PREFETCH.active = True
+def _scan_installed() -> None:
     try:
         _installed(check=False)
     except Exception:
@@ -594,6 +621,12 @@ def _prefetch() -> None:
         if not is_panic_exception(exc):
             raise
         LOG.debug("Failed to prefetch installed distributions", exc_info=True)
+
+
+def _prefetch() -> None:
+    _IN_PREFETCH.active = True
+    try:
+        _scan_installed()
     finally:
         _end_prefetch()
 
@@ -611,6 +644,11 @@ def prefetch_distributions() -> None:
     """
     global _PREFETCH_THREAD
     if _INSTALLED is not None or _PREFETCH_THREAD is not None:
+        return
+    if uwsgi.will_fork_without_fork_hooks():
+        # The fork hooks that join the thread won't run, and a worker forked while it holds the GIL hangs.
+        # Scan now instead: the workers inherit the result.
+        _scan_installed()
         return
     thread = Thread(_prefetch, name=f"{__name__}:prefetch")
     _PREFETCH_THREAD = thread
@@ -658,6 +696,84 @@ def _meta_path_segments(layout: tuple[t.Any, ...], warn: _WarnBadDist) -> list[t
         except Exception as exc:
             warn(finder, exc)
     return segments
+
+
+_NAME_SEPARATORS = re.compile(r"[-_.]+")
+
+
+def _entry_index(entry: str) -> t.Optional[dict[str, list[str]]]:
+    """The metadata directories under entry by normalized name; None if it could not be listed."""
+    mtime = _mtime(entry)
+    cached = _ENTRY_INDEX.get(entry)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    try:
+        listing = list_distributions(entry)
+    except Exception as exc:
+        # Not cached, so the next lookup tries again.
+        _warn_bad_dist(entry, exc)
+        return None
+    index: dict[str, list[str]] = {}
+    for normalized, directory in listing:
+        index.setdefault(normalized, []).append(directory)
+    # Races only repeat the listing: the last writer wins with an equally valid index.
+    _ENTRY_INDEX[entry] = (mtime, index)
+    return index
+
+
+# (name, version) headers as importlib reads them; either can be None.
+_Headers = tuple[t.Optional[str], t.Optional[str]]
+
+
+def _distribution_candidates(name: str) -> t.Iterator[tuple[t.Any, t.Callable[[], t.Optional[_Headers]]]]:
+    """The distributions called name in importlib discovery order, as (source, read).
+
+    read returns the headers, or None if the distribution is gone; it may raise.
+    Like importlib.metadata.distribution, finding one needs no metadata: only
+    reading it does. Only custom finders go through importlib.metadata, which
+    they need anyway.
+    """
+    # importlib's Prepared.normalize, with the underscores of the native listing.
+    normalized = _NAME_SEPARATORS.sub("_", name).lower()
+    for finder in _meta_path_layout():
+        if finder is None:
+            for entry in _sys_path_entries():
+                index = _entry_index(entry)
+                for directory in index.get(normalized, ()) if index is not None else ():
+                    yield os.path.join(entry, directory), partial(read_distribution, entry, directory)
+            continue
+        # Imported lazily: IAST drops importlib.metadata after boot, for gevent.
+        import importlib.metadata as importlib_metadata
+
+        try:
+            context = importlib_metadata.DistributionFinder.Context(name=name)
+            for found in getattr(finder, "find_distributions")(context):
+                yield finder, partial(_read_headers, found)
+        except Exception as exc:
+            _warn_bad_dist(finder, exc)
+
+
+def _read_headers(dist: t.Any) -> _Headers:
+    return dist.metadata["Name"] or None, dist.version or None
+
+
+def _find_distribution(name: str) -> t.Optional[tuple[str, t.Optional[str]]]:
+    """The first readable distribution called name in importlib discovery order, as (name, version).
+
+    Unlike the maps, this needs no full scan: it reads only the metadata of the
+    matches, from listings cached per sys.path entry. As with importlib, the
+    first match wins even if its metadata lacks a name or version.
+    """
+    for source, read in _distribution_candidates(name):
+        try:
+            headers = read()
+        except Exception as exc:
+            _warn_bad_dist(source, exc)
+            continue
+        if headers is not None:
+            found, version = headers
+            return found or name, version
+    return None
 
 
 def _distribution_records(
@@ -821,14 +937,9 @@ def _is_user_code_str(path: str) -> bool:
 @cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
-    import importlib.metadata as importlib_metadata
-
-    try:
-        importlib_metadata.distribution(name)
-    except importlib_metadata.PackageNotFoundError:
-        return False
-
-    return True
+    # Found is enough, as for importlib.metadata.distribution: metadata that is
+    # missing or broken does not make an installed distribution absent.
+    return next(_distribution_candidates(name), None) is not None
 
 
 # ----

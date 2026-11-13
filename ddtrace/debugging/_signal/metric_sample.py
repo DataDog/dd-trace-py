@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
+import math
 from types import FrameType
 from typing import Any
 from typing import Optional
@@ -14,8 +15,9 @@ from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
+from ddtrace.debugging._safety import safe_qualname
 from ddtrace.debugging._signal.log import LogSignal
-from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
@@ -51,22 +53,33 @@ class MetricSample(LogSignal):
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        if probe.value is not None:
+        if probe.value is None:
+            value = 1.0
+        else:
             try:
-                value = float(probe.value(scope))
+                raw = probe.value(scope)
             except EvaluationTimeoutError:
-                self.errors.append(
-                    EvaluationError(
-                        expr=probe.value.dsl,
-                        message=f"Metric value evaluation timed out after {di_config.evaluation_timeout_ms}ms",
-                    )
+                self._record_evaluation_error(
+                    probe.value.dsl,
+                    f"Metric value evaluation timed out after {di_config.evaluation_timeout_ms}ms",
+                    SignalState.EVAL_ERROR,
                 )
                 return
             except DDExpressionEvaluationError as e:
-                self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
+                self._record_evaluation_error(e.dsl, e.error, SignalState.EVAL_ERROR)
                 return
-        else:
-            value = 1
+            try:
+                value = float(raw)
+            except Exception:
+                # Name only the type: the value itself may be sensitive and has not been redacted.
+                self._record_evaluation_error(
+                    probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", SignalState.EVAL_ERROR
+                )
+                return
+            if not math.isfinite(value):
+                # The statsd counter raises on these in int(), after this returns, which would drop the signal.
+                self._record_evaluation_error(probe.value.dsl, f"Value is not finite: {value}", SignalState.EVAL_ERROR)
+                return
 
         # TODO[perf]: We know the tags in advance so we can avoid the
         # list comprehension.

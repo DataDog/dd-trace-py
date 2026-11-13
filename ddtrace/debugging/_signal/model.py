@@ -62,6 +62,7 @@ class SignalState(str, Enum):
     SKIP_CAPPED = "SKIP_CAPPED"
     COND_ERROR = "COND_ERROR"
     COND_TIMEOUT = "COND_TIMEOUT"
+    EVAL_ERROR = "EVAL_ERROR"
     DONE = "DONE"
 
 
@@ -129,56 +130,40 @@ class Signal(abc.ABC):
             # The probe has no condition, so it should always trigger.
             return True
 
-        condition = probe.condition
-        if condition is None:
-            return True
-
         # RFC: skip at probe entry when error rate has been exceeded previously
         if Time.monotonic() < probe._error_throttled_until:
             self.state = SignalState.SKIP_COND_ERROR
             return False
 
+        condition = probe.condition
+        if condition is None:
+            return True
+
         t_start = Time.monotonic()
         eval_timeout_ms = di_config.evaluation_timeout_ms
-        error: Optional[EvaluationError] = None
+        error: Optional[tuple[str, str]] = None
         error_state = SignalState.COND_ERROR
         try:
             result = bool(condition.eval(scope))
         except EvaluationTimeoutError:
-            error = EvaluationError(
-                expr=condition.dsl, message=f"Condition evaluation timed out after {eval_timeout_ms}ms"
-            )
+            error = (condition.dsl, f"Condition evaluation timed out after {eval_timeout_ms}ms")
             error_state = SignalState.COND_TIMEOUT
         except DDExpressionEvaluationError as e:
-            error = EvaluationError(expr=e.dsl, message=e.error)
+            error = (e.dsl, e.error)
         finally:
             self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
 
         if error is not None:
-            self.errors.append(error)
             # Timeouts feed the same throttle as evaluation errors
-            if probe.condition_error_limiter.limit() is RateLimitExceeded:
-                probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
-                self.state = SignalState.SKIP_COND_ERROR
-            else:
-                self.state = error_state
+            self._record_evaluation_error(*error, error_state)
             return False
 
         # RFC: treat evaluation overruns as guardrail input — feed into the error throttle
         if self._eval_duration_ms > eval_timeout_ms:
-            self.errors.append(
-                EvaluationError(
-                    expr=condition.dsl,
-                    message=(
-                        f"Condition evaluation exceeded budget: {self._eval_duration_ms:.1f}ms > {eval_timeout_ms}ms"
-                    ),
-                )
+            self._record_evaluation_error(
+                condition.dsl,
+                f"Condition evaluation exceeded budget: {self._eval_duration_ms:.1f}ms > {eval_timeout_ms}ms",
             )
-            if probe.condition_error_limiter.limit() is RateLimitExceeded:
-                probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
-                self.state = SignalState.SKIP_COND_ERROR
-                return False
-            self.state = SignalState.COND_ERROR
             return False
 
         if result:
@@ -186,6 +171,15 @@ class Signal(abc.ABC):
 
         self.state = SignalState.SKIP_COND
         return False
+
+    def _record_evaluation_error(self, expr: str, message: str, state: SignalState = SignalState.COND_ERROR) -> None:
+        probe = cast(ProbeConditionMixin, self.probe)
+        self.errors.append(EvaluationError(expr=expr, message=message))
+        if probe.condition_error_limiter.limit() is RateLimitExceeded:
+            probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
+            self.state = SignalState.SKIP_COND_ERROR
+        else:
+            self.state = state
 
     def _session_check(self) -> bool:
         # Check that we emit signals from probes with a session ID only if the
@@ -310,7 +304,8 @@ class Signal(abc.ABC):
 
         self.exit(retval, cast(ExcInfoType, exc_info), duration or 0, scope)
 
-        self.state = SignalState.DONE
+        if self.state is SignalState.NONE:
+            self.state = SignalState.DONE
 
     def do_line(self) -> None:
         if not self._session_check():
@@ -333,7 +328,8 @@ class Signal(abc.ABC):
 
         self.line(scope)
 
-        self.state = SignalState.DONE
+        if self.state is SignalState.NONE:
+            self.state = SignalState.DONE
 
     @staticmethod
     def from_probe(

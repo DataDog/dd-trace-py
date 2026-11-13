@@ -87,3 +87,83 @@ def test_redacts_wildcards_over_dicts_and_lists():
 def test_missing_paths_leave_payload_unchanged():
     payload = {"Untouched": {"deep": "value"}}
     assert _redact(payload, ALL_DEFAULTS) == payload
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING": None,
+        "DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING": None,
+    }
+)
+def test_botocore_without_payload_tagging_does_not_import_jsonpath():
+    import sys
+
+    import botocore.session
+    from botocore.stub import Stubber
+
+    from ddtrace import config
+    from ddtrace import patch
+
+    patch(botocore=True)
+    assert not config.botocore.payload_tagging_request
+    assert not config.botocore.payload_tagging_response
+
+    session = botocore.session.get_session()
+    session.set_credentials(access_key="access-key", secret_key="secret-key")
+    client = session.create_client("sns", region_name="us-east-1")
+    with Stubber(client) as stubber:
+        stubber.add_response("list_topics", {"Topics": [], "ResponseMetadata": {"HTTPStatusCode": 200}})
+        assert client.list_topics()["Topics"] == []
+
+    assert not any(
+        name == "ddtrace.vendor.jsonpath" or name.startswith("ddtrace.vendor.jsonpath.") for name in sys.modules
+    )
+
+
+@pytest.mark.subprocess(
+    parametrize={
+        "DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING": ["", "all", "$..Custom"],
+        "DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING": ["", "all", "$..Custom"],
+    }
+)
+def test_jsonpath_is_loaded_on_first_payload_redaction():
+    import sys
+    from types import SimpleNamespace
+
+    from ddtrace import config
+    from ddtrace._trace.span import Span
+    from ddtrace._trace.utils_botocore import span_tags
+    from ddtrace._trace.utils_botocore.aws_payload_tagging import _get_jsonpath_environment
+    from ddtrace.contrib.internal.botocore.patch import patch
+
+    patch()
+    assert "ddtrace.vendor.jsonpath" not in sys.modules
+    span = Span("sns.request")
+    params = {"Attributes": {"Token": "secret"}, "Custom": "custom"}
+    span_tags.set_botocore_patched_api_call_span_tags(
+        span, SimpleNamespace(meta=SimpleNamespace(region_name="us-east-1")), ("Publish",), params, "sns", "Publish"
+    )
+    response_meta = {"HTTPStatusCode": 200, "Credentials": {"SecretAccessKey": "secret"}, "Custom": "custom"}
+    span_tags.set_botocore_response_metadata_tags(span, {"ResponseMetadata": response_meta})
+
+    request = config.botocore.payload_tagging_request
+    response = config.botocore.payload_tagging_response
+    assert ("ddtrace.vendor.jsonpath" in sys.modules) == bool(request or response)
+    if request:
+        assert span.get_tag("aws.request.body.Attributes.Token") == "redacted"
+        assert span.get_tag("aws.request.body.Custom") == (
+            "redacted" if "$..Custom" in (request, response) else "custom"
+        )
+    else:
+        assert span.get_tag("aws.request.body.Attributes.Token") is None
+    if response:
+        assert span.get_tag("aws.response.body.Credentials.SecretAccessKey") == "redacted"
+        assert span.get_tag("aws.response.body.Custom") == (
+            "redacted" if "$..Custom" in (request, response) else "custom"
+        )
+    else:
+        assert span.get_tag("aws.response.body.Credentials.SecretAccessKey") is None
+    if request or response:
+        assert _get_jsonpath_environment() is _get_jsonpath_environment()
+    assert params["Attributes"]["Token"] == "secret"
+    assert response_meta["Credentials"]["SecretAccessKey"] == "secret"
