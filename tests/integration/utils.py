@@ -1,6 +1,4 @@
 import os
-import subprocess
-import sys
 from unittest import mock
 
 import pytest
@@ -36,11 +34,16 @@ def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     return log
 
 
-def parametrize_with_all_encodings(env=None, out="", err="", check_logs=True):
+def parametrize_with_all_encodings(env=None, out="", err="", check_logs=True, timeout=60.0):
     if env is None:
         env = dict()
     return pytest.mark.subprocess(
-        parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]}, env=env, out=out, err=err, check_logs=check_logs
+        parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]},
+        env=env,
+        out=out,
+        err=err,
+        check_logs=check_logs,
+        timeout=timeout,
     )
 
 
@@ -55,14 +58,3 @@ def skip_if_testagent(f):
     return pytest.mark.skipif(
         AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason."
     )(f)
-
-
-def import_ddtrace_in_subprocess(env):
-    p = subprocess.Popen(
-        [sys.executable, "-c", "import ddtrace"],
-        env=env or dict(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    p.communicate()
-    return p
