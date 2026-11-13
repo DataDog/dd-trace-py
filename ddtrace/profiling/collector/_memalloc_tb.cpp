@@ -36,9 +36,9 @@ unicode_to_sv_no_alloc(PyObject* obj)
  * loop's periodic check, allowing other threads to observe partially-constructed
  * CPython internal state and causing crashes.
  *
- * Thread names are not available from C-level APIs; push_threadinfo falls back
- * to str(thread_id) when name is empty. The stack profiler provides thread names
- * via stack.register_thread() at safe points.
+ * Thread names are not available from C-level APIs; push_threadinfo reads them
+ * from ddup's thread name registry, which Python fills at safe points, and
+ * falls back to str(thread_id) for threads it does not know.
  */
 static void
 push_threadinfo_to_sample(Datadog::Sample& sample)
@@ -50,7 +50,7 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
 
     int64_t thread_native_id = (int64_t)PyThread_get_thread_native_id();
 
-    // Pass empty name; push_threadinfo will fall back to str(thread_id)
+    // Pass empty name; push_threadinfo looks it up in the thread name registry
     sample.push_threadinfo(thread_id, thread_native_id, "");
 }
 

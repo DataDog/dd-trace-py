@@ -20,6 +20,7 @@ extern "C"
     // allocator hook.
     void ddup_register_thread_name(int64_t thread_id, std::string_view name);
     void ddup_unregister_thread_name(int64_t thread_id);
+    void ddup_replace_thread_names(std::unordered_map<int64_t, std::string_view> const& names);
     size_t ddup_thread_name_count();
 
     // Pass by value is intentional: the map may be modified concurrently by other threads,

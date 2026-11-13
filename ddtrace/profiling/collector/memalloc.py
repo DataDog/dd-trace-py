@@ -73,6 +73,7 @@ def _install_thread_name_hooks() -> None:
         bootstrap_inner(self, *args, **kwargs)
         if self.ident is None:
             return
+
         try:
             ddup.unregister_thread_name(self.ident)
         except Exception:
@@ -167,6 +168,11 @@ class MemoryCollector:
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("[profiling] Unable to collect heap events from process %d", os.getpid(), exc_info=True)
+
+        try:
+            collector_threading.sync_thread_names()
+        except Exception:
+            LOG.debug("[profiling] Failed to sync thread names", exc_info=True)
 
     def snapshot_and_parse_pprof(self, output_filename: str, assert_samples: bool = True) -> pprof_pb2.Profile:
         """Export samples to profile, upload, and parse the pprof profile.

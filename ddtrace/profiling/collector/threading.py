@@ -118,6 +118,7 @@ def _install_thread_hook(name: str, after: typing.Callable[[ddtrace_threading.Th
 def _register_thread_name(thread: ddtrace_threading.Thread) -> None:
     if not ddup.is_available or thread.ident is None:
         return
+
     # CPython calls _set_native_id before setting the started event, so an exception here
     # would make Thread.start block forever.
     try:
@@ -143,6 +144,7 @@ def _register_thread(thread: ddtrace_threading.Thread) -> None:
             stack.register_thread(thread.ident, thread.native_id, thread.name)
         except Exception:
             log.debug("[profiling] Failed to register thread %r with the stack profiler", thread.ident, exc_info=True)
+
     _register_thread_name(thread)
 
 
@@ -172,6 +174,24 @@ def init_thread_names() -> None:
     # collector when those hooks are absent. Name the threads that are already running.
     for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
         ddup.register_thread_name(thread_id, thread.name)
+
+
+def sync_thread_names() -> None:
+    """Drop the names of threads that are gone, and pick up renames."""
+    if not _thread_names_initialized or not ddup.is_available:
+        return
+
+    # Copy first: the loop reads thread.name, which can switch threads and let
+    # them resize the dicts. A starting thread is registered while still in
+    # _limbo, before it moves to _active.
+    active: list[tuple[int, ddtrace_threading.Thread]] = list(ddtrace_threading._active.items())  # type: ignore[attr-defined]
+    limbo: list[ddtrace_threading.Thread] = list(ddtrace_threading._limbo)  # type: ignore[attr-defined]
+    names: dict[int, str] = {thread_id: thread.name for thread_id, thread in active}
+    for thread in limbo:
+        if thread.ident is not None:
+            names[thread.ident] = thread.name
+
+    ddup.replace_thread_names(names)
 
 
 # Also patch threading.Thread so echion can track thread lifetimes

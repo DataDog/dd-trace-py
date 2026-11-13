@@ -2,9 +2,13 @@
 
 #include <gtest/gtest.h>
 
+#include <sys/wait.h>
+#include <unistd.h>
+
 #include <atomic>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 TEST(ThreadNameRegistry, LookupReturnsRegisteredName)
@@ -46,6 +50,73 @@ TEST(ThreadNameRegistry, UnregisteredThreadHasNoName)
 
     EXPECT_TRUE(registry.lookup(42).empty());
     EXPECT_EQ(registry.size(), 0U);
+}
+
+TEST(ThreadNameRegistry, ReplaceAllDropsThreadsThatAreGone)
+{
+    Datadog::ThreadNameRegistry registry;
+    registry.register_name(1, "alive");
+    registry.register_name(2, "gone");
+
+    registry.replace_all({ { 1, "renamed" }, { 3, "new" } });
+
+    EXPECT_EQ(registry.lookup(1), "renamed");
+    EXPECT_TRUE(registry.lookup(2).empty());
+    EXPECT_EQ(registry.lookup(3), "new");
+    EXPECT_EQ(registry.size(), 2U);
+}
+
+TEST(ThreadNameRegistry, ReplaceAllStopsAtTheCap)
+{
+    Datadog::ThreadNameRegistry registry;
+    std::unordered_map<int64_t, std::string_view> names;
+    for (size_t i = 0; i < Datadog::ThreadNameRegistry::max_thread_names + 100; i++) {
+        names.emplace(static_cast<int64_t>(i), "thread");
+    }
+
+    registry.replace_all(names);
+
+    EXPECT_EQ(registry.size(), Datadog::ThreadNameRegistry::max_thread_names);
+}
+
+TEST(ThreadNameRegistry, ChildIsUsableAfterForkingDuringWrites)
+{
+    // A writer may be rehashing the map when another thread forks. The child
+    // must not inherit the map in that state.
+    Datadog::ThreadNameRegistry registry;
+    registry.register_name(1, "MainThread");
+
+    std::atomic<bool> stop{ false };
+    std::thread writer([&]() {
+        for (int64_t id = 2; !stop.load(); id++) {
+            registry.register_name(id % 4096 + 2, "churn");
+            if (id % 4096 == 0) {
+                registry.replace_all({ { 1, "MainThread" } });
+            }
+        }
+    });
+
+    for (int i = 0; i < 20; i++) {
+        registry.prefork();
+        pid_t pid = fork();
+        if (pid == 0) {
+            registry.postfork_child();
+            for (int64_t id = 2; id < 8192; id++) {
+                registry.register_name(id, "child");
+            }
+            _exit(registry.lookup(1) == "MainThread" ? 0 : 1);
+        }
+        registry.postfork_parent();
+        ASSERT_GT(pid, 0);
+
+        int status = 0;
+        ASSERT_EQ(waitpid(pid, &status, 0), pid);
+        EXPECT_TRUE(WIFEXITED(status));
+        EXPECT_EQ(WEXITSTATUS(status), 0);
+    }
+
+    stop.store(true);
+    writer.join();
 }
 
 TEST(ThreadNameRegistry, LookupSurvivesRehashing)
