@@ -895,6 +895,29 @@ def test_llmobs_streamed_chain_parents_nested_spans_to_consumed_stream(
     assert get_llmobs_parent_id(second_chat) == str(second_chain.span_id)
 
 
+def test_llmobs_streamed_chain_restores_consumer_context_between_chunks(
+    langchain_core, langchain_openai, langchain_llmobs, tracer, test_spans, openai_url
+):
+    """The stream's span is active only while a chunk is pulled, not in the consumer's loop body."""
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
+    )
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o", base_url=openai_url, temperature=0.7, max_tokens=256)
+    chain = prompt | llm | langchain_core.output_parsers.StrOutputParser()
+
+    stream = chain.stream({"input": "how can langsmith help with testing?"})
+    chunk_spans = []
+    with LLMObs.workflow("consumer") as consumer:
+        for _ in stream:
+            assert tracer.current_span() is consumer
+            assert LLMObs._instance._llmobs_context_provider.active() is consumer
+            with LLMObs.task("per_chunk") as per_chunk:
+                chunk_spans.append(per_chunk)
+
+    assert chunk_spans
+    assert all(span.parent_id == consumer.span_id for span in chunk_spans)
+
+
 @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
 def test_llmobs_streamed_llm(langchain_openai, langchain_llmobs, test_spans, openai_url, consume_stream):
     llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)

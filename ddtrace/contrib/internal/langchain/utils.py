@@ -3,7 +3,6 @@ import inspect
 import sys
 from typing import Any
 from typing import Optional
-from typing import Union
 
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
@@ -18,8 +17,10 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
-# Dispatched with the stream's span before each chunk is pulled so LLMObs can reactivate it as well.
-STREAM_PULL_EVENT = "langchain.stream.pull.before"
+# Dispatched with the stream's span and a per-pull state dict around each chunk pull, so LLMObs can
+# activate the span for the pull and restore the caller's LLMObs context afterwards.
+STREAM_PULL_BEFORE_EVENT = "langchain.stream.pull.before"
+STREAM_PULL_AFTER_EVENT = "langchain.stream.pull.after"
 
 
 class BaseLangchainStreamHandler:
@@ -81,11 +82,21 @@ class BaseLangchainStreamHandler:
 
 
 class LangchainStreamHandler(BaseLangchainStreamHandler, StreamHandler):
+    def wrap_iterator(self, iterator):
+        if self.primary_span is None:
+            return iterator
+        return _pull_with_span_active(iterator, self.primary_span)
+
     def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk)
 
 
 class LangchainAsyncStreamHandler(BaseLangchainStreamHandler, AsyncStreamHandler):
+    def wrap_iterator(self, iterator):
+        if self.primary_span is None:
+            return iterator
+        return _pull_async_with_span_active(iterator, self.primary_span)
+
     async def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk)
 
@@ -119,16 +130,8 @@ def shared_stream(
                 aiguard_started_event=aiguard_started_event,
                 aiguard_finally_event=aiguard_finally_event,
             )
-            span = span_from_context(ctx)
-            if inspect.isasyncgen(resp):
-                handler: Union[AsyncStreamHandler, StreamHandler] = LangchainAsyncStreamHandler(
-                    None, span, args, kwargs, **handler_kwargs
-                )
-                wrapped = _pull_async_with_span_active(resp, span) if span is not None else resp
-            else:
-                handler = LangchainStreamHandler(None, span, args, kwargs, **handler_kwargs)
-                wrapped = _pull_with_span_active(resp, span) if span is not None else resp
-            return make_traced_stream(wrapped, handler)
+            handler_cls = LangchainAsyncStreamHandler if inspect.isasyncgen(resp) else LangchainStreamHandler
+            return make_traced_stream(resp, handler_cls(None, span_from_context(ctx), args, kwargs, **handler_kwargs))
         except BaseException:
             # BaseException covers ``DDBlockException`` (parent of ``AIGuardAbortError``),
             # so an AI Guard abort still finishes the LLM span with the error, keeping
@@ -140,23 +143,33 @@ def shared_stream(
             raise
 
 
-def _activate_stream_span(span: Span) -> None:
+def _activate_stream_span(span: Span) -> dict[str, Any]:
     # Exiting context_with_event above does not deactivate the span, but anything that becomes active
     # between pulls (another stream created before this one is consumed, or a nested stream left open by
     # a previous pull) would otherwise parent the spans created while pulling the next chunk.
+    state: dict[str, Any] = {"apm": tracer.context_provider.active()}
     tracer.context_provider.activate(span)
-    core.dispatch(STREAM_PULL_EVENT, (span,))
+    core.dispatch(STREAM_PULL_BEFORE_EVENT, (span, state))
+    return state
+
+
+def _restore_caller_context(span: Span, state: dict[str, Any]) -> None:
+    # The consumer's code between chunks must keep its own active context, not the stream's.
+    tracer.context_provider.activate(state["apm"])
+    core.dispatch(STREAM_PULL_AFTER_EVENT, (span, state))
 
 
 def _pull_with_span_active(stream: Any, span: Span) -> Any:
     iterator = iter(stream)
     try:
         while True:
-            _activate_stream_span(span)
+            state = _activate_stream_span(span)
             try:
                 chunk = next(iterator)
             except StopIteration:
                 return
+            finally:
+                _restore_caller_context(span, state)
             yield chunk
     finally:
         close = getattr(iterator, "close", None)
@@ -165,16 +178,21 @@ def _pull_with_span_active(stream: Any, span: Span) -> Any:
 
 
 async def _pull_async_with_span_active(stream: Any, span: Span) -> Any:
+    iterator = stream.__aiter__()
     try:
         while True:
-            _activate_stream_span(span)
+            state = _activate_stream_span(span)
             try:
-                chunk = await stream.__anext__()
+                chunk = await iterator.__anext__()
             except StopAsyncIteration:
                 return
+            finally:
+                _restore_caller_context(span, state)
             yield chunk
     finally:
-        await stream.aclose()
+        aclose = getattr(iterator, "aclose", None)
+        if aclose is not None:
+            await aclose()
 
 
 def _get_chunk_callback(interface_type, args, kwargs):
