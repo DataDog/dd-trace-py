@@ -306,6 +306,7 @@ class TelemetryWorker:
         :param emit_app_lifecycle: when ``False`` (forked children) ``start()``
             schedules heartbeats/flushes but emits neither ``app-started`` nor
             ``app-closing`` — only the root process emits them. Defaults to ``True``.
+            A worker kept across a fork stops emitting both in the child on its own.
         :param endpoints_message_limit: most endpoints serialized into one
             ``app-endpoints`` payload; the rest stay queued for the following payloads,
             which are flagged ``is_first: false``. Defaults to unlimited.
@@ -326,6 +327,38 @@ class TelemetryWorker:
         app-closing in the origin process during teardown. If stopping
         without app-closing is needed again, the behavior must be fixed in
         libdatadog first (TODO).
+        """
+        ...
+    def set_identity(
+        self,
+        runtime_id: str,
+        session_id: str,
+        parent_session_id: Optional[str] = None,
+        root_session_id: Optional[str] = None,
+    ) -> None:
+        """Set the runtime and session identity used by every following request.
+
+        Does not restart the runtime, so a forked child can call it before the
+        worker restarts. A missing or empty parent/root session id drops the
+        matching header.
+        """
+        ...
+    def stage_fork_replay(
+        self,
+        configurations: list[tuple[str, Optional[str], ConfigurationOrigin, Optional[str], int]],
+        integrations: list[tuple[str, Optional[str], bool, Optional[bool], Optional[bool], Optional[str]]] = ...,
+        products: list[tuple[str, bool, Optional[str]]] = ...,
+    ) -> None:
+        """Stage telemetry a forked child sends again under its own identity.
+
+        The fork reset clears inherited configurations, integrations, products
+        and dependencies. Staged items are queued right after that reset, before
+        the worker restarts, and are consumed once. Each call replaces earlier
+        staged items. Call it in the child before the runtime restarts.
+
+        :param configurations: ``add_configuration`` arguments.
+        :param integrations: ``add_integration`` arguments.
+        :param products: ``add_product_change`` arguments.
         """
         ...
     def flush(self) -> None:
