@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    asyncio: Fixes incorrect trace parenting when a task is created with an explicit
+    ``contextvars.Context``.
