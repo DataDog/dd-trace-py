@@ -243,8 +243,6 @@ _LIFECYCLE_LOCK = forksafe.RLock()
 
 
 def _serialized(func: _F) -> _F:
-    """Run func while holding _LIFECYCLE_LOCK, so that enable() and disable() never overlap."""
-
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> None:
         with _LIFECYCLE_LOCK:
@@ -2054,6 +2052,21 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    @_serialized
+    def _reconcile_remote_config(cls) -> None:
+        """Enable or disable LLMObs to match config._llmobs_enabled.
+
+        The check and the change happen under the lock, so a Remote Config update that arrives while
+        product start is inside enable() is applied once enable() returns, not lost.
+        """
+        if config._llmobs_enabled and not cls.enabled:
+            log.debug("Enabling LLMObs via Remote Config (ml_app=%r)", config._llmobs_ml_app)
+            cls.enable(ml_app=config._llmobs_ml_app, _auto=True)
+        elif not config._llmobs_enabled and cls.enabled:
+            log.debug("Disabling LLMObs via Remote Config")
+            cls.disable(_auto=True)
 
     @classmethod
     @contextmanager

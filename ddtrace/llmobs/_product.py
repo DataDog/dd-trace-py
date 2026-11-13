@@ -7,11 +7,8 @@ without restarting the service.
 
 import typing as t
 
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 
-
-log = get_logger(__name__)
 
 requires = ["apm-tracing-rc"]
 
@@ -77,9 +74,4 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
     ml_app_config = dd_config._config["_llmobs_ml_app"]
     ml_app_config.set_value(llmobs_config.get("ml_app_name"), "remote_config")
 
-    if enabled_config.value() and not LLMObs.enabled:
-        log.debug("Enabling LLMObs via Remote Config (ml_app=%r)", ml_app_config.value())
-        LLMObs.enable(ml_app=ml_app_config.value(), _auto=True)
-    elif not enabled_config.value() and LLMObs.enabled:
-        log.debug("Disabling LLMObs via Remote Config: %r", llmobs_config)
-        LLMObs.disable(_auto=True)
+    LLMObs._reconcile_remote_config()
