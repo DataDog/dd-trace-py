@@ -471,7 +471,6 @@ def test_import_ddtrace_in_microvm_wires_run_hook_to_tracer():
     from ddtrace.internal.serverless import MICROVM_RUN_HOOK_PATH
 
     assert core.has_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value)
-    old_writer = tracer._span_aggregator.writer
     runtime_id = runtime.get_runtime_id()
 
     trace_utils.dispatch_wsgi_web_request_starting(
@@ -480,7 +479,7 @@ def test_import_ddtrace_in_microvm_wires_run_hook_to_tracer():
 
     refreshed_runtime_id = runtime.get_runtime_id()
     assert refreshed_runtime_id != runtime_id
-    assert tracer._span_aggregator.writer is not old_writer
+    assert tracer._span_aggregator._runtime_identity[1] == refreshed_runtime_id
     with tracer.trace("web.request") as span:
         assert span.get_tag("runtime-id") == refreshed_runtime_id
 
