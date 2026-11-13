@@ -2,8 +2,10 @@ import contextlib
 from ctypes import c_int
 import json
 import multiprocessing
+from pathlib import Path
 import re
 import socket
+import subprocess
 import textwrap
 import time
 from unittest import mock
@@ -34,6 +36,8 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
+from ddtrace.testing.internal.git import Git
+from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.trace import Span
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
@@ -538,6 +542,18 @@ def test_git_client_get_repository_url(git_repo):
     assert remote_url == "git@github.com:test-repo-url.git"
 
 
+@pytest.mark.parametrize("tags", [{}, {ci.git.COMMIT_SHA: "a" * 40}])
+def test_git_client_get_repository_url_redacts_partial_metadata_fallback(tags):
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client.extract_remote_url",
+        return_value="https://user:secret-token@example.com/repository.git",
+    ):
+        remote_url = CIVisibilityGitClient._get_repository_url(tags=tags)
+
+    assert remote_url == "https://example.com/repository.git"
+    assert "secret-token" not in remote_url
+
+
 def test_git_client_get_repository_url_env_var_precedence(git_repo):
     remote_url = CIVisibilityGitClient._get_repository_url(
         tags={ci.git.REPOSITORY_URL: "https://github.com/Datadog/dd-trace-py"}, cwd=git_repo
@@ -562,6 +578,117 @@ def test_git_client_get_latest_commits(git_repo):
         mock_git_subprocess_cmd_with_details.assert_called_once_with(
             "log", "--format=%H", "-n", "1000", '--since="1 month ago"', cwd=git_repo
         )
+
+
+@pytest.mark.parametrize("engine", ["legacy", "current"])
+@pytest.mark.parametrize("selection", ["recent", "old", "uppercase", "boundary", "promisor", "missing", "invalid"])
+def test_git_upload_uses_selected_history_and_actual_pack(git_repo_empty, engine, selection):
+    checkout = str(git_repo_empty)
+
+    def git(*args, content=None):
+        return subprocess.check_output(
+            ["git", *args], cwd=checkout, input=content, text=True, stderr=subprocess.PIPE
+        ).strip()
+
+    tree = git("hash-object", "-t", "tree", "-w", "--stdin", content="")
+    timestamp = int(time.time())
+
+    def commit(message, date, parent=None):
+        parent_line = f"parent {parent}\n" if parent else ""
+        return git(
+            "hash-object",
+            "-t",
+            "commit",
+            "-w",
+            "--stdin",
+            content=f"tree {tree}\n{parent_line}author Test <test@example.com> {date} +0000\n"
+            f"committer Test <test@example.com> {date} +0000\n\n{message}\n",
+        )
+
+    parent = commit("parent", timestamp - 120) if selection == "boundary" else None
+    selected = commit("selected", 1 if selection == "old" else timestamp - 60, parent)
+    head = commit("checkout", timestamp, selected)
+    git("update-ref", "HEAD", head)
+    if selection in ("boundary", "promisor"):
+        git("update-ref", "refs/heads/juan-fernandez/selected-history", head)
+        shallow = str(Path(checkout) / "shallow")
+        git(
+            "clone",
+            "--no-local",
+            "--no-checkout",
+            "--single-branch",
+            "--branch",
+            "juan-fernandez/selected-history",
+            "--depth=" + ("2" if selection == "boundary" else "1"),
+            checkout,
+            shallow,
+        )
+        checkout = shallow
+        if selection == "promisor":
+            git("config", "remote.origin.promisor", "true")
+            git("config", "remote.origin.partialclonefilter", "blob:none")
+    if selection == "missing":
+        selected = "f" * 40
+    elif selection == "invalid":
+        selected = "--all"
+    elif selection == "uppercase":
+        selected = selected.upper()
+    tags = {ci.git.COMMIT_SHA: selected, ci.git.REPOSITORY_URL: "https://example.com/repository.git"}
+    searches = []
+    packed_commits = []
+
+    def inspect_pack(packfile):
+        objects = git("verify-pack", "-v", str(Path(packfile).with_suffix(".idx")))
+        packed_commits.extend(line.split()[0] for line in objects.splitlines() if " commit " in line)
+        return Path(packfile).stat().st_size
+
+    if engine == "legacy":
+
+        def search(*args):
+            searches.append(args[3])
+            return []
+
+        def upload(*args, **kwargs):
+            assert kwargs["commit_sha"] == selected
+            for packfile in Path(args[3]).parent.glob(Path(args[3]).name + "*.pack"):
+                inspect_pack(packfile)
+            return True
+
+        with (
+            mock.patch.object(CIVisibilityGitClient, "_search_commits", side_effect=search),
+            mock.patch.object(CIVisibilityGitClient, "_upload_packfiles", side_effect=upload),
+        ):
+            CIVisibilityGitClient._run_protocol(
+                None, None, None, multiprocessing.Value(c_int, 0), _tags=tags, cwd=checkout
+            )
+    else:
+        manager = SessionManager.__new__(SessionManager)
+        manager.env_tags = tags
+        manager.workspace_path = Path(checkout)
+        manager.api_client = mock.Mock()
+        manager.api_client.get_known_commits.side_effect = lambda commits: searches.append(commits) or []
+        manager.api_client.send_git_pack_file.side_effect = inspect_pack
+        with (
+            mock.patch("ddtrace.testing.internal.session_manager.Git", return_value=Git(cwd=checkout)),
+            mock.patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            mock.patch(
+                "ddtrace.testing.internal.session_manager.get_offline_mode",
+                return_value=mock.Mock(manifest_enabled=False, payload_files_enabled=False),
+            ),
+        ):
+            manager.upload_git_data()
+
+    if selection in ("missing", "invalid", "promisor"):
+        assert not packed_commits
+        assert not searches
+    else:
+        assert searches and all(
+            selected.lower() in [sha.lower() for sha in commits] and head not in commits for commits in searches
+        )
+        assert selected.lower() in packed_commits and head not in packed_commits
+        if parent:
+            assert parent in searches[-1] and parent in packed_commits
+    assert git("rev-parse", "HEAD") == head
 
 
 def test_git_client_search_commits():
@@ -632,7 +759,8 @@ def test_git_client_get_filtered_revisions(git_repo):
 
 
 @pytest.mark.parametrize("requests_mode", [REQUESTS_MODE.AGENTLESS_EVENTS, REQUESTS_MODE.EVP_PROXY_EVENTS])
-def test_git_client_upload_packfiles(git_repo, requests_mode):
+@pytest.mark.parametrize("commit_sha", [None, "c" * 40])
+def test_git_client_upload_packfiles(git_repo, requests_mode, commit_sha):
     serializer = CIVisibilityGitClientSerializerV1("foo")
     remote_url = "git@github.com:test-repo-url.git"
     with _build_git_packfiles_with_details("%s\n" % TEST_SHA_1, cwd=git_repo) as (packfiles_path, packfiles_details):
@@ -641,7 +769,7 @@ def test_git_client_upload_packfiles(git_repo, requests_mode):
                 status=200,
             )
             CIVisibilityGitClient._upload_packfiles(
-                requests_mode, "", remote_url, packfiles_path, serializer, None, cwd=git_repo
+                requests_mode, "", remote_url, packfiles_path, serializer, None, cwd=git_repo, commit_sha=commit_sha
             )
             assert dr.call_count == 1
             call_args = dr.call_args_list[0][0]
@@ -649,6 +777,8 @@ def test_git_client_upload_packfiles(git_repo, requests_mode):
             assert call_args[0] == requests_mode
             assert call_args[1] == ""
             assert call_args[2] == "/packfile"
+            if commit_sha is not None:
+                assert commit_sha.encode() in call_args[3]
             assert call_args[3].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
             assert call_kwargs["headers"] == {"Content-Type": "multipart/form-data; boundary=----------boundary------"}
 
@@ -1089,7 +1219,7 @@ def test_get_filtered_revisions():
             == "rev1\nrev2"
         )
         mock_get_rev_list.assert_called_once_with(
-            ["excluded1", "excluded2"], ["included1", "included2"], cwd="/path/to/repo"
+            ["excluded1", "excluded2"], ["included1", "included2"], cwd="/path/to/repo", commit_sha=None
         )
 
 

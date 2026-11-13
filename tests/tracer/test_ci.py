@@ -41,7 +41,8 @@ def git_repo(git_repo_empty):
 def test_ci_providers(monkeypatch, name, environment, tags):
     """Make sure all provided environment variables from each CI provider are tagged correctly."""
     _updateenv(monkeypatch, environment)
-    extracted_tags = ci.tags(environment)
+    with mock.patch("ddtrace.ext.ci.git.extract_git_metadata", return_value={}):
+        extracted_tags = ci.tags(environment)
 
     # Verify ci.job.id is in the expected tags for providers that support it
     provider = name.split(":")[0]
@@ -67,14 +68,13 @@ def test_git_extract_user_info(git_repo):
     assert extracted_users["committer"] == expected_committer
 
 
-def test_git_extract_user_info_with_commas():
-    with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd",
-        return_value="Do, Jo|||jo@do.com|||2021-01-19T09:24:53-0400|||Do, Ja|||ja@do.com|||2021-01-20T04:37:21-0400",
-    ):
+@pytest.mark.parametrize("author,committer", [("Do, Jo", "Do, Ja"), ("Do|||Jo", "Do|||Ja")])
+def test_git_extract_user_info_with_separators(author, committer):
+    fields = (author, "jo@do.com", "2021-01-19T09:24:53-0400", committer, "ja@do.com", "2021-01-20T04:37:21-0400")
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="\0".join(fields)):
         extracted_users = git.extract_user_info()
-        assert extracted_users["author"] == ("Do, Jo", "jo@do.com", "2021-01-19T09:24:53-0400")
-        assert extracted_users["committer"] == ("Do, Ja", "ja@do.com", "2021-01-20T04:37:21-0400")
+        assert extracted_users["author"] == fields[:3]
+        assert extracted_users["committer"] == fields[3:]
 
 
 def test_git_extract_user_info_error(git_repo_empty):
@@ -157,6 +157,19 @@ def test_extract_git_metadata(git_repo):
     assert extracted_tags["git.commit.committer.date"] == "2021-01-20T04:37:21-0400"
     assert extracted_tags["git.branch"] == "master"
     assert extracted_tags.get("git.commit.sha") is not None  # Commit hash will always vary, just ensure a value is set
+
+
+def test_tag_metadata_ignores_forced_column_formatting(git_repo):
+    git._git_subprocess_cmd(["config", "column.ui", "always"], cwd=git_repo)
+    git._git_subprocess_cmd(["config", "column.tag", "always"], cwd=git_repo)
+    git._git_subprocess_cmd(["update-ref", "refs/tags/v1", "HEAD"], cwd=git_repo)
+    assert "git.tag" not in git.extract_git_metadata(cwd=git_repo)
+
+    git._git_subprocess_cmd(["checkout", "--detach", "HEAD"], cwd=git_repo)
+    assert git.extract_git_metadata(cwd=git_repo)["git.tag"] == "v1"
+
+    git._git_subprocess_cmd(["update-ref", "refs/tags/stable", "HEAD"], cwd=git_repo)
+    assert "git.tag" not in git.extract_git_metadata(cwd=git_repo)
 
 
 def test_git_safe_directory_override_added_for_repo_root(tmp_path, monkeypatch):
@@ -319,8 +332,8 @@ def test_git_executable_not_found_error(git_repo_empty):
     assert extracted_tags == {}
 
 
-def test_ci_provider_tags_not_overwritten_by_git_executable(git_repo):
-    """If non-Falsey values from CI provider env, should not be overwritten by extracted git metadata."""
+def test_git_executable_overwrites_conflicting_ci_provider_tags(git_repo):
+    """A readable checkout supplies standard Git metadata even when provider values are populated."""
     ci_provider_env = {
         "APPVEYOR": "true",
         "APPVEYOR_BUILD_FOLDER": "/foo/bar",
@@ -337,10 +350,12 @@ def test_ci_provider_tags_not_overwritten_by_git_executable(git_repo):
 
     extracted_tags = ci.tags(environ=ci_provider_env, cwd=git_repo)
 
-    assert extracted_tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
-    assert extracted_tags["git.commit.message"] == "this is the correct commit message"
-    assert extracted_tags["git.commit.author.name"] == "John Jack"
-    assert extracted_tags["git.commit.author.email"] == "john@jack.com"
+    assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
+    assert extracted_tags["git.commit.sha"] == git.extract_commit_sha(cwd=git_repo)
+    assert extracted_tags["git.commit.message"] == "this is a commit msg"
+    assert extracted_tags["git.commit.author.name"] == "John Doe"
+    assert extracted_tags["git.commit.author.email"] == "john@doe.com"
+    assert extracted_tags["ci.pipeline.id"] == "appveyor-build-id"
 
 
 def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
@@ -673,3 +688,83 @@ def test_extract_git_head_metadata():
     assert tags[git.COMMIT_HEAD_COMMITTER_EMAIL] == "c@committer.com"
     assert tags[git.COMMIT_HEAD_COMMITTER_DATE] == "date2"
     assert tags[git.COMMIT_HEAD_MESSAGE] == "commit message"
+
+
+@pytest.mark.parametrize("source", ["git", "provider", "override", "partial", "sha-only"])
+def test_git_metadata_precedence(monkeypatch, source):
+    keys = [
+        "git.commit.sha",
+        "git.repository_url",
+        "git.branch",
+        "git.tag",
+        "git.commit.message",
+        "git.commit.author.name",
+        "git.commit.author.email",
+        "git.commit.author.date",
+        "git.commit.committer.name",
+        "git.commit.committer.email",
+        "git.commit.committer.date",
+    ]
+    local = {key: "local-" + key for key in keys}
+    local["git.commit.sha"] = "a" * 40
+    provider = {key: "provider-" + key for key in keys}
+    provider.update({"ci.provider.name": "github", "ci.job.name": "tests", "git.commit.head.sha": "head-sha"})
+    environment = {"GITHUB_SHA": "b" * 40}
+    if source == "override":
+        environment.update({"DD_" + key.upper().replace(".", "_"): "user-" + key for key in keys})
+    elif source == "sha-only":
+        environment["DD_GIT_COMMIT_SHA"] = "c" * 40
+    if source == "provider":
+        local = {}
+    elif source == "partial":
+        local = {"git.commit.sha": "a" * 40}
+    monkeypatch.setattr(ci, "PROVIDERS", [("GITHUB_SHA", lambda env: provider)])
+    with (
+        mock.patch("ddtrace.ext.ci.git.extract_git_metadata", return_value=local),
+        mock.patch("ddtrace.ext.ci.git.extract_git_head_metadata", return_value={}),
+    ):
+        tags = ci.tags(environment)
+    for key in keys:
+        if source == "override":
+            assert tags[key] == "user-" + key
+        elif source == "provider":
+            assert tags[key] == provider[key]
+        elif source == "sha-only" and key == git.COMMIT_SHA:
+            assert tags[key] == "c" * 40
+        elif source == "sha-only" and (key == git.TAG or key.startswith("git.commit.")):
+            assert key not in tags
+        elif key in local:
+            assert tags[key] == local[key]
+        else:
+            assert key not in tags
+    assert tags["ci.job.name"] == "tests"
+    assert tags["git.commit.head.sha"] == "head-sha"
+
+
+@pytest.mark.parametrize(
+    "tag,branch,expected_tag",
+    [(None, None, None), ("explicit-tag", None, "explicit-tag"), (None, "refs/tags/explicit-tag", "explicit-tag")],
+)
+def test_sha_override_does_not_restore_inferred_provider_tag(monkeypatch, tag, branch, expected_tag):
+    environment = {"GITHUB_SHA": "b" * 40, "DD_GIT_COMMIT_SHA": "c" * 40}
+    if tag:
+        environment["DD_GIT_TAG"] = tag
+    if branch:
+        environment["DD_GIT_BRANCH"] = branch
+    provider = {
+        git.COMMIT_SHA: "b" * 40,
+        git.BRANCH: "refs/tags/provider-tag",
+        "ci.job.name": "tests",
+        git.COMMIT_HEAD_SHA: "head-sha",
+    }
+    monkeypatch.setattr(ci, "PROVIDERS", [("GITHUB_SHA", lambda env: provider)])
+    with (
+        mock.patch("ddtrace.ext.ci.git.extract_git_metadata", return_value={}),
+        mock.patch("ddtrace.ext.ci.git.extract_git_head_metadata", return_value={}),
+    ):
+        tags = ci.tags(environment)
+    assert tags[git.COMMIT_SHA] == "c" * 40
+    assert tags.get(git.TAG) == expected_tag
+    assert git.BRANCH not in tags
+    assert tags["ci.job.name"] == "tests"
+    assert tags[git.COMMIT_HEAD_SHA] == "head-sha"

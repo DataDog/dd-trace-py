@@ -70,7 +70,9 @@ def test_git_extract_user_info_with_commas(monkeypatch: pytest.MonkeyPatch) -> N
     with mock.patch.object(
         Git,
         "_git_output",
-        return_value="Do, Jo|||jo@do.com|||2021-01-19T09:24:53-0400|||Do, Ja|||ja@do.com|||2021-01-20T04:37:21-0400",
+        return_value="\0".join(
+            ("Do, Jo", "jo@do.com", "2021-01-19T09:24:53-0400", "Do, Ja", "ja@do.com", "2021-01-20T04:37:21-0400")
+        ),
     ):
         tags = get_env_tags()
 
@@ -100,6 +102,22 @@ def test_git_extract_repository_url(monkeypatch: pytest.MonkeyPatch, git_repo: s
     tags = get_env_tags()
 
     assert tags[GitTag.REPOSITORY_URL] == expected_repository_url
+
+
+def test_git_tag_ignores_forced_column_formatting(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
+    monkeypatch.setattr(os, "environ", {})
+    monkeypatch.chdir(git_repo)
+    git = Git()
+    git._git_output(["config", "column.ui", "always"])
+    git._git_output(["config", "column.tag", "always"])
+    git._git_output(["tag", "v1"])
+    assert GitTag.TAG not in get_env_tags()
+
+    git._git_output(["checkout", "--detach", "HEAD"])
+    assert get_env_tags()[GitTag.TAG] == "v1"
+
+    git._git_output(["tag", "stable"])
+    assert GitTag.TAG not in get_env_tags()
 
 
 def test_git_filter_repository_url_valid() -> None:
@@ -246,7 +264,7 @@ def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shall
     assert tags[GitTag.COMMIT_COMMITTER_EMAIL] == "jane@doe.com"
     assert tags[GitTag.COMMIT_COMMITTER_DATE] == "2021-01-20T04:37:21-0400"
     assert tags[GitTag.COMMIT_MESSAGE] == "this is a commit msg"
-    assert tags[GitTag.COMMIT_SHA] == github_sha
+    assert tags[GitTag.COMMIT_SHA] == Git().get_commit_sha()
 
     assert tags[GitTag.COMMIT_HEAD_AUTHOR_NAME] == "John Doe"
     assert tags[GitTag.COMMIT_HEAD_AUTHOR_EMAIL] == "john@doe.com"
@@ -294,7 +312,7 @@ def test_extract_git_head_commit_data_skips_deepen_when_git_fetch_disabled(
     assert GitTag.COMMIT_HEAD_MESSAGE not in tags
     assert GitTag.COMMIT_HEAD_AUTHOR_NAME not in tags
     # The rest of the tags are unaffected.
-    assert tags[GitTag.COMMIT_SHA] == "abcd1234"
+    assert tags[GitTag.COMMIT_SHA] == Git().get_commit_sha()
 
 
 def test_git_executable_not_found_error(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
@@ -310,8 +328,8 @@ def test_git_executable_not_found_error(monkeypatch: pytest.MonkeyPatch, git_rep
     assert tags == {}
 
 
-def test_ci_provider_tags_not_overwritten_by_git_executable(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
-    """If non-Falsey values from CI provider env, should not be overwritten by extracted git metadata."""
+def test_git_executable_overwrites_conflicting_ci_provider_tags(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
+    """A readable checkout overrides conflicting standard Git metadata from the provider."""
     ci_provider_env = {
         "APPVEYOR": "true",
         "APPVEYOR_BUILD_FOLDER": "/foo/bar",
@@ -330,10 +348,12 @@ def test_ci_provider_tags_not_overwritten_by_git_executable(monkeypatch: pytest.
 
     tags = get_env_tags()
 
-    assert tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
-    assert tags["git.commit.message"] == "this is the correct commit message"
-    assert tags["git.commit.author.name"] == "John Jack"
-    assert tags["git.commit.author.email"] == "john@jack.com"
+    assert tags["git.repository_url"] == "git@github.com:test-repo-url.git"
+    assert tags["git.commit.sha"] == Git().get_commit_sha()
+    assert tags["git.commit.message"] == "this is a commit msg"
+    assert tags["git.commit.author.name"] == "John Doe"
+    assert tags["git.commit.author.email"] == "john@doe.com"
+    assert tags["ci.pipeline.id"] == "appveyor-build-id"
 
 
 def test_falsey_ci_provider_values_overwritten_by_git_executable(
@@ -472,7 +492,7 @@ class TestCheckCommitShaConsistency:
 
         mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
         mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
-            _PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy"
+            _PROVIDER_GIT_CLIENT, _PROVIDER_CI, "commit_discrepancy"
         )
 
     def test_user_supplied_vs_git_client_sha_mismatch(self, mock_telemetry: mock.Mock) -> None:
@@ -497,7 +517,7 @@ class TestCheckCommitShaConsistency:
         mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
         calls = mock_telemetry.record_commit_sha_discrepancy.call_args_list
         assert len(calls) == 3
-        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
+        assert mock.call(_PROVIDER_GIT_CLIENT, _PROVIDER_CI, "commit_discrepancy") in calls
         assert mock.call(_PROVIDER_USER_SUPPLIED, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
         assert mock.call(_PROVIDER_USER_SUPPLIED, _PROVIDER_CI, "commit_discrepancy") in calls
 
@@ -506,7 +526,7 @@ class TestCheckCommitShaConsistency:
 
         mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
         mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
-            _PROVIDER_CI, _PROVIDER_GIT_CLIENT, "repository_discrepancy"
+            _PROVIDER_GIT_CLIENT, _PROVIDER_CI, "repository_discrepancy"
         )
 
     def test_user_supplied_vs_git_client_url_mismatch(self, mock_telemetry: mock.Mock) -> None:
@@ -530,8 +550,8 @@ class TestCheckCommitShaConsistency:
 
         mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
         calls = mock_telemetry.record_commit_sha_discrepancy.call_args_list
-        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
-        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "repository_discrepancy") in calls
+        assert mock.call(_PROVIDER_GIT_CLIENT, _PROVIDER_CI, "commit_discrepancy") in calls
+        assert mock.call(_PROVIDER_GIT_CLIENT, _PROVIDER_CI, "repository_discrepancy") in calls
 
     def test_all_six_discrepancies_when_all_differ(self, mock_telemetry: mock.Mock) -> None:
         self._call(
@@ -556,3 +576,85 @@ class TestCheckCommitShaConsistency:
         monkeypatch.setattr(TelemetryAPI, "_instance", None)
         # Should not raise
         self._call(ci=self.SHA1, git=self.SHA2)
+
+
+@pytest.mark.parametrize("source", ["git", "provider", "override", "partial", "sha-only"])
+def test_git_metadata_precedence(monkeypatch, source):
+    keys = [
+        "git.commit.sha",
+        "git.repository_url",
+        "git.branch",
+        "git.tag",
+        "git.commit.message",
+        "git.commit.author.name",
+        "git.commit.author.email",
+        "git.commit.author.date",
+        "git.commit.committer.name",
+        "git.commit.committer.email",
+        "git.commit.committer.date",
+    ]
+    local = {key: "local-" + key for key in keys}
+    local["git.commit.sha"] = "a" * 40
+    provider = {key: "provider-" + key for key in keys}
+    provider.update({"ci.provider.name": "github", "ci.job.name": "tests", "git.commit.head.sha": "head-sha"})
+    environment = {"GITHUB_SHA": "b" * 40}
+    if source == "override":
+        environment.update({"DD_" + key.upper().replace(".", "_"): "user-" + key for key in keys})
+    elif source == "sha-only":
+        environment["DD_GIT_COMMIT_SHA"] = "c" * 40
+    if source == "provider":
+        local = {}
+    elif source == "partial":
+        local = {"git.commit.sha": "a" * 40}
+    monkeypatch.setattr(os, "environ", environment)
+    with (
+        mock.patch("ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value=local),
+        mock.patch("ddtrace.testing.internal.ci.get_ci_tags", return_value=provider),
+        mock.patch("ddtrace.testing.internal.git.get_git_head_tags_from_git_command", return_value={}),
+    ):
+        tags = get_env_tags()
+    for key in keys:
+        if source == "override":
+            assert tags[key] == "user-" + key
+        elif source == "provider":
+            assert tags[key] == provider[key]
+        elif source == "sha-only" and key == GitTag.COMMIT_SHA:
+            assert tags[key] == "c" * 40
+        elif source == "sha-only" and (key == GitTag.TAG or key.startswith("git.commit.")):
+            assert key not in tags
+        elif key in local:
+            assert tags[key] == local[key]
+        else:
+            assert key not in tags
+    assert tags["ci.job.name"] == "tests"
+    assert tags["git.commit.head.sha"] == "head-sha"
+
+
+@pytest.mark.parametrize(
+    "tag,branch,expected_tag",
+    [(None, None, None), ("explicit-tag", None, "explicit-tag"), (None, "refs/tags/explicit-tag", "explicit-tag")],
+)
+def test_sha_override_does_not_restore_inferred_provider_tag(monkeypatch, tag, branch, expected_tag):
+    environment = {"GITHUB_SHA": "b" * 40, "DD_GIT_COMMIT_SHA": "c" * 40}
+    if tag:
+        environment["DD_GIT_TAG"] = tag
+    if branch:
+        environment["DD_GIT_BRANCH"] = branch
+    provider = {
+        GitTag.COMMIT_SHA: "b" * 40,
+        GitTag.BRANCH: "refs/tags/provider-tag",
+        "ci.job.name": "tests",
+        GitTag.COMMIT_HEAD_SHA: "head-sha",
+    }
+    monkeypatch.setattr(os, "environ", environment)
+    with (
+        mock.patch("ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value={}),
+        mock.patch("ddtrace.testing.internal.ci.get_ci_tags", return_value=provider),
+        mock.patch("ddtrace.testing.internal.git.get_git_head_tags_from_git_command", return_value={}),
+    ):
+        tags = get_env_tags()
+    assert tags[GitTag.COMMIT_SHA] == "c" * 40
+    assert tags.get(GitTag.TAG) == expected_tag
+    assert GitTag.BRANCH not in tags
+    assert tags["ci.job.name"] == "tests"
+    assert tags[GitTag.COMMIT_HEAD_SHA] == "head-sha"

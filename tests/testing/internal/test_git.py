@@ -1,6 +1,7 @@
 """Tests for ddtrace.testing.internal.git module."""
 
 import contextlib
+from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -128,6 +129,13 @@ class TestGit:
         assert result == "main"
         mock_git_output.assert_called_once_with(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
 
+    @pytest.mark.parametrize("output,expected", [("", ""), ("v1.0", "v1.0"), ("latest\nv1.0", "")])
+    @patch("shutil.which", return_value="/usr/bin/git")
+    def test_get_tag_is_unambiguous(self, mock_which: Mock, output: str, expected: str) -> None:
+        git = Git()
+        with patch.object(git, "_git_output", return_value=output):
+            assert git.get_tag() == expected
+
     @patch("shutil.which")
     def test_get_commit_message(self, mock_which: Mock) -> None:
         """Test get_commit_message method."""
@@ -138,24 +146,31 @@ class TestGit:
             result = git.get_commit_message()
 
         assert result == "Initial commit"
-        mock_git_output.assert_called_once_with(["show", "-s", "--format=%s"])
+        mock_git_output.assert_called_once_with(["show", "-s", "--no-show-signature", "--format=%s"])
 
+    @pytest.mark.parametrize("author_name", ["John Doe", "John, Doe", "John|||Doe"])
     @patch("shutil.which")
-    def test_get_user_info_success(self, mock_which: Mock) -> None:
+    def test_get_user_info_success(self, mock_which: Mock, author_name: str) -> None:
         """Test get_user_info method with valid output."""
         mock_which.return_value = "/usr/bin/git"
 
         git = Git()
-        mock_output = (
-            "John Doe|||john@example.com|||2023-01-01T12:00:00+0000|||"
-            "Jane Committer|||jane@example.com|||2023-01-01T12:30:00+0000"
+        mock_output = "\0".join(
+            (
+                author_name,
+                "john@example.com",
+                "2023-01-01T12:00:00+0000",
+                "Jane Committer",
+                "jane@example.com",
+                "2023-01-01T12:30:00+0000",
+            )
         )
 
         with patch.object(git, "_git_output", return_value=mock_output):
             result = git.get_user_info()
 
         expected = GitUserInfo(
-            author_name="John Doe",
+            author_name=author_name,
             author_email="john@example.com",
             author_date="2023-01-01T12:00:00+0000",
             committer_name="Jane Committer",
@@ -200,7 +215,9 @@ class TestGit:
 
         assert result == ["abc123", "def456", "ghi789"]
         mock_git_output.assert_called_once_with(
-            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
+            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'],
+            GitTelemetry.GET_LOCAL_COMMITS,
+            local_only=True,
         )
 
     @patch("shutil.which")
@@ -241,19 +258,22 @@ class TestGit:
                 "include1",
             ],
             GitTelemetry.GET_OBJECTS,
+            local_only=True,
         )
 
 
 class TestGetGitTags:
     """Tests for get_git_tags_from_git_command function."""
 
+    @pytest.mark.parametrize("branch,tag", [("main", None), ("", "v1.0")])
     @patch("ddtrace.testing.internal.git.Git")
-    def test_get_git_tags_success(self, mock_git_class: Mock) -> None:
+    def test_get_git_tags_success(self, mock_git_class: Mock, branch: str, tag: Optional[str]) -> None:
         """Test get_git_tags_from_git_command with successful Git operations."""
         mock_git = Mock()
         mock_git.get_repository_url.return_value = "https://github.com/user/repo.git"
         mock_git.get_commit_sha.return_value = "abc123"
-        mock_git.get_branch.return_value = "main"
+        mock_git.get_branch.return_value = branch
+        mock_git.get_tag.return_value = "v1.0"
         mock_git.get_commit_message.return_value = "Test commit"
         mock_git.get_user_info.return_value = GitUserInfo(
             author_name="John Doe",
@@ -270,7 +290,8 @@ class TestGetGitTags:
         expected = {
             GitTag.REPOSITORY_URL: "https://github.com/user/repo.git",
             GitTag.COMMIT_SHA: "abc123",
-            GitTag.BRANCH: "main",
+            GitTag.BRANCH: branch,
+            GitTag.TAG: tag,
             GitTag.COMMIT_MESSAGE: "Test commit",
             GitTag.COMMIT_AUTHOR_NAME: "John Doe",
             GitTag.COMMIT_AUTHOR_EMAIL: "john@example.com",

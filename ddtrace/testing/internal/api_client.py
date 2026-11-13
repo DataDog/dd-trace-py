@@ -96,7 +96,9 @@ class APIClient:
                         "env": self.env,
                         "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
                         "sha": self.env_tags[GitTag.COMMIT_SHA],
-                        "branch": self.env_tags[GitTag.BRANCH],
+                        "branch": self.env_tags.get(GitTag.BRANCH)
+                        or self.env_tags.get(GitTag.TAG)
+                        or "auto:git-detached-head",
                         "configurations": self.configurations,
                     },
                 }
@@ -256,9 +258,12 @@ class APIClient:
             if statuses is not None:
                 attributes["statuses"] = list(statuses)
             else:
-                commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags[GitTag.COMMIT_MESSAGE]
+                commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags.get(
+                    GitTag.COMMIT_MESSAGE
+                )
                 commit_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA) or self.env_tags[GitTag.COMMIT_SHA]
-                attributes["commit_message"] = commit_message
+                if commit_message is not None:
+                    attributes["commit_message"] = commit_message
                 attributes["sha"] = commit_sha
 
             request_data: dict[str, t.Any] = {

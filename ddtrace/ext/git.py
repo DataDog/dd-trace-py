@@ -130,7 +130,7 @@ def _get_executable_path(executable_name: str) -> Optional[str]:
 
 
 def _git_subprocess_cmd_with_details(
-    *cmd: str, cwd: Optional[str] = None, std_in: Optional[bytes] = None
+    *cmd: str, cwd: Optional[str] = None, std_in: Optional[bytes] = None, local_only: bool = False
 ) -> _GitSubprocessDetails:
     """Helper for invoking the git CLI binary
 
@@ -150,7 +150,12 @@ def _git_subprocess_cmd_with_details(
 
     with StopWatch() as stopwatch:
         process = subprocess.Popen(
-            git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd
+            git_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            cwd=cwd,
+            env={**env, "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": ""} if local_only else None,
         )
         stdout, stderr = process.communicate(input=std_in)
 
@@ -281,11 +286,13 @@ def _unshallow_repository(
 def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> dict[str, tuple[str, str, str]]:
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    cmd = "show -s --format=%an|||%ae|||%ad|||%cn|||%ce|||%cd --date=format:%Y-%m-%dT%H:%M:%S%z"
+    cmd = (
+        "show -s --no-show-signature --format=%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd --date=format:%Y-%m-%dT%H:%M:%S%z"
+    )
     if commit_sha:
         cmd += " " + commit_sha
     stdout = _git_subprocess_cmd(cmd=cmd, cwd=cwd)
-    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split("|||")
+    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split("\0")
     return {
         "author": (author_name, author_email, author_date),
         "committer": (committer_name, committer_email, committer_date),
@@ -313,8 +320,28 @@ def extract_remote_url(cwd=None):
     raise ValueError(error)
 
 
-def _extract_latest_commits_with_details(cwd: Optional[str] = None) -> _GitSubprocessDetails:
-    return _git_subprocess_cmd_with_details("log", "--format=%H", "-n", "1000", '--since="1 month ago"', cwd=cwd)
+def _extract_latest_commits_with_details(
+    cwd: Optional[str] = None, commit_sha: Optional[str] = None
+) -> _GitSubprocessDetails:
+    if commit_sha and not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_sha):
+        return _GitSubprocessDetails("", "Invalid selected commit SHA", 0, 1)
+    command = ["log", "--format=%H", "-n", "1000", '--since="1 month ago"']
+    if not commit_sha:
+        return _git_subprocess_cmd_with_details(*command, cwd=cwd)
+    result = _git_subprocess_cmd_with_details(*command, commit_sha, "--", cwd=cwd, local_only=True)
+    if result.returncode == 0 and commit_sha.lower() not in result.stdout.lower().splitlines():
+        selected = _git_subprocess_cmd_with_details(
+            "rev-parse", "--verify", commit_sha + "^{commit}", cwd=cwd, local_only=True
+        )
+        if selected.returncode != 0 or selected.stdout.lower() != commit_sha.lower():
+            return _GitSubprocessDetails("", selected.stderr, result.duration + selected.duration, 1)
+        return _GitSubprocessDetails(
+            commit_sha + ("\n" + result.stdout if result.stdout else ""),
+            "",
+            result.duration + selected.duration,
+            0,
+        )
+    return result
 
 
 def extract_latest_commits(cwd: Optional[str] = None) -> list[str]:
@@ -332,19 +359,42 @@ def _get_rev_list_with_details(
     excluded_commit_shas: Optional[list[str]] = None,
     included_commit_shas: Optional[list[str]] = None,
     cwd: Optional[str] = None,
+    commit_sha: Optional[str] = None,
 ) -> _GitSubprocessDetails:
+    if commit_sha and not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_sha):
+        return _GitSubprocessDetails("", "Invalid selected commit SHA", 0, 1)
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):
         command.append('--since="1 month ago"')
         command.append("--no-object-names")
-    command.append("HEAD")
+    command.append(commit_sha or "HEAD")
     if excluded_commit_shas:
         exclusions = ["^%s" % sha for sha in excluded_commit_shas]
         command.extend(exclusions)
     if included_commit_shas:
         inclusions = ["%s" % sha for sha in included_commit_shas]
         command.extend(inclusions)
-    return _git_subprocess_cmd_with_details(*command, cwd=cwd)
+    if not commit_sha:
+        return _git_subprocess_cmd_with_details(*command, cwd=cwd)
+    result = _git_subprocess_cmd_with_details(*command, cwd=cwd, local_only=True)
+    excluded = {sha.lower() for sha in excluded_commit_shas or []}
+    objects = {line.split(" ", 1)[0].lower() for line in result.stdout.splitlines()}
+    if result.returncode == 0 and commit_sha.lower() not in excluded and commit_sha.lower() not in objects:
+        selected = _git_subprocess_cmd_with_details(
+            "rev-list",
+            "--objects",
+            "--filter=blob:none",
+            "--no-object-names",
+            "--no-walk=unsorted",
+            commit_sha,
+            cwd=cwd,
+            local_only=True,
+        )
+        if selected.returncode != 0:
+            return selected
+        selected_objects = result.stdout + "\n" + selected.stdout if result.stdout else selected.stdout
+        return _GitSubprocessDetails(selected_objects, "", result.duration + selected.duration, 0)
+    return result
 
 
 def _get_rev_list(
@@ -374,7 +424,7 @@ def extract_repository_url(cwd: Optional[str] = None) -> str:
 def extract_commit_message(cwd: Optional[str] = None) -> str:
     """Extract git commit message from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    commit_message = _git_subprocess_cmd("show -s --format=%s", cwd=cwd)
+    commit_message = _git_subprocess_cmd("show -s --no-show-signature --format=%s", cwd=cwd)
     return commit_message
 
 
@@ -426,7 +476,7 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata."""
     tags: dict[str, Optional[str]] = {}
     try:
-        tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
+        tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
         tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)
         users = extract_user_info(cwd=cwd)
         tags[COMMIT_AUTHOR_NAME] = users["author"][0]
@@ -435,8 +485,14 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
         tags[COMMIT_COMMITTER_NAME] = users["committer"][0]
         tags[COMMIT_COMMITTER_EMAIL] = users["committer"][1]
         tags[COMMIT_COMMITTER_DATE] = users["committer"][2]
-        tags[BRANCH] = extract_branch(cwd=cwd)
-        tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
+        branch = extract_branch(cwd=cwd)
+        if branch != "HEAD":
+            tags[BRANCH] = branch
+        if branch == "HEAD":
+            local_tags = _git_subprocess_cmd(["tag", "--no-column", "--points-at", "HEAD"], cwd=cwd).splitlines()
+            if len(local_tags) == 1:
+                tags[TAG] = local_tags[0]
+        tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:

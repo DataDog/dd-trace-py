@@ -231,9 +231,14 @@ class CIVisibilityGitClient:
             if _tags is None:
                 _tags = {}
             repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
+            commit_sha = _tags.get(ci.git.COMMIT_SHA)
 
             # If all latest commits are known to our gitdb backend, assume that unshallowing is unnecessary
-            latest_commits = cls._get_latest_commits(cwd=cwd)
+            latest_commits = cls._get_latest_commits(cwd=cwd, commit_sha=commit_sha)
+            if commit_sha and not latest_commits:
+                log.warning("Selected Git commit is unavailable, skipping metadata upload")
+                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
+                return
             backend_commits = cls._search_commits(
                 requests_mode, base_url, repo_url, latest_commits, serializer, _response
             )
@@ -253,11 +258,14 @@ class CIVisibilityGitClient:
             if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
                 log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
                 try:
-                    cls._unshallow_repository(cwd=cwd)
+                    if commit_sha:
+                        cls._unshallow_repository(cwd=cwd, commit_sha=commit_sha)
+                    else:
+                        cls._unshallow_repository(cwd=cwd)
                 except ValueError:
                     log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
-            latest_commits = cls._get_latest_commits(cwd=cwd)
+            latest_commits = cls._get_latest_commits(cwd=cwd, commit_sha=commit_sha)
             backend_commits = cls._search_commits(
                 requests_mode, base_url, repo_url, latest_commits, serializer, _response
             )
@@ -269,7 +277,10 @@ class CIVisibilityGitClient:
             commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
             rev_list = cls._get_filtered_revisions(
-                excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
+                excluded_commits=backend_commits,
+                included_commits=commits_not_in_backend,
+                cwd=cwd,
+                commit_sha=commit_sha,
             )
             if rev_list:
                 log.debug("Building and uploading packfiles for revision list: %s", rev_list)
@@ -279,7 +290,14 @@ class CIVisibilityGitClient:
                     )
                     if packfiles_details.returncode == 0:
                         if cls._upload_packfiles(
-                            requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                            requests_mode,
+                            base_url,
+                            repo_url,
+                            packfiles_prefix,
+                            serializer,
+                            _response,
+                            cwd=cwd,
+                            commit_sha=_tags.get(ci.git.COMMIT_SHA),
                         ):
                             _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
                             return
@@ -300,14 +318,18 @@ class CIVisibilityGitClient:
         result = tags.get(ci.git.REPOSITORY_URL, "")
         if not result:
             result = extract_remote_url(cwd=cwd)
-        return result
+        return ci._filter_sensitive_info(result) or ""
 
     @classmethod
-    def _get_latest_commits(cls, cwd: Optional[str] = None) -> list[str]:
-        latest_commits, stderr, duration, returncode = _extract_latest_commits_with_details(cwd=cwd)
+    def _get_latest_commits(cls, cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> list[str]:
+        latest_commits, stderr, duration, returncode = _extract_latest_commits_with_details(
+            cwd=cwd, commit_sha=commit_sha
+        )
         record_git_command(GIT_TELEMETRY_COMMANDS.GET_LOCAL_COMMITS, duration, returncode)
         if returncode == 0:
             return latest_commits.split("\n") if latest_commits else []
+        if commit_sha:
+            return []
         raise ValueError(stderr)
 
     @classmethod
@@ -390,13 +412,17 @@ class CIVisibilityGitClient:
 
     @classmethod
     def _get_filtered_revisions(
-        cls, excluded_commits: list[str], included_commits: Optional[list[str]] = None, cwd: Optional[str] = None
+        cls,
+        excluded_commits: list[str],
+        included_commits: Optional[list[str]] = None,
+        cwd: Optional[str] = None,
+        commit_sha: Optional[str] = None,
     ) -> str:
         filtered_revisions, _, duration, returncode = _get_rev_list_with_details(
-            excluded_commits, included_commits, cwd=cwd
+            excluded_commits, included_commits, cwd=cwd, commit_sha=commit_sha
         )
         record_git_command(GIT_TELEMETRY_COMMANDS.GET_OBJECTS, duration, returncode if returncode != 0 else None)
-        return filtered_revisions
+        return filtered_revisions if returncode == 0 else ""
 
     @classmethod
     def _upload_packfiles(
@@ -408,8 +434,9 @@ class CIVisibilityGitClient:
         serializer: CIVisibilityGitClientSerializerV1,
         _response: Optional[Response],
         cwd: Optional[str] = None,
+        commit_sha: Optional[str] = None,
     ) -> bool:
-        sha = extract_commit_sha(cwd=cwd)
+        sha = commit_sha or extract_commit_sha(cwd=cwd)
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
         rand = parts[-1]
@@ -464,7 +491,7 @@ class CIVisibilityGitClient:
         return is_shallow_repository
 
     @classmethod
-    def _unshallow_repository(cls, cwd: Optional[str] = None) -> None:
+    def _unshallow_repository(cls, cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> None:
         with StopWatch() as stopwatch:
             error_exit_code = None
             try:
@@ -472,6 +499,15 @@ class CIVisibilityGitClient:
                 if exit_code != 0:
                     error_exit_code = exit_code
                     log.debug("Failed to get default remote: %s", stderr)
+                    return
+
+                if commit_sha and commit_sha.lower() != extract_commit_sha(cwd=cwd).lower():
+                    _, stderr, _, exit_code = _unshallow_repository_with_details(
+                        cwd=cwd, repo=remote, refspec=commit_sha
+                    )
+                    if exit_code != 0:
+                        error_exit_code = exit_code
+                        raise ValueError(stderr)
                     return
 
                 try:

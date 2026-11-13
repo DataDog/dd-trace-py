@@ -153,13 +153,17 @@ class Git:
         self.git_command: str = git_command
         self.cwd = cwd
 
-    def _call_git(self, args: list[str], input_string: t.Optional[str] = None) -> _GitSubprocessDetails:
+    def _call_git(
+        self, args: list[str], input_string: t.Optional[str] = None, *, local_only: bool = False
+    ) -> _GitSubprocessDetails:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
         # Force C locale so git's error messages are predictable; the lock-contention
         # regex in _call_git_with_lock_retry matches the English "File exists" string.
         git_env = {**os.environ, "LC_ALL": "C", "LANG": "C"}
+        if local_only:
+            git_env.update(GIT_NO_LAZY_FETCH="1", GIT_ALLOW_PROTOCOL="")
 
         with StopWatch() as sw:
             process = subprocess.Popen(  # nosec: B603
@@ -181,8 +185,10 @@ class Git:
             elapsed_seconds=sw.elapsed(),
         )
 
-    def _git_output(self, args: list[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
-        result = self._call_git(args)
+    def _git_output(
+        self, args: list[str], telemetry_type: t.Optional[GitTelemetry] = None, *, local_only: bool = False
+    ) -> str:
+        result = self._call_git(args, local_only=True) if local_only else self._call_git(args)
 
         if telemetry_type and TelemetryAPI._instance is not None:
             TelemetryAPI.get().record_git_command(telemetry_type, result.elapsed_seconds, result.return_code)
@@ -281,17 +287,28 @@ class Git:
         return self._call_git(["rev-parse", "@{upstream}"])
 
     def get_branch(self) -> str:
-        return self._git_output(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
+        branch = self._git_output(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
+        return "" if branch == "HEAD" else branch
+
+    def get_tag(self) -> str:
+        tags = self._git_output(["tag", "--no-column", "--points-at", "HEAD"]).splitlines()
+        return tags[0] if len(tags) == 1 else ""
 
     def get_commit_message(self, commit_sha: t.Optional[str] = None) -> str:
-        command = ["show", "-s", "--format=%s"]
+        command = ["show", "-s", "--no-show-signature", "--format=%s"]
         if commit_sha:
             command.append(commit_sha)
 
         return self._git_output(command)
 
     def get_user_info(self, commit_sha: t.Optional[str] = None) -> t.Optional[GitUserInfo]:
-        command = ["show", "-s", "--format=%an|||%ae|||%ad|||%cn|||%ce|||%cd", "--date=format:%Y-%m-%dT%H:%M:%S%z"]
+        command = [
+            "show",
+            "-s",
+            "--no-show-signature",
+            "--format=%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd",
+            "--date=format:%Y-%m-%dT%H:%M:%S%z",
+        ]
         if commit_sha:
             command.append(commit_sha)
 
@@ -299,7 +316,7 @@ class Git:
         if not output:
             return None
 
-        author_name, author_email, author_date, committer_name, committer_email, committer_date = output.split("|||")
+        author_name, author_email, author_date, committer_name, committer_email, committer_date = output.split("\0")
         return GitUserInfo(
             author_name=author_name,
             author_email=author_email,
@@ -315,13 +332,26 @@ class Git:
     def get_remote_name(self) -> str:
         return self._git_output(["config", "--default", "origin", "--get", "clone.defaultRemoteName"])
 
-    def get_latest_commits(self) -> list[str]:
-        output = self._git_output(
-            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
-        )
-        return output.split("\n") if output else []
+    def get_latest_commits(self, commit_sha: t.Optional[str] = None) -> list[str]:
+        if commit_sha and not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_sha):
+            return []
+        command = ["log", "--format=%H", "-n", "1000", '--since="1 month ago"']
+        if commit_sha:
+            command.extend([commit_sha, "--"])
+        output = self._git_output(command, GitTelemetry.GET_LOCAL_COMMITS, local_only=True)
+        commits = output.split("\n") if output else []
+        if commit_sha and commit_sha.lower() not in output.lower().splitlines():
+            selected = self._call_git(["rev-parse", "--verify", commit_sha + "^{commit}"], local_only=True)
+            if selected.return_code != 0 or selected.stdout.lower() != commit_sha.lower():
+                return []
+            commits.insert(0, commit_sha)
+        return commits
 
-    def get_filtered_revisions(self, excluded_commits: list[str], included_commits: list[str]) -> list[str]:
+    def get_filtered_revisions(
+        self, excluded_commits: list[str], included_commits: list[str], commit_sha: t.Optional[str] = None
+    ) -> list[str]:
+        if commit_sha and not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_sha):
+            return []
         exclusions = [f"^{sha}" for sha in excluded_commits]
         output = self._git_output(
             [
@@ -330,13 +360,26 @@ class Git:
                 "--filter=blob:none",
                 '--since="1 month ago"',
                 "--no-object-names",
-                "HEAD",
+                commit_sha or "HEAD",
                 *exclusions,
                 *included_commits,
             ],
             GitTelemetry.GET_OBJECTS,
+            local_only=True,
         )
-        return output.split("\n")
+        if not output and not commit_sha:
+            return []
+        objects = output.splitlines()
+        if commit_sha and commit_sha.lower() not in {sha.lower() for sha in excluded_commits + objects}:
+            selected = self._git_output(
+                ["rev-list", "--objects", "--filter=blob:none", "--no-object-names", "--no-walk=unsorted", commit_sha],
+                GitTelemetry.GET_OBJECTS,
+                local_only=True,
+            )
+            if not selected:
+                return []
+            objects.extend(selected.splitlines())
+        return objects
 
     def is_shallow_repository(self) -> bool:
         output = self._git_output(["rev-parse", "--is-shallow-repository"], GitTelemetry.CHECK_SHALLOW)
@@ -493,12 +536,16 @@ class Git:
     def unshallow_repository_to_default(self) -> _GitSubprocessDetails:
         return self.unshallow_repository(None)
 
-    def try_all_unshallow_repository_methods(self) -> bool:
+    def try_all_unshallow_repository_methods(self, commit_sha: t.Optional[str] = None) -> bool:
         return_code = 0
         sw = StopWatch()
         sw.start()
 
         try:
+            if commit_sha and commit_sha.lower() != self.get_commit_sha().lower():
+                result = self.unshallow_repository(refspec=commit_sha)
+                return_code = result.return_code
+                return result.return_code == 0
             result = self.unshallow_repository_to_local_head()
             if result.return_code == 0:
                 return True
@@ -579,10 +626,12 @@ def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
         log.warning("Error getting git data: %s", e)
         return {}
 
+    branch = git.get_branch()
     tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: git.get_repository_url(),
         GitTag.COMMIT_SHA: git.get_commit_sha(),
-        GitTag.BRANCH: git.get_branch(),
+        GitTag.BRANCH: branch,
+        GitTag.TAG: git.get_tag() if not branch else None,
         GitTag.COMMIT_MESSAGE: git.get_commit_message(),
     }
 
