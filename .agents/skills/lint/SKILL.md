@@ -43,6 +43,7 @@ their own selection logic; inspect the diff afterward rather than assuming every
 | Environment-variable registry | `supported-config-check` |
 | Log messages | `error-log-check` |
 | Type annotations | `typing`, `type-comments-check` |
+| New rST markup in tests/ or scripts/ | `rst-markup-check` |
 | ast-grep rules | `sg`, `sg-test` |
 | Git hooks | `hook-tests` |
 
@@ -52,12 +53,13 @@ See `scripts/check_type_comments.py` for the exact diff-based policy and excepti
 
 ```bash
 scripts/lint type-comments-check --base-ref origin/main
+scripts/lint rst-markup-check --base-ref origin/main
 scripts/lint fmt-snapshots <edited-snapshot-file-or-directory>
 scripts/lint security -r <affected-python-directory>
 ```
 
-Use the PR's actual base ref for the type-comment check; this check is not currently part of
-`scripts/lint checks`. Snapshot formatting rewrites the selected files; add `--check` for
+Use the PR's actual base ref for `type-comments-check` and `rst-markup-check`. Neither is part of
+`scripts/lint checks`; GitLab runs them as their own jobs. Snapshot formatting rewrites the selected files; add `--check` for
 validation only. The full `checks` command already includes the security scan.
 
 Arguments are passed to each underlying command; consult its interface rather than assuming
