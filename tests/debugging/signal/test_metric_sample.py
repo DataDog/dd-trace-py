@@ -11,6 +11,7 @@ from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._signal.metric_sample import MetricSample
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from tests.debugging.utils import SLOW_SCOPE
 from tests.debugging.utils import create_metric_line_probe
@@ -89,5 +90,6 @@ def test_slow_value_times_out(call, _mock_meter):
         elapsed = time.monotonic() - start
 
     assert [e.message for e in sample.errors] == ["Metric value evaluation timed out after 20ms"]
+    assert sample.state is SignalState.EVAL_TIMEOUT
     _mock_meter.get_meter.return_value.increment.assert_not_called()
     assert elapsed < 1.0

@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from itertools import chain
 from itertools import islice
+from operator import length_hint
 import re
 from time import perf_counter_ns
 from types import FunctionType
@@ -78,16 +79,15 @@ class EvaluationTimeoutError(TimeoutError):
 _eval_deadline: ContextVar[Optional[int]] = ContextVar("_eval_deadline", default=None)
 
 
-def get_eval_deadline() -> Optional[int]:
-    return _eval_deadline.get()
+# Bound methods rather than wrapper functions: these run on every timed
+# evaluation, and a Python-level call each is measurable.
+get_eval_deadline: Callable[[], Optional[int]] = _eval_deadline.get
+set_eval_deadline: Callable[[Optional[int]], Any] = _eval_deadline.set
 
 
-def set_eval_deadline(deadline_ns: Optional[int]) -> None:
-    _eval_deadline.set(deadline_ns)
-
-
-# Chunks are sized at runtime so that the deadline is checked about every
-# _DEADLINE_CHECK_INTERVAL_NS. With a cheap predicate the chunk grows to
+# The deadline is checked once per chunk of elements. Chunks are sized at
+# runtime so that this happens about every _DEADLINE_CHECK_INTERVAL_NS. With a
+# cheap predicate the chunk grows to
 # _MAX_CHUNK_SIZE and the clock is read rarely; with an expensive one it shrinks
 # to a single element, so the deadline is overshot by at most about one
 # predicate evaluation. If the cost rises partway through a collection, the
@@ -102,25 +102,50 @@ _INITIAL_CHUNK_SIZE = 4
 _MAX_CHUNK_SIZE = 64
 _MAX_CHUNK_GROWTH = 8
 
-# Built-in types whose iteration can't run user code, so pulling a chunk of
-# elements ahead of the predicate has no observable effect. Exact types only:
-# a subclass may override __iter__. Anything else is iterated one element at a
-# time, so we never produce an element the predicate would not have asked for.
-_PREFETCH_SAFE_TYPES = frozenset({list, tuple, range, set, frozenset, str, bytes, bytearray, type({}.items())})
+# Built-in types whose len(), iteration, and iterator length_hint() can't run
+# user code. Exact types only: a subclass may override __len__ or __iter__.
+# Calling len() on anything else could have side effects, so those are
+# iterated without knowing their size (_bounded_each).
+_SIZED_SAFE_TYPES = frozenset({list, tuple, range, set, frozenset, str, bytes, bytearray, type({}.items())})
+# The subset that can grow silently while being iterated (sets and dicts raise
+# instead), e.g. from a property that an expression reads.
+_GROWABLE_TYPES = frozenset({list, bytearray})
 
 
-def _bounded_chunks(it: Iterable[Any], deadline_ns: int) -> Iterator[list[Any]]:
+def _next_chunk_size(size: int, elapsed_ns: int) -> int:
+    # Plain comparisons: min()/max() calls are measurable at this rate
+    grown = size * _MAX_CHUNK_GROWTH
+    size = size * _DEADLINE_CHECK_INTERVAL_NS // (elapsed_ns or 1)
+    if size > grown:
+        size = grown
+    if size > _MAX_CHUNK_SIZE:
+        return _MAX_CHUNK_SIZE
+    if size < 1:
+        return 1
+    return size
+
+
+def _bounded_chunks(it: Iterable[Any], deadline_ns: int) -> Iterator[Iterable[Any]]:
+    """Lazy chunks of it, for the exact types in _SIZED_SAFE_TYPES only.
+
+    The chunks are islice views, not lists, so no element is pulled before the
+    predicate asks for it, and the consumer keeps C-level iteration over it
+    (dict_items, for one, can then reuse its result tuple).
+    """
     _it = iter(it)
     size = _INITIAL_CHUNK_SIZE
     last = perf_counter_ns()
-    while chunk := list(islice(_it, size)):
-        yield chunk
+    # The iterators of these types report exactly how many elements are left,
+    # also when a list grows while the predicate runs.
+    while length_hint(_it):
+        yield islice(_it, size)
         # Resumed only once the consumer is done with the chunk, so the elapsed
         # time includes evaluating the predicate on it.
         now = perf_counter_ns()
         if now > deadline_ns:
             raise EvaluationTimeoutError()
-        # Plain comparisons: min()/max() calls are measurable at this rate
+        # Inlined _next_chunk_size(): with small collections this runs about
+        # once per few elements.
         grown = size * _MAX_CHUNK_GROWTH
         size = size * _DEADLINE_CHECK_INTERVAL_NS // (now - last or 1)
         if size > grown:
@@ -133,18 +158,38 @@ def _bounded_chunks(it: Iterable[Any], deadline_ns: int) -> Iterator[list[Any]]:
 
 
 def _bounded_each(it: Iterable[Any], deadline_ns: int) -> Iterator[Any]:
+    """Iterate it one element at a time, checking the deadline once per chunk.
+
+    Producing an element runs user code here, which may be what is slow, so
+    the first element is checked as soon as it is pulled and the chunk grows
+    from a single element. The element that triggers a check has already been
+    pulled from it, as the unbounded iteration would have done anyway.
+    """
+    size = 1
+    left = 0
+    last = perf_counter_ns()
     for e in it:
-        if perf_counter_ns() > deadline_ns:
-            raise EvaluationTimeoutError()
+        if not left:
+            now = perf_counter_ns()
+            if now > deadline_ns:
+                raise EvaluationTimeoutError()
+            size = left = _next_chunk_size(size, now - last)
+            last = now
+        left -= 1
         yield e
 
 
 def _bounded(it: Iterable[Any]) -> Iterable[Any]:
     """Iterate it, raising EvaluationTimeoutError once the deadline passes."""
-    deadline_ns = get_eval_deadline()
+    deadline_ns = _eval_deadline.get()
     if deadline_ns is None:
         return it
-    if type(it) in _PREFETCH_SAFE_TYPES:
+    _type = type(it)
+    if _type in _SIZED_SAFE_TYPES:
+        if _type not in _GROWABLE_TYPES and len(it) <= _INITIAL_CHUNK_SIZE:  # type: ignore[arg-type]
+            # The first check would only come after the whole collection, so
+            # bounding it buys nothing. The caller still checks the deadline.
+            return it
         return chain.from_iterable(_bounded_chunks(it, deadline_ns))
     return _bounded_each(it, deadline_ns)
 
@@ -301,8 +346,13 @@ class DDCompiler:
         abstract_code.argcount = len(args)
         abstract_code.argnames = list(args)
         abstract_code.name = name
+        # Profilers and tracebacks label frames by filename and, from 3.11, by
+        # qualname, which would otherwise default to <string> and <module>.
+        abstract_code.filename = "<debugger-expression>"
 
         if is_at_least_py(3, 11):
+            # Code objects (and bytecode's Bytecode) have no qualname before 3.11
+            abstract_code.qualname = name
             abstract_code.insert(0, Instr("RESUME", 0))
 
         return FunctionType(abstract_code.to_code(), {}, name, (), None)

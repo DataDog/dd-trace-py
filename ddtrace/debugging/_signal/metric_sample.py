@@ -62,7 +62,7 @@ class MetricSample(LogSignal):
                 self._record_evaluation_error(
                     probe.value.dsl,
                     f"Metric value evaluation timed out after {di_config.evaluation_timeout_ms}ms",
-                    SignalState.EVAL_ERROR,
+                    SignalState.EVAL_TIMEOUT,
                 )
                 return
             except DDExpressionEvaluationError as e:

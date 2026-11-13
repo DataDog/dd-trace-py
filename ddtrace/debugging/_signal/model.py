@@ -63,6 +63,7 @@ class SignalState(str, Enum):
     COND_ERROR = "COND_ERROR"
     COND_TIMEOUT = "COND_TIMEOUT"
     EVAL_ERROR = "EVAL_ERROR"
+    EVAL_TIMEOUT = "EVAL_TIMEOUT"
     DONE = "DONE"
 
 

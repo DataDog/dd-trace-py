@@ -179,13 +179,16 @@ def test_push_skip_cond_error_emits_no_guardrail_metric():
         assert "events.skipped" not in call.args
 
 
-def test_push_cond_timeout_emits_evaluation_timeout_and_uploads():
-    """A timed-out condition is a skipped event, not an evaluation error, but
-    its error message still reaches the user.
+@pytest.mark.parametrize(
+    "state,evaluation_kind", [(SignalState.COND_TIMEOUT, "condition"), (SignalState.EVAL_TIMEOUT, "value")]
+)
+def test_push_evaluation_timeout_emits_evaluation_timeout_and_uploads(state, evaluation_kind):
+    """A timed-out condition or metric value is a skipped event, not an
+    evaluation error, but its error message still reaches the user.
     """
     collector, encoder = _make_collector()
-    signal = _snapshot(state=SignalState.COND_TIMEOUT)
-    signal.errors.append(EvaluationError(expr="slow", message="Condition evaluation timed out after 20ms"))
+    signal = _snapshot(state=state)
+    signal.errors.append(EvaluationError(expr="slow", message="Evaluation timed out after 20ms"))
 
     with mock.patch("ddtrace.debugging._signal.collector.guardrails_meter") as m:
         collector.push(signal)
@@ -196,7 +199,7 @@ def test_push_cond_timeout_emits_evaluation_timeout_and_uploads():
             "reason": "evaluationTimeout",
             "probe_id": signal.probe.probe_id,
             "event_type": "snapshot",
-            "evaluation_kind": "condition",
+            "evaluation_kind": evaluation_kind,
         },
     )
     assert not any(c.args and c.args[0] == "evaluation.errors" for c in m.increment.call_args_list)

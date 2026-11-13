@@ -20,10 +20,17 @@ CaptorType = Callable[[list[tuple[str, Any]], list[tuple[str, Any]], ExcInfoType
 log = get_logger(__name__)
 
 _EVAL_ERROR_KINDS: dict[str, str] = {SignalState.COND_ERROR: "condition", SignalState.EVAL_ERROR: "value"}
+_EVAL_TIMEOUT_KINDS: dict[str, str] = {SignalState.COND_TIMEOUT: "condition", SignalState.EVAL_TIMEOUT: "value"}
 
 # Log signals in these states carry a message (or evaluation errors) worth sending.
 _ENQUEUE_STATES = frozenset(
-    {SignalState.DONE, SignalState.COND_ERROR, SignalState.COND_TIMEOUT, SignalState.EVAL_ERROR}
+    {
+        SignalState.DONE,
+        SignalState.COND_ERROR,
+        SignalState.COND_TIMEOUT,
+        SignalState.EVAL_ERROR,
+        SignalState.EVAL_TIMEOUT,
+    }
 )
 
 meter = metrics.get_meter("signal.collector")
@@ -78,10 +85,10 @@ class SignalCollector:
             # Error-throttle skips aren't part of the events.skipped reason
             # vocabulary (evaluationErrorThrottled) — no metric.
             pass
-        elif signal.state is SignalState.COND_TIMEOUT:
+        elif signal.state in _EVAL_TIMEOUT_KINDS:
             guardrails_meter.increment(
                 "events.skipped",
-                tags=_guardrail_tags(signal, "evaluationTimeout", evaluation_kind="condition"),
+                tags=_guardrail_tags(signal, "evaluationTimeout", evaluation_kind=_EVAL_TIMEOUT_KINDS[signal.state]),
             )
         elif signal.state in _EVAL_ERROR_KINDS:
             guardrails_meter.increment(
