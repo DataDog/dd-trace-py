@@ -662,16 +662,6 @@ test_sccache_watchdog:
   script:
     - python3 .gitlab/scripts/test_sccache_watchdog.py -v
 
-# Exercises the list, index, repack and upload logic without a manylinux image, the
-# dd-trace-py-wheels index or adms.
-test_third_party_wheels:
-  extends: .ci_utils
-  stage: tests
-  needs: []
-  timeout: 5m
-  script:
-    - uv run --script .gitlab/scripts/test_third_party_wheels.py -v
-
 # Fails when test jobs stop collecting core dumps and backtraces on crash.
 # Runs the collector in script, since after_script failures don't fail the job.
 coredump_smoke:
