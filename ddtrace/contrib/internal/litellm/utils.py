@@ -1,4 +1,6 @@
 from collections import defaultdict
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import FrozenInstanceError
 
 from ddtrace._monkey import _get_patched_modules
@@ -65,16 +67,29 @@ def has_downstream_openai_span(kwargs, model=None):
     return is_openai_model and not stream and _openai_is_patched()
 
 
-def has_fallbacks(kwargs):
-    """
-    Determine whether litellm will dispatch the request through its fallback runner.
+# Set while a call that submits an LLM span runs litellm's fallback runner, which re-enters
+# ``litellm.completion``/``acompletion`` once per attempt. Those inner calls would duplicate the outer span.
+_in_fallback_dispatch: ContextVar[bool] = ContextVar("ddtrace_litellm_in_fallback_dispatch", default=False)
 
-    The runner re-enters ``litellm.completion``/``litellm.acompletion`` (without ``fallbacks``) for each attempt,
-    so the inner call is the one that represents the LLM request.
-    """
+
+def has_fallbacks(kwargs):
+    """Determine whether litellm will dispatch the request through its fallback runner."""
     import litellm
 
     return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
+
+
+@contextmanager
+def fallback_dispatch(event):
+    """Mark the wrapped call so the fallback runner's inner calls do not submit a second LLM span."""
+    if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
+        yield
+        return
+    token = _in_fallback_dispatch.set(True)
+    try:
+        yield
+    finally:
+        _in_fallback_dispatch.reset(token)
 
 
 class BaseLiteLLMStreamHandler:

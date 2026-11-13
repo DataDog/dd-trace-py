@@ -1075,15 +1075,44 @@ def test_completion_openrouter_byok_cost(litellm, request_vcr, litellm_llmobs, t
         assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
 
 
-def test_completion_with_fallbacks_submits_single_llm_span(litellm, request_vcr, litellm_llmobs, test_spans):
-    """litellm's fallback runner re-enters ``litellm.completion``; only the inner call may submit an LLM span."""
+def _completion_with_fallbacks(litellm, request_vcr, test_spans, calls=1):
     is_new_litellm = parse_version(get_version()) >= (1, 74, 15)
     cassette_name = "completion_anthropic{}.yaml".format("_v1_74_15" if is_new_litellm else "")
+    counts = []
     with request_vcr.use_cassette(cassette_name):
-        litellm.completion(
-            model="anthropic/claude-sonnet-4-5-20250929",
-            messages=[{"content": "Hey, what is up?", "role": "user"}],
-            fallbacks=["anthropic/claude-3-haiku-20240307"],
-        )
+        for _ in range(calls):
+            litellm.completion(
+                model="anthropic/claude-sonnet-4-5-20250929",
+                messages=[{"content": "Hey, what is up?", "role": "user"}],
+                fallbacks=["anthropic/claude-3-haiku-20240307"],
+            )
+            spans = [s for trace in test_spans.pop_traces() for s in trace]
+            counts.append([s.resource for s in spans if s.span_type == "llm"])
+    return counts
+
+
+def test_completion_with_fallbacks_submits_single_llm_span(litellm, request_vcr, litellm_llmobs, test_spans):
+    """litellm's fallback runner re-enters ``litellm.completion``; the request must yield one LLM span."""
+    assert _completion_with_fallbacks(litellm, request_vcr, test_spans) == [["completion"]]
+
+
+def test_completion_with_fallbacks_without_reentry_keeps_llm_span(litellm, litellm_llmobs, test_spans):
+    """A cache hit returns before the fallback runner re-enters ``completion``; the outer span must be submitted."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def completion(*args, **kwargs):
+        return litellm.ModelResponse(model="claude-sonnet-4-5-20250929")
+
+    traced_completion(
+        completion,
+        None,
+        (),
+        {
+            "model": "anthropic/claude-sonnet-4-5-20250929",
+            "messages": [{"content": "Hey, what is up?", "role": "user"}],
+            "fallbacks": ["anthropic/claude-3-haiku-20240307"],
+        },
+    )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
-    assert [s.span_type for s in spans if s.span_type == "llm"] == ["llm"], [(s.resource, s.span_type) for s in spans]
+    assert [s.resource for s in spans if s.span_type == "llm"] == ["completion"]
+
