@@ -1338,7 +1338,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     self.start()
 
             except service.ServiceStatusError:
-                _safelog(log.warning, "failed to start writer service")
+                # start() raises this when another thread started the writer between the status check
+                # above and acquiring the service lock. The writer is running, so nothing is lost.
+                pass
 
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
