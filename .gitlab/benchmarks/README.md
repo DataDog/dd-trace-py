@@ -26,6 +26,9 @@ applications under load with various product configurations (tracing, appsec, IA
 measures request latency, throughput, CPU, and RSS. Runs automatically on `main`, on release
 branches and tags, and on nightly builds; on a regular pull request branch it is a manual job.
 
+**`dsm-throughput.yml`** — Child pipeline for the Data Streams Monitoring overhead benchmark.
+Report-only: it has no gate and never blocks. See [DSM throughput](#dsm-throughput).
+
 **`serverless.yml`** — Included directly into the root `.gitlab-ci.yml` (not a child pipeline).
 Triggers the `benchmark-serverless` job in `DataDog/serverless-tools`, which benchmarks the Lambda
 layer built earlier in the pipeline. Runs whenever the `upload serverless` job has run.
@@ -138,6 +141,31 @@ hardware is large enough to swamp the regressions these gates exist to catch.
 | Macrobenchmarks | `MACROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py-macrobenchmarks` | Separate image because it bundles the Flask and Django applications under test and their load-generation harness. |
 | SLO gates | `benchmarking-platform-tools-ubuntu`, pinned by tag | Supplied by the `benchmarking-platform-tools` template; both pipelines pin a tag as a temporary override. |
 | Serverless | `SLS_CI_IMAGE` — `ci/serverless-tools` | The suite runs entirely in `DataDog/serverless-tools`; this repo only triggers it. |
+
+## DSM throughput
+
+Measures what Data Streams Monitoring (DSM) adds on top of APM, on the Kafka produce/consume
+workload in [benchmarks/kafka_dsm](../../benchmarks/kafka_dsm/README.md). The same workload runs
+in three scenarios: `baseline` (no tracer), `apm-only` (`ddtrace-run`, DSM off) and `apm+dsm`
+(`ddtrace-run`, DSM on).
+
+* **Where.** The `dsm-throughput` job (root pipeline) triggers `dsm-throughput.yml`, whose
+  `dsm_throughput` job clones the `python/data-streams-monitoring` branch of
+  benchmarking-platform and runs its `bp-runner.yml` on `runner:apm-k8s-same-cpu`, with the
+  benchmark on pinned CPUs.
+* **When.** Automatically on `main`, manually elsewhere. Every job is `allow_failure: true`, so it
+  posts no blocking status.
+* **Tracer.** The `cp314` wheel built by this pipeline's `build linux` job, installed over the
+  workload's locked dependencies. Nothing is built from source.
+* **Metric.** DSM overhead relative to APM overhead, for duration and for memory (RSS):
+  `(apm+dsm - apm-only) / (apm-only - baseline)`. The report also prints the absolute added ms
+  and MB next to each ratio, and `n/a` when APM's added cost is zero or negative.
+* **Results.** The Benchmarking Platform UI and S3, plus the job's `platform/artifacts/`.
+
+To run locally, start Kafka on `localhost:9092` and an agent (or mock agent), then run
+`benchmarks/kafka_dsm/run.sh <baseline|apm-only|apm+dsm>` once per scenario. See
+[benchmarks/kafka_dsm/README.md](../../benchmarks/kafka_dsm/README.md) for the workload,
+environment variables, and output format.
 
 ## Performance quality gates
 

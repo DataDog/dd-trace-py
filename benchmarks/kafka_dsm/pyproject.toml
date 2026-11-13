@@ -1,0 +1,14 @@
+[project]
+name = "kafka-dsm-bench"
+version = "0.1.0"
+description = "Kafka produce/consume workload to measure DSM overhead on top of APM"
+requires-python = "==3.14.*"
+dependencies = ["confluent-kafka==2.16.0", "ddtrace"]
+
+[tool.uv]
+# Not a package: only an environment to run bench.py in.
+package = false
+
+[tool.uv.sources]
+# The tracer under test is always the checkout this folder lives in.
+ddtrace = { path = "../..", editable = true }
