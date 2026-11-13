@@ -1,6 +1,8 @@
 include:
 - project: 'DataDog/benchmarking-platform-tools'
   file: 'images/templates/gitlab/check-slo-breaches.template.yml'
+- project: 'DataDog/benchmarking-platform-tools'
+  file: 'images/templates/gitlab/build-ci-images.template.yml'
 - local: ".gitlab/retry-policies.yml"
 - local: ".gitlab/retry-policies-main.yml"
   rules:
@@ -12,19 +14,31 @@ workflow:
 
 stages:
   - build
+  - benchmarks
   - test
   - gate
   - report
 
 variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
-  MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
+  MICROBENCHMARKS_CI_IMAGE: registry.ddbuild.io/ci/benchmarking-platform:dd-trace-py-152974475
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
-  BENCHMARKING_BRANCH: dd-trace-py
-  BENCHMARKING_COMMIT_SHA: b9ebb380492b1955c1ab4d946fc0fcba08a5589b
   # Known flaky benchmarks
   # See https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/7223313012/Flaky+Benchmarks+Monitoring for more details.
   FLAKY_BENCHMARKS_REGEX: "^packagespackageforrootmodulemapping-cache_off$"
+  # Image build, consumed by the included build-ci-images template. The per-pipeline
+  # suffix gives each build a unique tag so a rebuild can't shift what older
+  # pipelines pulled.
+  BASE_CI_IMAGE_SUFFIX: dd-trace-py-${CI_PIPELINE_ID}
+  BASE_CI_IMAGE_CONTAINER_DIR: .gitlab/benchmarks/container
+  # The benchmark image and its base layers are single-arch; the template
+  # defaults to a multi-arch build that dies with exec format error on arm64.
+  BASE_CI_IMAGE_PLATFORM: linux/amd64
+
+# The template puts this job in the ci-image stage; run it next to the
+# benchmark jobs it builds the image for instead.
+build-benchmark-ci-images:
+  stage: benchmarks
 
 .benchmarks:
   stage: test
@@ -42,9 +56,7 @@ variables:
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
-    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
-    (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
-    export PATH="$PATH:/platform/steps"
+    export PATH="$PATH:${CI_PROJECT_DIR}/.gitlab/benchmarks/steps"
 
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
     do
@@ -214,8 +226,7 @@ benchmarks-pr-comment:
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
-    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
-    export PATH="$PATH:/platform/steps"
+    export PATH="$PATH:${CI_PROJECT_DIR}/.gitlab/benchmarks/steps"
 
     (for i in {1..2}; do upload-results-to-benchmarking-api.sh && break; done) || :
     if [ "$CI_COMMIT_REF_NAME" != "main" ];

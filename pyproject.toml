@@ -207,6 +207,10 @@ exclude = [
     "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
     "tests/profiling/collector/pprof_*pb2.py",
     "tests/contrib/grpc/hello_pb2.py",
+    # Microbenchmark step script copied verbatim from benchmarking-platform's
+    # dd-trace-py branch; excluded from lint/format so it stays diffable against
+    # its source repo.
+    ".gitlab/benchmarks/steps/format-benchmark-results.py",
     "tests/contrib/django_celery/app/*",
     "tests/contrib/protobuf/schemas/**/*.py",
     "tests/coverage/included_path/py39_line_numbers.py",

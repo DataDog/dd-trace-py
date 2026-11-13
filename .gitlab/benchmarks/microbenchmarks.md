@@ -15,13 +15,12 @@ Four things define the suite:
 **`benchmarks/suitespec.yml`** — Declares each scenario: which paths it is relevant to, and how many
 CPUs one run needs. This is what decides whether your commit runs a given scenario at all.
 
-**`microbenchmarks.yml`** — The child pipeline template — job definitions, image pins, and the
-`benchmarking-platform` commit pin. Its `microbenchmarks` job has an intentionally empty
-`parallel:matrix`.
+**`microbenchmarks.yml`** — The child pipeline template — job definitions and image pins. Its
+`microbenchmarks` job has an intentionally empty `parallel:matrix`.
 
 **`bp-runner.yml`** — `bp-runner` experiment used only by scenarios named `flask_*` or `django_*`,
-which need a live Datadog agent alongside the benchmark. Everything else goes straight to the
-platform's `run-benchmarks.sh`.
+which need a live Datadog agent alongside the benchmark. Everything else goes straight to
+`steps/run-benchmarks.sh`.
 
 **`bp-runner.microbenchmarks.fail-on-breach.template.yml`** is no longer the source of truth;
 the SLOs now live in one per-team file under **`.gitlab/benchmarks/slos/`** (see [SLO ownership](#slo-ownership)).
@@ -162,37 +161,44 @@ what `tests-gen` reports in the same PR.
 
 ## Rebuilding the CI Docker image
 
-`MICROBENCHMARKS_CI_IMAGE` (`ci/benchmarking-platform:dd-trace-py`) is **not** built from this
-repository. Its Dockerfile lives on the `dd-trace-py` branch of
-[DataDog/benchmarking-platform](https://github.com/DataDog/benchmarking-platform), along with the
-step scripts the jobs call. Do not look for a `container/` directory here — there is none.
+`MICROBENCHMARKS_CI_IMAGE` is built **from this repository**, by the manual
+`build-benchmark-ci-images` job in the `microbenchmarks` child pipeline. The job comes from the
+[`build-ci-images.template.yml`](https://github.com/DataDog/benchmarking-platform-tools/blob/main/images/templates/gitlab/build-ci-images.template.yml)
+template and builds `.gitlab/benchmarks/container/`, pushing to
+`registry.ddbuild.io/ci/benchmarking-platform:dd-trace-py-<pipeline id>`.
 
-You need a rebuild when the image contents change: a new Python version, a new system package, or a
-change to the `bp-runner` tooling. You do **not** need one to change a scenario, a threshold, or a
-`suitespec.yml` entry — those are read from your checkout at run time.
+You need a rebuild when the image contents change: a new Python version, a new system package, or
+a change to the `bp-runner` tooling. You do **not** need one to change a scenario, a threshold, or
+a `suitespec.yml` entry — those are read from your checkout at run time.
 
-1. Open a pull request against the `dd-trace-py` branch of `benchmarking-platform` with the
-   Dockerfile or step change. Its CI builds and publishes the image.
-2. Note the published image tag.
-3. In `microbenchmarks.yml`, point `BENCHMARKING_COMMIT_SHA` at the merged commit. Bump
-   `MICROBENCHMARKS_CI_IMAGE` too if the tag itself changed — the jobs both run *in* the image and
-   clone the repo at `BENCHMARKING_COMMIT_SHA` for its steps, so leaving the two at different
-   revisions is a real source of confusing failures.
-4. Push and confirm a green `microbenchmarks` child pipeline before merging.
+1. Open a pull request here changing `.gitlab/benchmarks/container/` (the Dockerfile or
+   `install-base-deps.sh`).
+2. On the branch's pipeline, trigger the manual `build-benchmark-ci-images` job and wait for it
+   to finish. Its log shows the tag it pushed:
+   `registry.ddbuild.io/ci/benchmarking-platform:dd-trace-py-<pipeline id>`.
+3. In `microbenchmarks.yml`, repin `MICROBENCHMARKS_CI_IMAGE` to that tag and push.
+4. Confirm a green `microbenchmarks` child pipeline before merging.
 
-The macrobenchmark image (`dd-trace-py-macrobenchmarks`) and the `python/macrobenchmarks` branch
-follow the same pattern from `macrobenchmarks.yml`.
+The image's base layer (`INTERMEDIATE_CI_IMAGE` in the Dockerfile) is built from this
+repository's own `benchmarks/Dockerfile` by the `dd-trace-py` branch pipeline of
+[DataDog/benchmarking-platform](https://github.com/DataDog/benchmarking-platform) and published
+as `ci/benchmarking-platform:cache-dd-trace-py`; the `FROM` pins it by digest. To pick up a
+change to `benchmarks/Dockerfile`, run that branch's manual `build-ci-images` job, take the new
+`cache-dd-trace-py` digest from its log, and update the `ARG INTERMEDIATE_CI_IMAGE` default.
+
+The step scripts in `steps/` are not part of the image — the jobs run them from the checkout —
+so changing one needs no rebuild.
+
+The macrobenchmark image (`dd-trace-py-macrobenchmarks`) is still built from the
+`python/macrobenchmarks` branch of `benchmarking-platform`; see `macrobenchmarks.yml`.
 
 ## Testing the CI Docker image locally
 
-Pulling `MICROBENCHMARKS_CI_IMAGE` requires credentials for the `486234852809` ECR registry, so
-authenticate with whichever AWS credential helper you normally use for Datadog build accounts:
+Pulling `MICROBENCHMARKS_CI_IMAGE` requires credentials for the `registry.ddbuild.io` registry, so
+authenticate with whichever Datadog credential helper you normally use for it:
 
 ```bash
-aws ecr get-login-password --region us-east-1 \
-  | docker login --username AWS --password-stdin 486234852809.dkr.ecr.us-east-1.amazonaws.com
-
-docker pull 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
+docker pull registry.ddbuild.io/ci/benchmarking-platform:dd-trace-py-<pipeline id>
 ```
 
 Run a scenario the way CI does, with the repository mounted:
@@ -201,14 +207,13 @@ Run a scenario the way CI does, with the repository mounted:
 docker run --rm -it \
   -v "$(pwd)":/dd-trace-py -w /dd-trace-py \
   -e SCENARIO=<name> \
-  486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py bash
+  registry.ddbuild.io/ci/benchmarking-platform:dd-trace-py-<pipeline id> bash
 ```
 
-Inside the container, clone the platform steps and put them on `PATH` as the job does:
+Inside the container, put the step scripts from the checkout on `PATH` as the job does:
 
 ```bash
-git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform
-export PATH="$PATH:/platform/steps"
+export PATH="$PATH:/dd-trace-py/.gitlab/benchmarks/steps"
 export REPORTS_DIR="$(pwd)/reports/<name>/" && mkdir -p "$REPORTS_DIR"
 run-benchmarks.sh
 ```
