@@ -22,6 +22,13 @@ def enabled() -> bool:
     return config._llmobs_enabled
 
 
+def activated() -> bool:
+    # start() does nothing when Remote Config disabled LLMObs after the product manager checked enabled().
+    from ddtrace.llmobs import LLMObs
+
+    return LLMObs.enabled
+
+
 def start() -> None:
     from ddtrace.llmobs import LLMObs
 

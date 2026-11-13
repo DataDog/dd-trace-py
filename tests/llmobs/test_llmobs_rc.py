@@ -268,3 +268,4 @@ def test_product_start_after_rc_disable_keeps_llmobs_disabled():
     _product.start()
 
     assert not LLMObs.enabled
+    assert not _product.activated()
