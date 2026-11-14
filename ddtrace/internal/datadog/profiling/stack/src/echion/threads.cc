@@ -168,7 +168,6 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                    [](const TaskInfo::Ptr& task) { return task->origin; });
 
     {
-        auto& previous_task_objects = echion.previous_task_objects();
         std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
 
         auto& task_link_map = echion.task_link_map();
@@ -176,18 +175,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
-        std::vector<PyObject*> to_remove;
-        for (auto kv : task_link_map) {
-            if (all_task_origins.find(kv.first) == all_task_origins.end())
-                to_remove.push_back(kv.first);
-        }
-        for (auto key : to_remove) {
-            // Only remove the link if the Child Task previously existed; otherwise it's a Task that
-            // has just been created and that wasn't in all_tasks when we took the snapshot.
-            if (auto it = previous_task_objects.find(key); it != previous_task_objects.end()) {
-                task_link_map.erase(key);
-            }
-        }
+        echion.prune_task_links(all_task_origins);
 
         // Determine the parent tasks from the gather links.
         std::transform(task_link_map.cbegin(),
@@ -209,12 +197,6 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             if (!is_child) {
                 parent_tasks.insert(parent);
             }
-        }
-
-        // Copy all Task object pointers into previous_task_objects
-        previous_task_objects.clear();
-        for (const auto& task : all_tasks) {
-            previous_task_objects.insert(task->origin);
         }
     }
 
