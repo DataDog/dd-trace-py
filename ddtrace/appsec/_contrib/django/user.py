@@ -85,7 +85,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
 
     def get_user_email(self) -> Optional[str]:
         email_field = getattr(type(self.user), "EMAIL_FIELD", None)
-        if email_field is not None and not asm_config._user_model_name_field:
+        if email_field is not None and not asm_config._user_model_email_field:
             email = getattr(self.user, email_field, None)
             return str(email) if email is not None else None
 
