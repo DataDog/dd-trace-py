@@ -757,10 +757,11 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
         "origin": "otel_env_var",
         "value": "always_on",
     }
+    # OTEL_SDK_DISABLED=true takes precedence over OTEL_TRACES_EXPORTER=none.
     assert configurations["DD_TRACE_ENABLED"] == {
         "name": "DD_TRACE_ENABLED",
         "origin": "otel_env_var",
-        "value": "none",
+        "value": "true",
     }
     assert configurations["DD_TAGS"] == {
         "name": "DD_TAGS",
@@ -821,6 +822,23 @@ def test_otel_blank_exporter_list_telemetry(test_agent_session, run_python_code_
     assert test_agent_session.get_metrics("otel.env.invalid") == []
     configurations = {c["name"] for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
     assert "OTEL_METRICS_EXPORTER" not in configurations
+
+
+def test_otel_sdk_disabled_overrides_dd_otel_signals_telemetry(test_agent_session, run_python_code_in_subprocess):
+    """OTEL_SDK_DISABLED=true disables DD_METRICS_OTEL_ENABLED and DD_LOGS_OTEL_ENABLED, and telemetry
+    reports OTEL_SDK_DISABLED as the source of their effective values.
+    """
+    env = os.environ.copy()
+    env["OTEL_SDK_DISABLED"] = "true"
+    env["DD_METRICS_OTEL_ENABLED"] = "true"
+    env["DD_LOGS_OTEL_ENABLED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
+    for name in ("DD_METRICS_OTEL_ENABLED", "DD_LOGS_OTEL_ENABLED"):
+        assert configurations[name] == {"name": name, "origin": "otel_env_var", "value": "true"}
 
 
 def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
