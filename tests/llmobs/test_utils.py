@@ -1,17 +1,23 @@
 from dataclasses import dataclass
 import json
+import os
+import threading
 
 from pydantic import BaseModel
 import pytest
 
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs import _utils as llmobs_utils
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _MAX_NESTED_META_DEPTH
+from ddtrace.llmobs._utils import _MAX_TRACKED_TOOL_CALLS
+from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _sanitize_metric_key
 from ddtrace.llmobs._utils import _sanitize_span_event_data
 from ddtrace.llmobs._utils import _trace_id_to_wire
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
@@ -807,3 +813,170 @@ class TestTraceIdNormalization:
     def test_normalize_after_wire_recovers_hex(self):
         wire = _trace_id_to_wire(self.HEX_TRACE_ID)
         assert _normalize_wire_trace_id_to_hex(wire) == self.HEX_TRACE_ID
+
+
+def _llm_span_context(i):
+    return {"span_id": str(i), "trace_id": format_trace_id(i)}
+
+
+def test_link_tracker_bounds_tool_calls_never_executed():
+    """Tool choices that are never executed nor fed back to an LLM must not accumulate forever."""
+    tracker = LinkTracker()
+    total = _MAX_TRACKED_TOOL_CALLS + 10
+    for i in range(total):
+        tracker.on_llm_tool_choice(f"call_{i}", "extract", f'{{"i":{i}}}', _llm_span_context(i))
+
+    assert len(tracker._tool_calls) == _MAX_TRACKED_TOOL_CALLS
+    assert len(tracker._lookup_tool_id) == _MAX_TRACKED_TOOL_CALLS
+    # Oldest entries are evicted first, newest are kept.
+    assert "call_0" not in tracker._tool_calls
+    assert ("extract", '{"i":0}') not in tracker._lookup_tool_id
+    assert f"call_{total - 1}" in tracker._tool_calls
+    assert tracker._lookup_tool_id[("extract", f'{{"i":{total - 1}}}')] == f"call_{total - 1}"
+
+
+def test_link_tracker_bounds_tool_calls_executed_but_never_fed_back(tracer):
+    tracker = LinkTracker()
+    for i in range(_MAX_TRACKED_TOOL_CALLS + 10):
+        args = f'{{"i":{i}}}'
+        tracker.on_llm_tool_choice(f"call_{i}", "extract", args, _llm_span_context(i))
+        with tracer.trace("tool") as tool_span:
+            tracker.on_tool_call("extract", args, "function", tool_span)
+
+    assert len(tracker._tool_calls) == _MAX_TRACKED_TOOL_CALLS
+    assert len(tracker._lookup_tool_id) == 0
+
+
+def test_link_tracker_bounds_lookup_when_tool_id_is_reused():
+    tracker = LinkTracker()
+    for i in range(_MAX_TRACKED_TOOL_CALLS + 10):
+        tracker.on_llm_tool_choice("call_reused", "extract", f'{{"i":{i}}}', _llm_span_context(i))
+
+    last_args = f'{{"i":{_MAX_TRACKED_TOOL_CALLS + 9}}}'
+    assert list(tracker._tool_calls) == ["call_reused"]
+    assert tracker._tool_calls["call_reused"].arguments == last_args
+    assert tracker._lookup_tool_id == {("extract", last_args): "call_reused"}
+
+
+def test_link_tracker_reregistered_tool_id_is_not_evicted_first():
+    tracker = LinkTracker()
+    for i in range(_MAX_TRACKED_TOOL_CALLS):
+        tracker.on_llm_tool_choice(f"call_{i}", "extract", f'{{"i":{i}}}', _llm_span_context(i))
+    tracker.on_llm_tool_choice("call_0", "extract", '{"i":"again"}', _llm_span_context(0))
+    tracker.on_llm_tool_choice("call_new", "extract", '{"i":"new"}', _llm_span_context(1))
+
+    assert "call_0" in tracker._tool_calls
+    assert "call_1" not in tracker._tool_calls
+
+
+def test_link_tracker_forgets_lookup_when_tool_output_used_without_tool_span(tracer):
+    """A tool run by uninstrumented code must not block tracking the same tool call later."""
+    tracker = LinkTracker()
+    args = '{"q":"x"}'
+    tracker.on_llm_tool_choice("call_1", "search", args, _llm_span_context(1))
+    with tracer.trace("llm") as llm_span:
+        tracker.on_tool_call_output_used("call_1", llm_span)
+    assert tracker._tool_calls == {}
+    assert tracker._lookup_tool_id == {}
+
+    tracker.on_llm_tool_choice("call_2", "search", args, _llm_span_context(2))
+    assert tracker._lookup_tool_id == {("search", args): "call_2"}
+    assert "call_2" in tracker._tool_calls
+
+
+def test_link_tracker_links_tool_round_trip(tracer):
+    tracker = LinkTracker()
+    args = '{"q":"x"}'
+    tracker.on_llm_tool_choice("call_1", "search", args, _llm_span_context(1))
+    with tracer.trace("tool") as tool_span:
+        tracker.on_tool_call("search", args, "function", tool_span)
+        tool_links = get_llmobs_span_links(tool_span)
+    with tracer.trace("llm") as llm_span:
+        tracker.on_tool_call_output_used("call_1", llm_span)
+        llm_links = get_llmobs_span_links(llm_span)
+
+    assert [link["span_id"] for link in tool_links] == ["1"]
+    assert [link["span_id"] for link in llm_links] == [str(tool_span.span_id)]
+    assert tracker._tool_calls == {}
+    assert tracker._lookup_tool_id == {}
+
+
+def test_link_tracker_registration_is_atomic_with_eviction():
+    """Eviction from another thread must not run between storing a tool call and its lookup entry."""
+    tracker = LinkTracker()
+    other_thread_progressed = threading.Event()
+
+    class _ContentionSignalingLock:
+        def __init__(self, lock):
+            self._lock = lock
+
+        def __enter__(self):
+            if not self._lock.acquire(blocking=False):
+                other_thread_progressed.set()
+                self._lock.acquire()
+
+        def __exit__(self, *exc_info):
+            self._lock.release()
+
+    def register_newer_calls():
+        for i in range(_MAX_TRACKED_TOOL_CALLS):
+            tracker.on_llm_tool_choice(f"call_{i}", "extract", f'{{"i":{i}}}', _llm_span_context(i))
+        other_thread_progressed.set()
+
+    other_thread = threading.Thread(target=register_newer_calls)
+
+    class _InterleavingLookup(dict):
+        def __setitem__(self, key, value):
+            if value == "call_paused" and not other_thread.is_alive():
+                # Let another thread register enough calls to evict this one before its lookup is stored.
+                other_thread.start()
+                assert other_thread_progressed.wait(timeout=10)
+            super().__setitem__(key, value)
+
+    tracker._lock = _ContentionSignalingLock(tracker._lock)
+    tracker._lookup_tool_id = _InterleavingLookup()
+    tracker.on_llm_tool_choice("call_paused", "extract", '{"i":"paused"}', _llm_span_context(0))
+    other_thread.join(timeout=10)
+
+    assert not other_thread.is_alive()
+    assert len(tracker._tool_calls) == _MAX_TRACKED_TOOL_CALLS
+    assert len(tracker._lookup_tool_id) == _MAX_TRACKED_TOOL_CALLS
+    assert all(tool_id in tracker._tool_calls for tool_id in tracker._lookup_tool_id.values())
+
+
+def test_link_tracker_lock_is_reset_in_fork_child():
+    """A fork taken while another thread holds the tracker lock must not deadlock the child."""
+    tracker = LinkTracker()
+    tracker._lock.acquire()
+    try:
+        pid = os.fork()
+        if pid == 0:
+            acquired = tracker._lock.acquire(timeout=5)
+            os._exit(0 if acquired else 1)
+    finally:
+        tracker._lock.release()
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
+def test_link_tracker_tool_call_keeps_lookup_of_newer_call_with_same_arguments(tracer, monkeypatch):
+    """A newer call registered with the same name and arguments while an evicted one resolves keeps its lookup."""
+    monkeypatch.setattr("ddtrace.llmobs._utils._MAX_TRACKED_TOOL_CALLS", 1)
+    tracker = LinkTracker()
+    args = '{"q":"x"}'
+    tracker.on_llm_tool_choice("call_old", "search", args, _llm_span_context(1))
+
+    original_add_span_link = llmobs_utils.add_span_link
+
+    def add_span_link_then_interleave(*a, **kw):
+        original_add_span_link(*a, **kw)
+        # Another request evicts call_old and registers a new call with the same name and arguments.
+        tracker.on_llm_tool_choice("call_other", "other", "{}", _llm_span_context(2))
+        tracker.on_llm_tool_choice("call_new", "search", args, _llm_span_context(3))
+
+    monkeypatch.setattr(llmobs_utils, "add_span_link", add_span_link_then_interleave)
+    with tracer.trace("tool") as tool_span:
+        tracker.on_tool_call("search", args, "function", tool_span)
+
+    assert list(tracker._tool_calls) == ["call_new"]
+    assert tracker._lookup_tool_id == {("search", args): "call_new"}

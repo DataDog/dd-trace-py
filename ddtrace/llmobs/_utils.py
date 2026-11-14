@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -18,6 +19,7 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git as _git
 from ddtrace.ext.ci import _filter_sensitive_info
+from ddtrace.internal import forksafe
 from ddtrace.internal import gitmetadata
 from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
@@ -929,6 +931,11 @@ class TrackedToolCall:
     tool_version: Optional[str] = None  # resolved version from the LLM span's tool_definitions
 
 
+# Upper bound on tool calls kept for span linking. Tool calls that are never executed or never fed back
+# to an LLM (forced tool use, structured extraction, last step of an agent run) are otherwise never removed.
+_MAX_TRACKED_TOOL_CALLS = 1000
+
+
 class LinkTracker:
     """
     This class is used to create span links across integrations.
@@ -939,8 +946,12 @@ class LinkTracker:
     """
 
     def __init__(self) -> None:
-        self._tool_calls: dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
+        # Bounded by _MAX_TRACKED_TOOL_CALLS, oldest entries are evicted first.
+        self._tool_calls: OrderedDict[str, TrackedToolCall] = OrderedDict()  # maps tool id's to tool call data
         self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
+        # Keeps both tool call maps consistent across registration, eviction and removal.
+        # Reset after fork, since the tracker survives into the child.
+        self._lock = forksafe.Lock()
         self._active_guardrail_spans: set[Span] = set()
         self._last_llm_span: Optional[Span] = None
 
@@ -960,9 +971,6 @@ class LinkTracker:
         This is to avoid some issues with parsing tool calls from ReAct agents which format tool calls as plain text.
         """
         formatted_arguments = format_tool_call_arguments(arguments)
-        if self._lookup_tool_id.get((tool_name, formatted_arguments)):
-            return
-
         tool_call = TrackedToolCall(
             tool_id=tool_id,
             tool_name=tool_name,
@@ -970,8 +978,24 @@ class LinkTracker:
             llm_span_context=llm_span_context,
             tool_version=tool_version,
         )
-        self._tool_calls[tool_id] = tool_call
-        self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
+        with self._lock:
+            if self._lookup_tool_id.get((tool_name, formatted_arguments)):
+                return
+            # A re-registered tool id replaces the previous call and moves to the newest position.
+            previous = self._tool_calls.pop(tool_id, None)
+            if previous is not None:
+                self._forget_lookup(previous)
+            self._tool_calls[tool_id] = tool_call
+            self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
+            # Every lookup entry points at a tracked call, so bounding the calls also bounds the lookup.
+            while len(self._tool_calls) > _MAX_TRACKED_TOOL_CALLS:
+                _, evicted = self._tool_calls.popitem(last=False)
+                self._forget_lookup(evicted)
+
+    def _forget_lookup(self, tool_call: TrackedToolCall) -> None:
+        key = (tool_call.tool_name, tool_call.arguments)
+        if self._lookup_tool_id.get(key) == tool_call.tool_id:
+            self._lookup_tool_id.pop(key, None)
 
     def on_tool_call(
         self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, tool_id: Optional[str] = None
@@ -1000,12 +1024,16 @@ class LinkTracker:
         )
         if tool_call.tool_version is not None:
             _annotate_llmobs_span_data(tool_span, tool_version=tool_call.tool_version)
-        self._tool_calls[tool_id].tool_span_context = {
+        tool_call.tool_span_context = {
             "span_id": str(tool_span.span_id),
             "trace_id": format_trace_id(tool_span.trace_id),
         }
-        self._tool_calls[tool_id].tool_kind = tool_kind
-        self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)
+        tool_call.tool_kind = tool_kind
+        with self._lock:
+            # The call may have been evicted meanwhile and a newer call registered under the same key.
+            lookup_key = (tool_name, formatted_tool_arg)
+            if self._lookup_tool_id.get(lookup_key) == tool_id:
+                self._lookup_tool_id.pop(lookup_key, None)
 
     def on_tool_call_output_used(self, tool_id: str, llm_span: Span) -> None:
         """
@@ -1015,7 +1043,10 @@ class LinkTracker:
         The tool call is removed from the tracker since we only want to link the output of a tool call to the FIRST
         LLM call that has that tool call as an input to reduce noisy links.
         """
-        tool_call = self._tool_calls.pop(tool_id, None)
+        with self._lock:
+            tool_call = self._tool_calls.pop(tool_id, None)
+            if tool_call is not None:
+                self._forget_lookup(tool_call)
         if not tool_call or not tool_call.tool_span_context:
             return
 
