@@ -63,9 +63,9 @@ class EchionSampler
     // Task unwinding state
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
     std::optional<BoundaryFrame> uvloop_boundary_frame_;
-    std::unordered_set<PyObject*> previous_task_objects_;
-    // Weakly linked children that were missing from the last Task snapshot. Always a subset of the
-    // weak_task_link_map_ keys. Guarded by task_link_map_lock_.
+    // Linked children that were missing from the last Task snapshot. Always a subset of the keys of
+    // task_link_map_ and weak_task_link_map_ respectively. Guarded by task_link_map_lock_.
+    std::unordered_set<PyObject*> missing_link_children_;
     std::unordered_set<PyObject*> missing_weak_link_children_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
@@ -147,34 +147,58 @@ class EchionSampler
     std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
     std::mutex& task_link_map_lock() { return task_link_map_lock_; }
 
+  private:
+    // Remove the links of children that are missing from two Task snapshots in a row. A child can be
+    // missing from one snapshot without having finished: it may have been created and linked after the
+    // snapshot was taken, or the lock-free snapshot may have failed to read it. Removing its link then
+    // would detach it from its parent for the rest of its life.
+    // A child that finished before any snapshot saw it is missing from every snapshot, so it is removed
+    // as well. Requiring the child to have been seen first would keep such links forever.
+    static void prune_links(std::unordered_map<PyObject*, PyObject*>& links,
+                            std::unordered_set<PyObject*>& missing_children,
+                            const std::unordered_set<PyObject*>& live_task_origins)
+    {
+        for (auto it = links.begin(); it != links.end();) {
+            PyObject* child = it->first;
+            if (live_task_origins.find(child) != live_task_origins.end()) {
+                missing_children.erase(child);
+                ++it;
+            } else if (missing_children.erase(child) > 0) {
+                it = links.erase(it);
+            } else {
+                missing_children.insert(child);
+                ++it;
+            }
+        }
+    }
+
+  public:
+    // Linking a child gives it the full grace period of prune_links, even if a finished Task at the same
+    // address was missing from the last snapshot.
+    // The caller must hold task_link_map_lock_.
+    void link_task(PyObject* parent, PyObject* child)
+    {
+        task_link_map_[child] = parent;
+        missing_link_children_.erase(child);
+    }
+
     // The caller must hold task_link_map_lock_.
     void weak_link_task(PyObject* parent, PyObject* child)
     {
         weak_task_link_map_[child] = parent;
-        // Give a new link the full grace period of prune_weak_task_links, even if a finished Task at
-        // the same address was missing from the last snapshot.
         missing_weak_link_children_.erase(child);
     }
 
-    // Remove the weak links of children that are missing from two Task snapshots in a row. A child can be
-    // missing from one snapshot without having finished: it may have been created and linked after the
-    // snapshot was taken, or the lock-free snapshot may have failed to read it. Removing its link then
-    // would detach it from its parent for the rest of its life.
+    // The caller must hold task_link_map_lock_.
+    void prune_task_links(const std::unordered_set<PyObject*>& live_task_origins)
+    {
+        prune_links(task_link_map_, missing_link_children_, live_task_origins);
+    }
+
     // The caller must hold task_link_map_lock_.
     void prune_weak_task_links(const std::unordered_set<PyObject*>& live_task_origins)
     {
-        for (auto it = weak_task_link_map_.begin(); it != weak_task_link_map_.end();) {
-            PyObject* child = it->first;
-            if (live_task_origins.find(child) != live_task_origins.end()) {
-                missing_weak_link_children_.erase(child);
-                ++it;
-            } else if (missing_weak_link_children_.erase(child) > 0) {
-                it = weak_task_link_map_.erase(it);
-            } else {
-                missing_weak_link_children_.insert(child);
-                ++it;
-            }
-        }
+        prune_links(weak_task_link_map_, missing_weak_link_children_, live_task_origins);
     }
 
     std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }
@@ -224,7 +248,6 @@ class EchionSampler
 
     std::optional<BoundaryFrame>& asyncio_boundary_frame() { return asyncio_boundary_frame_; }
     std::optional<BoundaryFrame>& uvloop_boundary_frame() { return uvloop_boundary_frame_; }
-    std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
 
@@ -323,7 +346,7 @@ class EchionSampler
         new (&greenlet_info_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>();
         new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
-        new (&previous_task_objects_) std::unordered_set<PyObject*>();
+        new (&missing_link_children_) std::unordered_set<PyObject*>();
         new (&missing_weak_link_children_) std::unordered_set<PyObject*>();
 
         asyncio_boundary_frame_.reset();
