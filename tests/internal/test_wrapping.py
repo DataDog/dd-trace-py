@@ -1,12 +1,15 @@
 import asyncio
 from contextlib import asynccontextmanager
+import contextvars
 import copy
+import gc
 import inspect
 import sys
 from types import CoroutineType
 from types import FunctionType
 from typing import Any
 from typing import cast
+import weakref
 
 import pytest
 
@@ -2032,3 +2035,258 @@ def test_an_exception_from_enter_is_still_swallowed():
         assert _storage_chain_length(context._storage.get()) == 0
     finally:
         context.unwrap()
+
+
+class _Payload:
+    pass
+
+
+class _Probe:
+    """Record the locals and the Context copies of wrapped calls.
+
+    The probe keeps every copied Context until the test ends, as the call
+    credentials of a cached gRPC channel keep theirs for the life of the channel.
+    """
+
+    def __init__(self) -> None:
+        self.refs: list[weakref.ReferenceType[object]] = []
+        self.copies: list[contextvars.Context] = []
+
+    def track(self, payload: object) -> None:
+        self.refs.append(weakref.ref(payload))
+        self.copies.append(contextvars.copy_context())
+
+    def assert_released(self) -> None:
+        gc.collect()
+        assert self.refs, "the wrapped call never ran"
+        assert all(r() is None for r in self.refs), "locals of a wrapped call are kept alive by a copied Context"
+
+
+def _wrap(target):
+    context = WrappingContext(target)
+    context.wrap()
+    return context
+
+
+def _run_sync(f):
+    return f()
+
+
+def _run_async(f):
+    return asyncio.run(f())
+
+
+def _run_asyncgen(f):
+    async def drain():
+        return [_ async for _ in f()]
+
+    return asyncio.run(drain())
+
+
+def _make_sync(probe):
+    def target():
+        payload = _Payload()
+        probe.track(payload)
+
+    return target
+
+
+def _make_async(probe):
+    async def target():
+        payload = _Payload()
+        probe.track(payload)
+        await asyncio.sleep(0)
+
+    return target
+
+
+def _make_asyncgen(probe):
+    async def target():
+        payload = _Payload()
+        probe.track(payload)
+        await asyncio.sleep(0)
+        yield 1
+
+    return target
+
+
+@pytest.mark.parametrize(
+    "make, run",
+    [(_make_sync, _run_sync), (_make_async, _run_async), (_make_asyncgen, _run_asyncgen)],
+    ids=["sync", "async", "asyncgen"],
+)
+def test_copied_context_does_not_retain_wrapped_frame(make, run):
+    """A Context copied while a wrapped function runs must not keep that call's locals alive."""
+    probe = _Probe()
+    target = make(probe)
+
+    context = _wrap(target)
+    try:
+        run(target)
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_copied_context_does_not_retain_frame_after_exception():
+    probe = _Probe()
+
+    def target():
+        payload = _Payload()
+        probe.track(payload)
+        raise ValueError("boom")
+
+    context = _wrap(target)
+    try:
+        # Do not bind the exception: its traceback references the frame and would
+        # keep the payload alive for the wrong reason.
+        with pytest.raises(ValueError):
+            target()
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_copied_context_storage_lives_only_during_call():
+    copies: list = []
+    during: list = []
+
+    def target():
+        copy = contextvars.copy_context()
+        copies.append(copy)
+        during.append(copy[storage_var]["__frame__"].f_code.co_name)
+
+    context = _wrap(target)
+    storage_var = _UniversalWrappingContext.extract(target)._storage
+    try:
+        target()
+    finally:
+        context.unwrap()
+
+    assert during == ["target"]
+    (copy,) = copies
+    assert copy[storage_var] == {}
+
+
+def test_nested_calls_release_each_frame_and_restore_outer_storage():
+    probe = _Probe()
+    outer_frames: list = []
+
+    def target(depth):
+        payload = _Payload()
+        probe.track(payload)
+        if depth:
+            target(depth - 1)
+        # The inner pop must leave the outer call's storage populated.
+        outer_frames.append(_UniversalWrappingContext.extract(target).get("__frame__").f_locals["depth"])
+
+    context = _wrap(target)
+    try:
+        target(2)
+    finally:
+        context.unwrap()
+
+    assert outer_frames == [0, 1, 2]
+    probe.assert_released()
+
+
+# PY_UNWIND monitoring (for example, coverage) disables CPython's fast generator-close path,
+# allowing the injected exit handler to run. Evaluate this when the test runs, after monitoring is configured.
+@pytest.mark.xfail(
+    "sys.version_info >= (3, 13) and sys.gettrace() is None and sys.getprofile() is None and not any("
+    "sys.monitoring.get_events(tool_id) & sys.monitoring.events.PY_UNWIND for tool_id in range(6))",
+    reason="Closing a suspended sync generator without PY_UNWIND monitoring skips the injected exit handler",
+    strict=True,
+)
+def test_copied_context_does_not_retain_frame_on_early_generator_close():
+    probe = _Probe()
+
+    def target():
+        payload = _Payload()
+        probe.track(payload)
+        yield 1
+        yield 2
+
+    context = _wrap(target)
+    try:
+        gen = target()
+        next(gen)
+        gen.close()
+        del gen
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_copied_context_does_not_retain_frame_on_async_generator_aclose():
+    probe = _Probe()
+
+    async def target():
+        payload = _Payload()
+        probe.track(payload)
+        yield 1
+        yield 2
+
+    async def main():
+        gen = target()
+        await gen.__anext__()
+        await gen.aclose()
+
+    context = _wrap(target)
+    try:
+        asyncio.run(main())
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_copied_context_does_not_retain_frame_on_cancellation():
+    probe = _Probe()
+
+    async def target():
+        payload = _Payload()
+        probe.track(payload)
+        await asyncio.sleep(60)
+
+    async def main():
+        task = asyncio.ensure_future(target())
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    context = _wrap(target)
+    try:
+        asyncio.run(main())
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_concurrent_tasks_keep_separate_storage_and_release_all_frames():
+    probe = _Probe()
+    seen: dict = {}
+
+    async def target(name):
+        payload = _Payload()
+        probe.track(payload)
+        await asyncio.sleep(0.01 if name == "a" else 0)
+        seen[name] = _UniversalWrappingContext.extract(target).get("__frame__").f_locals["name"]
+
+    async def main():
+        await asyncio.gather(target("a"), target("b"))
+
+    context = _wrap(target)
+    try:
+        asyncio.run(main())
+    finally:
+        context.unwrap()
+
+    assert seen == {"a": "a", "b": "b"}
+    assert len(probe.refs) == 2
+    probe.assert_released()
