@@ -549,48 +549,129 @@ def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_n
             assert name in patched_dir
 
 
-def test_package_list_read_inside_a_finder_query_is_not_kept(tmp_path):
-    """A module imported by a custom finder while it lists its distributions makes
-    IAST read a package list without them: IAST must read it again on the next module.
-    """
+@pytest.mark.subprocess(
+    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="", _DD_IAST_DENY_MODULES=""),
+    parametrize=dict(_DD_TEST_ENTRY=("packages", "iast", "native", "cached", "cold", "retry")),
+)
+def test_finder_import_preserves_legacy_iast_classification():
+    from importlib import import_module
     from importlib.machinery import PathFinder
-    import importlib.metadata as importlib_metadata
+    from importlib.machinery import SourceFileLoader
+    from importlib.util import spec_from_file_location
+    import os
+    from pathlib import Path
     import sys
+    from tempfile import TemporaryDirectory
 
-    from ddtrace.appsec._iast._ast import ast_patching
+    if sys.version_info < (3, 10):
+        import importlib_metadata as metadata
+    else:
+        import importlib.metadata as metadata
+
+    from ddtrace.appsec._iast import enable_iast_propagation
+    from ddtrace.appsec._iast._ast import ast_patching as ap
     from ddtrace.internal import packages
+    from ddtrace.internal.threads import Thread
 
-    info = tmp_path / "zz_from_finder-1.0.dist-info"
-    info.mkdir()
-    (info / "METADATA").write_text("Name: zz-from-finder\nVersion: 1.0\n")
-    (info / "top_level.txt").write_text("zz_from_finder\n")
+    metadata.version("ddtrace")
 
-    class Finder:
-        def find_spec(self, *args, **kwargs):
-            return None
+    def legacy_inventory_is_unused():
+        raise AssertionError("IAST must use the native package resolver")
 
-        def find_distributions(self, context):
-            # What the import hook does for a module the finder imports.
-            ast_patching._should_iast_patch("imported_by_the_finder")
-            return [importlib_metadata.PathDistribution(info)]
+    metadata.packages_distributions = legacy_inventory_is_unused
+    entry = os.environ["_DD_TEST_ENTRY"]
+    observations = []
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        app = root / "app"
+        app.mkdir()
+        source = "def combine(a, b):\n    return a + b\n"
+        (app / "customer_helper.py").write_text(source)
+        (app / "customer_next.py").write_text(source)
+        (app / "finder_dependency.py").write_text("assert loader_ready\n" + source)
+        info = (app if entry == "native" else root) / "finder_bundle-1.0.dist-info"
+        info.mkdir()
+        (info / "METADATA").write_text("Name: finder-bundle\nVersion: 1.0\n")
+        (info / "top_level.txt").write_text("ddtrace\nfinder_dependency\n")
 
-    def reset():
-        packages._reset_installed_distributions()
-        packages._clear_lookup_caches()
+        class Loader(SourceFileLoader):
+            def exec_module(self, module):
+                module.loader_ready = True
+                return super().exec_module(module)
 
-    try:
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(sys, "meta_path", [Finder(), PathFinder])
-            mp.setattr(ast_patching, "IAST_PATCHING_LAZY_LOADED", True)
-            reset()
+        class Finder:
+            ready = True
+            calls = 0
 
-            # Something other than IAST lists the distributions first.
-            packages.get_package_distributions()
-            assert ast_patching.IAST_PATCHING_LAZY_LOADED
+            def find_spec(self, fullname, *args, **kwargs):
+                if fullname == "finder_dependency":
+                    path = app / "finder_dependency.py"
+                    return spec_from_file_location(fullname, path, loader=Loader(fullname, str(path)))
+                return None
 
-            ast_patching._should_iast_patch("app")
-            assert not ast_patching.IAST_PATCHING_LAZY_LOADED
-            assert iastpatch.should_iast_patch("zz_from_finder.mod") == iastpatch.DENIED_NOT_FOUND
-    finally:
-        reset()
-        ast_patching.initialize_iast_lists()
+            def find_distributions(self, context):
+                self.calls += 1
+                if entry == "retry" and self.calls == 2:
+                    raise RuntimeError("finder cannot complete the reentrant query")
+                if not self.ready:
+                    return [metadata.PathDistribution(info)]
+                helper = import_module("customer_helper")
+                dependency = import_module("finder_dependency")
+                # A recursive import can see a partially initialized module.
+                if hasattr(helper, "combine") and hasattr(dependency, "combine"):
+                    observations.append(
+                        (
+                            "add_aspect" in helper.combine.__code__.co_names,
+                            "add_aspect" in dependency.combine.__code__.co_names,
+                            dependency.loader_ready,
+                        )
+                    )
+                return [metadata.PathDistribution(info)]
+
+        finder = Finder()
+        original_path = sys.path[:]
+        original_meta_path = sys.meta_path[:]
+        try:
+            sys.path[:] = [str(app), str(packages.stdlib_path), str(packages.stdlib_path / "lib-dynload")]
+            if entry == "native":
+                sys.meta_path[:] = [PathFinder]
+            else:
+                sys.meta_path.insert(sys.meta_path.index(PathFinder), finder)
+            enable_iast_propagation()
+            if entry == "cached":
+                finder.ready = False
+                packages.get_package_distributions()
+            else:
+                packages._reset_installed_distributions()
+            packages._clear_lookup_caches()
+            ap.iastpatch.set_packages_distributions(set())
+            ap.IAST_PATCHING_LAZY_LOADED = True
+            if entry in ("native", "cached"):
+                for name in ("importlib.metadata", "importlib_metadata", "zipfile"):
+                    sys.modules.pop(name, None)
+                worker = Thread(ap.initialize_iast_lists, name="iast-inventory")
+                worker.start()
+                worker.join()
+                assert not {"importlib.metadata", "importlib_metadata", "zipfile"} & sys.modules.keys()
+                assert (
+                    ap.iastpatch.should_iast_patch("zz_iast_native_probe") == ap.iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+                )
+            elif entry in ("packages", "cold", "retry"):
+                if entry == "cold":
+                    sys.modules.pop("importlib.metadata", None)
+                    sys.modules["importlib"].__dict__.pop("metadata", None)
+                packages.get_package_distributions()
+            else:
+                ap._should_iast_patch("customer_entry")
+            if entry not in ("native", "cached"):
+                assert observations
+                if entry in ("cold", "retry"):
+                    assert all(row[1:] == (False, True) for row in observations), observations
+                    following = import_module("customer_next")
+                    assert "add_aspect" in following.combine.__code__.co_names
+                else:
+                    assert all(row == (True, False, True) for row in observations), observations
+                assert ap.iastpatch.should_iast_patch("finder_dependency") == ap.iastpatch.DENIED_NOT_FOUND
+        finally:
+            sys.path[:] = original_path
+            sys.meta_path[:] = original_meta_path
