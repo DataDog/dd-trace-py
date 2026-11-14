@@ -93,9 +93,9 @@ Merging Pull Requests from Forks
 ---------------------------------
 
 Pull requests opened from a fork (i.e. by an external contributor) cannot run all required CI
-directly. GitLab does not mirror branches from external forks. Pushing the fork's commit to a
-branch in this repository can start GitLab, but it does not trigger the required System Tests
-workflow; that requires a pull request owned by this repository.
+directly. GitLab does not mirror branches from external forks. GitHub Actions builds wheels
+for System Tests from the fork PR's head commit. To validate the wheels published by GitLab,
+run System Tests on a repository-owned pull request with the same head commit.
 
 If you're a maintainer merging a fork PR, the mirror moves its code into a trusted CI context with
 access to credentials. The reviewer owns that trust decision. Follow this process:

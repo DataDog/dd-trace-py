@@ -96,3 +96,14 @@ build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v49.0.0",
 name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
+
+[replace]
+# The merge commit for DataDog/libdatadog#2626 includes both the metric fix and the v49 configuration API.
+"git+https://github.com/DataDog/libdatadog?rev=v49.0.0#libdd-telemetry@11.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "49a9929212c79efb9cec0ff3d6d8933bc5fb088b" }
+"git+https://github.com/DataDog/libdatadog?rev=49a9929212c79efb9cec0ff3d6d8933bc5fb088b#libdd-capabilities@4.0.1" = { git = "https://github.com/DataDog/libdatadog", rev = "v49.0.0" }
+# Keep the released common crate so its TLS security pins apply to all callers.
+"git+https://github.com/DataDog/libdatadog?rev=49a9929212c79efb9cec0ff3d6d8933bc5fb088b#libdd-common@9.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "v49.0.0" }
+"git+https://github.com/DataDog/libdatadog?rev=49a9929212c79efb9cec0ff3d6d8933bc5fb088b#libdd-ddsketch@1.1.4" = { git = "https://github.com/DataDog/libdatadog", rev = "v49.0.0" }
+"git+https://github.com/DataDog/libdatadog?rev=49a9929212c79efb9cec0ff3d6d8933bc5fb088b#libdd-env@0.1.0" = { git = "https://github.com/DataDog/libdatadog", rev = "v49.0.0" }
+"git+https://github.com/DataDog/libdatadog?rev=49a9929212c79efb9cec0ff3d6d8933bc5fb088b#libdd-networking@1.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "v49.0.0" }
+"git+https://github.com/DataDog/libdatadog?rev=49a9929212c79efb9cec0ff3d6d8933bc5fb088b#libdd-shared-runtime@7.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "v49.0.0" }
