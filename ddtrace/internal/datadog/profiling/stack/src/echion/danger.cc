@@ -53,8 +53,7 @@ struct sigaction g_old_bus;
 static std::atomic<int> g_old_segv_reset{ 0 };
 static std::atomic<int> g_old_bus_reset{ 0 };
 
-// Set by uninstall_segv_handler; cleared by init_segv_catcher. Not atomic:
-// callers hold the GIL / have the sampler paused around these transitions.
+// Not atomic: callers hold the GIL / have the sampler paused around transitions.
 static bool g_segv_handler_released = false;
 
 thread_local ThreadAltStack t_altstack;

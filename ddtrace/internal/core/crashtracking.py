@@ -279,13 +279,14 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         # stack module if it is already imported: importing it here would load the
         # native extension and install signal handlers even when profiling is off.
         #
-        # Pause before the swap (same as profiling/_faulthandler.py): uninstall may
-        # stop the sampler on the sticky-foreign path, which races with safe_memcpy.
-        # Require is_available, not just sys.modules — a failed native load leaves a
-        # stub whose missing pause_sampling would look like a timeout and kill crash
-        # reporting. Hold handler_swap_lock for the whole pause/swap/resume so
-        # faulthandler cannot resume mid-uninstall (pause is not nested). Import the
-        # lock only when stack is already loaded.
+        # Pause before the swap (same contract as profiling/_faulthandler.py):
+        # uninstall can stop the sampler on the sticky-foreign path and must
+        # not race an in-flight safe_memcpy. Refuse init if pause times out.
+        # Require is_available — a failed native load can leave the package in
+        # sys.modules with is_available=False; coordinating against that stub
+        # treats a missing pause_sampling as a timeout and disables crash reporting.
+        # Hold handler_swap_lock for the whole pause/swap/resume (pause is not
+        # nested). Import the lock only when stack is already loaded.
         stack_mod: Optional[ModuleType] = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
         if stack_mod is not None and not getattr(stack_mod, "is_available", False):
             stack_mod = None
@@ -307,7 +308,9 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 if not safe_to_swap:
                     log.error("Failed to start crashtracker: could not pause stack sampler for handler swap")
                     return False
-            # try/finally so KeyboardInterrupt during uninstall still reinstalls/resumes.
+            # Uninstall inside try/finally (same shape as profiling/_faulthandler.py):
+            # KeyboardInterrupt is BaseException, so an except Exception around
+            # uninstall alone would skip reinstall/resume if SIGINT lands there.
             try:
                 if stack_mod is not None:
                     try:
@@ -330,7 +333,9 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
 
                 forksafe.register(crashtracker_fork_handler)
             finally:
-                # Always reinstall before resume (uninstall already ran; no-op if still installed).
+                # Reinstall before resume even when init/register raised: uninstall ran
+                # above, and sampling must not resume without the recovery handler.
+                # Idempotent when the success path already left us installed.
                 if stack_mod is not None:
                     try:
                         stack_mod.reinstall_segv_handler()

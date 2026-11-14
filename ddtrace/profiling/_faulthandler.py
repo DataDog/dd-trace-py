@@ -36,10 +36,15 @@ def _(faulthandler: ModuleType) -> None:
     _original_disable: Callable[[], bool] = faulthandler.disable
 
     def _patched_enable(*args: typing.Any, **kwargs: typing.Any) -> None:
-        # Same lock as crashtracking.start: pause is not nested across components.
+        # Same lock as crashtracking.start so a nested pause/resume cannot clear
+        # the other component's pause mid-swap.
         with handler_swap_lock:
-            # True=paused, False=not running, None=timeout mid-copy — on timeout do
-            # not enable (would replace recovery) or reinstall (handler cycle).
+            # pause_sampling returns:
+            #   True  — sampler paused (safe to swap handlers)
+            #   False — sampler not running (safe to swap; no racing thread)
+            #   None  — timed out: a capture may still be in safe_memcpy. Do not
+            #           enable faulthandler (it would replace our recovery handler)
+            #           and do not reinstall (that would build a handler cycle).
             pause_result: bool | None = stack.pause_sampling()
             safe_to_swap: bool = pause_result is not None
             if not safe_to_swap:
