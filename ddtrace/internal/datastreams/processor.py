@@ -16,24 +16,25 @@ from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.datastreams import current_message
+from ddtrace.internal.datastreams import transport
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.threads import local
-from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
 from .._encoding import packb
-from ..agent import get_connection
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
+from .pipelines import REPORT_PAYLOAD_KEY
+from .pipelines import get_pipelines_reporter
 from .schemas.schema_builder import SchemaBuilder
 from .schemas.schema_sampler import SchemaSampler
 
@@ -132,7 +133,11 @@ class DataStreamsProcessor(PeriodicService):
         self._hostname = compat.ensure_text(get_hostname())
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
-        self._current_context = local()
+        # The current-consumed-message context (DSM pathway + pipelines side)
+        # lives in the shared ddtrace.internal.datastreams.current_message
+        # slot; a fresh processor starts with a fresh context, exactly as the
+        # processor's own thread-local did before the slot was shared.
+        current_message.clear_current_message()
         self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
@@ -258,26 +263,18 @@ class DataStreamsProcessor(PeriodicService):
 
     def _flush_stats(self, payload: bytes) -> None:
         try:
-            conn = get_connection(self._agent_url, self._timeout)
-            conn.request("POST", self._endpoint, payload, self._headers)
-            resp = conn.getresponse()
-        except Exception:
+            transport.post(
+                self._agent_url,
+                self._endpoint,
+                payload,
+                self._headers,
+                self._timeout,
+                what="data stream stats",
+                unsupported_feature="data streams monitoring",
+            )
+        except transport.TransportError:
             log.debug("failed to submit pathway stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
             raise
-        else:
-            if resp.status == 404:
-                log.error("Datadog agent does not support data streams monitoring. Upgrade to 7.34+")
-                return
-            elif resp.status >= 400:
-                log.error(
-                    "failed to send data stream stats payload, %s (%s) (%s) response from Datadog agent at %s",
-                    resp.status,
-                    resp.reason,
-                    resp.read(),
-                    self._agent_endpoint,
-                )
-            else:
-                log.debug("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
 
     def periodic(self) -> None:
         with self._lock:
@@ -286,7 +283,7 @@ class DataStreamsProcessor(PeriodicService):
         if not serialized_stats:
             log.debug("No data streams reported. Skipping flushing.")
             return
-        raw_payload: dict[str, Union[list[dict], str, list[str]]] = {
+        raw_payload: dict[str, Union[list[dict], str, list[str], bytes]] = {
             "Service": self._service,
             "TracerVersion": self._version,
             "Lang": "python",
@@ -299,6 +296,12 @@ class DataStreamsProcessor(PeriodicService):
             raw_payload["Version"] = compat.ensure_text(config.version)
         if p_tags := process_tags.process_tags_list:
             raw_payload["ProcessTags"] = p_tags
+        # DSM2-531: append the pipelines report as the LAST key of the classic
+        # payload when a report window is due; the classic payload is otherwise
+        # byte-identical.
+        pipelines_report = _due_pipelines_report(self._service)
+        if pipelines_report is not None:
+            raw_payload[REPORT_PAYLOAD_KEY] = pipelines_report
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
@@ -326,7 +329,7 @@ class DataStreamsProcessor(PeriodicService):
             current_edge_start_ms, data = decode_var_int_64(data)
             ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
             # reset context of current thread every time we decode
-            self._current_context.value = ctx
+            current_message.set_dsm_pathway(ctx)
             return ctx
         except (EOFError, TypeError, struct.error):
             return self.new_pathway()
@@ -353,7 +356,7 @@ class DataStreamsProcessor(PeriodicService):
         if not now_sec:
             now_sec = time.time()
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
-        self._current_context.value = ctx
+        current_message.set_dsm_pathway(ctx)
         return ctx
 
     def set_checkpoint(
@@ -371,11 +374,9 @@ class DataStreamsProcessor(PeriodicService):
 
         if not now_sec:
             now_sec = time.time()
-        if hasattr(self._current_context, "value"):
-            ctx = self._current_context.value
-        else:
+        ctx = current_message.current_dsm_pathway()
+        if ctx is None:
             ctx = self.new_pathway()
-            self._current_context.value = ctx
         if "direction:out" in tags:
             # Add the header for this now, as the callee doesn't have access
             # when producing
@@ -529,6 +530,21 @@ class DsmPathwayCodec:
         if not ctx:
             return data_streams_processor.new_pathway()
         return ctx
+
+
+def _due_pipelines_report(service: str) -> Optional[bytes]:
+    """The window's DdPipelinesReportV1 bytes, or None when no report is due (DSM2-531)."""
+    try:
+        reporter = get_pipelines_reporter()
+        if reporter is None:
+            return None
+        report = reporter.take_report(service, compat.ensure_text(config.env or ""), due=True)
+        if report is None:
+            return None
+        return packb(report)
+    except Exception:  # noqa: BLE001 - never break the DSM flush
+        log.debug("failed to collect the pipelines report", exc_info=True)
+        return None
 
 
 def _atexit(obj=None) -> None:
