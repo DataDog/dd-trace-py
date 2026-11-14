@@ -53,6 +53,9 @@ struct sigaction g_old_bus;
 static std::atomic<int> g_old_segv_reset{ 0 };
 static std::atomic<int> g_old_bus_reset{ 0 };
 
+// Not atomic: callers hold the GIL / have the sampler paused around transitions.
+static bool g_segv_handler_released = false;
+
 thread_local ThreadAltStack t_altstack;
 
 // We "arm" by publishing a valid jmp env for this thread.
@@ -259,7 +262,36 @@ init_segv_catcher()
         g_old_bus_reset.store(0);
     }
 
+    g_segv_handler_released = false;
     return 0;
+}
+
+bool
+segv_handler_released()
+{
+    return g_segv_handler_released;
+}
+
+static bool
+disposition_is_absent(const struct sigaction& current)
+{
+    return current.sa_handler == SIG_DFL || current.sa_handler == SIG_IGN;
+}
+
+bool
+segv_handlers_are_absent()
+{
+    const int signals[] = { SIGSEGV, SIGBUS };
+    for (int signo : signals) {
+        struct sigaction current;
+        if (sigaction(signo, nullptr, &current) != 0) {
+            return false;
+        }
+        if (!disposition_is_absent(current)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static bool
@@ -420,12 +452,18 @@ uninstall_segv_handler()
     sigemptyset(&dfl.sa_mask);
     dfl.sa_flags = 0;
 
+    bool released = false;
     struct sigaction current;
     if (sigaction(SIGSEGV, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
         sigaction(SIGSEGV, restorable_old_action(g_old_segv, g_old_segv_reset, dfl), nullptr);
+        released = true;
     }
     if (sigaction(SIGBUS, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
         sigaction(SIGBUS, restorable_old_action(g_old_bus, g_old_bus_reset, dfl), nullptr);
+        released = true;
+    }
+    if (released) {
+        g_segv_handler_released = true;
     }
 }
 
