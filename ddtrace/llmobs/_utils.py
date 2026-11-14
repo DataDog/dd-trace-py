@@ -19,11 +19,11 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git as _git
 from ddtrace.ext.ci import _filter_sensitive_info
+from ddtrace.internal import forksafe
 from ddtrace.internal import gitmetadata
 from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -980,7 +980,8 @@ class LinkTracker:
         self._tool_calls: OrderedDict[str, TrackedToolCall] = OrderedDict()  # maps tool id's to tool call data
         self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
         # Keeps both tool call maps consistent across registration, eviction and removal.
-        self._lock = Lock()
+        # Reset after fork, since the tracker survives into the child.
+        self._lock = forksafe.Lock()
         self._active_guardrail_spans: set[Span] = set()
         self._last_llm_span: Optional[Span] = None
 
@@ -1059,7 +1060,10 @@ class LinkTracker:
         }
         tool_call.tool_kind = tool_kind
         with self._lock:
-            self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)
+            # The call may have been evicted meanwhile and a newer call registered under the same key.
+            lookup_key = (tool_name, formatted_tool_arg)
+            if self._lookup_tool_id.get(lookup_key) == tool_id:
+                self._lookup_tool_id.pop(lookup_key, None)
 
     def on_tool_call_output_used(self, tool_id: str, llm_span: Span) -> None:
         """

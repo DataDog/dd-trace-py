@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 import json
+import os
 import threading
 
 from pydantic import BaseModel
 import pytest
 
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs import _utils as llmobs_utils
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _MAX_NESTED_META_DEPTH
 from ddtrace.llmobs._utils import _MAX_TRACKED_TOOL_CALLS
@@ -940,3 +942,41 @@ def test_link_tracker_registration_is_atomic_with_eviction():
     assert len(tracker._tool_calls) == _MAX_TRACKED_TOOL_CALLS
     assert len(tracker._lookup_tool_id) == _MAX_TRACKED_TOOL_CALLS
     assert all(tool_id in tracker._tool_calls for tool_id in tracker._lookup_tool_id.values())
+
+
+def test_link_tracker_lock_is_reset_in_fork_child():
+    """A fork taken while another thread holds the tracker lock must not deadlock the child."""
+    tracker = LinkTracker()
+    tracker._lock.acquire()
+    try:
+        pid = os.fork()
+        if pid == 0:
+            acquired = tracker._lock.acquire(timeout=5)
+            os._exit(0 if acquired else 1)
+    finally:
+        tracker._lock.release()
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
+def test_link_tracker_tool_call_keeps_lookup_of_newer_call_with_same_arguments(tracer, monkeypatch):
+    """A newer call registered with the same name and arguments while an evicted one resolves keeps its lookup."""
+    monkeypatch.setattr("ddtrace.llmobs._utils._MAX_TRACKED_TOOL_CALLS", 1)
+    tracker = LinkTracker()
+    args = '{"q":"x"}'
+    tracker.on_llm_tool_choice("call_old", "search", args, _llm_span_context(1))
+
+    original_add_span_link = llmobs_utils.add_span_link
+
+    def add_span_link_then_interleave(*a, **kw):
+        original_add_span_link(*a, **kw)
+        # Another request evicts call_old and registers a new call with the same name and arguments.
+        tracker.on_llm_tool_choice("call_other", "other", "{}", _llm_span_context(2))
+        tracker.on_llm_tool_choice("call_new", "search", args, _llm_span_context(3))
+
+    monkeypatch.setattr(llmobs_utils, "add_span_link", add_span_link_then_interleave)
+    with tracer.trace("tool") as tool_span:
+        tracker.on_tool_call("search", args, "function", tool_span)
+
+    assert list(tracker._tool_calls) == ["call_new"]
+    assert tracker._lookup_tool_id == {("search", args): "call_new"}
