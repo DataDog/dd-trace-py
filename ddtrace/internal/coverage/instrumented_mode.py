@@ -16,6 +16,7 @@ from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.mode import ImportName
+from ddtrace.internal.coverage.util import is_import_data_enabled
 from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -39,6 +40,7 @@ class InstrumentedCoverage(CoverageMode):
     def __init__(self, collector: CollectorContract) -> None:
         self._collector = collector
         self._seen: set[tuple[CodeType, str]] = set()
+        self._import_data_disabled_warning_logged = False
 
     def install(self) -> None:
         """The instrumentation modules are imported at module level; nothing to wire."""
@@ -89,14 +91,29 @@ class InstrumentedCoverage(CoverageMode):
             if update_disable_optimization():
                 sys.monitoring.restart_events()  # type: ignore[attr-defined]
 
+    def _warn_import_data_disabled(self) -> None:
+        if not self._import_data_disabled_warning_logged:
+            self._import_data_disabled_warning_logged = True
+            log.warning(
+                "Import-time coverage data is disabled (_DD_COVERAGE_INCLUDE_IMPORT_DATA=false): per-test coverage "
+                "reports will not include imported files, and test skipping may miss tests that import, but do not "
+                "execute, changed code"
+            )
+
     def expand_context_lines(
         self, covered_lines: "dict[str, CoverageLines]", ctx_import_names: "dict[str, set[ImportName]]"
     ) -> None:
+        if not is_import_data_enabled():
+            self._warn_import_data_disabled()
+            return
         self._collector._add_import_time_lines(covered_lines)
 
     def expand_context_files(
         self, covered_files: "set[str]", ctx_import_names: "dict[str, set[ImportName]]"
     ) -> "t.AbstractSet[str]":
+        if not is_import_data_enabled():
+            self._warn_import_data_disabled()
+            return covered_files
         return self._collector._get_covered_file_paths_with_imports(covered_files)
 
     def record_import_file(self, path: str) -> None:
