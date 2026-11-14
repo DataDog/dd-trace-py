@@ -65,6 +65,24 @@ suites:
         - name: ai_guard_openai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.23.7', 'openai<3']
+  ai_guard_openai_agents:
+    paths:
+      - '@bootstrap'
+      - '@ai_guard'
+      - '@openai_agents'
+      - ddtrace/internal/utils/http.py
+      - tests/aiguard/openai_agents/*
+      - tests/aiguard/utils.py
+      - tests/aiguard/suitespec.yml
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/openai_agents/
+      variants:
+        - name: ai_guard_openai_agents
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: ['pytest-asyncio==0.23.7', 'openai-agents~=0.0.0', 'openai<1.100']
+        - name: ai_guard_openai_agents
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: ['pytest-asyncio==0.23.7', openai-agents]
   ai_guard_anthropic:
     paths:
       - '@bootstrap'

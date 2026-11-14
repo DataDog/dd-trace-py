@@ -104,8 +104,8 @@ def stop(join=False):
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
 and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so importing their module does not
-activate them.
+subscribers must set `auto_register = False` so class definitions do not register
+them implicitly. Any compatibility activation during initialization belongs to the product.
 
 Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
@@ -128,6 +128,23 @@ completion listeners after `stop()` returns.
 `unregister()` never imports an unused module. Products registering listeners outside
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
+
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`.
+Its `register_subscribers()` helper activates every declared bundle. Product startup
+calls this helper directly. Normal `ddtrace` initialization installs an import hook
+that calls it after the subscriber package loads through contrib. Waiting for the
+package to finish avoids registering against partially initialized subscriber bases
+and preserves lightweight bare tracer imports.
+Listeners remain available with `DD_TRACE_ENABLED=false` so existing
+integrations can finish their spans without enabling tracing. This supports manual
+instrumentation without starting the product manager. `_DD_GLOBAL_TRACER_INIT=false` preserves deferred initialization;
+product startup can still activate the bundles explicitly. The web subscriber uses
+explicit registration rather than class-definition registration. Integrations emit
+events without registering tracing listeners themselves. Repeated activation does not duplicate
+listeners and can restore listeners after a reset.
+Tracing retains its existing shutdown behavior and keeps these listeners registered.
+Other subscriber families continue using class-definition registration until their
+activation paths are migrated.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls

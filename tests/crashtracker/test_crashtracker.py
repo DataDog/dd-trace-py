@@ -680,6 +680,85 @@ def test_crashtracker_all_threads(run_python_code_in_subprocess):
         assert b"string_at" in report["body"]
 
 
+# Tracing publishes the active span into the OTel thread-context slot on its own.
+# Crash tracking reads that slot at crash time; this script does not write the record.
+_otel_thread_context_crash_code = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ctypes
+import resource
+import sys
+import threading
+
+import ddtrace.auto
+from ddtrace.internal.settings._config import config
+from ddtrace.trace import tracer
+
+assert config._otel_thread_context_enabled, "DD_TRACE_OTEL_CTX_ENABLED did not enable thread context sharing"
+
+NUM_WORKERS = 3
+# Every worker plus the main thread must be inside its span before the crash.
+all_traced = threading.Barrier(NUM_WORKERS + 1)
+hold = threading.Event()
+
+
+def _traced_child():
+    with tracer.trace("otel-thread-context-child"):
+        return 1
+
+
+def _worker(index):
+    with tracer.trace(f"otel-thread-context-worker-{index}"):
+        assert _traced_child() == 1
+        all_traced.wait(timeout=30)
+        hold.wait()  # keep the span active until the process crashes
+
+
+# Start the workers outside any span so each one traces its own root span rather than
+# inheriting the main thread's active context.
+for i in range(NUM_WORKERS):
+    threading.Thread(target=_worker, args=(i,), daemon=True).start()
+
+with tracer.trace("otel-thread-context-work"):
+    assert _traced_child() == 1
+    all_traced.wait(timeout=30)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
+    ctypes.string_at(0)
+
+sys.exit(-1)
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_otel_thread_context(run_python_code_in_subprocess):
+    import json
+
+    service = "test_crashtracker_otel_thread_context"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        env["DD_TRACE_OTEL_CTX_ENABLED"] = "true"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(_otel_thread_context_crash_code, env=env)
+
+        assert not stdout, stdout
+        assert not stderr, stderr
+        assert exitcode == -11, exitcode
+
+        _ping = utils.get_crash_ping(client, service=service)
+
+        report = utils.get_crash_report(client, service=service)
+        assert b"string_at" in report["body"]
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
+        contexts = message["experimental"]["otel_thread_contexts"]
+        # 4 contexts: main thread, 3 workers
+        assert len(contexts) == 4, message["experimental"]
+        for context in contexts:
+            assert context["span_id"] is not None
+            assert context["trace_id"] is not None
+
+
 # Subprocess code for test_crashtracker_native_extension_crash.
 #
 # Using C++ means the symbol is name-mangled in the binary

@@ -148,7 +148,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         crashtracker_config.debug_url or upload_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
-        None,
+        None,  # api_key
+        config._otel_thread_context_enabled,
     )
 
     receiver_env = {}

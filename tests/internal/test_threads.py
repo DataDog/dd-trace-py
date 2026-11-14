@@ -1,6 +1,8 @@
+import errno
 from threading import Event
 from threading import Thread as StdThread
 from time import sleep
+from unittest import mock
 
 import pytest
 
@@ -335,3 +337,40 @@ def test_local_and_event_follow_gevent_patching():
     setter = gevent.spawn(event.set)
     assert event.wait(timeout=5)
     setter.join()
+
+
+def test_restart_failures_are_logged_after_releasing_forking_lock(monkeypatch):
+    """A log handler can wait for a lock whose holder waits for _forking_lock, so log restart errors after it."""
+
+    class FailingPeriodicThread:
+        name = "failing-restart"
+
+        def _after_fork(self, force):
+            raise OSError(errno.EAGAIN, "Resource temporarily unavailable")
+
+    class FailingQueuedThread:
+        name = "failing-start"
+        __autorestart__ = True
+
+        def start(self):
+            raise OSError(errno.ENOMEM, "Cannot allocate memory")
+
+    logged = []
+    monkeypatch.setattr(threads.ThreadRestartTimer, "_timestamp", 0)
+    threads._threads_to_restart_after_fork.add(FailingPeriodicThread())
+    threads._threads_to_start_after_fork.append(FailingQueuedThread().start)
+    try:
+        with mock.patch.object(
+            threads.log,
+            "error",
+            side_effect=lambda msg, name, error: logged.append((msg, name, threads._forking_lock.locked())),
+        ):
+            threads.ThreadRestartTimer(force_restart=True)._restart_threads()
+    finally:
+        threads._threads_to_restart_after_fork.clear()
+        threads._threads_to_start_after_fork.clear()
+
+    assert logged == [
+        ("failed to restart periodic thread %s after fork: %s", "failing-restart", False),
+        ("failed to start periodic thread %s: %s", "failing-start", False),
+    ]
