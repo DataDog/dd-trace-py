@@ -2,8 +2,10 @@ import contextlib
 import gc
 import sys
 import threading
-import types
+import time
 from typing import Iterator
+
+import pytest
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.runtime import gc_monitor
@@ -235,7 +237,7 @@ def test_snapshot_never_splits_a_pause(monkeypatch) -> None:
     reads and the reset must not vanish or pair a new maximum with an old total.
     """
     clock: list[int] = [0]
-    monkeypatch.setattr(gc_monitor, "time", types.SimpleNamespace(monotonic_ns=lambda: clock[0]))
+    monkeypatch.setattr(gc_monitor, "_pause_clock_ns", lambda: clock[0])
     snapshot_code = GCPauseMonitor.snapshot_and_reset.__code__
     previous_trace = sys.gettrace()
     target: int = 0
@@ -294,3 +296,68 @@ def test_skipped_stop_does_not_pair_with_a_later_stop() -> None:
     monitor._on_gc("stop", {"generation": 0})
 
     assert monitor.snapshot_and_reset().n_pauses == 0
+
+
+def test_pause_clock_matches_platform() -> None:
+    """Wall time on Windows or when thread_time_ns is missing; else thread CPU.
+
+    The GIL-wait exclusion test below only covers the thread-time path. This
+    pins the platform choice so the wall-time branch is not untested.
+    """
+    expected: object = (
+        time.monotonic_ns if sys.platform == "win32" or not hasattr(time, "thread_time_ns") else time.thread_time_ns
+    )
+    assert gc_monitor._pause_clock_ns is expected
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or not hasattr(time, "thread_time_ns"),
+    reason="pause clock is wall time when thread_time_ns is missing or too coarse",
+)
+def test_pause_excludes_time_other_threads_run() -> None:
+    """Time that another thread runs during a collection is not a stop-the-world pause.
+
+    Python code inside a collection (gc.callbacks, finalizers) can hand the GIL to
+    another thread, which keeps it for as long as it runs. Wall time between start
+    and stop would report all of that as one pause.
+
+    Drive start/stop directly so a large heap's real GC work is not inside the
+    measured window (that noise flaked under CI load against a 200ms budget).
+    """
+    other_ran_ns: int = 500_000_000
+    go: threading.Event = threading.Event()
+    other_done: threading.Event = threading.Event()
+    ready: threading.Event = threading.Event()
+
+    def other_thread() -> None:
+        ready.set()
+        go.wait()
+        deadline: int = time.monotonic_ns() + other_ran_ns
+        while time.monotonic_ns() < deadline:
+            pass
+        other_done.set()
+
+    thread: threading.Thread = threading.Thread(target=other_thread, daemon=True)
+    thread.start()
+    assert ready.wait(timeout=5)
+
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    # Count as acquired without installing the hook; only the injected pause is timed.
+    monitor._refcount = 1
+    try:
+        monitor.snapshot_and_reset()
+        monitor._on_gc("start", {"generation": 0})
+        wall_start: int = time.monotonic_ns()
+        go.set()
+        assert other_done.wait(timeout=5)
+        wall_handoff_ns: int = time.monotonic_ns() - wall_start
+        monitor._on_gc("stop", {"generation": 0})
+        snap: GCPauseSnapshot = monitor.snapshot_and_reset()
+    finally:
+        go.set()
+        thread.join(timeout=5)
+        monitor._refcount = 0
+
+    assert wall_handoff_ns >= other_ran_ns // 2, wall_handoff_ns
+    assert snap.n_pauses == 1
+    assert snap.max_ns < wall_handoff_ns // 5, (snap, wall_handoff_ns)
