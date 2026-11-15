@@ -23,9 +23,9 @@ from ddtrace.internal import datastreams
 from ddtrace.internal.datastreams import aiokafka as aiokafka_dsm
 from ddtrace.internal.datastreams import botocore as botocore_dsm
 from ddtrace.internal.datastreams import data_streams_processor
+from ddtrace.internal.datastreams import exit_signal
 from ddtrace.internal.datastreams import google_cloud_pubsub as pubsub_dsm
 from ddtrace.internal.datastreams import kombu as kombu_dsm
-from ddtrace.internal.datastreams import processor as processor_module
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.service import ServiceStatus
@@ -468,19 +468,19 @@ def test_rc_reenable_keeps_one_exit_signal_handler():
     _enable_dsm()
     first = data_streams_processor()
     handlers = _exit_signal_handlers()
-    assert first in processor_module._processors_to_shut_down_on_signal
+    assert first._atexit_func in exit_signal.shutdown_callbacks
 
     _disable_dsm()
-    assert first not in processor_module._processors_to_shut_down_on_signal
+    assert first._atexit_func not in exit_signal.shutdown_callbacks
     _enable_dsm()
     second = data_streams_processor()
     assert second is not first
-    assert second in processor_module._processors_to_shut_down_on_signal
+    assert second._atexit_func in exit_signal.shutdown_callbacks
     _disable_dsm()
 
     # No handler was chained on top of the first one.
     assert _exit_signal_handlers() == handlers
-    assert second not in processor_module._processors_to_shut_down_on_signal
+    assert second._atexit_func not in exit_signal.shutdown_callbacks
 
 
 @pytest.mark.skipif(os.name == "nt", reason="requires POSIX SIGTERM handling")
@@ -519,6 +519,44 @@ os.kill(os.getpid(), signal.SIGTERM)
     out, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=30)
     assert status == -signal.SIGTERM, (out, err)
     assert out.decode().split("\n")[:-1] == ["shutdown first", "shutdown second", "flushed"], (out, err)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires POSIX SIGTERM handling")
+def test_sigterm_flushes_once_after_rc_enable_from_a_worker_thread(run_python_code_in_subprocess):
+    # The remote config worker thread cannot install signal handlers: the
+    # handler installed on the main thread at product start must cover it.
+    code = """
+import os
+import signal
+import threading
+
+import ddtrace.auto  # noqa: F401
+
+from ddtrace._trace.product import apm_tracing_rc
+from ddtrace.internal.datastreams import data_streams_processor
+from ddtrace.internal.settings._config import config
+
+assert data_streams_processor() is None
+
+def enable_from_remote_config():
+    apm_tracing_rc({"data_streams_enabled": True}, config)
+    processor = data_streams_processor()
+    processor._flush_stats_with_backoff = lambda payload: print("flushed", flush=True)
+    processor.set_checkpoint(["direction:out", "topic:rc-topic", "type:kafka"])
+
+worker = threading.Thread(target=enable_from_remote_config)
+worker.start()
+worker.join()
+
+os.kill(os.getpid(), signal.SIGTERM)
+"""
+    env = os.environ.copy()
+    env.pop("DD_DATA_STREAMS_ENABLED", None)
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    env["_DD_TRACE_STATS_WRITER_INTERVAL"] = "1000"
+    out, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=30)
+    assert status == -signal.SIGTERM, (out, err)
+    assert out.decode().split("\n")[:-1] == ["flushed"], (out, err)
 
 
 # -- startup env var matrix ------------------------------------------------

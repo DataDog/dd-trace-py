@@ -4,7 +4,6 @@ import base64
 from collections import defaultdict
 from functools import partial
 import gzip
-import signal
 import struct
 import time
 from typing import Any
@@ -15,7 +14,6 @@ from typing import Union
 from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags
-from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings import env
@@ -33,6 +31,7 @@ from ..agent import get_connection
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
+from . import exit_signal
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .schemas.schema_builder import SchemaBuilder
@@ -142,8 +141,8 @@ class DataStreamsProcessor(PeriodicService):
         )(self._flush_stats)
 
         self._atexit_func = partial(_atexit, obj=self)
-        _processors_to_shut_down_on_signal.add(self)
-        _register_exit_signal_handler()
+        exit_signal.shutdown_callbacks.add(self._atexit_func)
+        exit_signal.register_exit_signal_handler()
         ddtrace_atexit.register(self._atexit_func)
         self.start()
 
@@ -320,7 +319,7 @@ class DataStreamsProcessor(PeriodicService):
     def shutdown(self, timeout: Optional[float]) -> None:
         # A shut-down processor must not be flushed (and warn) again at exit.
         ddtrace_atexit.unregister(self._atexit_func)
-        _processors_to_shut_down_on_signal.discard(self)
+        exit_signal.shutdown_callbacks.discard(self._atexit_func)
         self.periodic()
         self.stop(timeout)
 
@@ -535,26 +534,6 @@ class DsmPathwayCodec:
         if not ctx:
             return data_streams_processor.new_pathway()
         return ctx
-
-
-# Processors to shut down on SIGTERM/SIGINT. One shared handler serves them all, so
-# re-creating a processor (remote config re-enable) does not chain another handler.
-_processors_to_shut_down_on_signal: set[DataStreamsProcessor] = set()
-# The SIGTERM and SIGINT handlers in place after the last registration.
-_exit_signal_handlers: Optional[tuple[Any, Any]] = None
-
-
-def _shut_down_processors_on_signal() -> None:
-    for processor in list(_processors_to_shut_down_on_signal):
-        _atexit(processor)
-
-
-def _register_exit_signal_handler() -> None:
-    """Install the shared handler, again only if it never got installed or the app replaced it."""
-    global _exit_signal_handlers
-    current_handlers = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT))
-    if _exit_signal_handlers is None or current_handlers != _exit_signal_handlers:
-        _exit_signal_handlers = register_on_exit_signal(_shut_down_processors_on_signal)
 
 
 def _atexit(obj=None) -> None:

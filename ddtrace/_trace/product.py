@@ -48,6 +48,13 @@ def start():
 
         _install_trace_methods(config._trace_methods)
 
+    if config._remote_config_enabled:
+        # Remote config creates the processor on its worker thread, where signal
+        # handlers cannot be installed: install the shared one now, on the main thread.
+        from ddtrace.internal.datastreams.exit_signal import register_exit_signal_handler
+
+        register_exit_signal_handler()
+
 
 def restart(join=False):
     pass
