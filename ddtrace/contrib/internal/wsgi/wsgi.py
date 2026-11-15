@@ -84,8 +84,7 @@ class _WSGIResponseIterable:
         self._on_complete = on_complete
         self._completed = False
         self._closed = False
-        # WSGI requires closing the application's iterable, even if iter() returned another object.
-        self._close = getattr(wrapped, "close", None) or getattr(self._iterator, "close", None)
+        self._close = getattr(self.__wrapped__, "close", None)
 
     def __iter__(self) -> _WSGIResponseIterable:
         return self
@@ -108,29 +107,28 @@ class _WSGIResponseIterable:
             raise
 
     def close(self) -> None:
-        if self._completed:
+        if self._closed:
             return
+        self._closed = True
         if self._context is not None:
-            self._context.run(self._complete)
+            self._context.run(self._close_response)
         else:
-            self._complete()
+            self._close_response()
+
+    def _close_response(self) -> None:
+        exc_info: ExcInfoType = (None, None, None)
+        try:
+            if self._close is not None:
+                self._close()
+        except BaseException:
+            exc_info = sys.exc_info()
+            raise
+        finally:
+            self._complete(exc_info)
 
     def _complete(self, exc_info: ExcInfoType = (None, None, None)) -> None:
-        if self._completed:
-            return
-        self._completed = True
-        try:
-            if not self._closed:
-                self._closed = True
-                if self._close is not None:
-                    self._close()
-        except BaseException as close_error:
-            if exc_info[0] is None or not isinstance(close_error, Exception):
-                exc_info = sys.exc_info()
-                raise
-            # Cleanup must not hide the original response failure.
-            log.debug("Failed to close WSGI response after application failure", exc_info=True)
-        finally:
+        if not self._completed:
+            self._completed = True
             self._on_complete(exc_info)
 
     @property  # type: ignore[misc]

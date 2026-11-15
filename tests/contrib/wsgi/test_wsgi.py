@@ -658,9 +658,10 @@ def test_wsgi_response_iterable_completes_once_and_forwards_attributes() -> None
     assert not hasattr(wrapped, "custom_attribute")
     assert not hasattr(iterable, "__len__"), "WSGI iterables should not expose __len__"
     assert list(iterable) == [b"one", b"two"]
-    assert wrapped.closed
+    assert not wrapped.closed
     assert completions == [(None, None, None)]
     iterable.close()
+    assert bool(wrapped.closed)
     iterable.close()
     assert completions == [(None, None, None)]
     with pytest.raises(StopIteration):
@@ -732,7 +733,7 @@ def test_wsgi_shared_request_lifecycle_through_response(tracer, test_spans, term
         start_response("200 OK", [("Content-Type", "text/plain")])
         return Response()
 
-    middleware = DDWSGIMiddleware(streaming_application)
+    middleware = DDWSGIMiddleware(streaming_application, app_is_iterator=True)
     listeners = (
         ("context.started.web.request", request_started),
         ("context.ended.web.request", request_ended),
@@ -805,6 +806,8 @@ def test_wsgi_shared_request_lifecycle_through_response(tracer, test_spans, term
         else:
             assert completions == [(None, None, None)]
             assert response_span.error == 0
+        if terminal in ("exhaustion", "stream_error"):
+            assert close_calls == []
         response.close()
         response.close()
         assert close_calls == [None]
@@ -818,7 +821,7 @@ def test_wsgi_shared_request_lifecycle_through_response(tracer, test_spans, term
             core.reset_listeners(event_name, callback)
 
 
-def test_wsgi_response_iterable_preserves_context_and_original_error() -> None:
+def test_wsgi_response_iterable_preserves_context_for_iteration_and_explicit_close() -> None:
     value: ContextVar[str] = ContextVar("wsgi_response_context", default="caller")
     completions: list[ExcInfoType] = []
     phases: list[tuple[str, str]] = []
@@ -842,16 +845,20 @@ def test_wsgi_response_iterable_preserves_context_and_original_error() -> None:
     token = value.set("application")
     context = copy_context()
     value.reset(token)
-    iterable = _WSGIResponseIterable(Response(), complete, context=context)
+    iterable = _WSGIResponseIterable(Response(), complete, wrapped_is_iterator=True, context=context)
     assert next(iterable) == b"one"
     assert value.get() == "caller"
     with pytest.raises(RuntimeError, match="iteration failed") as raised:
         next(iterable)
     assert raised.value is error
     assert value.get() == "caller"
-    assert phases == [("iteration", "application"), ("close", "stream"), ("completion", "stream")]
+    assert phases == [("iteration", "application"), ("completion", "stream")]
     assert len(completions) == 1
     assert completions[0][1] is error
+    with pytest.raises(ValueError, match="cleanup failed"):
+        iterable.close()
+    assert value.get() == "caller"
+    assert phases == [("iteration", "application"), ("completion", "stream"), ("close", "stream")]
     iterable.close()
     assert len(completions) == 1
 
@@ -868,7 +875,7 @@ def test_wsgi_response_iterable_close_can_reenter() -> None:
             closed.append(None)
             response.close()
 
-    response = _WSGIResponseIterable(Response(), completions.append, context=copy_context())
+    response = _WSGIResponseIterable(Response(), completions.append, wrapped_is_iterator=True, context=copy_context())
     response.close()
     response.close()
     assert closed == [None]

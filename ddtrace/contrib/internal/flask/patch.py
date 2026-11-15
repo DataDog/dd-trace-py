@@ -129,19 +129,19 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 ).block_requested
                 if result_content:
                     _, status, response_headers = result_content.value
-                    result = start_response(str(status), response_headers, exc_info)
+                    result = start_response(str(status), response_headers)
                 else:
                     response_headers = (
                         [] if block_config.type == "none" else [("content-type", block_config.content_type)]
                     )
-                    result = start_response(str(block_config.status_code), response_headers, exc_info)
+                    result = start_response(str(block_config.status_code), response_headers)
                 core.dispatch(
                     "flask.start_response.blocked", (ctx, config.flask, response_headers, block_config.status_code)
                 )
             else:
-                result = start_response(status_code, headers, exc_info)
+                result = start_response(status_code, headers)
         else:
-            result = start_response(status_code, headers, exc_info)
+            result = start_response(status_code, headers)
         return result
 
     def _request_call_modifier(self, ctx, parsed_headers=None):

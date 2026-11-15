@@ -1,4 +1,3 @@
-import sys
 from typing import Iterator
 
 import flask
@@ -99,7 +98,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.assertTrue(self.roots[0].finished)
         self.assertEqual(self.phases.count("finishing"), 1)
 
-    def test_stream_error_and_cleanup_error_preserve_original(self):
+    def test_stream_error_and_explicit_close_error_complete_once(self):
         stream_error = ValueError("stream failure")
 
         def close():
@@ -120,7 +119,8 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         with self.assertRaises(ValueError) as raised:
             next(response)
         self.assertIs(raised.exception, stream_error)
-        response.close()
+        with self.assertRaisesRegex(RuntimeError, "close failure"):
+            response.close()
         self.assertEqual(self.roots[0].error, 0)
         self.assertTrue(self.roots[0].finished)
         self.assertEqual(self.scopes[0].get_item("response_span").error, 1)
@@ -197,21 +197,17 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.assertEqual(self.phases.count("finishing"), 2)
         self.assertTrue(all(root.finished for root in self.roots))
 
-    def test_start_response_preserves_exc_info_and_write(self):
+    def test_start_response_preserves_write_callable(self):
         writes = []
         calls = []
-        try:
-            raise ValueError("original")
-        except ValueError:
-            exc_info = sys.exc_info()
 
-        def start_response(status, headers, received_exc_info=None):
-            calls.append(received_exc_info)
+        def start_response(status, headers):
+            calls.append((status, headers))
             return writes.append
 
         def app(environ, respond):
             with self.app.request_context(environ):
-                write = respond("200 OK", [], exc_info)
+                write = respond("200 OK", [])
                 write(b"written")
             return [b"body"]
 
@@ -221,7 +217,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         response = middleware(builder.get_environ(), start_response)
         self.addCleanup(response.close)
         self.assertEqual(list(response), [b"body"])
-        self.assertEqual(calls, [exc_info])
+        self.assertEqual(calls, [("200 OK", [])])
         self.assertEqual(writes, [b"written"])
 
     def test_custom_resource_survives_response_completion(self):
