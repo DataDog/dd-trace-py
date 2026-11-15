@@ -48,6 +48,12 @@ The web subscriber uses explicit registration rather than class-definition regis
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 
+Aiohttp keeps a task-completion fallback for deferred responses and failures that
+may never prepare a response. Store the callback handle and remove it when the
+request finishes: connection tasks can remain alive across keep-alive requests.
+Do not retain exception objects in deferred callbacks; record errors synchronously
+and allow cancellation to complete without requiring a response or tagging it as an error.
+
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,

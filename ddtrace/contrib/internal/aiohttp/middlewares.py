@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 
 from aiohttp import web
 from aiohttp.streams import StreamReader
@@ -22,6 +23,7 @@ REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
+_REQUEST_DONE_CALLBACK_KEY = "__datadog_request_done_callback"
 DEFAULT_CLIENT_MAX_SIZE = 1024**2
 
 
@@ -93,13 +95,17 @@ async def trace_middleware(app, handler):
                     core.dispatch("aiohttp.request.end", (ctx, (None, None, None)))
                 if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
                     if isinstance(response, web.StreamResponse):
-                        request.task.add_done_callback(lambda _: finish_request_span(request, response))
+                        _register_request_done_callback(request, response)
                 return response
-            except Exception as e:
+            except BaseException as e:
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
                 # when its status is an error status.
-                if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
+                if isinstance(e, Exception) and not (
+                    isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)
+                ):
                     req_span.set_traceback()
+                # Error responses can still prepare; cancellation and broken streams may not.
+                _register_request_done_callback(request)
                 raise
 
     return attach_context
@@ -155,14 +161,35 @@ def _blocked_response(ctx, request, block_config):
     )
 
 
-def finish_request_span(request, response):
+def _register_request_done_callback(request: web.Request, response: Optional[web.StreamResponse] = None) -> None:
+    ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
+    if ctx is None or ctx._end_event_dispatched or _REQUEST_DONE_CALLBACK_KEY in request:
+        return
+    task = request.task
+
+    def on_done(_: asyncio.Future[None]) -> None:
+        finish_request_span(request, response)
+
+    request[_REQUEST_DONE_CALLBACK_KEY] = (task, on_done)
+    task.add_done_callback(on_done)
+
+
+def finish_request_span(request: web.Request, response: Optional[web.StreamResponse]) -> None:
+    # A keep-alive task outlives individual responses and must not retain them.
+    completion = request.pop(_REQUEST_DONE_CALLBACK_KEY, None)
+    if completion is not None:
+        task, callback = completion
+        task.remove_done_callback(callback)
     # Response preparation and the task callback can both finalize a request; the first releases its event.
     ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if not ctx or ctx._end_event_dispatched or not span_from_context(ctx):
+    if ctx is None or ctx._end_event_dispatched:
         return
 
+    event: WebFrameworkRequestEvent = ctx.event
+    if response is None:
+        response = request.get(REQUEST_STARTED_RESPONSE_KEY)
     # default resource name
-    resource = str(response.status)
+    resource = str(response.status) if response is not None else event.resource
 
     if request.match_info.route.resource:
         # collect the resource name based on http resource type
@@ -178,10 +205,10 @@ def finish_request_span(request, response):
         # prefix the resource name by the http method
         resource = f"{request.method} {resource}"
 
-    event: WebFrameworkRequestEvent = ctx.event
     event.resource = resource
-    event.response_status_code = response.status
-    event.response_headers = response.headers
+    if response is not None:
+        event.response_status_code = response.status
+        event.response_headers = response.headers
     ctx.dispatch_ended_event()
 
 
