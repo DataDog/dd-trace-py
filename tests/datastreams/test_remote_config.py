@@ -529,7 +529,8 @@ os.kill(os.getpid(), signal.SIGTERM)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="requires POSIX SIGTERM handling")
-def test_sigterm_flushes_once_after_rc_enable_from_a_worker_thread(run_python_code_in_subprocess):
+@pytest.mark.parametrize("trace_enabled", [None, "false"])
+def test_sigterm_flushes_once_after_rc_enable_from_a_worker_thread(run_python_code_in_subprocess, trace_enabled):
     # The remote config worker thread cannot install signal handlers: the
     # handler installed on the main thread at product start must cover it.
     code = """
@@ -539,14 +540,14 @@ import threading
 
 import ddtrace.auto  # noqa: F401
 
-from ddtrace._trace.product import apm_tracing_rc
+from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.settings._config import config
 
 assert data_streams_processor() is None
 
 def enable_from_remote_config():
-    apm_tracing_rc({"data_streams_enabled": True}, config)
+    dispatch("apm-tracing.rc", ({"data_streams_enabled": True}, config))
     processor = data_streams_processor()
     processor._flush_stats_with_backoff = lambda payload: print("flushed", flush=True)
     processor.set_checkpoint(["direction:out", "topic:rc-topic", "type:kafka"])
@@ -561,6 +562,9 @@ os.kill(os.getpid(), signal.SIGTERM)
     env.pop("DD_DATA_STREAMS_ENABLED", None)
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
     env["_DD_TRACE_STATS_WRITER_INTERVAL"] = "1000"
+    env.pop("DD_TRACE_ENABLED", None)
+    if trace_enabled is not None:
+        env["DD_TRACE_ENABLED"] = trace_enabled
     out, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=30)
     assert status == -signal.SIGTERM, (out, err)
     assert out.decode().split("\n")[:-1] == ["flushed"], (out, err)
