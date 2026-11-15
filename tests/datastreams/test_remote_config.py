@@ -1,4 +1,4 @@
-"""Remote-config enable/disable of classic DSM (DSM2-599).
+"""Remote-config enable/disable of classic DSM.
 
 Drives ``ddtrace._trace.product.apm_tracing_rc`` with synthetic merged
 lib_config payloads (the view the APMTracingCallback dispatches on the
@@ -152,6 +152,29 @@ def test_rc_enable_starts_processor_and_records_stats():
 
 
 @requires_confluent_kafka
+def test_rc_enable_injects_into_list_headers():
+    _enable_dsm()
+
+    kwargs = _produce({"headers": [("app-header", b"value")]})
+
+    header_keys = [key for key, _ in kwargs["headers"]]
+    assert header_keys == ["app-header", PROPAGATION_KEY_BASE_64]
+
+
+def test_rc_enable_never_raises_when_hook_import_fails(monkeypatch):
+    def failing_import():
+        raise ImportError("incompatible messaging client")
+
+    monkeypatch.setattr(datastreams, "_import_integration_modules", failing_import)
+
+    _enable_dsm()
+
+    assert config._data_streams_enabled is True
+    # The processor is still created lazily on the first hook call.
+    assert data_streams_processor() is not None
+
+
+@requires_confluent_kafka
 def test_rc_enable_hooks_registered_dispatch_path():
     # The dsm handlers are subscribed unconditionally, so enabling at runtime is
     # enough for a dispatched event to record stats.
@@ -204,6 +227,17 @@ def test_rc_disable_stops_processor_and_records_nothing():
     assert "callback" not in kwargs, "the no-op handler must not even wrap the delivery callback"
     # The shutdown flushed (and cleared) the buckets; nothing was recorded after.
     assert _stat_keys(processor) == set()
+
+
+def test_rc_disable_never_raises_when_processor_already_stopped():
+    _enable_dsm()
+    processor = data_streams_processor()
+    processor.stop()  # already stopped: shutdown() raises ServiceStatusError
+
+    _disable_dsm()
+
+    assert datastreams._processor is None
+    assert data_streams_processor() is None
 
 
 @requires_confluent_kafka
@@ -649,7 +683,7 @@ def test_apm_tracing_callback_end_to_end_enables_dsm():
     from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
     from tests.utils import remote_config_build_payload as build_payload
 
-    on("apm-tracing.rc", apm_tracing_rc, "test-dsm2-599")
+    on("apm-tracing.rc", apm_tracing_rc, "test-dsm-remote-config")
     try:
         payload = build_payload(
             "APM_TRACING",

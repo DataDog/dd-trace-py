@@ -167,7 +167,7 @@ def test_malformed_update_keeps_previous_record(content):
     assert dict(chained_config) == {"tracing_sampling_rate": 0.5, "dynamic_instrumentation_enabled": False}
 
 
-# -- data_streams_enabled targeting (DSM2-599) ---------------------------------
+# -- data_streams_enabled targeting ---------------------------------------------
 
 
 def test_data_streams_enabled_other_service_override_ignored(monkeypatch):
@@ -212,6 +212,7 @@ def test_data_streams_enabled_precedence_service_over_env(monkeypatch):
     # A service-only record (service+precedence key 4) outranks an env-only
     # one (key 2), the two targeting levels below service+env.
     monkeypatch.setattr(config, "service", "my-service")
+    monkeypatch.setattr(config, "env", "my-env")
     callback = APMTracingCallback()
 
     chained_config = callback._process_payloads(
