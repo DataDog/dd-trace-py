@@ -7,8 +7,11 @@ lifecycle, kafka hook recording and pathway header injection, the startup
 env var matrix, and enabling with no messaging client library installed.
 """
 
+from collections import namedtuple
+import copy
 import os
 import signal
+import time
 
 import pytest
 
@@ -17,7 +20,11 @@ from ddtrace._trace.product import APMCapabilities
 from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal import core
 from ddtrace.internal import datastreams
+from ddtrace.internal.datastreams import aiokafka as aiokafka_dsm
+from ddtrace.internal.datastreams import botocore as botocore_dsm
 from ddtrace.internal.datastreams import data_streams_processor
+from ddtrace.internal.datastreams import google_cloud_pubsub as pubsub_dsm
+from ddtrace.internal.datastreams import kombu as kombu_dsm
 from ddtrace.internal.datastreams import processor as processor_module
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.native import RemoteConfigCapabilities
@@ -210,6 +217,210 @@ def test_rc_key_removed_falls_back_to_startup_value():
 
     assert config._data_streams_enabled is False
     assert data_streams_processor() is None
+
+
+# -- every hook is a no-op after a disable ------------------------------------
+# The hook modules below do not import their client library, so the handlers
+# are called directly with fake arguments.
+
+SQS_QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/123456789012/rc-queue"
+FakeTopicPartition = namedtuple("FakeTopicPartition", ["topic", "partition"])
+
+
+class FakeKombuQueue:
+    name = "rc-queue"
+
+
+class FakeKombuConsumer:
+    queues = [FakeKombuQueue()]
+
+
+class FakeKombuMessage:
+    body = b"payload"
+    headers: dict = {}
+
+
+class FakePubsubMessage:
+    data = b"payload"
+    attributes: dict = {}
+    ordering_key = ""
+
+
+class FakeAIOKafkaConsumer:
+    _group_id = "rc-group"
+    _enable_auto_commit = True
+
+
+class FakeAIOKafkaRecord:
+    topic = "rc-topic"
+    partition = 0
+    offset = 3
+    value = b"payload"
+    key = b"key"
+    headers: list = []
+
+
+class FakeRecordMetadata:
+    topic = "rc-topic"
+    partition = 0
+    offset = 3
+
+
+class FakeGroupCoordinator:
+    group_id = "rc-group"
+
+
+def _span_context():
+    span = ddtrace.tracer.trace("dsm-rc-test")
+    span.finish()
+    return core.context_with_data("dsm-rc-test", _inner_span=span)
+
+
+def _mutate(hook, carrier, *args):
+    """Call hook and return the carrier before and after the call."""
+    before = copy.deepcopy(carrier)
+    hook(*args)
+    return before, carrier
+
+
+def _kinesis_produce():
+    carrier = {}
+    record = {"Data": b"payload", "PartitionKey": "pk"}
+    return _mutate(botocore_dsm.handle_kinesis_produce, carrier, None, "rc-stream", carrier, record)
+
+
+def _eventbridge_produce():
+    carrier = {}
+    entry = {"EventBusName": "rc-bus", "DetailType": "rc-detail", "Detail": "{}"}
+    return _mutate(botocore_dsm.handle_eventbridge_produce, carrier, None, None, "events", carrier, {}, entry)
+
+
+def _sqs_produce():
+    carrier = {}
+    params = {"QueueUrl": SQS_QUEUE_URL, "MessageBody": "payload"}
+    return _mutate(botocore_dsm.handle_sqs_sns_produce, carrier, None, None, "sqs", carrier, params)
+
+
+def _sqs_prepare():
+    params = {"QueueUrl": SQS_QUEUE_URL}
+    return _mutate(botocore_dsm.handle_sqs_prepare, params, params)
+
+
+def _sqs_receive():
+    botocore_dsm.handle_sqs_receive(None, {"QueueUrl": SQS_QUEUE_URL}, {"Messages": [{"Body": "payload"}]})
+
+
+def _kinesis_receive():
+    botocore_dsm.handle_kinesis_receive(None, {"StreamName": "rc-stream"}, time.time(), None, {"Data": b"payload"})
+
+
+def _kombu_produce():
+    # Positional _publish args: body, headers and routing key at their kombu indexes.
+    args = [b"payload", None, None, None, {}, None, "rc-queue", None, None, ""]
+    return _mutate(kombu_dsm.handle_kombu_produce, args, args, {}, None)
+
+
+def _kombu_consume():
+    kombu_dsm.handle_kombu_consume(FakeKombuConsumer(), FakeKombuMessage(), None)
+
+
+def _pubsub_send():
+    kwargs = {}
+    return _mutate(pubsub_dsm.dsm_pubsub_send, kwargs, ("projects/p/topics/rc-topic", b"payload"), kwargs, None)
+
+
+def _pubsub_receive():
+    pubsub_dsm.dsm_pubsub_receive("projects/p/subscriptions/rc-sub", FakePubsubMessage(), None)
+
+
+def _aiokafka_send_start():
+    headers = []
+    return _mutate(
+        aiokafka_dsm.dsm_aiokafka_send_start, headers, "rc-topic", b"payload", b"key", headers, _span_context(), 0
+    )
+
+
+def _aiokafka_send_completed():
+    aiokafka_dsm.dsm_aiokafka_send_completed(None, (None, None, None), FakeRecordMetadata())
+
+
+def _aiokafka_consume():
+    aiokafka_dsm.dsm_aiokafka_message_consume(FakeAIOKafkaConsumer(), _span_context(), None, FakeAIOKafkaRecord(), None)
+
+
+def _aiokafka_commit():
+    offsets = {FakeTopicPartition("rc-topic", 0): 3}
+    aiokafka_dsm.dsm_aiokafka_message_commit(FakeGroupCoordinator(), (None, offsets), {})
+
+
+def _kafka_consume():
+    core.set_item("kafka_topic", "rc-topic")
+    try:
+        kafka_dsm.dsm_kafka_message_consume(FakeConsumer(), FakeMessage(), None)
+    finally:
+        core.discard_item("kafka_topic")
+
+
+def _kafka_commit():
+    kafka_dsm.dsm_kafka_message_commit(FakeConsumer(), (FakeMessage(),), {})
+
+
+def _recorded_anything(processor):
+    with processor._lock:
+        return any(
+            bucket.pathway_stats or bucket.latest_produce_offsets or bucket.latest_commit_offsets
+            for bucket in processor._buckets.values()
+        )
+
+
+# Each hook returns (carrier before, carrier after) when it mutates a carrier, else None.
+HOOK_CASES = {
+    "botocore-kinesis-produce": (_kinesis_produce, True),
+    "botocore-eventbridge-produce": (_eventbridge_produce, True),
+    "botocore-sqs-produce": (_sqs_produce, True),
+    "botocore-sqs-prepare": (_sqs_prepare, False),
+    "botocore-sqs-receive": (_sqs_receive, True),
+    "botocore-kinesis-receive": (_kinesis_receive, True),
+    "kombu-produce": (_kombu_produce, True),
+    "kombu-consume": (_kombu_consume, True),
+    "pubsub-send": (_pubsub_send, True),
+    "pubsub-receive": (_pubsub_receive, True),
+    "aiokafka-send-start": (_aiokafka_send_start, True),
+    "aiokafka-send-completed": (_aiokafka_send_completed, True),
+    "aiokafka-consume": (_aiokafka_consume, True),
+    "aiokafka-commit": (_aiokafka_commit, True),
+    "kafka-consume": (_kafka_consume, True),
+    "kafka-commit": (_kafka_commit, True),
+}
+
+
+@pytest.mark.parametrize("case", HOOK_CASES.keys())
+def test_rc_disable_makes_hook_a_noop(case):
+    call_hook, records_stats = HOOK_CASES[case]
+    if case.startswith("kafka-") and kafka_dsm is None:
+        pytest.skip("ddtrace.internal.datastreams.kafka requires confluent_kafka")
+
+    # While enabled the hook acts, so the disabled assertions below are meaningful.
+    _enable_dsm()
+    processor = data_streams_processor()
+    with processor._lock:
+        processor._buckets.clear()
+    carriers = call_hook()
+    assert _recorded_anything(processor) is records_stats
+    if carriers is not None:
+        before, after = carriers
+        assert after != before, "the enabled hook left its carrier untouched"
+
+    _disable_dsm()
+    with processor._lock:
+        processor._buckets.clear()
+
+    carriers = call_hook()
+    assert not _recorded_anything(processor)
+    assert datastreams._processor is None, "the disabled hook created a processor"
+    if carriers is not None:
+        before, after = carriers
+        assert after == before, "the disabled hook changed its carrier"
 
 
 # -- exit signal handler across re-enables ----------------------------------
