@@ -382,6 +382,11 @@ def _aiokafka_consume():
     aiokafka_dsm.dsm_aiokafka_message_consume(FakeAIOKafkaConsumer(), _span_context(), None, FakeAIOKafkaRecord(), None)
 
 
+def _aiokafka_getmany():
+    messages = {FakeTopicPartition("rc-topic", 0): [FakeAIOKafkaRecord()]}
+    aiokafka_dsm.dsm_aiokafka_many_messages_consume(FakeAIOKafkaConsumer(), _span_context(), messages)
+
+
 def _aiokafka_commit():
     offsets = {FakeTopicPartition("rc-topic", 0): 3}
     aiokafka_dsm.dsm_aiokafka_message_commit(FakeGroupCoordinator(), (None, offsets), {})
@@ -422,6 +427,7 @@ HOOK_CASES = {
     "aiokafka-send-start": (_aiokafka_send_start, True),
     "aiokafka-send-completed": (_aiokafka_send_completed, True),
     "aiokafka-consume": (_aiokafka_consume, True),
+    "aiokafka-getmany": (_aiokafka_getmany, True),
     "aiokafka-commit": (_aiokafka_commit, True),
     "kafka-consume": (_kafka_consume, True),
     "kafka-commit": (_kafka_commit, True),
@@ -445,9 +451,10 @@ def test_rc_disable_makes_hook_a_noop(case):
         before, after = carriers
         assert after != before, "the enabled hook left its carrier untouched"
 
-    _disable_dsm()
+    # Cleared before the disable so its final flush has nothing to send (and no backoff).
     with processor._lock:
         processor._buckets.clear()
+    _disable_dsm()
 
     carriers = call_hook()
     assert not _recorded_anything(processor)
