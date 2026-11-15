@@ -56,28 +56,22 @@ def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor
 
 
 def start_data_streams_processor() -> None:
-    """Enable classic DSM at runtime (remote config, DSM2-599). Never raises.
+    """Enable classic DSM at runtime from remote config. Never raises.
 
-    Imports the per-system hook modules (skipped at import time when DSM was
-    off at startup) and creates the processor.
+    Imports the hook modules skipped at startup when DSM was off, then creates the processor.
     """
     try:
         _import_integration_modules()
-        if _processor is None:
-            data_streams_processor()
+        data_streams_processor()
     except Exception:  # noqa: BLE001 - never raise into the RC callback
         log.debug("failed to enable data streams monitoring at runtime", exc_info=True)
 
 
 def stop_data_streams_processor() -> None:
-    """Disable classic DSM at runtime (remote config, DSM2-599). Never raises.
+    """Disable classic DSM at runtime from remote config. Never raises.
 
-    Shuts the processor down (flushing what it holds; the retries of that flush
-    are not bounded by the timeout, so this can block the shared RC worker
-    thread for a few seconds) and drops the global so the hook handlers go back
-    to their no-op path. A fork landing between the setting flip and the
-    processor drop leaves the child an inherited processor; the disabled-setting
-    check in data_streams_processor() makes the child's hooks go inactive again.
+    The final flush retries past the shutdown timeout, so this can block the
+    remote config worker thread for a few seconds.
     """
     global _processor
     processor = _processor

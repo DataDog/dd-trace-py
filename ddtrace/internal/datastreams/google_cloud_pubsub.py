@@ -23,7 +23,6 @@ def _extract_publish_attributes(kwargs: dict[str, Any]) -> dict[str, Any]:
 def dsm_pubsub_send(args: tuple[Any, ...], kwargs: dict[str, Any], span: Optional[Any]) -> None:
     from . import data_streams_processor as processor
 
-    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
     p = processor()
     if p is None:
         return
@@ -51,7 +50,6 @@ def dsm_pubsub_send(args: tuple[Any, ...], kwargs: dict[str, Any], span: Optiona
 def dsm_pubsub_receive(subscription: str, message: Any, span: Optional[Any]) -> None:
     from . import data_streams_processor as processor
 
-    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
     p = processor()
     if p is None:
         return
@@ -76,7 +74,7 @@ def dsm_pubsub_receive(subscription: str, message: Any, span: Optional[Any]) -> 
     ctx.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
 
 
-# DSM2-599: DSM handlers are subscribed unconditionally, so remote config can
-# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+# Subscribed unconditionally so remote config can enable DSM at runtime; each
+# handler is a no-op while data_streams_processor() is None.
 core.on("google_cloud_pubsub.send.pre", dsm_pubsub_send)
 core.on("google_cloud_pubsub.receive.pre", dsm_pubsub_receive)

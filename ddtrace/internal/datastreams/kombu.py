@@ -14,7 +14,6 @@ log = get_logger(__name__)
 def handle_kombu_produce(args, kwargs, span):
     from . import data_streams_processor as processor
 
-    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
     p = processor()
     if p is None:
         return
@@ -48,7 +47,6 @@ def handle_kombu_produce(args, kwargs, span):
 def handle_kombu_consume(instance, message, span):
     from . import data_streams_processor as processor
 
-    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
     p = processor()
     if p is None:
         return
@@ -62,7 +60,7 @@ def handle_kombu_consume(instance, message, span):
     ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
 
 
-# DSM2-599: handlers are subscribed unconditionally, so remote config can
-# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+# Subscribed unconditionally so remote config can enable DSM at runtime; each
+# handler is a no-op while data_streams_processor() is None.
 core.on("kombu.amqp.publish.pre", handle_kombu_produce)
 core.on("kombu.amqp.receive.post", handle_kombu_consume)

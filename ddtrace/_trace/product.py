@@ -75,7 +75,7 @@ APMCapabilities = (
     RemoteConfigCapabilities.ApmTracingCustomTags,
     RemoteConfigCapabilities.ApmTracingEnabled,
     RemoteConfigCapabilities.ApmTracingSampleRules,
-    # DSM2-599: declared so the backend offers data_streams_enabled overrides.
+    # Declared so the backend offers data_streams_enabled overrides.
     RemoteConfigCapabilities.ApmTracingDataStreamsEnabled,
 )
 
@@ -192,9 +192,8 @@ def _apply_config_change(config_name, config_value, dd_config):
     elif config_name == "_logs_injection":
         log.debug("Updated logs injection configuration via remote_config: %s", config_value)
     elif config_name == "_data_streams_enabled":
-        # DSM2-599: toggle classic data streams monitoring at runtime. Deliberately
-        # lazy, like the tracer import above: the datastreams package imports
-        # integration modules that pull in messaging client libraries.
+        # Lazy, like the tracer import above: the datastreams package imports
+        # hook modules that pull in messaging client libraries.
         from ddtrace.internal.datastreams import start_data_streams_processor
         from ddtrace.internal.datastreams import stop_data_streams_processor
 

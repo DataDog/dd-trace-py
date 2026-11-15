@@ -162,7 +162,6 @@ def handle_kinesis_produce(
 ) -> None:
     from . import data_streams_processor as processor
 
-    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
     if processor() is None:
         return
     if "_datadog" not in dd_ctx_json:
@@ -306,7 +305,6 @@ def record_data_streams_path_for_kinesis_stream(
 ) -> None:
     from . import data_streams_processor as processor
 
-    # Registered unconditionally (DSM2-599): no-op while DSM is inactive.
     p = processor()
     if p is None:
         return
@@ -343,8 +341,8 @@ def handle_kinesis_receive(
         log.warning("Failed to report data streams monitoring info for kinesis", exc_info=True)
 
 
-# DSM2-599: handlers are subscribed unconditionally, so remote config can
-# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+# Subscribed unconditionally so remote config can enable DSM at runtime; each
+# handler is a no-op while data_streams_processor() is None.
 core.on("botocore.kinesis.update_record", handle_kinesis_produce)
 core.on("botocore.eventbridge.update_messages", handle_eventbridge_produce)
 core.on("botocore.sqs_sns.update_messages", handle_sqs_sns_produce)

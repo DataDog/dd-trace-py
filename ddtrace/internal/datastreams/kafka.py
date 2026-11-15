@@ -46,7 +46,6 @@ def dsm_kafka_message_produce(
 ) -> None:
     from . import data_streams_processor as processor
 
-    # Registered unconditionally (DSM2-599): no-op, one call, while DSM is inactive.
     p = processor()
     if p is None:
         return
@@ -192,8 +191,8 @@ def dsm_kafka_message_commit(instance, args, kwargs):
         )
 
 
-# DSM2-599: handlers are subscribed unconditionally, so remote config can
-# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+# Subscribed unconditionally so remote config can enable DSM at runtime; each
+# handler is a no-op while data_streams_processor() is None.
 core.on("kafka.produce.start", dsm_kafka_message_produce)
 core.on("kafka.consume.start", dsm_kafka_message_consume)
 core.on("kafka.commit.start", dsm_kafka_message_commit)

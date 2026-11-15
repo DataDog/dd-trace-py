@@ -172,8 +172,8 @@ def dsm_aiokafka_message_commit(instance: GroupCoordinator, args: Any, kwargs: A
             )
 
 
-# DSM2-599: handlers are subscribed unconditionally, so remote config can
-# enable DSM at runtime; each no-ops while data_streams_processor() is None.
+# Subscribed unconditionally so remote config can enable DSM at runtime; each
+# handler is a no-op while data_streams_processor() is None.
 core.on("aiokafka.send.start", dsm_aiokafka_send_start)
 core.on("aiokafka.send.completed", dsm_aiokafka_send_completed)
 core.on("aiokafka.getone.message", dsm_aiokafka_message_consume)
