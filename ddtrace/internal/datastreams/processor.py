@@ -4,6 +4,7 @@ import base64
 from collections import defaultdict
 from functools import partial
 import gzip
+import signal
 import struct
 import time
 from typing import Any
@@ -141,7 +142,8 @@ class DataStreamsProcessor(PeriodicService):
         )(self._flush_stats)
 
         self._atexit_func = partial(_atexit, obj=self)
-        register_on_exit_signal(self._atexit_func)
+        _processors_to_shut_down_on_signal.add(self)
+        _register_exit_signal_handler()
         ddtrace_atexit.register(self._atexit_func)
         self.start()
 
@@ -318,6 +320,7 @@ class DataStreamsProcessor(PeriodicService):
     def shutdown(self, timeout: Optional[float]) -> None:
         # A shut-down processor must not be flushed (and warn) again at exit.
         ddtrace_atexit.unregister(self._atexit_func)
+        _processors_to_shut_down_on_signal.discard(self)
         self.periodic()
         self.stop(timeout)
 
@@ -532,6 +535,26 @@ class DsmPathwayCodec:
         if not ctx:
             return data_streams_processor.new_pathway()
         return ctx
+
+
+# Processors to shut down on SIGTERM/SIGINT. One shared handler serves them all, so
+# re-creating a processor (remote config re-enable) does not chain another handler.
+_processors_to_shut_down_on_signal: set[DataStreamsProcessor] = set()
+# The SIGTERM and SIGINT handlers in place after the last registration.
+_exit_signal_handlers: Optional[tuple[Any, Any]] = None
+
+
+def _shut_down_processors_on_signal() -> None:
+    for processor in list(_processors_to_shut_down_on_signal):
+        _atexit(processor)
+
+
+def _register_exit_signal_handler() -> None:
+    """Install the shared handler, again only if it never got installed or the app replaced it."""
+    global _exit_signal_handlers
+    current_handlers = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT))
+    if _exit_signal_handlers is None or current_handlers != _exit_signal_handlers:
+        _exit_signal_handlers = register_on_exit_signal(_shut_down_processors_on_signal)
 
 
 def _atexit(obj=None) -> None:

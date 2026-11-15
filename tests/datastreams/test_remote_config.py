@@ -8,6 +8,7 @@ env var matrix, and enabling with no messaging client library installed.
 """
 
 import os
+import signal
 
 import pytest
 
@@ -17,6 +18,7 @@ from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal import core
 from ddtrace.internal import datastreams
 from ddtrace.internal.datastreams import data_streams_processor
+from ddtrace.internal.datastreams import processor as processor_module
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.service import ServiceStatus
@@ -208,6 +210,70 @@ def test_rc_key_removed_falls_back_to_startup_value():
 
     assert config._data_streams_enabled is False
     assert data_streams_processor() is None
+
+
+# -- exit signal handler across re-enables ----------------------------------
+
+
+def _exit_signal_handlers():
+    return signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
+
+
+def test_rc_reenable_keeps_one_exit_signal_handler():
+    _enable_dsm()
+    first = data_streams_processor()
+    handlers = _exit_signal_handlers()
+    assert first in processor_module._processors_to_shut_down_on_signal
+
+    _disable_dsm()
+    assert first not in processor_module._processors_to_shut_down_on_signal
+    _enable_dsm()
+    second = data_streams_processor()
+    assert second is not first
+    assert second in processor_module._processors_to_shut_down_on_signal
+    _disable_dsm()
+
+    # No handler was chained on top of the first one.
+    assert _exit_signal_handlers() == handlers
+    assert second not in processor_module._processors_to_shut_down_on_signal
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires POSIX SIGTERM handling")
+def test_sigterm_after_rc_reenable_shuts_down_only_the_live_processor(run_python_code_in_subprocess):
+    code = """
+import os
+import signal
+
+from ddtrace._trace.product import apm_tracing_rc
+from ddtrace.internal.datastreams import data_streams_processor
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+from ddtrace.internal.settings._config import config
+
+original_shutdown = DataStreamsProcessor.shutdown
+
+def shutdown(self, timeout):
+    print("shutdown", self.label, flush=True)
+    original_shutdown(self, timeout)
+
+DataStreamsProcessor.shutdown = shutdown
+
+apm_tracing_rc({"data_streams_enabled": True}, config)
+data_streams_processor().label = "first"
+apm_tracing_rc({"data_streams_enabled": False}, config)
+apm_tracing_rc({"data_streams_enabled": True}, config)
+second = data_streams_processor()
+second.label = "second"
+second._flush_stats_with_backoff = lambda payload: print("flushed", flush=True)
+second.set_checkpoint(["direction:out", "topic:rc-topic", "type:kafka"])
+
+os.kill(os.getpid(), signal.SIGTERM)
+"""
+    env = os.environ.copy()
+    env.pop("DD_DATA_STREAMS_ENABLED", None)
+    env["_DD_TRACE_STATS_WRITER_INTERVAL"] = "1000"
+    out, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=30)
+    assert status == -signal.SIGTERM, (out, err)
+    assert out.decode().split("\n")[:-1] == ["shutdown first", "shutdown second", "flushed"], (out, err)
 
 
 # -- startup env var matrix ------------------------------------------------
