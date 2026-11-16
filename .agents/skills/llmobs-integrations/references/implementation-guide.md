@@ -219,7 +219,7 @@ customize the two hooks below instead of stamping kind at finish time.
 
 **`_llmobs_span_kind(self, operation_id, span, **kwargs) -> Optional[str]`**
 
-Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI, `interface_type="agent"` for Bedrock). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
+Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI and Bedrock agents). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
 
 **`_llmobs_agent_name_at_start(self, span, **kwargs) -> Optional[str]`**
 

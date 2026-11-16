@@ -26,7 +26,7 @@ from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 _AUTO_AGENT_CASES = [
     pytest.param(CrewAIIntegration, "crewai", {"operation": "agent"}, id="crewai"),
     pytest.param(GoogleAdkIntegration, "google_adk", {"kind": "agent"}, id="google_adk"),
-    pytest.param(BedrockIntegration, "botocore", {"interface_type": "agent"}, id="bedrock"),
+    pytest.param(BedrockIntegration, "botocore", {"operation": "agent"}, id="bedrock"),
     pytest.param(LangGraphIntegration, "langgraph", {"operation": "graph"}, id="langgraph"),
 ]
 
@@ -104,8 +104,8 @@ def test_auto_instrumented_agent_parent_attributes_child(
     """A child under an auto-instrumented (trace()-based) agent span must attribute to that agent.
 
     Regression guard for the LIFO start-vs-finish bug: the agent kind must be known at span start,
-    not finish. Also exercises each integration's start-time signal (operation / kind /
-    interface_type) feeding ``_llmobs_span_kind``.
+    not finish. Also exercises each integration's start-time signal (operation / kind) feeding
+    ``_llmobs_span_kind``.
     """
     integration = integration_cls(IntegrationConfig(config, config_name))
     agent_span = integration.trace("agent_run", span_name="my_agent", submit_to_llmobs=True, **agent_trace_kwargs)

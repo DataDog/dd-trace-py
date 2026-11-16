@@ -916,28 +916,6 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
     ctx.set_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY, trace_data)
 
 
-def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
-    span = span_from_context(ctx)
-    integration = ctx.get_item("bedrock_integration")
-    integration._tag_proxy_request(ctx)
-
-    span._set_attribute("bedrock.request.model_provider", ctx.get_item("model_provider"))
-    span._set_attribute("bedrock.request.model", ctx.get_item("model_name"))
-
-    if "n" in request_params:
-        ctx.set_item("num_generations", str(request_params["n"]))
-
-
-def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info, response=None):
-    span = span_from_context(ctx)
-    span.set_exc_info(*exc_info)
-    model_name = ctx.get_item("model_name")
-    integration = ctx.get_item("bedrock_integration")
-    if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=response)
-    span.finish()
-
-
 def _propagate_context(ctx, headers):
     distributed_tracing_enabled = ctx.get_item("integration_config").distributed_tracing_enabled
     span = span_from_context(ctx)
@@ -961,31 +939,6 @@ def _on_end_of_traced_method_in_fork(ctx):
     immediately after this method returns
     """
     tracer.flush()
-
-
-def _on_botocore_bedrock_process_response_converse(
-    ctx: core.ExecutionContext,
-    result: list[dict[str, Any]],
-):
-    ctx.get_item("bedrock_integration").llmobs_set_tags(
-        span_from_context(ctx),
-        args=[ctx],
-        kwargs={},
-        response=result,
-    )
-    span_from_context(ctx).finish()
-
-
-def _on_botocore_bedrock_process_response(
-    ctx: core.ExecutionContext,
-    formatted_response: dict[str, Any],
-) -> None:
-    with span_from_context(ctx) as span:
-        model_name = ctx.get_item("model_name")
-        integration = ctx.get_item("bedrock_integration")
-        if "embed" in model_name:
-            return
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
 
 
 def _on_botocore_sqs_recvmessage_post(
@@ -1866,10 +1819,6 @@ def listen():
     core.on("botocore.stepfunctions.update_input", _on_botocore_patched_stepfunctions_update_input)
     core.on("botocore.eventbridge.update_messages", _on_botocore_update_messages)
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
-    core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
-    core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
-    core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
-    core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
@@ -1956,7 +1905,6 @@ def listen():
         "botocore.patched_kinesis_api_call",
         "botocore.patched_sqs_api_call",
         "botocore.patched_stepfunctions_api_call",
-        "botocore.patched_bedrock_api_call",
         "redis.command",
         "redis.execute_pipeline",
         "valkey.command",
