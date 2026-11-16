@@ -797,6 +797,16 @@ class BotocoreTest(TracerTestCase):
             assert "MessageAttributes" not in response["Messages"][0]
 
     @mock_sqs
+    def test_service_disabled_after_first_call_removes_before_sign_handler(self):
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="one")
+            assert self.sqs_client._dd_before_sign_registered is True
+
+        with self.override_config("botocore", dict(distributed_tracing_disabled_services={"sqs"})):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="two")
+            assert self.sqs_client._dd_before_sign_registered is False
+
+    @mock_sqs
     def test_sqs_send_message_distributed_tracing_other_service_disabled(self):
         with self.override_config(
             "botocore",

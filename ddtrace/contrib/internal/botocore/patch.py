@@ -199,6 +199,21 @@ def _ensure_before_sign_handler(client, handler) -> bool:
     return True
 
 
+def _remove_before_sign_handler(client) -> None:
+    """Unregister a previously registered before-sign handler, e.g. when the service
+    is added to ``distributed_tracing_disabled_services`` after the client's first call.
+    ``_ensure_before_sign_handler`` re-registers it if the service is enabled again.
+    """
+    if not getattr(client, "_dd_before_sign_registered", False):
+        return
+    try:
+        client.meta.events.unregister("before-sign", unique_id=_DD_BEFORE_SIGN_HANDLER_UID)
+    except Exception:
+        log.warning("dd-trace-py: failed to unregister botocore before-sign handler", exc_info=True)
+        return
+    client._dd_before_sign_registered = False
+
+
 # Botocore default settings
 config._add(
     "botocore",
@@ -355,6 +370,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     # here and early-return paths can't leak it.
     token = None
     if not distributed_tracing_enabled_for(endpoint_name):
+        _remove_before_sign_handler(instance)
         token = _http_propagation_suppressed.set(True)
     elif _ensure_before_sign_handler(instance, _botocore_before_sign_handler):
         token = _http_propagation_suppressed.set(True)
