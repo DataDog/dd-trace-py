@@ -1141,13 +1141,20 @@ class Context:
         self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
     ) -> None: ...
     @staticmethod
-    def _register_tracestate_helpers(
-        w3c_get_dd_list_member: Callable[..., str],
-        w3c_build_tracestate_members: Callable[..., list[str]],
-        normalize_otel_tracestate: Callable[[dict[str, str]], None],
-        materialize_otel_sampling_decision: Callable[[dict[str, str], Optional[int], bool, float, bool], None],
-        tracestate_max_bytes: int,
+    def _register_tracestate_loader(
+        loader: Callable[
+            [],
+            tuple[
+                Callable[..., str],
+                Callable[..., list[str]],
+                Callable[[dict[str, str]], None],
+                Callable[[dict[str, str], Optional[int], bool, float, bool], None],
+                int,
+            ],
+        ],
     ) -> None: ...
+    @staticmethod
+    def _init_tracestate_helpers() -> None: ...
 
 class SpanData:
     name: str

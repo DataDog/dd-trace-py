@@ -27,8 +27,8 @@ type ContextState<'py> = (
 );
 
 /// Python helpers used to build and normalize tracestate. Python owns them (and the
-/// tracestate size limit) and hands them over through `Context._register_tracestate_helpers`,
-/// so this crate never imports ddtrace modules itself.
+/// tracestate size limit): it registers a loader through
+/// `Context._register_tracestate_loader`, so this crate never imports ddtrace modules itself.
 struct TracestateHelpers {
     w3c_get_dd_list_member: Py<PyAny>,
     w3c_build_tracestate_members: Py<PyAny>,
@@ -37,15 +37,40 @@ struct TracestateHelpers {
     tracestate_max_bytes: usize,
 }
 
+static TRACESTATE_LOADER: OnceLock<Py<PyAny>> = OnceLock::new();
 static TRACESTATE_HELPERS: OnceLock<TracestateHelpers> = OnceLock::new();
 
-fn tracestate_helpers() -> PyResult<&'static TracestateHelpers> {
-    TRACESTATE_HELPERS.get().ok_or_else(|| {
+/// Return the helpers, calling the registered loader on first use. Concurrent first calls
+/// may both run the loader; it only imports modules, so the extra call is harmless and the
+/// first result wins.
+fn tracestate_helpers(py: Python<'_>) -> PyResult<&'static TracestateHelpers> {
+    if let Some(helpers) = TRACESTATE_HELPERS.get() {
+        return Ok(helpers);
+    }
+    let loader = TRACESTATE_LOADER.get().ok_or_else(|| {
         PyRuntimeError::new_err(
-            "tracestate helpers are not registered: \
-             Context._register_tracestate_helpers() must be called before building a tracestate",
+            "tracestate helpers are not available: \
+             Context._register_tracestate_loader() must be called before building a tracestate",
         )
-    })
+    })?;
+    #[allow(clippy::type_complexity)]
+    let (
+        w3c_get_dd_list_member,
+        w3c_build_tracestate_members,
+        normalize_otel_tracestate,
+        materialize_otel_sampling_decision,
+        tracestate_max_bytes,
+    ): (Py<PyAny>, Py<PyAny>, Py<PyAny>, Py<PyAny>, usize) = loader.bind(py).call0()?.extract()?;
+    let _ = TRACESTATE_HELPERS.set(TracestateHelpers {
+        w3c_get_dd_list_member,
+        w3c_build_tracestate_members,
+        normalize_otel_tracestate,
+        materialize_otel_sampling_decision,
+        tracestate_max_bytes,
+    });
+    Ok(TRACESTATE_HELPERS
+        .get()
+        .expect("TRACESTATE_HELPERS was set above"))
 }
 
 #[inline]
@@ -184,7 +209,7 @@ impl Context {
             (this.trace_id, sampled, this.get_meta(py))
         };
         let probabilistic_decision = sample_rate >= 0.0;
-        tracestate_helpers()?
+        tracestate_helpers(py)?
             .materialize_otel_sampling_decision
             .bind(py)
             .call1((
@@ -205,7 +230,7 @@ impl Context {
     fn build_tracestate(slf: &Bound<'_, Self>, parent_id: Option<u128>) -> PyResult<Vec<String>> {
         Self::materialize_otel_sampling_decision(slf)?;
         let py = slf.py();
-        let mut dd_list_member: String = tracestate_helpers()?
+        let mut dd_list_member: String = tracestate_helpers(py)?
             .w3c_get_dd_list_member
             .bind(py)
             .call1((slf,))?
@@ -242,12 +267,13 @@ impl Context {
                 return Ok(vec![raw_tracestate]);
             }
             let dd_member = format!("dd={}", dd_list_member);
-            if dd_member.len() + raw_tracestate.len() < tracestate_helpers()?.tracestate_max_bytes {
+            if dd_member.len() + raw_tracestate.len() < tracestate_helpers(py)?.tracestate_max_bytes
+            {
                 return Ok(vec![dd_member, raw_tracestate]);
             }
             return Ok(vec![dd_member]);
         }
-        tracestate_helpers()?
+        tracestate_helpers(py)?
             .w3c_build_tracestate_members
             .bind(py)
             .call1((raw_tracestate, dd_list_member))?
@@ -358,7 +384,7 @@ impl Context {
             metrics_dict.bind(py).set_item(SAMPLING_PRIORITY_KEY, sp)?;
         }
         if meta_dict.bind(py).contains(W3C_TRACESTATE_KEY)? {
-            tracestate_helpers()?
+            tracestate_helpers(py)?
                 .normalize_otel_tracestate
                 .bind(py)
                 .call1((meta_dict.bind(py),))?;
@@ -604,27 +630,26 @@ impl Context {
             .collect())
     }
 
-    /// Register the Python helpers that build_tracestate relies on.
+    /// Register the Python callable that returns the helpers build_tracestate relies on.
     ///
-    /// Python calls this once at import time, which also keeps the native code from
-    /// importing anything later (Temporal sandbox, etc. may block imports). The first
-    /// registration wins; later calls are ignored. Building a tracestate before any
-    /// registration raises RuntimeError.
+    /// The loader is called on first use and must return
+    /// `(w3c_get_dd_list_member, w3c_build_tracestate_members, normalize_otel_tracestate,
+    /// materialize_otel_sampling_decision, tracestate_max_bytes)`. The first registration
+    /// wins; later calls are ignored.
     #[staticmethod]
-    fn _register_tracestate_helpers(
-        w3c_get_dd_list_member: Py<PyAny>,
-        w3c_build_tracestate_members: Py<PyAny>,
-        normalize_otel_tracestate: Py<PyAny>,
-        materialize_otel_sampling_decision: Py<PyAny>,
-        tracestate_max_bytes: usize,
-    ) {
-        let _ = TRACESTATE_HELPERS.set(TracestateHelpers {
-            w3c_get_dd_list_member,
-            w3c_build_tracestate_members,
-            normalize_otel_tracestate,
-            materialize_otel_sampling_decision,
-            tracestate_max_bytes,
-        });
+    fn _register_tracestate_loader(loader: Py<PyAny>) {
+        let _ = TRACESTATE_LOADER.set(loader);
+    }
+
+    /// Eagerly load the helpers through the registered loader.
+    ///
+    /// Called by ddtrace.propagation.http so the helpers are imported while imports are
+    /// unrestricted. Without this, the first _tracestate call runs the loader, which
+    /// some environments (Temporal sandbox, etc.) block.
+    #[staticmethod]
+    fn _init_tracestate_helpers(py: Python<'_>) -> PyResult<()> {
+        tracestate_helpers(py)?;
+        Ok(())
     }
 
     pub(crate) fn _publish_sampling_decision(
