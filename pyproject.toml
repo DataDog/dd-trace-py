@@ -63,7 +63,7 @@ openfeature = [
 
 [project.scripts]
 ddtrace-run = "ddtrace_commands.ddtrace_run:main"
-_dd_crashtracker_receiver = "ddtrace.commands._dd_crashtracker_receiver:main"
+_dd_crashtracker_receiver = "ddtrace_commands._dd_crashtracker_receiver:main"
 
 [project.entry-points.opentelemetry_context]
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"

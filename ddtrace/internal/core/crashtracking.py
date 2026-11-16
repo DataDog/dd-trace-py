@@ -1,5 +1,5 @@
 # pyright: reportPossiblyUnboundVariable=false
-import importlib.machinery
+import importlib.util
 import os
 import platform
 import sys
@@ -7,7 +7,7 @@ import traceback
 from types import TracebackType
 from typing import Optional
 
-from ddtrace import __path__ as ddtrace_path
+import ddtrace
 from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import excepthook
@@ -102,10 +102,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     # depend on PATH configuration.
     python_executable = sys.executable
 
-    # Locate the script without importing the deprecated commands package.
-    spec = importlib.machinery.PathFinder.find_spec(
-        "ddtrace.commands._dd_crashtracker_receiver", [os.path.join(path, "commands") for path in ddtrace_path]
-    )
+    # Get the path to the receiver script module
+    spec = importlib.util.find_spec("ddtrace_commands._dd_crashtracker_receiver")
     if spec is None:
         log.error("Failed to locate _dd_crashtracker_receiver module")
         return (None, None, None)
@@ -184,16 +182,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         env_value = env.get(env_var)
         if env_value is not None:
             if env_var == "PYTHONPATH":
-                # ddtrace-run and SSI prepends its bootstrap dir (containing sitecustomize.py) to
-                # PYTHONPATH so the traced app auto-instruments on startup. If we inherit it
-                # as-is, the receiver's own interpreter re-triggers that bootstrap and ends up
-                # running a second, independently-configured copy of ddtrace using this stripped-down env.
-                # Strip it so the receiver stays a plain, uninstrumented script while still finding
-                # the ddtrace package via any other PYTHONPATH entries.
-                # receiver_script_path is .../ddtrace/commands/_dd_crashtracker_receiver.py,
-                # so two dirname() calls reach the ddtrace package root and "bootstrap"
-                # names the sibling directory that sitecustomize.py lives in.
-                bootstrap_dir = os.path.join(os.path.dirname(os.path.dirname(receiver_script_path)), "bootstrap")
+                # Strip the ddtrace-run/SSI bootstrap path so the receiver is not instrumented.
+                bootstrap_dir = os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap")
                 path_entries = [p for p in env_value.split(os.pathsep) if p != bootstrap_dir]
                 if not path_entries:
                     continue
