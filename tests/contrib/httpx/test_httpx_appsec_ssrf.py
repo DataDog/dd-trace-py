@@ -51,6 +51,11 @@ def _get_nested():
         client.get(NESTED)
 
 
+def _auth_with_nested_request(request):
+    _get_nested()
+    return request
+
+
 def _hooks(path):
     def hook(response):
         if response.request.url.path == path:
@@ -63,7 +68,7 @@ def _hooks(path):
     "client_kwargs,url",
     [
         ({"event_hooks": _hooks("/outer")}, "http://example.test/outer"),
-        ({"auth": lambda request: _get_nested() or request}, "http://example.test/outer"),
+        ({"auth": _auth_with_nested_request}, "http://example.test/outer"),
         # The redirect hops share the outer request's subcontext.
         ({"event_hooks": _hooks("/target"), "follow_redirects": True}, "http://example.test/source"),
     ],

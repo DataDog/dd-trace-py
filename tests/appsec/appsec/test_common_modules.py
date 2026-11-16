@@ -36,6 +36,7 @@ from ddtrace.internal.wrapping.hooks import _WRAPPING_CONTEXTS
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
 from ddtrace.internal.wrapping.hooks import try_wrap_context
 from tests.appsec.utils import assert_nested_request_isolated
+from tests.appsec.utils import local_http_server
 
 
 def test_patch_read():
@@ -1077,36 +1078,6 @@ def test_each_webbrowser_call_gets_its_own_rasp_subcontext():
     assert holders[0] is not holders[1], "both calls shared one subcontext"
 
 
-@contextlib.contextmanager
-def _local_http_server():
-    from http.server import BaseHTTPRequestHandler
-    from http.server import ThreadingHTTPServer
-    import threading
-
-    class _Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            redirect = self.path == "/source"
-            self.send_response(302 if redirect else 200)
-            if redirect:
-                self.send_header("Location", "/target")
-            self.send_header("Content-Length", "0" if redirect else "2")
-            self.end_headers()
-            self.wfile.write(b"" if redirect else b"{}")
-
-        def log_message(self, *args):
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_address[1]}"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
 def _request_with_requests(url):
     import requests
 
@@ -1138,7 +1109,7 @@ def test_a_request_made_from_a_requests_hook_gets_its_own_rasp_subcontext(nested
     try:
         patch_common_modules()
         with (
-            _local_http_server() as base,
+            local_http_server() as base,
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
             mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
             mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
@@ -1153,6 +1124,47 @@ def test_a_request_made_from_a_requests_hook_gets_its_own_rasp_subcontext(nested
         try_unwrap("requests", "Session.request")
 
     assert_nested_request_isolated(calls, f"{base}/nested")
+
+
+def test_a_urllib3_pool_request_from_another_clients_hook_gets_its_own_rasp_subcontext():
+    """urllib3 inherits only from the layers that drive it, so a bare pool call (the way botocore
+    uses urllib3) made from an httpx hook is a separate request.
+    """
+    from urllib.parse import urlsplit
+
+    import urllib3
+
+    from ddtrace.appsec._asm_request_context import SsrfLayer
+    from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
+
+    calls = []
+
+    def record(addresses, rule_type=None, **kwargs):
+        calls.append((rule_type, addresses.get(EXPLOIT_PREVENTION.ADDRESS.SSRF), core.find_item(_RASP_SUBCONTEXT)))
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        with (
+            local_http_server() as base,
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=record),
+            # The request context of an httpx request whose hooks are running.
+            core.context_with_data("test.httpx_hook"),
+        ):
+            open_rasp_subcontext_scope(SsrfLayer.HTTPX, inherit_from=())
+            httpx_holder = core.find_item(_RASP_SUBCONTEXT)
+            url = urlsplit(base)
+            with urllib3.HTTPConnectionPool(url.hostname, url.port) as pool:
+                pool.urlopen("GET", "/nested").read()
+    finally:
+        unpatch_common_modules()
+
+    nested_holders = [holder for _, ssrf_url, holder in calls if ssrf_url == f"{base}/nested"]
+    assert len(nested_holders) == 1, calls
+    assert nested_holders[0] is not None, calls
+    assert nested_holders[0] is not httpx_holder, calls
 
 
 def test_a_custom_installed_opener_still_publishes_the_url():
@@ -1264,6 +1276,9 @@ def test_a_redirect_publishes_the_redirected_url(httplib_enabled):
     The deduplication must not suppress that hop: the redirect target is a different destination
     and has to be evaluated on its own. It works because the http.client hook discards full_url
     once it has consumed it, so the nested call no longer sees a matching URL.
+
+    Both hops and the final response still share one subcontext, including when the httplib
+    integration wraps http.client underneath urllib.
     """
     import urllib.request
 
@@ -1288,7 +1303,7 @@ def test_a_redirect_publishes_the_redirected_url(httplib_enabled):
             httplib_patch()
         patch_common_modules()
         with (
-            _local_http_server() as base,
+            local_http_server() as base,
             mock.patch.object(asm_config, "_asm_enabled", True),
             mock.patch.object(asm_config, "_ep_enabled", True),
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
@@ -1306,7 +1321,6 @@ def test_a_redirect_publishes_the_redirected_url(httplib_enabled):
 
     assert f"{base}/source" in published, published
     assert any(url and url.endswith("/target") for url in published), published
-    # Both hops and their responses belong to one logical request.
     assert {rule_type for rule_type, _ in calls} == {EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_RES}
     holders = [holder for _, holder in calls]
     assert len(holders) >= 2 and holders[0] is not None

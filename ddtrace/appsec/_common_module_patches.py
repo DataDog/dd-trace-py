@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from collections.abc import Iterable
 import io
 import json
@@ -10,6 +11,8 @@ from urllib.parse import urlunparse
 import weakref
 
 from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
+from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT_LAYER
+from ddtrace.appsec._asm_request_context import SsrfLayer
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import _RaspSubcontextHolder
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -205,9 +208,6 @@ class _ScopedRaspContext(_RaspContext):
         super().__exit__(exc_type, exc_value, exc_tb)
 
 
-_URLLIB_REQUEST = "appsec.rasp.urllib"
-
-
 class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
     """RASP SSRF analysis around urllib.request.OpenerDirector.open."""
 
@@ -248,10 +248,9 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
 
         use_body = should_analyze_body_response(ctx)
         self.set("use_body", use_body)
-        # A nested open is a redirect or rewrite of the enclosing urllib request.
-        inherit = core.find_item(_URLLIB_REQUEST) is not None
-        self._open_core_context("url_open_analysis", full_url=url, use_body=use_body, **{_URLLIB_REQUEST: True})
-        open_rasp_subcontext_scope(inherit=inherit)
+        self._open_core_context("url_open_analysis", full_url=url, use_body=use_body)
+        # An open nested directly in a urllib open is a redirect or rewrite of that request.
+        open_rasp_subcontext_scope(SsrfLayer.URLLIB, inherit_from=(SsrfLayer.URLLIB,))
 
     def __return__(self, response: Any) -> Any:
         if self._rasp_active():
@@ -494,7 +493,10 @@ class _SsrfUrllib3MakeRequest(_ScopedRaspContext):
         # Own core context so concurrent urllib3 requests get distinct subcontexts. It has to span
         # the call: the SSRF_RES side comes from http.client's getresponse underneath this one.
         self._open_core_context("rasp.ssrf.urllib3")
-        open_rasp_subcontext_scope(inherit=True)
+        # requests sends its redirect hops through here without republishing the URL, so they
+        # stay in the request's subcontext. That also covers a bare urllib3 call from a requests
+        # hook, which cannot be told apart from a hop; one from any other client's hooks gets its own.
+        open_rasp_subcontext_scope(SsrfLayer.URLLIB3, inherit_from=(SsrfLayer.REQUESTS, SsrfLayer.URLLIB3))
 
         headers = _parse_headers_urllib3(self._arg("headers", {}))
         addresses = {
@@ -555,7 +557,7 @@ class _SsrfUrllib3Request(_ScopedRaspContext):
 
         # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
         self._open_core_context("url_open_analysis", full_url=url, use_body=should_analyze_body_response(ctx))
-        open_rasp_subcontext_scope()
+        open_rasp_subcontext_scope(SsrfLayer.URLLIB3, inherit_from=())
 
 
 _AIOHTTP_RASP = "appsec.rasp.aiohttp"
@@ -603,7 +605,11 @@ class _SsrfAiohttpRequest(_ScopedRaspContext):
                     # subcontext.
                     self._open_core_context(
                         "rasp.ssrf.aiohttp",
-                        **{_AIOHTTP_RASP: _AiohttpRaspRequest(), _RASP_SUBCONTEXT: _RaspSubcontextHolder()},
+                        **{
+                            _AIOHTTP_RASP: _AiohttpRaspRequest(),
+                            _RASP_SUBCONTEXT: _RaspSubcontextHolder(),
+                            _RASP_SUBCONTEXT_LAYER: SsrfLayer.AIOHTTP,
+                        },
                     )
         except Exception:
             self._close_core_context()
@@ -704,12 +710,20 @@ class _SsrfAiohttpResponseRead(_RaspContext):
         return super().__return__(body)
 
 
-def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs, *, inherit: bool = False):
+def wrapped_request_D8CB81E472AF98A2(
+    original_request_callable,
+    instance,
+    args,
+    kwargs,
+    *,
+    layer: str = SsrfLayer.REQUESTS,
+    inherit_from: Collection[str] = (),
+):
     """
     wrapper for third party requests.request function
     https://requests.readthedocs.io
 
-    inherit=True lets a transport reuse its enclosing client's SSRF subcontext.
+    wrapped_http_client_request reuses it with the http.client layer.
     """
     if get_rasp_capability("ssrf"):
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
@@ -718,7 +732,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
             use_body = should_analyze_body_response(ctx)
             with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
                 # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
-                open_rasp_subcontext_scope(inherit=inherit)
+                open_rasp_subcontext_scope(layer, inherit_from=inherit_from)
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_request_callable(*args, **kwargs)
@@ -739,3 +753,19 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         elif valid_url:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_request_callable(*args, **kwargs)
+
+
+def wrapped_http_client_request(original_request_callable, instance, args, kwargs):
+    """The same analysis for http.client.HTTPConnection.request, used by the httplib integration.
+
+    Only urllib and urllib3 drive http.client; a call made from another client's hooks is a
+    separate request.
+    """
+    return wrapped_request_D8CB81E472AF98A2(
+        original_request_callable,
+        instance,
+        args,
+        kwargs,
+        layer=SsrfLayer.HTTP_CLIENT,
+        inherit_from=(SsrfLayer.URLLIB, SsrfLayer.URLLIB3),
+    )

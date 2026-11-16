@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from collections.abc import Mapping
 import contextlib
 import json
@@ -184,9 +185,25 @@ def should_analyze_body_response(env: ASM_Environment) -> bool:
 
 
 # An outgoing request's SSRF_REQ and SSRF_RES calls share one subcontext, held on the request's core
-# context and resolved through find_item from the contexts underneath it.
+# context and resolved through find_item from the contexts underneath it. The layer that opened the
+# nearest holder is recorded next to it, so a transport can tell whether it runs for the client
+# above it or for a separate request started from that client's hooks.
 
 _RASP_SUBCONTEXT = "asm::rasp_subcontext"
+_RASP_SUBCONTEXT_LAYER = "asm::rasp_subcontext_layer"
+
+
+class SsrfLayer:
+    """Names of the instrumented HTTP clients and transports, for open_rasp_subcontext_scope."""
+
+    AIOHTTP = "aiohttp"
+    HTTP_CLIENT = "http.client"
+    HTTPX = "httpx"
+    REQUESTS = "requests"
+    URLLIB = "urllib"
+    URLLIB3 = "urllib3"
+    WEBBROWSER = "webbrowser"
+
 
 _SSRF_RULE_TYPES = frozenset(
     (
@@ -204,13 +221,17 @@ class _RaspSubcontextHolder:
         self.subctx: Optional[Any] = None
 
 
-def open_rasp_subcontext_scope(*, inherit: bool = False) -> None:
-    """Give the current core context its own SSRF subcontext holder.
+def open_rasp_subcontext_scope(layer: str, *, inherit_from: Collection[str]) -> None:
+    """Set up the SSRF subcontext of the outgoing request handled by the current core context.
 
-    Call it from a per-outgoing-request core context. inherit=True is for layers underneath a
-    client that already owns the request (e.g. urllib3 under requests): they reuse the enclosing
-    holder when there is one. A request started from another request's hooks must not inherit.
+    Call it from a per-outgoing-request core context. layer names the instrumented client or
+    transport. The enclosing holder is reused only when the nearest enclosing layer is in
+    inherit_from, i.e. a layer that drives this one for the same request (urllib3 under requests).
+    Any other enclosing layer means the request was started from that layer's hooks or auth flow,
+    and it gets its own subcontext so libddwaf reports its matches independently.
     """
+    inherit = core.find_item(_RASP_SUBCONTEXT_LAYER) in inherit_from
+    core.set_item(_RASP_SUBCONTEXT_LAYER, layer)
     if inherit and core.find_item(_RASP_SUBCONTEXT) is not None:
         return
     core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())

@@ -1,5 +1,6 @@
 from typing import Any
 
+from ddtrace.appsec._asm_request_context import SsrfLayer
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -50,7 +51,7 @@ class _SsrfWebbrowserOpen(WrappingContext):
 
         # Without its own core context, the holder would land on the incoming request's context.
         with core.context_with_data("url_open_analysis", full_url=url):
-            open_rasp_subcontext_scope()
+            open_rasp_subcontext_scope(SsrfLayer.WEBBROWSER, inherit_from=())
             res = call_waf_callback(
                 {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
                 crop_trace=self.__wrapped__.__code__.co_name,

@@ -1,4 +1,5 @@
 fixes:
   - |
-    App and API Protection: Fixes missing SSRF detections when an HTTPX event hook or auth flow, or
-    a ``requests`` response hook, makes another outgoing request that triggers the same rule.
+    App and API Protection: Fixes missing SSRF detections when an outgoing request made from an HTTPX
+    event hook or auth flow, or from a ``requests`` response hook, triggers the same rule as the
+    request that started it.
