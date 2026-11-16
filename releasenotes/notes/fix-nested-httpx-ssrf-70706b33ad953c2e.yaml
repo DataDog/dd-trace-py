@@ -1,0 +1,4 @@
+fixes:
+  - |
+    App and API Protection: Fixes missing SSRF detections when an HTTPX event hook
+    makes another outgoing request that triggers the same rule.
