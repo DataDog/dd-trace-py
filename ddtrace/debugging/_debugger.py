@@ -36,6 +36,7 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._sampling import DebuggerSampler
+from ddtrace.debugging._signal.catalog import signal_for_probe
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
@@ -129,7 +130,7 @@ class DebuggerWrappingContext(WrappingContext):
             # consumed by the consumers.
             for probe in chain(context_creators, context_consumers):
                 try:
-                    signal = Signal.from_probe(
+                    signal = signal_for_probe(
                         probe,
                         frame=frame,
                         thread=thread,
@@ -354,7 +355,7 @@ class Debugger(Service):
         """
         try:
             try:
-                signal = Signal.from_probe(
+                signal = signal_for_probe(
                     probe,
                     frame=sys._getframe(HOOK_FRAME_DEPTH),
                     thread=current_thread(),
