@@ -29,15 +29,11 @@ log = get_logger(__name__)
 
 
 try:
-    if cloning.enabled:
-        # Hold the threads started by preload until cloning is done, so they do not import while modules are dropped.
-        boot_gate.clear()
-    try:
+    # Hold the threads started by preload until cloning is done, so they do not import while modules are dropped.
+    with boot_gate.held(when=cloning.enabled):
         import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation
 
         cloning.cleanup_loaded_modules()
-    finally:
-        boot_gate.set()
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.

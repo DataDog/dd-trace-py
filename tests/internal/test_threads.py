@@ -342,14 +342,14 @@ def test_thread_started_with_boot_gate_closed_runs_once_it_opens():
     from ddtrace.internal import threads
 
     calls = []
-    threads.boot_gate.clear()
+    threads.boot_gate.close()
 
     t = threads.Thread(target=lambda: calls.append(1), name="test-thread-gated")
     t.start()
     # The worker holds the GIL from its start to its target, unless it waits on the gate.
     assert calls == []
 
-    threads.boot_gate.set()
+    threads.boot_gate.open()
     t.join()
     assert calls == [1]
 
@@ -358,7 +358,7 @@ def test_thread_started_with_boot_gate_closed_runs_once_it_opens():
 def test_boot_gate_is_open_by_default():
     from ddtrace.internal import threads
 
-    assert threads.boot_gate.is_set()
+    assert threads.boot_gate.is_open()
 
     ran = threads.original_Event()
     t = threads.Thread(target=ran.set, name="test-thread-ungated")
@@ -372,7 +372,7 @@ def test_stop_and_join_with_boot_gate_closed_do_not_run_target():
     from ddtrace.internal import threads
 
     calls = []
-    threads.boot_gate.clear()
+    threads.boot_gate.close()
 
     periodic = threads.PeriodicThread(
         0.01, lambda: calls.append("periodic"), name="test-gated-periodic", no_wait_at_start=True
@@ -386,7 +386,7 @@ def test_stop_and_join_with_boot_gate_closed_do_not_run_target():
     periodic.join()
     one_shot.join()
 
-    assert threads.boot_gate.is_set()
+    assert threads.boot_gate.is_open()
     assert calls == []
 
 
@@ -394,7 +394,7 @@ def test_stop_and_join_with_boot_gate_closed_do_not_run_target():
 def test_exit_with_boot_gate_closed_does_not_hang_or_run_target():
     from ddtrace.internal import threads
 
-    threads.boot_gate.clear()
+    threads.boot_gate.close()
 
     t = threads.PeriodicThread(0.01, lambda: print("ran"), name="test-gated-at-exit", no_wait_at_start=True)
     t.start()
@@ -407,7 +407,7 @@ def test_fork_with_boot_gate_closed_releases_threads():
     from ddtrace.internal import threads
 
     calls = []
-    threads.boot_gate.clear()
+    threads.boot_gate.close()
 
     def record(name):
         return lambda: calls.append((name, threads._forking))
@@ -420,11 +420,11 @@ def test_fork_with_boot_gate_closed_releases_threads():
     pid = os.fork()
     if pid == 0:
         # The child inherits the gate open.
-        os._exit(0 if threads.boot_gate.is_set() else 1)
+        os._exit(0 if threads.boot_gate.is_open() else 1)
 
     _, status = os.waitpid(pid, 0)
     assert os.WEXITSTATUS(status) == 0
-    assert threads.boot_gate.is_set()
+    assert threads.boot_gate.is_open()
 
     # The periodic thread stopped for the fork without running, while the one-shot thread, which is not restarted
     # after it, ran before it.
