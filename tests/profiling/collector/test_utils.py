@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import time
 from types import TracebackType
 from typing import Any
 from typing import Coroutine
@@ -42,6 +43,19 @@ def async_run(coro: Coroutine[Any, Any, T]) -> T:
         return uvloop.run(coro)  # type: ignore[no-any-return]
     else:
         return asyncio.run(coro)
+
+
+def wait_for_fast_copy_state(stack_module: Any, want_active: bool, timeout: float = 10.0) -> bool:
+    """Poll until fast_copy_memory_active() == want_active, or timeout.
+
+    Waiting for False lands inside the startup warmup window.
+    """
+    deadline: float = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if stack_module.fast_copy_memory_active() is want_active:
+            return True
+        time.sleep(0.05)
+    return False
 
 
 def uvloop_available() -> bool:
