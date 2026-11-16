@@ -4,8 +4,8 @@ import langgraph
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.langgraph._constants import ASTREAM_OUTPUT
 from ddtrace.contrib.internal.langgraph._constants import COMPONENT
-from ddtrace.contrib.internal.langgraph._constants import CONSUME_AITER_EVENT
 from ddtrace.contrib.internal.langgraph._constants import CREATE_REACT_AGENT_EVENT
 from ddtrace.contrib.internal.langgraph._constants import PREGEL_LOOP_TICK_EVENT
 from ddtrace.contrib.internal.langgraph._constants import SPAN_TRACES_ASTREAM
@@ -240,7 +240,7 @@ async def traced_runnable_seq_consume_aiter(func, instance, args, kwargs):
 
     span = tracer.current_span()
     if span is not None and span._get_ctx_item(SPAN_TRACES_ASTREAM):
-        core.dispatch(CONSUME_AITER_EVENT, (span, output))
+        span._set_ctx_item(ASTREAM_OUTPUT, output)
 
     return output
 

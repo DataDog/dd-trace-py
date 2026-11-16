@@ -5,6 +5,7 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.contrib.internal.langgraph._constants import ASTREAM_OUTPUT
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -13,7 +14,6 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
@@ -115,7 +115,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             kind=span_kind,
             input_value=format_langchain_io(inputs),
             output_value=maybe_format_langchain_io(response)
-            or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
+            or maybe_format_langchain_io(span._get_ctx_item(ASTREAM_OUTPUT)),
             name=invoked_node.get("name") or kwargs.get("name", span.name),
             span_links=current_span_links + span_links,
             agent_manifest=agent_manifest,
@@ -139,7 +139,8 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         if (
             "dependencies" not in agent_manifest
-            and isinstance(args, tuple)
+            # The shared LLMObs subscriber passes the request args as a list.
+            and isinstance(args, (list, tuple))
             and len(args) > 0
             and isinstance(args[0], dict)
         ):
