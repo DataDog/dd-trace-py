@@ -386,3 +386,107 @@ def test_otel_semantics_server_unmatched_route_is_not_an_error():
                 assert_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+@pytest.mark.parametrize("websocket_subclass", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+async def test_websocket_request_finishes_at_handshake(
+    test_spans, aiohttp_client, request_completed, monkeypatch, finish_on_prepare, websocket_subclass, nested
+):
+    from aiohttp import web
+
+    from ddtrace.contrib.internal.aiohttp import middlewares
+    from ddtrace.internal import core
+    from ddtrace.trace import tracer
+
+    class CustomWebSocketResponse(web.WebSocketResponse):
+        pass
+
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    contexts = []
+    request_tasks = []
+    completions = []
+    message_spans = []
+    message_parents = []
+
+    def ended(ctx, exc_info):
+        completions.append(ctx)
+
+    async def handler(request):
+        contexts.extend(request[middlewares.REQUEST_EXECUTION_CONTEXTS_KEY])
+        request_tasks.append(asyncio.current_task())
+        response_type = CustomWebSocketResponse if websocket_subclass else web.WebSocketResponse
+        websocket = response_type()
+        await websocket.prepare(request)
+        async for message in websocket:
+            message_parents.append(tracer.current_span())
+            with tracer.trace("websocket.message") as span:
+                message_spans.append(span)
+            await websocket.send_str(message.data)
+        return websocket
+
+    app = web.Application()
+    target = web.Application() if nested else app
+    target.router.add_get("/ws", handler)
+    if nested:
+        trace_app(target)
+        app.add_subapp("/sub", target)
+    trace_app(app)
+    expected_contexts = 2 if nested else 1
+    path = "/sub/ws" if nested else "/ws"
+    core.on("context.ended.web.request", ended)
+    try:
+        async with await aiohttp_client(app) as client:
+            async with client.ws_connect(path) as websocket:
+                completed = [await request_completed() for _ in range(expected_contexts)]
+                assert {id(ctx) for ctx in completed} == {id(ctx) for ctx in contexts}
+                assert not request_tasks[0].done()
+                request_spans = test_spans.pop()
+                assert len(request_spans) == expected_contexts
+                for ctx in contexts:
+                    assert ctx._event is None
+                    assert ctx.get_item("aiohttp.response") is None
+                for span in request_spans:
+                    assert span.finished
+                    assert span.resource == f"GET {path}"
+                    assert span.get_tag("http.status_code") == "101"
+
+                await websocket.send_str("message after handshake")
+                message = await asyncio.wait_for(websocket.receive(), timeout=5)
+                assert message.data == "message after handshake"
+                assert not request_tasks[0].done()
+                assert message_parents == [None]
+                assert len(message_spans) == 1
+                assert message_spans[0].trace_id != request_spans[0].trace_id
+                assert test_spans.pop() == message_spans
+
+            await asyncio.wait_for(request_tasks[0], timeout=5)
+            await asyncio.sleep(0)
+        assert len(completions) == expected_contexts
+        assert test_spans.pop() == []
+    finally:
+        core.reset_listeners("context.ended.web.request", ended)
+
+
+async def test_failed_websocket_upgrade_reports_http_status(test_spans, aiohttp_client, request_completed):
+    from aiohttp import web
+
+    async def handler(request):
+        websocket = web.WebSocketResponse()
+        await websocket.prepare(request)
+        return websocket
+
+    app = web.Application()
+    app.router.add_get("/ws", handler)
+    trace_app(app)
+    async with await aiohttp_client(app) as client:
+        response = await client.get("/ws")
+        assert response.status == 400
+        await response.read()
+        await request_completed()
+    spans = test_spans.pop()
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].resource == "GET /ws"
+    assert spans[0].get_tag("http.status_code") == "400"

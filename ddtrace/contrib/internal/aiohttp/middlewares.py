@@ -221,13 +221,14 @@ def finish_request_span(
 
 
 async def on_prepare(request: web.Request, response: web.StreamResponse) -> None:
-    """Attach response metadata; completion follows the captured request owner."""
+    """Attach response metadata; protocol upgrades complete at the handshake."""
     request[REQUEST_STARTED_RESPONSE_KEY] = response
     # The compatibility option releases request state at header preparation.
     # todo: replace task callbacks with a response-completion signal when available.
     for ctx in reversed(request.get(REQUEST_EXECUTION_CONTEXTS_KEY, ())):
         if not ctx._end_event_dispatched:
-            if ctx.get_item("aiohttp.finish_on_prepare", True):
+            # Switching protocols ends the HTTP request before the upgraded connection closes.
+            if response.status == 101 or ctx.get_item("aiohttp.finish_on_prepare", True):
                 finish_request_span(request, response, ctx=ctx)
             else:
                 # A clone has its own request state, so retain the response for the original owner's callback.

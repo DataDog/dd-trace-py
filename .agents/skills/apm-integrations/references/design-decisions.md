@@ -43,6 +43,8 @@ for optional context-local spans without creating a fallback or borrowing a pare
 response metadata separately. For nested middleware, each completion callback must retain
 its own execution context rather than resolve a request key that inner middleware can replace.
 Response preparation must reach all contexts for the request, including request clones.
+Finish the HTTP request at preparation for a 101 protocol upgrade, independently of the
+upgraded connection lifetime; use the protocol status rather than response-class checks.
 Retain the returned response until deferred completion as a fallback if an earlier preparation
 callback fails, while preserving metadata supplied by successful response preparation.
 

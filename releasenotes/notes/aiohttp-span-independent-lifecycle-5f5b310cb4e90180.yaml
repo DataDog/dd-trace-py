@@ -2,7 +2,8 @@ features:
   - |
     aiohttp: With ``config.aiohttp.disable_stream_timing_for_mem_leak=False`` (default),
     request spans now finish when request execution completes for both ordinary
-    and streaming responses.
+    and streaming HTTP responses. WebSocket upgrade spans continue to finish at
+    the handshake, independently of the socket lifetime.
 fixes:
   - |
     aiohttp: Fixes unfinished request spans and loss of IAST sources when both a
