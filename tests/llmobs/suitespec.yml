@@ -85,6 +85,8 @@ suites:
           python: ["3.12", "3.13", '3.14', '3.15']
           dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
+    # TODO(py-315): 3.15 is covered only by the newest (unpinned) row; the older rows
+    # reject new API kwargs on 3.15. Revisit if those rows need 3.15.
     venvs_per_job: 9
     paths:
       - '@bootstrap'

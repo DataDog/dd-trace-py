@@ -17,7 +17,7 @@ except ImportError:
 
 
 def sampling_kwargs(temperature):
-    """Return the ``temperature`` request kwarg, or nothing on anthropic>=1.0 whose SDK removed it."""
+    """Return the temperature request kwarg, or nothing on anthropic 1.0 and later, whose SDK removed it."""
     return {"temperature": temperature} if parse_version(anthropic.__version__) < (1, 0) else {}
 
 
