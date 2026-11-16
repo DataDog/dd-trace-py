@@ -134,8 +134,9 @@ This gives one copy of the profile state and fork handlers, and keeps the wheel 
 dd_wrapper gets libdatadog from `_native` (`src/native`, `profiling` feature), which the tracer also uses, so the wheel ships libdatadog once.
 
 **manylinux2014.**
-The native code uses C++20 (`cmake/AnalysisFunc.cmake`), but wheels must pass the manylinux2014 auditwheel check.
-The build containers have a newer compiler than the specification allows, so some library features (for example `std::filesystem`) build and then fail auditwheel.
+The native code uses C++20 (`cmake/AnalysisFunc.cmake`), but Linux wheels must pass `auditwheel repair` for manylinux2014.
+The build containers have a newer compiler than that specification allows, so do not use library features that need a newer libstdc++, such as `std::filesystem`.
+They compile, but the wheel build then fails.
 
 **Symbol visibility.**
 Assume that any library we link is also loaded by another module.
