@@ -151,11 +151,11 @@ pydantic-settings==2.16.3
 pygments==2.21.0
 pyjwt[crypto]==2.15.1
 pynvvideocodec==2.0.4
-pytest==9.2.0
+pytest==9.1.1
 pytest-asyncio==0.21.1
 pytest-cov==7.1.0
-pytest-mock==3.17.0
-pytest-randomly==5.1.0
+pytest-mock==3.15.1
+pytest-randomly==4.1.0
 python-dotenv==1.2.4
 python-json-logger==4.2.0
 python-multipart==0.0.33
