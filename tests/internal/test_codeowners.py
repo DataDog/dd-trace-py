@@ -2,7 +2,7 @@ from ddtrace.internal.codeowners import Codeowners
 
 
 def test_bridge_resolves_to_extracted_package():
-    from _ddtrace_internal_base.codeowners import Codeowners as ExtractedCodeowners
+    from _ddtrace_internal.codeowners import Codeowners as ExtractedCodeowners
 
     assert Codeowners is ExtractedCodeowners
 
