@@ -365,10 +365,8 @@ suites:
           python: ['3.10', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, typesafe-sdk]
   openai:
-    # TODO(py-315): the old openai rows fail to build on 3.15 (requires-python
-    # <3.15 in the dependency chain) and the newest rows hit openai SDK pydantic
-    # model construction errors on 3.15. Re-add 3.15 once the openai SDK
-    # supports it.
+    # The old openai rows fail to build on 3.15 (requires-python <3.15 in the dependency chain),
+    # so 3.15 only runs the latest row.
     venvs_per_job: 5
     paths:
       - '@bootstrap'
@@ -389,8 +387,8 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai[embeddings,datalib]==1.30.1', 'pillow==9.5.0', 'httpx==0.27.2']
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow]
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow, 'pytest<9.2', websockets]
         - name: openai
           python: ['3.10', '3.13', '3.14']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=3.26.0', pillow]
