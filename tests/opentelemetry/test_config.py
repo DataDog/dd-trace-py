@@ -656,6 +656,25 @@ def test_otel_sdk_disabled_takes_precedence_over_dd_metrics_and_logs_otel_enable
 
 
 @pytest.mark.subprocess(
+    env={
+        "OTEL_SDK_DISABLED": " true ",
+        "DD_TRACE_ENABLED": None,
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "DD_LOGS_OTEL_ENABLED": "true",
+    },
+    err=b"Setting OTEL_SDK_DISABLED to  true  is not supported by ddtrace, this configuration will be ignored.\n",
+)
+def test_invalid_otel_sdk_disabled_is_ignored_for_every_signal():
+    from ddtrace import config
+
+    # A padded value is not a valid OTEL_SDK_DISABLED value: it neither disables tracing nor overrides
+    # the Datadog metrics and logs settings.
+    assert config._tracing_enabled is True, config._tracing_enabled
+    assert config._otel_metrics_enabled is True, config._otel_metrics_enabled
+    assert config._otel_logs_enabled is True, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(
     env={"DD_LOGS_OTEL_ENABLED": "false", "DD_METRICS_OTEL_ENABLED": "false", "OTEL_SDK_DISABLED": "true"},
     err=b"",
 )

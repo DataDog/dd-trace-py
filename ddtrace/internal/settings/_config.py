@@ -34,6 +34,7 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import AgentlessConfig
+from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
@@ -315,13 +316,13 @@ def get_error_ranges(error_range_str: str) -> list[tuple[int, int]]:
     return error_ranges  # type: ignore[return-value]
 
 
-def _report_otel_sdk_disabled_overrides(dd_envs: list[str]) -> None:
+def _report_otel_sdk_disabled_overrides(dd_envs: list[str], otel_value: str) -> None:
     """Warn that OTEL_SDK_DISABLED=true disabled dd_envs, and report their effective values to telemetry."""
     # A single warning, because ddtrace rate-limits repeated logs from the same call site.
     log.warning("%s enabled, but OTEL_SDK_DISABLED is true. These features stay disabled.", " and ".join(dd_envs))
     for dd_env in dd_envs:
         # OpenTelemetry configurations always report the raw value
-        telemetry_writer.add_configuration(dd_env, env["OTEL_SDK_DISABLED"].strip().lower(), "otel_env_var")
+        telemetry_writer.add_configuration(dd_env, otel_value, "otel_env_var")
 
 
 _ConfigSource = Literal["default", "env_var", "code", "remote_config"]
@@ -793,7 +794,10 @@ class Config:
             asbool,
             ["OTEL_LOGS_EXPORTER", "OTEL_SDK_DISABLED"],
         )
-        if env.get("OTEL_SDK_DISABLED", "").strip().lower() == "true":
+        # Use the same parsing as the OTEL_SDK_DISABLED remapping, so a value is either applied to every
+        # signal or rejected as invalid for every signal.
+        otel_sdk_disabled_raw, otel_sdk_enabled = parse_otel_env("OTEL_SDK_DISABLED")
+        if otel_sdk_enabled == "False":
             # OTEL_SDK_DISABLED=true turns off the OpenTelemetry metrics and logs providers even when
             # DD_METRICS_OTEL_ENABLED or DD_LOGS_OTEL_ENABLED is true. Otherwise ddtrace would still install
             # providers that export nothing, and disable log injection for them.
@@ -805,7 +809,7 @@ class Config:
                 self._otel_logs_enabled = False
                 overridden.append("DD_LOGS_OTEL_ENABLED")
             if overridden:
-                _report_otel_sdk_disabled_overrides(overridden)
+                _report_otel_sdk_disabled_overrides(overridden, otel_sdk_disabled_raw)
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
