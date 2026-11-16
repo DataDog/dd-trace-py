@@ -828,7 +828,9 @@ def test_child_task_preserves_iast_report_and_releases_context(monkeypatch, fini
         assert environment is not None
         owning_spans.append(environment.span)
         assert WeakHash.report(evidence_value="md5")
-        return web.json_response({"source": _origin(request.query["value"])})
+        if iast_aiohttp.WRAPS_MAPPINGS:
+            assert _origin(request.query["value"]) == PARAMETER
+        return web.json_response({"source": _origin(request.path)})
 
     @web.middleware
     async def outer(request, handler):
@@ -859,7 +861,7 @@ def test_child_task_preserves_iast_report_and_releases_context(monkeypatch, fini
             for _ in range(3):
                 response = await client.get(path)
                 assert response.status == 200
-                assert await response.json() == {"source": PARAMETER}
+                assert await response.json() == {"source": PATH}
                 for _ in range(2 if sub_app else 1):
                     await asyncio.wait_for(completed.get(), timeout=5)
                 span = owning_spans[-1]
@@ -898,7 +900,9 @@ def test_early_prepare_clears_iast_in_the_handler_task(monkeypatch, mode):
     completed = None
 
     async def handler(request):
-        assert _origin(request.query["value"]) == PARAMETER
+        assert _origin(request.path) == PATH
+        if iast_aiohttp.WRAPS_MAPPINGS:
+            assert _origin(request.query["value"]) == PARAMETER
         before.append(_get_iast_context_id())
         response = web.WebSocketResponse() if mode == "websocket" else web.StreamResponse()
         await response.prepare(request)
