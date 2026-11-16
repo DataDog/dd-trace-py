@@ -33,7 +33,7 @@ class MessagingProducerEvent(TracingEvent):
     provider: InitVar[str] = event_field()
 
     def __post_init__(self, messaging_operation: str, provider: str) -> None:
-        self.operation_name = schematize_messaging_operation(  # type: ignore[operator]  # Dynamic schema function.
+        self.operation_name = schematize_messaging_operation(
             messaging_operation, provider=provider, direction=SpanDirection.OUTBOUND
         )
 
@@ -54,6 +54,6 @@ class MessagingConsumeEvent(TracingEvent):
     direction: InitVar[SpanDirection] = event_field(default=SpanDirection.PROCESSING)
 
     def __post_init__(self, messaging_operation: str, provider: str, direction: SpanDirection) -> None:
-        self.operation_name = schematize_messaging_operation(  # type: ignore[operator]  # Dynamic schema function.
+        self.operation_name = schematize_messaging_operation(
             messaging_operation, provider=provider, direction=direction
         )

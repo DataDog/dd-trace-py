@@ -310,6 +310,30 @@ def test_snapshot_comparison_outcomes(monkeypatch, body, outcome):
         session.verify([], timeout=1)
 
 
+def test_snapshot_disables_stats_before_start(monkeypatch):
+    events = []
+    writer = utils.ddtrace.tracer._span_aggregator.writer
+
+    monkeypatch.setattr(writer, "flush_queue", lambda *args, **kwargs: events.append("flush"))
+    monkeypatch.setattr(
+        writer,
+        "set_test_session_token",
+        lambda token, compute_stats_enabled=None: events.append(("token", compute_stats_enabled)),
+    )
+
+    def request(client, method, url, **kwargs):
+        if url.startswith("/test/session/start"):
+            events.append("start")
+        return 200, b""
+
+    monkeypatch.setattr(utils.TestAgentClient, "_request", request)
+
+    with utils.snapshot_context("trace-only"):
+        events.append("test")
+
+    assert events[:4] == ["flush", ("token", False), "start", "test"]
+
+
 def test_testagent_connection_failure(monkeypatch):
     client = utils.TestAgentClient("http://localhost:9126", token="attempt")
     connection = mock.Mock()

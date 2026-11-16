@@ -603,11 +603,38 @@ def test_trace_native_span_events_user_true_without_otlp():
     assert config.trace_native_span_events is True
 
 
-@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp,zipkin", "DD_TRACE_NATIVE_SPAN_EVENTS": None}, err=None)
-def test_trace_native_span_events_not_enabled_with_multi_exporter():
-    from ddtrace.internal.settings._agent import config
+@pytest.mark.parametrize("exporters", ["otlp,zipkin", "console,otlp", " OTLP , console ", "none,otlp", "otlp,"])
+def test_trace_otlp_export_enabled_with_otlp_in_exporter_list(run_python_code_in_subprocess, exporters):
+    env = os.environ.copy()
+    env.pop("DD_TRACE_NATIVE_SPAN_EVENTS", None)
+    env["OTEL_TRACES_EXPORTER"] = exporters
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace.internal.settings._agent import config
 
-    assert config.trace_native_span_events is False
+assert config.trace_otlp_export_enabled is True
+assert config.trace_native_span_events is True
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+@pytest.mark.parametrize("exporters", ["console", "zipkin,console", "none,console", "", " , "])
+def test_trace_otlp_export_disabled_without_otlp_in_exporter_list(run_python_code_in_subprocess, exporters):
+    env = os.environ.copy()
+    env.pop("DD_TRACE_NATIVE_SPAN_EVENTS", None)
+    env["OTEL_TRACES_EXPORTER"] = exporters
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace.internal.settings._agent import config
+
+assert config.trace_otlp_export_enabled is False
+assert config.trace_native_span_events is False
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
 
 
 @pytest.mark.subprocess(

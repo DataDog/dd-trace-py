@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 
@@ -20,20 +21,21 @@ class TracerFlareState:
         self.current_request_start: Optional[datetime] = None
 
 
-def _content_as_list(content: t.Any) -> list:
+def _content_as_list(content: t.Any) -> list[t.Any]:
     """Normalize payload content to a list (handles both list and dict from tests)."""
     return content if isinstance(content, list) else [content]
 
 
 def _process_payloads(flare: Flare, state: TracerFlareState, payloads: t.Sequence[Payload]) -> None:
     for payload in payloads:
-        if payload.metadata is None:
+        metadata: Optional[ConfigMetadata] = payload.metadata
+        if metadata is None:
             log.debug("Flare: flare payload missing metadata, path=%r", payload.path)
             continue
-        elif isinstance(payload.metadata.id, str) and payload.metadata.id.lower() == "configuration_order":
+        elif isinstance(metadata.id, str) and metadata.id.lower() == "configuration_order":
             continue
 
-        product_type = payload.metadata.product_name
+        product_type = metadata.product_name
         items = _content_as_list(payload.content)
         for item in items:
             if not isinstance(item, dict):
