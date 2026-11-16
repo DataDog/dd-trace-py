@@ -74,8 +74,10 @@ current signatures and defaults.
 | LLMObs integration changes | `llmobs-integrations`; also `apm-integrations` when changing contrib plumbing |
 | Added/moved modules or new import cycles | `circular-import-analysis` |
 | Architectural dependency direction | `dependency-direction-analysis` |
+| Package-split API inventories | `package-split` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
+| Profiling hot spots and optimization opportunities | `profile` |
 | Build-cache performance | `debug-build-times` |
 | Native crash investigation | `analyze-crash` |
 | CPython compatibility | `find-cpython-usage`, then `compare-cpython-versions` |

@@ -105,6 +105,7 @@ suites:
         - name: appsec_iast_native
           dependencies: [cmake, pybind11, clang]
   iast_aggregated_leak_testing:
+    venvs_per_job: 1
     paths:
       - '@appsec_iast'
       - 'tests/appsec/iast_aggregated_memcheck/*'

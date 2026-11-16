@@ -955,7 +955,7 @@ def test_removing_config_restores_env_settings(
 @pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
 @pytest.mark.subprocess(
     env={
-        "DD_PROFILING_ENABLED": "false",
+        "DD_PROFILING_ENABLED": None,
         "DD_REMOTE_CONFIGURATION_ENABLED": "true",
         "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
     },
@@ -994,7 +994,7 @@ def test_profiler_started_off_main_thread_flushes_on_sigterm() -> None:
 
 @pytest.mark.subprocess(
     env={
-        "DD_PROFILING_ENABLED": "false",
+        "DD_PROFILING_ENABLED": None,
         "DD_REMOTE_CONFIGURATION_ENABLED": "true",
         "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
     },

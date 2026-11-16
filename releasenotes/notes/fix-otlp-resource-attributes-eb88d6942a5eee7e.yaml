@@ -1,0 +1,3 @@
+other:
+  - |
+    tracing: Reduces OTLP trace payload size by moving shared tracer tags to resource attributes.

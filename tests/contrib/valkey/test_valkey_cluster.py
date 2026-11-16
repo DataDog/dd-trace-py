@@ -1,3 +1,4 @@
+import pytest
 import valkey
 
 from ddtrace.contrib.internal.valkey.patch import patch
@@ -9,6 +10,7 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 
+@pytest.mark.usefixtures("wait_for_valkey_cluster")
 class TestValkeyClusterPatch(TracerTestCase):
     TEST_HOST = VALKEY_CLUSTER_CONFIG["host"]
     TEST_PORTS = VALKEY_CLUSTER_CONFIG["ports"]

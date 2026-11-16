@@ -462,6 +462,12 @@ suites:
       - ddtrace/internal/openfeature/_flageval_pii.py
       - ddtrace/internal/openfeature/_flag_eval_evp_hook.py
       - ddtrace/internal/openfeature/_flagevaluation_writer.py
+      - ddtrace/internal/openfeature/_exposure.py
+      - ddtrace/internal/openfeature/_exposure_decision.py
+      - ddtrace/internal/openfeature/_native.py
+      - ddtrace/internal/openfeature/_provider.py
+      - ddtrace/internal/openfeature/_split_features.py
+      - 'src/native/ffe.rs'
       - benchmarks/openfeature_flagevaluation/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
