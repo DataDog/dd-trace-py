@@ -5,6 +5,7 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.contrib.internal.langchain.constants import CHAIN_INPUTS_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
@@ -690,7 +691,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if span.get_tag("langchain.request.stream"):
             inputs = get_argument_value(args, kwargs, 0, "input")
         else:
-            inputs = kwargs
+            inputs = kwargs.get(CHAIN_INPUTS_KEY)
         formatted_inputs = ""
         if inputs is not None:
             formatted_inputs = format_langchain_io(inputs)

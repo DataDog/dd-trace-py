@@ -9,7 +9,19 @@ import langchain_core
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.bedrock_inference_profiles import record_inference_profile
-from ddtrace.contrib.internal.langchain.utils import shared_stream
+from ddtrace.contrib.internal.langchain.constants import CHAIN_INPUTS_KEY
+from ddtrace.contrib.internal.langchain.constants import COMPONENT
+from ddtrace.contrib.internal.langchain.constants import MODEL_TAG
+from ddtrace.contrib.internal.langchain.constants import OPERATION_CHAIN
+from ddtrace.contrib.internal.langchain.constants import OPERATION_CHAT
+from ddtrace.contrib.internal.langchain.constants import OPERATION_EMBEDDING
+from ddtrace.contrib.internal.langchain.constants import OPERATION_LLM
+from ddtrace.contrib.internal.langchain.constants import OPERATION_RETRIEVAL
+from ddtrace.contrib.internal.langchain.constants import OPERATION_RUNNABLE_LAMBDA
+from ddtrace.contrib.internal.langchain.constants import OPERATION_TOOL
+from ddtrace.contrib.internal.langchain.constants import PROVIDER_TAG
+from ddtrace.contrib.internal.langchain.constants import STREAM_TAG
+from ddtrace.contrib.internal.langchain.streaming import shared_stream
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -34,14 +46,6 @@ def _supported_versions() -> dict[str, str]:
 
 
 config._add("langchain", {})
-
-# LLMObs subscribes to shared lifecycle events for this component; see ddtrace/llmobs/_contrib/langchain.
-COMPONENT = "langchain"
-
-# Keep APM model/provider tags available even without LLMObs subscriber hooks.
-MODEL_TAG = "langchain.request.model"
-PROVIDER_TAG = "langchain.request.provider"
-STREAM_TAG = "langchain.request.stream"
 
 
 def _extract_model_name(instance: Any) -> Optional[str]:
@@ -96,9 +100,9 @@ def _extract_model_provider(instance: Any) -> str:
 
 
 def _request_event(
-    resource: str,
     instance: Any,
     operation: str,
+    resource: Optional[str] = None,
     args: Sequence[Any] = (),
     kwargs: Optional[dict[str, Any]] = None,
     provider: Optional[str] = None,
@@ -107,8 +111,9 @@ def _request_event(
 ) -> LlmRequestEvent:
     """Build the LlmRequestEvent for a traced LangChain call.
 
-    args and kwargs are what LangChainIntegration extracts LLMObs data from at span finish;
-    the chain and tool wrappers pass their own normalized inputs as kwargs.
+    resource defaults to the instance's fully qualified class name. args and kwargs are what
+    LangChainIntegration extracts LLMObs data from at span finish; the chain and tool wrappers pass
+    their own normalized inputs as kwargs.
     """
     tags = {}
     if provider is not None:
@@ -121,7 +126,7 @@ def _request_event(
         component=COMPONENT,
         integration_config=config.langchain,
         service=int_service(None, config.langchain),
-        resource=resource,
+        resource=resource if resource is not None else f"{instance.__module__}.{instance.__class__.__name__}",
         provider=provider,
         model=model,
         tags=tags,
@@ -133,16 +138,11 @@ def _request_event(
     )
 
 
-def _instance_resource(instance: Any) -> str:
-    return "%s.%s" % (instance.__module__, instance.__class__.__name__)
-
-
 def traced_llm_generate(func, instance, args, kwargs):
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     event = _request_event(
-        _instance_resource(instance),
         instance,
-        "llm",
+        OPERATION_LLM,
         args=args,
         kwargs=kwargs,
         provider=instance._llm_type,
@@ -165,9 +165,8 @@ def traced_llm_generate(func, instance, args, kwargs):
 async def traced_llm_agenerate(func, instance, args, kwargs):
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     event = _request_event(
-        _instance_resource(instance),
         instance,
-        "llm",
+        OPERATION_LLM,
         args=args,
         kwargs=kwargs,
         provider=instance._llm_type,
@@ -190,9 +189,8 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 def traced_chat_model_generate(func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     event = _request_event(
-        _instance_resource(instance),
         instance,
-        "chat",
+        OPERATION_CHAT,
         args=args,
         kwargs=kwargs,
         provider=_extract_model_provider(instance),
@@ -215,9 +213,8 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 async def traced_chat_model_agenerate(func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     event = _request_event(
-        _instance_resource(instance),
         instance,
-        "chat",
+        OPERATION_CHAT,
         args=args,
         kwargs=kwargs,
         provider=_extract_model_provider(instance),
@@ -258,10 +255,10 @@ def traced_lcel_runnable_sequence(func, instance, args, kwargs):
 
     This method captures the initial inputs to the chain, as well as the final outputs, and tags them appropriately.
     """
-    event = _request_event(_instance_resource(instance), instance, "chain")
+    event = _request_event(instance, OPERATION_CHAIN)
     with core.context_with_event(event):
-        # LangChainIntegration reads non-streamed chain inputs from the kwargs slot.
-        event.request_kwargs = _chain_inputs(args, kwargs)
+        # LangChainIntegration reads non-streamed chain inputs from this key of the kwargs slot.
+        event.request_kwargs = {CHAIN_INPUTS_KEY: _chain_inputs(args, kwargs)}
         final_output = func(*args, **kwargs)
         event.response = final_output
         return final_output
@@ -271,9 +268,9 @@ async def traced_lcel_runnable_sequence_async(func, instance, args, kwargs):
     """
     Similar to `traced_lcel_runnable_sequence`, but for async chaining calls.
     """
-    event = _request_event(_instance_resource(instance), instance, "chain")
+    event = _request_event(instance, OPERATION_CHAIN)
     with core.context_with_event(event):
-        event.request_kwargs = _chain_inputs(args, kwargs)
+        event.request_kwargs = {CHAIN_INPUTS_KEY: _chain_inputs(args, kwargs)}
         final_output = await func(*args, **kwargs)
         event.response = final_output
         return final_output
@@ -299,7 +296,7 @@ def traced_chain_stream(func, instance, args, kwargs):
         # best effort to join chunks together
         return "".join([str(chunk) for chunk in streamed_chunks])
 
-    event = _request_event(_instance_resource(instance), instance, "chain", args=args, kwargs=kwargs, stream=True)
+    event = _request_event(instance, OPERATION_CHAIN, args=args, kwargs=kwargs, stream=True)
     return shared_stream(
         event=event,
         func=func,
@@ -322,9 +319,8 @@ def traced_chat_stream(func, instance, args, kwargs):
         return joined_chunks
 
     event = _request_event(
-        _instance_resource(instance),
         instance,
-        "chat",
+        OPERATION_CHAT,
         args=args,
         kwargs=kwargs,
         provider=instance._llm_type,
@@ -351,9 +347,8 @@ def traced_llm_stream(func, instance, args, kwargs):
         return "".join([str(chunk) for chunk in streamed_chunks])
 
     event = _request_event(
-        _instance_resource(instance),
         instance,
-        "llm",
+        OPERATION_LLM,
         args=args,
         kwargs=kwargs,
         provider=instance._llm_type,
@@ -391,7 +386,7 @@ def _tool_request_event(
     # LangChainIntegration reads tool inputs from the kwargs slot.
     tool_inputs = {"input": tool_input, "config": tool_config or {}, "info": tool_info}
     tool: Any = func.__self__
-    return _request_event("%s" % tool.name, instance, "tool", kwargs=tool_inputs)
+    return _request_event(instance, OPERATION_TOOL, resource="%s" % tool.name, kwargs=tool_inputs)
 
 
 def traced_base_tool_invoke(func, instance, args, kwargs):
@@ -456,9 +451,8 @@ def traced_embedding(func, instance, args, kwargs):
         return func(*args, **kwargs)  # we previously did not trace OpenAIEmbeddings.embed_query
 
     event = _request_event(
-        _instance_resource(instance),
         instance,
-        "embedding",
+        OPERATION_EMBEDDING,
         args=args,
         kwargs=kwargs,
         provider=provider,
@@ -472,9 +466,7 @@ def traced_embedding(func, instance, args, kwargs):
 
 def traced_similarity_search(func, instance, args, kwargs):
     provider = instance.__class__.__name__.lower()
-    event = _request_event(
-        _instance_resource(instance), instance, "retrieval", args=args, kwargs=kwargs, provider=provider
-    )
+    event = _request_event(instance, OPERATION_RETRIEVAL, args=args, kwargs=kwargs, provider=provider)
     with core.context_with_event(event):
         documents = func(*args, **kwargs)
         event.response = documents
@@ -537,9 +529,9 @@ def _runnable_lambda_span_name(func: Callable[..., Any], instance: Any, is_batch
 def traced_runnable_lambda_operation(is_batch: bool = False):
     def _traced_runnable_lambda_impl(func, instance, args, kwargs):
         event = _request_event(
-            _runnable_lambda_span_name(func, instance, is_batch),
             instance,
-            "runnable_lambda",
+            OPERATION_RUNNABLE_LAMBDA,
+            resource=_runnable_lambda_span_name(func, instance, is_batch),
             args=args,
             kwargs=kwargs,
         )
@@ -554,9 +546,9 @@ def traced_runnable_lambda_operation(is_batch: bool = False):
 def traced_runnable_lambda_operation_async(is_batch: bool = False):
     async def _traced_runnable_lambda_impl(func, instance, args, kwargs):
         event = _request_event(
-            _runnable_lambda_span_name(func, instance, is_batch),
             instance,
-            "runnable_lambda",
+            OPERATION_RUNNABLE_LAMBDA,
+            resource=_runnable_lambda_span_name(func, instance, is_batch),
             args=args,
             kwargs=kwargs,
         )

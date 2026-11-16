@@ -1,8 +1,8 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.contrib.internal.langchain.utils import STREAM_PULL_AFTER_EVENT
-from ddtrace.contrib.internal.langchain.utils import STREAM_PULL_BEFORE_EVENT
+from ddtrace.contrib.internal.langchain.constants import STREAM_PULL_AFTER_EVENT
+from ddtrace.contrib.internal.langchain.constants import STREAM_PULL_BEFORE_EVENT
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.llmobs._contrib._subscribers import get_integration

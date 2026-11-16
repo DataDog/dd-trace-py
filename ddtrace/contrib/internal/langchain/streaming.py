@@ -5,6 +5,8 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.langchain.constants import STREAM_PULL_AFTER_EVENT
+from ddtrace.contrib.internal.langchain.constants import STREAM_PULL_BEFORE_EVENT
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
@@ -16,11 +18,6 @@ from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
-
-# Dispatched with the stream's span and a per-pull state dict around each chunk pull, so LLMObs can
-# activate the span for the pull and restore the caller's LLMObs context afterwards.
-STREAM_PULL_BEFORE_EVENT = "langchain.stream.pull.before"
-STREAM_PULL_AFTER_EVENT = "langchain.stream.pull.after"
 
 
 class BaseLangchainStreamHandler:
@@ -149,14 +146,17 @@ def _activate_stream_span(span: Span) -> dict[str, Any]:
     # a previous pull) would otherwise parent the spans created while pulling the next chunk.
     state: dict[str, Any] = {"apm": tracer.context_provider.active()}
     tracer.context_provider.activate(span)
-    core.dispatch(STREAM_PULL_BEFORE_EVENT, (span, state))
+    # Chunks can be token-level, so skip the dispatch entirely in APM-only setups.
+    if core.has_listeners(STREAM_PULL_BEFORE_EVENT):
+        core.dispatch(STREAM_PULL_BEFORE_EVENT, (span, state))
     return state
 
 
 def _restore_caller_context(span: Span, state: dict[str, Any]) -> None:
     # The consumer's code between chunks must keep its own active context, not the stream's.
     tracer.context_provider.activate(state["apm"])
-    core.dispatch(STREAM_PULL_AFTER_EVENT, (span, state))
+    if core.has_listeners(STREAM_PULL_AFTER_EVENT):
+        core.dispatch(STREAM_PULL_AFTER_EVENT, (span, state))
 
 
 def _pull_with_span_active(stream: Any, span: Span) -> Any:
