@@ -47,13 +47,8 @@ EMBED_METADATA_PARAMS = [
 class GoogleGenAIIntegration(BaseLLMIntegration):
     _integration_name = "google_genai"
 
-    def _set_base_span_tags(
-        self, span: SpanData, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
-    ) -> None:
-        if provider is not None:
-            span._set_attribute("google_genai.request.provider", provider)
-        if model is not None:
-            span._set_attribute("google_genai.request.model", model)
+    def _set_base_span_tags(self, span: SpanData, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
     def _llmobs_set_tags(
         self,

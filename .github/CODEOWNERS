@@ -70,12 +70,12 @@ repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
 static-analysis.datadog.yml         @DataDog/python-guild
 .gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
-.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
 .github/                            @DataDog/python-guild  @DataDog/apm-core-python
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 /README.md                          @DataDog/python-guild  @DataDog/apm-core-python
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+/frozen-paths.txt                   @DataDog/apm-core-python
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 setup.py                            @DataDog/python-guild
@@ -229,12 +229,17 @@ ddtrace/internal/settings/profiling.py            @DataDog/profiling-python
 ddtrace/internal/settings/profiling.pyi           @DataDog/profiling-python
 ddtrace/internal/datadog/profiling                @DataDog/profiling-python
 tests/profiling                                   @DataDog/profiling-python
-.github/workflows/profiling-native.yml            @DataDog/profiling-python
 .github/workflows/prof-correctness.yml            @DataDog/profiling-python
-.gitlab/tests/profiling.yml                       @DataDog/profiling-python
 .github/workflows/pytorch_gpu_tests.yml           @DataDog/profiling-python
 .github/PULL_REQUEST_TEMPLATE/profiler_change.md  @DataDog/profiling-python
 src/native_heap_gotter/                           @DataDog/profiling-python
+scripts/check_profiling_native_coverage.py        @DataDog/profiling-python
+benchmarks/code_provenance/                       @DataDog/profiling-python
+benchmarks/exception_profiler_monitoring/         @DataDog/profiling-python
+tests/commands/ddtrace_run_profiling.py           @DataDog/python-guild @DataDog/apm-core-python @DataDog/profiling-python
+.gitlab/native.yml                                @DataDog/python-guild @DataDog/apm-core-python @DataDog/profiling-python
+.gitlab/scripts/upload-debug-symbols-to-backend.sh @DataDog/python-guild @DataDog/apm-core-python @DataDog/profiling-python
+docs/debug_symbols.rst                            @DataDog/python-guild @DataDog/profiling-python
 
 # Native build tooling (abseil dependency, shared by ASM + Profiling native code)
 /cmake/                                            @DataDog/asm-python @DataDog/profiling-python
@@ -243,6 +248,7 @@ src/native_heap_gotter/                           @DataDog/profiling-python
 # Crashtracker
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/internal/settings/crashtracker.py   @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/internal/settings/crashtracker.pyi  @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog/apm-core-python
 tests/crashtracker/                          @DataDog/profiling-python
 src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
@@ -423,9 +429,16 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities @DataDog/a
 # below the ASM globs so a future tests/**/* rule naming a product cannot claim it.
 tests/standalone/                       @DataDog/python-guild
 
+# Package-split API inventories
+.agents/skills/package-split/           @DataDog/python-guild @DataDog/apm-core-python
+scripts/package-split                   @DataDog/python-guild @DataDog/apm-core-python
+scripts/package_split/                  @DataDog/python-guild @DataDog/apm-core-python
+tests/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
+
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
 .gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
+docs/contributing-fuzzing.rst     @DataDog/chaos-engineering @DataDog/profiling-python
 docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-python
 
 # Supported versions

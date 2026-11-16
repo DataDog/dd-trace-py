@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from enum import Enum
 import gc
+import sys
 import time
 from typing import Any
 from typing import Callable
@@ -19,6 +20,18 @@ from ddtrace.internal._unpatched import threading_Lock
 
 
 GEN_COUNT: int = 3
+
+# A pause is the CPU time of the thread that collects. Python code that runs during
+# a collection (gc.callbacks, this one included, and finalizers) can hand the GIL to
+# other threads, and wall time would count all the time they run as pause.
+# Windows thread time only advances once per scheduler tick, so keep wall time there.
+# macOS builds before thread_time_ns existed (and any other build without it) also
+# fall back to wall time — getattr, not a platform name check, so a newer macOS
+# Python that exposes the clock still uses it.
+_thread_time_ns: Callable[[], int] | None = getattr(time, "thread_time_ns", None)
+_pause_clock_ns: Callable[[], int] = (
+    time.monotonic_ns if sys.platform == "win32" or _thread_time_ns is None else _thread_time_ns
+)
 
 
 def _gc_callbacks_supported() -> bool:
@@ -184,7 +197,7 @@ class GCPauseMonitor:
                 if self._refcount <= 0:
                     return
 
-                self._start_ns[gen] = time.monotonic_ns()
+                self._start_ns[gen] = _pause_clock_ns()
                 return
 
             if phase != _GCPhase.STOP:
@@ -195,7 +208,7 @@ class GCPauseMonitor:
                 return
 
             self._start_ns[gen] = 0
-            pause_ns: int = time.monotonic_ns() - start
+            pause_ns: int = _pause_clock_ns() - start
             if pause_ns < 0:
                 return
 

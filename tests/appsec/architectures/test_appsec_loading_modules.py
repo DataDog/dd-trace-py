@@ -86,7 +86,7 @@ def test_loading(appsec_enabled, iast_enabled, sca_enabled, aws_lambda):
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']}"
                     for m in MODULE_SCA_ONLY:
-                        if sca_enabled and not aws_lambda:
+                        if sca_enabled:
                             assert m in data["appsec"], f"{m} not in {data['appsec']}"
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']}"

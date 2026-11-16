@@ -12,7 +12,6 @@ from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import Span
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 
@@ -22,7 +21,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         super(TestTracedAsyncCursor, self).setUp()
         self.cursor = mock.AsyncMock()
 
-    @mark_asyncio
     async def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -33,7 +31,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_query_is_blocked_before_execution(self):
         for query in ("SELECT 1", b"SELECT 1"):
             for method in ("execute", "executemany"):
@@ -48,7 +45,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
                 getattr(self.cursor, method).assert_not_awaited()
 
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
-    @mark_asyncio
     async def test_dbm_propagation_not_supported(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
@@ -68,7 +64,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    @mark_asyncio
     async def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "query"))
@@ -87,7 +82,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         # DBM comment should not be added procedure names
         cursor.callproc.assert_called_once_with("procedure_named_moon")
 
-    @mark_asyncio
     async def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -98,7 +92,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.executemany("__query__", "arg_1", kwarg1="kwarg1")
         cursor.executemany.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_fetchone_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -107,7 +100,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_cursor_async_connection(self):
         """Checks whether connection can execute operations with async iteration."""
 
@@ -129,7 +121,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
                 assert spans[1].resource == "select ?"
                 assert spans[1].service == "dbapi_service"
 
-    @mark_asyncio
     async def test_fetchall_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -138,7 +129,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         cursor.fetchall.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_fetchmany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -147,7 +137,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
         cursor.fetchmany.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_correct_span_names(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -177,7 +166,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         self.assert_has_no_spans()
 
-    @mark_asyncio
     async def test_span_info(self):
         cursor = self.cursor
         cursor.rowcount = 123
@@ -199,7 +187,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         assert span.get_tag("component") == traced_cursor._self_config.integration_name
         assert span.get_tag("span.kind") == "client"
 
-    @mark_asyncio
     async def test_cfg_service(self):
         cursor = self.cursor
         cursor.rowcount = 123
@@ -213,7 +200,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         span: Span = self.pop_spans()[0]
         assert span.service == "cfg-service"
 
-    @mark_asyncio
     async def test_default_service(self):
         cursor = self.cursor
         cursor.rowcount = 123
@@ -226,7 +212,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         span: Span = self.pop_spans()[0]
         assert span.service == "db"
 
-    @mark_asyncio
     async def test_default_service_cfg(self):
         cursor = self.cursor
         cursor.rowcount = 123
@@ -240,7 +225,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         span: Span = self.pop_spans()[0]
         assert span.service == "default-svc"
 
-    @mark_asyncio
     async def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
         # Django integration used to have its own TracedAsyncCursor implementation. When we replaced such custom
@@ -265,7 +249,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         self.cursor = mock.AsyncMock()
         self.config = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
 
-    @mark_asyncio
     async def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -275,7 +258,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -285,7 +267,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.executemany("__query__", "arg_1", kwarg1="kwarg1")
         cursor.executemany.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_fetchone_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -294,7 +275,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_fetchall_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -303,7 +283,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         cursor.fetchall.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_fetchmany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -312,7 +291,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
         cursor.fetchmany.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
     async def test_correct_span_names(self):
         cursor = self.cursor
         cursor.rowcount = 0
@@ -342,7 +320,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         self.assert_structure(dict(name="sql.query.fetchall"))
         self.reset()
 
-    @mark_asyncio
     async def test_span_info(self):
         cursor = self.cursor
         cursor.rowcount = 123
@@ -362,7 +339,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         assert span.get_tag("component") == traced_cursor._self_config.integration_name
         assert span.get_tag("span.kind") == "client"
 
-    @mark_asyncio
     async def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
         # Django integration used to have its own FetchTracedAsyncCursor implementation. When we replaced such custom
@@ -379,7 +355,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
-    @mark_asyncio
     async def test_unknown_rowcount(self):
         class Unknown(object):
             pass
@@ -395,7 +370,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         span: Span = self.pop_spans()[0]
         assert span.get_metric("db.row_count") is None
 
-    @mark_asyncio
     async def test_callproc_can_handle_arbitrary_args(self):
         cursor = self.cursor
         cursor.callproc.return_value = "gme --> moon"
@@ -424,7 +398,6 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    @mark_asyncio
     async def test_cursor_execute_fetch_with_dbm_injection(self):
         cursor = self.cursor
         dbm_propagator = _DBM_Propagator(0, "query")
@@ -461,7 +434,6 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         super(TestTracedAsyncConnection, self).setUp()
         self.connection = mock.AsyncMock()
 
-    @mark_asyncio
     async def test_cursor_class(self):
         # Default
         traced_connection = TracedAsyncConnection(self.connection)
@@ -477,7 +449,6 @@ class TestTracedAsyncConnection(AsyncioTestCase):
             traced_connection = TracedAsyncConnection(self.connection, cursor_cls=TracedAsyncCursor)
             self.assertTrue(traced_connection._self_cursor_cls is TracedAsyncCursor)
 
-    @mark_asyncio
     async def test_commit_is_traced(self):
         connection = self.connection
         connection.commit.return_value = None
@@ -486,7 +457,6 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         assert self.pop_spans()[0].name == "mock.connection.commit"
         connection.commit.assert_called_with()
 
-    @mark_asyncio
     async def test_rollback_is_traced(self):
         connection = self.connection
         connection.rollback.return_value = None
@@ -495,7 +465,6 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         assert self.pop_spans()[0].name == "mock.connection.rollback"
         connection.rollback.assert_called_with()
 
-    @mark_asyncio
     async def test_connection_context_manager(self):
         class Cursor(object):
             rowcount = 0
@@ -670,7 +639,6 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         spans = self.pop_spans()
         assert len(spans) == 0
 
-    @mark_asyncio
     async def test_cursor_wraps_awaitable_cursor(self):
         class Cursor(object):
             rowcount = 0

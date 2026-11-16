@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.mistralai._utils import extract_provider
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import safe_load_json
@@ -9,7 +10,6 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Document
@@ -47,13 +47,8 @@ EMBED_METADATA_PARAMS = [
 class MistralAIIntegration(BaseLLMIntegration):
     _integration_name = "mistralai"
 
-    def _set_base_span_tags(
-        self, span: SpanData, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
-    ) -> None:
-        if provider is not None:
-            span._set_attribute("mistralai.request.provider", provider)
-        if model is not None:
-            span._set_attribute("mistralai.request.model", model)
+    def _set_base_span_tags(self, span: SpanData, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
     def _llmobs_set_tags(
         self,

@@ -1,5 +1,5 @@
 import codecs
-from collections.abc import Generator  # noqa:F401
+from collections.abc import Generator
 from collections.abc import Mapping
 from contextlib import contextmanager
 from contextlib import suppress
@@ -11,12 +11,12 @@ from enum import Enum
 from json import loads
 import logging
 import re
-from re import Pattern  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import ContextManager  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from re import Pattern
+from typing import Any
+from typing import Callable
+from typing import ContextManager
+from typing import Optional
+from typing import Union
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
@@ -476,7 +476,7 @@ class Response:
         self.msg = msg
 
     @classmethod
-    def from_http_response(cls, resp):
+    def from_http_response(cls, resp: Any) -> "Response":
         """
         Build a ``Response`` from the provided ``HTTPResponse`` object.
 

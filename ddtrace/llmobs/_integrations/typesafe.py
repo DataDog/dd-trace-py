@@ -5,6 +5,8 @@ import re
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.typesafe._constants import ATTACHED_REFERENCES
+from ddtrace.contrib.internal.typesafe._constants import TAG_MODEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -22,7 +24,6 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
-MODEL = "typesafe.request.model"
 TYPESAFE_MODEL_PROVIDER = "typesafe"
 OPENROUTER_MODEL_PROVIDER = "openrouter"
 DECISION_PROVIDER_TAG = "decision_provider"
@@ -33,15 +34,12 @@ IMAGE_REFERENCE = re.compile(r"<image:[0-9a-f]{32}>")
 
 class TypeSafeIntegration(BaseLLMIntegration):
     _integration_name = "typesafe"
-    # Request kwargs key under which the patch layer passes the references of client-attached images
-    ATTACHED_REFERENCES = "_dd.attached_references"
 
-    def _set_base_span_tags(self, span: Span, model: Optional[str] = None, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Record the request base_url on the span; the contrib sets the APM model tag itself."""
         base_url = self._get_base_url(**kwargs)
         if base_url is not None:
             span._set_ctx_item(REQUEST_BASE_URL, base_url)
-        if model:
-            span._set_attribute(MODEL, model)
 
     def _get_base_url(self, **kwargs: Any) -> Optional[str]:
         config = _get_attr(kwargs.get("instance"), "_config", None)
@@ -64,12 +62,12 @@ class TypeSafeIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
-        input_content = safe_json(_request_body(kwargs))  # type: ignore[no-untyped-call]
+        input_content = safe_json(_request_body(kwargs))
         input_messages = [Message(role="user", content=input_content or "")]
 
         output_messages = [Message(content="")]
         metrics: dict[str, Any] = {}
-        model_name = span.get_tag(MODEL) or ""
+        model_name = span.get_tag(TAG_MODEL) or ""
         if response is not None:
             output_messages = [Message(role="assistant", content=_response_body(response))]
             model_name = _get_attr(response, "model", None) or model_name
@@ -97,7 +95,7 @@ class TypeSafeIntegration(BaseLLMIntegration):
     ) -> None:
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
         metrics = self._extract_usage(_get_attr(response, "usage", None)) if span_kind == "llm" else {}
-        model_name = _get_attr(response, "model", None) or span.get_tag(MODEL)
+        model_name = _get_attr(response, "model", None) or span.get_tag(TAG_MODEL)
         self._apply_shadow_metrics(
             span, metrics, span_kind, model_name=model_name, model_provider=self._get_model_provider(span)
         )
@@ -116,23 +114,27 @@ class TypeSafeIntegration(BaseLLMIntegration):
         return metrics
 
 
+REQUEST_BODY_KEYS = ("state", "model", "questions", "assets")
+
+
 def _request_body(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Rebuild the JSON body that system_one sends.
 
     Images (typesafe-sdk 0.7.5+) appear as their alias from assets= or their <image:...> reference, as on the wire,
     and are listed under "assets" in the order the SDK uploads them, including images attached to the client and
-    referenced from text; their bytes go in separate parts and are not recorded.
+    referenced from text; their bytes go in separate parts and are not recorded. Fields of extra_body other than
+    request fields are dropped, since they can carry credentials.
     """
     assets = kwargs.get("assets") or {}
     # Like the SDK, an image passed under several names is written as its last name but uploaded once per name
     aliases = {id(asset): name for name, asset in assets.items()}
     found: dict[str, None] = {}
     body = {"state": kwargs.get("state"), "model": kwargs.get("model"), "questions": kwargs.get("questions")}
-    body.update(kwargs.get("extra_body") or {})
+    body.update({k: v for k, v in (kwargs.get("extra_body") or {}).items() if k in REQUEST_BODY_KEYS})
     data: dict[str, Any] = _to_data(body, aliases, found)
     if "assets" not in body:
         # Like the SDK: the passed names, then every known reference in order of appearance in the encoded body
-        known = {*found, *kwargs.get(TypeSafeIntegration.ATTACHED_REFERENCES, ())}
+        known = {*found, *kwargs.get(ATTACHED_REFERENCES, ())}
         known.update(
             reference for reference in (getattr(asset, "_reference", None) for asset in assets.values()) if reference
         )
@@ -146,16 +148,14 @@ def _request_body(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _response_body(response: Any) -> str:
-    """Return the HTTP response body as received, or the parsed response when the raw one is unavailable."""
+    """Return the response body without usage, since token counts are recorded as metrics."""
     try:
-        raw_text = response.raw_http_response.text
+        data = json.loads(response.raw_http_response.text)
     except Exception:
-        raw_text = None
-    if isinstance(raw_text, str) and raw_text:
-        return raw_text
-    if hasattr(response, "model_dump"):
-        return safe_json(response.model_dump(mode="json")) or ""  # type: ignore[no-untyped-call]
-    return safe_json(_to_data(response)) or ""  # type: ignore[no-untyped-call]
+        data = response.model_dump(mode="json") if hasattr(response, "model_dump") else _to_data(response)
+    if isinstance(data, dict):
+        data.pop("usage", None)
+    return safe_json(data) or ""
 
 
 def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Optional[dict[str, None]] = None) -> Any:

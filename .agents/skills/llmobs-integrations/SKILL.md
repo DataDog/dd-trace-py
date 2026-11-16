@@ -13,15 +13,19 @@ Use `apm-integrations` as well when changing contrib patching, registration, or 
 Standard request spans use `LlmRequestEvent` and `core.context_with_event()`; the tracing
 subscriber owns span creation, errors, and finishing. For new integrations, leave the event's
 `llmobs_integration` unset and register the integration class under
-`ddtrace/llmobs/_contrib/<name>/`. Shared `SpanLifecycleEvents` subscribers in
-`ddtrace/llmobs/_contrib/_subscribers.py` select the integration using `ctx.event.component`.
+`ddtrace/llmobs/_contrib/<name>/`. The shared `SpanLifecycleListener` implementation in
+`ddtrace/llmobs/_subscribers.py` selects the integration using `ctx.event.component`.
+The product owns the lazy bundle in
+`ddtrace/llmobs/_registration.py`; product start, direct enable, and product-owned patch
+adapters register it. Unpatch removes component admission and its cache while shared
+listeners remain for in-flight completion and disabled-LLMObs shadow tags.
 Specialized agent/tool/duplex integrations may use direct spans.
 Preserve the existing lifecycle when extending an integration.
 
 - Standard requests: `ddtrace/contrib/internal/anthropic/patch.py` and
   `ddtrace/llmobs/_integrations/anthropic.py`.
 - Product registration: `ddtrace/llmobs/_contrib/anthropic/`; shared subscribers:
-  `ddtrace/llmobs/_contrib/_subscribers.py`; patch hooks:
+  `ddtrace/llmobs/_subscribers.py`; patch hooks:
   `ddtrace/internal/integration_hooks.py` and `pyproject.toml`'s `ddtrace.integration_hooks` group.
 - Agent/tool spans: `ddtrace/llmobs/_integrations/claude_agent_sdk.py`.
 - Base contract: `ddtrace/llmobs/_integrations/base.py`.

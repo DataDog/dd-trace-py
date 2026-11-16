@@ -71,6 +71,14 @@ extract_test_artifacts:
     # not on the filesystem of the checkout, so uv copies every file into each venv.
     UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
   before_script:
+    - |
+      # These suites need LiteLLM versions that the internal index does not permit.
+      # Unset the variables here because forwarded pipeline variables override job variables.
+      case "${TEST_SUITE:-}" in
+        llmobs::litellm|llmobs::crewai|aiguard::ai_guard_litellm_guardrail)
+          unset PIP_INDEX_URL UV_DEFAULT_INDEX
+          ;;
+      esac
     - !reference [.testrunner, before_script]
     - |
       # The native IAST suite compiles repository C++ sources and does not import ddtrace.
