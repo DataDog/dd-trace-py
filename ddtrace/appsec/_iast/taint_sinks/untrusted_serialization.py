@@ -93,7 +93,9 @@ def _wrap_serializers(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs
     # YAML safe loader handling. If caller uses yaml.load with SafeLoader
     # (either as second positional arg or via Loader kwarg), do not report.
     if not _is_yaml_safe_load(args, kwargs):
-        _iast_report_untrusted_serializastion(kwargs.get("data", args[0] if len(args) > 0 else None))
+        _iast_report_untrusted_serializastion(
+            kwargs.get("data", kwargs.get("stream", args[0] if len(args) > 0 else None))
+        )
     return wrapped(*args, **kwargs)
 
 
