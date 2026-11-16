@@ -14,6 +14,15 @@ extern "C"
 
 namespace Datadog {
 
+// A ddog_prof_Status is an error if and only if `err` is non-null. `flags` only
+// says whether the message is heap-allocated; it is 0 for static messages, which
+// include every out-of-memory error, so it must not be used to detect failure.
+inline bool
+status_is_error(const ddog_prof_Status& status)
+{
+    return status.err != nullptr;
+}
+
 // Intern a string into libdatadog, returning a string ID
 // (or nullopt if interning failed).
 // Passing the same string twice will deduplicate the string and return

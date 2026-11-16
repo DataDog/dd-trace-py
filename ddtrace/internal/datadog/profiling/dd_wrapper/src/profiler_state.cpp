@@ -39,7 +39,7 @@ ProfilerState::init_profiles_dictionary()
 
     ddog_prof_ProfilesDictionaryHandle temp = nullptr;
     auto result = ddog_prof_ProfilesDictionary_new(&temp);
-    if (result.flags) {
+    if (status_is_error(result)) {
         std::cerr << "could not initialise profiles dictionary: " << result.err << std::endl;
         return false;
     }
@@ -82,7 +82,7 @@ ProfilerState::init_interned_strings()
     auto result = ddog_prof_ProfilesDictionary_insert_str(
       &string_id, maybe_dict.value(), to_slice(""), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
 
-    if (result.flags) {
+    if (status_is_error(result)) {
         std::cerr << "Error interning empty string: " << result.err << std::endl;
         return false;
     }
