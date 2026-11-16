@@ -692,6 +692,47 @@ def test_recreate_shuts_the_replaced_buffer_down(agent):
             replacement.stop(3.0)
 
 
+def test_recreate_applies_the_stats_overrides(agent):
+    # SpanAggregator._reset_writer passes both keywords on every reconfiguration, even when they are None.
+    with buffer_writer(agent.port, compute_stats_enabled=False, stats_opt_out=False) as writer:
+        unchanged = writer.recreate(compute_stats_enabled=None, stats_opt_out=None)
+        try:
+            assert unchanged._compute_stats_enabled is False
+            assert unchanged._stats_opt_out is False
+        finally:
+            unchanged.stop(3.0)
+
+        overridden = writer.recreate(compute_stats_enabled=True, stats_opt_out=True)
+        try:
+            assert overridden._compute_stats_enabled is True
+            assert overridden._stats_opt_out is True
+        finally:
+            overridden.stop(3.0)
+
+
+def test_set_test_session_token_applies_the_stats_override(agent):
+    # tests.utils.snapshot_context calls this through AgentWriterInterface with the stats setting.
+    with buffer_writer(agent.port, compute_stats_enabled=False) as writer:
+        writer.set_test_session_token("token", compute_stats_enabled=True)
+        assert writer._compute_stats_enabled is True
+        writer.set_test_session_token("other")
+        assert writer._compute_stats_enabled is True
+
+
+def test_a_write_to_a_replaced_writer_reaches_its_replacement(agent):
+    # tracer.configure() installs the replacement only after recreate() returns, so a span that
+    # finishes in between still holds the old writer. That span belongs to the replacement.
+    with buffer_writer(agent.port, api_version="v0.4") as writer:
+        replacement = writer.recreate()
+        try:
+            recording = replacement._buffer = _RecordingBuffer()
+            writer.write([_finished_span()])
+            assert len(recording.writes) == 1
+        finally:
+            replacement._buffer = _StubBuffer()
+            replacement.stop(3.0)
+
+
 def test_agent_response_reaches_the_callback():
     # The response handler runs on a worker thread that must not touch Python, so it parks the body.
     # The writer collects it on the next write or flush and feeds the sampler.

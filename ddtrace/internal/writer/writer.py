@@ -1622,6 +1622,7 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         # lock that makes the close wait for an in-flight write.
         self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
         self._accepting_writes = True
+        self._successor: Optional[NativeTraceBuffer] = None
         self._telemetry_worker: Optional[native.TelemetryWorker] = None
         self._telemetry_worker_changed = False
         self._install_buffer()
@@ -1763,9 +1764,16 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         dd_origin = ctx.dd_origin if ctx is not None else None
         buffer = self._buffer
         reason = buffer.write(spans, dd_origin)
-        if reason is not None and reason.startswith("AlreadyClosed") and buffer is not self._buffer:
-            # A rebuild closed the buffer that this write held. The new buffer takes the trace.
-            reason = self._buffer.write(spans, dd_origin)
+        if reason is not None and reason.startswith("AlreadyClosed"):
+            successor = self._successor
+            if successor is not None:
+                # recreate() closed this writer's buffer, and the caller has not installed the
+                # replacement yet. The replacement takes the trace and does its own accounting.
+                successor.write(spans)
+                return
+            if buffer is not self._buffer:
+                # A rebuild closed the buffer that this write held. The new buffer takes the trace.
+                reason = self._buffer.write(spans, dd_origin)
         # libdatadog also counts dropped spans, but NativeWriter counts traces. A keep rate in
         # spans would weight a large trace above a small one.
         # TODO: Move drop accounting and `_dd.tracer_kr` tagging into the TraceBuffer of
@@ -1888,12 +1896,14 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         except Exception:
             _safelog(log.warning, "failed to shut down the replaced native trace buffer", exc_info=True)
 
-    def set_test_session_token(self, token: Optional[str]) -> None:
+    def set_test_session_token(self, token: Optional[str], compute_stats_enabled: Optional[bool] = None) -> None:
         """Rebuild on the new token, because the token is fixed when the exporter is built.
 
         tests/utils.py calls this on the active writer for every snapshot test.
         """
         self._test_session_token = token
+        if compute_stats_enabled is not None:
+            self._compute_stats_enabled = compute_stats_enabled
         old_buffer = self._install_buffer()
         if old_buffer is not None:
             self._discard_buffer(old_buffer)
@@ -1902,6 +1912,8 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "NativeTraceBuffer":
         """Return a replacement writer and shut this one's buffer down.
 
@@ -1916,17 +1928,22 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         replacement = self.__class__(
             intake_url=self.intake_url,
-            compute_stats_enabled=self._compute_stats_enabled,
+            compute_stats_enabled=(
+                self._compute_stats_enabled if compute_stats_enabled is None else compute_stats_enabled
+            ),
             client_side_stats_obfuscation=self._client_side_stats_obfuscation,
             sync_mode=self._sync_mode,
             api_version=api_version,
             response_callback=self._response_cb,
             test_session_token=self._test_session_token,
-            stats_opt_out=self._stats_opt_out,
+            stats_opt_out=self._stats_opt_out if stats_opt_out is None else stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
         )
         # Build the replacement first: a failure there leaves this writer usable.
+        # The caller installs the replacement only after this method returns. Spans that finish in
+        # that gap still reach this writer, so it hands them to the replacement.
+        self._successor = replacement
         self._discard_buffer(self._buffer)
         return replacement
 
