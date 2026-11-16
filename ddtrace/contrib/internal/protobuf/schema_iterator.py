@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from typing import Optional
 
 from google.protobuf.descriptor import FieldDescriptor
 
@@ -66,11 +65,7 @@ class SchemaExtractor(SchemaIterator):
         return True
 
     @staticmethod
-    def extract_schemas(descriptor, processor: Optional[DataStreamsProcessor] = None) -> Optional[Schema]:
-        if processor is None:
-            processor = data_streams_processor()
-            if processor is None:
-                return None
+    def extract_schemas(descriptor, processor: DataStreamsProcessor) -> Schema:
         return processor.get_schema(descriptor.name, SchemaExtractor(descriptor))
 
     def iterate_over_schema(self, builder: SchemaBuilder):

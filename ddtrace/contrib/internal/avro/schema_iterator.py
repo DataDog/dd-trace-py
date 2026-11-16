@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from typing import Optional
 
 import avro
 from avro.schema import Schema as AvroSchema
@@ -85,11 +84,7 @@ class SchemaExtractor(SchemaIterator):
         return True
 
     @staticmethod
-    def extract_schemas(schema: AvroSchema, processor: Optional[DataStreamsProcessor] = None) -> Optional[Schema]:
-        if processor is None:
-            processor = data_streams_processor()
-            if processor is None:
-                return None
+    def extract_schemas(schema: AvroSchema, processor: DataStreamsProcessor) -> Schema:
         return processor.get_schema(schema.fullname, SchemaExtractor(schema))
 
     def iterate_over_schema(self, builder: SchemaBuilder):
