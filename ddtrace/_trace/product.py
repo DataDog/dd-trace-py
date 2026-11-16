@@ -3,6 +3,7 @@ import typing as t
 
 from envier import En
 
+from ddtrace._trace._registration import register_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
@@ -48,12 +49,11 @@ def start():
 
         _install_trace_methods(config._trace_methods)
 
+    register_subscribers()
+
 
 def restart(join=False):
-    from ddtrace.trace import tracer
-
-    if tracer.enabled:
-        tracer._child_after_fork()
+    pass
 
 
 def stop(join=False):

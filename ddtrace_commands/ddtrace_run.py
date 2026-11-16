@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 import sys
-import typing  # noqa:F401
+import typing
 
 
 env = os.environ
@@ -14,7 +14,7 @@ env = os.environ
 def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Optional[str]:
     if args is None:
         return None
-    command = typing.cast(str, args.command[0])
+    command: str = args.command[0]
     if os.path.isfile(command):
         return command
     return shutil.which(command)

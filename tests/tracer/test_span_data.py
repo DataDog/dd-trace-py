@@ -17,6 +17,9 @@ from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _set_sampling_tags
+from ddtrace.internal.security._trace_utils import _asm_manual_keep
+from ddtrace.propagation.http import HTTPPropagator
+from tests.utils import override_global_config
 
 
 def test_native_span_sampling():
@@ -38,7 +41,8 @@ def test_native_span_sampling():
 
 
 @pytest.mark.parametrize("decision", [USER_KEEP, USER_REJECT, None])
-def test_native_span_override_sampling_decision(decision):
+@pytest.mark.parametrize("sampling_mechanism", [None, SamplingMechanism.MANUAL, SamplingMechanism.APPSEC])
+def test_native_span_override_sampling_decision(decision, sampling_mechanism):
     root = SpanData(name="root")
     root.context._publish_sampling_decision(1, 0.5, True)
     child = SpanData(name="child", context=root.context)
@@ -47,14 +51,45 @@ def test_native_span_override_sampling_decision(decision):
     for key in sampling_keys:
         root._set_attribute(key, 0.5)
 
-    child._override_sampling_decision(decision)
+    if sampling_mechanism is None:
+        child._override_sampling_decision(decision)
+    else:
+        child._override_sampling_decision(decision, sampling_mechanism=sampling_mechanism)
 
     assert child.context.sampling_priority == decision
     assert root.context.sampling_priority == decision
-    assert root.context._meta["_dd.p.dm"] == "-4"
+    mechanism = SamplingMechanism.MANUAL if sampling_mechanism is None else sampling_mechanism
+    assert root.context._meta["_dd.p.dm"] == f"-{mechanism}"
     assert root.context._otel_sampling_state_data == -1.0
     for key in sampling_keys:
         assert not root._has_attribute(key)
+
+
+@pytest.mark.parametrize("child_span", [False, True])
+def test_appsec_sampling_mechanism_published_before_injection(child_span):
+    headers = {}
+
+    class ProbeSpan(SpanData):
+        def _override_sampling_decision(self, decision, *args, **kwargs):
+            super()._override_sampling_decision(decision, *args, **kwargs)
+            # Observe the published decision before the AppSec helper can update any tags.
+            HTTPPropagator.inject(self.context, headers)
+
+    root = ProbeSpan("root")
+    span = root
+    if child_span:
+        span = ProbeSpan("child", context=root.context)
+        span._inherit_from_parent(root)
+
+    with override_global_config(dict(_propagation_style_inject=["datadog"])):
+        _asm_manual_keep(span)
+
+    assert headers["x-datadog-sampling-priority"] == str(USER_KEEP)
+    assert "_dd.p.dm=-5" in headers["x-datadog-tags"].split(",")
+    assert root.context._meta["_dd.p.dm"] == "-5"
+    assert root._get_str_attribute("_dd.p.dm") == "-5"
+    assert root._get_str_attribute("_dd.p.ts") == "02"
+    assert span._get_str_attribute("_dd.p.dm") == "-5"
 
 
 # =============================================================================

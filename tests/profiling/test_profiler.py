@@ -202,13 +202,21 @@ def test_failed_start_collector(caplog: pytest.LogCaptureFixture, monkeypatch: p
         return [t for t in tuples if t[0].startswith("ddtrace.profiling")]
 
     assert profiling_tuples(caplog.record_tuples) == [
-        ("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector)
+        (
+            "ddtrace.profiling.profiler",
+            logging.ERROR,
+            "[profiling] Failed to start collector %r, disabling." % err_collector,
+        )
     ]
     time.sleep(2)
     p.stop()
     assert err_collector.snapshot.call_count == 0
     assert profiling_tuples(caplog.record_tuples) == [
-        ("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector)
+        (
+            "ddtrace.profiling.profiler",
+            logging.ERROR,
+            "[profiling] Failed to start collector %r, disabling." % err_collector,
+        )
     ]
 
 
@@ -327,21 +335,21 @@ def test_runtime_collector_start_failure_cleans_up_partial_resources(
 
 
 def test_failed_lock_collector_start_preserves_patch_target() -> None:
-    original_lock = profiler.threading.ThreadingLockCollector.MODULE.Lock
-
     class FailingLockCollector(profiler.threading.ThreadingLockCollector):
         def patch(self) -> None:
             raise RuntimeError("patch failed")
 
+    failing_collector = FailingLockCollector(module=sys.modules["threading"])
+    original_lock = failing_collector.MODULE.Lock
     p = _bare_profiler_instance()
-    p._collectors = [FailingLockCollector()]
+    p._collectors = [failing_collector]
     p._scheduler = None
 
     try:
         p.start()
-        installed_lock = profiler.threading.ThreadingLockCollector.MODULE.Lock
+        installed_lock = failing_collector.MODULE.Lock
     finally:
-        profiler.threading.ThreadingLockCollector.MODULE.Lock = original_lock
+        failing_collector.MODULE.Lock = original_lock
 
     assert installed_lock is original_lock
     p.stop(flush=False)
@@ -486,7 +494,7 @@ def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: p
     try:
         for module, hook in registered_hooks:
             if module in ("threading", "asyncio"):
-                hook(None)
+                hook(sys.modules[module])
 
         locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
         assert locks, "expected lock collectors"

@@ -87,9 +87,10 @@ def _recorded_response_text(cassette):
 def _assert_system_one_span(
     span, state=STATE, response=STRING_STATE_RESPONSE, cassette=STRING_STATE_CASSETTE, metrics=STRING_STATE_METRICS
 ):
-    """The span input is the request body and the output is the response body exactly as received."""
-    output = _recorded_response_text(cassette)
-    assert json.loads(output) == response
+    """The span input is the request body and the output is the response body without usage."""
+    recorded = json.loads(_recorded_response_text(cassette))
+    assert recorded == response
+    output = json.dumps({k: v for k, v in recorded.items() if k != "usage"}, sort_keys=True)
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(span),
         span_kind="llm",
@@ -175,6 +176,7 @@ def test_llmobs_enable_patches_typesafe():
 STUB_RESPONSE = json.dumps(
     {"model": "jev-1.13.0", "answers": {"refund": {"type": "noul", "noul": 0.5}}, "usage": {"input_tokens": 10}}
 )
+STUB_OUTPUT = json.dumps({"model": "jev-1.13.0", "answers": {"refund": {"type": "noul", "noul": 0.5}}}, sort_keys=True)
 # Only the PNG signature: the SDK sniffs it for the content type and never decodes the image
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + bytes(16)
 
@@ -224,14 +226,16 @@ def _call_with_recording_transport(typesafe_sdk, test_spans, attach=(), client_k
 
 @pytest.mark.parametrize(
     "overrides",
-    [{}, {"extra_body": {"model": "jev-latest", "debug": True}}, {"state": range(3)}],
+    [{}, {"extra_body": {"model": "jev-latest", "provider_token": "secret"}}, {"state": range(3)}],
     ids=["plain", "extra_body", "sequence_state"],
 )
 def test_system_one_span_io_matches_http_bodies(typesafe_sdk, typesafe_llmobs, test_spans, overrides):
+    """The input is the sent body, except extra_body fields other than request fields, which can carry credentials."""
     kwargs = {"state": STATE, "questions": build_questions(typesafe_sdk), **overrides}
     span, input_body, sent_body, output = _call_with_recording_transport(typesafe_sdk, test_spans, **kwargs)
-    assert input_body == sent_body
-    assert output == STUB_RESPONSE
+    assert input_body == {k: v for k, v in sent_body.items() if k != "provider_token"}
+    assert "provider_token" not in input_body
+    assert output == STUB_OUTPUT
     assert span.get_tag("typesafe.request.model") == sent_body["model"]
 
 
@@ -271,7 +275,7 @@ def test_system_one_custom_response_model(typesafe_sdk, typesafe_llmobs, test_sp
     _, _, _, output = _call_with_recording_transport(
         typesafe_sdk, test_spans, state=STATE, questions=build_questions(typesafe_sdk), response_model=response_model
     )
-    assert json.loads(output) == json.loads(STUB_RESPONSE)
+    assert output == STUB_OUTPUT
 
 
 def test_system_one_image_under_several_names(typesafe_sdk, typesafe_llmobs, test_spans):

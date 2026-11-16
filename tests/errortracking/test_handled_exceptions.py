@@ -194,8 +194,9 @@ class UserCodeErrorTestCases(TracerTestCase):
     a real environment
     """
 
-    @pytest.fixture(scope="class", autouse=True)
-    def load_user_code(self):
+    def setUp(self):
+        super().setUp()
+
         from tests.errortracking._test_functions import main_user_code_string
         from tests.errortracking._test_functions import module_user_code_string
         from tests.errortracking._test_functions import submodule_1_string
@@ -241,7 +242,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
         # import our fake third party package
         package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
-        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True, capture_output=True)
 
         from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
 

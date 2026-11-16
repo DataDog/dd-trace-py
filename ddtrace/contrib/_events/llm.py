@@ -37,18 +37,22 @@ class LlmRequestEvent(TracingEvent):
     model: Optional[str] = event_field(default=None)
     # Integrations that have moved to SpanLifecycleEvents subscribers leave this unset.
     llmobs_integration: Optional[BaseLLMIntegration] = event_field(default=None)
+    # Positional request arguments, for integrations whose wrapped calls accept them.
+    request_args: tuple[Any, ...] = event_field(default=())
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
     instance: Optional[Any] = event_field(default=None)
     response: Optional[Any] = event_field(default=None)
     operation: str = event_field(default="")
+    # Overrides the default "<component>.request" span name.
+    span_name: Optional[str] = event_field(default=None)
 
     # Override ClassVar from TracingEvent with an instance field so span_type
     # can be determined dynamically per-request based on LLMObs state.
     span_type: Optional[str] = field(init=False)  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        self.operation_name = f"{self.component}.request"
+        self.operation_name = self.span_name or f"{self.component}.request"
         self.span_type = (
             SpanTypes.LLM
             if (

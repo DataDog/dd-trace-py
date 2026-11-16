@@ -604,12 +604,14 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
         # Being registered is not enough: the hook must actually run under both orders, or
         # RASP silently stops inspecting downstream requests.
         entered = []
+        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
 
         class _Probe(_SsrfHttpConnectionRequest):
             def __enter__(self):
                 result = super().__enter__()
                 frame_locals = self._locals()
-                entered.append((frame_locals.get("method"), frame_locals.get("url")))
+                if frame_locals.get("self") is conn:
+                    entered.append((frame_locals.get("method"), frame_locals.get("url")))
                 return result
 
         request_fn = request_ctx.__wrapped__
@@ -619,7 +621,6 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
 
         # Both layers still deliver a working client: a refused connection must surface as
         # OSError, not as an instrumentation error.
-        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
         with pytest.raises(OSError):
             conn.request("GET", "/")
 

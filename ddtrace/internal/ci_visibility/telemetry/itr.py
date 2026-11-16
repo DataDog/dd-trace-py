@@ -1,5 +1,6 @@
 from enum import Enum
 import functools
+from typing import Callable
 
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -26,9 +27,9 @@ class SKIPPABLE_TESTS_TELEMETRY(str, Enum):
     RESPONSE_SUITES = "itr_skippable_tests.response_suites"
 
 
-def _enforce_event_is_test_or_suite(func):
+def _enforce_event_is_test_or_suite(func: Callable[[EVENT_TYPES], None]) -> Callable[[EVENT_TYPES], None]:
     @functools.wraps(func)
-    def wrapper(event_type: str):
+    def wrapper(event_type: EVENT_TYPES) -> None:
         if event_type not in [EVENT_TYPES.SUITE, EVENT_TYPES.TEST]:
             log.debug("%s can only be used for suites or tests, not %s", func.__name__, event_type)
             return
@@ -38,7 +39,7 @@ def _enforce_event_is_test_or_suite(func):
 
 
 @_enforce_event_is_test_or_suite
-def record_itr_skipped(event_type: EVENT_TYPES):
+def record_itr_skipped(event_type: EVENT_TYPES) -> None:
     log.debug("Recording itr skipped telemetry for %s", event_type)
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY, ITR_TELEMETRY.SKIPPED, 1, (("event_type", event_type.value),)
@@ -46,21 +47,21 @@ def record_itr_skipped(event_type: EVENT_TYPES):
 
 
 @_enforce_event_is_test_or_suite
-def record_itr_unskippable(event_type: EVENT_TYPES):
+def record_itr_unskippable(event_type: EVENT_TYPES) -> None:
     log.debug("Recording itr unskippable telemetry for %s", event_type)
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY, ITR_TELEMETRY.UNSKIPPABLE, 1, (("event_type", event_type.value),)
     )
 
 
-def record_itr_forced_run(event_type: EVENT_TYPES):
+def record_itr_forced_run(event_type: EVENT_TYPES) -> None:
     log.debug("Recording itr forced run telemetry for %s", event_type)
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY, ITR_TELEMETRY.FORCED_RUN, 1, (("event_type", event_type.value),)
     )
 
 
-def record_skippable_count(skippable_count: int, skipping_level: str):
+def record_skippable_count(skippable_count: int, skipping_level: str) -> None:
     skippable_count_metric = (
         SKIPPABLE_TESTS_TELEMETRY.RESPONSE_SUITES
         if skipping_level == SUITE

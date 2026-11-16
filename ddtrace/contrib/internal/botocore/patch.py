@@ -238,7 +238,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"botocore": "*"}
+    return {"botocore": "*", "boto3": "*"}
 
 
 def patch():

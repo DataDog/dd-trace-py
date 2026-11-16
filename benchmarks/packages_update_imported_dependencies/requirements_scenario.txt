@@ -53,7 +53,6 @@ mypy-extensions==1.0.0
 numexpr==2.8.5
 numpy==1.26.4
 openai==1.57.0
-opentracing==2.4.0
 orjson==3.10.12
 packaging==24.2
 pandas==2.2.3

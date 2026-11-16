@@ -29,7 +29,6 @@ DEFAULT_DEPENDENCIES = (
     "pytest-mock",
     "coverage",
     "pytest-cov",
-    "opentracing",
     "hypothesis<6.45.1",
 )
 DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15")
@@ -42,7 +41,6 @@ DEFAULT_ENVIRONMENT = {
     "DD_PATCH_MODULES": "unittest:false",
     "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     "CARGO_BUILD_JOBS": "12",
-    "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",

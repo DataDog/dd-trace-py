@@ -1,5 +1,5 @@
 # pyright: reportPossiblyUnboundVariable=false
-import importlib.util
+import importlib.machinery
 import os
 import platform
 import sys
@@ -7,6 +7,7 @@ import traceback
 from types import TracebackType
 from typing import Optional
 
+from ddtrace import __path__ as ddtrace_path
 from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import excepthook
@@ -101,8 +102,10 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     # depend on PATH configuration.
     python_executable = sys.executable
 
-    # Get the path to the receiver script module
-    spec = importlib.util.find_spec("ddtrace.commands._dd_crashtracker_receiver")
+    # Locate the script without importing the deprecated commands package.
+    spec = importlib.machinery.PathFinder.find_spec(
+        "ddtrace.commands._dd_crashtracker_receiver", [os.path.join(path, "commands") for path in ddtrace_path]
+    )
     if spec is None:
         log.error("Failed to locate _dd_crashtracker_receiver module")
         return (None, None, None)
@@ -145,7 +148,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         crashtracker_config.debug_url or upload_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
-        None,
+        None,  # api_key
+        config._otel_thread_context_enabled,
     )
 
     receiver_env = {}

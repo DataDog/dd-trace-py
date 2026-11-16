@@ -606,7 +606,7 @@ _PACKAGES = [
         "d8b5635eb590e078a608e083351288a0",
         "",
         import_module_to_validate="multipart.multipart",
-        # This test is failing in CircleCI with the latest version
+        # This test is failing in CI with the latest version
         test_import=False,
         test_e2e=False,
         test_propagation=False,
@@ -687,7 +687,7 @@ _PACKAGES = [
         "Parsed TOML data: {'key': 'value'}",
         "",
         import_module_to_validate="tomli._parser",
-        # This test is failing in CircleCI with the latest version
+        # This test is failing in CI with the latest version
         test_import=False,
         test_propagation=False,
     ),

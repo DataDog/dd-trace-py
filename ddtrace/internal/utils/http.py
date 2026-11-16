@@ -1,5 +1,5 @@
 import codecs
-from collections.abc import Generator  # noqa:F401
+from collections.abc import Generator
 from collections.abc import Mapping
 from contextlib import contextmanager
 from contextlib import suppress
@@ -11,12 +11,12 @@ from enum import Enum
 from json import loads
 import logging
 import re
-from re import Pattern  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import ContextManager  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from re import Pattern
+from typing import Any
+from typing import Callable
+from typing import ContextManager
+from typing import Optional
+from typing import Union
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
@@ -179,6 +179,29 @@ def strip_query_string(url: str) -> str:
     if not f:
         return h
     return h + fs + f
+
+
+_DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
+
+def url_origin(url: str) -> Optional[str]:
+    """Reduce url to scheme://host[:port], dropping userinfo, path, query and fragment, which can hold credentials.
+
+    Scheme and host are lowercased and a default port dropped. Returns None without scheme or host.
+    """
+    try:
+        parts = parse.urlsplit(url)
+        host = parts.hostname
+        port = parts.port
+    except (TypeError, ValueError):
+        return None
+    if not parts.scheme or not host:
+        return None
+    scheme = parts.scheme.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    netloc = host if port is None or _DEFAULT_PORTS.get(scheme) == port else f"{host}:{port}"
+    return f"{scheme}://{netloc}"
 
 
 def _redact_query_string_match(match: re.Match[bytes]) -> bytes:
@@ -453,7 +476,7 @@ class Response:
         self.msg = msg
 
     @classmethod
-    def from_http_response(cls, resp):
+    def from_http_response(cls, resp: Any) -> "Response":
         """
         Build a ``Response`` from the provided ``HTTPResponse`` object.
 

@@ -209,15 +209,6 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
 
 @cache
 def _get_pr_number() -> int:
-    # CircleCI
-    number = os.environ.get("CIRCLE_PR_NUMBER")
-    if number is not None:
-        return int(number)
-
-    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url is not None:
-        return int(pr_url.split("/")[-1])
-
     # GitLab
     ref_name = os.environ.get("CI_COMMIT_REF_NAME")
     if ref_name is not None:
@@ -259,8 +250,8 @@ def extract_git_commit_selections(git_commit_message: str) -> set[str]:
     """Extract the selected suites from git commit message."""
     suites = set()
     for token in git_commit_message.split():
-        if token.lower().startswith("circleci:"):
-            suites.update(token[len("circleci:") :].lower().split(","))
+        if token.lower().startswith("ci:"):
+            suites.update(token[len("ci:") :].lower().split(","))
     return suites
 
 

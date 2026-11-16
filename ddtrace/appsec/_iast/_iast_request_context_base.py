@@ -50,7 +50,7 @@ def set_iast_stacktrace_reported(reported: bool) -> None:
         env.iast_stack_trace_reported = reported
 
 
-def set_iast_request_endpoint(method, route) -> None:
+def set_iast_request_endpoint(method: Optional[str], route: Optional[str]) -> None:
     if asm_config._iast_enabled:
         env = _get_iast_env()
         if env:
@@ -128,27 +128,27 @@ def _iast_finish_request(span: Optional[SpanData] = None, shoud_update_global_vu
     return context_id is not None
 
 
-def get_hash_object_tracking_len():
+def get_hash_object_tracking_len() -> int:
     env = _get_iast_env()
     if env:
         return len(env.iast_hash_object_tracking)
     return 0
 
 
-def get_hash_object_tracking(obj):
+def get_hash_object_tracking(obj: object) -> bool:
     env = _get_iast_env()
     if env:
         return env.iast_hash_object_tracking.get(id(obj), False)
     return False
 
 
-def set_hash_object_tracking(result, value):
+def set_hash_object_tracking(result: object, value: bool) -> None:
     env = _get_iast_env()
     if env:
         env.iast_hash_object_tracking[id(result)] = value
 
 
-def clear_hash_object_tracking():
+def clear_hash_object_tracking() -> None:
     env = _get_iast_env()
     if env:
         env.iast_hash_object_tracking.clear()
