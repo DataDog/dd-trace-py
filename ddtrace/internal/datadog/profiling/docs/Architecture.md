@@ -8,21 +8,31 @@ Paths below are relative to the repository root.
 
 ## Components
 
-```
- Application threads, asyncio tasks, greenlets
-   |            |              |              |
-   | stack      | allocations  | locks        | exceptions, torch events
-   v            v              v              v
- _stack       _memalloc      _lock.pyx      _exception.pyx, pytorch.py
- (sampling    (PyMem          (wrapped       (sys.monitoring,
-  thread)      allocator)      lock classes)  torch.profiler)
-   |            |              |              |
-   |            |              +---- ddup.SampleHandle (Cython)
-   v            v              v
- libdd_wrapper: Sample -> Profile -> Uploader
-   |
-   v
- libdatadog (inside ddtrace.internal.native._native) -> Datadog Agent
+```mermaid
+flowchart TD
+    app["Application threads, asyncio tasks, greenlets"]
+
+    app -->|stacks| stack["_stack<br/>native sampling thread"]
+    app -->|allocations| memalloc["_memalloc<br/>PyMem allocator hooks"]
+    app -->|locks| lock["_lock.pyx<br/>wrapped lock classes"]
+    app -->|exceptions| exc["_exception.pyx<br/>sys.monitoring"]
+    app -->|torch events| torch["pytorch.py<br/>torch.profiler"]
+
+    lock --> handle["ddup.SampleHandle (Cython)"]
+    exc --> handle
+    torch --> handle
+
+    subgraph wrapper["libdd_wrapper"]
+        sample["Sample"] --> profile["Profile"] --> uploader["Uploader"]
+    end
+
+    stack --> sample
+    memalloc --> sample
+    handle --> sample
+
+    scheduler["Scheduler<br/>ddup.upload()"] -.->|every upload interval| uploader
+    uploader --> libdatadog["libdatadog<br/>in ddtrace.internal.native._native"]
+    libdatadog --> agent["Datadog Agent"]
 ```
 
 | Component | Path | Role |
