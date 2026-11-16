@@ -65,7 +65,7 @@ Datadog::ProfilerStats::reset_state()
     asyncio_runtime_offsets_discovered = std::nullopt;
     asyncio_interpreter_tasks_head_offset = std::nullopt;
     asyncio_thread_tasks_head_offset = std::nullopt;
-    asyncio_loop_count = std::nullopt;
+    asyncio_loop_threads_count = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     sample_capture_cpu_time_us = 0;
@@ -234,19 +234,19 @@ Datadog::ProfilerStats::get_asyncio_thread_tasks_head_offset() const
 }
 
 void
-Datadog::ProfilerStats::set_asyncio_loop_count(size_t count)
+Datadog::ProfilerStats::set_asyncio_loop_threads_count(size_t count)
 {
-    // Track the peak (max) asyncio loop count observed across sampling cycles
+    // Track the peak (max) asyncio loop thread count observed across sampling cycles
     // within a profile period
-    if (!asyncio_loop_count.has_value() || count > *asyncio_loop_count) {
-        asyncio_loop_count = count;
+    if (!asyncio_loop_threads_count.has_value() || count > *asyncio_loop_threads_count) {
+        asyncio_loop_threads_count = count;
     }
 }
 
 std::optional<size_t>
-Datadog::ProfilerStats::get_asyncio_loop_count() const
+Datadog::ProfilerStats::get_asyncio_loop_threads_count() const
 {
-    return asyncio_loop_count;
+    return asyncio_loop_threads_count;
 }
 
 void
@@ -363,10 +363,10 @@ Datadog::ProfilerStats::get_internal_metadata_json()
         internal_metadata_json += ",";
     }
 
-    auto maybe_asyncio_loop_count = get_asyncio_loop_count();
-    if (maybe_asyncio_loop_count) {
-        internal_metadata_json += R"("asyncio_loop_count": )";
-        append_to_string(internal_metadata_json, *maybe_asyncio_loop_count);
+    auto maybe_asyncio_loop_threads_count = get_asyncio_loop_threads_count();
+    if (maybe_asyncio_loop_threads_count) {
+        internal_metadata_json += R"("asyncio_loop_threads_count": )";
+        append_to_string(internal_metadata_json, *maybe_asyncio_loop_threads_count);
         internal_metadata_json += ",";
     }
 

@@ -56,7 +56,7 @@ class ProfilerStats
     std::optional<size_t> asyncio_thread_tasks_head_offset;
 
     // Peak numbers seen across sampled threads in any single sampling cycle during the current profile period.
-    std::optional<size_t> asyncio_loop_count;
+    std::optional<size_t> asyncio_loop_threads_count;
     std::optional<size_t> asyncio_task_count;
 
     // Number of greenlets currently tracked by the stack profiler
@@ -114,8 +114,8 @@ class ProfilerStats
     void set_asyncio_thread_tasks_head_offset(size_t offset);
     std::optional<size_t> get_asyncio_thread_tasks_head_offset() const;
 
-    void set_asyncio_loop_count(size_t count);
-    std::optional<size_t> get_asyncio_loop_count() const;
+    void set_asyncio_loop_threads_count(size_t count);
+    std::optional<size_t> get_asyncio_loop_threads_count() const;
 
     void set_asyncio_task_count(size_t count);
     std::optional<size_t> get_asyncio_task_count() const;

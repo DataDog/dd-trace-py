@@ -561,7 +561,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 borrow.stats().set_string_table_count(echion->string_table().size());
                 update_fast_copy_stats(borrow.stats());
                 borrow.stats().set_asyncio_initialized(echion->asyncio_initialized());
-                borrow.stats().set_asyncio_loop_count(echion->asyncio_loop_count());
+                borrow.stats().set_asyncio_loop_threads_count(echion->asyncio_loop_threads_count());
                 borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
 #if PY_VERSION_HEX >= 0x030e0000
                 const size_t asyncio_interpreter_offset = echion->asyncio_interpreter_tasks_head_offset();
