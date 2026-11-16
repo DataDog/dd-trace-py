@@ -361,7 +361,8 @@ With ``DD_USE_SCCACHE=1``, setup reports each cache-server health-check attempt,
 its duration, and any failure on stderr before falling back to compilation without caching.
 The ``ext_hashes`` command skips this check because hashing does not compile anything.
 CI wheel builds retain the complete output in ``debugwheelhouse/build_*.log`` and
-stream cache health messages to the job log.
+stream cache health messages to the job log. On stalled macOS ``amd64`` jobs, the watchdog
+also prints the latest build log's last 100 lines before collecting process samples.
 
 The build system compiles many native extensions (CMake C++, Cython, Rust). In CI,
 ``ext_cache.py`` caches compiled ``.so`` files between runs. On a warm run (extensions
