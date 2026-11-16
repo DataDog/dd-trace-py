@@ -5,3 +5,5 @@ features:
     key), targeted by service name and environment, without restarting the
     application. ``DD_DATA_STREAMS_ENABLED`` remains the startup default until
     a remote configuration overrides it.
+    Protobuf schema tagging requires DSM to be enabled at startup; Avro schema
+    tagging also works after a remote configuration enable.
