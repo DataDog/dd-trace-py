@@ -1,4 +1,5 @@
 import typing as t
+from urllib.parse import unquote
 
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
@@ -217,6 +218,27 @@ def otel_resource_attributes() -> dict[str, str]:
         resource_attributes["host.name"] = get_hostname()
 
     return {k: str(v) if v is not None else "" for k, v in resource_attributes.items()}
+
+
+def otel_sdk_resource_attributes() -> dict[str, str]:
+    """Return the resource attributes the OpenTelemetry SDK exports for the OTLP logs and metrics.
+
+    Resource.create() puts the attributes of otel_resource_attributes() over those its OTEL resource detector reads
+    from OTEL_RESOURCE_ATTRIBUTES and OTEL_SERVICE_NAME, parsed here the same way, then defaults service.name. The
+    attributes the SDK describes itself with, such as telemetry.sdk.version, are left out. This does not import the
+    SDK, which is optional.
+    """
+    resource_attributes: dict[str, str] = {}
+    for item in env.get("OTEL_RESOURCE_ATTRIBUTES", "").split(","):
+        key, sep, value = item.partition("=")
+        if sep:
+            resource_attributes[key.strip()] = unquote(value.strip())
+    if service_name := env.get("OTEL_SERVICE_NAME"):
+        resource_attributes["service.name"] = service_name
+    resource_attributes.update(otel_resource_attributes())
+    if not resource_attributes.get("service.name"):
+        resource_attributes["service.name"] = "unknown_service"
+    return resource_attributes
 
 
 class OpenTelemetryConfig(DDConfig):

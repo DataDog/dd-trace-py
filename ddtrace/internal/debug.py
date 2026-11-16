@@ -18,7 +18,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.settings._opentelemetry import otel_resource_attributes
+from ddtrace.internal.settings._opentelemetry import otel_sdk_resource_attributes
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
@@ -55,17 +55,24 @@ _REDACTED = "<redacted>"
 
 
 def _sanitize_otlp_endpoint(endpoint: Optional[str]) -> Optional[str]:
-    """Remove the parts of an OTLP endpoint that can hold credentials: user info, query, and fragment."""
+    """Remove the parts of an OTLP endpoint that can hold credentials: user info, query, and fragment.
+
+    Returns None when the user info cannot be told apart from the rest of the endpoint.
+    """
     if not endpoint:
         return endpoint
     try:
         parts = urlsplit(endpoint)
     except ValueError:
         return None
-    if parts.netloc:
-        return urlunsplit((parts.scheme, parts.netloc.rpartition("@")[2], parts.path, "", ""))
-    # Not a URL with a host, such as the host:port form gRPC accepts.
-    return endpoint.split("?", 1)[0].split("#", 1)[0].rpartition("@")[2]
+    # Without a host, the endpoint has the host:port form gRPC accepts.
+    authority = parts.netloc or endpoint.split("?", 1)[0].split("#", 1)[0]
+    if endpoint.count("@") != authority.count("@"):
+        # A /, ? or # in the user info ends the authority before its @, which leaves part of it in the host or the
+        # path: the user info cannot be told apart, so report nothing rather than part of it.
+        return None
+    host = authority.rpartition("@")[2]
+    return urlunsplit((parts.scheme, host, parts.path, "", "")) if parts.netloc else host
 
 
 def _redact_otlp_headers(headers: Optional[str]) -> dict[str, str]:
@@ -150,6 +157,7 @@ def _collect_otel(tracer_info: TracerDebugInfo) -> dict[str, Any]:
             "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": _sanitize_otlp_endpoint(exporter.TRACES_ENDPOINT),
             "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": exporter.TRACES_PROTOCOL,
             "OTEL_EXPORTER_OTLP_TRACES_HEADERS": _redact_otlp_headers(exporter.TRACES_HEADERS),
+            "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT": exporter.TRACES_TIMEOUT,
             # Logs
             "DD_LOGS_OTEL_ENABLED": config._otel_logs_enabled,
             "OTEL_LOGS_EXPORTER": "otlp" if config._otel_logs_enabled else "none",
@@ -158,7 +166,9 @@ def _collect_otel(tracer_info: TracerDebugInfo) -> dict[str, Any]:
             "OTEL_EXPORTER_OTLP_LOGS_HEADERS": _redact_otlp_headers(exporter.LOGS_HEADERS),
             # Metrics
             "DD_METRICS_OTEL_ENABLED": config._otel_metrics_enabled,
+            "OTEL_METRICS_EXPORTER": "otlp" if config._otel_metrics_enabled else "none",
             "OTEL_METRIC_EXPORT_INTERVAL": exporter.METRICS_METRIC_READER_EXPORT_INTERVAL,
+            "OTEL_METRIC_EXPORT_TIMEOUT": exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT,
             "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": _sanitize_otlp_endpoint(exporter.METRICS_ENDPOINT),
             "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": exporter.METRICS_PROTOCOL,
             "OTEL_EXPORTER_OTLP_METRICS_HEADERS": _redact_otlp_headers(exporter.METRICS_HEADERS),
@@ -169,7 +179,7 @@ def _collect_otel(tracer_info: TracerDebugInfo) -> dict[str, Any]:
             "OTEL_EXPORTER_OTLP_HEADERS": _redact_otlp_headers(exporter.HEADERS),
             "OTEL_LOG_LEVEL": _otel_log_level(),
             "OTEL_SERVICE_NAME": config.service,
-            "OTEL_RESOURCE_ATTRIBUTES": otel_resource_attributes(),
+            "OTEL_RESOURCE_ATTRIBUTES": otel_sdk_resource_attributes(),
             "OTEL_PROPAGATORS": _otel_propagators(),
         }
     )

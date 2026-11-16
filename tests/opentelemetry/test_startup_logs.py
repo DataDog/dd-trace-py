@@ -18,13 +18,16 @@ _OTEL_KEYS = frozenset(
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
         "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+        "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
         "DD_LOGS_OTEL_ENABLED",
         "OTEL_LOGS_EXPORTER",
         "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
         "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
         "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
         "DD_METRICS_OTEL_ENABLED",
+        "OTEL_METRICS_EXPORTER",
         "OTEL_METRIC_EXPORT_INTERVAL",
+        "OTEL_METRIC_EXPORT_TIMEOUT",
         "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
         "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
         "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
@@ -77,6 +80,8 @@ def test_startup_logs_report_otel_configuration():
             "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:4318/v1/traces",
             "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": "delta",
             "OTEL_METRIC_EXPORT_INTERVAL": "5000",
+            "OTEL_METRIC_EXPORT_TIMEOUT": "4000",
+            "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT": "3000",
         }
     )
 
@@ -100,6 +105,9 @@ def test_startup_logs_report_otel_configuration():
     assert configuration["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"] == "http/protobuf"
     assert configuration["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] == "delta"
     assert configuration["OTEL_METRIC_EXPORT_INTERVAL"] == 5000
+    assert configuration["OTEL_METRIC_EXPORT_TIMEOUT"] == 4000
+    assert configuration["OTEL_METRICS_EXPORTER"] == "otlp"
+    assert configuration["OTEL_EXPORTER_OTLP_TRACES_TIMEOUT"] == 3000
     assert configuration["OTEL_SERVICE_NAME"] == "otel-startup"
     assert configuration["OTEL_RESOURCE_ATTRIBUTES"]["service.name"] == "otel-startup"
     # DD_TRACE_STARTUP_LOGS emits the configuration although the ddtrace logger only emits warnings.
@@ -126,6 +134,9 @@ def test_startup_logs_report_otel_defaults():
     assert configuration["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] == {}
     assert configuration["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] == "delta"
     assert configuration["OTEL_METRIC_EXPORT_INTERVAL"] == 10000
+    assert configuration["OTEL_METRIC_EXPORT_TIMEOUT"] == 7500
+    assert configuration["OTEL_METRICS_EXPORTER"] == "none"
+    assert configuration["OTEL_EXPORTER_OTLP_TRACES_TIMEOUT"] == 10000
 
 
 def test_startup_logs_debug_mode_reports_otel_log_level():
@@ -222,6 +233,12 @@ def test_otel_traces_sampler(rules, expected):
         ("http://[::1]:4317", "http://[::1]:4317"),
         ("collector:4317", "collector:4317"),
         ("user@collector:4317?token=t", "collector:4317"),
+        ("http://user:sec/ret@collector:4318/v1/traces", None),
+        ("http://user:sec?ret@collector:4318", None),
+        ("http://user:sec#ret@collector:4318", None),
+        ("http://user@pa/ss@collector:4318", None),
+        ("user:sec?ret@collector:4317", None),
+        ("http://user:p@ss@collector:4318/v1/traces", "http://collector:4318/v1/traces"),
         ("http://[::1", None),
     ],
 )
@@ -246,3 +263,35 @@ def test_redact_otlp_headers(headers, expected):
     from ddtrace.internal.debug import _redact_otlp_headers
 
     assert _redact_otlp_headers(headers) == expected
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_SERVICE": "otel-startup",
+        "DD_TAGS": "team:core",
+        "OTEL_RESOURCE_ATTRIBUTES": "region=west, spaced = v ,encoded=a%2Cb,malformed,service.name=ignored",
+    },
+    # The SDK warns about the malformed attribute.
+    err=None,
+)
+def test_otel_resource_attributes_report_the_sdk_resource():
+    """The SDK adds OTEL_RESOURCE_ATTRIBUTES under the attributes ddtrace gives it, even when DD_TAGS is set."""
+    from ddtrace.internal.settings._opentelemetry import otel_resource_attributes
+    from ddtrace.internal.settings._opentelemetry import otel_sdk_resource_attributes
+
+    reported = otel_sdk_resource_attributes()
+    assert reported["team"] == "core"
+    assert reported["region"] == "west"
+    assert reported["spaced"] == "v"
+    assert reported["encoded"] == "a,b"
+    assert "malformed" not in reported
+    assert reported["service.name"] == "otel-startup"
+
+    try:
+        from opentelemetry.sdk.resources import Resource
+    except ImportError:
+        # The SDK is optional: without it, only the parsing above is checked.
+        Resource = None
+    if Resource is not None:
+        exported = Resource.create(otel_resource_attributes()).attributes
+        assert reported == {k: v for k, v in exported.items() if not k.startswith("telemetry.sdk.")}
