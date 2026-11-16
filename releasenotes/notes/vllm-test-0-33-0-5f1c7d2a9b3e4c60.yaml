@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    vllm: The integration is now tested with vLLM 0.33.0 and on Python 3.11 through 3.14.
