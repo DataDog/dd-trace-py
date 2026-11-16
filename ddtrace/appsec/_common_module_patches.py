@@ -704,10 +704,12 @@ class _SsrfAiohttpResponseRead(_RaspContext):
         return super().__return__(body)
 
 
-def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs):
+def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs, *, inherit: bool = False):
     """
     wrapper for third party requests.request function
     https://requests.readthedocs.io
+
+    inherit=True lets a transport reuse its enclosing client's SSRF subcontext.
     """
     if get_rasp_capability("ssrf"):
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
@@ -716,7 +718,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
             use_body = should_analyze_body_response(ctx)
             with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
                 # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
-                open_rasp_subcontext_scope()
+                open_rasp_subcontext_scope(inherit=inherit)
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_request_callable(*args, **kwargs)

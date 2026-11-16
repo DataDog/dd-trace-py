@@ -1257,7 +1257,8 @@ def test_a_rewriting_opener_publishes_the_url_it_actually_requests():
     assert "http://127.0.0.1:1/rewritten" in published, published
 
 
-def test_a_redirect_publishes_the_redirected_url():
+@pytest.mark.parametrize("httplib_enabled", [False, True])
+def test_a_redirect_publishes_the_redirected_url(httplib_enabled):
     """urllib follows a redirect by calling OpenerDirector.open again with the new URL.
 
     The deduplication must not suppress that hop: the redirect target is a different destination
@@ -1266,34 +1267,48 @@ def test_a_redirect_publishes_the_redirected_url():
     """
     import urllib.request
 
+    from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
     published = []
-    holders = []
+    calls = []
     original = _ScopedRaspContext._open_core_context
+
+    def record(addresses, rule_type=None, **kwargs):
+        calls.append((rule_type, core.find_item(_RASP_SUBCONTEXT)))
 
     def recording_open(self, name, **kwargs):
         published.append(kwargs.get("full_url"))
         return original(self, name, **kwargs)
 
     unpatch_common_modules()
+    httplib_unpatch()
     try:
+        if httplib_enabled:
+            httplib_patch()
         patch_common_modules()
         with (
             _local_http_server() as base,
+            mock.patch.object(asm_config, "_asm_enabled", True),
+            mock.patch.object(asm_config, "_ep_enabled", True),
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
             mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
-            mock.patch.object(
-                cmp, "call_waf_callback", side_effect=lambda *a, **k: holders.append(core.find_item(_RASP_SUBCONTEXT))
-            ),
+            mock.patch.object(cmp, "should_analyze_body_response", return_value=False),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=record),
             mock.patch.object(_ScopedRaspContext, "_open_core_context", recording_open),
         ):
-            with contextlib.suppress(Exception):
-                urllib.request.urlopen(f"{base}/source", timeout=5)
+            with urllib.request.urlopen(f"{base}/source", timeout=5) as response:
+                assert response.read() == b"{}"
     finally:
         unpatch_common_modules()
+        httplib_unpatch()
 
     assert f"{base}/source" in published, published
     assert any(url and url.endswith("/target") for url in published), published
     # Both hops and their responses belong to one logical request.
+    assert {rule_type for rule_type, _ in calls} == {EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_RES}
+    holders = [holder for _, holder in calls]
     assert len(holders) >= 2 and holders[0] is not None
     assert all(holder is holders[0] for holder in holders)
 
