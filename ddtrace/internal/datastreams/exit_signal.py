@@ -10,6 +10,7 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.threads import is_main_thread
 
 
 # Shutdown callbacks of the live processors. One shared handler serves them all, so
@@ -30,6 +31,9 @@ def register_exit_signal_handler() -> None:
     Installing only works on the main thread; elsewhere this is a no-op.
     """
     global _exit_signal_handlers
+    # Off the main thread nothing installs; keep the saved state so a later call does not chain.
+    if not is_main_thread():
+        return
     current_handlers = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT))
     if _exit_signal_handlers is None or current_handlers != _exit_signal_handlers:
         _exit_signal_handlers = register_on_exit_signal(_run_shutdown_callbacks)
