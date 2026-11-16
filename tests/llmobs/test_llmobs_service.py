@@ -1,3 +1,6 @@
+import contextlib
+import copy
+import dataclasses
 import json
 import os
 import re
@@ -10,10 +13,12 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -2433,6 +2438,175 @@ def test_a_forged_dd_metadata_key_does_not_break_the_merge(llmobs, forged):
         "name": "travel_desk_span",
         "model": "gpt-4o",
     }
+
+
+@contextlib.contextmanager
+def _gateway_request_context(gateway="litellm"):
+    """Do what the LLMObs subscriber does for a request that a gateway serves."""
+    with core.context_with_data("test.gateway_request") as ctx:
+        ctx.set_item(GATEWAY, gateway)
+        yield
+
+
+def _gateway(span):
+    metadata_dd = (get_llmobs_metadata(span) or {}).get("_dd")
+    return metadata_dd.get("gateway") if isinstance(metadata_dd, dict) else None
+
+
+def _write_metadata(llmobs, span, writer, metadata):
+    if writer == "annotate":
+        llmobs.annotate(span=span, metadata=metadata)
+    else:
+        # Integrations write metadata that they copy from the request or from user data.
+        _annotate_llmobs_span_data(span, metadata=metadata)
+
+
+def test_gateway_marker_on_llm_span_in_gateway_request(llmobs, llmobs_events):
+    with _gateway_request_context():
+        with llmobs.llm(model_name="gpt-4o") as span:
+            pass
+
+    assert _gateway(span) == "litellm"
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["metadata"]["_dd"] == {"gateway": "litellm"}
+    # The marker is internal metadata, not a tag.
+    assert not [tag for tag in llmobs_events[0]["tags"] if "gateway" in tag.split(":", 1)[0]]
+    assert not [key for key in get_llmobs_tags(span) if "gateway" in key]
+    assert not [key for key in span.get_tags() if "gateway" in key]
+
+
+def test_gateway_marker_absent_outside_gateway_request(llmobs):
+    with llmobs.llm(model_name="gpt-4o") as span:
+        pass
+
+    assert "_dd" not in (get_llmobs_metadata(span) or {})
+
+
+def test_gateway_marker_on_streamed_span_that_finishes_after_the_request_context(llmobs):
+    """A streamed llm span finishes after the core context of its request has exited."""
+    with _gateway_request_context():
+        span = llmobs.llm(model_name="gpt-4o")
+    span.finish()
+
+    assert _gateway(span) == "litellm"
+
+
+def test_gateway_marker_on_llm_span_started_in_a_child_context(llmobs):
+    """The llm span can come from another integration, below the request context of the gateway."""
+    with _gateway_request_context():
+        with core.context_with_data("test.child_integration"):
+            with llmobs.llm(model_name="gpt-4o") as span:
+                pass
+
+    assert _gateway(span) == "litellm"
+
+
+@pytest.mark.parametrize("span_kind", ["workflow", "agent", "embedding", "task", "tool", "retrieval"])
+def test_gateway_marker_only_on_llm_spans(llmobs, span_kind):
+    with _gateway_request_context():
+        with getattr(llmobs, span_kind)(name="test_span") as span:
+            pass
+
+    assert "_dd" not in (get_llmobs_metadata(span) or {})
+
+
+def test_gateway_marker_keeps_cost_tags_and_agent_manifest(llmobs):
+    with _gateway_request_context():
+        with llmobs.llm(model_name="gpt-4o") as span:
+            _annotate_llmobs_span_data(span, agent_manifest={"name": "travel_agent"})
+            llmobs.annotate(span=span, tags={"team": "ml-platform"}, cost_tags=["team"])
+
+    assert get_llmobs_metadata(span)["_dd"] == {
+        "agent_manifest": {"name": "travel_agent"},
+        "cost_tags": ["team"],
+        "gateway": "litellm",
+    }
+
+
+@pytest.mark.parametrize("writer", ["annotate", "integration"])
+@pytest.mark.parametrize("in_gateway_request,expected", [(False, None), (True, "litellm")])
+def test_metadata_cannot_spoof_the_gateway_on_llm_spans(llmobs, writer, in_gateway_request, expected):
+    with _gateway_request_context() if in_gateway_request else contextlib.nullcontext():
+        with llmobs.llm(model_name="gpt-4o") as span:
+            _write_metadata(llmobs, span, writer, {"_dd": {"gateway": "spoofed"}, "keep": "ok"})
+
+    assert get_llmobs_metadata(span)["keep"] == "ok"
+    assert _gateway(span) == expected
+
+
+@pytest.mark.parametrize("in_gateway_request", [False, True])
+@pytest.mark.parametrize("span_kind", ["workflow", "task"])
+def test_metadata_cannot_set_the_gateway_on_other_spans(llmobs, span_kind, in_gateway_request):
+    """Only the gateway is removed. The dict that the integration supplied does not change."""
+    supplied_dd = {"gateway": "spoofed", "context_delta": {"delta_tokens": 1}}
+    with _gateway_request_context() if in_gateway_request else contextlib.nullcontext():
+        with getattr(llmobs, span_kind)(name="test_span") as span:
+            _annotate_llmobs_span_data(span, metadata={"_dd": supplied_dd})
+
+    assert get_llmobs_metadata(span)["_dd"] == {"context_delta": {"delta_tokens": 1}}
+    assert supplied_dd == {"gateway": "spoofed", "context_delta": {"delta_tokens": 1}}
+
+
+@dataclasses.dataclass
+class _ForgedDD:
+    gateway: str = "spoofed"
+    note: str = "kept"
+
+
+def _dataclass_dd():
+    return _ForgedDD()
+
+
+def _pydantic_dd():
+    pydantic = pytest.importorskip("pydantic")
+    return pydantic.create_model("ForgedDD", gateway=(str, "spoofed"), note=(str, "kept"))()
+
+
+@pytest.mark.parametrize("make_dd", [_dataclass_dd, _pydantic_dd])
+@pytest.mark.parametrize("span_kind", ["llm", "workflow"])
+def test_object_dd_metadata_cannot_set_the_gateway(llmobs, llmobs_events, span_kind, make_dd):
+    """An object under _dd becomes a dict when the span event is sanitized. The gateway key is removed after that."""
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(span=span, metadata={"_dd": make_dd()})
+
+    assert get_llmobs_metadata(span)["_dd"] == {"note": "kept"}
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["metadata"]["_dd"] == {"note": "kept"}
+
+
+@pytest.mark.parametrize("writer", ["annotate", "integration"])
+@pytest.mark.parametrize("forged", ["boom", ["boom"], 1, None, {"gateway": ["boom"]}])
+def test_a_forged_dd_metadata_key_does_not_block_the_gateway(llmobs, writer, forged):
+    with _gateway_request_context():
+        with llmobs.llm(model_name="gpt-4o") as span:
+            # A copy, because the dedicated write changes a dict _dd in place.
+            _write_metadata(llmobs, span, writer, {"_dd": copy.deepcopy(forged)})
+
+    assert get_llmobs_metadata(span)["_dd"] == {"gateway": "litellm"}
+
+
+def _processor_sets_dd_metadata(span):
+    span.metadata["_dd"] = {"gateway": "spoofed"}
+    return span
+
+
+def _processor_clears_metadata(span):
+    span.metadata = {}
+    return span
+
+
+@pytest.mark.parametrize("processor", [_processor_sets_dd_metadata, _processor_clears_metadata])
+@pytest.mark.parametrize("in_gateway_request,expected_dd", [(False, None), (True, {"gateway": "litellm"})])
+def test_span_processor_cannot_change_the_gateway(llmobs, processor, in_gateway_request, expected_dd):
+    llmobs.register_processor(processor)
+    try:
+        with _gateway_request_context() if in_gateway_request else contextlib.nullcontext():
+            with llmobs.llm(model_name="gpt-4o") as span:
+                pass
+    finally:
+        llmobs.register_processor(None)
+
+    assert (get_llmobs_metadata(span) or {}).get("_dd") == expected_dd
 
 
 def test_annotation_context_nested(llmobs):

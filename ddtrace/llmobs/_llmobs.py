@@ -83,6 +83,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
+from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
@@ -677,6 +678,10 @@ class LLMObs(Service):
             routing = get_routing_context()
             if routing is not None:
                 span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
+            # Read at start: a streamed span finishes after the core context of its request has exited.
+            gateway = core.find_item(GATEWAY)
+            if gateway is not None:
+                span._set_ctx_item(GATEWAY, gateway)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -855,6 +860,12 @@ class LLMObs(Service):
             if parent_agent_version:
                 llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = parent_agent_version
 
+        # Write the gateway on the llm spans of a gateway request. This runs after the integration and annotate
+        # writes, and _normalize_llmobs_meta keeps _dd safe from the span processor.
+        gateway = span._get_ctx_item(GATEWAY) if span_kind == "llm" else None
+        if gateway:
+            _annotate_llmobs_span_data(span, gateway=gateway)
+
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         # Before the user processor and _normalize_llmobs_meta, either of which can strip values
         # these tags read.
@@ -885,6 +896,13 @@ class LLMObs(Service):
             export_to_llmobs=export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_data(llmobs_meta)
+        if not gateway:
+            # Remove the gateway key from every other span. This runs on the sanitized copy, so that values
+            # that were objects are also covered.
+            metadata = llmobs_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.METADATA)
+            metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD) if isinstance(metadata, dict) else None
+            if isinstance(metadata_dd, dict):
+                metadata_dd.pop(LLMOBS_STRUCT.GATEWAY, None)
         config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if config is not None:
             llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)

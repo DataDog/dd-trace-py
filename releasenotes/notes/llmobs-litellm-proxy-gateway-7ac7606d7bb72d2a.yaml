@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: The LLM spans of the client requests that a LiteLLM proxy server sends to a model now record
+    LiteLLM as their LLM gateway.

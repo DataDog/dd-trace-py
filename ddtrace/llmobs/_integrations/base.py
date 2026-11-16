@@ -247,6 +247,10 @@ class BaseLLMIntegration:
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         return None
 
+    def _llmobs_gateway(self, request_kwargs: dict[str, Any]) -> Optional[str]:
+        """Return the kind of LLM gateway that serves the request, or None if no gateway serves it."""
+        return None
+
     def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool:
         if not base_url:
             return False
