@@ -907,6 +907,7 @@ suites:
       - '@core'
       - '@tracing'
       - '@datastreams'
+      - '@remoteconfig'
       - tests/datastreams/*
     matrix:
       command: pytest --no-cov {cmdargs} tests/datastreams/
