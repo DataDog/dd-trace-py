@@ -694,7 +694,7 @@ async def test_request_lifecycle_without_spans(tracer, monkeypatch, otel_semanti
     from unittest.mock import Mock
     from unittest.mock import patch as mock_patch
 
-    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestExceptionSubscriber
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
     from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
     from ddtrace.contrib.internal import trace_utils
     import ddtrace.contrib.internal.sanic.patch as integration
@@ -704,7 +704,7 @@ async def test_request_lifecycle_without_spans(tracer, monkeypatch, otel_semanti
     monkeypatch.setattr(trace_utils, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(integration, "SANIC_VERSION", (21, 9, 0))
     WebFrameworkRequestSubscriber.register()
-    WebFrameworkRequestExceptionSubscriber.register()
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
     started = []
     completed = []
 

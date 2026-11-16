@@ -15,8 +15,8 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.exception import ContextExceptionEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -309,9 +309,7 @@ async def sanic_http_lifecycle_exception(request: Request, exception: BaseExcept
     if not hasattr(exception, "status_code") or config._http_server.is_error_code(exception.status_code):
         ex_type = type(exception)
         ex_tb = getattr(exception, "__traceback__", None)
-        core.dispatch_event(
-            WebFrameworkRequestExceptionEvent(request_context=ctx, exc_info=(ex_type, exception, ex_tb))
-        )
+        core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=(ex_type, exception, ex_tb)))
 
     # Sanic 21.9.x does not dispatch `http.lifecycle.response` in `handle_exception`
     #  so we need to indicate to `patch_request_respond` to finish the span

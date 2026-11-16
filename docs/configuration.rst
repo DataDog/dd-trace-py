@@ -923,6 +923,13 @@ AI Guard
        URL are never sent. This setting does not change blocking, which still follows the evaluation
        verdict and DD_AI_GUARD_BLOCK.
 
+       Tools of MCP servers configured in the OpenAI Agents SDK (MCPServerStdio, MCPServerSse,
+       MCPServerStreamableHttp) are evaluated before each call reaches the server, whether the
+       agent runs the tool or the application calls ``server.call_tool`` directly; a blocking
+       verdict raises ``AIGuardAbortError`` and the call is not sent. For stdio servers only the
+       command and the package or module it launches are sent, never other arguments or the
+       environment.
+
        MCP approval requests are evaluated before your application can approve them. Streamed
        responses of requests whose MCP tools can ask for approval are buffered until that
        evaluation completes, even when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off. So

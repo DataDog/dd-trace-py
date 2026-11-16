@@ -27,7 +27,15 @@ from .version import __version__  # noqa: E402
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+    from wrapt.importer import when_imported as _when_imported
+
+    from ddtrace._trace._registration import register_subscribers as _register_subscribers
     from ddtrace.trace import tracer  # noqa: F401
+
+    # Manual instrumentation does not run the product manager. Activate its
+    # listeners after the subscriber package finishes loading with integrations.
+    # Bare tracer imports stay lightweight, and subscriber bases are ready first.
+    _when_imported("ddtrace._trace.subscribers")(lambda _: _register_subscribers())
 
 # Initialize DSM support and register DSM handlers (if enabled)
 import ddtrace.internal.datastreams as _  # noqa: E402, F401

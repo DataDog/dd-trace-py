@@ -49,12 +49,35 @@ standalone products' span requirements. The decision describes span lifecycle, n
 enablement; the base guards reuse it through completion. Do not infer ownership from
 `_inner_span`, since AppSec can populate it with a borrowed parent span. Emitters and
 metadata subscribers must complete their lifecycle even when no span was created;
-read existing local spans without calling fallback-producing helpers. Report deferred request exceptions synchronously
-through WebFrameworkRequestExceptionEvent rather than retaining exceptions or tracebacks
-on a deferred context. Deferred completion carries final response metadata separately. For nested middleware,
-each completion callback must retain its own execution context rather than resolve a
-request key that an inner middleware can replace. Response preparation must reach all
-contexts for the request, including those inherited by request clones.
+read existing local spans without calling fallback-producing helpers.
+Report deferred exceptions synchronously through ContextExceptionEvent
+rather than retaining exceptions or tracebacks on a deferred context. Use span_bus.find_span_on_context
+for optional context-local spans without creating a fallback or borrowing a parent. Completion carries final
+response metadata separately. For nested middleware, each completion callback must retain
+its own execution context rather than resolve a request key that inner middleware can replace.
+Response preparation must reach all contexts for the request, including request clones.
+Coordinate handler-task completion with final response metadata and response-sending task
+completion. Outer middleware can run the handler in a child task that ends before preparation.
+Dispatch completion in the captured request context so IAST state remains available. Release
+completed task references immediately and remove connection-abort callbacks on every terminal
+path; otherwise keep-alive connections can retain completed requests. For clones created
+before instrumentation attaches request state, resolve active contexts from the app-owned
+connection registry and match the shared match_info object to isolate consecutive requests.
+Finish the HTTP request at preparation for a 101 protocol upgrade, independently of the
+upgraded connection lifetime; use the protocol status rather than response-class checks.
+Retain the returned response until deferred completion as a fallback if an earlier preparation
+callback fails, while preserving metadata supplied by successful response preparation.
+
+Products own subscriber activation. Integrations emit events without importing product
+bundle declarations or registering subscriber classes. Tracing product startup and normal
+global tracer initialization use the same tracing-owned helper to activate all declared
+bundles. Global initialization uses an import hook to defer activation until the
+subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
+`DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
+the product manager.
+The web request and span exception subscribers use explicit registration rather than class-definition registration.
+Do not unregister shared subscribers when unpatching one integration, since other integrations and active
+requests still need their listeners.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

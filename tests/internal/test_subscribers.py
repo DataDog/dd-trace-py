@@ -670,17 +670,18 @@ def test_web_subscriber_owns_span_observed_by_metadata_consumers(test_spans, mon
 
 def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_spans, monkeypatch):
     from ddtrace import config
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
     from ddtrace._trace.subscribers import web_framework
     from ddtrace.appsec import _asm_request_context
     from ddtrace.appsec._contrib import aiohttp as appsec_aiohttp
+    from ddtrace.contrib._events.exception import ContextExceptionEvent
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-    from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 
     monkeypatch.setattr(web_framework.trace_utils, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
     web_framework.WebFrameworkRequestSubscriber.register()
-    web_framework.WebFrameworkRequestExceptionSubscriber.register()
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
 
     def event():
         return WebFrameworkRequestEvent(
@@ -726,7 +727,7 @@ def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_sp
         try:
             raise ValueError("error in skipped request")
         except ValueError:
-            core.dispatch_event(WebFrameworkRequestExceptionEvent(request_context=child, exc_info=sys.exc_info()))
+            core.dispatch_event(ContextExceptionEvent(context=child, exc_info=sys.exc_info()))
         assert span.error == 0
         assert not span.finished
         monkeypatch.setattr(appsec_aiohttp.asm_config, "_asm_enabled", False)
@@ -749,17 +750,70 @@ def test_span_enablement_is_not_an_event_constructor_argument(use_factory, field
 
 
 @pytest.mark.parametrize("completed", [False, True])
+def test_context_exception_is_reported_synchronously(test_spans, completed):
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
+    from ddtrace.contrib._events.exception import ContextExceptionEvent
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    core.reset_listeners(ContextExceptionEvent.event_name)
+    TracingSubscriber.register()
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
+    event = TracingEvent.create(
+        operation_name="worker.run",
+        span_type="worker",
+        span_kind="internal",
+        component="test",
+        integration_config=IntegrationConfig(config, "test"),
+    )
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        if completed:
+            ctx.dispatch_ended_event()
+            assert ctx._event is None
+        try:
+            raise ValueError("operation failed")
+        except ValueError:
+            core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
+            assert span.error == 1
+            assert span.get_tag("error.type").endswith("ValueError")
+            assert "operation failed" in span.get_tag("error.stack")
+        ctx.dispatch_ended_event()
+    assert span.finished
+    test_spans.assert_span_count(1)
+
+
+def test_context_exception_does_not_create_or_borrow_span(test_spans):
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
+    from ddtrace.contrib._events.exception import ContextExceptionEvent
+
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
+    with tracer.trace("parent") as parent:
+        with core.context_with_data("without.span") as ctx:
+            assert ctx.get_item("_inner_span") is None
+            try:
+                raise ValueError("untraced operation failed")
+            except ValueError:
+                core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
+            assert ctx.get_item("_inner_span") is None
+            assert tracer.current_span() is parent
+            assert parent.error == 0
+    assert test_spans.pop() == [parent]
+
+
+@pytest.mark.parametrize("completed", [False, True])
 def test_web_request_exception_is_reported_synchronously(test_spans, tracer, monkeypatch, completed):
     from ddtrace import config
-    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestExceptionSubscriber
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
     from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
+    from ddtrace.contrib._events.exception import ContextExceptionEvent
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-    from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
     WebFrameworkRequestSubscriber.register()
-    WebFrameworkRequestExceptionSubscriber.register()
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
     event = WebFrameworkRequestEvent(
         http_operation="aiohttp.request",
         component="aiohttp",
@@ -778,7 +832,7 @@ def test_web_request_exception_is_reported_synchronously(test_spans, tracer, mon
         try:
             raise ValueError("request failed")
         except ValueError:
-            core.dispatch_event(WebFrameworkRequestExceptionEvent(request_context=ctx, exc_info=sys.exc_info()))
+            core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
             assert span.error == 1
             assert span.get_tag("error.type").endswith("ValueError")
             assert "request failed" in span.get_tag("error.stack")

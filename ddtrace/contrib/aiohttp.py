@@ -62,8 +62,11 @@ events. It creates no request spans unless a standalone product requires them wi
 ``DD_APM_TRACING_ENABLED=false``. When a request span is created,
 ``request['datadog_context']`` contains that span's context; otherwise it is ``None``.
 
-Request spans complete when request execution finishes for both ordinary and streaming
-responses. The existing ``disable_stream_timing_for_mem_leak`` integration option still
+Request spans cover handler execution and response sending for ordinary and streaming
+HTTP responses, including when middleware runs handlers in child tasks. Protocol upgrades,
+including WebSockets, complete at the HTTP handshake
+so the request span does not include the lifetime of the upgraded connection. The existing
+``disable_stream_timing_for_mem_leak`` integration option still
 completes spans when response headers are prepared.
 
 Integration settings are attached to your application under the ``datadog_trace``

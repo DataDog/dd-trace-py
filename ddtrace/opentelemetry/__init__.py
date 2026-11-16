@@ -156,6 +156,12 @@ The following environment variables are supported:
 - ``OTEL_TRACES_EXPORTER``
   Set this to ``otlp`` to export traces using OTLP instead of the Datadog Agent protocol.
 
+- Exporter lists in ``OTEL_{TRACES,METRICS,LOGS}_EXPORTER``
+  ddtrace does not export a signal to several exporters at once, but a comma-separated list falls
+  back gracefully to its supported entry: ``otlp`` anywhere in the list selects OTLP export;
+  otherwise ``none`` disables the signal. Unsupported entries are ignored with a warning. An empty
+  value, or a list without ``otlp`` or ``none``, behaves like an unset one.
+
 - ``OTEL_METRIC_EXPORT_INTERVAL``
   Interval (in milliseconds) between metric exports.
 
