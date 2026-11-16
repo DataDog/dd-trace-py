@@ -13,6 +13,7 @@ from unittest import mock
 import msgpack
 import pytest
 
+from ddtrace._trace.processor import SpanAggregator
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._agent import config as agent_config
@@ -658,27 +659,98 @@ def test_recreate_returns_a_fresh_writer(agent):
             replacement.stop(3.0)
 
 
-def test_recreate_in_a_forked_child_does_not_resend_the_parent_spans():
-    # In a forked child the inherited buffer holds spans that belong to the parent, which may already
-    # have sent them, and libdatadog has dropped the worker that would send them. recreate() tells the
-    # child apart from a reconfiguration by pid, so this emulates the child by pid alone rather than
-    # forking the test runner.
-    with capture_server() as handler:
-        # Park the flush cadence, so only a flush this test asks for can deliver the span.
-        with mock.patch.object(config, "_trace_writer_interval_seconds", 3600):
-            with buffer_writer(handler.port, api_version="v0.4") as writer:
-                writer.write([_finished_span(name="parent-span")])
-                writer._pid = -1
-                inherited_buffer = writer._buffer
-                replacement = writer.recreate()
-                try:
-                    # Give a wrongly-flushing implementation time to deliver.
-                    time.sleep(0.5)
-                    assert not handler.payloads, "recreate() re-sent the parent's spans"
-                    # The shutdown that recreate() skips here would refuse this span.
-                    assert inherited_buffer.write([_finished_span()], None) is None
-                finally:
-                    replacement.stop(3.0)
+# Python 3.12 warns on stderr when a multi-threaded process forks.
+@pytest.mark.subprocess(
+    timeout=90,
+    err=None,
+    env={"DD_TRACE_WRITER_INTERVAL_SECONDS": "3600", "_DD_TRACE_NATIVE_BUFFER_ENABLED": "true"},
+)
+def test_a_tracer_rebuilds_its_buffer_writer_in_a_real_forked_child():
+    # The tracer rebuilds its writer lazily after os.fork(), through the registered fork hooks and
+    # the first span start or flush of the child. A child must send only its own spans, from a buffer
+    # of its own, and the parent must still send each of its queued spans once. One fork runs on a
+    # thread other than the main one.
+    import os
+    import threading
+    import time
+
+    import msgpack
+
+    from ddtrace.internal.writer import NativeTraceBuffer
+    from ddtrace.trace import Span
+    from ddtrace.trace import tracer
+    from tests.tracer.test_native_trace_buffer import _start_capture_server
+    from tests.tracer.test_writer import _HOST
+
+    def exported_names(server):
+        names = []
+        for payload in server.payloads:
+            for chunk in msgpack.unpackb(payload, raw=False, strict_map_key=False):
+                names.extend(span["name"] for span in chunk)
+        return sorted(names)
+
+    def fork_child(name):
+        parent_writer = tracer._span_aggregator.writer
+        inherited_buffer = parent_writer._buffer
+        pid = os.fork()
+        if pid == 0:
+            code = 1
+            try:
+                with tracer.trace(name):
+                    pass
+                writer = tracer._span_aggregator.writer
+                rebuilt = isinstance(writer, NativeTraceBuffer) and writer is not parent_writer
+                tracer.flush()
+                # The rebuild must not shut the inherited buffer down: the spans in it belong to the
+                # parent, and a shutdown would wait on a worker that the fork dropped.
+                late = Span(name="inherited")
+                late.finish()
+                if inherited_buffer.write([late], None) is not None:
+                    code = 3
+                else:
+                    code = 0 if rebuilt and writer._pid == os.getpid() else 2
+            finally:
+                os._exit(code)
+        _, status = os.waitpid(pid, 0)
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "child %s exited with %r" % (name, status)
+
+    server, server_thread = _start_capture_server()
+    try:
+        # The tracer built its writer for the default agent URL. Point a fresh one at the capture server.
+        tracer._span_aggregator.writer.stop(3.0)
+        tracer._span_aggregator.writer = NativeTraceBuffer("http://%s:%s" % (_HOST, server.port), api_version="v0.4")
+        assert isinstance(tracer._span_aggregator.writer, NativeTraceBuffer)
+
+        # Queued and parked behind the flush interval, so only a flush can deliver it.
+        with tracer.trace("parent-only"):
+            pass
+
+        fork_child("child-main")
+        errors = []
+
+        def from_a_thread():
+            try:
+                fork_child("child-thread")
+            except BaseException as error:
+                errors.append(error)
+
+        forker = threading.Thread(target=from_a_thread)
+        forker.start()
+        forker.join(30.0)
+        assert not forker.is_alive(), "os.fork() from a thread did not return"
+        assert not errors, errors
+
+        assert exported_names(server) == ["child-main", "child-thread"], "a child sent the spans of the parent"
+
+        tracer.flush()
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline and "parent-only" not in exported_names(server):
+            time.sleep(0.02)
+        assert exported_names(server) == ["child-main", "child-thread", "parent-only"]
+        tracer.shutdown(timeout=3.0)
+    finally:
+        server.shutdown()
+        server_thread.join()
 
 
 def test_recreate_shuts_the_replaced_buffer_down(agent):
@@ -1453,6 +1525,107 @@ def test_a_microvm_refresh_never_exports_the_spans_queued_before_it(monkeypatch)
                 # Give a wrongly-flushing implementation time to deliver.
                 time.sleep(0.5)
                 assert not handler.payloads, "the refresh exported spans queued before it"
+
+
+_MICROVM_ARN = "arn:aws:lambda:us-east-1::runtime:python3.12"
+
+
+class _BlockingShutdownBuffer(_StubBuffer):
+    """Hold the shutdown until release is set, as a flush that waits on a slow agent."""
+
+    def __init__(self):
+        super().__init__()
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def flush(self, timeout_ns):
+        pass
+
+    def shutdown(self, timeout_ns):
+        self.entered.set()
+        self.release.wait(5.0)
+
+
+class _BlockingExportBuffer(_RecordingBuffer):
+    """Hold the first export-shaped call, a write or a flush, until release is set."""
+
+    def __init__(self):
+        super().__init__()
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def _block(self):
+        self.entered.set()
+        self.release.wait(5.0)
+
+    def write(self, spans, dd_origin=None):
+        self._block()
+        return super().write(spans, dd_origin)
+
+    def flush(self, timeout_ns):
+        self._block()
+
+
+def _microvm_aggregator(monkeypatch, port, **writer_kwargs):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", _MICROVM_ARN)
+    url = "http://%s:%s" % (_HOST, port)
+    with mock.patch(
+        "ddtrace._trace.processor.create_trace_writer",
+        side_effect=lambda **_: NativeTraceBuffer(url, api_version="v0.4", **writer_kwargs),
+    ):
+        return SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=300)
+
+
+def test_a_microvm_reconfiguration_shuts_the_old_buffer_down_outside_the_aggregator_lock(monkeypatch, agent):
+    # Shutting the old buffer down flushes it, which waits on the agent. A tracing thread blocks on the
+    # aggregator lock for as long as the reconfiguring thread holds it.
+    aggregator = _microvm_aggregator(monkeypatch, agent.port)
+    old_writer = aggregator.writer
+    real_buffer = old_writer._buffer
+    blocking = old_writer._buffer = _BlockingShutdownBuffer()
+    reconfigure = threading.Thread(target=aggregator.reset, kwargs={"reset_buffer": False}, daemon=True)
+    try:
+        reconfigure.start()
+        assert blocking.entered.wait(5.0), "the reconfiguration never shut the old buffer down"
+        acquired = aggregator._lock.acquire(timeout=1.0)
+        if acquired:
+            aggregator._lock.release()
+        assert acquired, "the reconfiguration held the aggregator lock during the shutdown"
+    finally:
+        blocking.release.set()
+        reconfigure.join(5.0)
+        real_buffer.shutdown(3_000_000_000)
+        aggregator.writer.stop(3.0)
+
+
+def test_a_microvm_sync_write_exports_outside_the_aggregator_lock(monkeypatch, agent):
+    # A synchronous writer blocks the finishing thread until the export ends. Holding the aggregator
+    # lock for that wait stalls every other thread that starts or finishes a span.
+    aggregator = _microvm_aggregator(monkeypatch, agent.port, sync_mode=True)
+    writer = aggregator.writer
+    real_buffer = writer._buffer
+    blocking = writer._buffer = _BlockingExportBuffer()
+    span = Span(name="op")
+
+    def finish():
+        aggregator.on_span_start(span)
+        span.finish()
+        aggregator.on_span_finish(span)
+        aggregator._flush_pending_sync_write()
+
+    finisher = threading.Thread(target=finish, daemon=True)
+    try:
+        finisher.start()
+        assert blocking.entered.wait(5.0), "the finishing thread never reached the export"
+        acquired = aggregator._lock.acquire(timeout=1.0)
+        if acquired:
+            aggregator._lock.release()
+        assert acquired, "the synchronous export held the aggregator lock"
+    finally:
+        blocking.release.set()
+        finisher.join(5.0)
+        writer._buffer = real_buffer
+        writer.stop(3.0)
 
 
 def test_drop_buffered_traces_is_a_noop_for_a_buffer_writer_outside_microvm(monkeypatch, agent):

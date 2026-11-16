@@ -3,6 +3,7 @@ from collections import defaultdict
 from itertools import chain
 import logging
 from typing import Optional
+from typing import Union
 from typing import cast
 
 from ddtrace._trace.context import _set_runtime_identity_generation
@@ -41,6 +42,7 @@ from ddtrace.internal.threads import local
 from ddtrace.internal.utils.time import Time
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeTraceBuffer
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import create_trace_writer
 
@@ -284,7 +286,7 @@ _SPANS_DROPPED_TRACE_PROCESSOR = get_metric_recorder(
 
 
 class _RetiredWriter:
-    def __init__(self, writer: NativeWriter) -> None:
+    def __init__(self, writer: Union[NativeWriter, NativeTraceBuffer]) -> None:
         self.writer = writer
         self._lock = forksafe.RLock()
         self._finished = False
@@ -340,7 +342,7 @@ class SpanAggregator(SpanProcessor):
         # A sync-mode writer whose send was deferred until the finishing thread releases its locks.
         self._pending_sync_flush = local()
         # Keep detached writers visible until their services have been stopped.
-        self._retired_writers: dict[NativeWriter, _RetiredWriter] = {}
+        self._retired_writers: dict[Union[NativeWriter, NativeTraceBuffer], _RetiredWriter] = {}
         super().__init__()
 
     def __repr__(self) -> str:
@@ -389,7 +391,12 @@ class SpanAggregator(SpanProcessor):
                 # leave the send to _flush_pending_sync_write(). Async writers, and writers without
                 # _write_without_flush (LogWriter, HTTPWriter), keep using write().
                 write_without_flush = getattr(writer, "_write_without_flush", None)
-                if write_without_flush is None or not getattr(writer, "_sync_mode", False):
+                if isinstance(writer, NativeTraceBuffer) and writer._sync_mode:
+                    # Its write() blocks until the export ends. Leave that to
+                    # _flush_pending_sync_write(), which runs without this lock. The writer's own gate
+                    # keeps a refresh that lands in between from sending the trace.
+                    self._pending_sync_flush.spans = [*getattr(self._pending_sync_flush, "spans", ()), (writer, spans)]
+                elif write_without_flush is None or not getattr(writer, "_sync_mode", False):
                     writer.write(spans)
                 elif write_without_flush(spans):
                     self._pending_sync_flush.writer = writer
@@ -398,6 +405,11 @@ class SpanAggregator(SpanProcessor):
         # Called at the end of Tracer._on_span_finish, after this aggregator's lock is released. The slot is
         # thread-local so each finishing thread sends only its own write, and it is cleared first so a
         # failed send is not retried by the next span finish.
+        pending_writes = getattr(self._pending_sync_flush, "spans", None)
+        if pending_writes:
+            self._pending_sync_flush.spans = None
+            for buffer_writer, spans in pending_writes:
+                buffer_writer.write(spans)
         writer = getattr(self._pending_sync_flush, "writer", None)
         if writer is not None:
             self._pending_sync_flush.writer = None
@@ -665,7 +677,7 @@ class SpanAggregator(SpanProcessor):
             return
         # A signal can interrupt a manual flush while another thread owns the retirement and
         # waits for this exporter lock. Leave cleanup pending so the flush can resume.
-        if retired_writer.writer._exporter_lock._is_owned():  # type: ignore[attr-defined]
+        if isinstance(retired_writer.writer, NativeWriter) and retired_writer.writer._exporter_lock._is_owned():  # type: ignore[attr-defined]
             return
         # Coordinate shutdown with the configuring thread without holding the identity lock across I/O.
         deadline = None if timeout is None else Time.monotonic() + max(timeout, 0)
@@ -675,6 +687,16 @@ class SpanAggregator(SpanProcessor):
             if retired_writer._finished:
                 return
             writer = retired_writer.writer
+            if isinstance(writer, NativeTraceBuffer):
+                # stop() also swallows its own failures, so a finished retirement is never retried.
+                try:
+                    if flush:
+                        writer.flush_queue()
+                finally:
+                    writer.stop(None if deadline is None else max(deadline - Time.monotonic(), 0))
+                    retired_writer._finished = True
+                    self._retired_writers.pop(writer, None)
+                return
             try:
                 if flush:
                     writer.flush_queue()
@@ -797,7 +819,11 @@ class SpanAggregator(SpanProcessor):
             )
             return None
 
-        if self._identity_refresh_enabled and flush_writer and isinstance(self.writer, NativeWriter):
+        if (
+            self._identity_refresh_enabled
+            and flush_writer
+            and isinstance(self.writer, (NativeWriter, NativeTraceBuffer))
+        ):
             old_writer = self.writer
             # Construction can fail: leave the installed writer and its gates intact in that case.
             replacement = old_writer._recreate(appsec_enabled, llmobs_enabled, compute_stats, apm_opt_out)

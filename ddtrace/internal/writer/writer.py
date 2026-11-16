@@ -1915,22 +1915,17 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         if old_buffer is not None:
             self._discard_buffer(old_buffer)
 
-    def recreate(
+    def _recreate(
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
         compute_stats_enabled: Optional[bool] = None,
         stats_opt_out: Optional[bool] = None,
     ) -> "NativeTraceBuffer":
-        """Return a replacement writer and shut this one's buffer down.
+        """Return a replacement writer and leave this one's buffer open.
 
-        `tracer.configure()` reaches this method on every ASM remote-config update, on an LLM
-        Observability enable and from CI Visibility, so a buffer left running here leaks a worker per
-        call. Shutting it down also sends what it still holds, which is what the caller asks for
-        outside a fork.
-
-        A forked child reaches this method too, and there _discard_buffer skips the shutdown: the
-        inherited spans belong to the parent.
+        The caller finishes this writer later with flush_queue() and stop(), outside any lock that
+        span start and finish take.
         """
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         replacement = self.__class__(
@@ -1948,9 +1943,30 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
         )
         # Build the replacement first: a failure there leaves this writer usable.
-        # The caller installs the replacement only after this method returns. Spans that finish in
-        # that gap still reach this writer, so it hands them to the replacement.
+        # The caller installs the replacement after this method returns. Spans that finish in
+        # that gap, or after this writer's buffer closes, still reach this writer, so it hands them
+        # to the replacement.
         self._successor = replacement
+        return replacement
+
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
+    ) -> "NativeTraceBuffer":
+        """Return a replacement writer and shut this one's buffer down.
+
+        `tracer.configure()` reaches this method on every ASM remote-config update, on an LLM
+        Observability enable and from CI Visibility, so a buffer left running here leaks a worker per
+        call. Shutting it down also sends what it still holds, which is what the caller asks for
+        outside a fork.
+
+        A forked child reaches this method too, and there _discard_buffer skips the shutdown: the
+        inherited spans belong to the parent.
+        """
+        replacement = self._recreate(appsec_enabled, llmobs_enabled, compute_stats_enabled, stats_opt_out)
         self._discard_buffer(self._buffer)
         return replacement
 
