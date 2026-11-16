@@ -1115,7 +1115,7 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter(agentless):
     """
     from ddtrace._trace.processor import SpanAggregator
 
-    tags = {"team": "core", "region": "us1", "workers": 7}
+    tags = {"team": "core", "region": "us1", "workers": 7, 1: "invalid-key"}
     with override_global_config(dict(_trace_agentless_enabled=agentless, _dd_api_key="an-api-key")):
         aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1, tracer_tags=tags)
         old_writer = aggregator.writer

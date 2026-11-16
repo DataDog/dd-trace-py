@@ -32,7 +32,7 @@ def test_otlp_resource_attributes():
                 child.set_tag("region", "eu1")
                 child._set_attribute("workers", 7)
         tracer.flush()
-        tracer.set_tags({"team": "updated", "workers": 8})
+        tracer.set_tags({"team": "updated", "workers": 8, 1: "invalid-key"})
         tracer.configure(trace_processors=[])
         with tracer.trace("updated"):
             pass

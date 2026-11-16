@@ -884,7 +884,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._otlp_endpoint = otlp_endpoint
         # Keep a copy so in-place tracer tag updates remain detectable.
         self._resource_attributes = {
-            key: value for key, value in (resource_attributes or {}).items() if isinstance(value, str)
+            key: value
+            for key, value in (resource_attributes or {}).items()
+            if isinstance(key, str) and isinstance(value, str)
         }
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._api_key = api_key
@@ -1021,7 +1023,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         return exporter
 
     def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
-        self._resource_attributes = {key: value for key, value in attributes.items() if isinstance(value, str)}
+        self._resource_attributes = {
+            key: value for key, value in attributes.items() if isinstance(key, str) and isinstance(value, str)
+        }
 
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
