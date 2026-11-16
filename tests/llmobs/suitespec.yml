@@ -524,7 +524,7 @@ suites:
     # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
     # run on Python 3.15 yet. Add 3.15 to the python lists once those
     # dependencies publish 3.15 wheels.
-    venvs_per_job: 2
+    venvs_per_job: 3
     # Allow time for GPU placement in addition to the 15-minute test target.
     timeout: 50m
     paths:
@@ -545,5 +545,5 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2', 'transformers<5']
         - name: vllm
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
