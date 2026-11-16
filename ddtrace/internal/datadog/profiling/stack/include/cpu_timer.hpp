@@ -52,6 +52,7 @@ struct DebugStats
     // (missed expirations); coalesced_signal_count counts signals with si_overrun > 0.
     uint64_t timer_overrun_total = 0;
     uint64_t coalesced_signal_count = 0;
+    uint64_t asyncio_running_task_offset = 0;
 };
 
 class Engine
@@ -69,6 +70,9 @@ class Engine
     void unregister_thread(uint64_t python_thread_id);
     bool has_thread(uint64_t python_thread_id, uint64_t native_id) const;
     void set_current_greenlet(uint64_t native_id, uintptr_t greenlet_id);
+    // Offset of asyncio_running_task in _PyThreadStateImpl, from CPython's AsyncioDebug table (Python 3.14+).
+    // Until it is set, CPU samples carry no running-task identity.
+    void set_asyncio_running_task_offset(size_t offset);
     uintptr_t current_greenlet(uint64_t native_id) const;
     void drain(EchionSampler& echion);
 

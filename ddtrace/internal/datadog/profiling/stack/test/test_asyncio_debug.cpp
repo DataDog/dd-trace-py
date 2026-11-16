@@ -65,6 +65,7 @@ TEST(AsyncioDebugOffsets, ValidatesAndStoresTaskListHeads)
     echion.set_asyncio_offsets(*offsets);
     EXPECT_EQ(echion.asyncio_interpreter_tasks_head_offset(), 128);
     EXPECT_EQ(echion.asyncio_thread_tasks_head_offset(), 256);
+    EXPECT_EQ(offsets->thread_running_task, 16);
 }
 
 TEST(AsyncioDebugOffsets, ReportsTaskLayout)
@@ -125,6 +126,20 @@ TEST(AsyncioDebugOffsets, RejectsMisalignedInterpreterHead)
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
 }
 
+TEST(AsyncioDebugOffsets, RejectsRunningTaskOutsideThread)
+{
+    auto table = valid_table();
+    table.thread.asyncio_running_task = table.thread.size;
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
+}
+
+TEST(AsyncioDebugOffsets, RejectsMisalignedRunningTask)
+{
+    auto table = valid_table();
+    ++table.thread.asyncio_running_task;
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
+}
+
 TEST(AsyncioDebugOffsets, RejectsMisalignedThreadHead)
 {
     auto table = valid_table();
@@ -140,6 +155,7 @@ TEST_F(AsyncioMemory, ReadsValidTable)
     ASSERT_TRUE(offsets);
     EXPECT_EQ(offsets->interpreter_tasks_head, table.interpreter.asyncio_tasks_head);
     EXPECT_EQ(offsets->thread_tasks_head, table.thread.asyncio_tasks_head);
+    EXPECT_EQ(offsets->thread_running_task, table.thread.asyncio_running_task);
 }
 
 TEST_F(AsyncioMemory, RejectsNullMisalignedOrUnreadableTableAddress)
@@ -271,6 +287,7 @@ TEST_F(AsyncioDiscovery, FindsTheRuntimeTable)
     // Native tests build and run on the same release, so the compile-time offsets are the right answer here.
     EXPECT_EQ(offsets->interpreter_tasks_head, offsetof(PyInterpreterState, asyncio_tasks_head));
     EXPECT_EQ(offsets->thread_tasks_head, offsetof(_PyThreadStateImpl, asyncio_tasks_head));
+    EXPECT_EQ(offsets->thread_running_task, offsetof(_PyThreadStateImpl, asyncio_running_task));
     ASSERT_TRUE(offsets->task_layout);
     EXPECT_EQ(*offsets->task_layout, EchionSampler::asyncio_mirror_task_layout());
 }

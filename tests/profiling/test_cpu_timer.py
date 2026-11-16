@@ -335,6 +335,40 @@ def test_cpu_timer_profiler_started_in_auxiliary_thread_profiles_main_thread():
 
 @pytest.mark.subprocess(
     env={
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_reads_asyncio_running_task_offset_from_runtime_table():
+    import asyncio
+    import sys
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+
+    async def main():
+        p = profiler.Profiler()
+        p.start()
+        try:
+            await asyncio.sleep(0)
+            return _stack._cpu_timer_debug_stats()["asyncio_running_task_offset"], _stack._asyncio_task_lists()
+        finally:
+            p.stop()
+
+    running_task_offset, (_, thread_head, source) = asyncio.run(main())
+
+    if sys.version_info >= (3, 14):
+        # The offset must come from the same runtime table as the task-list heads, not from the build.
+        assert source == "runtime-table", source
+        assert running_task_offset != 0
+        assert running_task_offset != thread_head
+    else:
+        assert running_task_offset == 0, running_task_offset
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_asyncio_task_stitching",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",

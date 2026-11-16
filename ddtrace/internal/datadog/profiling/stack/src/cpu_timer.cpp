@@ -237,6 +237,9 @@ struct EngineState
     std::atomic<bool> permanently_disabled{ false };
     std::atomic<bool> fault_injection_enabled{ false };
     std::atomic<uint64_t> interval_ms{ kDefaultIntervalMs };
+    // Published once per process from the runtime table; the signal handler reads it. Kept across fork, since the
+    // child runs the same CPython build.
+    std::atomic<size_t> asyncio_running_task_offset{ 0 };
 
     std::mutex registry_lock;
     std::unordered_map<uint64_t, std::unique_ptr<CaptureState>> live_by_thread_id;
@@ -1008,10 +1011,13 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     bool failed = false;
     PyThreadState* tstate = state->tstate;
 #if PY_VERSION_HEX >= 0x030e0000
-    if (tstate != nullptr) {
+    // The compile-time offset of asyncio_running_task can differ from the running 3.14 patch release.
+    const size_t running_task_offset = g_state.asyncio_running_task_offset.load(std::memory_order_relaxed);
+    if (tstate != nullptr && running_task_offset != 0) {
         PyObject* asyncio_task = nullptr;
-        auto* tstate_impl = reinterpret_cast<_PyThreadStateImpl*>(tstate);
-        if (guarded_read_scalar(*state, asyncio_task, &tstate_impl->asyncio_running_task)) {
+        const auto* running_task =
+          reinterpret_cast<PyObject* const*>(reinterpret_cast<const char*>(tstate) + running_task_offset);
+        if (guarded_read_scalar(*state, asyncio_task, running_task)) {
             sample->asyncio_task = reinterpret_cast<uintptr_t>(asyncio_task);
         }
     }
@@ -1537,6 +1543,7 @@ Engine::debug_stats() const
     stats.active = g_state.active.load(std::memory_order_acquire);
     stats.permanently_disabled = g_state.permanently_disabled.load(std::memory_order_acquire);
     stats.interval_ms = g_state.interval_ms.load(std::memory_order_acquire);
+    stats.asyncio_running_task_offset = g_state.asyncio_running_task_offset.load(std::memory_order_relaxed);
     stats.pending_unprepared = g_state.pending_unprepared.load(std::memory_order_relaxed);
     stats.app_altstack_present = g_state.app_altstack_present.load(std::memory_order_relaxed);
     stats.reused_altstack_count = g_state.reused_altstack_count.load(std::memory_order_relaxed);
@@ -1578,6 +1585,16 @@ Engine::debug_stats() const
     }
 #endif
     return stats;
+}
+
+void
+Engine::set_asyncio_running_task_offset(size_t offset)
+{
+#if DD_CPU_TIMER_SUPPORTED
+    g_state.asyncio_running_task_offset.store(offset, std::memory_order_relaxed);
+#else
+    (void)offset;
+#endif
 }
 
 void

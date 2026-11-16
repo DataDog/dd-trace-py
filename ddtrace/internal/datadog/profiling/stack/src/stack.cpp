@@ -396,6 +396,7 @@ stack_init_asyncio(PyObject* self, PyObject* args)
     if (!native_task_lists && asyncio_c != Py_None && !Py_IsFinalizing()) {
         if (auto offsets = discover_asyncio_offsets(asyncio_c)) {
             echion.set_asyncio_offsets(*offsets);
+            CpuTimer::Engine::get().set_asyncio_running_task_offset(offsets->thread_running_task);
             native_task_lists = true;
         }
     }
@@ -629,7 +630,8 @@ stack_cpu_timer_debug_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args)
         set_debug_stat(dict, "residual_cpu_ns", stats.residual_cpu_ns) != 0 ||
         set_debug_stat(dict, "stage2_invalid_frame_count", stats.stage2_invalid_frame_count) != 0 ||
         set_debug_stat(dict, "timer_overrun_total", stats.timer_overrun_total) != 0 ||
-        set_debug_stat(dict, "coalesced_signal_count", stats.coalesced_signal_count) != 0) {
+        set_debug_stat(dict, "coalesced_signal_count", stats.coalesced_signal_count) != 0 ||
+        set_debug_stat(dict, "asyncio_running_task_offset", stats.asyncio_running_task_offset) != 0) {
         Py_DECREF(dict);
         return nullptr;
     }
