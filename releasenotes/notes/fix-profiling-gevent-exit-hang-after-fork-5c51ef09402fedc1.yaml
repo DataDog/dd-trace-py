@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    internal: Fixes an issue where a gevent application with the profiler enabled can hang at exit when it
-    exits shortly after a fork.
+    internal: Fixes an issue where a background thread, such as the profiler's scheduler, could keep running after
+    it was stopped shortly after a fork.
