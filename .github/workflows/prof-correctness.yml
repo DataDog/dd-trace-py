@@ -128,6 +128,18 @@ jobs:
             sleep "${POLL_INTERVAL}"
           done
 
+      # A poll timeout means no prof-correctness scenario ran, so the red check
+      # says nothing about profiler correctness. Label it inconclusive in the run
+      # summary; the job still fails and must be re-run once wheels are published.
+      - name: Report inconclusive result (wheels not published)
+        if: failure() && steps.s3.outcome == 'failure'
+        env:
+          DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
+        run: |
+          msg="No prof-correctness scenario ran: wheels for ${DD_TRACE_PY_SHA} were not published to S3 before the poll timeout. Re-run this job after the GitLab upload finishes."
+          echo "::warning title=prof-correctness inconclusive::${msg}"
+          printf '### Profiling correctness: inconclusive\n\n%s\n' "${msg}" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         if: steps.gate.outputs.run == 'true'
         id: octo-sts
