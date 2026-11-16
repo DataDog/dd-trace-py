@@ -11,6 +11,7 @@ from collections import namedtuple
 import copy
 import os
 import signal
+import threading
 import time
 
 import pytest
@@ -20,6 +21,7 @@ from ddtrace._trace.product import APMCapabilities
 from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal import core
 from ddtrace.internal import datastreams
+from ddtrace.internal import forksafe
 from ddtrace.internal.datastreams import aiokafka as aiokafka_dsm
 from ddtrace.internal.datastreams import botocore as botocore_dsm
 from ddtrace.internal.datastreams import data_streams_processor
@@ -238,6 +240,113 @@ def test_rc_disable_never_raises_when_processor_already_stopped():
 
     assert datastreams._processor is None
     assert data_streams_processor() is None
+
+
+class SignalingLock:
+    """Wraps the processor lock and signals once a thread starts waiting on it."""
+
+    def __init__(self, lock):
+        self._lock = lock
+        self.waiting = threading.Event()
+
+    def __enter__(self):
+        self.waiting.set()
+        return self._lock.__enter__()
+
+    def __exit__(self, *exc_info):
+        return self._lock.__exit__(*exc_info)
+
+
+def _call_while_lock_is_held(monkeypatch, target):
+    """Run target in a thread blocked on the processor lock; return a release-and-join callable."""
+    lock = SignalingLock(threading.Lock())
+    monkeypatch.setattr(datastreams, "_processor_lock", lock)
+    lock._lock.acquire()
+    results = []
+    thread = threading.Thread(target=lambda: results.append(target()))
+    thread.start()
+    assert lock.waiting.wait(5), "the thread never reached the processor lock"
+
+    def release_and_join():
+        lock._lock.release()
+        thread.join(5)
+        assert not thread.is_alive()
+        return results[0]
+
+    return release_and_join
+
+
+def test_rc_disable_while_creation_waits_on_lock_creates_no_processor(monkeypatch):
+    config._config["_data_streams_enabled"]._rc_value = True
+    release_and_join = _call_while_lock_is_held(monkeypatch, data_streams_processor)
+
+    config._config["_data_streams_enabled"]._rc_value = False
+
+    assert release_and_join() is None
+    assert datastreams._processor is None
+
+
+class FakeProcessor:
+    def __init__(self):
+        self.shutdown_while_locked = None
+
+    def shutdown(self, timeout):
+        self.shutdown_while_locked = datastreams._processor_lock._lock.locked()
+
+
+def test_rc_stop_waits_for_a_processor_being_created_and_shuts_it_down_unlocked(monkeypatch):
+    release_and_join = _call_while_lock_is_held(monkeypatch, datastreams.stop_data_streams_processor)
+    # Stands in for a processor the lock holder finishes constructing.
+    processor = FakeProcessor()
+    datastreams._processor = processor
+
+    release_and_join()
+
+    assert datastreams._processor is None
+    assert processor.shutdown_while_locked is False
+
+
+def test_processor_lock_is_fork_safe():
+    assert isinstance(datastreams._processor_lock, forksafe.ResetObject)
+
+
+def test_fork_child_does_not_inherit_a_held_processor_lock(run_python_code_in_subprocess):
+    code = """
+import os
+import threading
+
+from ddtrace.internal import datastreams
+
+locked = threading.Event()
+release = threading.Event()
+
+
+def hold_lock():
+    with datastreams._processor_lock:
+        locked.set()
+        release.wait()
+
+
+holder = threading.Thread(target=hold_lock)
+holder.start()
+locked.wait()
+
+pid = os.fork()
+if pid == 0:
+    os._exit(0 if datastreams._processor_lock.acquire(timeout=2) else 1)
+
+release.set()
+holder.join()
+_, status = os.waitpid(pid, 0)
+assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+print("OK")
+"""
+    worktree_root = os.path.dirname(os.path.dirname(os.path.abspath(ddtrace.__file__)))
+    env = os.environ.copy()
+    env["PYTHONPATH"] = worktree_root + os.pathsep + env.get("PYTHONPATH", "")
+    out, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=30)
+    assert status == 0, (out, err)
+    assert b"OK" in out
 
 
 @requires_confluent_kafka

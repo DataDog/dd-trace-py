@@ -4,9 +4,9 @@ import importlib
 from typing import TYPE_CHECKING
 from typing import Optional
 
+from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.threads import Lock
 
 from ...internal.utils.importlib import require_modules
 
@@ -24,8 +24,8 @@ required_module_to_integration = {
     "google.cloud.pubsub_v1": "google_cloud_pubsub",
 }
 _processor: Optional[DataStreamsProcessor] = None
-# Serializes processor creation: two threads racing on the first checkpoint
-# would otherwise each construct a processor, orphaning a running one.
+# Serializes processor creation and RC stop, so neither orphans a running processor.
+# Fork-safe: a child must not inherit a lock held by a parent thread.
 _processor_lock = Lock()
 
 
@@ -46,7 +46,8 @@ def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor
     global _processor
     if config._data_streams_enabled and (not _processor or reset):
         with _processor_lock:
-            if not _processor or reset:
+            # Recheck: an RC disable may have landed while waiting for the lock.
+            if config._data_streams_enabled and (not _processor or reset):
                 from . import processor
 
                 _processor = processor.DataStreamsProcessor()
@@ -74,9 +75,12 @@ def stop_data_streams_processor() -> None:
     remote config worker thread for a few seconds.
     """
     global _processor
-    processor = _processor
-    _processor = None
     try:
+        # Swap under the lock so a processor being constructed is not missed;
+        # shut down outside it since the final flush blocks.
+        with _processor_lock:
+            processor = _processor
+            _processor = None
         if processor is not None:
             from .processor import SHUTDOWN_TIMEOUT
 
