@@ -70,6 +70,14 @@ extract_test_artifacts:
     # are on the same filesystem. The default cache is in the home directory, which is
     # not on the filesystem of the checkout, so uv copies every file into each venv.
     UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
+    # ATF-all-flaky validation: fetch every non-fixed flaky test known to Test
+    # Management for this repository and run only those with attempt-to-fix, so
+    # tests that now pass are reported and marked fixed. The ddagent service runs
+    # with a placeholder API key, so the test-management request must go agentless
+    # with the DD_API_KEY provided by CI. Temporary for this validation branch;
+    # do not merge.
+    _DD_TEST_MANAGEMENT_ATF_ALL_FLAKY: "1"
+    DD_CIVISIBILITY_AGENTLESS_ENABLED: "1"
   before_script:
     - |
       # These suites need LiteLLM versions that the internal index does not permit.
