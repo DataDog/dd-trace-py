@@ -112,8 +112,14 @@ build_wheel() {
   export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_TAG}.log"
   echo "Building wheel for Python ${PYTHON_VER} (log: ${BUILD_LOG})"
 
-  # Redirect build output to log file
-  if uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" . > "${BUILD_LOG}" 2>&1; then
+  # Keep the full build log while surfacing cache health checks before a job timeout.
+  # pipefail preserves build failures through tee and the progress filter.
+  if uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" . 2>&1 | tee "${BUILD_LOG}" | \
+      while IFS= read -r build_line; do
+        case "$build_line" in
+          *"INFO: sccache "*|*"WARNING: sccache "*) printf '%s\n' "$build_line" ;;
+        esac
+      done; then
     echo "✓ Build completed successfully"
     export BUILT_WHEEL_FILE=$(ls ${BUILT_WHEEL_DIR}/*.whl | head -n 1)
   else
