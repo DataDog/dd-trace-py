@@ -385,8 +385,7 @@
                     "2.8.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "anyio",
