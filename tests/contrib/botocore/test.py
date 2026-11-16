@@ -1366,14 +1366,17 @@ class BotocoreTest(TracerTestCase):
             "botocore",
             dict(distributed_tracing=True, propagation_enabled=True, distributed_tracing_disabled_services={"kinesis"}),
         ):
+            client = self.session.create_client("kinesis", region_name="us-east-1")
+            stream_name = "kinesis_distributed_tracing_disabled"
+            shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
             data = json.dumps({"json": "string"})
 
-            self._test_kinesis_put_record_trace_injection("json_string", data)
+            client.put_record(StreamName=stream_name, Data=data, PartitionKey="1234")
 
-            spans = self.get_spans()
-            produce_span = next(s for s in spans if s.get_tag("aws.operation") == "PutRecord")
-            consume_span = next(s for s in spans if s.get_tag("aws.operation") == "GetRecords")
-            assert consume_span.parent_id != produce_span.span_id
+            shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+            records = self._kinesis_get_records(client, shard_iterator, stream_arn)
+            assert len(records) == 1
+            assert json.loads(records[0]["Data"]) == {"json": "string"}
 
     @mock_kinesis
     def test_unpatch(self):
