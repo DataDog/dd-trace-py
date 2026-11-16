@@ -529,7 +529,7 @@ def test_set_http_meta_custom_errors_via_env():
         assert span3.error == 0
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     assert int_config.myint.is_header_tracing_configured is False
     trace_utils.set_http_meta(
@@ -544,7 +544,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
@@ -573,7 +573,7 @@ def test_set_http_meta_headers_useragent_tracing_enabled(
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -586,7 +586,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -859,7 +859,7 @@ def test_ip_subnet_regression():
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
@@ -884,7 +884,7 @@ def test_set_http_meta_headers_useragent_tracing_disabled(
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils.log")
+@mock.patch("ddtrace._trace.http_meta.log")
 @pytest.mark.parametrize(
     "val, bad",
     [
