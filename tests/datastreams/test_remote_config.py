@@ -22,6 +22,7 @@ from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal import core
 from ddtrace.internal import datastreams
 from ddtrace.internal import forksafe
+from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datastreams import aiokafka as aiokafka_dsm
 from ddtrace.internal.datastreams import botocore as botocore_dsm
 from ddtrace.internal.datastreams import data_streams_processor
@@ -154,6 +155,31 @@ def test_rc_enable_starts_processor_and_records_stats():
 
 
 @requires_confluent_kafka
+def test_rc_enable_after_startup_off_imports_hook_modules(run_python_code_in_subprocess):
+    code = """
+import sys
+
+from ddtrace._trace.product import apm_tracing_rc
+from ddtrace.internal import core
+from ddtrace.internal.settings._config import config
+
+assert "ddtrace.internal.datastreams.kafka" not in sys.modules
+assert not core.has_listeners("kafka.produce.start")
+
+apm_tracing_rc({"data_streams_enabled": True}, config)
+
+assert "ddtrace.internal.datastreams.kafka" in sys.modules
+assert core.has_listeners("kafka.produce.start")
+print("OK")
+"""
+    env = os.environ.copy()
+    env.pop("DD_DATA_STREAMS_ENABLED", None)
+    out, err, status, _ = run_python_code_in_subprocess(code, env=env, timeout=30)
+    assert status == 0, (out, err)
+    assert b"OK" in out
+
+
+@requires_confluent_kafka
 def test_rc_enable_injects_into_list_headers():
     _enable_dsm()
 
@@ -229,6 +255,22 @@ def test_rc_disable_stops_processor_and_records_nothing():
     assert "callback" not in kwargs, "the no-op handler must not even wrap the delivery callback"
     # The shutdown flushed (and cleared) the buckets; nothing was recorded after.
     assert _stat_keys(processor) == set()
+
+
+def test_rc_enable_disable_cycles_leave_no_flush_thread_running():
+    stopped = []
+    for _ in range(3):
+        _enable_dsm()
+        processor = data_streams_processor()
+        stopped.append((processor, processor._worker))
+        _disable_dsm()
+
+    for processor, worker in stopped:
+        assert processor.status == ServiceStatus.STOPPED
+        processor.join(5)
+        # The worker leaves periodic_threads when its OS thread exits; compare by identity
+        # since thread idents are recycled.
+        assert periodic_threads.get(worker.ident) is not worker, "a stopped processor's flush thread is still running"
 
 
 def test_rc_disable_never_raises_when_processor_already_stopped():
