@@ -280,7 +280,7 @@ suites:
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   integration_testagent:
-    venvs_per_job: 4
+    venvs_per_job: 6
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
