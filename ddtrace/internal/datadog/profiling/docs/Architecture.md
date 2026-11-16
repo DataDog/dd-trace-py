@@ -118,9 +118,6 @@ The sampler reads memory that other threads change at the same time, so a read c
 It falls back to the system call when another library owns those signal handlers.
 `ddtrace/profiling/_faulthandler.py` pauses the sampler while `faulthandler` swaps handlers.
 
-**echion is vendored.**
-Sampler changes are made and tested in this repository, without a round trip through an upstream release.
-
 **One libdd_wrapper.**
 `_ddup`, `_stack` and `_memalloc` link one prebuilt `libdd_wrapper` (`setup.py` builds it first).
 This gives one copy of the profile state and fork handlers, and keeps the wheel small.
