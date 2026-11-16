@@ -2,11 +2,11 @@ from typing import Optional
 from weakref import ReferenceType
 from weakref import ref
 
+from ddtrace._trace.otel.sampling import materialize_otel_sampling_decision
+from ddtrace._trace.otel.sampling import normalize_otel_tracestate
 from ddtrace.internal import forksafe
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ddtrace.internal.native._native import Context
-from ddtrace.internal.opentelemetry.sampling import materialize_otel_sampling_decision
-from ddtrace.internal.opentelemetry.sampling import normalize_otel_tracestate
 from ddtrace.internal.utils.http import w3c_build_tracestate_members
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
 
