@@ -1,0 +1,4 @@
+fixes:
+  - |
+    App and API Protection: Fixes incorrect user emails in Django automatic login
+    events when ``DD_USER_MODEL_EMAIL_FIELD`` is configured.
