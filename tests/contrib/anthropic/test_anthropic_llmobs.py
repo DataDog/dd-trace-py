@@ -4,6 +4,13 @@ from unittest import mock
 from unittest.mock import patch
 
 import anthropic as anthropic_module
+from anthropic.types import Message
+from anthropic.types import MessageDeltaUsage
+from anthropic.types import RawMessageDeltaEvent
+from anthropic.types import RawMessageStartEvent
+from anthropic.types import TextBlock
+from anthropic.types import Usage
+from anthropic.types.raw_message_delta_event import Delta
 import httpx
 import pytest
 
@@ -2138,6 +2145,67 @@ def test_get_model_provider_is_per_span(tracer):
 
     # The first span still resolves independently after the second request.
     assert integration._get_model_provider(bedrock_span) == "amazon"
+
+
+@pytest.mark.parametrize(
+    "cache_creation,expected_1h,expected_5m",
+    [
+        ({"ephemeral_1h_input_tokens": 3000, "ephemeral_5m_input_tokens": 0}, 3000, 0),
+        ({"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 3000}, 0, 3000),
+        ({"ephemeral_1h_input_tokens": 1000, "ephemeral_5m_input_tokens": 2000}, 1000, 2000),
+        (None, 0, 3000),
+    ],
+)
+@pytest.mark.parametrize("delta_has_input_usage", [False, True])
+def test_streamed_cache_creation_ttl_breakdown(cache_creation, expected_1h, expected_5m, delta_has_input_usage):
+    """Preserve the reported TTL split when final output usage is merged into message_start."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.contrib.internal.anthropic._streaming import _construct_message
+    from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+    usage = Usage(
+        input_tokens=12,
+        output_tokens=0,
+        cache_creation_input_tokens=3000,
+        cache_read_input_tokens=7,
+        cache_creation=cache_creation,
+    )
+    message = Message(
+        id="msg_1",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-5",
+        content=[TextBlock(type="text", text="hi")],
+        stop_reason="end_turn",
+        stop_sequence=None,
+        usage=usage,
+    )
+    delta_usage = {"output_tokens": 5}
+    if delta_has_input_usage:
+        delta_usage.update(input_tokens=13, cache_creation_input_tokens=3000, cache_read_input_tokens=8)
+    chunks = [
+        RawMessageStartEvent(
+            type="message_start",
+            message=message.model_copy(update={"content": [], "usage": usage}),
+        ),
+        RawMessageDeltaEvent(
+            type="message_delta",
+            delta=Delta(stop_reason="end_turn", stop_sequence=None),
+            usage=MessageDeltaUsage(**delta_usage),
+        ),
+    ]
+
+    integration = AnthropicIntegration(MagicMock())
+    streamed_metrics = integration._extract_usage(None, _construct_message(chunks)["usage"])
+    non_streamed_metrics = integration._extract_usage(None, usage.model_copy(update=delta_usage))
+
+    assert streamed_metrics == non_streamed_metrics
+    assert streamed_metrics["cache_write_input_tokens"] == 3000
+    assert streamed_metrics["input_tokens"] == (3021 if delta_has_input_usage else 3019)
+    assert streamed_metrics["output_tokens"] == 5
+    assert streamed_metrics["ephemeral_1h_input_tokens"] == expected_1h
+    assert streamed_metrics["ephemeral_5m_input_tokens"] == expected_5m
 
 
 @pytest.fixture
