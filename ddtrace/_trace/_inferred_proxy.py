@@ -14,6 +14,7 @@ from ddtrace.internal.inferred_spans import INFERRED_SPAN_NAMES as INFERRED_SPAN
 from ddtrace.internal.inferred_spans import PROXY_SPAN_NAMES
 from ddtrace.internal.inferred_spans import PUSH_SUBSCRIPTION_SPAN_NAMES as PUSH_SUBSCRIPTION_SPAN_NAMES
 from ddtrace.internal.inferred_spans import SUPPORTED_PROXY_SPAN_NAMES as SUPPORTED_PROXY_SPAN_NAMES
+from ddtrace.internal.utils.time import Time
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
 from ddtrace.trace import tracer
@@ -25,7 +26,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class ProxyHeaderContext:
     system_name: str
-    request_time: str
+    request_time_ms: int
     method: Optional[str]
     path: Optional[str]
     resource_path: Optional[str]
@@ -43,6 +44,7 @@ class ProxyInfo:
     span_name: str
     component: str
     resource_arn_builder: Optional[Callable[[ProxyHeaderContext], Optional[str]]] = None
+    does_provide_timestamp: bool = True
 
 
 def _api_gateway_rest_api_arn(proxy_context: ProxyHeaderContext) -> Optional[str]:
@@ -61,6 +63,7 @@ supported_proxies: dict[str, ProxyInfo] = {
     "aws-apigateway": ProxyInfo(PROXY_SPAN_NAMES["aws-apigateway"], "aws-apigateway", _api_gateway_rest_api_arn),
     "aws-httpapi": ProxyInfo(PROXY_SPAN_NAMES["aws-httpapi"], "aws-httpapi", _api_gateway_http_api_arn),
     "azure-apim": ProxyInfo(PROXY_SPAN_NAMES["azure-apim"], "azure-apim"),
+    "azure-fd": ProxyInfo(PROXY_SPAN_NAMES["azure-frontdoor"], "azure-fd", does_provide_timestamp=False),
 }
 
 # Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's
@@ -108,7 +111,7 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
         activate=True,
         child_of=tracer.current_trace_context(),
     )
-    span.start_ns = int(proxy_context.request_time) * 1000000
+    span.start_ns = proxy_context.request_time_ms * 1000000
 
     set_inferred_proxy_span_tags(span, proxy_context, proxy_info)
 
@@ -163,6 +166,16 @@ def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, 
 
 def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     proxy_header_system = _extract_header_value(POSSIBLE_PROXY_HEADER_SYSTEM, headers)
+
+    # Exit if proxy header system name is not present
+    if not proxy_header_system:
+        return None
+
+    # Exit if proxy header system is not supported
+    if proxy_header_system not in supported_proxies:
+        log.debug("Received headers to create inferred proxy span but unsupported proxy type: %r", proxy_header_system)
+        return None
+
     proxy_header_start_time_ms = _extract_header_value(POSSIBLE_PROXY_HEADER_START_TIME_MS, headers)
     proxy_header_path = _extract_header_value(POSSIBLE_PROXY_HEADER_PATH, headers)
     proxy_header_resource_path = _extract_header_value(POSSIBLE_PROXY_HEADER_RESOURCE_PATH, headers)
@@ -178,20 +191,35 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
 
     header_user_agent = _extract_header_value(HEADER_USERAGENT, headers)
 
-    # Exit if start time header is not present
-    if proxy_header_start_time_ms is None:
-        return None
+    proxy_info = supported_proxies[proxy_header_system]
 
-    # Exit if proxy header system name is not present or is a system we don't support
-    if not (proxy_header_system and proxy_header_system in supported_proxies):
-        log.debug(
-            "Received headers to create inferred proxy span but headers include an unsupported proxy type", headers
-        )
+    # ensure a slash is prepended to path if one isn't already. A present but empty path header is
+    # the root path: Azure Front Door's {url_path} server variable is documented as the request URI
+    # "without the arguments or leading slash", so a request to / arrives as an empty value.
+    if proxy_header_path is not None and not proxy_header_path.startswith("/"):
+        proxy_header_path = f"/{proxy_header_path}"
+
+    # Proxies that are not known to inject a request timestamp fall back to the current time. Azure
+    # Front Door is one: its rule set exposes no server variable for the current time, and it
+    # forwards client headers by default, so any value in this header came from the client rather
+    # than from the proxy. Proxies that do provide a timestamp must provide a valid one.
+    if not proxy_info.does_provide_timestamp:
+        start_time_ms = Time.time_ns() // 1_000_000
+    elif not proxy_header_start_time_ms:
         return None
+    else:
+        try:
+            start_time_ms = int(proxy_header_start_time_ms)
+        except ValueError:
+            log.debug(
+                "Received headers to create inferred proxy span but request time is not an integer: %r",
+                proxy_header_start_time_ms,
+            )
+            return None
 
     return ProxyHeaderContext(
         proxy_header_system,
-        proxy_header_start_time_ms,
+        start_time_ms,
         proxy_header_httpmethod,
         proxy_header_path,
         proxy_header_resource_path,

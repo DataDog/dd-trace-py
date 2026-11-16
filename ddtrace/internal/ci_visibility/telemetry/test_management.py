@@ -16,7 +16,7 @@ class TEST_MANAGEMENT_TELEMETRY(str, Enum):
     RESPONSE_TESTS = "test_management_tests.response_tests"
 
 
-def record_test_management_tests_count(test_management_count: int):
+def record_test_management_tests_count(test_management_count: int) -> None:
     log.debug("Recording Test Management tests count telemetry: %s", test_management_count)
     telemetry_writer.add_distribution_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY,

@@ -3,9 +3,9 @@ import typing as t
 
 from envier import En
 
+from ddtrace._trace._registration import register_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
-from ddtrace.internal.products import SubscriberBundle
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
@@ -15,14 +15,6 @@ from ddtrace.internal.utils.formats import parse_tags_str
 log = get_logger(__name__)
 
 requires = ["remote-configuration"]
-
-
-subscriber_bundles = (
-    SubscriberBundle(
-        module="ddtrace._trace.subscribers.web_framework",
-        subscribers=("WebFrameworkRequestSubscriber",),
-    ),
-)
 
 
 class _Config(En):
@@ -57,15 +49,11 @@ def start():
 
         _install_trace_methods(config._trace_methods)
 
-    for bundle in subscriber_bundles:
-        bundle.register()
+    register_subscribers()
 
 
 def restart(join=False):
-    from ddtrace.trace import tracer
-
-    if tracer.enabled:
-        tracer._child_after_fork()
+    pass
 
 
 def stop(join=False):
@@ -193,6 +181,7 @@ def _apply_config_change(config_name, config_value, dd_config):
         )
     elif config_name == "tags":
         tracer._tags = (config_value or {}).copy()
+        tracer._span_aggregator._set_resource_attributes(tracer._tags)
         log.debug("Updated tracer tags via remote_config: %s", tracer._tags)
     elif config_name == "_tracing_enabled":
         if tracer.enabled and config_value is False:

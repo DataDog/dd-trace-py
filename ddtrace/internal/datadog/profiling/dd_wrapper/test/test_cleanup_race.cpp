@@ -161,6 +161,31 @@ proper_shutdown(unsigned int num_threads, unsigned int run_time_ms, unsigned int
     std::exit(0);
 }
 
+// Variant: exit() while threads are still sampling, without explicit cleanup.
+// Embedders such as uWSGI can call exit() while the stack sampler is running, so native exit handlers must not free
+// state the samplers still use.
+void
+exit_while_sampling(unsigned int num_threads, unsigned int run_time_ms, unsigned int sleep_time_ns)
+{
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+
+    std::atomic<bool> done(false);
+    std::vector<pthread_t> thread_handles(num_threads);
+    std::vector<SamplerArg> args;
+
+    for (unsigned int i = 0; i < num_threads; i++) {
+        args.push_back(SamplerArg{ i % 4 + 1, sleep_time_ns, &done });
+    }
+
+    launch_pthread_samplers(args, thread_handles);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(run_time_ms));
+
+    detach_pthread_samplers(thread_handles);
+
+    std::exit(0);
+}
+
 // Tests using death tests to detect crashes/segfaults
 // Note: The "cleanup while sampling" tests may crash due to the race condition.
 // If they pass (exit 0), the race didn't manifest in that run.
@@ -175,6 +200,11 @@ TEST(CleanupRaceDeathTest, ProperShutdown4Threads)
 TEST(CleanupRaceDeathTest, ProperShutdown16Threads)
 {
     EXPECT_EXIT(proper_shutdown(16, 50, 1000), ::testing::ExitedWithCode(0), ".*");
+}
+
+TEST(CleanupRaceDeathTest, ExitWhileSampling)
+{
+    EXPECT_EXIT(exit_while_sampling(16, 50, 100), ::testing::ExitedWithCode(0), ".*");
 }
 
 // // Race condition tests - may crash if race manifests

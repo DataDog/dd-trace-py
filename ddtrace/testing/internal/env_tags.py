@@ -7,6 +7,8 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal import ci
 from ddtrace.testing.internal import git
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED
+from ddtrace.testing.internal.constants import DD_CIVISIBILITY_GIT_UPLOAD_ENABLED
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.git import get_workspace_path
@@ -14,6 +16,7 @@ from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.offline_mode import resolve_rlocation
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.utils import _filter_sensitive_info
+from ddtrace.testing.internal.utils import asbool
 
 
 log = logging.getLogger(__name__)
@@ -99,6 +102,19 @@ def _check_commit_sha_consistency(
     telemetry.record_commit_sha_match(not has_mismatch)
 
 
+def _git_fetch_allowed() -> bool:
+    """Whether git fetches may run during tag collection.
+
+    Both git kill switches default to enabled. Setting either to false opts the
+    repository out of any git network access (deepen/unshallow fetches), including
+    the PR-head metadata enrichment during SessionManager initialization — which
+    runs before the upload path gets a chance to check the switches.
+    """
+    return asbool(env.get(DD_CIVISIBILITY_GIT_UPLOAD_ENABLED, "true")) and asbool(
+        env.get(DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED, "true")
+    )
+
+
 def get_env_tags() -> dict[str, str]:
     # NOTE: In payload-files mode (Bazel sandbox output), CI/Git/OS/runtime tags
     # must NOT be populated from the local environment or git CLI. Instead, the
@@ -124,7 +140,7 @@ def get_env_tags() -> dict[str, str]:
     _check_commit_sha_consistency(user_supplied_tags, ci_provider_tags, local_git_tags)
 
     if head_sha := tags.get(GitTag.COMMIT_HEAD_SHA):
-        merge_tags(tags, git.get_git_head_tags_from_git_command(head_sha))
+        merge_tags(tags, git.get_git_head_tags_from_git_command(head_sha, allow_fetch=_git_fetch_allowed()))
 
     normalize_git_tags(tags)
 

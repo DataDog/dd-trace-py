@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    openfeature: Adds an OpenFeature hook that passes each
+    completed flag evaluation to a callback with the Datadog exposure decision and
+    the selected split's features.
+fixes:
+  - |
+    openfeature: Fixes an issue where an exposure was sent to Datadog for an evaluation that a
+    later OpenFeature ``after`` hook turned into an error.

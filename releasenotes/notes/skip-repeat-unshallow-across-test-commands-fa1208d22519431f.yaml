@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes repeated Git history fetches that slow down successive
+    ``pytest`` commands in the same shallow checkout. Fetches are retried when
+    the checked-out commit or shallow history changes.

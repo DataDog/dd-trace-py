@@ -48,6 +48,7 @@ backoff
 backport
 backported
 backporting
+backports
 Bazel
 bdd
 bikeshedding
@@ -327,6 +328,7 @@ starlette
 statsd
 stderr
 stdout
+streamable
 setuptools
 Str
 stringable

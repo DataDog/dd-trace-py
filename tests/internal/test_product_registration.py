@@ -1,166 +1,23 @@
-from dataclasses import dataclass
-import sys
-from types import ModuleType
-from types import TracebackType
-from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
 
 from ddtrace.internal import core
-from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.subscriber import ContextSubscriber
-from ddtrace.internal.core.subscriber import Subscriber
-from ddtrace.internal.products import ProductManager
-from ddtrace.internal.products import SubscriberBundle
-
-
-@dataclass
-class RegistrationEvent(Event):
-    event_name = "test.product_registration"
-
-
-def test_bundle_registration_is_lazy() -> None:
-    with patch("ddtrace.internal.products.import_module") as load:
-        bundle = SubscriberBundle("example.web", ("RequestSubscriber", "InspectSubscriber"))
-        load.assert_not_called()
-        bundle.register()
-        load.assert_called_once_with("example.web")
-        load.return_value.RequestSubscriber.register.assert_called_once_with()
-        load.return_value.InspectSubscriber.register.assert_called_once_with()
-
-
-def test_shared_bundle_is_idempotent_and_can_restore_listeners() -> None:
-    calls = []
-
-    class RequestSubscriber(Subscriber):
-        auto_register = False
-        event_names = (RegistrationEvent.event_name,)
-
-        @classmethod
-        def on_event(cls, event: RegistrationEvent) -> None:
-            calls.append(event)
-
-    module = ModuleType("example.web")
-    setattr(module, "RequestSubscriber", RequestSubscriber)
-    bundle = SubscriberBundle("example.web", ("RequestSubscriber",))
-    try:
-        with patch("ddtrace.internal.products.import_module", return_value=module):
-            bundle.register()
-            bundle.register()
-            event = RegistrationEvent()
-            core.dispatch_event(event)
-            assert calls == [event]
-
-            RequestSubscriber.unregister()
-            bundle.register()
-            core.dispatch_event(event)
-            assert calls == [event, event]
-    finally:
-        RequestSubscriber.unregister()
-
-
-def test_unregister_unused_bundle_does_not_import() -> None:
-    bundle = SubscriberBundle("unused_product.subscribers", ("Subscriber",))
-    with patch("ddtrace.internal.products.import_module") as load:
-        bundle.unregister()
-        load.assert_not_called()
-
-
-def test_missing_subscriber_does_not_partially_register() -> None:
-    module = ModuleType("example.web")
-    subscriber = Mock()
-    setattr(module, "RequestSubscriber", subscriber)
-    bundle = SubscriberBundle("example.web", ("RequestSubscriber", "MissingSubscriber"))
-    with patch("ddtrace.internal.products.import_module", return_value=module):
-        with pytest.raises(AttributeError, match="MissingSubscriber"):
-            bundle.register()
-    subscriber.register.assert_not_called()
-
-
-def test_unregister_bundle_removes_all_subscribers(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = ModuleType("example.web")
-    calls: list[str] = []
-    for name in ("RequestSubscriber", "InspectSubscriber"):
-        subscriber = Mock()
-        subscriber.unregister.side_effect = lambda name=name: calls.append(name)
-        setattr(module, name, subscriber)
-    monkeypatch.setitem(sys.modules, module.__name__, module)
-    SubscriberBundle(module.__name__, ("RequestSubscriber", "InspectSubscriber")).unregister()
-    assert sorted(calls) == ["InspectSubscriber", "RequestSubscriber"]
-
-
-def test_bundle_import_failure_propagates_to_caller() -> None:
-    bundle = SubscriberBundle("example.web", ("RequestSubscriber",))
-    with patch("ddtrace.internal.products.import_module", side_effect=ImportError("unavailable")):
-        with pytest.raises(ImportError, match="unavailable"):
-            bundle.register()
-
-
-def test_products_can_share_events_without_sharing_listener_ownership(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[str] = []
-
-    class TracingRequestSubscriber(Subscriber):
-        auto_register = False
-        event_names = (RegistrationEvent.event_name,)
-
-        @classmethod
-        def on_event(cls, event: RegistrationEvent) -> None:
-            calls.append("tracing")
-
-    class SecurityRequestSubscriber(ContextSubscriber[RegistrationEvent]):
-        auto_register = False
-        event_names = (RegistrationEvent.event_name,)
-
-        @classmethod
-        def on_started(cls, ctx: core.ExecutionContext[RegistrationEvent]) -> None:
-            calls.append("security:start")
-
-        @classmethod
-        def on_ended(
-            cls,
-            ctx: core.ExecutionContext[RegistrationEvent],
-            exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
-        ) -> None:
-            calls.append("security:end")
-
-    products = []
-    for name, subscriber in (("tracing", TracingRequestSubscriber), ("security", SecurityRequestSubscriber)):
-        module = ModuleType("example." + name)
-        setattr(module, subscriber.__name__, subscriber)
-        monkeypatch.setitem(sys.modules, module.__name__, module)
-        products.append(SubscriberBundle(module.__name__, (subscriber.__name__,)))
-    tracing, security = products
-    try:
-        tracing.register()
-        security.register()
-        security.register()
-        core.dispatch_event(RegistrationEvent())
-        with core.context_with_event(RegistrationEvent()):
-            pass
-        assert calls == ["tracing", "security:start", "security:end"]
-
-        security.unregister()
-        calls.clear()
-        core.dispatch_event(RegistrationEvent())
-        with core.context_with_event(RegistrationEvent()):
-            pass
-        assert calls == ["tracing"]
-    finally:
-        security.unregister()
-        tracing.unregister()
+from ddtrace.internal.core.subscriber import SubscriberBundle
 
 
 def test_tracing_bundle_registration_preserves_request_completion(tracer, test_spans) -> None:
-    from ddtrace._trace.product import subscriber_bundles
+    from ddtrace._trace import product
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.internal.settings._config import Config
     from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.internal.span_bus import span_from_context
 
-    subscriber_bundles[0].register()
-    subscriber_bundles[0].register()
+    core.reset_listeners("context.started.web.request")
+    core.reset_listeners("context.ended.web.request")
+    product.start()
+    product.start()
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
         component="test",
@@ -179,89 +36,96 @@ def test_tracing_bundle_registration_preserves_request_completion(tracer, test_s
     assert test_spans.pop() == [span]
 
 
-@pytest.mark.subprocess
-def test_direct_integration_import_registers_web_subscribers() -> None:
+@pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
+def test_tracing_initialization_supports_manual_instrumentation() -> None:
     import sys
 
-    import ddtrace.contrib  # noqa: F401
+    import ddtrace  # noqa: F401
     from ddtrace.internal import core
     from ddtrace.internal.products import manager
+    from ddtrace.internal.settings._config import config
+    from ddtrace.trace import tracer
 
+    assert tracer.enabled is config._tracing_enabled
     assert manager._products is None
     assert "ddtrace._trace.product" not in sys.modules
+    assert "ddtrace.contrib" not in sys.modules
+    assert "ddtrace._trace.trace_handlers" not in sys.modules
+    assert not core.has_listeners("context.started.web.request")
+    assert not core.has_listeners("context.ended.web.request")
+
+    import ddtrace.contrib  # noqa: F401
+
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
 
 
-@pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])
-def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.MonkeyPatch, shutdown: str) -> None:
-    calls: list[str] = []
-
-    class RequestSubscriber(ContextSubscriber[RegistrationEvent]):
-        auto_register = False
-        event_names = (RegistrationEvent.event_name,)
-
-        @classmethod
-        def on_started(cls, ctx: core.ExecutionContext[RegistrationEvent]) -> None:
-            calls.append("start")
-
-        @classmethod
-        def on_ended(
-            cls,
-            ctx: core.ExecutionContext[RegistrationEvent],
-            exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
-        ) -> None:
-            calls.append("end")
-
-    module = ModuleType("example.managed_subscribers")
-    setattr(module, "RequestSubscriber", RequestSubscriber)
-    monkeypatch.setitem(sys.modules, module.__name__, module)
-    product = Mock()
-    product.requires = []
-    product.enabled.return_value = True
-    product.skip_exit.return_value = False
-    bundle = SubscriberBundle(module.__name__, ("RequestSubscriber",))
-    product.start.side_effect = bundle.register
-    manager = ProductManager()
-    manager._products = [("test", product)]
-    context = core.context_with_event(RegistrationEvent())
-
-    # stop() drains the active context while its completion listener is still registered.
-    def stop(join=False):
-        context.__exit__(None, None, None)
-        bundle.unregister()
-
-    product.stop.side_effect = stop
-    try:
-        manager.start_products()
-        manager.start_products()
-        context.__enter__()
-        assert calls == ["start"]
-        getattr(manager, shutdown)()
-        assert calls == ["start", "end"]
-        with core.context_with_event(RegistrationEvent()):
-            pass
-        assert calls == ["start", "end"]
-    finally:
-        RequestSubscriber.unregister()
-
-
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
 def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     import sys
 
-    from ddtrace._trace.product import subscriber_bundles
+    from ddtrace._trace import product  # noqa: F401
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace._trace._registration import subscriber_bundles
 
     assert subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
+    assert subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS,)
+
+
+@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
+def test_tracing_product_start_registers_unloaded_subscribers() -> None:
+    import sys
+
+    from ddtrace._trace import product
+    from ddtrace.internal import core
+
+    assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
+    assert not core.has_listeners("context.started.web.request")
+    product.start()
+    product.start()
+    assert core.has_listeners("context.started.web.request")
+    assert core.has_listeners("context.ended.web.request")
+
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="test",
+        integration_config=IntegrationConfig(config, "test"),
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        assert span.name == "test.request"
+        assert tracer.current_span() is span
+    assert span.finished
+    assert tracer.current_span() is None
+
+
+@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
+def test_subscriber_package_import_does_not_activate_web_bundle() -> None:
+    import ddtrace._trace.subscribers  # noqa: F401
+    from ddtrace.internal import core
+
+    assert not core.has_listeners("context.started.web.request")
+    assert not core.has_listeners("context.ended.web.request")
 
 
 @pytest.mark.parametrize("tracing_enabled", [True, False])
 def test_tracing_product_registers_bundles_and_retains_listeners_on_stop(tracing_enabled, monkeypatch):
+    from ddtrace._trace import _registration
     from ddtrace._trace import product
 
     bundle = Mock(spec=SubscriberBundle)
-    monkeypatch.setattr(product, "subscriber_bundles", (bundle,))
+    monkeypatch.setattr(_registration, "subscriber_bundles", (bundle,))
     with patch("ddtrace.trace.tracer") as tracer:
         tracer.enabled = tracing_enabled
         tracer.shutdown.side_effect = lambda: bundle.unregister.assert_not_called()
@@ -273,10 +137,11 @@ def test_tracing_product_registers_bundles_and_retains_listeners_on_stop(tracing
 
 
 def test_tracing_product_retains_listeners_when_shutdown_fails(monkeypatch):
+    from ddtrace._trace import _registration
     from ddtrace._trace import product
 
     bundle = Mock(spec=SubscriberBundle)
-    monkeypatch.setattr(product, "subscriber_bundles", (bundle,))
+    monkeypatch.setattr(_registration, "subscriber_bundles", (bundle,))
     with patch("ddtrace.trace.tracer") as tracer:
         tracer.enabled = True
         tracer.shutdown.side_effect = RuntimeError("shutdown failed")

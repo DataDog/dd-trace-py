@@ -347,3 +347,82 @@ def test_stack_respects_explicit_empty_context_for_eager_task() -> None:
         assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in samples)
         assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in samples)
         assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in samples)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_eager_task_own_span",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_labels_eager_task_with_its_own_span() -> None:
+    """Label an eager task's first step with the span it opened, not its creator's."""
+    import asyncio
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import Span
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    spans: dict[str, Span] = {}
+
+    def eager_child_work() -> None:
+        deadline = time.thread_time_ns() + 400_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    # The child runs inside create_task, on top of the parent's frames, while the parent's span is
+    # still open. It starts its own trace, so its samples must carry its own span and endpoint.
+    async def child() -> None:
+        with tracer.start_span(
+            "eager.child", resource="eager-child-endpoint", span_type=ext.SpanTypes.WEB, activate=True
+        ) as span:
+            spans["child"] = span
+            eager_child_work()
+
+    async def main() -> None:
+        loop = asyncio.get_running_loop()
+        loop.set_task_factory(asyncio.eager_task_factory)  # type: ignore[attr-defined]
+        try:
+            with tracer.trace("eager.parent", resource="eager-parent-endpoint", span_type=ext.SpanTypes.WEB) as span:
+                spans["parent"] = span
+                await asyncio.create_task(child(), name="eager-child")
+        finally:
+            loop.set_task_factory(None)
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    asyncio.run(main())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "eager_child_work")
+    # The child must start its own trace, otherwise this test checks the wrong scenario.
+    assert spans["child"].trace_id != spans["parent"].trace_id
+    assert spans["child"]._local_root is spans["child"]
+
+    span_id = pprof_utils.reinterpret_int_as_int64(spans["child"].span_id)
+    parent_span_id = pprof_utils.reinterpret_int_as_int64(spans["parent"].span_id)
+
+    assert samples
+    # None of the child's work may be attributed to the parent, e.g. through the parent task's copy of the
+    # child's frames during the eager step.
+    assert not any(
+        pprof_utils.get_str_label(profile, sample, "trace endpoint") == "eager-parent-endpoint" for sample in samples
+    )
+    assert not any(pprof_utils.get_num_label(profile, sample, "span id") == parent_span_id for sample in samples)
+    assert not any(
+        pprof_utils.get_num_label(profile, sample, "local root span id") == parent_span_id for sample in samples
+    )
+    assert all(
+        pprof_utils.get_str_label(profile, sample, "trace endpoint") == "eager-child-endpoint" for sample in samples
+    )
+    assert all(pprof_utils.get_num_label(profile, sample, "span id") == span_id for sample in samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "local root span id") == span_id for sample in samples)

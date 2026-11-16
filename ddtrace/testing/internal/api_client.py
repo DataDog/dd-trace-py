@@ -9,6 +9,7 @@ import uuid
 
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import SKIPPABLE_ITR_CODE_COVERAGE_HEADER
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -143,8 +144,15 @@ class APIClient:
         known_test_ids: set[TestRef] = set()
         max_pages = _get_known_tests_max_pages()
 
+        pages_fetched = 0
+        # Page-call time includes internal retries and decoding, but excludes merging test identities.
+        total_request_ms = 0.0
+        fetch_sw = StopWatch()
+        fetch_sw.start()
+
         for page_number in range(max_pages):
-            # First page: empty page_info lets backend use its default max (10k).
+            pages_fetched += 1
+            # First page: empty page_info lets the backend choose its default page size.
             # Subsequent pages: only send page_state.
             page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
 
@@ -170,8 +178,12 @@ class APIClient:
                 return set()
 
             try:
+                request_sw = StopWatch()
+                request_sw.start()
                 result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
                 result.on_error_raise_exception()
+                request_sw.stop()
+                total_request_ms += request_sw.elapsed() * 1000
 
             except Exception as e:
                 log.warning("Error getting known tests from API: %s", e)
@@ -220,7 +232,11 @@ class APIClient:
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
             return set()
 
+        fetch_sw.stop()
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
+        self.telemetry_api.record_known_tests_pages_fetched(pages_fetched)
+        self.telemetry_api.record_known_tests_total_fetch_ms(fetch_sw.elapsed() * 1000)
+        self.telemetry_api.record_known_tests_total_request_ms(total_request_ms)
         return known_test_ids
 
     def get_test_management_properties(
@@ -423,9 +439,8 @@ class APIClient:
         # demand), so give it a longer timeout than the global default while the proper per-endpoint timeout lands.
         _extend_timeout = self.service == "dd-trace-py"
         if _extend_timeout:
-            _prev_timeout = self.connector.conn.timeout
-            self.connector.conn.close()
-            self.connector.conn.timeout = max(10.0, _prev_timeout or 0.0)
+            _prev_timeout = self.connector.timeout_seconds
+            self.connector.timeout_seconds = max(10.0, _prev_timeout or 0.0)
         try:
             result = self.connector.post_json(
                 "/api/v2/ci/tests/skippable",
@@ -441,8 +456,7 @@ class APIClient:
             return set(), None
         finally:
             if _extend_timeout:
-                self.connector.conn.close()
-                self.connector.conn.timeout = _prev_timeout
+                self.connector.timeout_seconds = _prev_timeout
 
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()

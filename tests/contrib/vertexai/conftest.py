@@ -64,6 +64,10 @@ def vertexai(ddtrace_global_config, ddtrace_config_vertexai, mock_client, mock_a
             import vertexai
             from vertexai.generative_models import GenerativeModel
 
+            # GenerativeModel resolves a project at construction time; set one so the
+            # tests do not depend on ambient Google Cloud credentials or configuration.
+            vertexai.init(project="test-project", location="us-central1")
+
             with (
                 mock.patch.object(
                     GenerativeModel, "_prediction_client", new_callable=PropertyMock

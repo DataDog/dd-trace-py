@@ -19,6 +19,22 @@ def reconstruct_openai_responses(chunks: list[Any]) -> Any:
     """Rebuild a ``{"output": [...]}`` dict from buffered events, preferring the terminal
     ``response.completed``/``incomplete`` snapshot, then ``output_item.done``, then text deltas.
     """
+    rebuilt = _reconstruct_output(chunks)
+    # A saved prompt resolves its tools server-side; every response snapshot echoes them.
+    tools = next(
+        (
+            getattr(getattr(c, "response", None), "tools", None)
+            for c in reversed(chunks)
+            if getattr(getattr(c, "response", None), "tools", None)
+        ),
+        None,
+    )
+    if tools:
+        rebuilt["tools"] = tools
+    return rebuilt
+
+
+def _reconstruct_output(chunks: list[Any]) -> dict[str, Any]:
     snapshot = next(
         (
             getattr(c, "response", None)

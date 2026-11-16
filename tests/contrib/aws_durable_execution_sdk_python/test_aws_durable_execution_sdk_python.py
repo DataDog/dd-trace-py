@@ -1,16 +1,22 @@
 import json
+import time
+from unittest import mock
 
 import aws_durable_execution_sdk_python as ades
 from aws_durable_execution_sdk_python.config import Duration
 from aws_durable_execution_sdk_python.config import StepConfig
 from aws_durable_execution_sdk_python.retries import RetryStrategyConfig
 from aws_durable_execution_sdk_python.retries import create_retry_strategy
+from aws_durable_execution_sdk_python.waits import WaitForConditionConfig
+from aws_durable_execution_sdk_python.waits import WaitForConditionDecision
 from aws_durable_execution_sdk_python_testing import DurableFunctionTestRunner
 import pytest
 
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python import patch as patch_module
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import unpatch
 from ddtrace.ext import aws_durable
+from ddtrace.internal.utils.version import parse_version
 from tests.utils import override_config
 
 
@@ -18,6 +24,8 @@ SNAPSHOT_IGNORES = [
     "meta.aws.durable.execution_arn",
     "meta.error.stack",
 ]
+
+SDK_VERSION = parse_version(ades.__version__)
 
 
 @pytest.fixture(autouse=True)
@@ -150,7 +158,11 @@ def test_failed_step_attempt_consistent_across_replay(test_spans):
 def test_parallel_propagates_trace_context(test_spans):
     """context.parallel uses TracedThreadPoolExecutor so child step spans inherit the
     trace_id and parent span_id from the parallel span across worker threads.
+
+    Branch executors are not traced, so they must not overwrite the parallel span's
+    operation id with their own.
     """
+    parallel_operation_ids = []
 
     def work(step_context):
         return "done"
@@ -163,17 +175,29 @@ def test_parallel_propagates_trace_context(test_spans):
 
     @ades.durable_execution
     def workflow(event, context):
-        return context.parallel([branch_a, branch_b], name="fan-out")
+        result = context.parallel([branch_a, branch_b], name="fan-out")
+        parallel_operation_ids.extend(
+            op.operation_id for op in context.state.operations.values() if op.name == "fan-out"
+        )
+        return result
 
     with DurableFunctionTestRunner(workflow) as runner:
         runner.run()
 
     parallel_span = test_spans.find_span(name=aws_durable.SPAN_PARALLEL)
+    assert parallel_span.get_tag(aws_durable.TAG_ID) == parallel_operation_ids[0]
     step_spans = list(test_spans.filter_spans(name=aws_durable.SPAN_STEP))
     assert sorted(span.get_tag(aws_durable.TAG_NAME) for span in step_spans) == ["a", "b"]
     for step_span in step_spans:
         assert step_span.trace_id == parallel_span.trace_id
         assert step_span.parent_id == parallel_span.span_id
+
+
+def _is_replaying(context):
+    # SDK 3.x tracks replay status on the DurableContext; 1.x tracks it on the ExecutionState.
+    if hasattr(context, "is_replaying"):
+        return context.is_replaying()
+    return context.state.is_replaying()
 
 
 def test_replay_transitions_to_new_with_datadog_checkpoint():
@@ -191,8 +215,10 @@ def test_replay_transitions_to_new_with_datadog_checkpoint():
     This test drives a real ``DurableFunctionTestRunner`` end-to-end:
     a wait forces a suspend/resume, the integration writes a trace-context
     checkpoint in invocation 1, and on the resume invocation we record
-    ``state.is_replaying()`` after user code catches up.  The SDK must
-    have transitioned out of REPLAY.
+    the replay status after user code catches up.  The SDK must
+    have transitioned out of REPLAY.  SDK 3.x tracks replay per context and
+    has no ``track_replay``, so there it guards that our checkpoints still
+    cannot pin REPLAY.
     """
     snapshots: list[dict] = []
     invocation_index = {"n": 0}
@@ -208,7 +234,7 @@ def test_replay_transitions_to_new_with_datadog_checkpoint():
         snapshots.append(
             {
                 "invocation": invocation_index["n"],
-                "is_replaying": context.state.is_replaying(),
+                "is_replaying": _is_replaying(context),
                 "op_names": sorted((getattr(op, "name", None) or "") for op in context.state.operations.values()),
             }
         )
@@ -298,6 +324,168 @@ def test_persists_trace_context_checkpoint_across_suspend_resume():
         assert forbidden not in headers, f"unexpected non-Datadog header {forbidden!r} in {headers!r}"
 
 
+def test_suspend_during_checkpoint_save_does_not_mark_execute_span_error(test_spans):
+    """SDK 3.x raises SuspendExecution from create_checkpoint when the service revokes
+    the checkpoint token. The suspended invocation's execute span must not be an error.
+    """
+    from aws_durable_execution_sdk_python.exceptions import SuspendExecution
+
+    @ades.durable_execution
+    def workflow(event, context):
+        context.wait(Duration.from_seconds(1), name="pause")
+
+    with mock.patch.object(
+        patch_module, "maybe_save_trace_context_checkpoint", side_effect=SuspendExecution("token revoked")
+    ):
+        with DurableFunctionTestRunner(workflow) as runner:
+            runner.run()
+
+    execute_spans = list(test_spans.filter_spans(name="aws.durable.execute"))
+    assert execute_spans
+    assert all(span.error == 0 for span in execute_spans)
+
+
+def _callback_invocation_settled(runner, execution_arn, callback_id):
+    """True once the invocation that created callback_id has completed.
+
+    The SDK 3.x test runner waits for this before returning a callback; the 1.x
+    runner does not, and completing a callback mid-invocation invalidates that
+    invocation's checkpoint token.
+    """
+    # max_items: the 1.x runner returns 100 events per page by default.
+    events = runner._executor.get_execution_history(execution_arn, max_items=10_000).events
+    for index, event in enumerate(events):
+        details = getattr(event, "callback_started_details", None)
+        if event.event_type == "CallbackStarted" and details is not None and details.callback_id == callback_id:
+            return any(later.event_type == "InvocationCompleted" for later in events[index + 1 :])
+    return False
+
+
+def _run_completing_callback(workflow):
+    """Run a workflow with one callback, completing it once its invocation suspends."""
+    with DurableFunctionTestRunner(workflow) as runner:
+        execution_arn = runner.run_async()
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            callback_id = runner.wait_for_callback(execution_arn, timeout=60)
+            if _callback_invocation_settled(runner, execution_arn, callback_id):
+                runner.send_callback_success(callback_id, result=b'"ok"')
+                break
+            time.sleep(0.1)
+        runner.wait_for_result(execution_arn, timeout=60)
+
+
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_wait_for_condition():
+    """A condition polled twice: the first check suspends the workflow, the second
+    stops polling, and the final invocation replays the completed operation.
+    """
+
+    def stop_on_second_attempt(state, attempt):
+        if attempt >= 2:
+            return WaitForConditionDecision.stop_polling()
+        return WaitForConditionDecision.continue_waiting(Duration.from_seconds(1))
+
+    @ades.durable_execution
+    def workflow(event, context):
+        context.wait_for_condition(
+            lambda state, check_context: state + 1,
+            config=WaitForConditionConfig(wait_strategy=stop_on_second_attempt, initial_state=0),
+            name="poll",
+        )
+        context.wait(Duration.from_seconds(1), name="pause")
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_run_in_child_context():
+    """A child context and its step are traced, then replayed after the wait resumes."""
+
+    @ades.durable_execution
+    def workflow(event, context):
+        context.run_in_child_context(lambda child: child.step(lambda _ctx: "ok", name="inner"), name="child")
+        context.wait(Duration.from_seconds(1), name="pause")
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+
+def test_map_propagates_trace_context(test_spans):
+    """context.map item steps inherit the trace_id and parent span_id from the map span
+    across worker threads, and the map span keeps its own operation id.
+    """
+    map_operation_ids = []
+
+    def process(item_ctx, item, index, items):
+        return item_ctx.step(lambda _ctx: item, name=f"item-{index}")
+
+    @ades.durable_execution
+    def workflow(event, context):
+        result = context.map([1, 2], process, name="items")
+        map_operation_ids.extend(op.operation_id for op in context.state.operations.values() if op.name == "items")
+        return result
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+    map_span = test_spans.find_span(name=aws_durable.SPAN_MAP)
+    assert map_span.get_tag(aws_durable.TAG_ID) == map_operation_ids[0]
+    step_spans = list(test_spans.filter_spans(name=aws_durable.SPAN_STEP))
+    assert sorted(span.get_tag(aws_durable.TAG_NAME) for span in step_spans) == ["item-0", "item-1"]
+    for step_span in step_spans:
+        assert step_span.trace_id == map_span.trace_id
+        assert step_span.parent_id == map_span.span_id
+
+
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_create_callback():
+    """create_callback is traced; waiting on its result suspends the workflow and the
+    resume invocation replays the completed callback.
+    """
+
+    @ades.durable_execution
+    def workflow(event, context):
+        return context.create_callback(name="approval").result()
+
+    _run_completing_callback(workflow)
+
+
+# SDK 3.x runs wait_for_callback's body in a private child context: its operations are
+# direct children of the wait_for_callback span instead of an aws.durable.child_context span.
+@pytest.mark.snapshot(
+    ignores=SNAPSHOT_IGNORES,
+    token="tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk_python.test_wait_for_callback"
+    + ("_sdk3" if SDK_VERSION >= (3, 0, 0) else ""),
+)
+def test_wait_for_callback():
+    """wait_for_callback and its submitter are traced, then replayed once the callback completes."""
+
+    def submitter(callback_id, callback_context):
+        pass
+
+    @ades.durable_execution
+    def workflow(event, context):
+        return context.wait_for_callback(submitter, name="approval")
+
+    _run_completing_callback(workflow)
+
+
+@pytest.mark.skipif(SDK_VERSION < (3, 0, 0), reason="the SDK 1.x test runner cannot resolve chained-invoke targets")
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_invoke():
+    """context.invoke is traced with the target function name, and replayed once the target completes."""
+
+    @ades.durable_execution
+    def workflow(event, context):
+        return context.invoke("target-function", {"x": 1}, name="call")
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.register_function("target-function", lambda payload, lambda_context: payload)
+        runner.run()
+
+
 def test_cross_invocation_tracing_disabled_skips_checkpoint():
     """Opt-out path: with ``cross_invocation_tracing=False`` the integration
     must NOT persist a ``_datadog_*`` checkpoint on suspend.
@@ -378,7 +566,13 @@ def test_durable_context_parent_id_attribute_contract():
     )
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+# SDK 3.x raises StepError instead of CallableRuntimeError when a step exhausts its
+# retries, so the execute span's error.type differs by version.
+@pytest.mark.snapshot(
+    ignores=SNAPSHOT_IGNORES,
+    token="tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk_python.test_workflow_failed_status"
+    + ("_sdk3" if SDK_VERSION >= (3, 0, 0) else ""),
+)
 def test_workflow_failed_status():
     """Step that exhausts retries: terminal aws.durable.execute span has invocation_status=failed."""
 

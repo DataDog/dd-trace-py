@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 
@@ -130,4 +131,7 @@ class NoOpTelemetryWriter:
         pass
 
     def uninstall_excepthook(self) -> None:
+        pass
+
+    def add_passthrough_wrapper(self, wrapper: Callable[..., Any]) -> None:
         pass

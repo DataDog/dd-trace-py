@@ -147,6 +147,12 @@ def _block_request() -> None:
 def _on_request_start(ctx: core.ExecutionContext[Any], request: Any, max_body_size: int) -> None:
     if not asm_config._asm_enabled or get_active_asm_context() is None:
         return
+    # AppSec reads the request before the application, and these reads must not become IAST sources.
+    with iast_disabled_taint_sources():
+        _start_request(ctx, request, max_body_size)
+
+
+def _start_request(ctx: core.ExecutionContext[Any], request: Any, max_body_size: int) -> None:
     logger.debug("aiohttp::srb_on_request")
     set_block_request_callable(_block_request)
     span = span_from_context(ctx)

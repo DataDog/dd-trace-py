@@ -18,6 +18,13 @@ limits to keep their output within the encoding limits.
 for both tracing resource names and API Security endpoint grouping. It operates on
 URLs independently of span processing.
 
+## HTTP span metadata
+
+HTTP tagging resolves optional query-string overrides alongside the integration policy;
+web subscribers pass request data without duplicating URL or query-tag decisions.
+For OpenTelemetry HTTP tags, an explicit override takes precedence over both integration
+query-string settings for clients and servers.
+
 ## Coverage collection contexts
 
 `ModuleCodeCollector.CollectInContext` owns the line and file coverage for one
@@ -66,7 +73,7 @@ gets extended to add support for additional features.
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
 | `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
-| `skip_exit() -> bool` | Return `True` to skip `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
+| `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
@@ -75,29 +82,35 @@ gets extended to add support for additional features.
 ## Subscriber bundles
 
 Products can group related subscribers with `SubscriberBundle` from
-`ddtrace.internal.products`:
+`ddtrace.internal.core.subscriber`:
 
 ```python
-from ddtrace.internal.products import SubscriberBundle
+from ddtrace.internal.core.subscriber import SubscriberBundle
 
-WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
+REQUEST_SUBSCRIBERS = SubscriberBundle(
     module="example_product.subscribers",
     subscribers=("RequestSubscriber", "RequestContextSubscriber"),
 )
 
 def start():
     # Initialize product state before activating its listeners.
-    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    REQUEST_SUBSCRIBERS.register()
 
 
 def stop(join=False):
     # Drain active work before removing its completion listeners.
-    WEB_FRAMEWORK_SUBSCRIBERS.unregister()
+    REQUEST_SUBSCRIBERS.unregister()
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
-and resolves every declared name before registering listeners. Classes must use
-`auto_register = False` so importing their module does not register them implicitly.
+and resolves every declared name before registering listeners. Bundle-managed
+subscribers must set `auto_register = False` so class definitions do not register
+them implicitly. Any compatibility activation during initialization belongs to the product.
+
+Existing subscribers retain automatic registration until their activation paths
+are migrated. Once all consumers register explicitly, automatic registration and
+the `auto_register` flag can be removed.
+
 Repeated registration uses named-listener deduplication and can restore listeners
 after a reset. Import and callback failures propagate to the caller; registration
 is not a transaction across callback failures.
@@ -116,25 +129,48 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
-Tracing groups its web framework subscribers in
-`ddtrace._trace.product.subscriber_bundles`, an ordinary product-local tuple. Its
-`start()` registers the bundles. Its `stop()` shuts down the tracer but keeps the
-bundles registered: tracer shutdown flushes finished traces and stops processors;
-it does not drain request execution contexts. Requests completing afterward still
-need their completion listeners to finish spans and attach final response metadata.
-Keeping listeners registered does not guarantee those spans are exported after
-tracer shutdown.
-Importing `ddtrace._trace.subscribers` also registers the web framework subscriber
-for public integration APIs and configurations that skip tracing product startup.
-Registration is idempotent. Span-dependent integrations retain their request span
-creation and completion listeners. Aiohttp records its tracing decision on each
-request event and can emit metadata-only lifecycle events with
-`DD_TRACE_ENABLED=false`. Standalone security still creates the request span needed
-for AppSec processing. Other subscriber families continue to register automatically.
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`.
+Its `register_subscribers()` helper activates every declared bundle. Product startup
+calls this helper directly. Normal `ddtrace` initialization installs an import hook
+that calls it after the subscriber package loads through contrib. Waiting for the
+package to finish avoids registering against partially initialized subscriber bases
+and preserves lightweight bare tracer imports.
+Listeners remain available with `DD_TRACE_ENABLED=false` so existing
+integrations can finish their spans without enabling tracing. This supports manual
+instrumentation without starting the product manager. `_DD_GLOBAL_TRACER_INIT=false` preserves deferred initialization;
+product startup can still activate the bundles explicitly. The web subscriber uses
+explicit registration rather than class-definition registration. Integrations emit
+events without registering tracing listeners themselves. Repeated activation does not duplicate
+listeners and can restore listeners after a reset.
+Tracing retains its existing shutdown behavior and keeps these listeners registered.
+Other subscriber families continue using class-definition registration until their
+activation paths are migrated.
 
-Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
-`stop()` is not called by the product manager at process exit. Explicit product
-stopping also retains the bundle listeners as described above.
+Tracer shutdown flushes finished traces and stops processors; it does not drain
+request execution contexts. Requests completing afterward still need their completion
+listeners to finish spans and attach final response metadata. Keeping listeners
+registered does not guarantee those spans are exported after tracer shutdown.
+Aiohttp and Bottle record the tracing decision on each request event and can emit
+metadata-only lifecycle events with `DD_TRACE_ENABLED=false`. Standalone security
+still creates the request span needed for AppSec processing. Other span-dependent
+integrations retain their request span creation and completion listeners.
+
+LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
+LLMObs registers the shared lifecycle listener, including when product startup calls
+`LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
+integration adapters also register it when an integration is patched, including direct
+patching while LLMObs is disabled, so APM shadow tags remain available. Unpatching a
+component removes its factory and cached integration; shared listeners stay registered
+so other components and in-flight requests can finish. Product stop and LLMObs disable
+also retain these completion listeners.
+
+AppSec declares exploit-prevention bundles in
+`ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
+only after AppSec is active and exploit prevention is enabled. Direct activation,
+remote activation, and runtime switches share `load_appsec()` / `disable_appsec()`;
+product `stop()` also removes the operation listeners. These bundles do not own
+request cleanup, whose listeners remain registered separately. Repeated activation
+restores listeners after a reset without caching registration state.
 
 ## Remote Configuration Callbacks
 
@@ -373,6 +409,30 @@ forksafe.register(my_after_child_hook)  # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
 ```
 
+When something must happen before and/or after all the `after_in_child` hooks
+in the child (for example, deferring work until every hook has run), register a
+generator function with `forksafe.register`. It becomes a wrapper around the
+hooks: the code before its `yield` runs before them, in registration order, and
+the code after it runs once they have all completed, in reverse order. Either
+part can be empty. A wrapper must yield exactly once; one that raises before
+its `yield` is skipped. Wrappers are always resumed normally: hook exceptions
+are logged and are not propagated to them.
+
+> **Careful:** wrappers are detected with `inspect.isgeneratorfunction`, which
+> recognizes generator functions and bound methods or `functools.partial`
+> objects of them. A callable that only *returns* a generator (a decorator
+> around a generator function, an object whose `__call__` yields, a lambda) is
+> registered as a plain hook instead, and none of its code runs, silently.
+> Register the generator function itself.
+
+```python
+@forksafe.register
+def my_child_wrapper():
+    pause_something()
+    yield  # the after_in_child hooks run here
+    resume_something()
+```
+
 **Keep hooks non-blocking.** By the time a hook registered *after*
 `ddtrace.internal.threads._before_fork` runs, all periodic threads have already
 been stopped, so there are no locks held by those threads to worry about. (Hooks
@@ -417,6 +477,12 @@ In the parent, restarts are **asynchronous**: `_after_fork_parent` merely calls
 forks. Parent-side periodic workers are therefore not immediately active after
 `fork()` returns; components that rely on parent-side metrics or flushing
 immediately after a fork should account for this delay.
+
+A thread stopped with `stop()` before its deferred restart, in the parent or
+the child, stays stopped: the restart only runs its `on_shutdown` callback. A
+`join()` called before the restart does not wait for that callback. A thread
+that is running its `on_shutdown` callback when the fork starts is not
+restarted.
 
 The default `__autorestart__ = True` means that for most `PeriodicService`
 subclasses **no fork-specific code is required** — the protocol handles

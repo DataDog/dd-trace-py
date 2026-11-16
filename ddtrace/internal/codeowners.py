@@ -3,7 +3,7 @@ import re
 from typing import Optional
 
 
-def path_to_regex(pattern: str) -> re.Pattern:
+def path_to_regex(pattern: str) -> re.Pattern[str]:
     """
     source https://github.com/sbdchd/codeowners/blob/c95e13d384ac09cfa1c23be1a8601987f41968ea/codeowners/__init__.py
 
@@ -116,12 +116,12 @@ class Codeowners:
         ".gitlab/CODEOWNERS",
     )
 
-    def __init__(self, path: Optional[str] = None, cwd: Optional[str] = None):
+    def __init__(self, path: Optional[str] = None, cwd: Optional[str] = None) -> None:
         """Initialize Codeowners object.
 
         :param path: path to CODEOWNERS file otherwise try to use any from known locations
         """
-        self.patterns: list[tuple[re.Pattern, list[str]]] = []
+        self.patterns: list[tuple[re.Pattern[str], list[str]]] = []
         self.path: Optional[str] = None
 
         path = path or self.location(cwd)
@@ -147,7 +147,7 @@ class Codeowners:
             return
 
         with open(self.path) as f:
-            patterns = []
+            patterns: list[tuple[re.Pattern[str], list[str]]] = []
             for line in f.readlines():
                 line = line.strip()
 
@@ -170,9 +170,6 @@ class Codeowners:
                     continue
 
                 path = elements[0]
-                if path is None:
-                    continue
-
                 try:
                     pattern = path_to_regex(path)
                 except (ValueError, IndexError):

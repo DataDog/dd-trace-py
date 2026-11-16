@@ -82,7 +82,9 @@ class StackCollector(collector.Collector):
             LOG.error("No safe memory copy method available (safe_memcpy and process_vm_readv both failed).")
             raise collector.CollectorUnavailable
         if not stack.start():
-            LOG.error("Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty.")
+            LOG.error(
+                "[profiling] Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty."
+            )
             raise collector.CollectorUnavailable
 
         # Start native C function call tracking (Python 3.12+ only)
@@ -103,9 +105,12 @@ class StackCollector(collector.Collector):
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
                 core.on("trace.span_finish", _unlink_finished_span)
+                # Spans discarded by a MicroVM identity refresh skip trace.span_finish.
+                core.on("trace.span_discard", _unlink_finished_span)
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
                 core.reset_listeners("trace.span_finish", _unlink_finished_span)
+                core.reset_listeners("trace.span_discard", _unlink_finished_span)
                 raise
 
     def _link_span(
@@ -177,6 +182,7 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
             core.reset_listeners("trace.span_finish", _unlink_finished_span)
+            core.reset_listeners("trace.span_discard", _unlink_finished_span)
         LOG.debug("[profiling] StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop

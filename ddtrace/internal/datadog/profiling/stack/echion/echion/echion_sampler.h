@@ -64,6 +64,9 @@ class EchionSampler
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
     std::optional<BoundaryFrame> uvloop_boundary_frame_;
     std::unordered_set<PyObject*> previous_task_objects_;
+    // Weakly linked children that were missing from the last Task snapshot. Always a subset of the
+    // weak_task_link_map_ keys. Guarded by task_link_map_lock_.
+    std::unordered_set<PyObject*> missing_weak_link_children_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
     // (Sampler::sampling_thread) touches this. unwind_frame clears it on
@@ -144,6 +147,36 @@ class EchionSampler
     std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
     std::mutex& task_link_map_lock() { return task_link_map_lock_; }
 
+    // The caller must hold task_link_map_lock_.
+    void weak_link_task(PyObject* parent, PyObject* child)
+    {
+        weak_task_link_map_[child] = parent;
+        // Give a new link the full grace period of prune_weak_task_links, even if a finished Task at
+        // the same address was missing from the last snapshot.
+        missing_weak_link_children_.erase(child);
+    }
+
+    // Remove the weak links of children that are missing from two Task snapshots in a row. A child can be
+    // missing from one snapshot without having finished: it may have been created and linked after the
+    // snapshot was taken, or the lock-free snapshot may have failed to read it. Removing its link then
+    // would detach it from its parent for the rest of its life.
+    // The caller must hold task_link_map_lock_.
+    void prune_weak_task_links(const std::unordered_set<PyObject*>& live_task_origins)
+    {
+        for (auto it = weak_task_link_map_.begin(); it != weak_task_link_map_.end();) {
+            PyObject* child = it->first;
+            if (live_task_origins.find(child) != live_task_origins.end()) {
+                missing_weak_link_children_.erase(child);
+                ++it;
+            } else if (missing_weak_link_children_.erase(child) > 0) {
+                it = weak_task_link_map_.erase(it);
+            } else {
+                missing_weak_link_children_.insert(child);
+                ++it;
+            }
+        }
+    }
+
     std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }
     std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>& greenlet_parent_map() { return greenlet_parent_map_; }
     std::unordered_map<uintptr_t, GreenletInfo::ID>& greenlet_thread_map() { return greenlet_thread_map_; }
@@ -152,9 +185,21 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_.load(std::memory_order_relaxed); }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_.load(std::memory_order_relaxed); }
 
-    // TODO: When these offsets come from CPython's runtime AsyncioDebug table, also check that table's task layout
-    // (size, task_name, task_awaited_by, task_is_task, task_awaited_by_is_set, task_coro, task_node) against Echion's
-    // compile-time TaskObj mirror.
+#if PY_VERSION_HEX >= 0x030e0000
+    // The TaskObj layout Echion's task unwinding was compiled against. Runtime AsyncioDebug tables must match it
+    // exactly before their list-head offsets are used.
+    static AsyncioTaskLayout asyncio_mirror_task_layout()
+    {
+        return AsyncioTaskLayout{ sizeof(TaskObj),
+                                  offsetof(TaskObj, task_name),
+                                  offsetof(TaskObj, task_awaited_by),
+                                  offsetof(TaskObj, task_is_task),
+                                  offsetof(TaskObj, task_awaited_by_is_set),
+                                  offsetof(TaskObj, task_coro),
+                                  offsetof(TaskObj, task_node) };
+    }
+#endif
+
     void set_asyncio_offsets(const AsyncioOffsets& offsets)
     {
         asyncio_interpreter_tasks_head_offset_.store(offsets.interpreter_tasks_head, std::memory_order_relaxed);
@@ -279,6 +324,7 @@ class EchionSampler
         new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
         new (&previous_task_objects_) std::unordered_set<PyObject*>();
+        new (&missing_weak_link_children_) std::unordered_set<PyObject*>();
 
         asyncio_boundary_frame_.reset();
         uvloop_boundary_frame_.reset();

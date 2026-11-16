@@ -11,6 +11,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._native import DEPENDENT_FLAG_VARIANT_KEY_V1
+from ddtrace.internal.openfeature._native import get_evaluator_capabilities
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
@@ -124,10 +126,16 @@ _featureflag_rc_callback = FeatureFlagCallback()
 
 def enable_featureflags_rc() -> None:
     log.debug("Feature Flags: starting remote_config configuration source (Agent Remote Configuration)")
+    capabilities = [RemoteConfigCapabilities.FfeFlagConfigurationRules]
+    dependent_flags_capability = getattr(RemoteConfigCapabilities, "FfeFlagDependentFlagVariantKeyV1", None)
+    # The RC enum describes the wire protocol, not the evaluator's support. A
+    # native-library upgrade can add the enum before dependency evaluation exists.
+    if dependent_flags_capability is not None and DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
+        capabilities.append(dependent_flags_capability)
     remoteconfig_poller.register_callback(
         FFE_FLAGS_PRODUCT,
         _featureflag_rc_callback,
-        capabilities=[RemoteConfigCapabilities.FfeFlagConfigurationRules],
+        capabilities=capabilities,
     )
     remoteconfig_poller.enable_product(FFE_FLAGS_PRODUCT)
 

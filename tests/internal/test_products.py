@@ -382,6 +382,12 @@ def test_remote_product_start_does_not_import_threading():
 
     assert "threading" not in sys.modules
 
+    if name == "llmobs":
+        from ddtrace import config
+
+        # The Remote Config handler sets this before it enables LLMObs. Without it, start() does nothing.
+        config._config["_llmobs_enabled"].set_value(True, "remote_config")
+
     errors = []
 
     def start():

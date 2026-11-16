@@ -98,11 +98,8 @@ def test_filters():
     tracer.flush()
 
 
-# Have to use sync mode snapshot so that the traces are associated to this
-# test case since we use a custom writer (that doesn't have the trace headers
-# injected).
 @pytest.mark.subprocess()
-@snapshot(async_mode=False)
+@snapshot()
 def test_synchronous_writer():
     from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer
@@ -123,7 +120,7 @@ def test_synchronous_writer():
     PYTHON_VERSION_INFO >= (3, 14),
     reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
 )
-@snapshot(async_mode=False)
+@snapshot()
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
     """
@@ -153,7 +150,7 @@ def test_tracer_trace_across_popen():
     PYTHON_VERSION_INFO >= (3, 14),
     reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
 )
-@snapshot(async_mode=False)
+@snapshot()
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():
     """
@@ -238,12 +235,8 @@ def test_tracetagsprocessor_only_adds_new_tags():
 # (The snapshots should be equivalent)
 @snapshot(token_override="tests.integration.test_integration_snapshots.test_env_vars")
 @pytest.mark.parametrize("use_ddtracerun", [True, False])
-def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess):
+def test_env_vars(use_ddtracerun, python_process):
     """Ensure environment variable config is respected by ddtrace-run usages as well as regular."""
-    if use_ddtracerun:
-        fn = ddtrace_run_python_code_in_subprocess
-    else:
-        fn = run_python_code_in_subprocess
 
     env = os.environ.copy()
     env.update(
@@ -254,7 +247,7 @@ def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_pyt
         )
     )
 
-    fn(
+    python_process(
         """
 import ddtrace.auto
 
@@ -262,7 +255,8 @@ from ddtrace.trace import tracer
 tracer.trace("test-op").finish()
 """,
         env=env,
-    )
+        ddtrace_run=use_ddtracerun,
+    ).check_returncode()
 
 
 @pytest.mark.snapshot(token="tests.integration.test_integration_snapshots.test_snapshot_skip")
@@ -334,9 +328,8 @@ def test_signal_shutdown_flushes_traces(
     signum,
     api_version,
     compute_stats,
-    tmpdir,
-    ddtrace_run_python_code_in_subprocess,
-    run_python_code_in_subprocess,
+    tmp_path,
+    python_process,
     snapshot_context,
 ):
     """
@@ -345,10 +338,9 @@ def test_signal_shutdown_flushes_traces(
     The subprocess creates a trace, signals it's ready, then waits. The parent sends
     the specified signal, and the tracer should flush traces before exiting.
     """
-    import subprocess
-    import sys
-
     code = """
+from pathlib import Path
+import sys
 import time
 
 from ddtrace.trace import tracer
@@ -361,7 +353,7 @@ with tracer.trace("signal-shutdown-test", service="signal-test-svc"):
 # a race condition if the parent sends a signal before initialization completes
 try:
     time.sleep(0.25)
-    print("READY", flush=True)
+    Path(sys.argv[1]).touch()
 
     # Busy loop waiting to get killed by parent
     # time.sleep(30) sometimes causes the process to block the signal handling
@@ -372,14 +364,9 @@ except KeyboardInterrupt:
     pass
 """
 
-    # Write code to temp file
-    pyfile = tmpdir.join("test_signal_shutdown.py")
-    pyfile.write(code)
-
-    # Build command
-    cmd = [sys.executable, str(pyfile)]
-    if use_ddtrace_run:
-        cmd = ["ddtrace-run"] + cmd
+    pyfile = tmp_path / "test_signal_shutdown.py"
+    pyfile.write_text(code)
+    ready = tmp_path / "ready"
 
     # Use different snapshot tokens for stats vs nostats since stats sends additional payloads
     token = "tests.integration.test_integration_snapshots.test_signal_shutdown_flushes_traces"
@@ -392,6 +379,7 @@ except KeyboardInterrupt:
         token=token,
         ignores=["meta._dd.base_service"],
         variants=variants,
+        compute_stats_enabled=compute_stats == "true",
     ):
         # Copy environment INSIDE snapshot_context so it includes the test session token
         env = os.environ.copy()
@@ -399,50 +387,14 @@ except KeyboardInterrupt:
             {
                 "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
                 "DD_TRACE_API_VERSION": api_version,
-                "DD_TRACE_COMPUTE_STATS": compute_stats,
+                "DD_TRACE_STATS_COMPUTATION_ENABLED": compute_stats,
             }
         )
 
-        # Start subprocess - capture stderr to see what it's sending
-        proc = subprocess.Popen(
-            cmd,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,  # Capture stderr instead of passing through
-        )
-
-        try:
-            ready = False
-            while True:
-                line = proc.stdout.readline()
-                if not line:
-                    break
-
-                if b"READY" in line:
-                    ready = True
-                    break
-
-            if not ready:
-                proc.kill()
-                _, stderr = proc.communicate()
-                pytest.fail(f"Subprocess did not signal ready. Got: {line!r}, stderr: {stderr.decode()}")
-
-            # Send the signal
-            os.kill(proc.pid, signum)
-
-            # Wait for process to exit (should flush traces during shutdown)
-            # Tracer has SHUTDOWN_TIMEOUT=5s, allow some extra time for test agent communication
-            try:
-                proc.communicate(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.communicate()
-                pytest.fail("Process did not exit after SIGTERM")
-
-        finally:
-            if proc.poll() is None:
-                proc.kill()
-                proc.communicate()
+        with python_process.start_file(pyfile, args=(str(ready),), ddtrace_run=use_ddtrace_run, env=env) as child:
+            child.wait_until(ready.exists)
+            os.kill(child.pid, signum)
+            child.wait(timeout=10)
 
 
 @pytest.mark.subprocess(err=None, env={"DD_TRACE_WRITER_INTERVAL_SECONDS": "30"})
@@ -484,3 +436,34 @@ def test_writer_restarts_in_child_and_flushes_traces_after_fork():
 
     os.waitpid(pid, 0)
     tracer.flush()
+
+
+def test_snapshot_attempt_isolates_late_previous_producer(snapshot_context, run_python_code_in_subprocess):
+    code = """
+from ddtrace import tracer
+with tracer.trace("operation", service="my-svc") as span:
+    span.set_tag("k", "v")
+    span.set_tag("num", 1234)
+    span._set_attribute("float_metric", 12.34)
+    span._set_attribute("int_metric", 4321)
+tracer.shutdown()
+"""
+    name = "tests.integration.test_integration_snapshots.test_single_trace_single_span"
+    with snapshot_context(token=name) as first:
+        previous_env = os.environ.copy()
+        _, err, status, _ = run_python_code_in_subprocess(code, env=previous_env)
+        assert status == 0, err
+
+    assert first.requests() == []
+    with snapshot_context(token=name) as second:
+        assert first.token != second.token
+        _, err, status, _ = run_python_code_in_subprocess(code, env=previous_env)
+        assert status == 0, err
+        _, err, status, _ = run_python_code_in_subprocess(code, env=os.environ.copy())
+        assert status == 0, err
+        assert len([r for r in first.requests() if r["url"].endswith("/traces")]) == 1
+        assert len([r for r in second.requests() if r["url"].endswith("/traces")]) == 1
+    assert second.requests() == []
+    assert len([r for r in first.requests() if r["url"].endswith("/traces")]) == 1
+    first.clear()
+    assert first.requests() == []

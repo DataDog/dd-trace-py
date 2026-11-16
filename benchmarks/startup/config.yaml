@@ -41,6 +41,14 @@ ddtrace_run_appsec:
   <<: *defaults
   env: {"DD_APPSEC_ENABLED": "true"}
   ddtrace_run: true
+ddtrace_run_llmobs:
+  <<: *defaults
+  # Use agent transport so startup does not require an API key.
+  env:
+    DD_LLMOBS_ENABLED: "true"
+    DD_LLMOBS_AGENTLESS_ENABLED: "false"
+    DD_SERVICE: "startup-benchmark"
+  ddtrace_run: true
 ddtrace_run_profiling:
   <<: *defaults
   env: {"DD_PROFILING_ENABLED": "true"}

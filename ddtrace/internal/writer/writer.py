@@ -154,13 +154,9 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def flush_queue(self) -> None:
         pass
 
-    def _stop_accepting_writes(self) -> None:
-        """Reject later writes. MicroVM identity refresh calls this on the writer it replaces."""
-        # Only MicroVM writers have a writer lock; elsewhere there is no refresh and nothing to close.
-        writer_lock = getattr(self, "_writer_lock", None)
-        if writer_lock is not None:
-            with writer_lock:
-                self._accepting_writes = False
+    def drop_buffered_traces(self) -> None:
+        """Discard traces buffered by the writer without flushing them."""
+        pass
 
 
 class LogWriter(TraceWriter):
@@ -507,11 +503,39 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._record_trace_telemetry("spans_enqueued_for_serialization", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._flush_queue_unlocked(raise_exc)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._flush_queue_unlocked(raise_exc)
+
+    def _flush_queue_unlocked(self, raise_exc: bool = False):
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
+    def drop_buffered_traces(self) -> None:
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._drop_buffered_traces_unlocked()
+            return
+        with writer_lock:
+            self._accepting_writes = False
+            # An encoder lock may be held by a thread that did not survive the MicroVM fork.
+            # The disabled writer will be recreated without flushing or reusing this buffer.
+
+    def _drop_buffered_traces_unlocked(self) -> None:
+        for client in self._clients:
+            for clear_method in ("get", "_init_buffer", "flush"):
+                clear = getattr(client.encoder, clear_method, None)
+                if clear is not None:
+                    clear()
+                    break
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
@@ -566,6 +590,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._metrics_dist("encoder.dropped.traces", n_traces)
                 self._record_trace_telemetry("spans_dropped", n_spans, (("reason", "serialization_error"),))
                 return
+
+        if self._writer_lock is not None and not self._accepting_writes:
+            return
 
         try:
             response = self._send_payload_with_backoff(encoded, n_traces, client)
@@ -661,9 +688,10 @@ class AgentWriterInterface(metaclass=abc.ABCMeta):
     intake_url: str
     _api_version: str
     _sync_mode: bool
+    _compute_stats_enabled: bool
 
     @abc.abstractmethod
-    def set_test_session_token(self, token: Optional[str]) -> None:
+    def set_test_session_token(self, token: Optional[str], compute_stats_enabled: Optional[bool] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -735,8 +763,8 @@ def _build_base_exporter_builder(
         .set_language_version(compat.PYTHON_VERSION)
         .set_language_interpreter(compat.PYTHON_INTERPRETER)
         .set_tracer_version(__version__)
-        .set_git_commit_sha(commit_sha)
         .set_runtime_id(get_runtime_id())
+        .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
     # Python recreates the exporter lazily in the child, so its inherited workers
@@ -818,6 +846,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         otlp_metrics_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
         agentless_stats_endpoint: Optional[str] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -853,6 +882,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
+        # Keep a copy so in-place tracer tag updates remain detectable.
+        self._resource_attributes = {
+            key: value
+            for key, value in (resource_attributes or {}).items()
+            if isinstance(key, str) and isinstance(value, str)
+        }
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._api_key = api_key
         self._agentless_stats_endpoint = agentless_stats_endpoint
@@ -870,14 +905,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-        # Identity refresh closes this writer before stopping it; the replacement writer accepts writes.
+        # Identity refresh disables this writer before clearing its buffer; the replacement writer accepts writes.
         self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
         self._accepting_writes = True
+        self._exporter_dropped = False
         self._owner_pid = os.getpid()
 
         # Native exporter methods require exclusive access because PyO3 rejects
         # overlapping mutable borrows.
         self._exporter_lock = forksafe.RLock()
+        # MicroVM stop must close publication without waiting on an exporter send or build.
+        self._exporter_lifecycle_lock = forksafe.RLock() if self._writer_lock is not None else self._exporter_lock
+        self._exporter_stopping = False
         self._exporter = self._create_exporter()
 
     def __del__(self) -> None:
@@ -887,8 +926,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if getattr(self, "_owner_pid", None) != os.getpid():
                 return
             exporter = getattr(self, "_exporter", None)
-            if exporter is not None:
-                self._shutdown_exporter(exporter)
+            if exporter is not None and not getattr(self, "_exporter_dropped", False):
+                if self._discarded_by_refresh:
+                    # The refresh's nonblocking drop can lose the lock to a non-send holder (e.g. the
+                    # telemetry callback) that never retries. Shutting down would flush the old stats now;
+                    # drop() still leaves the exporter's native workers running (see the MicroVM known gap).
+                    self._drop_exporter()
+                else:
+                    self._shutdown_exporter(exporter)
         except Exception:  # nosec B110 - destructors must not raise
             pass
 
@@ -914,6 +959,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     @property
     def agentless(self) -> bool:
         return self._api_key is not None
+
+    @property
+    def _discarded_by_refresh(self) -> bool:
+        # Only MicroVM writers have a writer lock, so this is always False elsewhere.
+        return self._writer_lock is not None and not self._accepting_writes
 
     def _create_exporter(self) -> native.TraceExporter:
         builder = _build_base_exporter_builder(
@@ -972,6 +1022,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
         return exporter
 
+    def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
+        self._resource_attributes = {
+            key: value for key, value in attributes.items() if isinstance(key, str) and isinstance(value, str)
+        }
+
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
         try:
@@ -980,7 +1035,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except Exception:
             log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
-    def _shutdown_exporter(self, exporter: native.TraceExporter) -> None:
+    def _shutdown_exporter(self, exporter: native.TraceExporter, timeout: float = 3.0) -> None:
         """Shut down a native exporter, swallowing a Rust panic from its tokio I/O driver.
 
         The exporter can panic here after a fork; since the exporter is always
@@ -989,7 +1044,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         """
         with self._exporter_lock:
             try:
-                exporter.shutdown(3_000_000_000)
+                exporter.shutdown(int(max(timeout, 0) * 1_000_000_000))
             except Exception:
                 _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
             except BaseException as e:
@@ -997,19 +1052,54 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     raise
                 _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
-    def set_test_session_token(self, token: Optional[str]) -> None:
-        """
-        Set the test session token and recreate the exporter with the new configuration.
-        :param token: The test session token to use for authentication.
-        """
+    def set_test_session_token(self, token: Optional[str], compute_stats_enabled: Optional[bool] = None) -> None:
+        """Recreate the exporter with a test token, optionally changing stats computation."""
         self._test_session_token = token
-        old_exporter = self._exporter
-        self._exporter = self._create_exporter()
+        if compute_stats_enabled is not None:
+            self._compute_stats_enabled = compute_stats_enabled
+        new_exporter = self._create_exporter()
+        with self._exporter_lock:
+            old_exporter, self._exporter = self._exporter, new_exporter
         self._shutdown_exporter(old_exporter)
 
-    def shutdown_exporter(self) -> None:
+    def _begin_shutdown(self) -> None:
+        if self._writer_lock is not None:
+            with self._exporter_lifecycle_lock:
+                self._exporter_stopping = True
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        # Close publication even when the periodic service never started, or its join times out.
+        self._begin_shutdown()
+        super().stop(timeout)
+
+    def shutdown_exporter(self, timeout: float = 3.0) -> None:
         """Tear down the native exporter without going through ``stop()``."""
-        self._shutdown_exporter(self._exporter)
+        self._begin_shutdown()
+        if self._writer_lock is None:
+            self._shutdown_exporter(self._exporter, timeout)
+            return
+        with self._exporter_lock:
+            if self._discarded_by_refresh:
+                self._drop_exporter()
+            else:
+                # Refresh can close the gate after this check. Current libdatadog cannot
+                # cancel native shutdown, so a racing shutdown may still flush old stats.
+                self._shutdown_exporter(self._exporter, timeout)
+
+    def _drop_exporter(self) -> None:
+        with self._exporter_lock:
+            # The refresh, the finishing sender, and on_shutdown() may all get here; only one drops.
+            if not self._exporter_dropped:
+                self._exporter.drop()
+                self._exporter_dropped = True
+
+    def _try_drop_exporter(self) -> None:
+        # Never waits: a send in flight holds the lock and retries this once it releases it.
+        if self._exporter_lock.acquire(blocking=False):
+            try:
+                self._drop_exporter()
+            finally:
+                self._exporter_lock.release()
 
     def recreate(
         self,
@@ -1020,14 +1110,26 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> "NativeWriter":
         # Ensure AppSec metadata / LLM Observability meta_struct payload is encoded by setting
         # the API version to v0.4.
+        exporter_dropped = self._exporter_dropped
         try:
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
         except ServiceStatusError:
             # Writers like AgentWriter may not start until the first trace is encoded.
             # Stopping them before that will raise a ServiceStatusError.
-            self.shutdown_exporter()
+            if not exporter_dropped and not self._discarded_by_refresh:
+                self.shutdown_exporter()
 
+        return self._recreate(appsec_enabled, llmobs_enabled, compute_stats_enabled, stats_opt_out)
+
+    def _recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
+    ) -> "NativeWriter":
+        """Build a replacement without stopping this writer."""
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         agentless_stats_endpoint = self._agentless_stats_endpoint
         otlp_metrics_endpoint = self._otlp_metrics_endpoint
@@ -1060,15 +1162,44 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_metrics_endpoint=otlp_metrics_endpoint,
             api_key=self._api_key,
             agentless_stats_endpoint=agentless_stats_endpoint,
+            resource_attributes=self._resource_attributes,
         )
 
     def _downgrade(self, status, client):
+        if self._discarded_by_refresh:
+            return  # Do not rebuild the exporter or flush the old one's stats by shutting it down.
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
-            old_exporter = self._exporter
-            self._exporter = self._create_exporter()
-            self._shutdown_exporter(old_exporter)
+            if self._exporter_stopping:
+                return  # No exporter is needed for a writer that is stopping.
+            # Built outside the exporter lock: _create_exporter() can take the telemetry enable lock,
+            # whose holder notifies _on_telemetry_worker_changed(), which takes the exporter lock.
+            new_exporter = self._create_exporter()
+            with self._exporter_lock, self._exporter_lifecycle_lock:
+                # Stop closes publication under the lifecycle lock before joining the worker.
+                # A build that finishes later must not install an exporter on the stopped writer.
+                discarded = self._discarded_by_refresh
+                stopping = self._exporter_stopping
+                if not discarded and not stopping:
+                    old_exporter, self._exporter = self._exporter, new_exporter
+            if discarded:
+                new_exporter.drop()
+                return
+            if stopping:
+                # This unused exporter has no trace data to flush. Stop its native workers
+                # instead of leaking them through drop() during ordinary shutdown.
+                self._shutdown_exporter(new_exporter)
+                return
+            with self._exporter_lock:
+                # MicroVM refresh closes the gate without this lock, so even a final recheck can
+                # race shutdown. Always drop here; a flushing shutdown could outlive the refresh.
+                # Without a refresh this leaves the old exporter's native workers running (see the
+                # MicroVM known gap); a writer downgrades at most once, so at most one set leaks.
+                if self._writer_lock is not None:
+                    old_exporter.drop()
+                else:
+                    self._shutdown_exporter(old_exporter)
 
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
@@ -1129,6 +1260,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
             with self._exporter_lock:
+                # drop_buffered_traces() closes the gate before taking this lock, so no send
+                # starts after a refresh and none reaches a dropped exporter.
+                if self._discarded_by_refresh:
+                    return
+                if self._otlp_endpoint is not None:
+                    self._exporter.set_otlp_resource_attributes(self._resource_attributes)
                 response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
@@ -1142,6 +1279,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 raise e
         finally:
             self._metrics["sent_traces"] += count
+            # Checked only after the exporter lock is released, so a refresh that failed to take it
+            # has already closed the gate (see drop_buffered_traces()).
+            if self._discarded_by_refresh and not self._exporter_dropped:
+                self._try_drop_exporter()
+
+        # Best effort: a refresh that lands after this check can still apply one pre-refresh response.
+        # That only restores agent rates the sampler kept across the refresh; the next response replaces them.
+        if self._discarded_by_refresh:
+            return
 
         if self._response_cb:
             response = Response(body=response_body)
@@ -1155,25 +1301,27 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
-        # Identity refresh can close this writer concurrently; only MicroVM writers need this lock.
+        if self._write_without_flush(spans) and self._sync_mode:
+            self.flush_queue()
+
+    def _write_without_flush(self, spans: Optional[Sequence[SpanData]] = None) -> bool:
+        """Buffer spans; return False if an identity refresh already discarded this writer."""
+        # Identity refresh can discard the buffer concurrently; only MicroVM writers need this lock.
         writer_lock = self._writer_lock
         if writer_lock is None:
             self._write_unlocked(spans)
-            return
+            return True
         with writer_lock:
             if not self._accepting_writes:
-                return
+                return False
             self._write_unlocked(spans)
+            return True
 
     def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
         for client in self._clients:
             self._write_with_client(client, spans=spans)
-        if self._sync_mode:
-            # Flush under the writer lock: once refresh closes this writer, recreate() shuts down
-            # a sync writer's exporter, so a flush after that would send through a dead exporter.
-            self.flush_queue()
 
     @staticmethod
     def _set_otlp_trace_context(spans: Sequence[SpanData]) -> None:
@@ -1244,11 +1392,30 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
+        # Not under the writer lock: span finishes take it under the span aggregator lock, so it
+        # must not be held across send() retries. _send_payload() rechecks the gate atomically.
+        if self._discarded_by_refresh:
+            return
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
+    def drop_buffered_traces(self) -> None:
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            for client in self._clients:
+                getattr(client.encoder, "flush")()
+            return
+        with writer_lock:
+            self._accepting_writes = False
+            # An encoder lock may be held by a thread that did not survive the MicroVM fork.
+            # The disabled writer will be recreated without flushing or reusing this buffer.
+        # A send in flight holds the exporter lock; it drops the exporter once it releases the lock.
+        # The gate is closed before trying the lock, so that sender cannot miss the discard.
+        if not self._exporter_dropped:
+            self._try_drop_exporter()
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
@@ -1269,6 +1436,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
     ) -> None:
         if encoded is None:
+            return
+        if self._discarded_by_refresh:
             return
         try:
             self._send_payload(encoded, n_traces, client)
@@ -1298,13 +1467,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super()._stop_service()
+        if self._discarded_by_refresh:
+            return  # Never wait on a send stuck in retries.
         self.join(timeout=timeout)
 
     def on_shutdown(self):
+        if self._exporter_dropped:
+            return
+        if self._discarded_by_refresh:
+            # Finish the refresh's discard without the final flush. drop() avoids shutdown()'s stats flush but
+            # leaves the exporter's native workers running (see the MicroVM known gap).
+            self._drop_exporter()
+            self._exporter_dropped = True
+            return
         try:
             self.periodic()
         finally:
-            self._shutdown_exporter(self._exporter)
+            self.shutdown_exporter()
 
 
 def _use_log_writer() -> bool:
@@ -1380,6 +1559,7 @@ def _drop_conflicting_otlp_metrics_endpoint(
 def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
+    resource_attributes: Optional[dict[str, str]] = None,
 ) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
@@ -1412,6 +1592,7 @@ def create_trace_writer(
             # combined with agentless. OTLP trace metrics are permitted, and go to the intake.
             otlp_metrics_endpoint=otlp_metrics_endpoint,
             agentless_stats_endpoint=agentless_stats_endpoint,
+            resource_attributes=resource_attributes,
         )
 
     verify_url(agent_config.trace_agent_url)
@@ -1426,5 +1607,6 @@ def create_trace_writer(
         response_callback=response_callback,
         stats_opt_out=standalone_config.apm_opt_out,
         otlp_endpoint=otlp_endpoint,
+        resource_attributes=resource_attributes,
         otlp_metrics_endpoint=otlp_metrics_endpoint,
     )
