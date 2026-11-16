@@ -396,13 +396,18 @@ def build_environment(python: str) -> tuple[str, dict[str, str]]:
 
 
 def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: list[str]) -> Path:
-    """Build, repair, repack and install the wheel of the pin. Return the path of the wheel."""
+    """Build, repair, repack and install the wheel of the pin. Return the path of the wheel.
+
+    The wheel goes into output_dir only after all the checks pass, because the upload command
+    uploads all the wheels in that directory.
+    """
     interpreter, tags = python_tags(python)
     python_bin, env = build_environment(python)
     with tempfile.TemporaryDirectory() as temporary:
         work_dir = Path(temporary)
         built_dir = work_dir / "built"
         repaired_dir = work_dir / "repaired"
+        repacked_dir = work_dir / "repacked"
         _run(
             [
                 python_bin,
@@ -425,9 +430,9 @@ def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: 
         )
         built = _single_wheel(built_dir)
         if all(tag.abi == "none" and tag.platform == "any" for tag in parse_wheel_filename(built.name)[3]):
-            wheel = repack_wheel(built, local_version, output_dir, log, tag=f"{interpreter}-none-any")
+            wheel = repack_wheel(built, local_version, repacked_dir, log, tag=f"{interpreter}-none-any")
         else:
-            wheel = repack_wheel(repair_wheel(built, repaired_dir, log), local_version, output_dir, log)
+            wheel = repack_wheel(repair_wheel(built, repaired_dir, log), local_version, repacked_dir, log)
         name, version, _, wheel_tags = parse_wheel_filename(wheel.name)
         if name != pin.name or Version(version.public) != Version(pin.version):
             raise BuildError(f"expected a wheel for {pin}, found {wheel.name}")
@@ -441,7 +446,8 @@ def build_pin(pin: Pin, python: str, local_version: str, output_dir: Path, log: 
         installed = re.search(r"(?m)^Version: (\S+)$", _run([*pip, "show", pin.name], log))
         if not installed or installed[1] != str(version):
             raise BuildError(f"the installed {pin.name} does not have the version {version}")
-        return wheel
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return Path(shutil.move(str(wheel), str(output_dir / wheel.name)))
 
 
 def build(python: str, local_version: str, output_dir: Path, jobs: int, upstream_url: str, index_url: str) -> int:
