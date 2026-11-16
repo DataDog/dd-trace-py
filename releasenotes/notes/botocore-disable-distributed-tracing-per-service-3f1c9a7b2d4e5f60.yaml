@@ -1,6 +1,0 @@
----
-features:
-  - |
-    botocore: Adds the ``DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES`` environment variable, a
-    comma-separated list of AWS services (for example ``kinesis,sqs``) for which distributed tracing
-    data is not injected into requests, while it stays enabled for all other services.

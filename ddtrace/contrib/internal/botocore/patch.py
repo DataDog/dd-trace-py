@@ -50,7 +50,6 @@ from .services.sqs import patched_sqs_api_call
 from .services.sqs import update_messages as inject_trace_to_sqs_or_sns_message
 from .services.stepfunctions import patched_stepfunction_api_call
 from .services.stepfunctions import update_stepfunction_input
-from .utils import distributed_tracing_enabled_for
 from .utils import update_client_context
 from .utils import update_eventbridge_detail
 
@@ -199,19 +198,28 @@ def _ensure_before_sign_handler(client, handler) -> bool:
     return True
 
 
-def _remove_before_sign_handler(client) -> None:
-    """Unregister a previously registered before-sign handler, e.g. when the service
-    is added to ``distributed_tracing_disabled_services`` after the client's first call.
-    ``_ensure_before_sign_handler`` re-registers it if the service is enabled again.
-    """
-    if not getattr(client, "_dd_before_sign_registered", False):
-        return
-    try:
-        client.meta.events.unregister("before-sign", unique_id=_DD_BEFORE_SIGN_HANDLER_UID)
-    except Exception:
-        log.warning("dd-trace-py: failed to unregister botocore before-sign handler", exc_info=True)
-        return
-    client._dd_before_sign_registered = False
+# botocore endpoint prefix -> ``DD_TRACE_AWS_SDK_<SERVICE>_ENABLED`` suffixes (same keys as dd-trace-js)
+_SERVICE_ENABLED_ENV_SUFFIXES = {
+    "bedrock-runtime": ("BEDROCKRUNTIME",),
+    "dynamodb": ("DYNAMODB",),
+    "events": ("EVENTBRIDGE",),
+    "kinesis": ("KINESIS",),
+    "lambda": ("LAMBDA",),
+    "logs": ("CLOUDWATCHLOGS",),
+    "redshift": ("REDSHIFT",),
+    "s3": ("S3",),
+    "sns": ("SNS",),
+    "sqs": ("SQS",),
+    "states": ("STATES", "STEPFUNCTIONS", "SFN"),
+}
+
+
+def _load_disabled_services() -> set[str]:
+    return {
+        endpoint
+        for endpoint, suffixes in _SERVICE_ENABLED_ENV_SUFFIXES.items()
+        if any(not asbool(env.get(f"DD_TRACE_AWS_SDK_{suffix}_ENABLED", default=True)) for suffix in suffixes)
+    }
 
 
 # Botocore default settings
@@ -220,11 +228,7 @@ config._add(
     {
         "_default_service": env.get("DD_BOTOCORE_SERVICE", default="aws"),
         "distributed_tracing": asbool(env.get("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
-        "distributed_tracing_disabled_services": {
-            service.strip().lower()
-            for service in env.get("DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES", default="").split(",")
-            if service.strip()
-        },
+        "disabled_services": _load_disabled_services(),
         "invoke_with_legacy_context": asbool(env.get("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
@@ -335,6 +339,14 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
         return original_func(*args, **kwargs)
 
+    # Service disabled via DD_TRACE_AWS_SDK_<SERVICE>_ENABLED=false: no span and no propagation headers.
+    if endpoint_name in config.botocore["disabled_services"]:
+        token = _http_propagation_suppressed.set(True)
+        try:
+            return original_func(*args, **kwargs)
+        finally:
+            _http_propagation_suppressed.reset(token)
+
     trace_operation = schematize_cloud_api_operation(
         f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name
     )
@@ -369,8 +381,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     # Suppression is set/reset only on this path, so the contextvar stays owned
     # here and early-return paths can't leak it.
     token = None
-    if not distributed_tracing_enabled_for(endpoint_name):
-        _remove_before_sign_handler(instance)
+    if not config.botocore["distributed_tracing"]:
         token = _http_propagation_suppressed.set(True)
     elif _ensure_before_sign_handler(instance, _botocore_before_sign_handler):
         token = _http_propagation_suppressed.set(True)
@@ -437,7 +448,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         span_from_context(ctx),
     ):
         core.dispatch("botocore.patched_api_call.started", (ctx,))
-        if args and distributed_tracing_enabled_for(endpoint_name):
+        if args and config.botocore["distributed_tracing"]:
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
         try:

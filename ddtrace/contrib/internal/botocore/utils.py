@@ -15,17 +15,6 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-
-def distributed_tracing_enabled_for(endpoint_name: Optional[str]) -> bool:
-    """Whether trace context may be injected into requests to the given AWS service.
-
-    ``endpoint_name`` is the botocore endpoint prefix (``sqs``, ``kinesis``, ``states``...).
-    """
-    if not config.botocore["distributed_tracing"]:
-        return False
-    return endpoint_name not in config.botocore["distributed_tracing_disabled_services"]
-
-
 TWOFIFTYSIX_KB = 1 << 18
 MAX_EVENTBRIDGE_DETAIL_SIZE = TWOFIFTYSIX_KB
 LINE_BREAK = "\n"

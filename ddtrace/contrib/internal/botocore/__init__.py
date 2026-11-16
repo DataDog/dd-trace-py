@@ -42,16 +42,16 @@ Configuration
    Default: ``True``
 
 
-.. py:data:: ddtrace.config.botocore['distributed_tracing_disabled_services']
+.. py:data:: ``DD_TRACE_AWS_SDK_<SERVICE>_ENABLED``
 
-   Set of AWS services (botocore endpoint prefixes such as ``kinesis``, ``sqs``, ``sns``,
-   ``events``, ``lambda`` or ``states``) for which distributed tracing data is not injected,
-   while it stays enabled for all other services.
+   Set to ``false`` to skip instrumenting calls to an AWS service: no span is created and no
+   trace context is injected. The same variables are supported by dd-trace-js. Supported
+   services: ``BEDROCKRUNTIME``, ``CLOUDWATCHLOGS``, ``DYNAMODB``, ``EVENTBRIDGE``, ``KINESIS``,
+   ``LAMBDA``, ``REDSHIFT``, ``S3``, ``SNS``, ``SQS`` and ``STATES`` (also ``STEPFUNCTIONS``, ``SFN``).
 
-   Can also be set with the ``DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES`` environment
-   variable as a comma-separated list, for example ``DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES=kinesis,sqs``.
+   Example: ``DD_TRACE_AWS_SDK_KINESIS_ENABLED=false``
 
-   Default: empty
+   Default: ``true``
 
 
 .. py:data:: ddtrace.config.botocore['invoke_with_legacy_context']

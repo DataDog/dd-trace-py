@@ -668,13 +668,6 @@
         "default": "true"
       }
     ],
-    "DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": ""
-      }
-    ],
     "DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS": [
       {
         "implementation": "A",
@@ -4069,7 +4062,98 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_AWS_SDK_BEDROCKRUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_CLOUDWATCHLOGS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_DYNAMODB_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_EVENTBRIDGE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_KINESIS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_LAMBDA_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_REDSHIFT_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_S3_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SFN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SNS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SQS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_STATES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_STEPFUNCTIONS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
