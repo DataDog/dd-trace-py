@@ -1899,6 +1899,18 @@ class BotocoreTest(TracerTestCase):
             assert not [s for s in self.get_spans() if s.get_tag("aws.operation") in ("SendMessage", "ReceiveMessage")]
             assert "MessageAttributes" not in response["Messages"][0]
 
+    @mock_sqs
+    def test_disabled_service_removes_before_sign_handler_and_skips_internal_spans(self):
+        with self.override_config("botocore", dict(instrument_internals=True)):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="one")
+            assert self.sqs_client._dd_before_sign_registered is True
+            self.reset()
+
+        with self.override_config("botocore", dict(instrument_internals=True, disabled_services={"sqs"})):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="two")
+            assert self.sqs_client._dd_before_sign_registered is False
+            assert not [s for s in self.get_spans() if s.name == "botocore.parsers.parse"]
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
     def test_propagation_enabled_env_override(self):
         assert config.botocore.propagation_enabled is True

@@ -16,6 +16,8 @@ from ddtrace.constants import SPAN_KIND
 # wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+from ddtrace.contrib.internal.botocore.patch import _remove_before_sign_handler
+from ddtrace.contrib.internal.botocore.patch import _service_disabled_in_progress
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -135,10 +137,13 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     # Service disabled via DD_TRACE_AWS_SDK_<SERVICE>_ENABLED=false: no span and no propagation headers.
     if endpoint_name in config.botocore["disabled_services"]:
+        _remove_before_sign_handler(instance)
         token = _http_propagation_suppressed.set(True)
+        disabled_token = _service_disabled_in_progress.set(True)
         try:
             return await original_func(*args, **kwargs)
         finally:
+            _service_disabled_in_progress.reset(disabled_token)
             _http_propagation_suppressed.reset(token)
 
     fallback_service = config._get_service(default=f"aws.{endpoint_name}")
