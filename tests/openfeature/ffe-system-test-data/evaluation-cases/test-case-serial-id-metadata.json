@@ -1,0 +1,97 @@
+[
+  {
+    "flag": "serial-id-basic-flag",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "user-1",
+    "attributes": {},
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 42,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "serial-id-zero-flag",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "user-1",
+    "attributes": {},
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 0,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "serial-id-missing-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "user-1",
+    "attributes": {},
+    "result": {
+      "value": "control",
+      "reason": "STATIC",
+      "serialId": null,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "serial-id-targeting-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "user-vip",
+    "attributes": {
+      "segment": "vip"
+    },
+    "result": {
+      "value": "vip",
+      "reason": "TARGETING_MATCH",
+      "serialId": 201,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "serial-id-targeting-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "user-standard",
+    "attributes": {
+      "segment": "standard"
+    },
+    "result": {
+      "value": "standard",
+      "reason": "STATIC",
+      "serialId": 200,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "serial-id-basic-flag",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "user-repeat",
+    "attributes": {},
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 42,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "serial-id-basic-flag",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "user-repeat",
+    "attributes": {},
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 42,
+      "doLog": true
+    }
+  }
+]

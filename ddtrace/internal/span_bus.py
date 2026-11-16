@@ -27,6 +27,12 @@ def get_root_span() -> t.Optional["Span"]:
     return span._local_root or span
 
 
+def find_span_on_context(ctx: core.ExecutionContext[t.Any]) -> t.Optional["Span"]:
+    """Return the context's own span without creating one or searching parents."""
+    span: t.Optional[Span] = ctx.get_item("_inner_span")
+    return span
+
+
 def span_from_context(ctx: core.ExecutionContext[t.Any]) -> "Span":
     if ctx.get_item("_inner_span") is None:
         log.warning(
