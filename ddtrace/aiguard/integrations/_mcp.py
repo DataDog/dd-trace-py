@@ -5,12 +5,15 @@ the decisions taken on OpenAI hosted MCP approval requests, and the MCP SDK clie
 from collections import OrderedDict
 from collections.abc import Sequence
 import hashlib
+import ipaddress
 import os.path
 import re
 from types import ModuleType
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
+import unicodedata
+from urllib import parse
 from weakref import WeakKeyDictionary
 
 from ddtrace.aiguard._types import MCP
@@ -32,6 +35,150 @@ from ddtrace.internal.wrapping import wrap
 logger = ddlogger.get_logger(__name__)
 
 
+# Schemes whose host the WHATWG URL Standard parses as a domain or an IP address.
+_SPECIAL_SCHEMES = frozenset(("http", "https", "ws", "wss", "ftp", "file"))
+# The full stops that IDNA treats as label separators.
+# The only non-ASCII host characters that are mapped: the WHATWG mapping of every other one cannot be
+# reproduced exactly here (for example IDNA deviations such as ß), so such a host gets no url key.
+_MAPPED_TO_DOT = frozenset("\u3002\uff0e\uff61")
+_SOFT_HYPHEN = "\u00ad"
+# Characters that make the WHATWG host parser fail, after percent-decoding.
+_FORBIDDEN_HOST_CHARS = frozenset("\x00\t\n\r #%/:<>?@[\\]^|\x7f") | frozenset(map(chr, range(0x20)))
+
+
+def mcp_url_origin(url: str) -> Optional[str]:
+    """Origin of a server URL for mcp_servers and the url key of the server ID; None to use the next key.
+
+    All tracers compute the same ID, so the host follows the WHATWG URL Standard: it is
+    percent-decoded, an IPv4 literal in any number form becomes its dotted quad and an IPv6 literal
+    its compressed form. Fullwidth ASCII forms, the ideographic full stops and the soft hyphen are mapped
+    to ASCII. Any other non-ASCII host, a host with an IDN (xn--) label and a host that the WHATWG
+    parser rejects give None.
+    """
+    origin = url_origin(url)
+    if origin is None:
+        return None
+    scheme, _, netloc = origin.partition("://")
+    if scheme not in _SPECIAL_SCHEMES:
+        return origin
+    # url_origin already lowercased the host, dropped a default port and bracketed an IPv6 host.
+    host: Optional[str]
+    if netloc.startswith("["):
+        raw_host, _, rest = netloc[1:].partition("]")
+        host = _canonical_ipv6(raw_host)
+        port = rest[1:]
+    else:
+        raw_host, separator, port = netloc.rpartition(":")
+        if not separator:
+            raw_host, port = netloc, ""
+        host = _canonical_domain(raw_host)
+    if host is None:
+        return None
+    return f"{scheme}://{host}:{port}" if port else f"{scheme}://{host}"
+
+
+def _canonical_domain(host: str) -> Optional[str]:
+    host = parse.unquote(host)
+    if not host.isascii():
+        host = _ascii_mapped(host)
+    if not host or any(char in _FORBIDDEN_HOST_CHARS for char in host):
+        return None
+    host = host.lower()
+    labels = host.split(".")
+    if any(label.startswith("xn--") for label in labels):
+        return None
+    # The WHATWG "ends in a number" rule: a numeric last label makes the whole host an IPv4 address.
+    if labels[-1] == "" and len(labels) > 1:
+        labels = labels[:-1]
+    if _is_ipv4_number(labels[-1]):
+        return _whatwg_ipv4(labels)
+    return host
+
+
+def _ascii_mapped(host: str) -> str:
+    """The ASCII host that the WHATWG domain mapping gives for fullwidth ASCII forms, the ideographic
+    full stops and the soft hyphen; an empty string for any other non-ASCII host, which has no url key.
+    """
+    mapped = []
+    for char in host:
+        if char == _SOFT_HYPHEN:
+            continue
+        if char in _MAPPED_TO_DOT:
+            mapped.append(".")
+        elif "\uff01" <= char <= "\uff5e":
+            mapped.append(unicodedata.normalize("NFKC", char))
+        elif char.isascii():
+            mapped.append(char)
+        else:
+            return ""
+    return "".join(mapped)
+
+
+def _is_ipv4_number(label: str) -> bool:
+    if label.isdigit():
+        return True
+    return label[:2] == "0x" and all(char in "0123456789abcdef" for char in label[2:])
+
+
+def _parse_ipv4_number(part: str) -> Optional[int]:
+    if not part:
+        return None
+    base = 10
+    if part[:2] == "0x":
+        base, part = 16, part[2:]
+    elif len(part) > 1 and part[0] == "0":
+        base, part = 8, part[1:]
+    if not part:
+        return 0
+    # int() also accepts signs and underscores, which the WHATWG IPv4 parser rejects.
+    if any(char not in "0123456789abcdef"[:base] for char in part):
+        return None
+    return int(part, base)
+
+
+def _whatwg_ipv4(labels: list[str]) -> Optional[str]:
+    if len(labels) > 4:
+        return None
+    numbers = [_parse_ipv4_number(label) for label in labels]
+    if any(number is None for number in numbers):
+        return None
+    values: list[int] = numbers  # type: ignore[assignment]
+    if any(number > 255 for number in values[:-1]) or values[-1] >= 256 ** (5 - len(values)):
+        return None
+    address = values[-1]
+    for index, number in enumerate(values[:-1]):
+        address += number * 256 ** (3 - index)
+    return ".".join(str((address >> shift) & 0xFF) for shift in (24, 16, 8, 0))
+
+
+def _canonical_ipv6(host: str) -> Optional[str]:
+    """WHATWG IPv6 serialization: lowercase hex, longest run of two or more zero pieces compressed, no zone."""
+    if "%" in host:
+        return None
+    try:
+        packed = ipaddress.IPv6Address(host).packed
+    except ValueError:
+        return None
+    pieces = [int.from_bytes(packed[i : i + 2], "big") for i in range(0, 16, 2)]
+    start, length = -1, 1
+    index = 0
+    while index < 8:
+        if pieces[index] == 0:
+            end = index
+            while end < 8 and pieces[end] == 0:
+                end += 1
+            if end - index > length:
+                start, length = index, end - index
+            index = end
+        else:
+            index += 1
+    if start < 0:
+        return "[" + ":".join(f"{piece:x}" for piece in pieces) + "]"
+    head = ":".join(f"{piece:x}" for piece in pieces[:start])
+    tail = ":".join(f"{piece:x}" for piece in pieces[start + length :])
+    return f"[{head}::{tail}]"
+
+
 def mcp_server_id(
     url: Optional[str] = None,
     connector_id: Optional[str] = None,
@@ -43,7 +190,7 @@ def mcp_server_id(
 
     The url key is its origin; transport, session and item IDs are left out so the ID stays stable.
     """
-    origin = url_origin(url) if url else None
+    origin = mcp_url_origin(url) if url else None
     if origin:
         key = f"url|{origin}"
     elif connector_id:
@@ -70,7 +217,7 @@ def mcp_server(
 
     args must only hold safe identifiers (see safe_stdio_args); they are ignored without command.
     """
-    url = url_origin(url) if url else None
+    url = mcp_url_origin(url) if url else None
     args = list(args) if command else []
     server_id = mcp_server_id(url=url, connector_id=connector_id, command=command, args=args, name=name)
     if server_id is None:
