@@ -1,0 +1,5 @@
+fixes:
+  - |
+    App and API Protection: Fixes automatic login events ignoring
+    ``DD_USER_MODEL_LOGIN_FIELD`` for the reported login or using the display
+    name as the login when ``DD_USER_MODEL_NAME_FIELD`` is configured.
