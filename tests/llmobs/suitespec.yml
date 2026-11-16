@@ -85,9 +85,6 @@ suites:
           python: ["3.12", "3.13", '3.14', '3.15']
           dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
-    # TODO(py-315): the anthropic SDK is not 3.15-ready: the old row rejects
-    # new API kwargs and the newest row hits pydantic model construction
-    # errors. Re-add 3.15 once the SDK supports it.
     venvs_per_job: 6
     paths:
       - '@bootstrap'
@@ -105,7 +102,13 @@ suites:
           dependencies: [pytest-asyncio, vcrpy, 'anthropic~=0.28.0', 'httpx~=0.27.0']
         - name: anthropic
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [pytest-asyncio, vcrpy, anthropic, 'httpx<0.28.0']
+          dependencies: [pytest-asyncio, vcrpy, 'anthropic<1', 'httpx<0.28.0']
+        - name: anthropic
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-asyncio, vcrpy, 'anthropic>=1,<2']
+        - name: anthropic
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [pytest-asyncio, vcrpy, 'anthropic>=2,<3']
   claude_agent_sdk:
     venvs_per_job: 7
     paths:

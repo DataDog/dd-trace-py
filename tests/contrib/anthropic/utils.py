@@ -1,9 +1,24 @@
 import os
 
+import anthropic
 from anthropic.types import Message
 from anthropic.types import TextBlock
 from anthropic.types import Usage
 import vcr
+
+from ddtrace.internal.utils.version import parse_version
+
+
+try:
+    # anthropic>=1.0 swapped httpx for the drop-in fork httpx2; tests need the matching client classes.
+    import httpx2 as httpx  # noqa: F401
+except ImportError:
+    import httpx  # noqa: F401
+
+
+def sampling_kwargs(temperature):
+    """Return the ``temperature`` request kwarg, or nothing on anthropic>=1.0 whose SDK removed it."""
+    return {"temperature": temperature} if parse_version(anthropic.__version__) < (1, 0) else {}
 
 
 # VCR is used to capture and store network requests made to Anthropic.
