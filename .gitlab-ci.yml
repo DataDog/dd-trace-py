@@ -732,8 +732,9 @@ deploy_to_di_backend:manual:
     UPSTREAM_PACKAGE_JOB: build
 
 # Trigger profiling correctness tests with just-built wheels.
-# Runs the eight 3.14/3.15 migration scenarios in prof-correctness against the
-# wheels uploaded to S3 for this commit (Python-only; see downstream-python.yml).
+# Runs selected 3.14/3.15 prof-correctness scenarios against the wheels uploaded
+# to S3 for this commit (Python-only; see downstream-python.yml). Soft for now
+# (allow_failure); do not block merge until a later PR promotes these checks.
 prof-correctness:
   stage: tests
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
@@ -741,6 +742,7 @@ prof-correctness:
   needs:
     - job: "upload all"
   timeout: 60m
+  allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"

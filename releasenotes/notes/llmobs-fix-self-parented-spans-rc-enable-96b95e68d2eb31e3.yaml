@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where LLM Observability spans were reported as their own
+    parent, so that traces lost their structure. This could happen when LLM Observability was
+    enabled with ``DD_LLMOBS_ENABLED`` and Remote Configuration was enabled.

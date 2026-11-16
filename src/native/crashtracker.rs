@@ -82,6 +82,7 @@ impl CrashtrackerConfigurationPy {
         unix_socket_path=None,
         test_token=None,
         api_key=None,
+        collect_otel_thread_contexts=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -96,11 +97,13 @@ impl CrashtrackerConfigurationPy {
         unix_socket_path: Option<String>,
         test_token: Option<String>,
         api_key: Option<&str>,
+        collect_otel_thread_contexts: bool,
     ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
         let mut builder = CrashtrackerConfiguration::builder()
             .additional_files(additional_files)
             .collect_all_threads(collect_all_threads)
+            .collect_otel_thread_contexts(collect_otel_thread_contexts)
             .max_threads(max_threads)
             .create_alt_stack(create_alt_stack)
             .use_alt_stack(use_alt_stack)
@@ -176,10 +179,10 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
-// TODO(py-315): Recheck extraction semantics on future PyO3 updates. PyO3 0.30
-// skips the Clone-driven automatic FromPyObject derive by default. This type is
-// only consumed through `PyRefMut<CrashtrackerMetadataPy>`, never extracted
-// as an owned value, so skipping is safe.
+// TODO(py-315)(pyo3 0.30): pyo3 0.30 no longer derives FromPyObject for Clone
+// pyclasses by default, so `skip_from_py_object` is gone. This type is only
+// consumed through `PyRefMut<CrashtrackerMetadataPy>`, never extracted as an
+// owned value, so it does not need `from_py_object`.
 #[pyclass(name = "CrashtrackerMetadata", module = "datadog.internal._native")]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
