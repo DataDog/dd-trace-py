@@ -643,13 +643,14 @@ test_resolve_base_branch:
   script:
     - .gitlab/scripts/resolve-base-branch.test.sh
 
-# Exercises the delayed diagnostics and process cleanup without macOS or sccache.
+# Exercises cache startup, build logging, and process cleanup without a real compiler cache.
 test_sccache_watchdog:
   extends: .ci_utils
   stage: tests
   needs: []
   timeout: 5m
   script:
+    - python3 .gitlab/scripts/test_setup_sccache.py -v
     - python3 .gitlab/scripts/test_sccache_watchdog.py -v
 
 # Fails when test jobs stop collecting core dumps and backtraces on crash.
