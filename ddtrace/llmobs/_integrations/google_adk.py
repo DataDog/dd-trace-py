@@ -31,7 +31,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         if provider:
             span.set_tag("google_adk.request.provider", provider)
 
-    def _on_request_started(
+    def _on_request_span_started(
         self,
         span: Span,
         instance: Any = None,

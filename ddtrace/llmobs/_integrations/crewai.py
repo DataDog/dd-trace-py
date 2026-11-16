@@ -45,7 +45,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
         """Nothing to do: CrewAI spans carry no provider or model tags."""
 
-    def _on_request_started(
+    def _on_request_span_started(
         self,
         span: Span,
         instance: Any = None,

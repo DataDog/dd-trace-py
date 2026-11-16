@@ -119,17 +119,20 @@ class BaseLLMIntegration:
         else:
             _annotate_llmobs_span_data(span, kind=span_kind)
 
-    def _on_request_started(
+    def _on_request_span_started(
         self,
         span: Span,
         instance: Any = None,
         operation: str = "",
         request_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
-        """Called by the LLMObs subscriber once an ``LlmRequestEvent`` span starts, whether or not LLMObs is enabled.
+        """Run integration-specific setup once a subscriber-owned request span has started.
 
-        Override to record per-span state that later requests or finish-time extraction read, such as span links.
+        Called by the shared LLMObs SPAN_STARTED subscriber after base tags and span kind are set,
+        whether or not LLMObs is enabled, and before the wrapped call runs, so child spans can read
+        what is recorded here (for example span links).
         """
+        pass
 
     def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
         """Return the LLMObs name to stamp alongside the agent kind at start, or None to defer to finish.
