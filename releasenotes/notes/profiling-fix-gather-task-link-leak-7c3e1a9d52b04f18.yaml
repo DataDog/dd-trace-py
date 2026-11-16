@@ -2,4 +2,5 @@
 fixes:
   - |
     profiling: Fixes an issue where the stack profiler's CPU usage grows over time, and stays high even when the
-    application is idle, in asyncio applications that run many short-lived tasks with ``asyncio.gather``.
+    application is idle, in asyncio applications that run many short-lived tasks with ``asyncio.gather``. Also fixes
+    asyncio tasks that could go missing from profiles after calling ``asyncio.gather``.
