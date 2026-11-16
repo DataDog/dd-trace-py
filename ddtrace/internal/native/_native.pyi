@@ -94,6 +94,7 @@ class CrashtrackerConfiguration:
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
         api_key: Optional[str] = None,
+        collect_otel_thread_contexts: bool = False,
     ): ...
 
 class CrashtrackerReceiverConfig:
