@@ -14,3 +14,6 @@ fixes:
   - |
     aiohttp: Fixes missing or incorrect response metadata when timeout or other
     middleware runs request handlers in child tasks.
+  - |
+    aiohttp: Fixes missing IAST findings when request handlers return before
+    response headers are prepared.

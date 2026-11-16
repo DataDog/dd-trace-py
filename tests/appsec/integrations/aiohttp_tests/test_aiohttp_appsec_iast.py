@@ -812,7 +812,8 @@ def test_sub_app_requests_release_iast_contexts(monkeypatch, finish_on_prepare, 
 @pytest.mark.parametrize("finish_on_prepare", [False, True])
 @pytest.mark.parametrize("sub_app", [False, True])
 @pytest.mark.parametrize("clone", [False, True])
-def test_child_task_preserves_iast_report_and_releases_context(monkeypatch, finish_on_prepare, sub_app, clone):
+@pytest.mark.parametrize("runner", ["wait_for", "create_task", "prepare"])
+def test_child_task_preserves_iast_report_and_releases_context(monkeypatch, finish_on_prepare, sub_app, clone, runner):
     from ddtrace.appsec._iast.taint_sinks.weak_hash import WeakHash
     from tests.appsec.iast.iast_utils import load_iast_report
 
@@ -828,14 +829,22 @@ def test_child_task_preserves_iast_report_and_releases_context(monkeypatch, fini
         assert environment is not None
         owning_spans.append(environment.span)
         assert WeakHash.report(evidence_value="md5")
-        return web.json_response({"source": _origin(request.query["value"])})
+        if iast_aiohttp.WRAPS_MAPPINGS:
+            assert _origin(request.query["value"]) == PARAMETER
+        return web.json_response({"source": _origin(request.path)})
 
     @web.middleware
     async def outer(request, handler):
         async def in_child():
             return await handler(request.clone() if clone else request)
 
-        response = await asyncio.wait_for(in_child(), timeout=5)
+        if runner == "prepare":
+            response = await in_child()
+            await response.prepare(request)
+        elif runner == "create_task":
+            response = await asyncio.create_task(in_child())
+        else:
+            response = await asyncio.wait_for(in_child(), timeout=5)
         await asyncio.sleep(0)
         return response
 
@@ -859,7 +868,7 @@ def test_child_task_preserves_iast_report_and_releases_context(monkeypatch, fini
             for _ in range(3):
                 response = await client.get(path)
                 assert response.status == 200
-                assert await response.json() == {"source": PARAMETER}
+                assert await response.json() == {"source": PATH}
                 for _ in range(2 if sub_app else 1):
                     await asyncio.wait_for(completed.get(), timeout=5)
                 span = owning_spans[-1]
@@ -885,7 +894,8 @@ def test_child_task_preserves_iast_report_and_releases_context(monkeypatch, fini
 
 
 @pytest.mark.parametrize("mode", ["stream_default", "stream_early", "websocket"])
-def test_early_prepare_clears_iast_in_the_handler_task(monkeypatch, mode):
+@pytest.mark.parametrize("sub_app", [False, True])
+def test_early_prepare_clears_iast_in_the_handler_task(monkeypatch, mode, sub_app):
     from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
     from ddtrace.appsec._iast_context import _get_iast_context_id
 
@@ -898,7 +908,9 @@ def test_early_prepare_clears_iast_in_the_handler_task(monkeypatch, mode):
     completed = None
 
     async def handler(request):
-        assert _origin(request.query["value"]) == PARAMETER
+        assert _origin(request.path) == PATH
+        if iast_aiohttp.WRAPS_MAPPINGS:
+            assert _origin(request.query["value"]) == PARAMETER
         before.append(_get_iast_context_id())
         response = web.WebSocketResponse() if mode == "websocket" else web.StreamResponse()
         await response.prepare(request)
@@ -917,16 +929,22 @@ def test_early_prepare_clears_iast_in_the_handler_task(monkeypatch, mode):
         nonlocal completed
         completed = asyncio.Queue()
         app = web.Application()
-        app.router.add_get("/early", handler)
+        target = web.Application() if sub_app else app
+        target.router.add_get("/early", handler)
+        if sub_app:
+            trace_app(target)
+            app.add_subapp("/sub", target)
         trace_app(app)
+        path = "/sub/early?value=tainted" if sub_app else "/early?value=tainted"
         async with TestClient(TestServer(app)) as client:
             if mode == "websocket":
-                async with client.ws_connect("/early?value=tainted") as websocket:
+                async with client.ws_connect(path) as websocket:
                     await websocket.receive()
             else:
-                response = await client.get("/early?value=tainted")
+                response = await client.get(path)
                 assert await response.text() == "ok"
-            await asyncio.wait_for(completed.get(), timeout=5)
+            for _ in range(2 if sub_app else 1):
+                await asyncio.wait_for(completed.get(), timeout=5)
 
     core.on("context.ended.web.request", ended)
     try:
@@ -940,7 +958,7 @@ def test_early_prepare_clears_iast_in_the_handler_task(monkeypatch, mode):
             assert after == [(before[0], True, True)]
         else:
             assert after == [(None, False, False)]
-        assert len(completions) == 1
+        assert len(completions) == (2 if sub_app else 1)
         assert debug_context_array_free_slots_number() == free_slots
     finally:
         oce.reconfigure()
