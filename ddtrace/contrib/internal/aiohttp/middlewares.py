@@ -1,9 +1,13 @@
 import asyncio
+from asyncio import current_task
 from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import MutableMapping
+from contextvars import Context
+from contextvars import copy_context
 import sys
 from typing import Any
+from typing import Optional
 from typing import cast
 
 from aiohttp import web
@@ -12,12 +16,14 @@ from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
 from ddtrace._trace.http_tags import is_otel_non_error_status
+from ddtrace.contrib._events.exception import ContextExceptionEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.http import _format_template
@@ -26,9 +32,110 @@ from ddtrace.internal.utils.http import _format_template
 CONFIG_KEY = "datadog_trace"
 REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
+REQUEST_EXECUTION_CONTEXTS_KEY = "__datadog_execution_contexts"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
 DEFAULT_CLIENT_MAX_SIZE = 1024**2
+
+
+class _RequestLifecycle:
+    def __init__(
+        self,
+        request: web.Request,
+        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
+        task: asyncio.Future[Any],
+        registry: dict[asyncio.Future[Any], list["_RequestLifecycle"]],
+    ) -> None:
+        self.request = request
+        self.ctx = ctx
+        self._task: Optional[asyncio.Future[Any]] = task
+        self._connection_task: Optional[asyncio.Future[Any]] = request.task
+        self._registry = registry
+        self._connection_key: Optional[asyncio.Future[Any]] = self._connection_task
+        if self._connection_key is not None:
+            registry.setdefault(self._connection_key, []).append(self)
+        self._preparation_tasks: set[asyncio.Future[Any]] = set()
+        # Preparation can run outside the task that created the span and IAST context.
+        self._completion_context: Optional[Context] = copy_context()
+        self._task_completed = False
+        self._response_prepared = False
+        task.add_done_callback(self._on_task_done)
+        if self._connection_task is not None:
+            self._connection_task.add_done_callback(self._on_connection_done)
+
+    def _on_task_done(self, task: asyncio.Future[Any]) -> None:
+        # A completed task can retain its exception and handler frames.
+        self._task = None
+        self._task_completed = True
+        if self._connection_task is None:
+            self._finish()
+        else:
+            self._maybe_finish()
+
+    def _on_preparation_done(self, task: asyncio.Future[Any]) -> None:
+        self._preparation_tasks.discard(task)
+        self._maybe_finish()
+
+    def _on_connection_done(self, task: asyncio.Future[Any]) -> None:
+        self._connection_task = None
+        # An aborted request may never reach Datadog's preparation callback.
+        self._finish()
+
+    def on_prepare(self, response: web.StreamResponse, finish_on_prepare: bool) -> None:
+        self._response_prepared = True
+        self.ctx.set_item("aiohttp.response", response)
+        if finish_on_prepare:
+            self._finish(response)
+            return
+        preparation_task = current_task()
+        if (
+            preparation_task is not None
+            and preparation_task is not self._task
+            and preparation_task not in self._preparation_tasks
+        ):
+            self._preparation_tasks.add(preparation_task)
+            preparation_task.add_done_callback(self._on_preparation_done)
+        self._maybe_finish()
+
+    def _maybe_finish(self) -> None:
+        if self._task_completed and self._response_prepared and not self._preparation_tasks:
+            self._finish()
+
+    def _finish(self, response: Optional[web.StreamResponse] = None) -> None:
+        completion_context = self._completion_context
+        if completion_context is None:
+            return
+        self._completion_context = None
+        if self._task is not None and current_task() is self._task:
+            # The owner task can outlive the tracing context after the handler returns.
+            active_ctx: Optional[core.ExecutionContext[Any]] = core.current
+            while active_ctx is not None:
+                if active_ctx is self.ctx:
+                    # Early teardown must clear ContextVars in the still-running handler itself.
+                    finish_request_span(self.request, response, ctx=self.ctx)
+                    return
+                active_ctx = active_ctx.parent
+        completion_context.run(finish_request_span, self.request, response, ctx=self.ctx)
+
+    def close(self) -> None:
+        if self._connection_key is not None:
+            lifecycles = self._registry.get(self._connection_key)
+            if lifecycles is not None and self in lifecycles:
+                lifecycles.remove(self)
+                if not lifecycles:
+                    self._registry.pop(self._connection_key, None)
+            self._connection_key = None
+        for task in self._preparation_tasks:
+            task.remove_done_callback(self._on_preparation_done)
+        self._preparation_tasks.clear()
+        if self._task is not None:
+            self._task.remove_done_callback(self._on_task_done)
+            self._task = None
+        if self._connection_task is not None:
+            self._connection_task.remove_done_callback(self._on_connection_done)
+            self._connection_task = None
+        self._completion_context = None
+        self.ctx.discard_local_item("aiohttp.lifecycle")
 
 
 async def trace_middleware(
@@ -77,19 +184,28 @@ async def trace_middleware(
                 headers_case_sensitive=True,
                 activate_distributed_headers=True,
                 distributed_headers_config_override=app_config["distributed_tracing_enabled"],
-                # DEV: aiohttp is special case maintains separate configuration from config api
                 trace_query_string=trace_query_string,
                 query=request.rel_url.raw_query_string,
                 service=service,
             ),
             dispatch_end_event=False,
         ) as ctx:
-            req_span = ctx.get_item("_inner_span")
+            req_span = find_span_on_context(ctx)
 
-            # attach the execution context to the request
+            # Clones copy request state shallowly, so response preparation can find every middleware owner.
+            request.setdefault(REQUEST_EXECUTION_CONTEXTS_KEY, []).append(ctx)
             request[REQUEST_EXECUTION_CONTEXT_KEY] = ctx
             # legacy request key kept for backwards compatibility with documentation
             request[REQUEST_CONTEXT_KEY] = req_span.context if req_span is not None else None
+
+            # The handler task can finish before an outer middleware prepares the response.
+            task = current_task()
+            finish_on_prepare = config.aiohttp["disable_stream_timing_for_mem_leak"] or task is None
+            ctx.set_item("aiohttp.finish_on_prepare", finish_on_prepare)
+            if task is not None:
+                ctx.set_item(
+                    "aiohttp.lifecycle", _RequestLifecycle(request, ctx, task, app_config["_request_lifecycles"])
+                )
 
             try:
                 try:
@@ -100,17 +216,15 @@ async def trace_middleware(
                     response = _blocked_response(ctx, request, blocking.args[0])
                 finally:
                     core.dispatch("aiohttp.request.end", (ctx, (None, None, None)))
-                if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
-                    if isinstance(response, web.StreamResponse):
-                        request.task.add_done_callback(lambda _: finish_request_span(request, response))
+                # An earlier preparation callback may fail before on_prepare records the response.
+                if not ctx._end_event_dispatched and ctx.get_item("aiohttp.response") is None:
+                    ctx.set_item("aiohttp.response", response)
                 return response
             except Exception as e:
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
                 # when its status is an error status.
-                if not ctx._end_event_dispatched and not (
-                    isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)
-                ):
-                    ctx.set_item("aiohttp.request.exc_info", sys.exc_info())
+                if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
+                    core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
                 raise
         raise RuntimeError("Request context suppressed an exception without a response")
 
@@ -173,10 +287,29 @@ def _blocked_response(
     )
 
 
-def finish_request_span(request: web.Request, response: web.StreamResponse) -> None:
-    # Response preparation and the task callback can both finalize a request; the first releases its event.
-    ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if not ctx or ctx._end_event_dispatched:
+def finish_request_span(
+    request: web.Request,
+    response: Optional[web.StreamResponse] = None,
+    *,
+    ctx: Optional[core.ExecutionContext[WebFrameworkRequestEvent]] = None,
+) -> None:
+    # Preparation, handler completion, and connection abort can race to finish a request.
+    if ctx is None:
+        ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
+    if not ctx:
+        return
+    lifecycle: Optional[_RequestLifecycle] = ctx.get_item("aiohttp.lifecycle")
+    if lifecycle is not None:
+        lifecycle.close()
+    if ctx._end_event_dispatched:
+        return
+
+    if response is None:
+        response = ctx.get_item("aiohttp.response", request.get(REQUEST_STARTED_RESPONSE_KEY))
+    ctx.discard_local_item("aiohttp.response")
+    if response is None:
+        # A disconnected or cancelled request can end without preparing a response.
+        ctx.dispatch_ended_event()
         return
 
     # default resource name
@@ -195,26 +328,35 @@ def finish_request_span(request: web.Request, response: web.StreamResponse) -> N
     event.resource = resource
     event.response_status_code = response.status
     event.response_headers = response.headers
-    exc_info = ctx.get_item("aiohttp.request.exc_info", (None, None, None))
-    ctx.discard_local_item("aiohttp.request.exc_info")
-    ctx.dispatch_ended_event(*exc_info)
+    ctx.dispatch_ended_event()
 
 
-async def on_prepare(request, response):
-    """
-    The on_prepare signal is used to close the request span that is created during
-    the trace middleware execution.
-    """
+async def on_prepare(request: web.Request, response: web.StreamResponse) -> None:
+    """Attach response metadata; protocol upgrades complete at the handshake."""
     request[REQUEST_STARTED_RESPONSE_KEY] = response
-    # NB isinstance is not appropriate here because StreamResponse is a parent of the other
-    # aiohttp response types. However in some cases this can also lead to missing the closing of
-    # spans, leading to a memory leak, which is why we have this flag.
-    # todo: this is a temporary fix for a memory leak in aiohttp. We should find a way to
-    # consistently close spans with the correct timing.
-    if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
-        if type(response) is web.StreamResponse and not response.task.done():
-            return
-    finish_request_span(request, response)
+    # The compatibility option releases request state at header preparation.
+    # todo: replace task callbacks with a response-completion signal when available.
+    contexts = request.get(REQUEST_EXECUTION_CONTEXTS_KEY)
+    if contexts is None:
+        # An outer middleware can clone the request before tracing adds shared request state.
+        contexts = [
+            lifecycle.ctx
+            for app in request.match_info.apps
+            for lifecycle in app.get(CONFIG_KEY, {}).get("_request_lifecycles", {}).get(request.task, ())
+            if lifecycle.request.match_info is request.match_info
+        ]
+    for ctx in reversed(contexts):
+        if not ctx._end_event_dispatched:
+            # Switching protocols ends the HTTP request before the upgraded connection closes.
+            finish_on_prepare = response.status == 101 or ctx.get_item("aiohttp.finish_on_prepare", True)
+            lifecycle: Optional[_RequestLifecycle] = ctx.get_item("aiohttp.lifecycle")
+            if lifecycle is not None:
+                lifecycle.on_prepare(response, finish_on_prepare)
+            elif finish_on_prepare:
+                finish_request_span(request, response, ctx=ctx)
+            else:
+                # A clone has its own request state, so retain metadata on its owning context.
+                ctx.set_item("aiohttp.response", response)
 
 
 def trace_app(app, tracer=None, service="aiohttp-web"):
@@ -242,6 +384,7 @@ def trace_app(app, tracer=None, service="aiohttp-web"):
     app[CONFIG_KEY] = {
         "service": config._get_service(default=service),
         "distributed_tracing_enabled": None,
+        "_request_lifecycles": {},
     }
 
     # add the async tracer middleware as a first middleware

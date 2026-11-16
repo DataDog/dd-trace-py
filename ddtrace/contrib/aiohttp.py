@@ -57,8 +57,16 @@ Automatic instrumentation is not available for the server. Use the provided
     trace_app(app, service='async-api')
     web.run_app(app, port=8000)
 
+Request spans cover handler execution and response sending for ordinary and streaming
+HTTP responses, including when middleware runs handlers in child tasks. Protocol upgrades,
+including WebSockets, complete at the HTTP handshake
+so the request span does not include the lifetime of the upgraded connection. The existing
+``disable_stream_timing_for_mem_leak`` integration option still
+completes spans when response headers are prepared.
+
 With ``DD_TRACE_ENABLED=false``, the middleware still emits request lifecycle
-events and completes requests without creating request spans. In this case,
+events and completes requests without creating request spans, unless standalone
+security requires one for processing. Without a request span,
 ``request['datadog_context']`` is ``None``.
 
 Integration settings are attached to your application under the ``datadog_trace``
