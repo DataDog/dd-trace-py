@@ -205,6 +205,9 @@ class _ScopedRaspContext(_RaspContext):
         super().__exit__(exc_type, exc_value, exc_tb)
 
 
+_URLLIB_REQUEST = "appsec.rasp.urllib"
+
+
 class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
     """RASP SSRF analysis around urllib.request.OpenerDirector.open."""
 
@@ -245,9 +248,10 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
 
         use_body = should_analyze_body_response(ctx)
         self.set("use_body", use_body)
-        # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
-        self._open_core_context("url_open_analysis", full_url=url, use_body=use_body)
-        open_rasp_subcontext_scope()
+        # A nested open is a redirect or rewrite of the enclosing urllib request.
+        inherit = core.find_item(_URLLIB_REQUEST) is not None
+        self._open_core_context("url_open_analysis", full_url=url, use_body=use_body, **{_URLLIB_REQUEST: True})
+        open_rasp_subcontext_scope(inherit=inherit)
 
     def __return__(self, response: Any) -> Any:
         if self._rasp_active():
@@ -490,7 +494,7 @@ class _SsrfUrllib3MakeRequest(_ScopedRaspContext):
         # Own core context so concurrent urllib3 requests get distinct subcontexts. It has to span
         # the call: the SSRF_RES side comes from http.client's getresponse underneath this one.
         self._open_core_context("rasp.ssrf.urllib3")
-        open_rasp_subcontext_scope()
+        open_rasp_subcontext_scope(inherit=True)
 
         headers = _parse_headers_urllib3(self._arg("headers", {}))
         addresses = {

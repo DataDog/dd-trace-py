@@ -1047,11 +1047,6 @@ def test_webbrowser_open_is_wrapped_with_a_context_not_wrapt():
 
 
 def test_each_webbrowser_call_gets_its_own_rasp_subcontext():
-    """open_rasp_subcontext_scope is reentrant, so it must be called per outgoing request.
-
-    Without a per-call core context the first call creates the holder and every later call in the
-    same request reuses it, so they are all grouped as one outgoing request.
-    """
     import webbrowser
 
     from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
@@ -1078,6 +1073,118 @@ def test_each_webbrowser_call_gets_its_own_rasp_subcontext():
     assert len(holders) == 2, holders
     assert all(holder is not None for holder in holders)
     assert holders[0] is not holders[1], "both calls shared one subcontext"
+
+
+@contextlib.contextmanager
+def _local_http_server():
+    from http.server import BaseHTTPRequestHandler
+    from http.server import ThreadingHTTPServer
+    import threading
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/source":
+                self.send_response(302)
+                self.send_header("Location", "/target")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+            else:
+                self.send_response(200)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+@contextlib.contextmanager
+def _recording_ssrf_subcontexts():
+    from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
+
+    calls = []
+
+    def record(addresses=None, rule_type=None, **kwargs):
+        calls.append((rule_type, addresses.get(EXPLOIT_PREVENTION.ADDRESS.SSRF), core.find_item(_RASP_SUBCONTEXT)))
+
+    unpatch_common_modules()
+    try_wrap_function_wrapper("requests", "Session.request", cmp.wrapped_request_D8CB81E472AF98A2)
+    try:
+        patch_common_modules()
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "should_analyze_body_response", return_value=False),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=record),
+        ):
+            yield calls
+    finally:
+        unpatch_common_modules()
+        try_unwrap("requests", "Session.request")
+
+
+def _request_with_requests(url):
+    import requests
+
+    requests.get(url, timeout=5)
+
+
+def _request_with_urllib(url):
+    import urllib.request
+
+    urllib.request.urlopen(url, timeout=5).read()
+
+
+@pytest.mark.parametrize("nested_request", [_request_with_requests, _request_with_urllib])
+def test_a_request_made_from_a_requests_hook_gets_its_own_rasp_subcontext(nested_request):
+    """libddwaf does not report a rule twice in one subcontext, so sharing would hide the nested match."""
+    import requests
+
+    with _local_http_server() as base, _recording_ssrf_subcontexts() as calls:
+
+        def hook(response, **kwargs):
+            if response.url.endswith("/outer"):
+                nested_request(f"{base}/nested")
+
+        with requests.Session() as session:
+            session.hooks["response"].append(hook)
+            session.get(f"{base}/outer", timeout=5)
+
+    req = EXPLOIT_PREVENTION.TYPE.SSRF_REQ
+    res = EXPLOIT_PREVENTION.TYPE.SSRF_RES
+    assert [(rule_type, url) for rule_type, url, _ in calls] == [
+        (req, f"{base}/outer"),
+        (req, f"{base}/nested"),
+        (res, None),
+        (res, None),
+    ]
+    outer, nested = calls[0][2], calls[1][2]
+    assert outer is not None and nested is not None
+    assert nested is not outer
+    assert calls[2][2] is nested
+    assert calls[3][2] is outer
+
+
+def test_a_urllib_redirect_shares_the_request_rasp_subcontext():
+    import urllib.request
+
+    with _local_http_server() as base, _recording_ssrf_subcontexts() as calls:
+        urllib.request.urlopen(f"{base}/source", timeout=5).read()
+
+    assert [url for _, url, _ in calls if url] == [f"{base}/source", f"{base}/target"]
+    holders = {id(holder) for _, _, holder in calls}
+    assert len(holders) == 1 and calls[0][2] is not None
 
 
 def test_a_custom_installed_opener_still_publishes_the_url():

@@ -48,8 +48,7 @@ class _SsrfWebbrowserOpen(WrappingContext):
         if not (isinstance(url, str) and url):
             return
 
-        # open_rasp_subcontext_scope is documented to be called from a per-outgoing-request core
-        # context; without one, every call in the request would share a single subcontext.
+        # Without its own core context, the holder would land on the incoming request's context.
         with core.context_with_data("url_open_analysis", full_url=url):
             open_rasp_subcontext_scope()
             res = call_waf_callback(

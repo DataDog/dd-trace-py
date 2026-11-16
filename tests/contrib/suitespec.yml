@@ -1589,6 +1589,7 @@ suites:
       - '@bootstrap'
       - '@contrib'
       - '@httpx'
+      - ddtrace/appsec/_contrib/httpx/*
       - tests/contrib/httpx/*
       - tests/snapshots/tests.contrib.httpx.*
     services:

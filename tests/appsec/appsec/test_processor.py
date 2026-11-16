@@ -1114,12 +1114,7 @@ def test_lambda_inferred_span(tracer, inferred_span_name):
     assert get_triggers(gateway_span)
 
 
-def test_rasp_subcontext_scope_shared_for_ssrf():
-    """A nested SSRF operation (e.g. requests driving urllib3) must share ONE subcontext.
-
-    The reentrant open must not let an inner scope clobber the outer holder, and SSRF_REQ +
-    SSRF_RES of the same outgoing request must resolve the same subcontext.
-    """
+def test_rasp_subcontext_scope_inherit_shares_the_enclosing_subcontext():
     from ddtrace.appsec import _asm_request_context as arc
     from ddtrace.internal import core
 
@@ -1139,15 +1134,14 @@ def test_rasp_subcontext_scope_shared_for_ssrf():
     with core.context_with_data("outer_request"):
         arc.open_rasp_subcontext_scope()
         s_req = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
-        # Inner client opens a nested scope: it must detect the parent holder and not create one.
-        with core.context_with_data("inner_send"):
-            arc.open_rasp_subcontext_scope()  # reentrant: reuses the outer holder
-            s_inner = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
-            assert s_inner is s_req
-        # Final response on the outer scope still shares the same subcontext.
-        s_res = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_res")
-        assert s_res is s_req
-    assert waf.created == 1
+        with core.context_with_data("transport_layer"):
+            arc.open_rasp_subcontext_scope(inherit=True)
+            assert arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req") is s_req
+        with core.context_with_data("nested_request"):
+            arc.open_rasp_subcontext_scope()
+            assert arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req") is not s_req
+        assert arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_res") is s_req
+    assert waf.created == 2
 
 
 def test_rasp_subcontext_distinct_per_concurrent_outgoing_request():

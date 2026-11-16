@@ -183,10 +183,8 @@ def should_analyze_body_response(env: ASM_Environment) -> bool:
     )
 
 
-# SSRF shares one subcontext across an outgoing request's SSRF_REQ + SSRF_RES calls, which may run
-# in different core contexts (e.g. httpx: request on the inner send context, final response on the
-# outer). A mutable holder is stored on the owning context; both calls resolve it via find_item
-# (which walks up the context tree), and it is released when that scope ends.
+# An outgoing request's SSRF_REQ and SSRF_RES calls share one subcontext, held on the request's core
+# context and resolved through find_item from the contexts underneath it.
 
 _RASP_SUBCONTEXT = "asm::rasp_subcontext"
 
@@ -206,20 +204,16 @@ class _RaspSubcontextHolder:
         self.subctx: Optional[Any] = None
 
 
-def open_rasp_subcontext_scope() -> None:
-    """Establish the current core context as the owner of an SSRF subcontext.
+def open_rasp_subcontext_scope(*, inherit: bool = False) -> None:
+    """Give the current core context its own SSRF subcontext holder.
 
-    Called by SSRF integrations from the per-outgoing-request core context (``url_open_analysis``,
-    httpx's request context, or urllib3's own ``context_with_data``) so the request's SSRF_REQ and
-    SSRF_RES WAF calls share one subcontext, created lazily on the first RASP call within the scope.
-    Because the holder lives on that per-request context, concurrent outgoing requests (each in its
-    own context) get distinct subcontexts, and dropping the context releases the holder.
-
-    Reentrant: if an enclosing scope already owns a holder (e.g. ``requests`` driving ``urllib3``),
-    this is a no-op and the inner operation shares the outer subcontext.
+    Call it from a per-outgoing-request core context. inherit=True is for layers underneath a
+    client that already owns the request (e.g. urllib3 under requests): they reuse the enclosing
+    holder when there is one. A request started from another request's hooks must not inherit.
     """
-    if core.find_item(_RASP_SUBCONTEXT) is None:
-        core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
+    if inherit and core.find_item(_RASP_SUBCONTEXT) is not None:
+        return
+    core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
 
 
 def get_or_create_rasp_subcontext(ddwaf: Any, ctx: Any, rule_type: Optional[str]) -> Optional[Any]:

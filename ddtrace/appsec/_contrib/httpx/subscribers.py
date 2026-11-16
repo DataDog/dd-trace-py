@@ -4,11 +4,10 @@ from types import TracebackType
 from typing import Any
 from typing import Optional
 
-from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
 from ddtrace.appsec._asm_request_context import _get_asm_context
-from ddtrace.appsec._asm_request_context import _RaspSubcontextHolder
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._rasp import get_rasp_capability
@@ -35,9 +34,7 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
         if asm_context is None:
             return
 
-        # Each logical request owns its subcontext, including requests started by event hooks.
-        # Redirect sends and the final response share this request's holder.
-        ctx.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
+        open_rasp_subcontext_scope()
 
         analyze_body = should_analyze_body_response(asm_context)
         ctx.set_item(APPSEC_SSRF_ANALYZE_BODY_KEY, analyze_body)
