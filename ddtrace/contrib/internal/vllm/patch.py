@@ -104,7 +104,7 @@ def _inject_trace_headers_arg(args, kwargs, position: int):
 
 # Trace headers injected in AsyncLLM.add_request, by request id. Newer vLLM drops trace_headers there when
 # no OTLP traces endpoint is configured, and process_inputs may run in a thread without our contextvars.
-_PENDING_TRACE_HEADERS: dict[str, dict[str, str]] = {}
+_PENDING_TRACE_HEADERS: dict[tuple[int, str], dict[str, str]] = {}
 
 
 def _get_arg(args, kwargs, position: int, name: str):
@@ -114,7 +114,7 @@ def _get_arg(args, kwargs, position: int, name: str):
 def traced_processor_process_inputs(func, instance, args, kwargs):
     """Inject Datadog trace context into trace_headers for propagation."""
     args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_TRACE_HEADERS)
-    pending = _PENDING_TRACE_HEADERS.get(_get_arg(args, kwargs, 0, "request_id"))
+    pending = _PENDING_TRACE_HEADERS.get((id(instance), _get_arg(args, kwargs, 0, "request_id")))
     if pending:
         merged = {**pending, **(_get_arg(args, kwargs, ARG_POSITION_TRACE_HEADERS, "trace_headers") or {})}
         if len(args) > ARG_POSITION_TRACE_HEADERS:
@@ -131,14 +131,16 @@ async def traced_async_llm_add_request(func, instance, args, kwargs):
     contextvars of the event loop, so the process_inputs wrapper does not see the active span there.
     """
     args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_ADD_REQUEST_TRACE_HEADERS)
-    request_id = _get_arg(args, kwargs, 0, "request_id")
+    key = (id(getattr(instance, "input_processor", None)), _get_arg(args, kwargs, 0, "request_id"))
     headers = _get_arg(args, kwargs, ARG_POSITION_ADD_REQUEST_TRACE_HEADERS, "trace_headers")
-    if request_id is not None and headers:
-        _PENDING_TRACE_HEADERS[request_id] = dict(headers)
+    stored = dict(headers) if headers else None
+    if stored:
+        _PENDING_TRACE_HEADERS[key] = stored
     try:
         return await func(*args, **kwargs)
     finally:
-        _PENDING_TRACE_HEADERS.pop(request_id, None)
+        if stored and _PENDING_TRACE_HEADERS.get(key) is stored:
+            del _PENDING_TRACE_HEADERS[key]
 
 
 def _capture_request_states(
