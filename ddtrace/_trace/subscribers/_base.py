@@ -131,9 +131,6 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
                     span_from_context(ctx).set_tag("error", True)
     """
 
-    # Register here events that just create / finish spans
-    event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
-
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
         _start_span(ctx)
@@ -152,6 +149,14 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         finally:
             if getattr(ctx.event, "_end_span", True):
                 _finish_span(ctx, exc_info)
+
+
+class SpanTracingSubscriber(TracingSubscriber[TracingEvent]):
+    """Default span lifecycle activated by tracing's subscriber bundle."""
+
+    # Register here events that just create / finish spans
+    auto_register = False
+    event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
 
 
 class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[TracingEventType]):

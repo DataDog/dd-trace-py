@@ -66,7 +66,8 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
 
     assert subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
-    assert subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS,)
+    assert subscriber_bundles[0] is WEB_FRAMEWORK_SUBSCRIBERS
+    assert all(bundle.module not in sys.modules for bundle in subscriber_bundles)
 
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))

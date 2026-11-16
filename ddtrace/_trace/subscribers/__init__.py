@@ -1,6 +1,9 @@
-# Import subscriber packages — triggers auto-registration via __init_subclass__
-import ddtrace._trace.subscribers.http_client  # noqa: F401
-import ddtrace._trace.subscribers.kafka  # noqa: F401
-import ddtrace._trace.subscribers.llm  # noqa: F401
-import ddtrace._trace.subscribers.messaging  # noqa: F401
-import ddtrace._trace.subscribers.molten  # noqa: F401
+"""Tracing-owned activation for manually instrumented integrations."""
+
+from ddtrace._trace._registration import register_subscribers
+from ddtrace._trace._registration import subscriber_bundles
+
+
+# Preserve manual instrumentation when global tracer creation is deferred.
+# The existing initialization hook and product startup own the web bundle.
+register_subscribers(subscriber_bundles[1:])

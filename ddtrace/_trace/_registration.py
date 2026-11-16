@@ -7,12 +7,49 @@ WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.web_framework",
     subscribers=("WebFrameworkRequestSubscriber",),
 )
+SPAN_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers._base",
+    subscribers=("SpanTracingSubscriber",),
+)
+HTTP_CLIENT_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.http_client",
+    subscribers=("HttpClientTracingSubscriber",),
+)
+MESSAGING_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.messaging",
+    subscribers=("MessagingProduceSubscriber", "MessagingConsumeSubscriber"),
+)
+KAFKA_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.kafka",
+    subscribers=("KafkaProduceSubscriber", "KafkaConsumeSubscriber"),
+)
+LLM_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.llm",
+    subscribers=("LlmTracingSubscriber",),
+)
+MOLTEN_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.molten",
+    subscribers=("MoltenRouteSubscriber",),
+)
+AWS_DURABLE_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.aws_durable",
+    subscribers=("AwsDurableExecuteSubscriber", "AwsDurableInvokeSubscriber", "AwsDurableOperationSubscriber"),
+)
 
 
-subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS,)
+subscriber_bundles = (
+    WEB_FRAMEWORK_SUBSCRIBERS,
+    SPAN_SUBSCRIBERS,
+    HTTP_CLIENT_SUBSCRIBERS,
+    MESSAGING_SUBSCRIBERS,
+    KAFKA_SUBSCRIBERS,
+    LLM_SUBSCRIBERS,
+    MOLTEN_SUBSCRIBERS,
+    AWS_DURABLE_SUBSCRIBERS,
+)
 
 
-def register_subscribers() -> None:
+def register_subscribers(bundles: tuple[SubscriberBundle, ...] = subscriber_bundles) -> None:
     """Activate tracing listeners for manual initialization and product startup."""
-    for bundle in subscriber_bundles:
+    for bundle in bundles:
         bundle.register()

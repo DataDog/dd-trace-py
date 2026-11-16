@@ -44,7 +44,10 @@ bundles. Global initialization uses an import hook to defer activation until the
 subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
 `DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
 the product manager.
-The web subscriber uses explicit registration rather than class-definition registration.
+Concrete SDK-independent tracing subscribers use explicit registration rather than class-definition registration.
+The tracing subscriber package preserves non-web activation for manual instrumentation, including
+explicitly deferred global tracer creation. Custom subscriber registration defaults are unchanged.
+Ray retains SDK-dependent activation from its patch module until a separate migration.
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 

@@ -129,22 +129,22 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
-Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`.
+Tracing declares SDK-independent subscriber bundles in `ddtrace._trace._registration`.
 Its `register_subscribers()` helper activates every declared bundle. Product startup
 calls this helper directly. Normal `ddtrace` initialization installs an import hook
 that calls it after the subscriber package loads through contrib. Waiting for the
 package to finish avoids registering against partially initialized subscriber bases
 and preserves lightweight bare tracer imports.
-Listeners remain available with `DD_TRACE_ENABLED=false` so existing
-integrations can finish their spans without enabling tracing. This supports manual
-instrumentation without starting the product manager. `_DD_GLOBAL_TRACER_INIT=false` preserves deferred initialization;
-product startup can still activate the bundles explicitly. The web subscriber uses
-explicit registration rather than class-definition registration. Integrations emit
-events without registering tracing listeners themselves. Repeated activation does not duplicate
-listeners and can restore listeners after a reset.
-Tracing retains its existing shutdown behavior and keeps these listeners registered.
-Other subscriber families continue using class-definition registration until their
-activation paths are migrated.
+The subscriber package also explicitly activates non-web bundles for manual
+instrumentation, including when global tracer creation is deferred. Web activation
+timing is unchanged. Listeners remain available with `DD_TRACE_ENABLED=false` so
+existing integrations can finish their spans without enabling tracing. Repeated
+activation restores reset listeners without duplicating spans.
+Concrete product subscribers disable class-definition registration; custom subscriber
+registration defaults are unchanged. Integrations emit events without registering
+tracing listeners themselves. Ray retains SDK-dependent activation from its patch
+module until a separate migration. Tracing retains its existing shutdown behavior
+and keeps these listeners registered.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
