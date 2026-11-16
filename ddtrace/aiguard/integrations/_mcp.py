@@ -22,6 +22,7 @@ from ddtrace.aiguard._types import Message
 from ddtrace.internal import forksafe
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.utils.http import url_origin
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
@@ -144,6 +145,11 @@ def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]
     return result
 
 
+def local_tool_call_id() -> str:
+    """ID for a tool call no model issued, prefixed so it is never mistaken for a provider ID."""
+    return f"dd_mcp_{uuid4().replace('-', '')}"
+
+
 class ApprovalDecision(NamedTuple):
     blocked: bool
     action: Action
@@ -199,19 +205,29 @@ def _stream_key(stream: Any) -> Any:
     return getattr(stream, "_inner", stream)
 
 
+def client_mcp_server(
+    transport: MCPTransport, name: Any = None, url: Any = None, command: Any = None, args: Any = None
+) -> Optional[MCPServer]:
+    """The mcp_servers entry of a client-managed server from its configuration; None if it cannot be identified.
+
+    Remote servers report their URL origin and stdio servers their command and safe args; never headers or env.
+    """
+    name = name if isinstance(name, str) and name else None
+    if transport == "stdio":
+        command = command if isinstance(command, str) and command else None
+        stdio_args = args if isinstance(args, (list, tuple)) and all(isinstance(arg, str) for arg in args) else ()
+        safe_args = safe_stdio_args(command, stdio_args) if command else []
+        return mcp_server("client", transport, name=name, command=command, args=safe_args)
+    return mcp_server("client", transport, name=name, url=url if isinstance(url, str) else None)
+
+
 def _transport_server(transport: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[MCPServer]:
     """Server of a transport call: the stdio command and safe args, or the URL origin. Never headers or env."""
     if transport == "stdio_client":
         params = args[0] if args else kwargs.get("server")
-        command = getattr(params, "command", None)
-        if not isinstance(command, str) or not command:
-            return None
-        stdio_args = getattr(params, "args", None) or []
-        return mcp_server("client", "stdio", command=command, args=safe_stdio_args(command, stdio_args))
+        return client_mcp_server("stdio", command=getattr(params, "command", None), args=getattr(params, "args", None))
     url = args[0] if args else kwargs.get("url")
-    if not isinstance(url, str):
-        return None
-    return mcp_server("client", "sse" if transport == "sse_client" else "streamable_http", url=url)
+    return client_mcp_server("sse" if transport == "sse_client" else "streamable_http", url=url)
 
 
 class _StreamsRecorder:

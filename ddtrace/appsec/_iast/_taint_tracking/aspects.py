@@ -600,47 +600,43 @@ def format_value_aspect(
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
+    """Encode or decode self one item at a time, mapping each taint range to its output position.
+
+    Ranges are expected in ascending, non-overlapping order. A range covers the output produced
+    while consuming its input. A character split across a range boundary is produced by the item
+    that completes it, so it belongs to the range holding its last byte.
+    """
     tainted_ranges = iter(get_tainted_ranges(self))
     result_list, new_ranges = [], []
     result_length, i = 0, 0
     tainted_range = next(tainted_ranges, None)
-    tainted_new_length = 0
-    in_tainted = False
     tainted_start = 0
-    bytes_iterated = 0
     try:
         for i in range(len(self)):
             if tainted_range is None:
-                # no more tainted ranges, finish decoding all at once
+                # No ranges left to map, so the rest can be converted in a single call.
                 new_prod = funcode(self[i:])
                 result_list.append(new_prod)
                 break
             if i == tainted_range.start:
-                # start new tainted range
-                tainted_start = bytes_iterated
-                tainted_new_length = 0
-                in_tainted = True
+                tainted_start = result_length
 
             new_prod = funcode(self[i : i + 1])
             result_list.append(new_prod)
             result_length += len(new_prod)
 
-            if in_tainted:
-                tainted_new_length += len(new_prod)
-            else:
-                bytes_iterated += len(new_prod)
-
-            if i + 1 == tainted_range.start + tainted_range.length and tainted_new_length > 0:
-                # end range. Do no taint partial multi-bytes character that comes next.
-                new_ranges.append(
-                    TaintRange(
-                        start=tainted_start,
-                        length=tainted_new_length,
-                        source=tainted_range.source,
-                        secure_marks=tainted_range.secure_marks,
+            if i + 1 == tainted_range.start + tainted_range.length:
+                # A range holding only part of a character produces no output and is dropped,
+                # but the next range must still be mapped.
+                if result_length > tainted_start:
+                    new_ranges.append(
+                        TaintRange(
+                            start=tainted_start,
+                            length=result_length - tainted_start,
+                            source=tainted_range.source,
+                            secure_marks=tainted_range.secure_marks,
+                        )
                     )
-                )
-
                 tainted_range = next(tainted_ranges, None)
         result_list.append(funcode(self[:0], True))
     except UnicodeDecodeError as e:

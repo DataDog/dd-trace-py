@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 import sys
-import typing  # noqa:F401
+import typing
 
 import ddtrace
 from ddtrace.internal.settings import env
@@ -14,7 +14,7 @@ from ddtrace.version import __version__
 def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Optional[str]:
     if args is None:
         return None
-    command = args.command[0]
+    command: str = args.command[0]
     if os.path.isfile(command):
         return command
     return shutil.which(command)
@@ -38,7 +38,7 @@ ddtrace-run gunicorn myproject.wsgi
 """
 
 
-def _add_bootstrap_to_pythonpath(bootstrap_dir):
+def _add_bootstrap_to_pythonpath(bootstrap_dir: str) -> None:
     """
     Add our bootstrap directory to the head of $PYTHONPATH to ensure
     it is loaded before program code
@@ -76,7 +76,7 @@ def _get_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _prepare_env(parser: argparse.ArgumentParser):
+def _prepare_env(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args = parser.parse_args()
     if args.profiling:
         env["DD_PROFILING_ENABLED"] = "true"
@@ -110,7 +110,7 @@ def _prepare_env(parser: argparse.ArgumentParser):
     return args
 
 
-def main():
+def main() -> None:
     parser = None
     args = None
     executable = None

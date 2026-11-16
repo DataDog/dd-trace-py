@@ -1,5 +1,6 @@
 import typing as t
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agent import get_agent_hostname
@@ -7,6 +8,9 @@ from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
+
+
+log = get_logger(__name__)
 
 
 def _agentless_endpoint(signal_path: str = "") -> str:
@@ -30,17 +34,13 @@ def _with_intake_auth(configured: str, signal_endpoint_env_var: str) -> str:
     return f"{configured},{api_key_header}" if configured else api_key_header
 
 
-def _default_protocol(config: "ExporterConfig", signal_endpoint_env_var: str = "") -> str:
-    """The protocol to fall back on when no signal-specific one is set.
-
-    Agentless to our intake overrides the gRPC default because the intake speaks https only.
-    """
-    if _targets_agentless_intake(signal_endpoint_env_var) and "OTEL_EXPORTER_OTLP_PROTOCOL" not in env:
-        return "http/protobuf"
-    return config.PROTOCOL
-
-
 def _default_endpoint(config: "ExporterConfig", protocol: str, signal_path: str = "") -> str:
+    # Without a signal-specific endpoint, the OpenTelemetry SDK exporters derive it from the global
+    # endpoint: HTTP appends the signal path to it, and gRPC uses it as-is.
+    if global_endpoint := env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        if protocol.lower() in ("http/json", "http/protobuf"):
+            return global_endpoint.rstrip("/") + signal_path
+        return global_endpoint
     if agentless_config.enabled and "OTEL_EXPORTER_OTLP_ENDPOINT" not in env:
         return _agentless_endpoint(signal_path)
     return ExporterConfig._get_default_endpoint(protocol, signal_path)
@@ -56,8 +56,43 @@ def _derive_logs_endpoint(config: "ExporterConfig"):
     return get_config("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", default_endpoint)
 
 
+def _normalize_signal_protocol(protocol: str, signal: str) -> str:
+    normalized = protocol.strip().lower()
+    if normalized in ("grpc", "http/protobuf"):
+        return normalized
+    log.warning(
+        "OpenTelemetry %s exporter protocol %r is not supported. Falling back to 'http/protobuf'.",
+        signal,
+        protocol,
+    )
+    return "http/protobuf"
+
+
+def _normalize_signal_compression(compression: str, protocol: str, variable: str) -> str:
+    normalized = compression.strip().lower()
+    supported = ("none", "gzip") if protocol == "grpc" else ("none", "gzip", "deflate")
+    if normalized in supported:
+        return normalized
+    log.warning(
+        "Unsupported value %r for %s with %s export. Falling back to no compression.",
+        compression,
+        variable,
+        protocol,
+    )
+    return "none"
+
+
+def _derive_signal_compression(signal: str, protocol: str) -> str:
+    variable = f"OTEL_EXPORTER_OTLP_{signal}_COMPRESSION"
+    compression = get_config(variable)
+    if compression is None:
+        variable = "OTEL_EXPORTER_OTLP_COMPRESSION"
+        compression = get_config(variable, "none")
+    return _normalize_signal_compression(compression, protocol, variable)
+
+
 def _derive_logs_protocol(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", _default_protocol(config, "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"))
+    return _normalize_signal_protocol(get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", config.PROTOCOL), "Logs")
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
@@ -76,10 +111,8 @@ def _derive_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
-    return get_config(
-        ["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"],
-        _default_protocol(config, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
-    )
+    protocol = get_config(["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
+    return _normalize_signal_protocol(protocol, "Metrics")
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
@@ -143,9 +176,8 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
 def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
     """Endpoint for the native OTLP trace-metrics exporter (client-computed span stats).
 
-    libdatadog only supports HTTP/JSON for this exporter, so — unlike the SDK's protocol-aware
-    ``METRICS_ENDPOINT`` (which defaults to the gRPC endpoint with no ``/v1/metrics`` path) — this
-    always resolves an HTTP ``/v1/metrics`` endpoint, mirroring ``_derive_traces_endpoint``.
+    Unlike the protocol-aware METRICS_ENDPOINT, this always resolves an HTTP /v1/metrics
+    endpoint because libdatadog only supports HTTP/JSON for trace metrics.
     """
     # Signal-specific endpoint takes precedence (full URL, no path appended).
     if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
@@ -183,17 +215,19 @@ class ExporterConfig(DDConfig):
     DEFAULT_METRICS_METRIC_READER_EXPORT_INTERVAL: int = 10000
     DEFAULT_METRICS_METRIC_READER_EXPORT_TIMEOUT: int = 7500
 
-    PROTOCOL = DDConfig.v(t.Optional[str], "otlp.protocol", default="grpc")
+    PROTOCOL = DDConfig.v(t.Optional[str], "otlp.protocol", default="http/protobuf")
     ENDPOINT = DDConfig.d(str, _derive_endpoint)
     HEADERS = DDConfig.v(str, "otlp.headers", default=DEFAULT_HEADERS)
     TIMEOUT = DDConfig.v(int, "otlp.timeout", default=DEFAULT_TIMEOUT)
 
     LOGS_PROTOCOL = DDConfig.d(str, _derive_logs_protocol)
+    LOGS_COMPRESSION = DDConfig.d(str, lambda config: _derive_signal_compression("LOGS", config.LOGS_PROTOCOL))
     LOGS_ENDPOINT = DDConfig.d(str, _derive_logs_endpoint)
     LOGS_HEADERS = DDConfig.d(str, _derive_logs_headers)
     LOGS_TIMEOUT = DDConfig.d(int, _derive_logs_timeout)
 
     METRICS_PROTOCOL = DDConfig.d(str, _derive_metrics_protocol)
+    METRICS_COMPRESSION = DDConfig.d(str, lambda config: _derive_signal_compression("METRICS", config.METRICS_PROTOCOL))
     METRICS_ENDPOINT = DDConfig.d(str, _derive_metrics_endpoint)
     METRICS_HEADERS = DDConfig.d(str, _derive_metrics_headers)
     METRICS_TIMEOUT = DDConfig.d(int, _derive_metrics_timeout)

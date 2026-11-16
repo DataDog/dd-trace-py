@@ -174,6 +174,7 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'google-genai~=1.21.1']
   vertexai:
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@vertexai'
@@ -184,13 +185,15 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
       variants:
+        # Oldest supported SDK (google-cloud-aiplatform 1.71.1), held by the existing locks.
+        # A fresh lock picks a newer google-cloud-aiplatform instead.
         - name: vertexai
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
-        # The standalone vertexai distribution stops at 1.71.1, which pins google-cloud-aiplatform
-        # 1.71.1; newer google-cloud-aiplatform releases ship the vertexai module themselves.
+        # Latest google-cloud-aiplatform. It ships the vertexai module, so the standalone
+        # vertexai package is left out.
         - name: vertexai
-          python: ['3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
     venvs_per_job: 5
@@ -302,6 +305,7 @@ suites:
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@mcp'
