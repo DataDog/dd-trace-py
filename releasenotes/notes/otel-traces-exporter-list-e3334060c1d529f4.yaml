@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    opentelemetry: Fixes an issue where comma-separated values of ``OTEL_TRACES_EXPORTER``,
+    ``OTEL_METRICS_EXPORTER`` and ``OTEL_LOGS_EXPORTER``, such as ``otlp,zipkin``, are ignored as
+    unsupported. ddtrace still exports each signal to a single exporter, and now falls back to the
+    supported entry of the list: ``otlp`` enables OTLP export, otherwise ``none`` disables the
+    signal. Unsupported entries are ignored with a warning.
