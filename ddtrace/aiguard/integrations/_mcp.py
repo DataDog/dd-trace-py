@@ -133,7 +133,10 @@ def _parse_ipv4_number(part: str) -> Optional[int]:
     # int() also accepts signs and underscores, which the WHATWG IPv4 parser rejects.
     if any(char not in "0123456789abcdef"[:base] for char in part):
         return None
-    return int(part, base)
+    try:
+        return int(part, base)
+    except ValueError:
+        return None
 
 
 def _whatwg_ipv4(labels: list[str]) -> Optional[str]:
