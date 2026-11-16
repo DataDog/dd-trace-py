@@ -5155,9 +5155,9 @@
     ],
     "DD_TRACE_STARTUP_LOGS": [
       {
-        "implementation": "D",
+        "implementation": "C",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_TRACE_STATS_ADDITIONAL_TAGS": [
