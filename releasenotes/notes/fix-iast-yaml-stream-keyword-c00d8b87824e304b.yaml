@@ -1,0 +1,5 @@
+fixes:
+  - |
+    App and API Protection: Fixes missing unsafe YAML deserialization findings when
+    Interactive Application Security Testing (IAST) is enabled and input is passed
+    using PyYAML's ``stream`` keyword argument.
