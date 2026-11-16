@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
+# # The upload job can write to the index that all CI jobs use. Thus a new release of a
+# # dependency must not run in it before a person updates these exact versions.
 # dependencies = [
-#     "auditwheel>=6.7,<7",
-#     "packaging>=24,<27",
-#     "patchelf>=0.17,<1",
-#     "ruamel.yaml>=0.17.21",
-#     "wheel>=0.42,<1",
+#     "auditwheel==6.8.2",
+#     "packaging==26.3",
+#     "patchelf==0.19.3.0",
+#     # A dependency of auditwheel.
+#     "pyelftools==0.33",
+#     "ruamel.yaml==0.19.1",
+#     "wheel==0.48.0",
 # ]
 # ///
 """Build the wheels that PyPI does not publish for the test locks, and upload them to Depot.
