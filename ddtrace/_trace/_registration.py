@@ -37,8 +37,13 @@ AWS_DURABLE_SUBSCRIBERS = SubscriberBundle(
 )
 
 
-subscriber_bundles = (
-    WEB_FRAMEWORK_SUBSCRIBERS,
+SPAN_EXCEPTION_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers._base",
+    subscribers=("SpanExceptionSubscriber",),
+)
+
+
+MANUAL_SUBSCRIBER_BUNDLES = (
     SPAN_SUBSCRIBERS,
     HTTP_CLIENT_SUBSCRIBERS,
     MESSAGING_SUBSCRIBERS,
@@ -47,6 +52,9 @@ subscriber_bundles = (
     MOLTEN_SUBSCRIBERS,
     AWS_DURABLE_SUBSCRIBERS,
 )
+
+
+subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS, SPAN_EXCEPTION_SUBSCRIBERS, *MANUAL_SUBSCRIBER_BUNDLES)
 
 
 def register_subscribers(bundles: tuple[SubscriberBundle, ...] = subscriber_bundles) -> None:

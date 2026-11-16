@@ -1,5 +1,6 @@
 from dataclasses import InitVar
 from dataclasses import dataclass
+import sys
 
 import pytest
 
@@ -453,3 +454,57 @@ def test_span_context_event_end_span_false(test_spans):
 
     # Span should be started but not finished
     test_spans.assert_span_count(0)
+
+
+@pytest.mark.parametrize("completed", [False, True])
+def test_context_exception_is_reported_synchronously(test_spans, completed):
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
+    from ddtrace._trace._registration import SPAN_SUBSCRIBERS
+    from ddtrace.contrib._events.exception import ContextExceptionEvent
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    core.reset_listeners(ContextExceptionEvent.event_name)
+    SPAN_SUBSCRIBERS.register()
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
+    event = TracingEvent.create(
+        operation_name="worker.run",
+        span_type="worker",
+        span_kind="internal",
+        component="test",
+        integration_config=IntegrationConfig(config, "test"),
+    )
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        if completed:
+            ctx.dispatch_ended_event()
+            assert ctx._event is None
+        try:
+            raise ValueError("operation failed")
+        except ValueError:
+            core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
+            assert span.error == 1
+            assert span.get_tag("error.type").endswith("ValueError")
+            assert "operation failed" in span.get_tag("error.stack")
+        ctx.dispatch_ended_event()
+    assert span.finished
+    test_spans.assert_span_count(1)
+
+
+def test_context_exception_does_not_create_or_borrow_span(test_spans):
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
+    from ddtrace.contrib._events.exception import ContextExceptionEvent
+
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
+    with tracer.trace("parent") as parent:
+        with core.context_with_data("without.span") as ctx:
+            assert ctx.get_item("_inner_span") is None
+            try:
+                raise ValueError("untraced operation failed")
+            except ValueError:
+                core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
+            assert ctx.get_item("_inner_span") is None
+            assert tracer.current_span() is parent
+            assert parent.error == 0
+    assert test_spans.pop() == [parent]

@@ -12,6 +12,13 @@ and do not follow the semver versioning scheme of the `ddtrace` package.
 producers and encoders. Products that attach payloads to spans use these shared
 limits to keep their output within the encoding limits.
 
+## Context span lookup
+
+`ddtrace.internal.span_bus.find_span_on_context(ctx)` returns only the span stored on
+that context, or `None`. It never searches parent contexts or creates a fallback span.
+Use it when a context may intentionally have no span, including exception notifications.
+The existing `span_from_context(ctx)` retains its fallback behavior.
+
 ## HTTP endpoint normalization
 
 `ddtrace.internal.utils.endpoint.SimplifiedEndpointComputer` normalizes URL paths
@@ -129,17 +136,39 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
+Deferred integrations report exceptions synchronously with `ContextExceptionEvent`.
+The event in `ddtrace.contrib._events.exception` carries any execution context and its exception
+information. `SpanExceptionSubscriber` annotates only a span already stored on that context; it
+never creates one or borrows an active parent. It consumes the live exception immediately;
+deferred contexts never store the exception or its traceback. Completion dispatch carries response metadata, while
+exception details are available during the separate notification. Consumers must not retain
+that notification or its exception tuple. Late errors can update a finished span object, but
+cannot guarantee updating an already exported trace.
+
+Aiohttp coordinates the handler task, final response metadata, and tasks executing response
+preparation/sending. A middleware-created child task ending does not by itself finish the request.
+Each request keeps its captured context for completion, including IAST reporting. Same-task
+completion uses the live context only while the request context is still active; after middleware
+returns, completion re-enters the captured context. Connection
+closure is only an abort fallback; all task callbacks and captured state are removed at completion
+so completed requests do not accumulate on keep-alive connections.
+HTTP 101 protocol upgrades complete at preparation, so WebSocket request spans cover
+only the handshake and message processing does not join the completed request trace.
+Each nested middleware callback retains its own context, and response preparation visits every context
+shared by request clones. The existing `disable_stream_timing_for_mem_leak` option still
+completes at header preparation to release request state sooner.
+
 Tracing declares SDK-independent subscriber bundles in `ddtrace._trace._registration`.
 Its `register_subscribers()` helper activates every declared bundle. Product startup
 calls this helper directly. Normal `ddtrace` initialization installs an import hook
 that calls it after the subscriber package loads through contrib. Waiting for the
 package to finish avoids registering against partially initialized subscriber bases
 and preserves lightweight bare tracer imports.
-The subscriber package also explicitly activates non-web bundles for manual
-instrumentation, including when global tracer creation is deferred. Web activation
-timing is unchanged. Listeners remain available with `DD_TRACE_ENABLED=false` so
-existing integrations can finish their spans without enabling tracing. Repeated
-activation restores reset listeners without duplicating spans.
+The subscriber package also explicitly activates `MANUAL_SUBSCRIBER_BUNDLES` for
+manual instrumentation, including when global tracer creation is deferred. Web request
+and span exception bundles retain their existing activation timing. Listeners remain
+available with `DD_TRACE_ENABLED=false` so existing integrations can finish their spans
+without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
 Concrete product subscribers disable class-definition registration; custom subscriber
 registration defaults are unchanged. Integrations emit events without registering
 tracing listeners themselves. Ray retains SDK-dependent activation from its patch

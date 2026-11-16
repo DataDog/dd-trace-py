@@ -8,6 +8,7 @@ def test_tracing_subscriber_definitions_do_not_register_listeners() -> None:
 
     from ddtrace._trace._registration import subscriber_bundles
     from ddtrace.internal import core
+    from ddtrace.internal.core.subscriber import ContextSubscriber
 
     assert {bundle.module.rsplit(".", 1)[-1] for bundle in subscriber_bundles} >= {
         "_base",
@@ -19,15 +20,18 @@ def test_tracing_subscriber_definitions_do_not_register_listeners() -> None:
         "aws_durable",
         "web_framework",
     }
+    modules = {bundle.module: import_module(bundle.module) for bundle in subscriber_bundles}
     for bundle in subscriber_bundles:
-        module = import_module(bundle.module)
         bundle.unregister()
-        module = reload(module)
+    for module in modules.values():
+        reload(module)
+    for bundle in subscriber_bundles:
+        module = modules[bundle.module]
         for name in bundle.subscribers:
             subscriber = getattr(module, name)
             assert subscriber.auto_register is False
             for event_name in subscriber.event_names:
-                prefix = "" if name == "MoltenRouteSubscriber" else "context.started."
+                prefix = "context.started." if issubclass(subscriber, ContextSubscriber) else ""
                 assert not core.has_listeners(prefix + event_name), (name, event_name)
 
 
@@ -40,6 +44,7 @@ def test_product_start_restores_all_tracing_families_without_duplicates() -> Non
     from ddtrace._trace._registration import subscriber_bundles
     from ddtrace._trace.events import TracingEvent
     from ddtrace.internal import core
+    from ddtrace.internal.core.subscriber import ContextSubscriber
     from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
@@ -50,7 +55,7 @@ def test_product_start_restores_all_tracing_families_without_duplicates() -> Non
         for name in bundle.subscribers:
             subscriber = getattr(module, name)
             for event_name in subscriber.event_names:
-                prefix = "" if name == "MoltenRouteSubscriber" else "context.started."
+                prefix = "context.started." if issubclass(subscriber, ContextSubscriber) else ""
                 assert not core.has_listeners(prefix + event_name), (name, event_name)
 
     product.start()
@@ -60,7 +65,9 @@ def test_product_start_restores_all_tracing_families_without_duplicates() -> Non
         for name in bundle.subscribers:
             subscriber = getattr(module, name)
             for event_name in subscriber.event_names:
-                prefixes = ("",) if name == "MoltenRouteSubscriber" else ("context.started.", "context.ended.")
+                prefixes = (
+                    ("context.started.", "context.ended.") if issubclass(subscriber, ContextSubscriber) else ("",)
+                )
                 for prefix in prefixes:
                     assert core.has_listeners(prefix + event_name), (name, event_name)
 
@@ -88,6 +95,7 @@ def test_manual_initialization_activates_all_families_without_optional_sdks() ->
     import ddtrace
     from ddtrace._trace._registration import subscriber_bundles
     from ddtrace.internal import core
+    from ddtrace.internal.core.subscriber import ContextSubscriber
     from ddtrace.internal.settings._config import config
     from ddtrace.trace import tracer
 
@@ -102,7 +110,7 @@ def test_manual_initialization_activates_all_families_without_optional_sdks() ->
         for name in bundle.subscribers:
             subscriber = getattr(module, name)
             for event_name in subscriber.event_names:
-                prefix = "" if name == "MoltenRouteSubscriber" else "context.started."
+                prefix = "context.started." if issubclass(subscriber, ContextSubscriber) else ""
                 assert core.has_listeners(prefix + event_name), (name, event_name)
     assert "ray" not in sys.modules
     assert "ddtrace._trace.subscribers.ray" not in sys.modules
@@ -120,6 +128,7 @@ def test_deferred_global_initialization_preserves_manual_tracing() -> None:
     for event_name in ("http.client.request", "llm.request", "messaging.produce", "messaging.consume"):
         assert core.has_listeners("context.started." + event_name), event_name
         assert core.has_listeners("context.ended." + event_name), event_name
-    # Web activation still requires product startup in this explicitly deferred mode.
+    # Web and exception activation still require product startup in this deferred mode.
     assert not core.has_listeners("context.started.web.request")
+    assert not core.has_listeners("context.exception")
     assert tracer is not None
