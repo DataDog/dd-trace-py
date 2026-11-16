@@ -1,0 +1,4 @@
+fixes:
+  - |
+    flask: Fixes unfinished request and response spans when closing a streamed
+    response raises an exception. The same fix applies to WSGI middleware.

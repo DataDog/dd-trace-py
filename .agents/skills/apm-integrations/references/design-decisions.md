@@ -65,14 +65,21 @@ bundles. Global initialization uses an import hook to defer activation until the
 subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
 `DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
 the product manager.
-The web request and span exception subscribers use explicit registration rather than class-definition registration.
+The web request, Flask request, and span exception subscribers use explicit registration rather than class-definition registration.
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
+
+Flask and WSGI defer their shared request context through response iteration.
+The iterable reports completion without owning spans; `WebFrameworkResponseEvent`
+lets tracing create the response child. Keep application-return security cleanup
+separate from response completion: AppSec and IAST consume
+`wsgi.application.returned` while the request context remains current. Retain
+Flask's metadata and blocking phase hooks rather than adding a second request owner.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,
-flask and django. This pattern decouples patch code from span creation.
+Flask child operations and django. This pattern decouples patch code from span creation.
 
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call
