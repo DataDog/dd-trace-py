@@ -49,13 +49,13 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
     assert "ddtrace._trace.trace_handlers" not in sys.modules
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
-    assert not core.has_listeners("web.request.exception")
+    assert not core.has_listeners("context.exception")
 
     import ddtrace.contrib  # noqa: F401
 
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("web.request.exception")
+    assert core.has_listeners("context.exception")
 
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
@@ -63,12 +63,13 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     import sys
 
     from ddtrace._trace import product  # noqa: F401
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
     from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
     from ddtrace._trace._registration import subscriber_bundles
 
     assert subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
-    assert subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS,)
+    assert subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS, SPAN_EXCEPTION_SUBSCRIBERS)
 
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
@@ -84,7 +85,7 @@ def test_tracing_product_start_registers_unloaded_subscribers() -> None:
     product.start()
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("web.request.exception")
+    assert core.has_listeners("context.exception")
 
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.internal.settings._config import config
@@ -116,4 +117,4 @@ def test_subscriber_package_import_does_not_activate_web_bundle() -> None:
 
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
-    assert not core.has_listeners("web.request.exception")
+    assert not core.has_listeners("context.exception")

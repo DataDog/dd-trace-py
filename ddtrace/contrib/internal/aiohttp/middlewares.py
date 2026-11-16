@@ -14,8 +14,8 @@ from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
 from ddtrace._trace.http_tags import is_otel_non_error_status
+from ddtrace.contrib._events.exception import ContextExceptionEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
@@ -117,7 +117,7 @@ async def trace_middleware(
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
                 # when its status is an error status.
                 if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
-                    core.dispatch_event(WebFrameworkRequestExceptionEvent(request_context=ctx, exc_info=sys.exc_info()))
+                    core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
                 raise
         raise RuntimeError("Request context suppressed an exception without a response")
 

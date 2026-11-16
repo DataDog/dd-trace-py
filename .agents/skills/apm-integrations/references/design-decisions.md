@@ -37,7 +37,7 @@ See `ddtrace/internal/core/__init__.py` for the API. An event is available throu
 its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
-Report deferred request exceptions synchronously through WebFrameworkRequestExceptionEvent
+Report deferred exceptions synchronously through ContextExceptionEvent
 rather than retaining exceptions or tracebacks on a deferred context. Completion carries final
 response metadata separately. For nested middleware, each completion callback must retain
 its own execution context rather than resolve a request key that inner middleware can replace.
@@ -52,7 +52,7 @@ bundles. Global initialization uses an import hook to defer activation until the
 subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
 `DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
 the product manager.
-The web request and exception subscribers use explicit registration rather than class-definition registration.
+The web request and span exception subscribers use explicit registration rather than class-definition registration.
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 

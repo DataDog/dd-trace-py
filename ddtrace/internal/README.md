@@ -129,9 +129,11 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
-Deferred request integrations report exceptions synchronously with `WebFrameworkRequestExceptionEvent`.
-The tracing subscriber consumes the live exception immediately; deferred contexts never
-store the exception or its traceback. Completion dispatch carries response metadata, while
+Deferred integrations report exceptions synchronously with `ContextExceptionEvent`.
+The event in `ddtrace.contrib._events.exception` carries any execution context and its exception
+information. `SpanExceptionSubscriber` annotates only a span already stored on that context; it
+never creates one or borrows an active parent. It consumes the live exception immediately;
+deferred contexts never store the exception or its traceback. Completion dispatch carries response metadata, while
 exception details are available during the separate notification. Consumers must not retain
 that notification or its exception tuple. Late errors can update a finished span object, but
 cannot guarantee updating an already exported trace.
@@ -141,7 +143,8 @@ middleware callback retains its own context, and response preparation visits eve
 shared by request clones. The existing `disable_stream_timing_for_mem_leak` option still
 completes at header preparation to release request state sooner.
 
-Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`.
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` and `SPAN_EXCEPTION_SUBSCRIBERS` in
+`ddtrace._trace._registration`.
 Its `register_subscribers()` helper activates every declared bundle. Product startup
 calls this helper directly. Normal `ddtrace` initialization installs an import hook
 that calls it after the subscriber package loads through contrib. Waiting for the
@@ -150,7 +153,7 @@ and preserves lightweight bare tracer imports.
 Listeners remain available with `DD_TRACE_ENABLED=false` so existing
 integrations can finish their spans without enabling tracing. This supports manual
 instrumentation without starting the product manager. `_DD_GLOBAL_TRACER_INIT=false` preserves deferred initialization;
-product startup can still activate the bundles explicitly. The web request and exception subscribers use
+product startup can still activate the bundles explicitly. The web request and span exception subscribers use
 explicit registration rather than class-definition registration. Integrations emit
 events without registering tracing listeners themselves. Repeated activation does not duplicate
 listeners and can restore listeners after a reset.
