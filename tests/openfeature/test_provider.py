@@ -4,6 +4,7 @@ Comprehensive tests for the DataDogProvider following OpenFeature specification.
 
 from datetime import datetime
 import enum
+from unittest import mock
 
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
@@ -354,6 +355,16 @@ class TestEvaluationContext:
             {"targeting_key": "user-123", "attributes": expected},
             {"targeting_key": "user-123", "attributes": expected},
         ]
+
+    def test_attributes_are_not_filtered_without_configuration(self, provider):
+        """Without a loaded configuration the evaluation returns early, so attributes are never scanned."""
+        context = EvaluationContext(targeting_key="user-123", attributes={"nested": {"a": 1}, "tier": "premium"})
+
+        with mock.patch("ddtrace.internal.openfeature._provider._native_attributes") as native_attributes:
+            result = provider.resolve_boolean_details("test-flag", False, context)
+
+        native_attributes.assert_not_called()
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
     @pytest.mark.parametrize(
         "value,expected",

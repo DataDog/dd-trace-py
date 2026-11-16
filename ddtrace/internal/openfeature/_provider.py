@@ -565,7 +565,7 @@ class DataDogProvider(AbstractProvider):
             # shapes keep being filtered where they are read.
             native_attributes = (
                 _native_attributes(evaluation_context.attributes or {})
-                if isinstance(evaluation_context, EvaluationContext)
+                if config is not None and isinstance(evaluation_context, EvaluationContext)
                 else None
             )
 
