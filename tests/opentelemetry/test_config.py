@@ -711,11 +711,59 @@ def test_otel_resource_attributes_tags_warning():
     }, config.tags
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false", "DD_TRACE_OTEL_ENABLED": None})
-def test_otel_sdk_disabled_configuration():
+@pytest.mark.subprocess(
+    env={
+        "OTEL_SDK_DISABLED": "false",
+        "DD_TRACE_OTEL_ENABLED": None,
+        "DD_METRICS_OTEL_ENABLED": None,
+        "DD_LOGS_OTEL_ENABLED": None,
+    },
+    err=b"",
+)
+def test_otel_sdk_disabled_false_does_not_enable_otel():
     from ddtrace import config
 
-    assert config._otel_trace_enabled is True
+    assert config._otel_trace_enabled is False, config._otel_trace_enabled
+    assert config._otel_metrics_enabled is False, config._otel_metrics_enabled
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_SDK_DISABLED": "",
+        "DD_TRACE_OTEL_ENABLED": None,
+        "DD_METRICS_OTEL_ENABLED": None,
+        "DD_LOGS_OTEL_ENABLED": None,
+    },
+    err=b"",
+)
+def test_otel_sdk_disabled_empty_is_treated_as_unset():
+    from ddtrace import config
+
+    assert config._otel_trace_enabled is False, config._otel_trace_enabled
+    assert config._otel_metrics_enabled is False, config._otel_metrics_enabled
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_LOGS_EXPORTER": "otlp", "OTEL_SDK_DISABLED": "false"}, err=b"")
+def test_otel_sdk_disabled_false_keeps_otel_logs_exporter():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is True, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_LOGS_EXPORTER": "none", "OTEL_SDK_DISABLED": "false"}, err=b"")
+def test_otel_sdk_disabled_false_does_not_override_otel_logs_exporter():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false", "DD_TRACE_OTEL_ENABLED": "true"}, err=b"")
+def test_dd_trace_otel_enabled_with_otel_sdk_disabled_false():
+    from ddtrace import config
+
+    assert config._otel_trace_enabled is True, config._otel_trace_enabled
 
 
 @pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": None})
@@ -815,6 +863,51 @@ def test_otlp_metrics_and_logs_target_the_agent_without_agentless():
     assert exporter.LOGS_PROTOCOL == "http/protobuf"
     assert exporter.METRICS_ENDPOINT.endswith(":4318/v1/metrics")
     assert exporter.LOGS_ENDPOINT.endswith(":4318/v1/logs")
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318/", "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf"}
+)
+def test_otlp_metrics_and_logs_http_endpoints_derive_from_global_endpoint():
+    """The OpenTelemetry SDK HTTP exporters append the signal path to the global endpoint."""
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert exporter.METRICS_ENDPOINT == "http://collector:4318/v1/metrics"
+    assert exporter.LOGS_ENDPOINT == "http://collector:4318/v1/logs"
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+    }
+)
+def test_otlp_metrics_and_logs_grpc_endpoints_are_the_global_endpoint():
+    """The OpenTelemetry SDK gRPC exporters use the global endpoint as-is, even in agentless mode."""
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert exporter.METRICS_ENDPOINT == "http://collector:4317"
+    assert exporter.LOGS_ENDPOINT == "http://collector:4317"
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://metrics:4318/custom",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://logs:4318/custom",
+    }
+)
+def test_otlp_metrics_and_logs_signal_endpoints_take_precedence_over_global_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert exporter.METRICS_ENDPOINT == "http://metrics:4318/custom"
+    assert exporter.LOGS_ENDPOINT == "http://logs:4318/custom"
 
 
 @pytest.mark.subprocess(

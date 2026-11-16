@@ -1,14 +1,19 @@
 import copy
 from decimal import Decimal
+from functools import lru_cache
 import json
 import re
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.vendor import jsonpath
+
+
+if TYPE_CHECKING:
+    from ddtrace.vendor import jsonpath
 
 
 _MAX_TAG_VALUE_LENGTH = 5000
@@ -18,11 +23,16 @@ _QUOTED = re.compile(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"")
 _BARE_BRACKET_NAMES = re.compile(r"\[\s*([A-Za-z_@][\w@-]*(?:\s*,\s*[A-Za-z_@][\w@-]*)*)\s*\]")
 
 
-class _JSONPathEnv(jsonpath.JSONPathEnvironment):
-    filter_context_token = ""  # nosec B105 - not a credential; jsonpath-ng allowed "_" in field names
+@lru_cache(maxsize=1)
+def _get_jsonpath_environment() -> "jsonpath.JSONPathEnvironment":
+    # Importing jsonpath also constructs its default environments, so defer the import
+    # until a redaction path is compiled rather than paying this cost for every AWS client.
+    from ddtrace.vendor import jsonpath
 
+    class _JSONPathEnv(jsonpath.JSONPathEnvironment):
+        filter_context_token = ""  # nosec B105 - not a credential; jsonpath-ng allowed "_" in field names
 
-_JSONPATH = _JSONPathEnv()
+    return _JSONPathEnv()
 
 
 def _quote_bare_bracket_names(path: str) -> str:
@@ -46,11 +56,14 @@ def _quote_bare_bracket_names(path: str) -> str:
 
 
 def _compile_redaction_path(path: str) -> Union["jsonpath.JSONPath", "jsonpath.CompoundJSONPath"]:
+    from ddtrace.vendor import jsonpath
+
+    environment = _get_jsonpath_environment()
     path = _quote_bare_bracket_names(path)
     try:
-        return _JSONPATH.compile(path)
+        return environment.compile(path)
     except jsonpath.JSONPathError:
-        return _JSONPATH.compile(_DOT_BEFORE_BRACKET.sub("[", path))  # jsonpath-ng allowed ".["
+        return environment.compile(_DOT_BEFORE_BRACKET.sub("[", path))  # jsonpath-ng allowed ".["
 
 
 class AWSPayloadTagging:

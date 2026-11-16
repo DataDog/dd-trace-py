@@ -459,13 +459,12 @@ def test_span_context_event_end_span_false(test_spans):
 @pytest.mark.parametrize("completed", [False, True])
 def test_web_request_exception_is_reported_synchronously(test_spans, completed):
     from ddtrace import config
-    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestExceptionSubscriber
-    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 
-    WebFrameworkRequestSubscriber.register()
-    WebFrameworkRequestExceptionSubscriber.register()
+    core.reset_listeners("web.request.exception")
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
     event = WebFrameworkRequestEvent(
         http_operation="aiohttp.request",
         component="aiohttp",

@@ -45,6 +45,17 @@ Response preparation must reach all contexts for the request, including request 
 Retain the returned response until deferred completion as a fallback if an earlier preparation
 callback fails, while preserving metadata supplied by successful response preparation.
 
+Products own subscriber activation. Integrations emit events without importing product
+bundle declarations or registering subscriber classes. Tracing product startup and normal
+global tracer initialization use the same tracing-owned helper to activate all declared
+bundles. Global initialization uses an import hook to defer activation until the
+subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
+`DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
+the product manager.
+The web request and exception subscribers use explicit registration rather than class-definition registration.
+Do not unregister shared subscribers when unpatching one integration, since other integrations and active
+requests still need their listeners.
+
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,
