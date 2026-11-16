@@ -127,7 +127,8 @@ def traced_input_processor_init(func, instance, args, kwargs):
         return
 
     async def _traced_process_inputs_async(*a, **kw):
-        a, kw = _inject_trace_headers_arg(a, kw, ARG_POSITION_TRACE_HEADERS)
+        if getattr(vllm, ATTR_DATADOG_PATCH, False):
+            a, kw = _inject_trace_headers_arg(a, kw, ARG_POSITION_TRACE_HEADERS)
         return await process_inputs_async(*a, **kw)
 
     instance.process_inputs_async = _traced_process_inputs_async
