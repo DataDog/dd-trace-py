@@ -12,6 +12,13 @@ and do not follow the semver versioning scheme of the `ddtrace` package.
 producers and encoders. Products that attach payloads to spans use these shared
 limits to keep their output within the encoding limits.
 
+## Context span lookup
+
+`ddtrace.internal.span_bus.find_span_on_context(ctx)` returns only the span stored on
+that context, or `None`. It never searches parent contexts or creates a fallback span.
+Use it when a context may intentionally have no span, including exception notifications.
+The existing `span_from_context(ctx)` retains its fallback behavior.
+
 ## HTTP endpoint normalization
 
 `ddtrace.internal.utils.endpoint.SimplifiedEndpointComputer` normalizes URL paths

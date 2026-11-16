@@ -20,6 +20,7 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.http import _format_template
@@ -85,7 +86,7 @@ async def trace_middleware(
             ),
             dispatch_end_event=False,
         ) as ctx:
-            req_span = ctx.get_item("_inner_span")
+            req_span = find_span_on_context(ctx)
 
             # Clones copy request state shallowly, so response preparation can find every middleware owner.
             request.setdefault(REQUEST_EXECUTION_CONTEXTS_KEY, []).append(ctx)

@@ -38,7 +38,8 @@ its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
 Report deferred exceptions synchronously through ContextExceptionEvent
-rather than retaining exceptions or tracebacks on a deferred context. Completion carries final
+rather than retaining exceptions or tracebacks on a deferred context. Use span_bus.find_span_on_context
+for optional context-local spans without creating a fallback or borrowing a parent. Completion carries final
 response metadata separately. For nested middleware, each completion callback must retain
 its own execution context rather than resolve a request key that inner middleware can replace.
 Response preparation must reach all contexts for the request, including request clones.

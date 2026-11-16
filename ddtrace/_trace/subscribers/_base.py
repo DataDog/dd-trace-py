@@ -20,6 +20,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
@@ -188,7 +189,7 @@ class SpanExceptionSubscriber(Subscriber):
 
     @classmethod
     def on_event(cls, event: ContextExceptionEvent) -> None:
-        span = event.context.get_item("_inner_span")
+        span = find_span_on_context(event.context)
         exc_type, exc_value, traceback = event.exc_info
         if span is not None and exc_type is not None and exc_value is not None and traceback is not None:
             span.set_exc_info(exc_type, exc_value, traceback)
