@@ -1730,6 +1730,13 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         # when it shuts the buffer down.
         with writer_lock:
             self._accepting_writes = False
+            # The refresh discards this writer's traces without sending them. Closing the gate does
+            # not reach the buffer, whose worker would still export its queue and whose shutdown
+            # would flush it.
+            try:
+                self._buffer.discard(3_000_000_000)
+            except Exception:
+                _safelog(log.warning, "failed to discard the native trace buffer", exc_info=True)
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         writer_lock = self._writer_lock

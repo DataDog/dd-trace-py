@@ -7,6 +7,7 @@
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
@@ -61,6 +62,9 @@ fn buffer_err_to_pyerr(err: TraceBufferError) -> PyErr {
 #[derive(Debug)]
 struct SpanExport {
     exporter: Weak<Exporter>,
+    /// Set by [`TraceBufferPy::discard`]. The worker exports whatever is still queued when it
+    /// stops, and an export that sees this flag drops its chunks instead of sending them.
+    discarding: Arc<AtomicBool>,
 }
 
 impl Export<PySpan> for SpanExport {
@@ -69,6 +73,9 @@ impl Export<PySpan> for SpanExport {
         trace_chunks: Vec<TraceChunk<PySpan>>,
         force_flush: bool,
     ) -> Pin<Box<dyn Future<Output = Result<AgentResponse, TraceExporterError>> + Send + '_>> {
+        if self.discarding.load(Ordering::Acquire) {
+            return Box::pin(async { Ok(AgentResponse::Unchanged) });
+        }
         // Upgrade before the future, so the exporter cannot be reclaimed part way through a send.
         let exporter = self.exporter.upgrade();
         Box::pin(async move {
@@ -123,6 +130,8 @@ pub struct TraceBufferPy {
     exporter: Mutex<Option<Arc<Exporter>>>,
     /// Written by the response handler on a worker thread, drained by `take_agent_response`.
     agent_response: Arc<Mutex<Option<String>>>,
+    /// Shared with [`SpanExport`]. See [`TraceBufferPy::discard`].
+    discarding: Arc<AtomicBool>,
 }
 
 impl TraceBufferPy {
@@ -149,11 +158,13 @@ impl TraceBufferPy {
         });
 
         let exporter = Arc::new(exporter);
+        let discarding = Arc::new(AtomicBool::new(false));
         let (buffer, worker) = TraceBuffer::new(
             config,
             handler,
             Box::new(SpanExport {
                 exporter: Arc::downgrade(&exporter),
+                discarding: Arc::clone(&discarding),
             }),
         );
         // restart_on_fork is false because libdatadog's restart path calls `worker.reset()`, which
@@ -171,6 +182,7 @@ impl TraceBufferPy {
             worker: Mutex::new(Some(worker)),
             exporter: Mutex::new(Some(exporter)),
             agent_response,
+            discarding,
         })
     }
 
@@ -438,6 +450,46 @@ impl TraceBufferPy {
 
             stopped
         })
+    }
+
+    /// Stop the worker and drop whatever the buffer still queues, without exporting it.
+    ///
+    /// The worker drains and exports its queue when it stops, and `TraceExporter::shutdown` sends
+    /// the client-side stats a final time, so neither may run when the queued data must never reach
+    /// the intake. The export hook drops its chunks once `discarding` is set, and the exporter is
+    /// dropped without that call, which leaves its workers registered on the runtime until the
+    /// runtime shuts down.
+    ///
+    /// A batch the worker already took, and an export in flight, still complete: stopping the worker
+    /// waits for them.
+    fn discard(&self, py: Python<'_>, timeout_ns: u64) -> PyResult<()> {
+        self.discarding.store(true, Ordering::Release);
+        let taken = self.worker.lock().unwrap_or_else(|e| e.into_inner()).take();
+        let Some(worker) = taken else {
+            return Ok(());
+        };
+        let exporter = self
+            .exporter
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        let runtime = Arc::clone(&self.runtime);
+        let budget = Duration::from_nanos(timeout_ns);
+
+        let stopped = py.detach(move || {
+            let stopped = match runtime.block_on_with_timeout(worker.stop(), budget) {
+                Err(BlockOnTimeoutError::Io(io_err)) => {
+                    Err(PyRuntimeError::new_err(format!("{io_err}")))
+                }
+                // `flush_and_close` would export the queue, so a worker that is slow to stop is
+                // left to the caller, which has already stopped writing to this buffer.
+                Err(BlockOnTimeoutError::TimedOut(_)) => Ok(()),
+                Ok(result) => result.map_err(|err| PyRuntimeError::new_err(format!("{err}"))),
+            };
+            drop(exporter);
+            stopped
+        });
+        stopped
     }
 
     /// Report the exporter's `trace_api.*` health metrics through an externally-owned telemetry

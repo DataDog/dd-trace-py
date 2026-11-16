@@ -929,6 +929,13 @@ class TraceBuffer:
         2 seconds and never more than timeout_ns.
         """
         ...
+    def discard(self, timeout_ns: int) -> None:
+        """Stop the worker within about timeout_ns and drop the queued chunks without exporting them.
+
+        Unlike shutdown, this neither flushes the buffer nor sends the final client-side stats. The
+        exporter workers stay registered on the runtime until it shuts down.
+        """
+        ...
     def set_telemetry_handle(self, worker: Optional[TelemetryWorker] = None) -> None:
         """Send the exporter health metrics through worker. None stops the metrics."""
         ...

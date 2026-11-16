@@ -1438,6 +1438,23 @@ def test_a_microvm_buffer_close_waits_for_an_in_flight_write(monkeypatch, agent)
             writer._buffer = native_buffer
 
 
+def test_a_microvm_refresh_never_exports_the_spans_queued_before_it(monkeypatch):
+    # The refresh discards the old writer's traces without flushing them. Stopping the writer
+    # afterwards flushes whatever the native buffer still holds, so the buffer itself must forget it.
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    with capture_server() as handler:
+        # Park the flush cadence, so only a flush at stop() could deliver the span.
+        with mock.patch.object(config, "_trace_writer_interval_seconds", 3600):
+            # A synchronous writer exports each write before it returns, so keep this one queued.
+            with buffer_writer(handler.port, api_version="v0.4", sync_mode=False) as writer:
+                writer.write([_finished_span(name="pre-refresh")])
+                writer.drop_buffered_traces()
+                writer.stop(3.0)
+                # Give a wrongly-flushing implementation time to deliver.
+                time.sleep(0.5)
+                assert not handler.payloads, "the refresh exported spans queued before it"
+
+
 def test_drop_buffered_traces_is_a_noop_for_a_buffer_writer_outside_microvm(monkeypatch, agent):
     monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
     with buffer_writer(agent.port) as writer:
