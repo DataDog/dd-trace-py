@@ -30,7 +30,8 @@ log = get_logger(__name__)
 
 try:
     # Hold the threads started by preload until cloning is done, so they do not import while modules are dropped.
-    with boot_gate.held(when=cloning.enabled):
+    # Opening later would hang post_preload hooks and user code that wait on our threads.
+    with boot_gate.held():
         import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation
 
         cloning.cleanup_loaded_modules()

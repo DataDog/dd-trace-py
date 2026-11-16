@@ -103,9 +103,9 @@ _threads_to_start_after_fork: list[BoundMethod] = []
 
 
 class BootGate:
-    """Holds back the ddtrace threads started while module cloning is pending.
+    """Holds back the ddtrace threads started while ddtrace bootstraps.
 
-    Cloning drops modules from sys.modules, so a thread importing meanwhile can fail. The gate is open by default.
+    Module cloning drops modules from sys.modules, so a thread importing meanwhile can fail. Open by default.
     """
 
     def __init__(self) -> None:
@@ -125,10 +125,9 @@ class BootGate:
         self._opened.set()
 
     @contextmanager
-    def held(self, when: bool = True) -> t.Iterator[None]:
-        """Keep the gate closed while the block runs, if when is true, and open it afterwards."""
-        if when:
-            self.close()
+    def held(self) -> t.Iterator[None]:
+        """Keep the gate closed while the block runs, and open it afterwards."""
+        self.close()
         try:
             yield
         finally:

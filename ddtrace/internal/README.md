@@ -456,10 +456,11 @@ the parent.
 
 **Boot gate**
 
-When module cloning is pending, sitecustomize holds `threads.boot_gate`
-closed (`boot_gate.held(...)`) while preload runs, so that threads started
-meanwhile wait on it before running their target, and opens it once
-`cleanup_loaded_modules()` has finished. The gate is released
+Sitecustomize holds `threads.boot_gate` closed (`boot_gate.held()`) while
+preload and module cloning run, so that threads started meanwhile wait on it
+before running their target, and opens it once `cleanup_loaded_modules()`
+has finished, before the `post_preload` hooks and any user code run, as those
+may wait on ddtrace threads. The gate is released
 early before a fork, when a started thread is joined, and at exit; threads
 released to stop, or to fork if they are periodic, skip their target.
 
