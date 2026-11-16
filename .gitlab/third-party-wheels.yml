@@ -19,12 +19,6 @@
     # The nightly pipeline builds the wheels for the new pins of the day. The nightly pipeline
     # with unpinned dependencies does not use the locks, thus it gets the manual job.
     - if: $NIGHTLY_BUILD == "true" && $UNPIN_DEPENDENCIES != "true"
-    # A push to main that changes the locks or the jobs builds the new wheels after the merge.
-    - if: $CI_COMMIT_REF_NAME == "main" && $CI_PIPELINE_SOURCE == "push"
-      changes:
-        - tests/requirements_locks/*.txt
-        - .gitlab/third-party-wheels.yml
-        - .gitlab/scripts/third-party-wheels.py
     - when: manual
       allow_failure: true
   # The script exits with 3 when it cannot build some wheels. The upload job still uploads the
@@ -66,9 +60,8 @@
       when: never
     - if: !reference [.is_release_branch]
       when: never
-    # Only reviewed code on a protected branch (main) uploads to the index that all CI jobs use.
-    # On other branches, a manual build job only shows that the wheels build.
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
+    # The job waits for the build jobs, thus it uploads only when the build jobs run.
+    - when: on_success
   script:
     # adms parseRepositoryURL accepts only host/org/repo (5 slash parts).
     # GitLab sets CI_REPOSITORY_URL to DataDog/apm-reliability/dd-trace-py.
