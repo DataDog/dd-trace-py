@@ -9,10 +9,10 @@ from ddtrace.contrib.internal.pydantic_ai._constants import COMPONENT
 from ddtrace.contrib.internal.pydantic_ai._constants import TAG_MODEL
 from ddtrace.contrib.internal.pydantic_ai._constants import TAG_PROVIDER
 from ddtrace.contrib.internal.pydantic_ai._constants import TOOL_SPAN_NAME
-from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
-from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
-from ddtrace.contrib.internal.pydantic_ai.utils import finish_request
 from ddtrace.contrib.internal.pydantic_ai.utils import get_model_and_provider
+from ddtrace.contrib.internal.pydantic_ai.wrappers import TracedPydanticAsyncContextManager
+from ddtrace.contrib.internal.pydantic_ai.wrappers import TracedPydanticRunStream
+from ddtrace.contrib.internal.pydantic_ai.wrappers import finish_request
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -55,7 +55,7 @@ def _request_event(resource, span_name, operation, args, kwargs, model=None) -> 
         tags[TAG_MODEL] = model_name
         if provider:
             tags[TAG_PROVIDER] = provider
-    event = LlmRequestEvent(
+    return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.pydantic_ai,
         service=int_service(None, config.pydantic_ai),
@@ -69,17 +69,18 @@ def _request_event(resource, span_name, operation, args, kwargs, model=None) -> 
         # to it once the call returns, for LLMObs to read when the request finishes.
         request_kwargs=kwargs,
         operation=operation,
+        span_name=span_name,
     )
-    event.operation_name = span_name
-    return event
 
 
 def _start_agent_request(instance, args, kwargs):
-    event = _request_event(
-        _agent_resource(instance), AGENT_SPAN_NAME, "agent", args, kwargs, model=getattr(instance, "model", None)
-    )
     # The returned wrapper dispatches the ended event once the run is exited or its output consumed.
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+    with core.context_with_event(
+        _request_event(
+            _agent_resource(instance), AGENT_SPAN_NAME, "agent", args, kwargs, model=getattr(instance, "model", None)
+        ),
+        dispatch_end_event=False,
+    ) as ctx:
         return ctx
 
 

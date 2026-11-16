@@ -56,8 +56,8 @@ Key points:
 - LLMObs tag setting is handled by product subscribers, not directly in the patch wrapper
 - The async variant is identical but uses `async def` / `await`
 
-Agent and tool spans can use the same event. Pass `operation="agent"` or `"tool"` and set
-`event.operation_name` after construction when the span name is not `<component>.request`
+Agent and tool spans can use the same event. Pass `operation="agent"` or `"tool"` and pass
+`span_name=` to the constructor when the span name is not `<component>.request`
 (`ddtrace/contrib/internal/pydantic_ai/patch.py`). When the span outlives the wrapper, the object
 that finishes it must dispatch the ended event only once, since the context drops its event afterwards.
 The LLMObs subscriber stamps the span kind at start from `operation`, so override
