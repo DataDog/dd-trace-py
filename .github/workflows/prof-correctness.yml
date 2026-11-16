@@ -1,4 +1,5 @@
 # Triggers prof-correctness downstream-python on profiling path changes.
+# Informational only for now (continue-on-error); do not block PR merge yet.
 # Default scenarios: python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)
 # See DataDog/prof-correctness scenarios/python_downstream_gate/README.md
 name: Profiling correctness
@@ -30,6 +31,8 @@ permissions:
 jobs:
   trigger-downstream:
     runs-on: ubuntu-latest
+    # Soft until we promote these correctness scenarios to required checks.
+    continue-on-error: true
     # 90m S3 poll + 60m downstream watch = 150, plus ~10m slack
     # for octo-sts / trigger / GHA overhead.
     # Job timeout must stay strictly above POLL_TIMEOUT so a late upload

@@ -18,6 +18,13 @@ limits to keep their output within the encoding limits.
 for both tracing resource names and API Security endpoint grouping. It operates on
 URLs independently of span processing.
 
+## HTTP span metadata
+
+HTTP tagging resolves optional query-string overrides alongside the integration policy;
+web subscribers pass request data without duplicating URL or query-tag decisions.
+For OpenTelemetry HTTP tags, an explicit override takes precedence over both integration
+query-string settings for clients and servers.
+
 ## Coverage collection contexts
 
 `ModuleCodeCollector.CollectInContext` owns the line and file coverage for one
@@ -97,8 +104,8 @@ def stop(join=False):
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
 and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so importing their module does not
-activate them.
+subscribers must set `auto_register = False` so class definitions do not register
+them implicitly. Any compatibility activation during initialization belongs to the product.
 
 Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
@@ -121,6 +128,23 @@ completion listeners after `stop()` returns.
 `unregister()` never imports an unused module. Products registering listeners outside
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
+
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`.
+Its `register_subscribers()` helper activates every declared bundle. Product startup
+calls this helper directly. Normal `ddtrace` initialization installs an import hook
+that calls it after the subscriber package loads through contrib. Waiting for the
+package to finish avoids registering against partially initialized subscriber bases
+and preserves lightweight bare tracer imports.
+Listeners remain available with `DD_TRACE_ENABLED=false` so existing
+integrations can finish their spans without enabling tracing. This supports manual
+instrumentation without starting the product manager. `_DD_GLOBAL_TRACER_INIT=false` preserves deferred initialization;
+product startup can still activate the bundles explicitly. The web subscriber uses
+explicit registration rather than class-definition registration. Integrations emit
+events without registering tracing listeners themselves. Repeated activation does not duplicate
+listeners and can restore listeners after a reset.
+Tracing retains its existing shutdown behavior and keeps these listeners registered.
+Other subscriber families continue using class-definition registration until their
+activation paths are migrated.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
@@ -374,6 +398,30 @@ from ddtrace.internal import forksafe
 forksafe.register_before_fork(my_before_hook)
 forksafe.register(my_after_child_hook)  # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
+```
+
+When something must happen before and/or after all the `after_in_child` hooks
+in the child (for example, deferring work until every hook has run), register a
+generator function with `forksafe.register`. It becomes a wrapper around the
+hooks: the code before its `yield` runs before them, in registration order, and
+the code after it runs once they have all completed, in reverse order. Either
+part can be empty. A wrapper must yield exactly once; one that raises before
+its `yield` is skipped. Wrappers are always resumed normally: hook exceptions
+are logged and are not propagated to them.
+
+> **Careful:** wrappers are detected with `inspect.isgeneratorfunction`, which
+> recognizes generator functions and bound methods or `functools.partial`
+> objects of them. A callable that only *returns* a generator (a decorator
+> around a generator function, an object whose `__call__` yields, a lambda) is
+> registered as a plain hook instead, and none of its code runs, silently.
+> Register the generator function itself.
+
+```python
+@forksafe.register
+def my_child_wrapper():
+    pause_something()
+    yield  # the after_in_child hooks run here
+    resume_something()
 ```
 
 **Keep hooks non-blocking.** By the time a hook registered *after*

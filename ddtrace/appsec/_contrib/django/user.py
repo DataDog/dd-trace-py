@@ -59,7 +59,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
 
     def get_username(self) -> Optional[str]:
         username_field = getattr(type(self.user), "USERNAME_FIELD", None)
-        if username_field is not None and not asm_config._user_model_name_field:
+        if username_field is not None and not asm_config._user_model_login_field:
             username = getattr(self.user, username_field, None)
             return str(username) if username is not None else None
 
