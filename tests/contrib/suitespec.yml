@@ -1892,6 +1892,7 @@ suites:
           dependencies: [pytest-randomly, mysqlclient]
   opentelemetry:
     venvs_per_job: 8
+    timeout: 30m
     paths:
       - '@bootstrap'
       - '@core'
