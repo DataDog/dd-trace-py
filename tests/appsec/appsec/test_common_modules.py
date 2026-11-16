@@ -8,6 +8,7 @@ from unittest import mock
 import pytest
 from wrapt import FunctionWrapper
 
+from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
 import ddtrace.appsec._common_module_patches as cmp
 from ddtrace.appsec._common_module_patches import _RaspContext
 from ddtrace.appsec._common_module_patches import _ScopedRaspContext
@@ -34,6 +35,7 @@ from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
 from ddtrace.internal.wrapping.hooks import _WRAPPING_CONTEXTS
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
 from ddtrace.internal.wrapping.hooks import try_wrap_context
+from tests.appsec.utils import assert_nested_request_isolated
 
 
 def test_patch_read():
@@ -1083,16 +1085,13 @@ def _local_http_server():
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == "/source":
-                self.send_response(302)
+            redirect = self.path == "/source"
+            self.send_response(302 if redirect else 200)
+            if redirect:
                 self.send_header("Location", "/target")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-            else:
-                self.send_response(200)
-                self.send_header("Content-Length", "2")
-                self.end_headers()
-                self.wfile.write(b"{}")
+            self.send_header("Content-Length", "0" if redirect else "2")
+            self.end_headers()
+            self.wfile.write(b"" if redirect else b"{}")
 
         def log_message(self, *args):
             pass
@@ -1106,32 +1105,6 @@ def _local_http_server():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-
-
-@contextlib.contextmanager
-def _recording_ssrf_subcontexts():
-    from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
-
-    calls = []
-
-    def record(addresses=None, rule_type=None, **kwargs):
-        calls.append((rule_type, addresses.get(EXPLOIT_PREVENTION.ADDRESS.SSRF), core.find_item(_RASP_SUBCONTEXT)))
-
-    unpatch_common_modules()
-    try_wrap_function_wrapper("requests", "Session.request", cmp.wrapped_request_D8CB81E472AF98A2)
-    try:
-        patch_common_modules()
-        with (
-            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
-            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
-            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
-            mock.patch.object(cmp, "should_analyze_body_response", return_value=False),
-            mock.patch.object(cmp, "call_waf_callback", side_effect=record),
-        ):
-            yield calls
-    finally:
-        unpatch_common_modules()
-        try_unwrap("requests", "Session.request")
 
 
 def _request_with_requests(url):
@@ -1151,40 +1124,35 @@ def test_a_request_made_from_a_requests_hook_gets_its_own_rasp_subcontext(nested
     """libddwaf does not report a rule twice in one subcontext, so sharing would hide the nested match."""
     import requests
 
-    with _local_http_server() as base, _recording_ssrf_subcontexts() as calls:
+    calls = []
 
-        def hook(response, **kwargs):
-            if response.url.endswith("/outer"):
-                nested_request(f"{base}/nested")
+    def record(addresses, rule_type=None, **kwargs):
+        calls.append((rule_type, addresses.get(EXPLOIT_PREVENTION.ADDRESS.SSRF), core.find_item(_RASP_SUBCONTEXT)))
 
-        with requests.Session() as session:
+    def hook(response, **kwargs):
+        if response.url.endswith("/outer"):
+            nested_request(f"{base}/nested")
+
+    unpatch_common_modules()
+    try_wrap_function_wrapper("requests", "Session.request", cmp.wrapped_request_D8CB81E472AF98A2)
+    try:
+        patch_common_modules()
+        with (
+            _local_http_server() as base,
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "should_analyze_body_response", return_value=False),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=record),
+            requests.Session() as session,
+        ):
             session.hooks["response"].append(hook)
             session.get(f"{base}/outer", timeout=5)
+    finally:
+        unpatch_common_modules()
+        try_unwrap("requests", "Session.request")
 
-    req = EXPLOIT_PREVENTION.TYPE.SSRF_REQ
-    res = EXPLOIT_PREVENTION.TYPE.SSRF_RES
-    assert [(rule_type, url) for rule_type, url, _ in calls] == [
-        (req, f"{base}/outer"),
-        (req, f"{base}/nested"),
-        (res, None),
-        (res, None),
-    ]
-    outer, nested = calls[0][2], calls[1][2]
-    assert outer is not None and nested is not None
-    assert nested is not outer
-    assert calls[2][2] is nested
-    assert calls[3][2] is outer
-
-
-def test_a_urllib_redirect_shares_the_request_rasp_subcontext():
-    import urllib.request
-
-    with _local_http_server() as base, _recording_ssrf_subcontexts() as calls:
-        urllib.request.urlopen(f"{base}/source", timeout=5).read()
-
-    assert [url for _, url, _ in calls if url] == [f"{base}/source", f"{base}/target"]
-    holders = {id(holder) for _, _, holder in calls}
-    assert len(holders) == 1 and calls[0][2] is not None
+    assert_nested_request_isolated(calls, f"{base}/nested")
 
 
 def test_a_custom_installed_opener_still_publishes_the_url():
@@ -1296,32 +1264,10 @@ def test_a_redirect_publishes_the_redirected_url():
     and has to be evaluated on its own. It works because the http.client hook discards full_url
     once it has consumed it, so the nested call no longer sees a matching URL.
     """
-    from http.server import BaseHTTPRequestHandler
-    from http.server import ThreadingHTTPServer
-    import threading
     import urllib.request
 
-    class _Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            if self.path == "/source":
-                self.send_response(302)
-                self.send_header("Location", "/target")
-                self.end_headers()
-            else:
-                self.send_response(200)
-                self.send_header("Content-Length", "2")
-                self.end_headers()
-                self.wfile.write(b"ok")
-
-        def log_message(self, *args):
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-    port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-
     published = []
+    holders = []
     original = _ScopedRaspContext._open_core_context
 
     def recording_open(self, name, **kwargs):
@@ -1332,21 +1278,24 @@ def test_a_redirect_publishes_the_redirected_url():
     try:
         patch_common_modules()
         with (
+            _local_http_server() as base,
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
             mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
-            mock.patch.object(cmp, "call_waf_callback", return_value=None),
+            mock.patch.object(
+                cmp, "call_waf_callback", side_effect=lambda *a, **k: holders.append(core.find_item(_RASP_SUBCONTEXT))
+            ),
             mock.patch.object(_ScopedRaspContext, "_open_core_context", recording_open),
         ):
             with contextlib.suppress(Exception):
-                urllib.request.urlopen(f"http://127.0.0.1:{port}/source", timeout=5)
+                urllib.request.urlopen(f"{base}/source", timeout=5)
     finally:
         unpatch_common_modules()
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
 
-    assert f"http://127.0.0.1:{port}/source" in published, published
+    assert f"{base}/source" in published, published
     assert any(url and url.endswith("/target") for url in published), published
+    # Both hops and their responses belong to one logical request.
+    assert len(holders) >= 2 and holders[0] is not None
+    assert all(holder is holders[0] for holder in holders)
 
 
 def _v1_make_request(self, conn, method, url, timeout=None, chunked=False, **httplib_request_kw):

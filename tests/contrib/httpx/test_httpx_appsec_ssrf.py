@@ -9,19 +9,15 @@ from ddtrace.appsec._contrib.httpx import subscribers
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
 from ddtrace.internal import core
+from tests.appsec.utils import assert_nested_request_isolated
 
 
-REQ = EXPLOIT_PREVENTION.TYPE.SSRF_REQ
-RES = EXPLOIT_PREVENTION.TYPE.SSRF_RES
-
-
-def _handler(request):
-    if request.url.path == "/source":
-        return httpx.Response(302, headers={"Location": "/target"})
-    return httpx.Response(200, json={})
-
-
-TRANSPORT = httpx.MockTransport(_handler)
+NESTED = "http://example.test/nested"
+TRANSPORT = httpx.MockTransport(
+    lambda request: httpx.Response(302, headers={"Location": "/target"})
+    if request.url.path == "/source"
+    else httpx.Response(200, json={})
+)
 
 
 @pytest.fixture
@@ -30,7 +26,7 @@ def ssrf_calls():
 
     def record(addresses, rule_type=None, **kwargs):
         url = addresses.get(EXPLOIT_PREVENTION.ADDRESS.SSRF)
-        calls.append((rule_type, url and httpx.URL(url).path, core.find_item(_RASP_SUBCONTEXT)))
+        calls.append((rule_type, url and str(url), core.find_item(_RASP_SUBCONTEXT)))
 
     patch()
     subscribers.AppSecHttpxRequestContextSubscriber.register()
@@ -50,64 +46,43 @@ def ssrf_calls():
         unpatch()
 
 
-def _assert_nested_request_isolated(calls, nested_first):
-    nested = [(REQ, "/nested"), (RES, None)]
-    outer = [(REQ, "/outer"), (RES, None)]
-    expected = nested + outer if nested_first else outer[:1] + nested + outer[1:]
-    assert [(rule_type, path) for rule_type, path, _ in calls] == expected
-
-    holders = [holder for _, _, holder in calls]
-    (n1, n2), (o1, o2) = ((0, 1), (2, 3)) if nested_first else ((1, 2), (0, 3))
-    assert holders[n1] is holders[n2] is not None
-    assert holders[o1] is holders[o2] is not None
-    assert holders[n1] is not holders[o1]
+def _get_nested():
+    with httpx.Client(transport=TRANSPORT) as client:
+        client.get(NESTED)
 
 
-def test_a_request_from_an_event_hook_gets_its_own_rasp_subcontext(ssrf_calls):
+def _hooks(path):
     def hook(response):
-        if response.request.url.path == "/outer":
-            client.get("http://example.test/nested")
+        if response.request.url.path == path:
+            _get_nested()
 
-    with httpx.Client(transport=TRANSPORT, event_hooks={"response": [hook]}) as client:
-        client.get("http://example.test/outer")
+    return {"response": [hook]}
 
-    _assert_nested_request_isolated(ssrf_calls, nested_first=False)
+
+@pytest.mark.parametrize(
+    "client_kwargs,url",
+    [
+        ({"event_hooks": _hooks("/outer")}, "http://example.test/outer"),
+        ({"auth": lambda request: _get_nested() or request}, "http://example.test/outer"),
+        # The redirect hops share the outer request's subcontext.
+        ({"event_hooks": _hooks("/target"), "follow_redirects": True}, "http://example.test/source"),
+    ],
+    ids=["event_hook", "auth_flow", "redirect"],
+)
+def test_a_request_nested_in_an_httpx_request_gets_its_own_rasp_subcontext(ssrf_calls, client_kwargs, url):
+    with httpx.Client(transport=TRANSPORT, **client_kwargs) as client:
+        client.get(url)
+
+    assert_nested_request_isolated(ssrf_calls, NESTED)
 
 
 @pytest.mark.asyncio
-async def test_a_request_from_an_async_event_hook_gets_its_own_rasp_subcontext(ssrf_calls):
+async def test_a_request_nested_in_an_async_httpx_request_gets_its_own_rasp_subcontext(ssrf_calls):
     async def hook(response):
         if response.request.url.path == "/outer":
-            await client.get("http://example.test/nested")
+            await client.get(NESTED)
 
     async with httpx.AsyncClient(transport=TRANSPORT, event_hooks={"response": [hook]}) as client:
         await client.get("http://example.test/outer")
 
-    _assert_nested_request_isolated(ssrf_calls, nested_first=False)
-
-
-def test_a_request_from_an_auth_flow_gets_its_own_rasp_subcontext(ssrf_calls):
-    class TokenAuth(httpx.Auth):
-        def auth_flow(self, request):
-            with httpx.Client(transport=TRANSPORT) as token_client:
-                token_client.get("http://example.test/nested")
-            yield request
-
-    with httpx.Client(transport=TRANSPORT, auth=TokenAuth()) as client:
-        client.get("http://example.test/outer")
-
-    _assert_nested_request_isolated(ssrf_calls, nested_first=True)
-
-
-def test_redirect_hops_share_the_request_rasp_subcontext(ssrf_calls):
-    with httpx.Client(transport=TRANSPORT, follow_redirects=True) as client:
-        client.get("http://example.test/source")
-
-    assert [(rule_type, path) for rule_type, path, _ in ssrf_calls] == [
-        (REQ, "/source"),
-        (RES, None),
-        (REQ, "/target"),
-        (RES, None),
-    ]
-    assert len({id(holder) for _, _, holder in ssrf_calls}) == 1
-    assert ssrf_calls[0][2] is not None
+    assert_nested_request_isolated(ssrf_calls, NESTED)

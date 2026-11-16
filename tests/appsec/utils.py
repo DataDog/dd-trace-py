@@ -3,6 +3,7 @@ import sys
 import typing
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
@@ -92,3 +93,15 @@ def asm_context(
 
 def is_blocked(span: Span) -> bool:
     return span.get_tag("appsec.blocked") == "true" and span.get_tag("appsec.event") == "true"
+
+
+def assert_nested_request_isolated(calls, nested_url):
+    """calls holds (rule_type, SSRF url, subcontext holder) for each SSRF WAF call."""
+    nested = next(holder for _, url, holder in calls if url == nested_url)
+    outer = [(rule_type, holder) for rule_type, _, holder in calls if holder is not nested]
+    assert nested is not None and outer and all(holder is outer[0][1] is not None for _, holder in outer), calls
+    assert [rule_type for rule_type, _, holder in calls if holder is nested] == [
+        EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+        EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+    ], calls
+    assert {rule_type for rule_type, _ in outer} == {EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_RES}
