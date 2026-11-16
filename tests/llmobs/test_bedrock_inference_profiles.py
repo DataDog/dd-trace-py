@@ -4,17 +4,17 @@ from unittest import mock
 import botocore.exceptions
 import pytest
 
+from ddtrace.contrib.internal import bedrock_inference_profiles as _profiles
+from ddtrace.contrib.internal.bedrock_inference_profiles import _clear_inference_profile_cache
+from ddtrace.contrib.internal.bedrock_inference_profiles import end_resolve
+from ddtrace.contrib.internal.bedrock_inference_profiles import is_resolve_in_backoff
+from ddtrace.contrib.internal.bedrock_inference_profiles import lookup_inference_profile
+from ddtrace.contrib.internal.bedrock_inference_profiles import record_inference_profile
+from ddtrace.contrib.internal.bedrock_inference_profiles import try_begin_resolve
 from ddtrace.contrib.internal.botocore import patch as _botocore_patch  # noqa: F401  (registers config.botocore)
 from ddtrace.contrib.internal.botocore.services.bedrock import _foundation_model_id_from_profile
 from ddtrace.contrib.internal.botocore.services.bedrock import _region_from_arn
 from ddtrace.contrib.internal.botocore.services.bedrock import _resolve_application_inference_profile
-from ddtrace.llmobs._integrations import _bedrock_inference_profiles as _profiles
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import _clear_inference_profile_cache
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import end_resolve
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import is_resolve_in_backoff
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import try_begin_resolve
 from tests.utils import override_config
 
 
