@@ -756,7 +756,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             result = fn_task.apply_async(headers=headers)
             assert result.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
-        traces = self.pop_traces()
+        traces = self.pop_traces_until(expected_traces=2 if self.ASYNC_USE_CELERY_FIXTURES else 1)
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert 2 == len(traces)

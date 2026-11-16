@@ -82,7 +82,9 @@ class StackCollector(collector.Collector):
             LOG.error("No safe memory copy method available (safe_memcpy and process_vm_readv both failed).")
             raise collector.CollectorUnavailable
         if not stack.start():
-            LOG.error("Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty.")
+            LOG.error(
+                "[profiling] Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty."
+            )
             raise collector.CollectorUnavailable
 
         # Start native C function call tracking (Python 3.12+ only)

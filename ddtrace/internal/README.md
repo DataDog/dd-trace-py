@@ -18,6 +18,13 @@ limits to keep their output within the encoding limits.
 for both tracing resource names and API Security endpoint grouping. It operates on
 URLs independently of span processing.
 
+## HTTP span metadata
+
+HTTP tagging resolves optional query-string overrides alongside the integration policy;
+web subscribers pass request data without duplicating URL or query-tag decisions.
+For OpenTelemetry HTTP tags, an explicit override takes precedence over both integration
+query-string settings for clients and servers.
+
 ## Coverage collection contexts
 
 `ModuleCodeCollector.CollectInContext` owns the line and file coverage for one
@@ -97,23 +104,16 @@ def stop(join=False):
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
 and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so importing their module does not
-register them implicitly.
+subscribers must set `auto_register = False` so class definitions do not register
+them implicitly. Any compatibility activation during initialization belongs to the product.
 
 Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
 the `auto_register` flag can be removed.
 
-`register()` delegates to `ensure_registered()`: the first activation resolves the
-classes and installs their listeners; later calls reuse the active bundle without
-resolution or listener lookup. Core `reset()` / `reset_listeners()` calls invalidate
-all bundles, including when removing a single callback. The next activation restores
-listeners using the cached classes. Bundle activation and removal share a fork-safe
-lock, so concurrent setup calls activate a shared bundle once. Imports happen outside
-that lock. Import and callback failures propagate and can be retried; registration
-is not a transaction across callback failures. A reset within a registration callback
-leaves activation uncached so the next setup retries. Subscriber implementations must
-use the core event hub for listener removal.
+Repeated registration uses named-listener deduplication and can restore listeners
+after a reset. Import and callback failures propagate to the caller; registration
+is not a transaction across callback failures.
 
 Products call bundle `register()` and `unregister()` explicitly from their own
 `start()` and `stop()` functions. `ProductManager` only invokes the existing product
@@ -121,76 +121,31 @@ lifecycle; it does not discover or manage bundles. Products choose registration
 ordering, enablement, and failure handling. A registration error propagating out of
 `start()` is handled as a product startup failure by the manager.
 
-Products that require active contexts to finish must keep completion listeners
-registered until draining succeeds; if draining raises, retain the listeners.
-A terminal stop may instead discard active work and unregister after its shutdown
-cleanup succeeds. Unregistering removes both start and completion listeners.
+Keep completion listeners registered while draining active contexts. Call
+`unregister()` only after draining succeeds; if draining raises, retain the listeners.
+Products that cannot guarantee all active contexts have drained must retain their
+completion listeners after `stop()` returns.
 `unregister()` never imports an unused module. Products registering listeners outside
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
-Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`
-and includes it in `ddtrace._trace.product.subscriber_bundles`, an ordinary
-product-local tuple. Its
-`start()` registers the bundles. Its terminal `stop()` shuts down the tracer and then
-unregisters the bundles. Shutdown flushes finished traces, discards pending traces
-from the aggregator, stops processors, and clears the calling context's active span.
-It runs even if tracing was already disabled, since pending traces can still exist.
-If shutdown raises, the listeners remain registered. Requests completing after a
-successful stop still release their execution events, but their tracing subscribers
-no longer finish spans or attach response metadata. Existing tasks can retain a
-reference to a discarded span in their own ContextVar; shutdown does not reset other
-tasks' contexts. This terminal cleanup is distinct from temporarily disabling tracing
-or unpatching one integration, which must retain shared completion listeners.
-
-Importing `ddtrace._trace.subscribers` or its web framework module does not register
-the web framework subscriber. Integrations declare setup dependencies with the
-shared `requires_subscribers` decorator:
-
-```python
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
-from ddtrace.internal.core.subscriber import requires_subscribers
-
-@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
-def patch() -> None:
-    ...
-```
-
-Apply the decorator to synchronous setup functions, including middleware or plugin
-constructors. Decoration does not import or activate subscribers; invocation registers
-the bundles before setup runs. The wrapper preserves the callable's signature and
-metadata. Direct calls work without tracing product startup or the common patching
-machinery. Each invocation ensures activation, skipping registration while the bundle
-is still active and restoring listeners after a reset. Registration errors propagate
-before setup runs. Keep enablement checks outside decorated helpers when disabled
-setup must remain inactive, as in Pyramid's tween factory. Keep the decorator off
-request handlers so activation stays out of the request path. Registration is idempotent. Span-dependent
-integrations retain their request span creation and completion listeners. Integrations
-cannot supply `TracingEvent.span_creation_enabled` to the constructor or factory. The web
-tracing subscriber sets this internal field for events declaring
-`supports_spanless_lifecycle=True` (currently aiohttp), using the
-APM enablement from the tracer separately from the span requirements of standalone
-products. A standalone product can require span creation while APM tracing remains
-disabled; the captured field describes span lifecycle, not APM enablement. The base subscriber's existing guards
-reuse the captured decision through completion, so runtime disable still finishes
-in-flight spans and runtime enable does not start tracing a previously skipped request.
-The decision must not be inferred from `_inner_span`: AppSec can populate that slot
-with a borrowed parent span. Aiohttp can emit metadata-only lifecycle events with
-`DD_TRACE_ENABLED=false`. Other web integrations retain the field's default tracing
-behavior until their request code can run without spans. Subscriber families not yet
-migrated to bundles continue to register automatically.
-
-Aiohttp reports request exceptions synchronously with `WebFrameworkRequestExceptionEvent`.
-The tracing subscriber consumes the live exception immediately; deferred contexts never
-store the exception or its traceback. Completion dispatch carries response metadata, while
-exception details are available during the separate exception notification. Consumers must
-not retain that notification or its exception tuple. The original request event accompanies
-it so tracing can honor the entry decision even if response preparation released `ctx.event`.
-Late errors can update a finished span object, but cannot guarantee updating an already
-exported trace. Failed or cancelled requests schedule a task-completion fallback so missing
-response preparation does not leave their contexts open. Response completion removes any
-pending fallback callback so keep-alive tasks do not retain completed requests. Cancellation retains the existing
-behavior of not being tagged as a tracing error.
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` and `FLASK_REQUEST_SUBSCRIBERS`
+in `ddtrace._trace._registration`.
+Its `register_subscribers()` helper activates every declared bundle. Product startup
+calls this helper directly. Normal `ddtrace` initialization installs an import hook
+that calls it after the subscriber package loads through contrib. Waiting for the
+package to finish avoids registering against partially initialized subscriber bases
+and preserves lightweight bare tracer imports.
+Listeners remain available with `DD_TRACE_ENABLED=false` so existing
+integrations can finish their spans without enabling tracing. This supports manual
+instrumentation without starting the product manager. `_DD_GLOBAL_TRACER_INIT=false` preserves deferred initialization;
+product startup can still activate the bundles explicitly. The web subscriber uses
+explicit registration rather than class-definition registration. Integrations emit
+events without registering tracing listeners themselves. Repeated activation does not duplicate
+listeners and can restore listeners after a reset.
+Tracing retains its existing shutdown behavior and keeps these listeners registered.
+Other subscriber families continue using class-definition registration until their
+activation paths are migrated.
 
 Flask and WSGI use one deferred `WebFrameworkRequestEvent` context. Application
 return emits `wsgi.application.returned` while that context is still current, so
@@ -202,7 +157,15 @@ before the request span, preserving response-only error attribution for streamin
 failures and ignoring `GeneratorExit`. Closing an iterable that raises still
 completes its lifecycle, and repeated completion or close does not finish spans twice.
 Flask's route, body inspection, response preparation, and blocking hooks retain
-their existing order. These integrations remain span-dependent.
+their existing order. These integrations remain span-dependent. Their service is
+resolved at span creation; deferred completion preserves later changes to the live
+request span instead of resolving its service again.
+
+Application execution, iteration, and closure normally run in one copied Context.
+When Werkzeug requests context preservation, including a preserved Flask test
+client, they remain in the caller's Context so Flask can safely re-push and pop its
+saved context objects. The legacy Flask preservation flag follows the same rule.
+Ordinary requests retain isolated execution for interleaved response streams.
 
 `ddtrace.contrib.internal.flask.response_adapter` preserves an inactive adapter
 for the shared blocking protocol. Flask patching does not import or install it.
@@ -217,12 +180,6 @@ this extraction does not activate AppSec subscribers. Standalone adapter tests u
 synthetic response-producing callbacks and do not identify a production Flask hook.
 Future activation must reuse the existing request context rather than introduce
 another request lifecycle owner.
-
-Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
-`stop()` is not called by the product manager at process exit. Explicit product
-stopping unregisters its bundles after shutdown as described above. Later explicit
-instrumentation setup can register bundles again; this is not a persistent activation
-policy and does not restart the shut-down tracer.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
@@ -476,6 +433,30 @@ from ddtrace.internal import forksafe
 forksafe.register_before_fork(my_before_hook)
 forksafe.register(my_after_child_hook)  # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
+```
+
+When something must happen before and/or after all the `after_in_child` hooks
+in the child (for example, deferring work until every hook has run), register a
+generator function with `forksafe.register`. It becomes a wrapper around the
+hooks: the code before its `yield` runs before them, in registration order, and
+the code after it runs once they have all completed, in reverse order. Either
+part can be empty. A wrapper must yield exactly once; one that raises before
+its `yield` is skipped. Wrappers are always resumed normally: hook exceptions
+are logged and are not propagated to them.
+
+> **Careful:** wrappers are detected with `inspect.isgeneratorfunction`, which
+> recognizes generator functions and bound methods or `functools.partial`
+> objects of them. A callable that only *returns* a generator (a decorator
+> around a generator function, an object whose `__call__` yields, a lambda) is
+> registered as a plain hook instead, and none of its code runs, silently.
+> Register the generator function itself.
+
+```python
+@forksafe.register
+def my_child_wrapper():
+    pause_something()
+    yield  # the after_in_child hooks run here
+    resume_something()
 ```
 
 **Keep hooks non-blocking.** By the time a hook registered *after*

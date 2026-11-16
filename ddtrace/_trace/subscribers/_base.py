@@ -41,7 +41,8 @@ def _finish_span(
     if not span:
         return
 
-    set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
+    if ctx.get_item("resolve_service_on_finish", True):
+        set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -115,8 +116,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
-    override on_started/on_ended for their specific logic. Tracing subscribers set
-    span_creation_enabled at entry to skip tracing handlers for the entire context.
+    override on_started/on_ended for their specific logic.
 
     Example:
         class MySpanSubscriber(SpanTracingSubscriber):
@@ -137,8 +137,6 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
-        if not ctx.event.span_creation_enabled:
-            return
         _start_span(ctx)
         for handler in cls._started_handlers:
             handler(ctx)
@@ -149,9 +147,6 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         ctx: core.ExecutionContext[TracingEventType],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        # Use the entry decision so a runtime disable does not leave an existing span unfinished.
-        if not ctx.event.span_creation_enabled:
-            return
         try:
             for handler in cls._ended_handlers:
                 handler(ctx, exc_info)

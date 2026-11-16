@@ -199,7 +199,7 @@ class LazyTaintList:
     """
 
     def __init__(self, original_list, origins=(0, 0), override_pyobject_tainted=False, source_name="[]"):
-        self._obj = original_list._obj if _is_tainted_struct(original_list) else original_list
+        self._obj: object = original_list._obj if _is_tainted_struct(original_list) else original_list
         self._origins = origins
         self._origin_value = origins[1]
         self._override_pyobject_tainted = override_pyobject_tainted
@@ -378,7 +378,7 @@ class LazyTaintDict:
     def __init__(self, original_dict, origins=(0, 0), override_pyobject_tainted=False):
         from ddtrace.appsec._iast._taint_tracking import OriginType
 
-        self._obj = original_dict
+        self._obj: object = original_dict
         self._origins = origins
         self._origin_key = origins[0] if origins[0] else OriginType.PARAMETER_NAME
         self._origin_value = origins[1] if origins[1] else OriginType.PARAMETER

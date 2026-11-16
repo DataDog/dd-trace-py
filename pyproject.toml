@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.17.0rc1"
+version = "4.18.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -76,9 +76,12 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 
 [project.entry-points.'ddtrace.integration_hooks']
 anthropic = "ddtrace.llmobs._contrib.anthropic"
+claude_agent_sdk = "ddtrace.llmobs._contrib.claude_agent_sdk"
 google_genai = "ddtrace.llmobs._contrib.google_genai"
 llama_index = "ddtrace.llmobs._contrib.llama_index"
+litellm = "ddtrace.llmobs._contrib.litellm"
 mistralai = "ddtrace.llmobs._contrib.mistralai"
+typesafe = "ddtrace.llmobs._contrib.typesafe"
 mlflow = "ddtrace.llmobs._contrib.mlflow"
 vllm = "ddtrace.llmobs._contrib.vllm"
 

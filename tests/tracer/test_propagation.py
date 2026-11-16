@@ -3746,6 +3746,63 @@ def test_baggageheader_maxbytes_extract():
     assert "key3" not in context._baggage
 
 
+@pytest.mark.parametrize("extra_bytes", [0, 1])
+def test_baggageheader_multibyte_boundary_extract(extra_bytes):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    prefix = "first=value,key="
+    available = DD_TRACE_BAGGAGE_MAX_BYTES - len(prefix) + extra_bytes
+    count, padding = divmod(available, len("😀".encode()))
+    value = "😀" * count + "x" * padding
+    context = _BaggageHeader._extract({"baggage": prefix + value})
+    expected = {"first": "value"}
+    if not extra_bytes:
+        expected["key"] = value
+    assert context._baggage == expected
+
+
+@pytest.mark.parametrize("suffix", ["=value", ""])
+def test_baggageheader_partial_member_extract(suffix):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    header = "first=value," + "x" * DD_TRACE_BAGGAGE_MAX_BYTES + suffix
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_TRUNCATED_BYTE_COUNT") as truncated:
+        context = _BaggageHeader._extract({"baggage": header})
+    assert context._baggage == {"first": "value"}
+    truncated.add.assert_called_once_with()
+
+
+@pytest.mark.parametrize("extra_member", ["", ",invalid"])
+def test_baggageheader_duplicate_item_boundary_extract(extra_member):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    header = ",".join(["key=value"] * DD_TRACE_BAGGAGE_MAX_ITEMS) + extra_member
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_TRUNCATED_ITEM_COUNT") as truncated:
+        context = _BaggageHeader._extract({"baggage": header})
+    assert context._baggage == {"key": "value"}
+    assert truncated.add.call_count == bool(extra_member)
+
+
+@pytest.mark.subprocess(err=None)
+def test_baggageheader_extract_working_memory():
+    import tracemalloc
+
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.propagation.http import HTTPPropagator
+
+    HTTPPropagator.extract({"baggage": "key=value"})
+    for suffix in ("key=value,", "x", "😀"):
+        header = {"baggage": "first=value," + suffix * (DD_TRACE_BAGGAGE_MAX_BYTES * 8)}
+        tracemalloc.start()
+        try:
+            context = HTTPPropagator.extract(header)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        assert context.get_baggage_item("first") == "value"
+        assert peak < 32 * DD_TRACE_BAGGAGE_MAX_BYTES
+
+
 @pytest.mark.parametrize(
     "headers,expected_baggage",
     [
@@ -3793,6 +3850,24 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
     assert context._baggage == expected_baggage
 
 
+def test_baggageheader_invalid_unicode_preserves_trace_context():
+    headers = {
+        HTTP_HEADER_TRACE_ID: "123",
+        HTTP_HEADER_PARENT_ID: "456",
+        HTTP_HEADER_SAMPLING_PRIORITY: "2",
+        HTTP_HEADER_ORIGIN: "synthetics",
+        "baggage": "ok=v,\udcff",
+    }
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_MALFORMED") as malformed:
+        context = HTTPPropagator.extract(headers)
+    assert context.trace_id == 123
+    assert context.span_id == 456
+    assert context.sampling_priority == 2
+    assert context.dd_origin == "synthetics"
+    assert context.get_all_baggage_items() == {}
+    malformed.add.assert_called_once_with()
+
+
 @pytest.mark.parametrize(
     "headers",
     [
@@ -3802,6 +3877,17 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
 def test_http_propagator_baggage_extract(headers):
     context = HTTPPropagator.extract(headers)
     assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}
+
+
+def test_baggageheader_partial_member_fastapi(fastapi_client, fastapi_test_spans):  # noqa: F811
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    response = fastapi_client.get(
+        "/", headers={"sleep": "False", "baggage": "first=value," + "x" * DD_TRACE_BAGGAGE_MAX_BYTES + "=other"}
+    )
+    assert response.status_code == 200
+    spans = fastapi_test_spans.pop_traces()
+    assert spans[0][0].context.get_all_baggage_items() == {"first": "value"}
 
 
 def test_baggage_span_tags_default():

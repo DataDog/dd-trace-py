@@ -58,8 +58,8 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
-from tests._ddtest_env_helpers import strip_ddtest_leaked_env
 from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_process
 
 
 NO_CHILDREN = object()
@@ -1370,15 +1370,10 @@ def snapshot_context(
             cast("AgentWriterInterface | HTTPWriter", writer_now).flush_queue(raise_exc=True)
 
     flush(before_start=True)
-    url = client._url(
-        "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
-    )
-    status, body = client._request("GET", url, timeout=timeout, retry=False)
-    if status != 200:
-        pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
     original_compute_stats_enabled = dd_config._trace_compute_stats
     original_stats_env = os.environ.get("DD_TRACE_STATS_COMPUTATION_ENABLED")
     completed = False
+    session_started = False
     try:
         headers = parse_tags_str(old_headers or "")
         headers[header] = session.token
@@ -1391,6 +1386,18 @@ def snapshot_context(
                 writer.set_test_session_token(session.token, compute_stats_enabled=compute_stats_enabled)
             else:
                 writer._headers[header] = session.token
+        # Retiring the previous exporter can flush a final stats bucket. Do it before
+        # opening the new session so trace-only snapshots cannot capture that payload.
+        url = client._url(
+            "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
+        )
+        # Parallel snapshot workers can briefly backlog the shared test agent while
+        # opening their isolated sessions. Give session setup three normal request
+        # windows without extending snapshot verification or cleanup deadlines.
+        status, body = client._request("GET", url, timeout=timeout * 3, retry=False)
+        if status != 200:
+            pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+        session_started = True
         try:
             yield session
             completed = session.verify_on_exit
@@ -1414,7 +1421,8 @@ def snapshot_context(
         dd_config._trace_compute_stats = original_compute_stats_enabled
         failed = sys.exc_info()[0] is not None or not session.verify_on_exit
         try:
-            session.clear()
+            if session_started:
+                session.clear()
         except Exception:
             if not failed:
                 failed = True
@@ -1546,34 +1554,9 @@ def terminate_process_group(proc: subprocess.Popen[bytes], timeout: float = 3.0)
         proc.communicate(timeout=timeout)
 
 
-# ddtest sets PYTEST_ADDOPTS="--ddtrace" globally for pytest workers. It leaks
-# into test-spawned subprocesses, enabling CI Visibility which logs to stderr
-# (breaking tests that assert err == b"") and computes stats (breaking
-# snapshot tests). All ddtest-specific env stripping is encapsulated in
-# _ddtest_env_helpers so it can be removed cleanly if ddtest support is
-# dropped.
-
-
 def call_program(*args, **kwargs):
-    timeout = kwargs.pop("timeout", None)
-    if "env" in kwargs:
-        # Remove all keys with the value None from env, None is used to unset an environment variable
-        env = kwargs.pop("env")
-        cleaned_env = {env: val for env, val in env.items() if val is not None}
-    else:
-        # No explicit env: subprocess would inherit os.environ directly.
-        cleaned_env = dict(os.environ)
-    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches ordinary
-    # test runs, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
-    kwargs["env"] = strip_ddtest_leaked_env(cleaned_env)
-    close_fds = sys.platform != "win32"
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    try:
-        stdout, stderr = subp.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        subp.terminate()
-        stdout, stderr = subp.communicate(timeout=timeout)
-    return stdout, stderr, subp.returncode, subp.pid
+    # TODO(mabdinur): remove and replace with python_process for Python code or run_process for other commands.
+    return run_process(*args, **kwargs)
 
 
 def request_token(request: pytest.FixtureRequest) -> str:

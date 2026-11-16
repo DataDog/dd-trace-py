@@ -439,9 +439,8 @@ class APIClient:
         # demand), so give it a longer timeout than the global default while the proper per-endpoint timeout lands.
         _extend_timeout = self.service == "dd-trace-py"
         if _extend_timeout:
-            _prev_timeout = self.connector.conn.timeout
-            self.connector.conn.close()
-            self.connector.conn.timeout = max(10.0, _prev_timeout or 0.0)
+            _prev_timeout = self.connector.timeout_seconds
+            self.connector.timeout_seconds = max(10.0, _prev_timeout or 0.0)
         try:
             result = self.connector.post_json(
                 "/api/v2/ci/tests/skippable",
@@ -457,8 +456,7 @@ class APIClient:
             return set(), None
         finally:
             if _extend_timeout:
-                self.connector.conn.close()
-                self.connector.conn.timeout = _prev_timeout
+                self.connector.timeout_seconds = _prev_timeout
 
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()

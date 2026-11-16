@@ -37,31 +37,16 @@ See `ddtrace/internal/core/__init__.py` for the API. An event is available throu
 its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
-Lifecycle dispatch must not depend on a tracing span being present: with tracing
-disabled, other products can still consume the same events. Do not call
-`span_from_context()` simply to check whether a request can be finalized, since it
-creates a fallback span when no tracing subscriber is registered.
-Emit events without computing tracing product enablement. TracingEvent.span_creation_enabled
-is internal state excluded from constructor/factory arguments. The web tracing
-subscriber sets it for events declaring supports_spanless_lifecycle=True from two separate inputs: tracer APM
-enablement and standalone products' span requirements. The field describes span
-lifecycle, not APM enablement; the base guards retain it through completion. Do not
-infer ownership from `_inner_span`, since AppSec can populate it with a borrowed parent
-span. Existing span-dependent integrations retain the default tracing behavior until
-their lifecycle can run without spans. A capability declares span independence; it must
-not encode the product's enablement decision. Report aiohttp exceptions synchronously
-through WebFrameworkRequestExceptionEvent rather than retaining exceptions or tracebacks
-on a deferred context. Deferred completion carries final response metadata separately.
-Declare the shared web
-framework bundle with `@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)` on
-synchronous instrumentation setup (middleware or plugin constructors, enabled tween
-creation, or patching), rather than registering subscriber classes directly. Keep
-conditional enablement outside the decorated helper and never decorate request
-handlers. The decorator activates bundles at setup invocation, not module import.
-This preserves manual instrumentation when tracing product startup is skipped. Active
-bundles skip repeated registration; core listener resets invalidate activation so the
-next setup restores listeners. Registration is idempotent; do not unregister the shared subscriber when unpatching one integration,
-since other integrations and active requests still need its listeners.
+Products own subscriber activation. Integrations emit events without importing product
+bundle declarations or registering subscriber classes. Tracing product startup and normal
+global tracer initialization use the same tracing-owned helper to activate all declared
+bundles. Global initialization uses an import hook to defer activation until the
+subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
+`DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
+the product manager.
+The web subscriber uses explicit registration rather than class-definition registration.
+Do not unregister shared subscribers when unpatching one integration, since other integrations and active
+requests still need their listeners.
 
 Flask and WSGI defer their shared request context through response iteration.
 The iterable reports completion without owning spans; `WebFrameworkResponseEvent`

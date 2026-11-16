@@ -10,12 +10,10 @@ from typing import Callable
 from typing import Iterable
 from typing import Optional
 
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkResponseEvent
 from ddtrace.internal.compat import ExcInfoType
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 
@@ -86,8 +84,7 @@ class _WSGIResponseIterable:
         self._on_complete = on_complete
         self._completed = False
         self._closed = False
-        # WSGI requires closing the application's iterable, even if iter() returned another object.
-        self._close = getattr(wrapped, "close", None) or getattr(self._iterator, "close", None)
+        self._close = getattr(self.__wrapped__, "close", None)
 
     def __iter__(self) -> _WSGIResponseIterable:
         return self
@@ -110,29 +107,28 @@ class _WSGIResponseIterable:
             raise
 
     def close(self) -> None:
-        if self._completed:
+        if self._closed:
             return
+        self._closed = True
         if self._context is not None:
-            self._context.run(self._complete)
+            self._context.run(self._close_response)
         else:
-            self._complete()
+            self._close_response()
+
+    def _close_response(self) -> None:
+        exc_info: ExcInfoType = (None, None, None)
+        try:
+            if self._close is not None:
+                self._close()
+        except BaseException:
+            exc_info = sys.exc_info()
+            raise
+        finally:
+            self._complete(exc_info)
 
     def _complete(self, exc_info: ExcInfoType = (None, None, None)) -> None:
-        if self._completed:
-            return
-        self._completed = True
-        try:
-            if not self._closed:
-                self._closed = True
-                if self._close is not None:
-                    self._close()
-        except BaseException as close_error:
-            if exc_info[0] is None or not isinstance(close_error, Exception):
-                exc_info = sys.exc_info()
-                raise
-            # Cleanup must not hide the original response failure.
-            log.debug("Failed to close WSGI response after application failure", exc_info=True)
-        finally:
+        if not self._completed:
+            self._completed = True
             self._on_complete(exc_info)
 
     @property  # type: ignore[misc]
@@ -167,7 +163,6 @@ class _DDWSGIMiddlewareBase:
     :param app_is_iterator: Boolean indicating whether the wrapped app is a Python iterator
     """
 
-    @requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
     def __init__(
         self,
         application: Callable[..., Iterable[Any]],
@@ -206,11 +201,15 @@ class _DDWSGIMiddlewareBase:
     def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> _WSGIResponseIterable:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
+        # Werkzeug re-pushes preserved Flask contexts in the caller. Their token
+        # stacks must stay in that same Context through response iteration/close.
+        if "werkzeug.debug.preserve_context" in environ or environ.get("flask._preserve_context"):
+            return self._execute_request(environ, start_response, None)
         execution_context = copy_context()
         return execution_context.run(self._execute_request, environ, start_response, execution_context)
 
     def _execute_request(
-        self, environ: dict[str, Any], start_response: Callable[..., Any], execution_context: Context
+        self, environ: dict[str, Any], start_response: Callable[..., Any], execution_context: Optional[Context]
     ) -> _WSGIResponseIterable:
         headers = get_request_headers(environ)
         event = WebFrameworkRequestEvent(

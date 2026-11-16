@@ -3103,9 +3103,10 @@ class BotocoreTest(TracerTestCase):
                 "nine": {"DataType": "String", "StringValue": "nine"},
                 "ten": {"DataType": "String", "StringValue": "ten"},
             }
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
             spans = self.get_spans()
             assert spans
             assert len(spans) == 1
@@ -3159,9 +3160,10 @@ class BotocoreTest(TracerTestCase):
                 "nine": {"DataType": "String", "StringValue": "nine"},
                 "ten": {"DataType": "String", "StringValue": "ten"},
             }
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
 
             self.sqs_client.receive_message(
                 QueueUrl=self.sqs_test_queue["QueueUrl"],
@@ -3204,7 +3206,8 @@ class BotocoreTest(TracerTestCase):
                 {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
                 {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
             ]
-            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
             self.get_spans()
 
             # get SNS messages via SQS
@@ -3260,7 +3263,8 @@ class BotocoreTest(TracerTestCase):
                 {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
                 {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
             ]
-            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
             self.get_spans()
 
             # get SNS messages via SQS
