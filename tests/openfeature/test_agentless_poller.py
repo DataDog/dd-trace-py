@@ -2,6 +2,9 @@ import gzip
 import json
 import logging
 import socket
+from types import SimpleNamespace
+from urllib.parse import parse_qsl
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -10,6 +13,7 @@ from ddtrace.internal.native import ConnectionFailedError
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import MAX_POLL_INTERVAL_SECONDS
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+import ddtrace.internal.openfeature._native as native_mod
 
 
 ENDPOINT = "https://ufc-server.ff-cdn.datadoghq.com/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"
@@ -224,6 +228,74 @@ def test_api_key_header_present_and_absent(harness):
     without_key = harness([_FakeResponse(304)], api_key=None)
     without_key.periodic()
     assert "DD-API-KEY" not in without_key._requests[0]["headers"]
+
+
+@pytest.mark.parametrize(
+    "capabilities, expected",
+    [
+        ((), None),
+        (("unknown-feature-v1",), None),
+        (("dependent-flag-variant-key-v1",), "v1"),
+        (["unknown-feature-v1", "dependent-flag-variant-key-v1"], "v1"),
+    ],
+)
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        ENDPOINT,
+        "https://flags.example.test/custom",
+        "https://flags.example.test/custom?tag=a%2fb&tag=c%20d&empty=&token=a%2Bb#ignored",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v2",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v1&cap_dependent-flags-variant-key=v1",
+        ENDPOINT + "&%63ap_dependent-flags-variant-key=v1",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo",
+        ENDPOINT + "&ap_dependent-flags-variant-key=v1&invalid=foo",
+    ],
+)
+def test_evaluator_capability_query_on_initial_and_conditional_requests(
+    harness, monkeypatch, capabilities, expected, endpoint
+):
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)], endpoint=endpoint)
+    src.periodic()
+    src.periodic()
+
+    assert len(src._requests) == 2
+    capability_param = "cap_dependent-flags-variant-key"
+    original = urlsplit(endpoint)
+    expected_query = parse_qsl(original.query, keep_blank_values=True)
+    if expected is not None:
+        expected_query = [(key, value) for key, value in expected_query if key != capability_param]
+        expected_query.append((capability_param, expected))
+    for request in src._requests:
+        target = urlsplit(request["target"])
+        assert target.path == original.path
+        assert parse_qsl(target.query, keep_blank_values=True) == expected_query
+        assert not target.fragment
+        assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in request["headers"]
+        if expected is None or "custom" in original.path:
+            expected_raw_query = original.query
+            if expected is not None:
+                expected_raw_query += ("&" if expected_raw_query else "") + "cap_dependent-flags-variant-key=v1"
+            assert target.query == expected_raw_query
+    assert src._requests[0]["target"] == src._requests[1]["target"]
+    assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
+
+
+@pytest.mark.parametrize("endpoint", [ENDPOINT, ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo"])
+def test_missing_native_capability_reporter_preserves_query(harness, monkeypatch, endpoint):
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace())
+    src = harness([_FakeResponse(200, _ufc_body())], endpoint=endpoint)
+    src.periodic()
+    assert src._requests[0]["target"] == urlsplit(endpoint)._replace(scheme="", netloc="").geturl()
+    assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
+
+
+def test_linked_evaluator_does_not_advertise_dependent_flags():
+    # The native dependency does not implement prerequisite evaluation yet.
+    # Enabling its token requires updating the evaluator and its integration tests.
+    assert native_mod.ffe.get_evaluator_capabilities() == []
+    assert "dependent-flag-variant-key-v1" not in native_mod.get_evaluator_capabilities()
 
 
 def test_client_library_headers_and_gzip_accept(harness):
