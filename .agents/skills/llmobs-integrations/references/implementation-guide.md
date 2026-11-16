@@ -225,10 +225,10 @@ Return `"agent"` when the kwargs signal an agent span. The base-class default re
 
 Return the agent's LLMObs display name when it can be determined at `trace()` call time. Return `None` to fall back to the span resource name. Override when the integration can resolve the name from kwargs (e.g. Google ADK passes `_dd_agent=<agent_instance>` and the integration reads `agent.name`).
 
-If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph),
-`_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. Stamp the name directly
-in the integration's `trace()` override after calling `super().trace()` and before returning
-the span. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
+For subscriber-based integrations, the shared SPAN_STARTED subscriber does not pass the event's
+instance to `_llmobs_agent_name_at_start`. When the name comes from the instance (e.g. LangGraph's
+graph name), stamp it in `_on_request_span_started()`, which receives the instance and runs before
+children start. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
 `ddtrace/llmobs/_integrations/google_adk.py` when the instance is available to the agent-name hook.
 
 ## Hosted voice conversations: ElevenLabs Agents

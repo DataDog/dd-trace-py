@@ -5,6 +5,7 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
@@ -49,27 +50,26 @@ class LangGraphIntegration(BaseLLMIntegration):
     _agent_manifests: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
     _graph_spans_to_graph_instances: WeakKeyDictionary[Span, Any] = WeakKeyDictionary()
 
-    def trace(
-        self,
-        operation_id: str,
-        submit_to_llmobs: bool = False,
-        instance=None,
-        **kwargs,
-    ) -> Span:
-        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Nothing to do: LangGraph spans carry no provider or model tags."""
 
-        if instance:
-            self._graph_spans_to_graph_instances[span] = instance
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        # Graph spans are agents, known at start for agent attribution.
+        if kwargs.get("operation") == "graph":
+            return "agent"
+        return super()._llmobs_span_kind(operation_id, span, **kwargs)
 
-        # Stamp agent name at start so children resolve the correct pagent_name.
-        # instance is captured before **kwargs so _llmobs_agent_name_at_start can't reach it;
-        # stamp here after super().trace() has already written the kind.
-        if submit_to_llmobs and self.llmobs_enabled and kwargs.get("kind") == "agent":
-            agent_name = getattr(instance, "name", None) if instance else None
+    def _on_request_span_started(self, span: Span, instance: Any = None, operation: str = "") -> None:
+        if operation != "graph" or instance is None:
+            return
+        self._graph_spans_to_graph_instances[span] = instance
+
+        # Stamp the agent name at start so children resolve the correct pagent_name: the LLMObs name is the
+        # graph's short name, while the APM span name is the long composed one.
+        if span.span_type == SpanTypes.LLM:
+            agent_name = getattr(instance, "name", None)
             if agent_name:
                 _annotate_llmobs_span_data(span, name=agent_name)
-
-        return span
 
     def _llmobs_set_tags(
         self,
