@@ -1,7 +1,7 @@
 Standalone Building and Testing
 ===============================
 
-See the accompanying `Design.md` for comments on the high-level design and goals of these directories.
+See the accompanying `Architecture.md` for comments on the high-level design and goals of these directories.
 This document discusses some aspects of building and testing the native code in a standalone fashion, apart from the normal dd-trace-py build system.
 
 
