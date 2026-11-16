@@ -299,50 +299,60 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         else:
             swap_lock = nullcontext()
         with swap_lock:
-            if stack_mod is not None:
-                try:
-                    pause_result = stack_mod.pause_sampling()
-                    safe_to_swap = pause_result is not None
-                except Exception:  # nosec: B110
-                    pause_result = None
-                    safe_to_swap = False
-                if not safe_to_swap:
-                    log.error("Failed to start crashtracker: could not pause stack sampler for handler swap")
-                    return False
-            # Uninstall inside try/finally (same shape as profiling/_faulthandler.py):
-            # KeyboardInterrupt is BaseException, so an except Exception around
-            # uninstall alone would skip reinstall/resume if SIGINT lands there.
+            # Pause and the swap share one try/finally so a KeyboardInterrupt after
+            # pause succeeds (including before pause_result is assigned) still
+            # cancels the pause. resume_sampling is a no-op when we never paused.
             try:
                 if stack_mod is not None:
                     try:
-                        stack_mod.uninstall_segv_handler()
+                        pause_result = stack_mod.pause_sampling()
+                        safe_to_swap = pause_result is not None
                     except Exception:  # nosec: B110
-                        pass
-                crashtracker_init(config, receiver_config, metadata)
-                excepthook.register(_unhandled_exception_reporter)
+                        pause_result = None
+                        safe_to_swap = False
+                    if not safe_to_swap:
+                        log.error("Failed to start crashtracker: could not pause stack sampler for handler swap")
+                        return False
+                # Uninstall inside try/finally (same shape as profiling/_faulthandler.py):
+                # KeyboardInterrupt is BaseException, so an except Exception around
+                # uninstall alone would skip reinstall/resume if SIGINT lands there.
+                try:
+                    if stack_mod is not None:
+                        try:
+                            stack_mod.uninstall_segv_handler()
+                        except Exception:  # nosec: B110
+                            pass
+                    crashtracker_init(config, receiver_config, metadata)
+                    excepthook.register(_unhandled_exception_reporter)
 
-                def crashtracker_fork_handler() -> None:
-                    # We recreate the args here mainly to pass updated runtime_id after
-                    # fork
-                    config, receiver_config, metadata = _get_args(additional_tags)
-                    if config is None or receiver_config is None or metadata is None:
-                        log.error(
-                            "Failed to restart crashtracker after fork: failed to construct crashtracker configuration"
-                        )
-                        return
-                    crashtracker_on_fork(config, receiver_config, metadata)
+                    def crashtracker_fork_handler() -> None:
+                        # We recreate the args here mainly to pass updated runtime_id after
+                        # fork
+                        config, receiver_config, metadata = _get_args(additional_tags)
+                        if config is None or receiver_config is None or metadata is None:
+                            log.error(
+                                "Failed to restart crashtracker after fork: "
+                                "failed to construct crashtracker configuration"
+                            )
+                            return
+                        crashtracker_on_fork(config, receiver_config, metadata)
 
-                forksafe.register(crashtracker_fork_handler)
+                    forksafe.register(crashtracker_fork_handler)
+                finally:
+                    # Reinstall before resume even when init/register raised: uninstall ran
+                    # above, and sampling must not resume without the recovery handler.
+                    # Idempotent when the success path already left us installed.
+                    if stack_mod is not None:
+                        try:
+                            stack_mod.reinstall_segv_handler()
+                        except Exception:  # nosec: B110
+                            pass
             finally:
-                # Reinstall before resume even when init/register raised: uninstall ran
-                # above, and sampling must not resume without the recovery handler.
-                # Idempotent when the success path already left us installed.
-                if stack_mod is not None:
-                    try:
-                        stack_mod.reinstall_segv_handler()
-                    except Exception:  # nosec: B110
-                        pass
-                if stack_mod is not None and pause_result is True:
+                # pause_result is True after a successful pause; None if pause never
+                # returned (KeyboardInterrupt mid-call / before assignment) or timed
+                # out. Resume whenever we might still be paused; skip only the
+                # NotRunning (False) case.
+                if stack_mod is not None and pause_result is not False:
                     try:
                         stack_mod.resume_sampling()
                     except Exception:  # nosec: B110

@@ -1049,17 +1049,66 @@ stack_resume_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
+// Acquire the Python handler_swap_lock so set_fast_copy reclaim cannot install
+// between a faulthandler/crashtracking uninstall and enable. Returns the lock
+// object (new ref) on success, nullptr on error (exception set).
+static PyObject*
+acquire_handler_swap_lock()
+{
+    PyObject* lock_mod = PyImport_ImportModule("ddtrace.internal.datadog.profiling.stack._handler_swap_lock");
+    if (lock_mod == nullptr) {
+        return nullptr;
+    }
+    PyObject* lock = PyObject_GetAttrString(lock_mod, "handler_swap_lock");
+    Py_DECREF(lock_mod);
+    if (lock == nullptr) {
+        return nullptr;
+    }
+    PyObject* acquired = PyObject_CallMethod(lock, "acquire", nullptr);
+    if (acquired == nullptr) {
+        Py_DECREF(lock);
+        return nullptr;
+    }
+    Py_DECREF(acquired);
+    return lock;
+}
+
+static void
+release_handler_swap_lock(PyObject* lock)
+{
+    if (lock == nullptr) {
+        return;
+    }
+    PyObject* released = PyObject_CallMethod(lock, "release", nullptr);
+    Py_DECREF(lock);
+    // Prefer the caller's error (if any) over a release failure.
+    if (released == nullptr) {
+        PyErr_Clear();
+        return;
+    }
+    Py_DECREF(released);
+}
+
 static PyObject*
 stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 {
+    // Serialize with faulthandler/crashtracking swaps: reclaim after stop must
+    // not install our handlers between their uninstall and enable.
+    PyObject* swap_lock = acquire_handler_swap_lock();
+    if (swap_lock == nullptr) {
+        return nullptr;
+    }
+
     int enabled = 1;
 
     if (!PyArg_ParseTuple(args, "|p", &enabled)) {
+        release_handler_swap_lock(swap_lock);
         return nullptr;
     }
 
     if (Sampler::get().is_running()) {
         PyErr_SetString(PyExc_RuntimeError, "set_fast_copy must be called before the sampler is started");
+        release_handler_swap_lock(swap_lock);
         return nullptr;
     }
 
@@ -1105,6 +1154,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     }
     seed_fast_copy_profiler_stats();
 
+    release_handler_swap_lock(swap_lock);
     Py_RETURN_NONE;
 }
 

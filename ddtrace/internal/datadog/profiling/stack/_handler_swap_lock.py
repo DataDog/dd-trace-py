@@ -2,7 +2,9 @@
 
 Sampler::pause is not nested: a second resume clears the first pause. Faulthandler
 and crashtracking both pause around handler swaps, so they must share one lock
-for the whole pause/uninstall/reinstall/resume transaction.
+for the whole pause/uninstall/reinstall/resume transaction. `set_fast_copy`
+also takes this lock when reclaiming handlers after stop, so it cannot install
+between another swap uninstall and enable.
 """
 
 from __future__ import annotations

@@ -45,11 +45,14 @@ def _(faulthandler: ModuleType) -> None:
             #   None  — timed out: a capture may still be in safe_memcpy. Do not
             #           enable faulthandler (it would replace our recovery handler)
             #           and do not reinstall (that would build a handler cycle).
-            pause_result: bool | None = stack.pause_sampling()
-            safe_to_swap: bool = pause_result is not None
-            if not safe_to_swap:
-                return
+            # Keep pause inside try/finally so KeyboardInterrupt after a successful
+            # pause (including before pause_result is assigned) still resumes.
+            pause_result: bool | None = None
             try:
+                pause_result = stack.pause_sampling()
+                safe_to_swap: bool = pause_result is not None
+                if not safe_to_swap:
+                    return
                 try:
                     stack.uninstall_segv_handler()
                 except Exception:  # nosec: B110
@@ -80,14 +83,17 @@ def _(faulthandler: ModuleType) -> None:
                 except Exception:  # nosec: B110
                     pass
             finally:
-                if pause_result is True:
+                # Resume when we may still be paused (True, or None if interrupt
+                # landed before assignment). Skip only NotRunning (False).
+                if pause_result is not False:
                     stack.resume_sampling()
 
     def _patched_disable() -> bool:
         with handler_swap_lock:
-            pause_result: bool | None = stack.pause_sampling()
-            safe_to_swap: bool = pause_result is not None
+            pause_result: bool | None = None
             try:
+                pause_result = stack.pause_sampling()
+                safe_to_swap: bool = pause_result is not None
                 if not safe_to_swap:
                     # Sampler timed out at a safe pause point; swapping signal
                     # handlers now would race with safe_memcpy.
@@ -108,7 +114,7 @@ def _(faulthandler: ModuleType) -> None:
 
                 return disabled
             finally:
-                if pause_result is True:
+                if pause_result is not False:
                     stack.resume_sampling()
 
     faulthandler.enable = _patched_enable  # type: ignore[attr-defined]
