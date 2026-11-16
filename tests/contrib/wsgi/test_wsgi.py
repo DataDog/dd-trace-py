@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from contextvars import copy_context
 import os
 from typing import Any
+from typing import Callable
 from unittest import mock
 
 import pytest
@@ -264,6 +265,66 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     assert spans[0].error == 1
+
+
+@pytest.mark.parametrize("otel", [False, True])
+@pytest.mark.parametrize("metadata", ["valid", "invalid_status", "invalid_headers"])
+@pytest.mark.parametrize("server_fails", [False, True])
+def test_start_response_metadata_does_not_change_server_callback(
+    tracer: Any, test_spans: Any, otel: bool, metadata: str, server_fails: bool
+) -> None:
+    status = "not-a-code Example" if metadata == "invalid_status" else "200 OK"
+    headers: Any = [("broken",)] if metadata == "invalid_headers" else [("Content-Type", "text/plain")]
+    calls: list[tuple[str, list[tuple[str, str]], Any]] = []
+    writes: list[bytes] = []
+    server_write = writes.append
+    callback_exc_info: ExcInfoType = (RuntimeError, RuntimeError("application retry"), None)
+    server_error = ValueError("server callback failure")
+
+    def start_response(
+        received_status: str, received_headers: list[tuple[str, str]], exc_info: Any
+    ) -> Callable[[bytes], None]:
+        calls.append((received_status, received_headers, exc_info))
+        if server_fails:
+            raise server_error
+        return server_write
+
+    def app(environ: dict[str, Any], respond: Any) -> list[bytes]:
+        write = respond(status, headers, callback_exc_info)
+        assert write is server_write
+        write(b"written")
+        return [b"body"]
+
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    with override_global_config(dict(_otel_trace_semantics_enabled=otel)):
+        middleware = DDWSGIMiddleware(app)
+        if server_fails:
+            with pytest.raises(ValueError, match="server callback failure") as raised:
+                middleware(environ, start_response)
+            assert raised.value is server_error
+        else:
+            response = middleware(environ, start_response)
+            assert list(response) == [b"body"]
+            response.close()
+            assert writes == [b"written"]
+
+    assert calls == [(status, headers, callback_exc_info)]
+    assert calls[0][0] is status
+    assert calls[0][1] is headers
+    assert calls[0][2] is callback_exc_info
+    spans = test_spans.pop()
+    assert all(span.finished for span in spans)
+    request_span = next(span for span in spans if span.name == "wsgi.request")
+    assert request_span.error == int(server_fails)
+    status_key = "http.response.status_code" if otel else "http.status_code"
+    observed_status = request_span._get_attribute(status_key)
+    assert (str(observed_status) if observed_status is not None else None) == ("200" if status == "200 OK" else None)
 
 
 def test_otel_semantics_keeps_method_resource_before_response_on_exception(tracer, test_spans):

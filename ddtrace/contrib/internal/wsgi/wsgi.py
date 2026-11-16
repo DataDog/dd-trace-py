@@ -249,8 +249,11 @@ class _DDWSGIMiddlewareBase:
             status: str, response_headers: list[tuple[str, str]], *args: Any, **kwargs: Any
         ) -> Any:
             # Observe the final response after framework/security adaptations.
-            event.response_status_code = int(status.split(" ", 1)[0])
-            event.response_headers = dict(response_headers)
+            try:
+                event.response_status_code = int(status.split(" ", 1)[0])
+                event.response_headers = dict(response_headers)
+            except Exception:
+                log.debug("Failed to collect WSGI response metadata", exc_info=True)
             return original_start_response(status, response_headers, *args, **kwargs)
 
         start_response = report_start_response
