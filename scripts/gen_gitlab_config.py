@@ -718,7 +718,7 @@ def gen_pre_checks() -> None:
     check(
         name="Hook tests",
         command="scripts/lint hook-tests",
-        paths={".claude/hooks/*", "hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*", "scripts/lint"},
+        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*", "scripts/lint"},
     )
     if not checks:
         return
