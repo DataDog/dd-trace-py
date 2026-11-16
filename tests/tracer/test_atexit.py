@@ -106,6 +106,27 @@ def test_register_on_exit_signal_exception_swallowed() -> None:
     os.kill(os.getpid(), signal.SIGTERM)
 
 
+@pytest.mark.subprocess(out="still alive\n")
+def test_register_on_exit_signal_preserves_ignored_signal() -> None:
+    """A signal that the application ignores neither terminates the process nor runs the handlers."""
+    import os
+    import signal
+
+    from ddtrace.internal import atexit
+
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    def handler() -> None:
+        print("handler called")
+
+    atexit.register_on_exit_signal(handler)
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        assert signal.getsignal(sig) is signal.SIG_IGN
+        os.kill(os.getpid(), sig)
+    print("still alive")
+
+
 @pytest.mark.subprocess(
     status=1, err=lambda s: "RuntimeError: boom in signal handler" in s, env={"DD_TESTING_RAISE": "1"}
 )

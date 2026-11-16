@@ -305,6 +305,7 @@ suites:
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@mcp'
