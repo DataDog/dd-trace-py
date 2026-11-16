@@ -422,7 +422,9 @@ def _stop_with_an_export_held(port, started):
     writer.write([_finished_span(name="held")])
     # flush_queue() would wait for the held export and time out.
     writer._buffer.force_flush()
-    assert started.wait(10.0), "the agent never received the export"
+    # Wait outside the assert: PYTHONOPTIMIZE strips asserts, and the wait must still run.
+    export_started = started.wait(10.0)
+    assert export_started, "the agent never received the export"
     writer.stop(0.001)
     return writer
 
