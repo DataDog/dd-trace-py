@@ -16,7 +16,9 @@
       when: never
     - if: !reference [.is_release_branch]
       when: never
-    - if: !reference [.is_main]
+    # The nightly pipeline builds the wheels for the new pins of the day. The nightly pipeline
+    # with unpinned dependencies does not use the locks, thus it gets the manual job.
+    - if: $NIGHTLY_BUILD == "true" && $UNPIN_DEPENDENCIES != "true"
     # A branch that changes the locks or the jobs builds and uploads the new wheels before the merge.
     - if: $CI_PIPELINE_SOURCE == "push"
       changes:
