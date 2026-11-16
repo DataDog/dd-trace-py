@@ -807,3 +807,141 @@ def test_sub_app_requests_release_iast_contexts(monkeypatch, finish_on_prepare, 
     finally:
         core.reset_listeners("context.started.web.request", started)
         core.reset_listeners("context.ended.web.request", ended)
+
+
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+@pytest.mark.parametrize("sub_app", [False, True])
+@pytest.mark.parametrize("clone", [False, True])
+def test_child_task_preserves_iast_report_and_releases_context(monkeypatch, finish_on_prepare, sub_app, clone):
+    from ddtrace.appsec._iast.taint_sinks.weak_hash import WeakHash
+    from tests.appsec.iast.iast_utils import load_iast_report
+
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    initialize_native_state()
+    free_slots = debug_context_array_free_slots_number()
+    owning_spans = []
+    ended_contexts = []
+    completed = None
+
+    async def handler(request):
+        environment = _get_iast_env()
+        assert environment is not None
+        owning_spans.append(environment.span)
+        assert WeakHash.report(evidence_value="md5")
+        return web.json_response({"source": _origin(request.query["value"])})
+
+    @web.middleware
+    async def outer(request, handler):
+        async def in_child():
+            return await handler(request.clone() if clone else request)
+
+        response = await asyncio.wait_for(in_child(), timeout=5)
+        await asyncio.sleep(0)
+        return response
+
+    def ended(ctx, exc_info):
+        ended_contexts.append(ctx)
+        completed.put_nowait(ctx)
+
+    async def run():
+        nonlocal completed
+        completed = asyncio.Queue()
+        app = web.Application()
+        target = web.Application() if sub_app else app
+        target.router.add_get("/iast", handler)
+        if sub_app:
+            trace_app(target)
+            app.add_subapp("/sub", target)
+        trace_app(app)
+        app.middlewares.insert(0, outer)
+        path = "/sub/iast?value=tainted" if sub_app else "/iast?value=tainted"
+        async with TestClient(TestServer(app)) as client:
+            for _ in range(3):
+                response = await client.get(path)
+                assert response.status == 200
+                assert await response.json() == {"source": PARAMETER}
+                for _ in range(2 if sub_app else 1):
+                    await asyncio.wait_for(completed.get(), timeout=5)
+                span = owning_spans[-1]
+                assert span.finished
+                report = load_iast_report(span)
+                assert report is not None
+                assert any(vulnerability["type"] == "WEAK_HASH" for vulnerability in report["vulnerabilities"])
+                assert debug_context_array_free_slots_number() == free_slots
+                assert all(ctx._event is None and ctx.get_item("aiohttp.lifecycle") is None for ctx in ended_contexts)
+
+    core.on("context.ended.web.request", ended)
+    try:
+        with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+            with scoped_tracer() as tracer:
+                oce.reconfigure()
+                tracer._recreate()
+                asyncio.run(run())
+        assert len(owning_spans) == 3
+        assert len(ended_contexts) == 3 * (2 if sub_app else 1)
+    finally:
+        oce.reconfigure()
+        core.reset_listeners("context.ended.web.request", ended)
+
+
+@pytest.mark.parametrize("mode", ["stream_default", "stream_early", "websocket"])
+def test_early_prepare_clears_iast_in_the_handler_task(monkeypatch, mode):
+    from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
+    from ddtrace.appsec._iast_context import _get_iast_context_id
+
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", mode == "stream_early")
+    initialize_native_state()
+    free_slots = debug_context_array_free_slots_number()
+    before = []
+    after = []
+    completions = []
+    completed = None
+
+    async def handler(request):
+        assert _origin(request.query["value"]) == PARAMETER
+        before.append(_get_iast_context_id())
+        response = web.WebSocketResponse() if mode == "websocket" else web.StreamResponse()
+        await response.prepare(request)
+        after.append((_get_iast_context_id(), is_iast_request_enabled(), _get_iast_env() is not None))
+        if mode == "websocket":
+            await response.close()
+        else:
+            await response.write_eof(b"ok")
+        return response
+
+    def ended(ctx, exc_info):
+        completions.append(ctx)
+        completed.put_nowait(ctx)
+
+    async def run():
+        nonlocal completed
+        completed = asyncio.Queue()
+        app = web.Application()
+        app.router.add_get("/early", handler)
+        trace_app(app)
+        async with TestClient(TestServer(app)) as client:
+            if mode == "websocket":
+                async with client.ws_connect("/early?value=tainted") as websocket:
+                    await websocket.receive()
+            else:
+                response = await client.get("/early?value=tainted")
+                assert await response.text() == "ok"
+            await asyncio.wait_for(completed.get(), timeout=5)
+
+    core.on("context.ended.web.request", ended)
+    try:
+        with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+            with scoped_tracer() as tracer:
+                oce.reconfigure()
+                tracer._recreate()
+                asyncio.run(run())
+        assert len(before) == 1 and before[0] is not None
+        if mode == "stream_default":
+            assert after == [(before[0], True, True)]
+        else:
+            assert after == [(None, False, False)]
+        assert len(completions) == 1
+        assert debug_context_array_free_slots_number() == free_slots
+    finally:
+        oce.reconfigure()
+        core.reset_listeners("context.ended.web.request", ended)

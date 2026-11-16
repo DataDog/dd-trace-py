@@ -490,3 +490,138 @@ async def test_failed_websocket_upgrade_reports_http_status(test_spans, aiohttp_
     assert spans[0].finished
     assert spans[0].resource == "GET /ws"
     assert spans[0].get_tag("http.status_code") == "400"
+
+
+@pytest.mark.parametrize("runner", ["wait_for", "create_task"])
+async def test_child_task_response_waits_for_body_completion(test_spans, aiohttp_client, request_completed, runner):
+    from aiohttp import web
+
+    from ddtrace.contrib.internal.aiohttp import middlewares
+
+    release_body = asyncio.Event()
+    writing_body = asyncio.Event()
+    contexts = []
+
+    class DelayedResponse(web.StreamResponse):
+        async def write_eof(self, data=b""):
+            writing_body.set()
+            await release_body.wait()
+            await self.write(b"complete body")
+            await super().write_eof(data)
+
+    async def handler(request):
+        contexts.append(request[middlewares.REQUEST_EXECUTION_CONTEXT_KEY])
+        return DelayedResponse()
+
+    @web.middleware
+    async def outer(request, handler):
+        if runner == "wait_for":
+            return await asyncio.wait_for(handler(request), timeout=5)
+        return await asyncio.create_task(handler(request))
+
+    app = web.Application()
+    app.router.add_get("/body", handler)
+    trace_app(app)
+    app.middlewares.insert(0, outer)
+    async with await aiohttp_client(app) as client:
+        response = await client.get("/body")
+        try:
+            await asyncio.wait_for(writing_body.wait(), timeout=5)
+            span = contexts[0].get_item("_inner_span")
+            assert not span.finished
+            assert contexts[0]._event is not None
+        finally:
+            release_body.set()
+        assert await response.text() == "complete body"
+        await request_completed()
+        assert span.finished
+        assert span.resource == "GET /body"
+        assert test_spans.pop() == [span]
+
+
+@pytest.mark.parametrize("child_task", [False, True])
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+async def test_completed_requests_release_lifecycle_on_keepalive(
+    test_spans, aiohttp_client, request_completed, monkeypatch, child_task, finish_on_prepare
+):
+    import gc
+    import weakref
+
+    from aiohttp import web
+
+    from ddtrace.contrib.internal.aiohttp import middlewares
+
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    lifecycles = []
+    connections = []
+
+    async def handler(request):
+        ctx = request[middlewares.REQUEST_EXECUTION_CONTEXT_KEY]
+        lifecycles.append(weakref.ref(ctx.get_item("aiohttp.lifecycle")))
+        connections.append(request.task)
+        return web.Response(text="ok")
+
+    @web.middleware
+    async def outer(request, handler):
+        return await asyncio.wait_for(handler(request), timeout=5)
+
+    app = web.Application()
+    app.router.add_get("/", handler)
+    trace_app(app)
+    if child_task:
+        app.middlewares.insert(0, outer)
+    was_gc_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        async with await aiohttp_client(app) as client:
+            for _ in range(3):
+                response = await client.get("/")
+                assert await response.text() == "ok"
+                ctx = await request_completed()
+                await asyncio.sleep(0)
+                assert ctx.get_item("aiohttp.lifecycle") is None
+                assert app[middlewares.CONFIG_KEY]["_request_lifecycles"] == {}
+                assert lifecycles[-1]() is None
+                assert not connections[-1].done()
+                assert len(test_spans.pop()) == 1
+            assert all(connection is connections[0] for connection in connections)
+    finally:
+        if was_gc_enabled:
+            gc.enable()
+
+
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+async def test_disconnected_request_releases_unprepared_lifecycle(
+    test_spans, request_completed, monkeypatch, finish_on_prepare
+):
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient
+    from aiohttp.test_utils import TestServer
+
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    entered = asyncio.Event()
+
+    async def handler(request):
+        entered.set()
+        await asyncio.Future()
+
+    async def issue_request(client):
+        return await client.get("/abort")
+
+    app = web.Application()
+    app.router.add_get("/abort", handler)
+    trace_app(app)
+    async with TestClient(TestServer(app, handler_cancellation=True)) as client:
+        pending = asyncio.create_task(issue_request(client))
+        await asyncio.wait_for(entered.wait(), timeout=5)
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        await client.close()
+        ctx = await request_completed()
+        assert ctx._event is None
+        assert ctx.get_item("aiohttp.lifecycle") is None
+        assert ctx.get_item("aiohttp.response") is None
+        span = ctx.get_item("_inner_span")
+        assert span.finished
+        assert test_spans.pop() == [span]

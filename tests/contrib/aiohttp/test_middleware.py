@@ -876,6 +876,8 @@ async def test_cancelled_request_completes_without_response(test_spans, monkeypa
     request = make_mocked_request("GET", "/", app=app)
     request.match_info.route.resource.canonical = "/"
     owner = asyncio.get_running_loop().create_future()
+    connection = asyncio.get_running_loop().create_future()
+    request._task = connection
     monkeypatch.setattr(middlewares, "current_task", lambda: owner)
     completed = []
 
@@ -896,6 +898,10 @@ async def test_cancelled_request_completes_without_response(test_spans, monkeypa
         assert ctx._event is not None
         assert middlewares.REQUEST_STARTED_RESPONSE_KEY not in request
         owner.cancel()
+        await asyncio.sleep(0)
+        # Cancellation of a child handler can still be converted into an HTTP response.
+        assert completed == []
+        connection.cancel()
         await asyncio.sleep(0)
         assert len(completed) == (2 if nested else 1)
         assert completed[-1] is ctx
@@ -998,3 +1004,157 @@ async def test_prepared_response_overrides_deferred_fallback(
     span = ctx.get_item("_inner_span")
     assert span.finished
     assert_span_http_status_code(span, 202)
+
+
+@pytest.mark.parametrize("runner", ["wait_for", "create_task"])
+@pytest.mark.parametrize(
+    "outcome,status", [("ok", 201), ("replace", 202), ("http_error", 404), ("error", 500), ("timeout", 504)]
+)
+@pytest.mark.parametrize("nested", [False, True])
+async def test_outer_child_task_waits_for_response_preparation(
+    test_spans, aiohttp_client, request_completed, runner, outcome, status, nested
+):
+    from contextvars import ContextVar
+
+    from aiohttp import web
+
+    from ddtrace.contrib.internal.aiohttp import middlewares
+    from ddtrace.internal import core
+
+    marker = ContextVar("request_marker", default="outside")
+    entered = asyncio.Event()
+    early_completions = []
+    metadata = []
+    contexts = []
+
+    async def handler(request):
+        contexts.extend(request[middlewares.REQUEST_EXECUTION_CONTEXTS_KEY])
+        entered.set()
+        if outcome == "http_error":
+            raise web.HTTPNotFound()
+        if outcome == "error":
+            raise RuntimeError("handler failed")
+        if outcome == "timeout":
+            await asyncio.Future()
+        return web.Response(status=201, text="handler")
+
+    @web.middleware
+    async def outer(request, handler):
+        async def in_request_context():
+            token = marker.set("request")
+            try:
+                return await handler(request)
+            finally:
+                marker.reset(token)
+
+        try:
+            if runner == "wait_for":
+                response = await asyncio.wait_for(in_request_context(), timeout=1 if outcome == "timeout" else 5)
+            else:
+                task = asyncio.create_task(in_request_context())
+                if outcome == "timeout":
+                    await entered.wait()
+                    task.cancel()
+                response = await task
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            if outcome != "timeout":
+                raise
+            response = web.Response(status=504, text="timeout")
+        except Exception:
+            await asyncio.sleep(0)
+            early_completions.extend(ctx._end_event_dispatched for ctx in contexts)
+            raise
+        await asyncio.sleep(0)
+        early_completions.extend(ctx._end_event_dispatched for ctx in contexts)
+        if outcome == "replace":
+            response = web.Response(status=202, text="replacement")
+        return response
+
+    async def final_headers(request, response):
+        response.headers["x-final"] = "prepared"
+
+    def ended(ctx, exc_info):
+        event = ctx.event
+        metadata.append((event.response_status_code, dict(event.response_headers or {}), event.resource, marker.get()))
+
+    app = web.Application()
+    target = web.Application() if nested else app
+    target.router.add_get("/child/{value}", handler)
+    if nested:
+        trace_app(target)
+        app.add_subapp("/sub", target)
+    trace_app(app)
+    app.middlewares.insert(0, outer)
+    app.on_response_prepare.insert(0, final_headers)
+    path = "/sub/child/value" if nested else "/child/value"
+    resource = "GET /sub/child/{value}" if nested else "GET /child/{value}"
+    core.on("context.ended.web.request", ended)
+    try:
+        async with await aiohttp_client(app) as client:
+            response = await client.get(path)
+            assert response.status == status
+            await response.read()
+            completed = [await request_completed() for _ in range(2 if nested else 1)]
+            assert early_completions == [False] * len(completed)
+            assert len(metadata) == len(completed)
+            for actual_status, headers, actual_resource, context_marker in metadata:
+                assert actual_status == status
+                assert headers["x-final"] == "prepared"
+                assert actual_resource == resource
+                assert context_marker == "request"
+            spans = test_spans.pop()
+            assert len(spans) == len(completed)
+            for span in spans:
+                assert span.finished
+                assert span.resource == resource
+                assert_span_http_status_code(span, status)
+    finally:
+        core.reset_listeners("context.ended.web.request", ended)
+
+
+async def test_outer_clones_on_one_connection_keep_separate_metadata(test_spans, monkeypatch):
+    from aiohttp import web
+    from aiohttp.test_utils import make_mocked_request
+
+    from ddtrace.contrib.internal.aiohttp import middlewares
+
+    app = web.Application()
+    trace_app(app)
+    connection = asyncio.get_running_loop().create_future()
+    active_task = []
+    monkeypatch.setattr(middlewares, "current_task", lambda: active_task[0])
+    contexts = []
+
+    for path, status in (("/first", 201), ("/second", 202)):
+        original = make_mocked_request("GET", path, app=app)
+        original._task = connection
+        original.match_info.route.resource.canonical = path
+        original.match_info.route.resource.get_info.return_value = {"path": path}
+        clone = original.clone()
+        owner = asyncio.get_running_loop().create_future()
+        preparer = asyncio.get_running_loop().create_future()
+        response = web.Response(status=status)
+
+        async def handler(request):
+            return response
+
+        active_task[:] = [owner]
+        wrapped = await trace_middleware(app, handler)
+        await wrapped(clone)
+        contexts.append(clone[middlewares.REQUEST_EXECUTION_CONTEXT_KEY])
+        owner.set_result(None)
+        active_task[:] = [preparer]
+        await middlewares.on_prepare(original, response)
+        preparer.set_result(None)
+        # Deliberately leave done callbacks queued while the next request prepares.
+
+    await asyncio.sleep(0)
+    for ctx, status, resource in zip(contexts, (201, 202), ("GET /first", "GET /second")):
+        span = ctx.get_item("_inner_span")
+        assert span.finished
+        assert span.resource == resource
+        assert_span_http_status_code(span, status)
+        assert ctx.get_item("aiohttp.lifecycle") is None
+    assert app[middlewares.CONFIG_KEY]["_request_lifecycles"] == {}
+    assert len(test_spans.pop()) == 2
+    connection.cancel()

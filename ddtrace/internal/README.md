@@ -145,7 +145,11 @@ exception details are available during the separate notification. Consumers must
 that notification or its exception tuple. Late errors can update a finished span object, but
 cannot guarantee updating an already exported trace.
 
-Aiohttp completes ordinary and streaming HTTP responses when the executing request task finishes.
+Aiohttp coordinates the handler task, final response metadata, and tasks executing response
+preparation/sending. A middleware-created child task ending does not by itself finish the request.
+Each request keeps its captured context for completion, including IAST reporting. Connection
+closure is only an abort fallback; all task callbacks and captured state are removed at completion
+so completed requests do not accumulate on keep-alive connections.
 HTTP 101 protocol upgrades complete at preparation, so WebSocket request spans cover
 only the handshake and message processing does not join the completed request trace.
 Each nested middleware callback retains its own context, and response preparation visits every context

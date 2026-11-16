@@ -3,6 +3,8 @@ from asyncio import current_task
 from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import MutableMapping
+from contextvars import Context
+from contextvars import copy_context
 import sys
 from typing import Any
 from typing import Optional
@@ -33,6 +35,101 @@ REQUEST_EXECUTION_CONTEXTS_KEY = "__datadog_execution_contexts"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
 DEFAULT_CLIENT_MAX_SIZE = 1024**2
+
+
+class _RequestLifecycle:
+    def __init__(
+        self,
+        request: web.Request,
+        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
+        task: asyncio.Future[Any],
+        registry: dict[asyncio.Future[Any], list["_RequestLifecycle"]],
+    ) -> None:
+        self.request = request
+        self.ctx = ctx
+        self._task: Optional[asyncio.Future[Any]] = task
+        self._connection_task: Optional[asyncio.Future[Any]] = request.task
+        self._registry = registry
+        self._connection_key: Optional[asyncio.Future[Any]] = self._connection_task
+        if self._connection_key is not None:
+            registry.setdefault(self._connection_key, []).append(self)
+        self._preparation_tasks: set[asyncio.Future[Any]] = set()
+        # Preparation can run outside the task that created the span and IAST context.
+        self._completion_context: Optional[Context] = copy_context()
+        self._task_completed = False
+        self._response_prepared = False
+        task.add_done_callback(self._on_task_done)
+        if self._connection_task is not None:
+            self._connection_task.add_done_callback(self._on_connection_done)
+
+    def _on_task_done(self, task: asyncio.Future[Any]) -> None:
+        # A completed task can retain its exception and handler frames.
+        self._task = None
+        self._task_completed = True
+        if self._connection_task is None:
+            self._finish()
+        else:
+            self._maybe_finish()
+
+    def _on_preparation_done(self, task: asyncio.Future[Any]) -> None:
+        self._preparation_tasks.discard(task)
+        self._maybe_finish()
+
+    def _on_connection_done(self, task: asyncio.Future[Any]) -> None:
+        self._connection_task = None
+        # An aborted request may never reach Datadog's preparation callback.
+        self._finish()
+
+    def on_prepare(self, response: web.StreamResponse, finish_on_prepare: bool) -> None:
+        self._response_prepared = True
+        self.ctx.set_item("aiohttp.response", response)
+        if finish_on_prepare:
+            self._finish(response)
+            return
+        preparation_task = current_task()
+        if (
+            preparation_task is not None
+            and preparation_task is not self._task
+            and preparation_task not in self._preparation_tasks
+        ):
+            self._preparation_tasks.add(preparation_task)
+            preparation_task.add_done_callback(self._on_preparation_done)
+        self._maybe_finish()
+
+    def _maybe_finish(self) -> None:
+        if self._task_completed and self._response_prepared and not self._preparation_tasks:
+            self._finish()
+
+    def _finish(self, response: Optional[web.StreamResponse] = None) -> None:
+        completion_context = self._completion_context
+        if completion_context is None:
+            return
+        self._completion_context = None
+        if self._task is not None and current_task() is self._task:
+            # Early teardown must clear ContextVars in the still-running handler itself.
+            finish_request_span(self.request, response, ctx=self.ctx)
+        else:
+            completion_context.run(finish_request_span, self.request, response, ctx=self.ctx)
+
+    def close(self) -> None:
+        if self._connection_key is not None:
+            lifecycles = self._registry.get(self._connection_key)
+            if lifecycles is not None and self in lifecycles:
+                lifecycles.remove(self)
+                if not lifecycles:
+                    self._registry.pop(self._connection_key, None)
+            self._connection_key = None
+        for task in self._preparation_tasks:
+            task.remove_done_callback(self._on_preparation_done)
+        self._preparation_tasks.clear()
+        if self._task is not None:
+            self._task.remove_done_callback(self._on_task_done)
+            self._task = None
+        if self._connection_task is not None:
+            self._connection_task.remove_done_callback(self._on_connection_done)
+            self._connection_task = None
+        self._completion_context = None
+        self.ctx.discard_local_item("aiohttp.lifecycle")
 
 
 async def trace_middleware(
@@ -94,12 +191,14 @@ async def trace_middleware(
             # legacy request key kept for backwards compatibility with documentation
             request[REQUEST_CONTEXT_KEY] = req_span.context if req_span is not None else None
 
-            # Capture the owner before response preparation can run in a child task.
+            # The handler task can finish before an outer middleware prepares the response.
             task = current_task()
             finish_on_prepare = config.aiohttp["disable_stream_timing_for_mem_leak"] or task is None
             ctx.set_item("aiohttp.finish_on_prepare", finish_on_prepare)
-            if not finish_on_prepare and task is not None:
-                task.add_done_callback(lambda _: finish_request_span(request, ctx=ctx))
+            if task is not None:
+                ctx.set_item(
+                    "aiohttp.lifecycle", _RequestLifecycle(request, ctx, task, app_config["_request_lifecycles"])
+                )
 
             try:
                 try:
@@ -187,10 +286,15 @@ def finish_request_span(
     *,
     ctx: Optional[core.ExecutionContext[WebFrameworkRequestEvent]] = None,
 ) -> None:
-    # Response preparation and the task callback can both finalize a request; the first releases its event.
+    # Preparation, handler completion, and connection abort can race to finish a request.
     if ctx is None:
         ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if not ctx or ctx._end_event_dispatched:
+    if not ctx:
+        return
+    lifecycle: Optional[_RequestLifecycle] = ctx.get_item("aiohttp.lifecycle")
+    if lifecycle is not None:
+        lifecycle.close()
+    if ctx._end_event_dispatched:
         return
 
     if response is None:
@@ -225,13 +329,26 @@ async def on_prepare(request: web.Request, response: web.StreamResponse) -> None
     request[REQUEST_STARTED_RESPONSE_KEY] = response
     # The compatibility option releases request state at header preparation.
     # todo: replace task callbacks with a response-completion signal when available.
-    for ctx in reversed(request.get(REQUEST_EXECUTION_CONTEXTS_KEY, ())):
+    contexts = request.get(REQUEST_EXECUTION_CONTEXTS_KEY)
+    if contexts is None:
+        # An outer middleware can clone the request before tracing adds shared request state.
+        contexts = [
+            lifecycle.ctx
+            for app in request.match_info.apps
+            for lifecycle in app.get(CONFIG_KEY, {}).get("_request_lifecycles", {}).get(request.task, ())
+            if lifecycle.request.match_info is request.match_info
+        ]
+    for ctx in reversed(contexts):
         if not ctx._end_event_dispatched:
             # Switching protocols ends the HTTP request before the upgraded connection closes.
-            if response.status == 101 or ctx.get_item("aiohttp.finish_on_prepare", True):
+            finish_on_prepare = response.status == 101 or ctx.get_item("aiohttp.finish_on_prepare", True)
+            lifecycle: Optional[_RequestLifecycle] = ctx.get_item("aiohttp.lifecycle")
+            if lifecycle is not None:
+                lifecycle.on_prepare(response, finish_on_prepare)
+            elif finish_on_prepare:
                 finish_request_span(request, response, ctx=ctx)
             else:
-                # A clone has its own request state, so retain the response for the original owner's callback.
+                # A clone has its own request state, so retain metadata on its owning context.
                 ctx.set_item("aiohttp.response", response)
 
 
@@ -260,6 +377,7 @@ def trace_app(app, tracer=None, service="aiohttp-web"):
     app[CONFIG_KEY] = {
         "service": config._get_service(default=service),
         "distributed_tracing_enabled": None,
+        "_request_lifecycles": {},
     }
 
     # add the async tracer middleware as a first middleware

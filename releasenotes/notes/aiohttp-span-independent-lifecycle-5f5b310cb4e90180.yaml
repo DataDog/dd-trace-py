@@ -11,3 +11,6 @@ fixes:
   - |
     aiohttp: Fixes missing response status, headers, and resource information on
     request spans when an earlier response preparation callback fails.
+  - |
+    aiohttp: Fixes missing or incorrect response metadata when timeout or other
+    middleware runs request handlers in child tasks.

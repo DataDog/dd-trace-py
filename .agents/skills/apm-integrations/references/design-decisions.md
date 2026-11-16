@@ -43,6 +43,13 @@ for optional context-local spans without creating a fallback or borrowing a pare
 response metadata separately. For nested middleware, each completion callback must retain
 its own execution context rather than resolve a request key that inner middleware can replace.
 Response preparation must reach all contexts for the request, including request clones.
+Coordinate handler-task completion with final response metadata and response-sending task
+completion. Outer middleware can run the handler in a child task that ends before preparation.
+Dispatch completion in the captured request context so IAST state remains available. Release
+completed task references immediately and remove connection-abort callbacks on every terminal
+path; otherwise keep-alive connections can retain completed requests. For clones created
+before instrumentation attaches request state, resolve active contexts from the app-owned
+connection registry and match the shared match_info object to isolate consecutive requests.
 Finish the HTTP request at preparation for a 101 protocol upgrade, independently of the
 upgraded connection lifetime; use the protocol status rather than response-class checks.
 Retain the returned response until deferred completion as a fallback if an earlier preparation
