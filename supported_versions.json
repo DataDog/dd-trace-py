@@ -321,7 +321,7 @@
                 "supportedRange": ">=0.28.0",
                 "tested": [
                     "0.28.1",
-                    "0.117.0"
+                    "0.125.0"
                 ]
             },
             {
@@ -333,10 +333,11 @@
                 },
                 "supportedRange": ">=0.28.0",
                 "tested": [
-                    "0.117.0"
+                    "0.125.0"
                 ]
             }
-        ]
+        ],
+        "pinned": true
     },
     {
         "libraryName": "anyio",
