@@ -497,16 +497,16 @@ suites:
       variants:
         - name: asyncpg
           python: ['3.9']
-          dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.23.0']
+          dependencies: ['pytest-asyncio', pytest-randomly, 'asyncpg~=0.23.0']
         - name: asyncpg
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, asyncpg]
+          dependencies: ['pytest-asyncio', pytest-randomly, asyncpg]
         - name: asyncpg
           python: ['3.10']
-          dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.24.0']
+          dependencies: ['pytest-asyncio', pytest-randomly, 'asyncpg~=0.24.0']
         - name: asyncpg
           python: ['3.11']
-          dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.27']
+          dependencies: ['pytest-asyncio', pytest-randomly, 'asyncpg~=0.27']
   asynctest:
     # TODO(py-315): asynctest 0.13.0 is unmaintained and its suite fails at
     # collection on 3.15 (module 'ast' has no attribute 'Str'). Re-add 3.15 only
