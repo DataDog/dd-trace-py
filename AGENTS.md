@@ -9,21 +9,14 @@ Paths below are relative to the repository root.
   Discover environments with `scripts/run-tests --list <changed-files>` and use the returned hashes.
 - Use the `lint` skill and `scripts/lint` for formatting and checks; never invoke raw lint tools.
   Format edited code, run relevant tests, and run `scripts/lint checks` before committing.
-- A test for new or fixed behavior must fail when that behavior is removed: assert that a gated
-  branch actually ran, and for a race fix, check that removing the lock or ordering fails the test.
 - Preserve public API compatibility. Never commit secrets. Remove accidental debugging output.
 - Investigate source, tests, and supplied context before asking questions. Ask when unresolved
   business intent or an architectural decision would materially change the implementation.
 - Do not remove TODO/NOTE comments without explicit human instruction; update them when related code changes.
 - Benchmark changes to native runtime code and other performance-sensitive paths, including
   startup. Documentation, comments, and test-only edits do not require runtime benchmarks.
-  Measure each changed hot path directly against the parent commit, in each mode the change gates;
-  a suite-wide no-regression result does not cover paths it does not exercise.
   Report missing benchmark coverage.
 - Update documentation when changing APIs, configuration, or contributor workflows.
-  This includes changing what an existing setting requires or how it fails: update that setting's
-  documentation (its `docs/configuration.rst` entry, or the `help` text of an envier config such as
-  `ProfilingConfig`) even when its name and values are unchanged.
   When modifying integrations, review the relevant integration skills and update references that
   describe changed patterns.
 - Do not hide circular imports with function-local imports or type-checking guards.
@@ -69,10 +62,7 @@ Shared skills live at `.agents/skills/<name>/SKILL.md` and are discovered direct
 Cursor, OpenCode, and Pi. `.claude/skills` is a compatibility symlink to `.agents/skills`.
 Add and edit skills in `.agents/skills` so every harness uses the same files. Read the relevant
 sections and references for the task, rather than loading every guide. Source code defines
-current signatures and defaults. For native bindings (`src/native/`,
-`ddtrace/internal/datadog/profiling/`), call only methods the built extension exports, and verify
-claims about native behavior (blocking, flushing, thread safety) against the real extension; a
-Python double cannot prove them.
+current signatures and defaults.
 
 | Task | Skill or reference |
 |------|--------------------|
@@ -103,11 +93,10 @@ Python double cannot prove them.
 
 Follow the Pull Request Requirements in `docs/contributing.rst` and use
 `.github/PULL_REQUEST_TEMPLATE.md`. Titles follow Conventional Commits (`commitlint.config.js`).
-Include validation, risks, and relevant issues. Keep each PR to the one change its title names;
-put unrelated fixes found along the way in a separate PR or issue. Before deciding or answering
-whether a release note is needed, invoke `releasenote` (or read `.agents/skills/releasenote/SKILL.md`
-if skill invocation is unavailable), including for internal-only refactors. Follow its decision
-workflow; when no note is needed, explain why and apply `changelog/no-changelog` to the PR.
+Include validation, risks, and relevant issues. Before deciding or answering whether a release
+note is needed, invoke `releasenote` (or read `.agents/skills/releasenote/SKILL.md` if skill
+invocation is unavailable), including for internal-only refactors. Follow its decision workflow;
+when no note is needed, explain why and apply `changelog/no-changelog` to the PR.
 
 This repository is public. PR text, commits, and release notes must describe the change itself.
 Keep internal discussions, other teams' tickets, backend/data-pipeline names, and open internal
