@@ -11,7 +11,11 @@ def create_grpc_server(servicer, add_servicer_to_server, instrumented=True, port
     server_factory = grpc.server if instrumented else getattr(grpc.server, "__wrapped__", grpc.server)
     server = server_factory(futures.ThreadPoolExecutor(max_workers=1))
     add_servicer_to_server(servicer, server)
-    assert server.add_insecure_port("[::]:%d" % port) == port
+    address = port if isinstance(port, str) else "[::]:%d" % port
+    bound_port = server.add_insecure_port(address)
+    assert bound_port > 0
+    if isinstance(port, int):
+        assert bound_port == port
     return server
 
 
