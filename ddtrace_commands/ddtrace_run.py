@@ -91,7 +91,11 @@ def _prepare_env(parser: argparse.ArgumentParser) -> argparse.Namespace:
     if args.profiling:
         env["DD_PROFILING_ENABLED"] = "true"
 
-    if args.debug or env.get("DD_TRACE_DEBUG", "").lower() in ("true", "1"):
+    if (
+        args.debug
+        or env.get("DD_TRACE_DEBUG", "").lower() in ("true", "1")
+        or ("DD_TRACE_DEBUG" not in env and env.get("OTEL_LOG_LEVEL", "").lower() == "debug")
+    ):
         logging.basicConfig(level=logging.DEBUG)
         env["DD_TRACE_DEBUG"] = "true"
 

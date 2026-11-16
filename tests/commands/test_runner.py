@@ -289,6 +289,29 @@ def test_command_flags():
     assert out.strip() == b"test!"
 
 
+@pytest.mark.parametrize(
+    "trace_debug,otel_log_level,expected_debug",
+    [
+        (None, "debug", True),
+        (None, "DEBUG", True),
+        (None, "info", False),
+        ("false", "debug", False),
+        ("", "debug", False),
+        ("true", "info", True),
+    ],
+)
+def test_otel_debug_logging(trace_debug, otel_log_level, expected_debug, ddtrace_run_python_code_in_subprocess):
+    env = dict(os.environ, OTEL_LOG_LEVEL=otel_log_level)
+    env.pop("DD_TRACE_DEBUG", None)
+    if trace_debug is not None:
+        env["DD_TRACE_DEBUG"] = trace_debug
+    code = "import logging; logging.getLogger('ddtrace').debug('otel debug probe')"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+    assert out == b""
+    assert (b"otel debug probe" in err) == expected_debug, err
+
+
 @pytest.mark.parametrize("flags", [[], ["--debug"], ["--profiling"]])
 def test_launcher_does_not_initialize_ddtrace(flags, tmp_path):
     package = tmp_path / "ddtrace"
