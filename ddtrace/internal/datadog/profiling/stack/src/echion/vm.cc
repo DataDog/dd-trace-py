@@ -179,6 +179,10 @@ set_fast_copy_enabled(bool enabled)
     fprintf(stderr,
             "No safe memory copy method available (safe_memcpy and process_vm_readv both failed); disabling stack "
             "profiling\n");
+    // Clear the active flag even though safe_copy may still point at safe_memcpy_wrapper:
+    // callers stop sampling, and children must not inherit "memcpy is live" after a failed
+    // disable (foreign takeover with no process_vm_readv).
+    fast_copy_active = false;
     failed_safe_copy = true;
     return false;
 #elif defined PL_DARWIN

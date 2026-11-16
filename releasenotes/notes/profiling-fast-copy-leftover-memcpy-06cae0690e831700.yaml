@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the stack profiler could keep sampling with an
+    unsafe memory-copy method after another component took over its signal handlers
+    and no slower fallback was available.
