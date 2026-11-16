@@ -45,7 +45,10 @@ its own execution context rather than resolve a request key that inner middlewar
 Response preparation must reach all contexts for the request, including request clones.
 Coordinate handler-task completion with final response metadata and response-sending task
 completion. Outer middleware can run the handler in a child task that ends before preparation.
-Dispatch completion in the captured request context so IAST state remains available. Release
+Dispatch completion in the captured request context so IAST state remains available. Use the
+current context only when the owning request context is still active in the same task; early
+preparation must clear ContextVars in the live handler. Task identity alone is insufficient
+once middleware has returned. Release
 completed task references immediately and remove connection-abort callbacks on every terminal
 path; otherwise keep-alive connections can retain completed requests. For clones created
 before instrumentation attaches request state, resolve active contexts from the app-owned

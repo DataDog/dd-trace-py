@@ -147,7 +147,9 @@ cannot guarantee updating an already exported trace.
 
 Aiohttp coordinates the handler task, final response metadata, and tasks executing response
 preparation/sending. A middleware-created child task ending does not by itself finish the request.
-Each request keeps its captured context for completion, including IAST reporting. Connection
+Each request keeps its captured context for completion, including IAST reporting. Same-task
+completion uses the live context only while the request context is still active; after middleware
+returns, completion re-enters the captured context. Connection
 closure is only an abort fallback; all task callbacks and captured state are removed at completion
 so completed requests do not accumulate on keep-alive connections.
 HTTP 101 protocol upgrades complete at preparation, so WebSocket request spans cover

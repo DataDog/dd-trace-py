@@ -106,10 +106,15 @@ class _RequestLifecycle:
             return
         self._completion_context = None
         if self._task is not None and current_task() is self._task:
-            # Early teardown must clear ContextVars in the still-running handler itself.
-            finish_request_span(self.request, response, ctx=self.ctx)
-        else:
-            completion_context.run(finish_request_span, self.request, response, ctx=self.ctx)
+            # The owner task can outlive the tracing context after the handler returns.
+            active_ctx: Optional[core.ExecutionContext[Any]] = core.current
+            while active_ctx is not None:
+                if active_ctx is self.ctx:
+                    # Early teardown must clear ContextVars in the still-running handler itself.
+                    finish_request_span(self.request, response, ctx=self.ctx)
+                    return
+                active_ctx = active_ctx.parent
+        completion_context.run(finish_request_span, self.request, response, ctx=self.ctx)
 
     def close(self) -> None:
         if self._connection_key is not None:
