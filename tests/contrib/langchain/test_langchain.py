@@ -51,7 +51,13 @@ async def test_openai_llm_async(langchain_openai, openai_url):
     await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+# openai>=3 puts only the body's error.message in the exception text, not the whole response body,
+# so error.message differs between openai versions and each major version gets its own snapshot.
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_llm_error"
+    + ("_openai_v3" if parse_version(importlib.metadata.version("openai")) >= (3, 0, 0) else ""),
+    ignores=IGNORE_FIELDS,
+)
 def test_openai_llm_error(langchain_openai, openai_url):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
@@ -544,19 +550,31 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
     calculator.invoke("2", config={"unserializable": object()})
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+# langchain-openai>=1.6.0 re-raises the timeout as its own OpenAITimeoutError (a subclass of
+# openai.APITimeoutError), so error.type differs and each side gets its own snapshot.
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_streamed_chat_model_with_no_output"
+    + ("_langchain_openai_v1_6" if parse_version(importlib.metadata.version("langchain-openai")) >= (1, 6, 0) else ""),
+    ignores=["meta.error.stack", "meta.error.message"],
+)
 def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
     from unittest import mock
 
-    import httpx
+    import openai
     from openai import APITimeoutError
+
+    # openai>=3 sends requests through httpx2 instead of httpx.
+    if parse_version(openai.__version__) >= (3, 0, 0):
+        import httpx2 as http_client
+    else:
+        import httpx as http_client
 
     chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
     result = chat_model.stream("Hello, my name is")
-    # Mock httpx.Client.send to raise a ReadTimeout so the test does not depend on
+    # Mock Client.send to raise a ReadTimeout so the test does not depend on
     # the testagent's response latency (which varies by cassette format).
-    with mock.patch("httpx.Client.send", side_effect=httpx.ReadTimeout("Request timed out.")):
+    with mock.patch.object(http_client.Client, "send", side_effect=http_client.ReadTimeout("Request timed out.")):
         try:
             next(result)
         except Exception as e:
