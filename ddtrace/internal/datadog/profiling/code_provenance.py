@@ -16,6 +16,15 @@ from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.settings import env
 
 
+# tempfile.gettempdir holds a module-level lock during its first call.
+# Determine temporary directory at import time to avoid forks copying it in a locked state.
+_tmpdir: t.Optional[Path]
+try:
+    _tmpdir = Path(tempfile.gettempdir())
+except (FileNotFoundError, OSError):
+    _tmpdir = None
+
+
 class Library:
     def __init__(
         self,
@@ -162,10 +171,12 @@ def _cache_basename() -> str:
 
 
 def _cache_file_and_lock() -> tuple[t.Optional[Path], t.Optional[Path]]:
+    if _tmpdir is None:
+        return None, None
+
     try:
         base = _cache_basename()
-        tmpdir = Path(tempfile.gettempdir())
-        return tmpdir / f"{base}.json", tmpdir / f"{base}.lock"
+        return _tmpdir / f"{base}.json", _tmpdir / f"{base}.lock"
     except (FileNotFoundError, OSError):
         return None, None
 

@@ -40,8 +40,16 @@ class ProfilerStats
     // Sticky: fell back to syscall copy (init failure, foreign handler, etc.)
     std::optional<bool> fast_copy_memory_syscall_fallback;
 
+    // Desired: reclaim intent surviving warmup (active is cleared)
+    std::optional<bool> fast_copy_memory_desired;
+
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
     size_t copy_memory_error_count = 0;
+
+    // Frames left out of a sample because interning the name or function failed.
+    // Increments are counted off to the side until the upload snapshot, because
+    // the skip can happen on a thread that does not hold the profile lock.
+    size_t intern_failed_count = 0;
 
     // Number of currently tracked allocations in the heap tracker
     std::optional<size_t> heap_tracker_size;
@@ -87,11 +95,21 @@ class ProfilerStats
     void set_fast_copy_memory_syscall_fallback(bool fallback);
     std::optional<bool> get_fast_copy_memory_syscall_fallback() const;
 
+    void set_fast_copy_memory_desired(bool desired);
+    std::optional<bool> get_fast_copy_memory_desired() const;
+
     // fast_copy_memory_* are process-static; carry them across ProfilerStats swaps.
     void copy_fast_copy_metadata_from(const ProfilerStats& other);
 
     void add_copy_memory_error_count(size_t count);
     size_t get_copy_memory_error_count() const;
+
+    // One skipped frame. Safe to call from any thread.
+    static void incr_intern_failed_count();
+    size_t get_intern_failed_count() const;
+
+    // Move skips counted since the last snapshot onto this object.
+    void add_pending_intern_failed_count();
 
     void set_heap_tracker_size(size_t count);
     std::optional<size_t> get_heap_tracker_size() const;
@@ -110,7 +128,7 @@ class ProfilerStats
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.
-    std::string get_internal_metadata_json();
+    std::string get_internal_metadata_json() const;
 
     void reset_state();
 };

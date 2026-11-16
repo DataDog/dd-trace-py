@@ -5,6 +5,7 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.contrib.internal.langchain.constants import CHAIN_INPUTS_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
@@ -157,6 +158,13 @@ class LangChainIntegration(BaseLLMIntegration):
             setattr(parent_instance, "_datadog_spans", spans)
         except Exception:
             parent_instance.__dict__["_datadog_spans"] = spans
+
+    def _on_request_span_started(self, span: Span, instance: Any = None, operation: str = "") -> None:
+        self.record_instance(instance, span)
+        # The prompt template is stored on invoke/ainvoke and never cleared, so a stream on the same
+        # model would otherwise be tagged with a prompt from an earlier, unrelated invoke.
+        if operation in ("llm", "chat") and not span.get_tag("langchain.request.stream"):
+            self.llmobs_set_prompt_tag(instance, span)
 
     def _llmobs_set_tags(
         self,
@@ -683,7 +691,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if span.get_tag("langchain.request.stream"):
             inputs = get_argument_value(args, kwargs, 0, "input")
         else:
-            inputs = kwargs
+            inputs = kwargs.get(CHAIN_INPUTS_KEY)
         formatted_inputs = ""
         if inputs is not None:
             formatted_inputs = format_langchain_io(inputs)

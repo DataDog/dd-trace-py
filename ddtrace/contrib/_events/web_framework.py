@@ -40,7 +40,6 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     request_route: Optional[str] = event_field(default=None)
 
     # Optional per-request override for query string tagging.
-    # aiohttp supports app-level trace_query_string that can differ from integration_config.
     trace_query_string: Optional[bool] = event_field(default=None)
 
     # Use to add additional tags after the span was created
