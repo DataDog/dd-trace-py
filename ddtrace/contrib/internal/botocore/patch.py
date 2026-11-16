@@ -50,6 +50,7 @@ from .services.sqs import patched_sqs_api_call
 from .services.sqs import update_messages as inject_trace_to_sqs_or_sns_message
 from .services.stepfunctions import patched_stepfunction_api_call
 from .services.stepfunctions import update_stepfunction_input
+from .utils import distributed_tracing_enabled_for
 from .utils import update_client_context
 from .utils import update_eventbridge_detail
 
@@ -204,6 +205,11 @@ config._add(
     {
         "_default_service": env.get("DD_BOTOCORE_SERVICE", default="aws"),
         "distributed_tracing": asbool(env.get("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing_disabled_services": {
+            service.strip().lower()
+            for service in env.get("DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES", default="").split(",")
+            if service.strip()
+        },
         "invoke_with_legacy_context": asbool(env.get("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
@@ -348,7 +354,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     # Suppression is set/reset only on this path, so the contextvar stays owned
     # here and early-return paths can't leak it.
     token = None
-    if not config.botocore["distributed_tracing"]:
+    if not distributed_tracing_enabled_for(endpoint_name):
         token = _http_propagation_suppressed.set(True)
     elif _ensure_before_sign_handler(instance, _botocore_before_sign_handler):
         token = _http_propagation_suppressed.set(True)
@@ -415,7 +421,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         span_from_context(ctx),
     ):
         core.dispatch("botocore.patched_api_call.started", (ctx,))
-        if args and config.botocore["distributed_tracing"]:
+        if args and distributed_tracing_enabled_for(endpoint_name):
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
         try:

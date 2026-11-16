@@ -668,6 +668,13 @@
         "default": "true"
       }
     ],
+    "DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS": [
       {
         "implementation": "A",

@@ -42,6 +42,18 @@ Configuration
    Default: ``True``
 
 
+.. py:data:: ddtrace.config.botocore['distributed_tracing_disabled_services']
+
+   Set of AWS services (botocore endpoint prefixes such as ``kinesis``, ``sqs``, ``sns``,
+   ``events``, ``lambda`` or ``states``) for which distributed tracing data is not injected,
+   while it stays enabled for all other services.
+
+   Can also be set with the ``DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES`` environment
+   variable as a comma-separated list, for example ``DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES=kinesis,sqs``.
+
+   Default: empty
+
+
 .. py:data:: ddtrace.config.botocore['invoke_with_legacy_context']
 
     This preserves legacy behavior when tracing directly invoked Python and Node Lambda

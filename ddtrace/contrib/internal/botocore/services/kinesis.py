@@ -17,6 +17,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
 
+from ..utils import distributed_tracing_enabled_for
 from ..utils import extract_DD_json
 from ..utils import get_kinesis_data_object
 
@@ -160,7 +161,9 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
             core.dispatch("botocore.patched_kinesis_api_call.started", (ctx,))
 
             if is_kinesis_put_operation:
-                records_to_process = select_records_for_injection(params, bool(config.botocore["distributed_tracing"]))
+                records_to_process = select_records_for_injection(
+                    params, distributed_tracing_enabled_for(endpoint_name)
+                )
                 for record, should_inject_trace_context in records_to_process:
                     update_record(ctx, record, stream_arn, inject_trace_context=should_inject_trace_context)
 

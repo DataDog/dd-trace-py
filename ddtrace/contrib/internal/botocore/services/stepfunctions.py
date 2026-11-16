@@ -5,6 +5,7 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
+from ddtrace.contrib.internal.botocore.utils import distributed_tracing_enabled_for
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -50,7 +51,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, f
     operation = function_vars.get("operation")
 
     is_start_execution_call = endpoint_name == "states" and operation in {"StartExecution", "StartSyncExecution"}
-    should_update_input = args and config.botocore["distributed_tracing"] and is_start_execution_call
+    should_update_input = args and distributed_tracing_enabled_for(endpoint_name) and is_start_execution_call
     if should_update_input:
         call_name = schematize_cloud_messaging_operation(
             trace_operation,

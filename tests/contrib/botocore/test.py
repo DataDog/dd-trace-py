@@ -782,6 +782,35 @@ class BotocoreTest(TracerTestCase):
             assert trace_in_message is False
 
     @mock_sqs
+    def test_sqs_send_message_distributed_tracing_disabled_for_service(self):
+        with self.override_config(
+            "botocore",
+            dict(distributed_tracing=True, propagation_enabled=True, distributed_tracing_disabled_services={"sqs"}),
+        ):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+            assert len(response["Messages"]) == 1
+            assert "MessageAttributes" not in response["Messages"][0]
+
+    @mock_sqs
+    def test_sqs_send_message_distributed_tracing_other_service_disabled(self):
+        with self.override_config(
+            "botocore",
+            dict(distributed_tracing=True, propagation_enabled=True, distributed_tracing_disabled_services={"kinesis"}),
+        ):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+            assert "_datadog" in response["Messages"][0]["MessageAttributes"]
+
+    @mock_sqs
     def test_sqs_send_message_distributed_tracing_on(self):
         with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
             self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
@@ -1332,6 +1361,21 @@ class BotocoreTest(TracerTestCase):
             assert consume_span.trace_id == produce_span.trace_id
 
     @mock_kinesis
+    def test_kinesis_distributed_tracing_disabled_for_service(self):
+        with self.override_config(
+            "botocore",
+            dict(distributed_tracing=True, propagation_enabled=True, distributed_tracing_disabled_services={"kinesis"}),
+        ):
+            data = json.dumps({"json": "string"})
+
+            self._test_kinesis_put_record_trace_injection("json_string", data)
+
+            spans = self.get_spans()
+            produce_span = next(s for s in spans if s.get_tag("aws.operation") == "PutRecord")
+            consume_span = next(s for s in spans if s.get_tag("aws.operation") == "GetRecords")
+            assert consume_span.parent_id != produce_span.span_id
+
+    @mock_kinesis
     def test_unpatch(self):
         kinesis = self.session.create_client("kinesis", region_name="us-east-1")
 
@@ -1878,6 +1922,12 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="false"))
     def test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING_DISABLED_SERVICES=" Kinesis, sqs ,")
+    )
+    def test_distributed_tracing_disabled_services_env_override(self):
+        assert config.botocore.distributed_tracing_disabled_services == {"kinesis", "sqs"}
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
     def test_propagation_enabled_env_override(self):

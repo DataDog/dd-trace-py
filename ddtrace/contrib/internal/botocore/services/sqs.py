@@ -16,6 +16,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
 
+from ..utils import distributed_tracing_enabled_for
 from ..utils import extract_DD_json
 
 
@@ -123,7 +124,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
     )
     should_update_messages = (
         args
-        and config.botocore["distributed_tracing"]
+        and distributed_tracing_enabled_for(endpoint_name)
         and endpoint_name == "sqs"
         and operation in ("SendMessage", "SendMessageBatch")
     )

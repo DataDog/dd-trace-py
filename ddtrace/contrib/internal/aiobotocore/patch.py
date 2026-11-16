@@ -16,6 +16,7 @@ from ddtrace.constants import SPAN_KIND
 # wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+from ddtrace.contrib.internal.botocore.utils import distributed_tracing_enabled_for
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -189,7 +190,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         # no headers anywhere); on + handler registered -> suppress; on +
         # registration failed -> do NOT suppress, fall back to aiohttp injection.
         token = None
-        if not config.botocore["distributed_tracing"]:
+        if not distributed_tracing_enabled_for(endpoint_name):
             token = _http_propagation_suppressed.set(True)
         elif _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler):
             token = _http_propagation_suppressed.set(True)
