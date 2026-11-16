@@ -8,6 +8,7 @@
 
 #include "cast_to_pyfunc.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "dd_wrapper/include/python_helpers.hpp"
 #include "gc_frame_tracker.hpp"
 #include "origin_task_links.hpp"
 #include "sampler.hpp"
@@ -1079,14 +1080,16 @@ release_handler_swap_lock(PyObject* lock)
     if (lock == nullptr) {
         return;
     }
-    PyObject* released = PyObject_CallMethod(lock, "release", nullptr);
-    Py_DECREF(lock);
-    // Prefer the caller's error (if any) over a release failure.
-    if (released == nullptr) {
-        PyErr_Clear();
-        return;
+    // set_fast_copy may already have a TypeError/RuntimeError pending when it
+    // releases. Calling into Python with that indicator set can fail, and a bare
+    // PyErr_Clear would drop the caller's error and return nullptr with none set
+    // (SystemError). Save/restore around release; prefer the caller's error.
+    {
+        PythonErrorRestorer error_restorer;
+        PyObject* released = PyObject_CallMethod(lock, "release", nullptr);
+        Py_XDECREF(released);
     }
-    Py_DECREF(released);
+    Py_DECREF(lock);
 }
 
 static PyObject*

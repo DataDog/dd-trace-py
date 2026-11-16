@@ -245,6 +245,37 @@ def test_pause_resume_while_running() -> None:
 @pytest.mark.subprocess(
     env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
+def test_set_fast_copy_while_running_raises_runtimeerror() -> None:
+    """set_fast_copy while the sampler is running must raise RuntimeError, not SystemError.
+
+    The reclaim path takes handler_swap_lock and releases it after setting the
+    error. Release must not clear that pending RuntimeError.
+    """
+    import time
+
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.set_adaptive_sampling(False)
+    stack.start()
+    try:
+        time.sleep(0.05)
+        with pytest.raises(RuntimeError, match="before the sampler is started"):
+            stack.set_fast_copy(True)
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
 def test_stop_while_paused() -> None:
     """Stopping the sampler while paused must not hang or crash."""
     import time
@@ -340,7 +371,8 @@ def test_uninstall_not_called_on_pause_timeout() -> None:
 
     A capture may still be in safe_memcpy; enabling would replace our recovery
     handler. Uninstall/reinstall are also skipped (reinstall without uninstall
-    would build a handler cycle).
+    would build a handler cycle). Resume still runs: finally cancels a pause
+    whenever the result is not NotRunning (False), including timeout None.
     """
     import faulthandler
     from unittest.mock import MagicMock
@@ -371,7 +403,7 @@ def test_uninstall_not_called_on_pause_timeout() -> None:
             faulthandler.enable()
 
         mock_uninstall.assert_not_called()
-        mock_resume.assert_not_called()
+        mock_resume.assert_called_once()
         mock_reinstall.assert_not_called()
         assert not faulthandler.is_enabled(), "pause timeout must not enable faulthandler"
     finally:
