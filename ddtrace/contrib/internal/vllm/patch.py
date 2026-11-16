@@ -102,45 +102,35 @@ def _inject_trace_headers_arg(args, kwargs, position: int):
     return args, kwargs
 
 
-# Trace headers injected in AsyncLLM.add_request, by request id. Newer vLLM drops trace_headers there when
-# no OTLP traces endpoint is configured, and process_inputs may run in a thread without our contextvars.
-_PENDING_TRACE_HEADERS: dict[tuple[int, str], dict[str, str]] = {}
-
-
-def _get_arg(args, kwargs, position: int, name: str):
-    return args[position] if len(args) > position else kwargs.get(name)
-
-
 def traced_processor_process_inputs(func, instance, args, kwargs):
     """Inject Datadog trace context into trace_headers for propagation."""
     args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_TRACE_HEADERS)
-    pending = _PENDING_TRACE_HEADERS.get((id(instance), _get_arg(args, kwargs, 0, "request_id")))
-    if pending:
-        merged = {**pending, **(_get_arg(args, kwargs, ARG_POSITION_TRACE_HEADERS, "trace_headers") or {})}
-        if len(args) > ARG_POSITION_TRACE_HEADERS:
-            args = args[:ARG_POSITION_TRACE_HEADERS] + (merged,) + args[ARG_POSITION_TRACE_HEADERS + 1 :]
-        else:
-            kwargs["trace_headers"] = merged
     return func(*args, **kwargs)
 
 
 async def traced_async_llm_add_request(func, instance, args, kwargs):
-    """Inject Datadog trace context into trace_headers before AsyncLLM preprocesses the request.
-
-    vLLM can run process_inputs in a thread pool (process_inputs_async). The thread does not get the
-    contextvars of the event loop, so the process_inputs wrapper does not see the active span there.
-    """
+    """Inject Datadog trace context into trace_headers before AsyncLLM preprocesses the request."""
     args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_ADD_REQUEST_TRACE_HEADERS)
-    key = (id(getattr(instance, "input_processor", None)), _get_arg(args, kwargs, 0, "request_id"))
-    headers = _get_arg(args, kwargs, ARG_POSITION_ADD_REQUEST_TRACE_HEADERS, "trace_headers")
-    stored = dict(headers) if headers else None
-    if stored:
-        _PENDING_TRACE_HEADERS[key] = stored
-    try:
-        return await func(*args, **kwargs)
-    finally:
-        if stored and _PENDING_TRACE_HEADERS.get(key) is stored:
-            del _PENDING_TRACE_HEADERS[key]
+    return await func(*args, **kwargs)
+
+
+def traced_input_processor_init(func, instance, args, kwargs):
+    """Inject the trace context before process_inputs is handed to vLLM's thread pool.
+
+    InputProcessor.process_inputs_async runs process_inputs in a thread that does not get the contextvars of the
+    event loop, and newer vLLM drops trace_headers in AsyncLLM.add_request when no OTLP traces endpoint is set.
+    Injecting in the async caller, which still sees the active span, covers both for every call.
+    """
+    func(*args, **kwargs)
+    process_inputs_async = getattr(instance, "process_inputs_async", None)
+    if process_inputs_async is None:
+        return
+
+    async def _traced_process_inputs_async(*a, **kw):
+        a, kw = _inject_trace_headers_arg(a, kw, ARG_POSITION_TRACE_HEADERS)
+        return await process_inputs_async(*a, **kw)
+
+    instance.process_inputs_async = _traced_process_inputs_async
 
 
 def _capture_request_states(
@@ -306,6 +296,7 @@ def patch():
             "InputProcessor.process_inputs",
             traced_processor_process_inputs,
         )
+        wrap("vllm.v1.engine.input_processor", "InputProcessor.__init__", traced_input_processor_init)
     else:
         wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
     wrap(
@@ -332,6 +323,7 @@ def unpatch():
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "add_request")
     if _uses_input_processor():
         unwrap(vllm.v1.engine.input_processor.InputProcessor, "process_inputs")
+        unwrap(vllm.v1.engine.input_processor.InputProcessor, "__init__")
     else:
         unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
