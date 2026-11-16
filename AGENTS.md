@@ -77,6 +77,7 @@ current signatures and defaults.
 | Package-split API inventories | `package-split` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
+| Profiling hot spots and optimization opportunities | `profile` |
 | Build-cache performance | `debug-build-times` |
 | Native crash investigation | `analyze-crash` |
 | CPython compatibility | `find-cpython-usage`, then `compare-cpython-versions` |

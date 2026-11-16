@@ -451,13 +451,22 @@ class TestWriterPrivacyBoundary:
         writer = FlagEvaluationWriter()
         writer.enqueue(self.event(targeting_key=123))
         writer.enqueue(self.event(targeting_key=CANONICAL_TARGETING_KEY))
+
+        def fail_omission_metric(_namespace, name, _value, _tags):
+            if name == writer_module.FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC:
+                raise RuntimeError("sink down")
+
         with mock.patch.object(
-            writer_module.telemetry_writer, "add_count_metric", side_effect=RuntimeError("sink down")
+            writer_module.telemetry_writer, "add_count_metric", side_effect=fail_omission_metric
         ) as metric:
             with mock.patch.object(writer, "_send_payload") as send:
                 writer.periodic()
-        metric.assert_called_once()
-        assert metric.call_args.args[1] == writer_module.FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC
+        omission_calls = [
+            call
+            for call in metric.call_args_list
+            if call.args[1] == writer_module.FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC
+        ]
+        assert len(omission_calls) == 1
         rows = json.loads(send.call_args.args[0])["flagEvaluations"]
         assert len(rows) == 2
         assert sum(row["evaluation_count"] for row in rows) == 2

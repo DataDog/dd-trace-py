@@ -42,7 +42,6 @@ from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
-from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.http import FormData
@@ -575,11 +574,14 @@ class ScopeContext:
     __scope_limit__: int = 400
 
     def __init__(self, scopes: t.Optional[list[Scope]] = None) -> None:
+        # Both locks are taken by application threads on module import, so
+        # another thread can fork while one is held. Fork-safe locks are
+        # replaced in the child instead of being inherited locked.
         self._scopes: list[Scope] = scopes if scopes is not None else []
-        self._scopes_lock = RLock()
+        self._scopes_lock = forksafe.RLock()
 
         self._timer: t.Optional[Timer] = None
-        self._timer_lock = RLock()
+        self._timer_lock = forksafe.RLock()
 
         # upload_id is stable for the lifetime of this process; all batches
         # uploaded by the process share it. A forked child gets a fresh
