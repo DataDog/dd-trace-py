@@ -34,10 +34,8 @@ Configuration
 Usage and cost metrics
 ~~~~~~~~~~~~~~~~~~~~~~
 
-For calls made through a LiteLLM proxy, the integration can emit token usage and cost metrics for each provider
-attempt and each client request. They contain no prompts, responses or keys. See
-`LiteLLM proxy usage and cost metrics <https://docs.datadoghq.com/cloud_cost_management/ai_costs/litellm_proxy_metrics/>`_
-for the metrics, their tags, and how to join them to a provider's bill.
+Usage and cost metrics for LiteLLM proxy calls are off by default. See
+`AI Costs <https://docs.datadoghq.com/cloud_cost_management/ai_costs/>`_ for the metrics and how to use them.
 
 .. py:data:: ddtrace.config.litellm["usage_metrics_enabled"]
 
@@ -49,15 +47,7 @@ for the metrics, their tags, and how to join them to a provider's bill.
 
 .. py:data:: ddtrace.config.litellm["usage_metrics_exporter"]
 
-   ``dogstatsd`` sends the metrics to the Datadog Agent's DogStatsD endpoint (``DD_DOGSTATSD_URL``), where the
-   counters are stored as rate metrics and the durations as distributions, as every other source of these metrics
-   sends them.
-
-   ``otlp`` sends OTLP/HTTP metrics to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT``),
-   or without one to the Datadog Agent's OTLP receiver, or to Datadog's OTLP intake when ``DD_AGENTLESS_ENABLED`` is
-   true. It is meant for backends other than Datadog: Datadog stores these OTLP counters as count metrics, which
-   conflict with the rate metrics other sources, such as AI gateways, send under the same names, and Datadog keeps
-   one type per metric.
+   Where to send the metrics: ``dogstatsd`` (the Datadog Agent), or ``otlp`` for backends other than Datadog.
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_EXPORTER`` environment variable.
 
@@ -65,8 +55,8 @@ for the metrics, their tags, and how to join them to a provider's bill.
 
 .. py:data:: ddtrace.config.litellm["usage_metrics_tags"]
 
-   A comma-separated list of optional tags to add: ``user``, ``team``, ``key_alias``, ``route``, ``destination``,
-   ``provider_account``, ``project``, ``service`` and ``host``. Each can raise the number of series.
+   Comma-separated optional tags to add: ``user``, ``team``, ``key_alias``, ``route``, ``destination``,
+   ``provider_account``, ``project``, ``service`` and ``host``.
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_TAGS`` environment variable.
 
@@ -74,7 +64,7 @@ for the metrics, their tags, and how to join them to a provider's bill.
 
 .. py:data:: ddtrace.config.litellm["usage_metrics_client_source"]
 
-   The name of the client application using this proxy, sent as ``trajectory.client_source`` when set.
+   The client application name, sent as ``trajectory.client_source``.
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE`` environment variable.
 
