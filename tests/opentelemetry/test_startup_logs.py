@@ -24,6 +24,7 @@ _OTEL_KEYS = frozenset(
         "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
         "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
         "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+        "OTEL_EXPORTER_OTLP_LOGS_COMPRESSION",
         "DD_METRICS_OTEL_ENABLED",
         "OTEL_METRICS_EXPORTER",
         "OTEL_METRIC_EXPORT_INTERVAL",
@@ -31,6 +32,7 @@ _OTEL_KEYS = frozenset(
         "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
         "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
         "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
+        "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION",
         "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE",
         "OTEL_EXPORTER_OTLP_ENDPOINT",
         "OTEL_EXPORTER_OTLP_PROTOCOL",
@@ -82,6 +84,7 @@ def test_startup_logs_report_otel_configuration():
             "OTEL_METRIC_EXPORT_INTERVAL": "5000",
             "OTEL_METRIC_EXPORT_TIMEOUT": "4000",
             "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT": "3000",
+            "OTEL_EXPORTER_OTLP_COMPRESSION": "gzip",
         }
     )
 
@@ -108,6 +111,8 @@ def test_startup_logs_report_otel_configuration():
     assert configuration["OTEL_METRIC_EXPORT_TIMEOUT"] == 4000
     assert configuration["OTEL_METRICS_EXPORTER"] == "otlp"
     assert configuration["OTEL_EXPORTER_OTLP_TRACES_TIMEOUT"] == 3000
+    assert configuration["OTEL_EXPORTER_OTLP_LOGS_COMPRESSION"] == "gzip"
+    assert configuration["OTEL_EXPORTER_OTLP_METRICS_COMPRESSION"] == "gzip"
     assert configuration["OTEL_SERVICE_NAME"] == "otel-startup"
     assert configuration["OTEL_RESOURCE_ATTRIBUTES"]["service.name"] == "otel-startup"
     # DD_TRACE_STARTUP_LOGS emits the configuration although the ddtrace logger only emits warnings.
@@ -137,6 +142,8 @@ def test_startup_logs_report_otel_defaults():
     assert configuration["OTEL_METRIC_EXPORT_TIMEOUT"] == 7500
     assert configuration["OTEL_METRICS_EXPORTER"] == "none"
     assert configuration["OTEL_EXPORTER_OTLP_TRACES_TIMEOUT"] == 10000
+    assert configuration["OTEL_EXPORTER_OTLP_LOGS_COMPRESSION"] == "none"
+    assert configuration["OTEL_EXPORTER_OTLP_METRICS_COMPRESSION"] == "none"
 
 
 def test_startup_logs_debug_mode_reports_otel_log_level():

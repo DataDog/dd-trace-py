@@ -164,6 +164,7 @@ def _collect_otel(tracer_info: TracerDebugInfo) -> dict[str, Any]:
             "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": _sanitize_otlp_endpoint(exporter.LOGS_ENDPOINT),
             "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": exporter.LOGS_PROTOCOL,
             "OTEL_EXPORTER_OTLP_LOGS_HEADERS": _redact_otlp_headers(exporter.LOGS_HEADERS),
+            "OTEL_EXPORTER_OTLP_LOGS_COMPRESSION": exporter.LOGS_COMPRESSION,
             # Metrics
             "DD_METRICS_OTEL_ENABLED": config._otel_metrics_enabled,
             "OTEL_METRICS_EXPORTER": "otlp" if config._otel_metrics_enabled else "none",
@@ -172,6 +173,7 @@ def _collect_otel(tracer_info: TracerDebugInfo) -> dict[str, Any]:
             "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": _sanitize_otlp_endpoint(exporter.METRICS_ENDPOINT),
             "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": exporter.METRICS_PROTOCOL,
             "OTEL_EXPORTER_OTLP_METRICS_HEADERS": _redact_otlp_headers(exporter.METRICS_HEADERS),
+            "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION": exporter.METRICS_COMPRESSION,
             "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": exporter.METRICS_TEMPORALITY_PREFERENCE,
             # Settings shared by every signal
             "OTEL_EXPORTER_OTLP_ENDPOINT": _sanitize_otlp_endpoint(exporter.ENDPOINT),
