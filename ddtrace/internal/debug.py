@@ -14,7 +14,6 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
@@ -25,9 +24,9 @@ from .logger import get_logger
 
 logger = get_logger(__name__)
 
-# The architecture function spawns the file subprocess on the interpreter
-# executable. We make sure we call this once and cache the result.
-architecture = callonce(lambda: platform.architecture())
+# The interpreter bit width, as platform.architecture() reports it. That function spawns the file command, which
+# collect() would then do at every start, now that the startup logs are on by default.
+_ARCHITECTURE = "64bit" if sys.maxsize > 2**32 else "32bit"
 
 
 def in_venv() -> bool:
@@ -108,7 +107,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         # eg. 12.5.0
         os_version=platform.release(),
         is_64_bit=sys.maxsize > 2**32,
-        architecture=architecture()[0],
+        architecture=_ARCHITECTURE,
         vm=platform.python_implementation(),
         version=__version__,
         lang="python",
