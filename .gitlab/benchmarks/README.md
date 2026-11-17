@@ -74,7 +74,8 @@ The rest — `run-benchmarks.sh`, `run-baseline.sh`, `run-candidate.sh`,
 `format-benchmark-results.py` — run and report the benchmarks themselves. They were migrated
 verbatim from the `dd-trace-py` branch of
 [DataDog/benchmarking-platform](https://github.com/DataDog/benchmarking-platform) (the only
-edits are the `/platform/steps/` path rewrites), so changing how a benchmark is executed or
+edits are the `/platform/steps/` path rewrites and the `SCRIPT_DIR` resolution in
+`run-benchmarks.sh`), so changing how a benchmark is executed or
 reported is now a pull request here.
 
 ## External
