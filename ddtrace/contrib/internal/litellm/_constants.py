@@ -12,5 +12,9 @@ TEXT_COMPLETION_OPERATIONS = (
     "router.atext_completion",
 )
 
+DECISION_FUNCTIONS = ("decisions", "adecisions", "systemone", "asystemone")
+DECISION_OPERATIONS = DECISION_FUNCTIONS + tuple(f"router.{name}" for name in DECISION_FUNCTIONS)
+SYSTEM_ONE_OPERATIONS = ("systemone", "asystemone", "router.systemone", "router.asystemone")
+
 # Maps requested model name to (parsed model name, provider), filled in as litellm resolves providers.
 model_map: dict[str, tuple[str, str]] = {}

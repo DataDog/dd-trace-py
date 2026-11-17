@@ -1,3 +1,4 @@
+import inspect
 import sys
 
 import litellm
@@ -5,6 +6,7 @@ import litellm
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.litellm._constants import COMPONENT
+from ddtrace.contrib.internal.litellm._constants import DECISION_FUNCTIONS
 from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
 from ddtrace.contrib.internal.litellm._constants import TAG_HOST
 from ddtrace.contrib.internal.litellm._constants import TAG_MODEL
@@ -35,7 +37,7 @@ def _supported_versions() -> dict[str, str]:
     return {"litellm": "*"}
 
 
-def _request_event(operation, args, kwargs, router=None):
+def _request_event(operation, args, kwargs, router=None, submit_to_llmobs=None):
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
     tags = {}
@@ -57,7 +59,11 @@ def _request_event(operation, args, kwargs, router=None):
         model=model,
         tags=tags,
         # Router spans are always submitted; plain calls defer to the OpenAI integration's span when there is one.
-        submit_to_llmobs=router is not None or not has_downstream_openai_span(kwargs, model),
+        submit_to_llmobs=(
+            submit_to_llmobs
+            if submit_to_llmobs is not None
+            else router is not None or not has_downstream_openai_span(kwargs, model)
+        ),
         request_args=args,
         request_kwargs=request_kwargs,
         operation=operation,
@@ -142,6 +148,126 @@ async def traced_router_acompletion(func, instance, args, kwargs):
         return _handle_router_stream_response(resp, ctx, is_async=True)
 
 
+_decision_signatures: dict = {}
+
+
+def _bind_arguments(func, args, kwargs):
+    """Return the call arguments by name, so positional arguments work across litellm signature changes."""
+    if not args:
+        return dict(kwargs)
+    signature = _decision_signatures.get(func)
+    if signature is None:
+        try:
+            signature = inspect.signature(func)
+        except (TypeError, ValueError):
+            signature = False
+        _decision_signatures[func] = signature
+    if not signature:
+        return dict(kwargs, model=args[0])
+    try:
+        bound = signature.bind_partial(*args, **kwargs).arguments
+    except TypeError:
+        return dict(kwargs, model=args[0])
+    named = {}
+    for name, value in bound.items():
+        if signature.parameters[name].kind is inspect.Parameter.VAR_KEYWORD:
+            named.update(value)
+        elif signature.parameters[name].kind is not inspect.Parameter.VAR_POSITIONAL:
+            named[name] = value
+    return named
+
+
+def _decision_event(operation, func, args, kwargs, router=None):
+    # litellm sends decisions with its own HTTP client, so no provider span exists below this one.
+    return _request_event(operation, (), _bind_arguments(func, args, kwargs), router=router, submit_to_llmobs=True)
+
+
+def traced_decisions(func, instance, args, kwargs):
+    event = _decision_event(func.__name__, func, args, kwargs)
+    with core.context_with_event(event):
+        event.response = func(*args, **kwargs)
+        return event.response
+
+
+async def traced_adecisions(func, instance, args, kwargs):
+    event = _decision_event(func.__name__, func, args, kwargs)
+    with core.context_with_event(event):
+        event.response = await func(*args, **kwargs)
+        return event.response
+
+
+def _traced_router_decision_endpoint(endpoint, router, call_type):
+    operation = f"router.{call_type}"
+    if call_type.startswith("a"):
+
+        async def traced_endpoint(*args, **kwargs):
+            event = _decision_event(operation, endpoint, args, kwargs, router=router)
+            with core.context_with_event(event):
+                event.response = await endpoint(*args, **kwargs)
+                return event.response
+
+    else:
+
+        def traced_endpoint(*args, **kwargs):
+            event = _decision_event(operation, endpoint, args, kwargs, router=router)
+            with core.context_with_event(event):
+                event.response = endpoint(*args, **kwargs)
+                return event.response
+
+    return traced_endpoint
+
+
+def traced_router_factory_function(func, instance, args, kwargs):
+    endpoint = func(*args, **kwargs)
+    call_type = get_argument_value(args, kwargs, 1, "call_type", True)
+    if call_type not in DECISION_FUNCTIONS or not callable(endpoint):
+        return endpoint
+    return _traced_router_decision_endpoint(endpoint, instance, call_type)
+
+
+def traced_router_decisions(func, instance, args, kwargs):
+    event = _decision_event(f"router.{func.__name__}", func, args, kwargs, router=instance)
+    with core.context_with_event(event):
+        event.response = func(*args, **kwargs)
+        return event.response
+
+
+async def traced_router_adecisions(func, instance, args, kwargs):
+    event = _decision_event(f"router.{func.__name__}", func, args, kwargs, router=instance)
+    with core.context_with_event(event):
+        event.response = await func(*args, **kwargs)
+        return event.response
+
+
+def _decision_targets():
+    """(owner, name, wrapper) for each decision function this litellm version has."""
+    targets = []
+    owners = [litellm]
+    for package in ("litellm.decisions", "litellm.systemone"):
+        module = sys.modules.get(package)
+        if module is not None and module is not litellm:
+            owners.append(module)
+    for owner in owners:
+        for name in DECISION_FUNCTIONS:
+            target = getattr(owner, name, None)
+            if callable(target):
+                wrapper = traced_adecisions if name.startswith("a") else traced_decisions
+                targets.append((owner, name, wrapper))
+    router_cls = getattr(getattr(litellm, "router", None), "Router", None)
+    if router_cls is not None:
+        if hasattr(router_cls, "factory_function"):
+            targets.append((router_cls, "factory_function", traced_router_factory_function))
+        else:
+            for name in DECISION_FUNCTIONS:
+                if callable(getattr(router_cls, name, None)):
+                    wrapper = traced_router_adecisions if name.startswith("a") else traced_router_decisions
+                    targets.append((router_cls, name, wrapper))
+    return targets
+
+
+_wrapped_decision_targets: list = []
+
+
 def traced_get_llm_provider(func, instance, args, kwargs):
     requested_model = get_argument_value(args, kwargs, 0, "model", None)
     model, custom_llm_provider, dynamic_api_key, api_base = func(*args, **kwargs)
@@ -165,6 +291,9 @@ def patch():
     wrap("litellm", "router.Router.acompletion", traced_router_acompletion)
     wrap("litellm", "router.Router.text_completion", traced_router_completion)
     wrap("litellm", "router.Router.atext_completion", traced_router_acompletion)
+    for owner, name, wrapper in _decision_targets():
+        wrap(owner, name, wrapper)
+        _wrapped_decision_targets.append((owner, name))
 
     # Let products (LLMObs) attach their own LlmEvents subscribers without this
     # module importing them.
@@ -189,3 +318,6 @@ def unpatch():
     unwrap(litellm.router.Router, "acompletion")
     unwrap(litellm.router.Router, "text_completion")
     unwrap(litellm.router.Router, "atext_completion")
+    while _wrapped_decision_targets:
+        owner, name = _wrapped_decision_targets.pop()
+        unwrap(owner, name)
