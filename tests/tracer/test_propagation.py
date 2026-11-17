@@ -3691,9 +3691,7 @@ def test_datadog_extract_sampling_decision_tag_with_head_sampling():
 
 
 def test_tracestate_does_not_import_under_restricted_builtins():
-    """Regression: _tracestate must not call py.import after
-    _init_tracestate_helpers has warmed the OnceLock caches.
-    """
+    """Regression: _tracestate must not import anything; the helpers are registered at import time."""
     ctx = Context(
         trace_id=1,
         span_id=1,
