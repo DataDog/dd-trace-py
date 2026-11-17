@@ -47,7 +47,7 @@ components:
     - ddtrace/contrib/internal/vllm/*
 suites:
   elevenlabs:
-    venvs_per_job: 2
+    venvs_per_job: 3
     services: [testagent]
     paths:
       - '@bootstrap'
