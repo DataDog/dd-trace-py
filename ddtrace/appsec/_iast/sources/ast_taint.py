@@ -17,6 +17,7 @@ _T = TypeVar("_T")
 def ast_function(
     func: Callable[..., _T],
     flag_added_args: int,
+    /,
     *args: Any,
     **kwargs: Any,
 ) -> _T:

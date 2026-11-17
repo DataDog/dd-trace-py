@@ -5,8 +5,8 @@ from ddtrace.internal.settings._config import config
 
 
 log = get_logger(__name__)
-AUTHORITY_PATTERN = re.compile(r"https?://([^@]+)(?=@)", re.IGNORECASE | re.MULTILINE)
-QUERY_FRAGMENT_PATTERN = re.compile(r"[?#&]([^=&;]+)=([^?#&]+)", re.IGNORECASE | re.MULTILINE)
+AUTHORITY_PATTERN = re.compile(r"(?<![a-z0-9+.\-])[a-z][a-z0-9+.\-]*://([^@/?#]+)(?=@)", re.IGNORECASE)
+QUERY_FRAGMENT_PATTERN = re.compile(r"[?#&]([^=&;?#]+)=([^?#&]+)", re.IGNORECASE)
 
 
 def find_authority(ranges, evidence):

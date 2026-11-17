@@ -159,7 +159,13 @@ class LangChainIntegration(BaseLLMIntegration):
         except Exception:
             parent_instance.__dict__["_datadog_spans"] = spans
 
-    def _on_request_span_started(self, span: Span, instance: Any = None, operation: str = "") -> None:
+    def _on_request_span_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
         self.record_instance(instance, span)
         # The prompt template is stored on invoke/ainvoke and never cleared, so a stream on the same
         # model would otherwise be tagged with a prompt from an earlier, unrelated invoke.
