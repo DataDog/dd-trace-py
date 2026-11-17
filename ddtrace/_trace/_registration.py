@@ -15,6 +15,10 @@ HTTP_CLIENT_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.http_client",
     subscribers=("HttpClientTracingSubscriber",),
 )
+DATABASE_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.database",
+    subscribers=("DatabaseTracingSubscriber",),
+)
 MESSAGING_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.messaging",
     subscribers=("MessagingProduceSubscriber", "MessagingConsumeSubscriber"),
@@ -46,6 +50,7 @@ SPAN_EXCEPTION_SUBSCRIBERS = SubscriberBundle(
 MANUAL_SUBSCRIBER_BUNDLES = (
     SPAN_SUBSCRIBERS,
     HTTP_CLIENT_SUBSCRIBERS,
+    DATABASE_SUBSCRIBERS,
     MESSAGING_SUBSCRIBERS,
     KAFKA_SUBSCRIBERS,
     LLM_SUBSCRIBERS,

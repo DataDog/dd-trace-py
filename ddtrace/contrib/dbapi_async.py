@@ -1,18 +1,17 @@
 import inspect
+from typing import Any
+from typing import Callable
 
 from ddtrace import config
+from ddtrace.contrib._events.dbapi import DatabaseDbmInjectionEvent
+from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.trace import tracer
 
-from ..constants import _SPAN_MEASURED_KEY
-from ..constants import SPAN_KIND
-from ..ext import SpanKind
-from ..ext import SpanTypes
 from .dbapi import TracedConnection
 from .dbapi import TracedCursor
 from .internal.trace_utils import ext_service
@@ -45,7 +44,16 @@ class TracedAsyncCursor(TracedCursor):
         # messages will be the same.
         return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
+    async def _trace_method(
+        self,
+        method: Callable[..., Any],
+        name: str,
+        resource: Any,
+        extra_tags: dict[str, Any],
+        dbm_propagator: Any,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
         """
         Internal function to trace the call to the underlying cursor method
         :param method: The callable to be wrapped
@@ -61,20 +69,20 @@ class TracedAsyncCursor(TracedCursor):
             return await method(*args, **kwargs)
         measured = name == self._self_datadog_name
 
-        with tracer.trace(
-            name, service=ext_service(None, self._self_config), resource=resource, span_type=SpanTypes.SQL
-        ) as s:
-            if measured:
-                s._set_attribute(_SPAN_MEASURED_KEY, 1)
+        with core.context_with_event(
+            DatabaseOperationEvent(
+                component=self._self_config.integration_name,
+                integration_config=self._self_config,
+                database_operation=name,
+                service=ext_service(None, self._self_config),
+                resource=resource,
+                measured=measured,
+                connection_tags=self._self_db_tags,
+                tags=dict(extra_tags),
+            )
+        ) as ctx:
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            s.set_tags(self._self_db_tags)
-            s.set_tags(extra_tags)
-
-            s._set_attribute(COMPONENT, self._self_config.integration_name)
-
-            # set span.kind to the type of request being performed
-            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
@@ -82,17 +90,15 @@ class TracedAsyncCursor(TracedCursor):
             # dispatch DBM
             if dbm_propagator:
                 # this check is necessary to prevent fetch methods from trying to add dbm propagation
-                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                    f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs)
-                ).result
-                if result:
-                    s, args, kwargs = result.value
+                injection = DatabaseDbmInjectionEvent(context=ctx, args=args, kwargs=kwargs)
+                core.dispatch_event(injection)
+                args, kwargs = injection.args, injection.kwargs
 
             try:
                 return await method(*args, **kwargs)
             finally:
                 # Try to fetch custom properties that were passed by the specific Database implementation
-                self._set_post_execute_tags(s)
+                self._set_post_execute_tags(span_from_context(ctx))
 
     async def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
@@ -255,19 +261,25 @@ class TracedAsyncConnection(TracedConnection):
 
         return self._self_cursor_cls(cursor, cfg=self._self_config, db_tags=self._self_db_tags)
 
-    async def _trace_method(self, method, name, extra_tags, *args, **kwargs):
+    async def _trace_method(
+        self, method: Callable[..., Any], name: str, extra_tags: dict[str, Any], *args: Any, **kwargs: Any
+    ) -> Any:
         if not is_tracing_enabled():
             return await method(*args, **kwargs)
 
-        with tracer.trace(name, service=ext_service(None, self._self_config)) as s:
-            s._set_attribute(COMPONENT, self._self_config.integration_name)
-
-            # set span.kind to the type of request being performed
-            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-
-            s.set_tags(self._self_db_tags)
-            s.set_tags(extra_tags)
-
+        with core.context_with_event(
+            DatabaseOperationEvent(
+                component=self._self_config.integration_name,
+                integration_config=self._self_config,
+                database_operation=name,
+                service=ext_service(None, self._self_config),
+                measured=False,
+                metadata_before_tags=True,
+                span_type=None,
+                connection_tags=self._self_db_tags,
+                tags=dict(extra_tags),
+            )
+        ):
             return await method(*args, **kwargs)
 
     async def commit(self, *args, **kwargs):

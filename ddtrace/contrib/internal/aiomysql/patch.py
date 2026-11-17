@@ -1,25 +1,25 @@
+from typing import Any
+from typing import Callable
+
 import aiomysql
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.dbapi import DatabaseDbmInjectionEvent
+from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
+from ddtrace.contrib._events.dbapi import DatabaseResultEvent
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import tracer
 
 
 config._add(
@@ -70,40 +70,43 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def _dbapi_query_encoding(self) -> str:
         return self.__wrapped__.connection.encoding
 
-    async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
+    async def _trace_method(
+        self, method: Callable[..., Any], resource: Any, extra_tags: dict[str, Any], *args: Any, **kwargs: Any
+    ) -> Any:
         if not is_tracing_enabled():
             result = await method(*args, **kwargs)
             return result
 
-        with tracer.trace(
-            self._self_datadog_name,
+        event = DatabaseOperationEvent(
+            component=config.aiomysql.integration_name,
+            integration_config=config.aiomysql,
+            database_operation=self._self_datadog_name,
             resource=resource,
-            span_type=SpanTypes.SQL,
-        ) as s:
-            set_service_and_source(s, trace_utils.ext_service(None, config.aiomysql), config.aiomysql)
-            s._set_attribute(COMPONENT, config.aiomysql.integration_name)
-
-            # set span.kind to the type of request being performed
-            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-
-            s._set_attribute(_SPAN_MEASURED_KEY, 1)
-            s.set_tags(self._self_db_tags)
-            s.set_tags(extra_tags)
-
+            service=trace_utils.ext_service(None, config.aiomysql),
+            service_from_config=True,
+            metadata_before_tags=True,
+            connection_tags=self._self_db_tags,
+            tags=dict(extra_tags),
+        )
+        with core.context_with_event(event) as ctx:
             # dispatch DBM
-            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                "aiomysql.execute", (config.aiomysql, s, args, kwargs)
-            ).result
-            if result:
-                s, args, kwargs = result.value
+            injection = DatabaseDbmInjectionEvent(context=ctx, args=args, kwargs=kwargs)
+            core.dispatch_event(injection)
+            args, kwargs = injection.args, injection.kwargs
 
             try:
                 result = await method(*args, **kwargs)
                 return result
             finally:
-                s._set_attribute(db.ROWCOUNT, self.rowcount)
-                if self.rownumber is not None:
-                    s._set_attribute("db.rownumber", self.rownumber)
+                core.dispatch_event(
+                    DatabaseResultEvent(
+                        span=span_from_context(ctx),
+                        row_count=self.rowcount,
+                        row_number=self.rownumber,
+                        skip_none_row_count=False,
+                    ),
+                    allow_raise=True,
+                )
 
     async def executemany(self, query, *args, **kwargs):
         if isinstance(query, (str, bytes, bytearray, memoryview)):

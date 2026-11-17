@@ -102,6 +102,29 @@ Check out existing database integrations for examples of using the `dbapi`:
     - `psycopg <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/psycopg>`_
     - `mysql <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mysql>`_
 
+The shared synchronous and asynchronous DB-API wrappers, asyncpg, and aiomysql
+emit ``DatabaseOperationEvent`` through ``core.context_with_event()``. One
+tracing-owned ``DatabaseTracingSubscriber`` creates and finishes their spans,
+renders connection metadata, and handles ``DatabaseResultEvent`` cursor metadata.
+The subscriber is activated by tracing's ``DATABASE_SUBSCRIBERS`` bundle;
+integration patching and unpatching do not register or remove shared listeners.
+
+Keep ``DbQueryEvent`` separate from the tracing lifecycle. It notifies security
+subscribers about the original query and its connection encoding before tracing
+enablement is checked. Existing DB-API security checks run inside the operation
+context and before DBM injection. ``DatabaseDbmInjectionEvent`` synchronously
+exposes mutable driver arguments after the span's service and connection metadata
+are ready. DBM owns its listener and propagation-mode gating; the span resource
+continues to describe the original query. Preserve each driver's injection
+exclusions for fetches, stored procedures, and prepared statements.
+
+Publish result metadata in the driver's ``finally`` block, before the operation
+context exits. Preserve ``_set_post_execute_tags(span)`` when extending DB-API
+cursors: existing subclasses use this hook, and it runs after driver success or
+failure, but not when security checks prevent execution. Preserve each driver's
+service attribution, measured flags, span types, and metadata ordering when
+adopting the shared event.
+
 How should an integration be tested?
 ------------------------------------
 
