@@ -1,0 +1,109 @@
+[
+  {
+    "flag": "split-features-destinations",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "feature-subject",
+    "attributes": {},
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 7,
+      "doLog": true,
+      "features": {
+        "HOOK": {
+          "holdout.key": "holdout-q3",
+          "holdout.assignment_group": "status_quo",
+          "shared": true,
+          "empty": ""
+        },
+        "EXPOSURE": {
+          "holdout.assignment_group": "status_quo",
+          "exposure.only": false,
+          "shared": true
+        },
+        "EVALUATION": {
+          "evaluation.only": 1.25,
+          "shared": true,
+          "zero": 0
+        }
+      }
+    }
+  },
+  {
+    "flag": "split-features-first-valid-key",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "feature-subject",
+    "attributes": {},
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 7,
+      "doLog": true,
+      "features": {
+        "HOOK": {
+          "invalid-first": "accepted",
+          "mixed": "kept"
+        },
+        "EXPOSURE": {
+          "first-wins": "first",
+          "empty-destinations": false
+        },
+        "EVALUATION": {}
+      }
+    }
+  },
+  {
+    "flag": "split-features-selected-allocation",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "feature-subject",
+    "attributes": {
+      "tier": "vip"
+    },
+    "result": {
+      "value": true,
+      "reason": "TARGETING_MATCH",
+      "serialId": 0,
+      "doLog": true,
+      "features": {
+        "HOOK": {
+          "selected": "vip"
+        },
+        "EXPOSURE": {
+          "selected": "vip"
+        },
+        "EVALUATION": {
+          "selected": "vip"
+        }
+      }
+    }
+  },
+  {
+    "flag": "split-features-selected-allocation",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "feature-subject",
+    "attributes": {
+      "tier": "standard"
+    },
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 7,
+      "doLog": false,
+      "features": {
+        "HOOK": {
+          "selected": "fallback"
+        },
+        "EXPOSURE": {
+          "selected": "fallback"
+        },
+        "EVALUATION": {
+          "selected": "fallback"
+        }
+      }
+    }
+  }
+]

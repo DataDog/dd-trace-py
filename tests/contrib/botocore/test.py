@@ -1879,6 +1879,38 @@ class BotocoreTest(TracerTestCase):
     def test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
 
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AWS_SDK_KINESIS_ENABLED="false",
+            DD_TRACE_AWS_SDK_EVENTBRIDGE_ENABLED="0",
+            DD_TRACE_AWS_SDK_SQS_ENABLED="true",
+        )
+    )
+    def test_service_enabled_env_override(self):
+        assert config.botocore.disabled_services == {"kinesis", "events"}
+
+    @mock_sqs
+    def test_disabled_service_creates_no_span_and_no_injection(self):
+        with self.override_config("botocore", dict(propagation_enabled=True, disabled_services={"sqs"})):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageAttributeNames=["_datadog"], WaitTimeSeconds=2
+            )
+            assert not [s for s in self.get_spans() if s.get_tag("aws.operation") in ("SendMessage", "ReceiveMessage")]
+            assert "MessageAttributes" not in response["Messages"][0]
+
+    @mock_sqs
+    def test_disabled_service_removes_before_sign_handler_and_skips_internal_spans(self):
+        with self.override_config("botocore", dict(instrument_internals=True)):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="one")
+            assert self.sqs_client._dd_before_sign_registered is True
+            self.reset()
+
+        with self.override_config("botocore", dict(instrument_internals=True, disabled_services={"sqs"})):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="two")
+            assert self.sqs_client._dd_before_sign_registered is False
+            assert not [s for s in self.get_spans() if s.name == "botocore.parsers.parse"]
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
     def test_propagation_enabled_env_override(self):
         assert config.botocore.propagation_enabled is True
@@ -2724,6 +2756,49 @@ class BotocoreTest(TracerTestCase):
 
         assert json.loads(records[0]["Data"])["_datadog"] == injected_headers
         assert records[1]["Data"] == original_oversized_record
+
+    def _kinesis_update_record_with_headers(self, record):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        injected_headers = {"x-datadog-trace-id": "1" * 32, "x-datadog-parent-id": "2" * 16}
+
+        def inject_headers(_, payload):
+            payload[2]["_datadog"] = dict(injected_headers)
+
+        with mock.patch.object(kinesis_service.core, "dispatch", side_effect=inject_headers):
+            kinesis_service.update_record(mock.Mock(), record, "stream", inject_trace_context=True)
+
+        return injected_headers
+
+    def _kinesis_record_with_injected_size(self, injected_size, partition_key):
+        # Build a record whose serialized data, after header injection, is exactly ``injected_size`` characters.
+        headers = {"x-datadog-trace-id": "1" * 32, "x-datadog-parent-id": "2" * 16}
+        base = len(json.dumps({"json-string": "", "_datadog": headers}))
+        value = "x" * (injected_size - base)
+        return {"Data": json.dumps({"json-string": value}), "PartitionKey": partition_key}
+
+    def test_kinesis_trace_injection_counts_partition_key_bytes(self):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        # The data alone is under the limit in characters; with the multibyte partition key's
+        # UTF-8 bytes added it exceeds 1 MiB, so injection must be skipped (matches dd-trace-js).
+        partition_key = "\u00e9" * 200
+        record = self._kinesis_record_with_injected_size(kinesis_service.MAX_KINESIS_DATA_SIZE - 100, partition_key)
+        original = record["Data"]
+
+        self._kinesis_update_record_with_headers(record)
+
+        assert record["Data"] == original
+
+    def test_kinesis_trace_injection_allows_exactly_max_size(self):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        # Total bytes (data + partition key) equal to the limit are still injected, like dd-trace-js (``>``).
+        record = self._kinesis_record_with_injected_size(kinesis_service.MAX_KINESIS_DATA_SIZE - 4, "1234")
+
+        headers = self._kinesis_update_record_with_headers(record)
+
+        assert json.loads(record["Data"])["_datadog"] == headers
 
     @mock_kinesis
     def test_kinesis_put_records_base64_trace_injection(self):

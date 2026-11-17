@@ -49,6 +49,11 @@ def patch():
     iast_funcs.wrap_function("django.shortcuts", "redirect", _unvalidated_redirect_for_django)
     iast_funcs.wrap_function("flask", "redirect", _unvalidated_redirect_for_flask)
     iast_funcs.wrap_function("fastapi.responses", "RedirectResponse", _unvalidated_redirect_forfastapi)
+    iast_funcs.wrap_function("aiohttp.web_exceptions", "HTTPMove.__init__", _unvalidated_redirect_for_aiohttp)
+    iast_funcs.wrap_function("aiohttp.web_exceptions", "_HTTPMove.__init__", _unvalidated_redirect_for_aiohttp)
+    iast_funcs.wrap_function(
+        "aiohttp.web_response", "StreamResponse.__init__", _unvalidated_redirect_for_aiohttp_headers
+    )
 
     _set_metric_iast_instrumented_sink(VULN_UNVALIDATED_REDIRECT)
 
@@ -79,6 +84,23 @@ def _unvalidated_redirect_forfastapi(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
+def _unvalidated_redirect_for_aiohttp(wrapped, instance, args, kwargs):
+    if is_iast_request_enabled():
+        _iast_report_unvalidated_redirect(get_argument_value(args, kwargs, 0, "location", optional=True))
+    return wrapped(*args, **kwargs)
+
+
+def _unvalidated_redirect_for_aiohttp_headers(wrapped, instance, args, kwargs):
+    result = wrapped(*args, **kwargs)
+    if is_iast_request_enabled():
+        try:
+            for location in instance.headers.getall("Location", ()):
+                _iast_report_unvalidated_redirect(location)
+        except Exception as e:
+            iast_error("propagation::sink_point::Error in _unvalidated_redirect_for_aiohttp_headers", exc=e)
+    return result
+
+
 class UnvalidatedRedirect(VulnerabilityBase):
     vulnerability_type = VULN_UNVALIDATED_REDIRECT
     secure_mark = VulnerabilityType.UNVALIDATED_REDIRECT
@@ -101,4 +123,4 @@ def _iast_report_unvalidated_redirect(headers):
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(UnvalidatedRedirect.vulnerability_type)
         except Exception as e:
-            iast_error("propagation::sink_point::Error in _iast_report_unvalidated_redirect", e)
+            iast_error("propagation::sink_point::Error in _iast_report_unvalidated_redirect", exc=e)

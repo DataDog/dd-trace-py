@@ -6,6 +6,7 @@ import contextvars
 from enum import Enum
 import sys
 from typing import Any
+from typing import Callable
 from typing import Literal
 from typing import Optional
 from typing import TypeVar
@@ -94,6 +95,7 @@ class CrashtrackerConfiguration:
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
         api_key: Optional[str] = None,
+        collect_otel_thread_contexts: bool = False,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -590,6 +592,9 @@ class TraceExporter:
         Send a trace payload to the Agent.
         :param data: The msgpack encoded trace payload to send.
         """
+        ...
+    def set_otlp_resource_attributes(self, attributes: dict[str, str]) -> None:
+        """Replace the resource attributes used by subsequent OTLP trace exports."""
         ...
     def shutdown(self, timeout_ns: int) -> None:
         """
@@ -1139,7 +1144,13 @@ class Context:
         self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
     ) -> None: ...
     @staticmethod
-    def _init_tracestate_helpers() -> None: ...
+    def _register_tracestate_helpers(
+        w3c_get_dd_list_member: Callable[..., str],
+        w3c_build_tracestate_members: Callable[..., list[str]],
+        normalize_otel_tracestate: Callable[[dict[str, str]], None],
+        materialize_otel_sampling_decision: Callable[[dict[str, str], Optional[int], bool, float, bool], None],
+        tracestate_max_bytes: int,
+    ) -> None: ...
 
 class SpanData:
     name: str
@@ -1324,6 +1335,27 @@ def process_metrics() -> tuple[int, int, int, int, int, int]:
 
 def total_memory_bytes() -> int:
     """Return total physical RAM plus swap, in bytes."""
+    ...
+
+def list_distributions(entry: str) -> list[tuple[str, str]]:
+    """List the metadata directories under one sys.path entry, a directory or a zip archive.
+
+    Only the entry is listed; no metadata is read.
+
+    :return: ``(normalized_name, directory)`` pairs in ``importlib.metadata`` lookup order, with
+        names normalized as ``importlib.metadata`` does, using underscores as separators.
+    :raises RuntimeError: If the listing fails unexpectedly; never ``PanicException``.
+    """
+    ...
+
+def read_distribution(entry: str, directory: str) -> Optional[tuple[Optional[str], Optional[str]]]:
+    """Read the name and version of one metadata directory returned by ``list_distributions``.
+
+    :return: ``(name, version)``, either of which is ``None`` when missing, as with
+        ``importlib.metadata``; or ``None`` if the distribution is gone.
+    :raises ValueError: If the metadata cannot be read or decoded.
+    :raises RuntimeError: If the read fails unexpectedly; never ``PanicException``.
+    """
     ...
 
 def scan_distributions(
