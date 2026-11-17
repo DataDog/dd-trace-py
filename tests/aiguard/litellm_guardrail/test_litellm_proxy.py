@@ -96,7 +96,10 @@ def _target(messages: list[Any]) -> str:
 
 @pytest.fixture
 def verdicts():
-    """This fixture gives the AI Guard action for each target. Change it in a test to block a prompt or an answer."""
+    """This fixture gives the AI Guard action for each target. Change it in a test to block a prompt or an answer.
+
+    A list gives one action for each call, and an exception makes the call to AI Guard fail.
+    """
     return {"prompt": "ALLOW", "answer": "ALLOW"}
 
 
@@ -112,6 +115,10 @@ def evaluations(verdicts):
 
     def verdict(url: str, payload: Any) -> Mock:
         action = verdicts[_target(payload["data"]["attributes"]["messages"])]
+        if isinstance(action, list):
+            action = action.pop(0)
+        if isinstance(action, Exception):
+            raise action
         return mock_evaluate_response(action, reason="test", block=True)
 
     with (
@@ -138,7 +145,16 @@ def openai_stub():
 
 
 @pytest.fixture
-def litellm_proxy(openai_stub, evaluations):
+def stream_analysis():
+    """This fixture gives the value of DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED for the guardrail.
+
+    Parametrize it to change it.
+    """
+    return False
+
+
+@pytest.fixture
+def litellm_proxy(openai_stub, evaluations, stream_analysis):
     """Configure the proxy with one OpenAI deployment. Call the fixture value to add the guardrail."""
     saved_lists = {name: list(getattr(litellm, name)) for name in _CALLBACK_LISTS if hasattr(litellm, name)}
     saved_router = proxy_server.llm_router
@@ -161,12 +177,15 @@ def litellm_proxy(openai_stub, evaluations):
         litellm.callbacks.append(guardrail)
         return guardrail
 
-    try:
-        yield add_guardrail
-    finally:
-        proxy_server.llm_router = saved_router
-        for name, saved in saved_lists.items():
-            setattr(litellm, name, saved)
+    # Set after the OpenAI patch, so the setting changes only the guardrail. At patch time, it also adds
+    # OpenAI raw-response wrappers, and litellm streams fail with them.
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=stream_analysis)):
+        try:
+            yield add_guardrail
+        finally:
+            proxy_server.llm_router = saved_router
+            for name, saved in saved_lists.items():
+                setattr(litellm, name, saved)
 
 
 async def _settle() -> None:
@@ -213,6 +232,7 @@ async def test_chat_completion(litellm_proxy, openai_stub, evaluations):
     assert not is_aiguard_context_active()
 
 
+@pytest.mark.parametrize("stream_analysis", [False, True])
 async def test_chat_completion_stream(litellm_proxy, openai_stub, evaluations):
     litellm_proxy()
 
@@ -241,6 +261,7 @@ async def test_text_completion(litellm_proxy, openai_stub, evaluations):
     assert not is_aiguard_context_active()
 
 
+@pytest.mark.parametrize("stream_analysis", [False, True])
 async def test_text_completion_stream(litellm_proxy, openai_stub, evaluations):
     litellm_proxy()
 
@@ -251,6 +272,21 @@ async def test_text_completion_stream(litellm_proxy, openai_stub, evaluations):
     assert "".join(t for t in texts if t) == ANSWER
     assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
     assert len(openai_stub.requests) == 1
+    assert not is_aiguard_context_active()
+
+
+async def test_client_metadata_cannot_skip_the_answer_evaluation(litellm_proxy, evaluations, verdicts):
+    # The request body sets the metadata, so a key there must not switch off the answer evaluation.
+    litellm_proxy()
+    verdicts["answer"] = "DENY"
+
+    response = await _post(
+        "/chat/completions",
+        {"model": MODEL, "messages": [{"role": "user", "content": PROMPT}], "metadata": {"ai_guard_stream": True}},
+    )
+
+    assert response.status_code == 403, response.text
+    assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
     assert not is_aiguard_context_active()
 
 
@@ -266,6 +302,7 @@ async def test_blocked_prompt(litellm_proxy, openai_stub, evaluations, verdicts)
     assert not is_aiguard_context_active()
 
 
+@pytest.mark.parametrize("stream_analysis", [True])
 async def test_blocked_streamed_answer(litellm_proxy, openai_stub, evaluations, verdicts):
     litellm_proxy()
     verdicts["answer"] = "DENY"
@@ -280,6 +317,35 @@ async def test_blocked_streamed_answer(litellm_proxy, openai_stub, evaluations, 
     assert "chat.completion.chunk" not in response.text
     assert ANSWER_PARTS[-1] not in response.text
     assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
+    assert not is_aiguard_context_active()
+
+
+async def test_denied_live_streamed_answer_is_only_reported(litellm_proxy, evaluations, verdicts):
+    # With stream analysis off, the client gets the chunks before AI Guard evaluates the answer.
+    litellm_proxy()
+    verdicts["answer"] = "DENY"
+
+    response = await _post(
+        "/chat/completions", {"model": MODEL, "messages": [{"role": "user", "content": PROMPT}], "stream": True}
+    )
+
+    assert response.status_code == 200, response.text
+    contents = [event["choices"][0]["delta"].get("content") for event in _events(response) if event["choices"]]
+    assert "".join(c for c in contents if c) == ANSWER
+    assert "error" not in response.text
+    assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
+    assert not is_aiguard_context_active()
+
+
+async def test_failed_prompt_evaluation_lets_the_openai_integration_try_again(litellm_proxy, evaluations, verdicts):
+    # The guardrail claims only after a completed evaluation, so the OpenAI listener evaluates the prompt again.
+    litellm_proxy()
+    verdicts["prompt"] = [OSError("AI Guard is not available"), "ALLOW"]
+
+    response = await _post("/chat/completions", {"model": MODEL, "messages": [{"role": "user", "content": PROMPT}]})
+
+    assert response.status_code == 200, response.text
+    assert evaluations == [("litellm", "prompt"), ("openai", "prompt"), ("litellm", "answer")]
     assert not is_aiguard_context_active()
 
 

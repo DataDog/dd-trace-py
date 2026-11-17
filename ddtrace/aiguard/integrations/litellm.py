@@ -53,8 +53,8 @@ _ANSWER_CALL_TYPES = frozenset({"completion", "acompletion", "text_completion", 
 # This variable keeps the claim of the proxy request. The proxy runs the pre-call hook in the
 # request task, and the model call and the stream get a copy of that context.
 _REQUEST_CLAIM: ContextVar[Optional[_Claim]] = ContextVar("ai_guard_litellm_request_claim", default=None)
-# This variable is True while the streaming hook reads the model stream. Some litellm versions then
-# run the post-call success hook on the full stream, in a task that copies this context.
+# This variable is True only while the streaming hook reads a chunk of the model stream. Some litellm versions
+# run the post-call success hook on the full stream, in a task that they start during that read.
 _READING_STREAM: ContextVar[bool] = ContextVar("ai_guard_litellm_reading_stream", default=False)
 
 
@@ -68,18 +68,13 @@ def _release_request() -> None:
     reset_aiguard_context_active(_REQUEST_CLAIM.get())
 
 
-async def _read_completion_stream(stream: Any) -> tuple[list[Any], bool]:
-    """Read all chunks of a chat or text completion stream. For another stream, read only the first chunk.
-
-    The returned flag is True when this function read the whole stream.
-    """
-    chunks: list[Any] = []
-    async for chunk in stream:
-        chunks.append(chunk)
-        # Chat and text completion chunks have a list of choices. Responses API events and SSE bytes do not.
-        if len(chunks) == 1 and not isinstance(getattr(chunk, "choices", None), list):
-            return chunks, False
-    return chunks, True
+async def _read_next(stream: Any) -> Any:
+    """Read the next chunk of the model stream, with the read flag set during this read only."""
+    token = _READING_STREAM.set(True)
+    try:
+        return await stream.__anext__()
+    finally:
+        _READING_STREAM.reset(token)
 
 
 class DatadogAIGuardGuardrailException(Exception):
@@ -273,10 +268,15 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         self,
         messages: list[Message],
         dynamic_params: dict[str, Any],
-    ) -> None:
+        can_block: bool = True,
+    ) -> bool:
+        """Return True when AI Guard completed the evaluation, also for a DENY in monitor mode.
+
+        With can_block False, the evaluation reports the verdict and never blocks.
+        """
         try:
             verbose_proxy_logger.debug("Datadog AI Guard: Making request to endpoint")
-            block = self._resolve_block(dynamic_params)
+            block = can_block and self._resolve_block(dynamic_params)
             response = await asyncio.to_thread(
                 self._client.evaluate,
                 messages,
@@ -292,10 +292,12 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
                     response["reason"],
                     response["tags"],
                 )
+            return True
         except AIGuardAbortError as e:
             raise DatadogAIGuardGuardrailException(403, e)
         except AIGuardClientError:
             verbose_proxy_logger.error("Datadog AI Guard: Error calling AI Guard service", exc_info=True)
+            return False
 
     async def _on_request(
         self, data: dict[str, Any], call_type: CallTypesLiteral, claim: bool = False
@@ -314,8 +316,9 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
 
         ai_guard_messages = self._convert_request_messages(request_messages)
         data.setdefault("metadata", {})["ai_guard_messages"] = ai_guard_messages
-        await self._run_ai_guard_check(ai_guard_messages, dynamic_params)
-        if claim:
+        completed = await self._run_ai_guard_check(ai_guard_messages, dynamic_params)
+        # After an AI Guard error, do not claim: the provider listeners then evaluate the prompt again.
+        if claim and completed:
             _claim_request()
 
         add_guardrail_to_applied_guardrails_header(request_data=data, guardrail_name=self.guardrail_name)
@@ -332,16 +335,18 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
 
         return await self._evaluate_response(data, response_messages)
 
-    async def _on_stream_response(self, data: dict[str, Any], chunks: list[Any]) -> None:
+    async def _on_stream_response(self, data: dict[str, Any], chunks: list[Any], can_block: bool = True) -> None:
         try:
             response_messages = self._convert_stream_messages(chunks)
         except Exception:
             # A rebuild error must not stop the stream, so this fails open.
             verbose_proxy_logger.debug("Datadog AI Guard: cannot rebuild the streamed response", exc_info=True)
             return
-        await self._evaluate_response(data, response_messages)
+        await self._evaluate_response(data, response_messages, can_block)
 
-    async def _evaluate_response(self, data: dict[str, Any], response_messages: list[Message]) -> None:
+    async def _evaluate_response(
+        self, data: dict[str, Any], response_messages: list[Message], can_block: bool = True
+    ) -> None:
         if not response_messages:
             verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. No messages found in response")
             return None
@@ -349,7 +354,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
         messages: list[Message] = list(data.get("metadata", {}).get("ai_guard_messages", []))
         messages.extend(response_messages)
-        await self._run_ai_guard_check(messages, dynamic_params)
+        await self._run_ai_guard_check(messages, dynamic_params, can_block)
 
         add_guardrail_to_applied_guardrails_header(request_data=data, guardrail_name=self.guardrail_name)
 
@@ -389,7 +394,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
             if not self.should_run_guardrail(data=data, event_type=event_type):
                 return data
             if _READING_STREAM.get():
-                # The streaming hook evaluates this answer before the proxy sends it.
+                # The streaming hook reads the model stream now, and it evaluates this answer itself.
                 return None
             return await self._on_response(data, response)
         finally:
@@ -398,9 +403,9 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
     async def async_post_call_streaming_iterator_hook(
         self, user_api_key_dict: UserAPIKeyAuth, response: Any, request_data: dict[str, Any]
     ) -> AsyncGenerator[Any, None]:
-        """Hold a streamed chat or text answer until AI Guard evaluates it. Other streams pass through live.
+        """With stream analysis on, hold a streamed chat or text answer until AI Guard evaluates it.
 
-        The proxy calls this hook only when the post_call mode applies.
+        When it is off, evaluate the answer after the last chunk. Other streams pass through live.
         """
         verbose_proxy_logger.debug("Datadog AI Guard: Post-Call Streaming Iterator Hook")
         # This first step runs in the request context. Keep the claim of this request, because the asyncio
@@ -408,22 +413,44 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         claim = _REQUEST_CLAIM.get()
         try:
             stream = response.__aiter__()
-            token = _READING_STREAM.set(True)
             try:
-                chunks, complete = await _read_completion_stream(stream)
-            finally:
-                # Reset the flag in this step, because a later step of this generator can run in another context.
-                _READING_STREAM.reset(token)
-            if complete:
+                first = await _read_next(stream)
+            except StopAsyncIteration:
+                return
+            # Chat and text completion chunks have a list of choices. Responses API events and SSE bytes do not.
+            if not isinstance(getattr(first, "choices", None), list):
+                yield first
+                async for chunk in stream:
+                    yield chunk
+                return
+            chunks = [first]
+            if aiguard_config._ai_guard_analyze_stream_responses_enabled:
+                while True:
+                    try:
+                        chunks.append(await _read_next(stream))
+                    except StopAsyncIteration:
+                        break
                 # The model stream has ended. Release the claim now, also when the client never reads the replay.
                 reset_aiguard_context_active(claim)
                 await self._on_stream_response(request_data, chunks)
                 for chunk in chunks:
                     yield chunk
                 return
-            yield chunks[0]
-            async for chunk in stream:
+            yield first
+            while True:
+                try:
+                    chunk = await _read_next(stream)
+                except StopAsyncIteration:
+                    break
+                chunks.append(chunk)
                 yield chunk
+            reset_aiguard_context_active(claim)
+            try:
+                # The client already has all chunks, so this evaluation reports the verdict and cannot block.
+                await self._on_stream_response(request_data, chunks, can_block=False)
+            except Exception:
+                # An error here must not turn a delivered stream into an error event.
+                verbose_proxy_logger.debug("Datadog AI Guard: cannot evaluate the streamed response", exc_info=True)
         finally:
             reset_aiguard_context_active(claim)
 

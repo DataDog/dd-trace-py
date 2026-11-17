@@ -252,14 +252,20 @@ both stream events.
 
 The LiteLLM guardrail keeps the handle in a ContextVar of the request task. It claims only when
 the data has `proxy_server_request`, the request is a chat or text completion, and the `post_call`
-mode applies. The proxy awaits the pre-call hook in the request task, and copies that context into
-the model call. The SDK `guardrails` argument runs the hook in the caller task, and a `during_call`
-hook runs beside the model call: they do not claim. For other request types, and with only the
-`pre_call` mode, the guardrail does not claim, so the provider listeners keep their evaluations.
-In `post_call` mode, the guardrail reads all of a streamed chat or text answer and evaluates it
-before the proxy sends the first chunk. Other streams pass through live.
-`DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` does not change this.
-Some LiteLLM versions also run the post-call success hook on the full stream: the guardrail skips it.
+mode applies. AI Guard must also complete the prompt evaluation: after an AI Guard error, the
+provider listeners evaluate the prompt again. The proxy awaits the pre-call hook in the request task,
+and copies that context into the model call. The SDK `guardrails` argument runs the hook in the caller
+task, and a `during_call` hook runs beside the model call: they do not claim. For other request
+types, and with only the `pre_call` mode, the guardrail does not claim, so the provider listeners
+keep their evaluations.
+
+In `post_call` mode, `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` controls a streamed chat or text
+answer. When it is on, the guardrail holds the answer, evaluates it, and can block it before the
+first chunk. When it is off, the chunks go out live, and the guardrail evaluates the full answer after
+the last chunk without blocking. Other streams pass through live. Some LiteLLM versions run the
+post-call success hook on the full stream, in a task that they start during a read of the model stream.
+The streaming hook sets a ContextVar around each read of the model stream, and the success hook skips
+while it is set. Do not use a key in the request metadata for this: the client controls that dict.
 
 With `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` on, LangChain itself buffers
 `stream()` / `astream()`: every chunk is read, the response is evaluated, and
