@@ -13,11 +13,14 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.exception import ContextExceptionEvent
 from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
+from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
@@ -178,3 +181,15 @@ class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[Traci
             core.dispatch(f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{ctx.identifier}", (ctx,))
         finally:
             super()._on_context_ended(ctx, exc_info)
+
+
+class SpanExceptionSubscriber(Subscriber):
+    auto_register = False
+    event_names = (ContextExceptionEvent.event_name,)
+
+    @classmethod
+    def on_event(cls, event: ContextExceptionEvent) -> None:
+        span = find_span_on_context(event.context)
+        exc_type, exc_value, traceback = event.exc_info
+        if span is not None and exc_type is not None and exc_value is not None and traceback is not None:
+            span.set_exc_info(exc_type, exc_value, traceback)
