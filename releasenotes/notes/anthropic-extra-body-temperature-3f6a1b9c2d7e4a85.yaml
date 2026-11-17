@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes ``anthropic`` spans dropping ``temperature`` from their metadata on ``anthropic`` 1.x and 2.x,
+    where the SDK takes it through ``extra_body`` instead of a request keyword. ``extra_body`` is now read as well,
+    and an explicit keyword argument takes precedence.

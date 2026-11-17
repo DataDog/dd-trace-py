@@ -1291,7 +1291,8 @@ def test_response_tools(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_error",
-    ignores=["meta.error.stack"],
+    # newer openai versions only put the message field of the error body in the exception text
+    ignores=["meta.error.stack", "meta.error.message"],
 )
 def test_response_error(openai, openai_vcr, snapshot_tracer):
     """Assert errors when an invalid model is used."""

@@ -111,8 +111,11 @@ def stop(join=False):
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
 and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so class definitions do not register
-them implicitly. Any compatibility activation during initialization belongs to the product.
+subscribers must disable class-definition registration so imports do not activate them
+implicitly. Set the `auto_register = False` class attribute to also defer registration
+for subclasses. Context subscribers can instead pass `auto_register=False` in the class
+declaration to defer only that class, preserving automatic registration for its subclasses.
+Any compatibility activation during initialization belongs to the product.
 
 Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
