@@ -69,6 +69,12 @@ The web request and span exception subscribers use explicit registration rather 
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 
+Aiohttp keeps a task-completion fallback for deferred responses and failures that
+may never prepare a response. Store the callback handle and remove it when the
+request finishes: connection tasks can remain alive across keep-alive requests.
+Do not retain exception objects in deferred callbacks; record errors synchronously
+and allow cancellation to complete without requiring a response or tagging it as an error.
+
 Bottle maps request and response metadata into WebFrameworkRequestEvent and leaves
 propagation, spans, and HTTP error policy to WebFrameworkRequestSubscriber. Raised
 HTTPResponse objects set response_from_exception so the subscriber applies status-based
