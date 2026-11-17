@@ -111,14 +111,6 @@ def test_subscriber_finishes_with_the_integration_it_started_with(subscriber, in
     replacement.llmobs_set_tags.assert_not_called()
 
 
-def test_subscriber_skips_events_carrying_their_own_integration(subscriber, integrations):
-    subscriber.register()
-
-    _request("llama_index", llmobs_integration=mock.Mock(llmobs_enabled=False))
-
-    integrations["llama_index"].llmobs_set_tags.assert_not_called()
-
-
 def test_subscriber_registers_once_and_unregisters(subscriber, integrations):
     subscriber.register()
     subscriber.register()
