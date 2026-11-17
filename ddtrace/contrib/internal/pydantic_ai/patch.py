@@ -127,7 +127,7 @@ def _wrap_decision_module(module) -> None:
     if decision_model is None or not hasattr(decision_model, "_decide"):
         log.debug("pydantic_ai DecisionModel._decide not found, decision requests are not traced")
         return
-    if isinstance(decision_model.__dict__.get("_decide"), wrapt.ObjectProxy):
+    if isinstance(decision_model.__dict__.get("_decide"), wrapt.FunctionWrapper):
         return
     wrap(decision_model, "_decide", traced_decision_model_decide)
 
@@ -170,7 +170,7 @@ def unpatch():
     ModuleWatchdog.unregister_module_hook(_DECISION_MODULE, _wrap_decision_module)
     decision_module = sys.modules.get(_DECISION_MODULE)
     decision_model = getattr(decision_module, "DecisionModel", None)
-    if decision_model is not None and isinstance(decision_model.__dict__.get("_decide"), wrapt.ObjectProxy):
+    if decision_model is not None and isinstance(decision_model.__dict__.get("_decide"), wrapt.FunctionWrapper):
         unwrap(decision_model, "_decide")
 
     delattr(pydantic_ai, "_datadog_integration")

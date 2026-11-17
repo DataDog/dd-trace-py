@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.typesafe.ai/v1/systemone",
+    "headers": {
+      "Accept": "*/*",
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "User-Agent": "pydantic-ai/2.68.0",
+      "Content-Length": "495",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"state\":\"Our dashboards and API calls have been timing out for 20 minutes and we have a demo in an hour.\",\"model\":\"jev-latest\",\"questions\":{\"urgent\":{\"type\":\"noul\",\"instructions\":{\"field\":\"urgent\",\"question\":\"Does the ticket need a reply within one hour?\",\"goal\":\"Triage a support ticket.\"}},\"team\":{\"type\":\"choice\",\"criteria\":{\"billing\":null,\"engineering\":null,\"sales\":null},\"instructions\":{\"field\":\"team\",\"question\":\"Which team should handle the ticket?\",\"goal\":\"Triage a support ticket.\"}}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Tue, 17 Nov 2026 16:57:02 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "x-typesafe-request-id": "req_01a1ea70ca27756aa31ba60361c84849",
+      "x-envoy-upstream-service-time": "53",
+      "Server": "cloudflare",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "__cf_bm=OiM_39mcQcyw_yJ_B5td7sd_jBfmPkCavtHgSh1xCpE-1794934622.7492218-1.0.1.1-WSdvL2VO5D3aesZZVftZDRrBPX4SSE0JXHYHHtQA61SuanT.Nl7tSS2WMtJqB7v.HuZWiyiThuZ_b19oTZ7hoelqxxgp4P8VlFI1Ugtv.6IsALqOmQ_9ONe605ciuAVJ; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=typesafe.ai; Expires=Tue, 17 Nov 2026 17:27:02 GMT",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a5c045b0293ba115-BOS",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"model\":\"jev-1.14.0\",\"answers\":{\"urgent\":{\"type\":\"noul\",\"noul\":0.96},\"team\":{\"type\":\"choice\",\"choice\":\"engineering\",\"confidence\":1.0,\"probabilities\":{\"billing\":0.0,\"engineering\":1.0,\"sales\":0.0}}},\"usage\":{\"input_tokens\":391,\"output_tokens\":54}}"
+  }
+}

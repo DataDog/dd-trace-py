@@ -166,7 +166,7 @@ class TestPydanticAIDecisions:
             data,
             span_kind="llm",
             name="SystemOneModel.decide",
-            model_provider="system-one",
+            model_provider="typesafe",
             tags={"decision_provider": "typesafe"},
         )
         assert data["meta"]["model_name"].startswith("jev")
