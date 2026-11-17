@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import cast
 
 from ddtrace import config
 from ddtrace._trace.span import Span
@@ -58,7 +59,14 @@ def _derive_peer_hostname(service: str, region: str, params: Optional[dict[str, 
     return f"{mapped}.{region}.amazonaws.com" if mapped else None
 
 
-def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
+def set_botocore_patched_api_call_span_tags(
+    span: Span,
+    instance: Any,
+    args: tuple[Any, ...],
+    params: dict[str, Any],
+    endpoint_name: str,
+    operation: Optional[str],
+) -> None:
     span._set_attribute(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
@@ -68,7 +76,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         # DEV: join is the fastest way of concatenating strings that is compatible
         # across Python versions (see
         # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
-        span.resource = ".".join((endpoint_name, operation.lower()))
+        span.resource = ".".join((endpoint_name, cast(str, operation).lower()))
         span.set_tag("aws_service", endpoint_name)
 
         if params and not config.botocore["tag_no_params"]:
@@ -101,7 +109,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
 
 
 def set_botocore_response_metadata_tags(
-    span: Span, result: dict[str, Any], is_error_code_fn: Optional[Callable] = None
+    span: Span, result: dict[str, Any], is_error_code_fn: Optional[Callable[[int], bool]] = None
 ) -> None:
     if not result or not result.get("ResponseMetadata"):
         return
