@@ -66,9 +66,21 @@ bundles. Global initialization uses an import hook to defer activation until the
 subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
 `DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
 the product manager.
-The web request and span exception subscribers use explicit registration rather than class-definition registration.
+Concrete SDK-independent tracing subscribers use explicit registration rather than class-definition registration.
+The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
+including explicitly deferred global tracer creation. Web request and span exception activation timing
+is unchanged. The generic span bundle registers `TracingSubscriber` directly. Its class declaration
+passes `auto_register=False` to defer only the base class; custom subclasses retain automatic
+registration unless they opt out with the existing class attribute.
+Ray retains SDK-dependent activation from its patch module until a separate migration.
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
+
+Aiohttp keeps a task-completion fallback for deferred responses and failures that
+may never prepare a response. Store the callback handle and remove it when the
+request finishes: connection tasks can remain alive across keep-alive requests.
+Do not retain exception objects in deferred callbacks; record errors synchronously
+and allow cancellation to complete without requiring a response or tagging it as an error.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

@@ -3,21 +3,27 @@ import logging
 import platform
 import sys
 from typing import Any
+from typing import Optional
 from typing import Union
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 from ddtrace import _monkey
 from ddtrace.internal import agent
 from ddtrace.internal import core
+from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import RUNTIME_METRICS_ENABLED_KEY
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings._opentelemetry import otel_config
+from ddtrace.internal.settings._opentelemetry import otel_sdk_resource_attributes
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.version import __version__
 
 from .logger import get_logger
@@ -25,9 +31,9 @@ from .logger import get_logger
 
 logger = get_logger(__name__)
 
-# The architecture function spawns the file subprocess on the interpreter
-# executable. We make sure we call this once and cache the result.
-architecture = callonce(lambda: platform.architecture())
+# The interpreter bit width, as platform.architecture() reports it. That function spawns the file command, which
+# collect() would then do at every start, now that the startup logs are on by default.
+_ARCHITECTURE = "64bit" if sys.maxsize > 2**32 else "32bit"
 
 
 def in_venv() -> bool:
@@ -45,6 +51,143 @@ def tags_to_str(tags: dict[str, Any]) -> str:
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
+_REDACTED = "<redacted>"
+
+
+def _sanitize_url(url: Optional[str]) -> Optional[str]:
+    """Remove the parts of a URL that can hold credentials: user info, query, and fragment.
+
+    Returns None when the user info cannot be told apart from the rest of the URL.
+    """
+    if not url:
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    # Without a host, the URL is a Unix socket path or has the host:port form gRPC accepts.
+    authority = parts.netloc or url.split("?", 1)[0].split("#", 1)[0]
+    if url.count("@") != authority.count("@"):
+        # A /, ? or # in the user info ends the authority before its @, which leaves part of it in the host or the
+        # path: the user info cannot be told apart, so report nothing rather than part of it.
+        return None
+    host = authority.rpartition("@")[2]
+    return urlunsplit((parts.scheme, host, parts.path, "", "")) if parts.netloc else host
+
+
+def _redact_otlp_headers(headers: Optional[str]) -> dict[str, str]:
+    """Report the names of the configured OTLP headers only, as their values often hold API keys."""
+    names = {}
+    for item in (headers or "").split(","):
+        name, sep, _ = item.partition("=")
+        name = name.strip().lower()
+        if sep and name:
+            names[name] = _REDACTED
+    return names
+
+
+def _otel_traces_sampler(sampling_rules: list[Any]) -> tuple[str, Optional[float]]:
+    """Return the OpenTelemetry sampler equivalent to the root sampling, and its ratio when it has one.
+
+    Spans with a propagated sampling decision are never resampled, so every equivalent is parent-based.
+    Datadog sampling without an OpenTelemetry equivalent gets a datadog_* name describing what drives it.
+    """
+    if not sampling_rules:
+        return "datadog_agent_rates", None
+    # The first matching rule applies, so a first rule that matches every span sets a fixed rate.
+    rule = sampling_rules[0]
+    if rule.service is not None or rule.name is not None or rule.resource is not None or rule.tags:
+        return "datadog_custom_rules", None
+    if rule.sample_rate == 1:
+        return "parentbased_always_on", None
+    if rule.sample_rate == 0:
+        return "parentbased_always_off", None
+    return "parentbased_traceidratio", rule.sample_rate
+
+
+def _otel_propagators() -> Optional[str]:
+    """Return the OTEL_PROPAGATORS equivalent of the propagation styles.
+
+    Returns None when injection and extraction differ, since no single OTEL_PROPAGATORS value describes them.
+    """
+    inject = [style for style in config._propagation_style_inject or () if style != _PROPAGATION_STYLE_NONE]
+    extract = [style for style in config._propagation_style_extract or () if style != _PROPAGATION_STYLE_NONE]
+    if inject != extract:
+        return None
+    return ",".join(inject) or _PROPAGATION_STYLE_NONE
+
+
+def _otel_log_level() -> str:
+    """Return the OTEL_LOG_LEVEL name of the minimum level the ddtrace logger emits."""
+    level = logging.getLogger("ddtrace").getEffectiveLevel()
+    if level < logging.DEBUG:
+        return "trace"
+    if level < logging.INFO:
+        return "debug"
+    if level < logging.WARNING:
+        return "info"
+    if level < logging.ERROR:
+        return "warn"
+    if level < logging.CRITICAL:
+        return "error"
+    return "fatal"
+
+
+def _collect_otel(tracer_info: TracerDebugInfo) -> dict[str, Any]:
+    """Collect the effective OpenTelemetry configuration, keyed by the environment variable that sets each value.
+
+    Every supported setting is reported, including those of the disabled signals. Header values are redacted.
+    """
+    exporter = otel_config.exporter
+    writer = tracer_info.writer
+    otlp_traces = config._tracing_enabled and isinstance(writer, NativeWriter) and writer.otlp_endpoint is not None
+    sampler, sampler_arg = _otel_traces_sampler(tracer_info.sampling_rules)
+
+    info: dict[str, Any] = {
+        # Traces
+        "DD_TRACE_OTEL_ENABLED": config._otel_trace_enabled,
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": config._otel_trace_semantics_enabled,
+        "OTEL_TRACES_EXPORTER": "otlp" if otlp_traces else "none",
+        "OTEL_TRACES_SAMPLER": sampler,
+    }
+    if sampler_arg is not None:
+        info["OTEL_TRACES_SAMPLER_ARG"] = sampler_arg
+    info.update(
+        {
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": _sanitize_url(exporter.TRACES_ENDPOINT),
+            "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": exporter.TRACES_PROTOCOL,
+            "OTEL_EXPORTER_OTLP_TRACES_HEADERS": _redact_otlp_headers(exporter.TRACES_HEADERS),
+            "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT": exporter.TRACES_TIMEOUT,
+            # Logs
+            "DD_LOGS_OTEL_ENABLED": config._otel_logs_enabled,
+            "OTEL_LOGS_EXPORTER": "otlp" if config._otel_logs_enabled else "none",
+            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": _sanitize_url(exporter.LOGS_ENDPOINT),
+            "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": exporter.LOGS_PROTOCOL,
+            "OTEL_EXPORTER_OTLP_LOGS_HEADERS": _redact_otlp_headers(exporter.LOGS_HEADERS),
+            "OTEL_EXPORTER_OTLP_LOGS_COMPRESSION": exporter.LOGS_COMPRESSION,
+            # Metrics
+            "DD_METRICS_OTEL_ENABLED": config._otel_metrics_enabled,
+            "OTEL_METRICS_EXPORTER": "otlp" if config._otel_metrics_enabled else "none",
+            "OTEL_METRIC_EXPORT_INTERVAL": exporter.METRICS_METRIC_READER_EXPORT_INTERVAL,
+            "OTEL_METRIC_EXPORT_TIMEOUT": exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT,
+            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": _sanitize_url(exporter.METRICS_ENDPOINT),
+            "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": exporter.METRICS_PROTOCOL,
+            "OTEL_EXPORTER_OTLP_METRICS_HEADERS": _redact_otlp_headers(exporter.METRICS_HEADERS),
+            "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION": exporter.METRICS_COMPRESSION,
+            "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": exporter.METRICS_TEMPORALITY_PREFERENCE,
+            # Settings shared by every signal
+            "OTEL_EXPORTER_OTLP_ENDPOINT": _sanitize_url(exporter.ENDPOINT),
+            "OTEL_EXPORTER_OTLP_PROTOCOL": exporter.PROTOCOL,
+            "OTEL_EXPORTER_OTLP_HEADERS": _redact_otlp_headers(exporter.HEADERS),
+            "OTEL_LOG_LEVEL": _otel_log_level(),
+            "OTEL_SERVICE_NAME": config.service,
+            "OTEL_RESOURCE_ATTRIBUTES": otel_sdk_resource_attributes(),
+            "OTEL_PROPAGATORS": _otel_propagators(),
+        }
+    )
+    return info
+
+
 def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
@@ -57,8 +200,9 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         agent_error = None
     elif isinstance(tracer_info.writer, AgentWriterInterface):
         writer = tracer_info.writer
-        agent_url = writer.intake_url
-        reachable = agent.is_reachable(agent_url)  # type: ignore[no-untyped-call]
+        reachable = agent.is_reachable(writer.intake_url)  # type: ignore[no-untyped-call]
+        # The startup log is emitted by default, so it leaves out the credentials the URL can hold.
+        agent_url = _sanitize_url(writer.intake_url) or _REDACTED
         agent_error = None if reachable else "Agent not reachable at %s" % agent_url
     else:
         agent_url = "CUSTOM"
@@ -100,7 +244,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
     pip_version = packages_available.get("pip", "N/A")
     git_repository_url, git_commit_sha, git_main_package = gitmetadata.get_git_tags()
 
-    return dict(
+    info: dict[str, Any] = dict(
         # Timestamp UTC ISO 8601 with the trailing +00:00 removed
         date=datetime.datetime.now(datetime.timezone.utc).isoformat()[0:-6],
         # eg. "Linux", "Darwin"
@@ -108,7 +252,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         # eg. 12.5.0
         os_version=platform.release(),
         is_64_bit=sys.maxsize > 2**32,
-        architecture=architecture()[0],
+        architecture=_ARCHITECTURE,
         vm=platform.python_implementation(),
         version=__version__,
         lang="python",
@@ -117,7 +261,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         in_virtual_env=is_venv,
         agent_url=agent_url,
         agent_error=agent_error,
-        statsd_url=agent_config.dogstatsd_url,
+        statsd_url=_sanitize_url(agent_config.dogstatsd_url),
         env=config.env or "",
         ddtrace_enabled=config._tracing_enabled,
         sampling_rules=sampling_rules,
@@ -145,6 +289,8 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         git_main_package=git_main_package,
         log_level_override=env.get("DD_TRACE_LOG_LEVEL"),
     )
+    info.update(_collect_otel(tracer_info))
+    return info
 
 
 def pretty_collect(tracer: Any, color=True):

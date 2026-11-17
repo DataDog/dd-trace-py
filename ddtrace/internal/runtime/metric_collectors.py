@@ -26,7 +26,7 @@ from .gc_monitor import gc_pause_monitor
 MetricValue = Union[int, float]
 
 
-class RuntimeMetricCollector(ValueCollector[MetricValue]):
+class RuntimeMetricCollector(ValueCollector[tuple[str, MetricValue]]):
     value: Optional[list[tuple[str, MetricValue]]] = []
     periodic = True
 
