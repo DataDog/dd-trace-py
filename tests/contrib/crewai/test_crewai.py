@@ -298,3 +298,20 @@ async def test_flow_method_span_finishes_when_state_capture_raises(crewai, trace
     (span,) = [span for trace in test_spans.pop_traces() for span in trace]
     assert span.error == 1
     assert span.get_tag("error.type") == "builtins.ValueError"
+
+
+async def test_async_tool_cancellation_is_recorded(crewai, test_spans):
+    import asyncio
+    from types import SimpleNamespace
+
+    from ddtrace.contrib.internal.crewai.utils import traced_tool_ainvoke
+
+    async def cancelled(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await traced_tool_ainvoke(cancelled, SimpleNamespace(name="tool"), (), {"input": {}})
+
+    (span,) = [span for trace in test_spans.pop_traces() for span in trace]
+    assert span.error == 1
+    assert span.get_tag("error.type") == "asyncio.exceptions.CancelledError"

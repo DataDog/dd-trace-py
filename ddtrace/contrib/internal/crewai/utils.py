@@ -78,7 +78,8 @@ async def _atraced_call(func, instance, args, kwargs, event):
         try:
             event.response = await func(*args, **kwargs)
             return event.response
-        except Exception:
+        # BaseException so that a cancelled execution is recorded as an error.
+        except BaseException:
             error = True
             raise
         finally:
