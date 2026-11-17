@@ -7,6 +7,7 @@ import re
 from typing import Any
 from typing import Optional
 from typing import Union
+from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -226,6 +227,27 @@ def parse_llmobs_metric_args(metrics):
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return usage
+
+
+_SYSTEM_ONE_PROVIDERS_BY_HOST = (
+    ("azure.com", "azure"),
+    ("cloudflare.com", "cloudflare"),
+    ("liquid.ai", "liquid"),
+    ("meragpt.com", "meragpt"),
+)
+
+
+def get_system_one_provider(base_url: Optional[str]) -> Optional[str]:
+    """Return the provider serving a System One API at base_url, or None when the host is not known."""
+    if not base_url:
+        return None
+    if "openrouter" in base_url.lower():
+        return "openrouter"
+    host = (urlparse(base_url).hostname or "").lower()
+    for suffix, provider in _SYSTEM_ONE_PROVIDERS_BY_HOST:
+        if host == suffix or host.endswith("." + suffix):
+            return provider
+    return None
 
 
 def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:

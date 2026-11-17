@@ -321,9 +321,10 @@ def test_system_one_attached_image_referenced_in_text(typesafe_sdk, typesafe_llm
     "base_url,expected_provider",
     [
         ("https://openrouter.ai/api/v1", "openrouter"),
-        ("https://my-resource.services.ai.azure.com/models", "azure_foundry"),
+        ("https://my-resource.services.ai.azure.com/models", "azure"),
         ("https://api.cloudflare.com/client/v4/accounts/abc/ai", "cloudflare"),
-        ("https://api.liquid.ai", "liquid"),
+        ("https://api.liquid.ai/decisions", "liquid"),
+        ("https://notliquid.ai", "typesafe"),
         ("https://api.meragpt.com", "meragpt"),
         ("https://api.typesafe.ai", "typesafe"),
         ("http://localhost:8080", "typesafe"),
