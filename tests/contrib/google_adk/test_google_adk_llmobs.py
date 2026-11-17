@@ -4,6 +4,7 @@ from google.adk.tools.function_tool import FunctionTool
 import pytest
 
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._contrib._subscribers import get_integration
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -199,12 +200,12 @@ class TestLLMObsGoogleADK:
         still be annotated with its kind so it survives event preparation. A dropped agent span
         orphans its child spans, so we also assert a child span stays parented to the agent.
         """
-        integration = adk._datadog_integration
+        integration = get_integration("google_adk")
         agent_span = integration.trace(
             "Runner.run_async",
             provider="google",
             model="gemini-2.5-pro",
-            kind="agent",
+            operation="agent",
             submit_to_llmobs=True,
         )
 

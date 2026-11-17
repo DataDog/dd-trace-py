@@ -4,6 +4,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.appsec._iast.sources import ast_function as source_ast_function
 from ddtrace.appsec._iast.taint_sinks.ast_taint import ast_function
 from ddtrace.internal.telemetry import telemetry_writer
 
@@ -38,3 +39,17 @@ def test_application_open_error_through_ast_function_is_not_reported_as_ddtrace_
 
     add_error_log.assert_not_called()
     app_shutdown.assert_called_once()
+
+
+class KeywordTarget:
+    def get(self, **kwargs):
+        return kwargs
+
+    def read(self, **kwargs):
+        return kwargs
+
+
+@pytest.mark.parametrize("dispatcher,method", [(ast_function, "get"), (source_ast_function, "read")])
+def test_ast_function_passes_its_own_parameter_names_to_the_callee(dispatcher, method):
+    target = getattr(KeywordTarget(), method)
+    assert dispatcher(target, 0, func=1, flag_added_args=2) == {"func": 1, "flag_added_args": 2}
