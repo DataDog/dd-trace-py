@@ -1,0 +1,87 @@
+interactions:
+- request:
+    body: '{"model":"gpt-6-luna","input":"I was charged twice for my subscription
+      this month and want the duplicate refunded.","questions":[{"type":"predicate","name":"needs_refund","instructions":"Is
+      the customer asking for a refund?"}]}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '227'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - litellm/1.109.1
+    method: POST
+    uri: https://api.openai.com/v1/decisions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/12OQQrCMBBF7zLrKO1GoVcRCdNmrMF0EpIJpZTc3RRBW7fvPx5/hckbctDBGOR0
+        ObnMCAqQ00wxQXdbQZZAdQ+RjB1QqM6M04aYyCQd6ZHZVBqi77G3zsoCXXtuyl1BTjhWdQXLIYsW
+        /yKu2fbaqgPShgStS5s64PAk83Ub9SF6jlboh4sCn2Vfbf7IPhoJk2fL4yEgXtDtX5XyBnMsisIS
+        AQAA
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - x-request-id,retry-after,server-timing-total
+      - CF-Ray
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      CF-RAY:
+      - a5c0327e4e1a4cee-BOS
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 17 Nov 2026 16:43:56 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=6XyE93oSvoD4xn7r_QRQnkCuMwB8dnr.Uq.NpRF5UBA-1794933836.5278592-1.0.1.1-xx2MnmvJKRh6Q9W_B3RsxKouGvM2t5mNey1Pp9MHXLegLkPWeI0S89dkhPg_a9pkdmX0VCESXF8CBY.rEmI31yPr0dsnVh0V10y0cOM7J74c51ezsQIfTJ7moxY6Pwjq;
+        HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=api.openai.com;
+        Expires=Tue, 17 Nov 2026 17:13:56 GMT
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - origin, access-control-request-method, access-control-request-headers
+      X-Content-Type-Options:
+      - nosniff
+      X-Request-ID:
+      - req_99051818b74e4cd2828957ce419c4753
+      cf-cache-status:
+      - DYNAMIC
+      openai-processing-ms:
+      - '86'
+      server-timing-total:
+      - '86.440'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '180000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '179999829'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+    status:
+      code: 200
+      message: OK
+version: 1

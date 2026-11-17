@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from typing import Optional
 
@@ -29,7 +30,9 @@ from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_decision
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_metadata
+from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import ImagePart
@@ -116,6 +119,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
             _set_system_one_io(span, kwargs, response)
         else:
             openai_set_meta_tags_from_decision(span, kwargs, response)
+        if not is_llm:
+            _use_message_content_as_value(span)
         self._update_litellm_metadata(span, kwargs, operation)
 
     def _decision_model(self, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]) -> tuple[str, str]:
@@ -383,3 +388,14 @@ def _system_one_media(value: Any, image_parts: list[ImagePart]) -> Any:
     if isinstance(value, list):
         return [_system_one_media(v, image_parts) for v in value]
     return value
+
+
+def _use_message_content_as_value(span: Span) -> None:
+    """On a non-llm span, record the body itself as the value rather than the list of one message carrying it."""
+    for value, key in ((get_llmobs_input_value(span), "input_value"), (get_llmobs_output_value(span), "output_value")):
+        try:
+            messages = json.loads(value or "")
+            body = json.loads(messages[0]["content"])
+        except (ValueError, TypeError, KeyError, IndexError):
+            continue
+        _annotate_llmobs_span_data(span, **{key: body})

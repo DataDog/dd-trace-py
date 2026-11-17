@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: '{"model":"jev-latest","state":"I was charged twice for my subscription
+      this month and want the duplicate refunded.","questions":{"needs_refund":{"type":"noul","instructions":"Is
+      the customer asking for a refund?"}}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '215'
+      content-type:
+      - application/json
+      host:
+      - api.typesafe.ai
+      user-agent:
+      - litellm/1.109.1
+    method: POST
+    uri: https://api.typesafe.ai/v1/systemone
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/1TMQQqDMBQE0LvMOg0qXTS5jAiZFlv7IybfIpK7N7pzNczwmB3fGDjB48311tr2
+        bhsYDJJ+XBL8DiFD6hc+VcLR8zazcok6VXiGb6xzpRhoGl480Ciz5j7HD6WedA9nEDVftq6UPwAA
+        AP//AwBsZ/+/fQAAAA==
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      CF-RAY:
+      - a5c0327a88dd8fa2-BOS
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 17 Nov 2026 16:43:56 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=z1rukiDyX.w8BHOmMDGTXFFJI.zZ8dbeqFRiUIrVuUk-1794933835.9252586-1.0.1.1-9QrvXiWmW03FRCthvDj1ntTxDh1NAV8WQI9IJNVU1.Mh.68eMlnu5WaADfriU.dfN9u7HhcxlzVAvspBrMaHhbZIddFleAkhgmwLlj9X_ZMUzb2cokzk6lupnXn77J5b;
+        HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=typesafe.ai;
+        Expires=Tue, 17 Nov 2026 17:13:56 GMT
+      Transfer-Encoding:
+      - chunked
+      cf-cache-status:
+      - DYNAMIC
+      x-envoy-upstream-service-time:
+      - '68'
+      x-typesafe-request-id:
+      - req_01a1ea64c8a77b1685ed2b94f96a07b3
+    status:
+      code: 200
+      message: OK
+version: 1
