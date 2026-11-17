@@ -264,6 +264,10 @@ def test_single_trace_too_large():
     from tests.utils import AnyStr
 
     assert t._span_aggregator.partial_flush_enabled is True
+    buffer_spy = None
+    if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # Partial flush must hand the oversized trace to the buffer in pieces.
+        buffer_spy = t._span_aggregator.writer._buffer = mock.Mock(wraps=t._span_aggregator.writer._buffer)
     with (
         mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None),
         mock.patch("ddtrace.internal.writer.writer.log") as log,
@@ -280,6 +284,7 @@ def test_single_trace_too_large():
             for call in log.warning.call_args_list:
                 assert call.args[0] == "native trace buffer dropped spans: %s"
                 assert "BatchFull" in call.args[1]
+            assert buffer_spy.write.call_count > 1, "partial flush never split the trace into chunks"
         else:
             calls = [
                 mock.call(
