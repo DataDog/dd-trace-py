@@ -77,10 +77,10 @@ Datadog::ProfilerStats::reset_state()
     heap_tracker_size = std::nullopt;
     heap_tracker_cap_drops = std::nullopt;
     asyncio_initialized = std::nullopt;
+    asyncio_loop_tracked = std::nullopt;
     asyncio_runtime_offsets_discovered = std::nullopt;
     asyncio_interpreter_tasks_head_offset = std::nullopt;
     asyncio_thread_tasks_head_offset = std::nullopt;
-    asyncio_loop_threads_count = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     sample_capture_cpu_time_us = 0;
@@ -252,6 +252,15 @@ Datadog::ProfilerStats::set_asyncio_initialized(bool initialized)
 }
 
 void
+Datadog::ProfilerStats::set_asyncio_loop_tracked(bool tracked)
+{
+    // Stays true for the rest of the profile period once any sampling cycle saw a tracked loop
+    if (!asyncio_loop_tracked.value_or(false)) {
+        asyncio_loop_tracked = tracked;
+    }
+}
+
+void
 Datadog::ProfilerStats::set_asyncio_runtime_offsets_discovered(bool discovered)
 {
     asyncio_runtime_offsets_discovered = discovered;
@@ -279,22 +288,6 @@ std::optional<size_t>
 Datadog::ProfilerStats::get_asyncio_thread_tasks_head_offset() const
 {
     return asyncio_thread_tasks_head_offset;
-}
-
-void
-Datadog::ProfilerStats::set_asyncio_loop_threads_count(size_t count)
-{
-    // Track the peak (max) asyncio loop thread count observed across sampling cycles
-    // within a profile period
-    if (!asyncio_loop_threads_count.has_value() || count > *asyncio_loop_threads_count) {
-        asyncio_loop_threads_count = count;
-    }
-}
-
-std::optional<size_t>
-Datadog::ProfilerStats::get_asyncio_loop_threads_count() const
-{
-    return asyncio_loop_threads_count;
 }
 
 void
@@ -395,6 +388,7 @@ Datadog::ProfilerStats::get_internal_metadata_json() const
     }
 
     append_optional_bool(internal_metadata_json, "asyncio_initialized", asyncio_initialized);
+    append_optional_bool(internal_metadata_json, "asyncio_loop_tracked", asyncio_loop_tracked);
     append_optional_bool(
       internal_metadata_json, "asyncio_runtime_offsets_discovered", asyncio_runtime_offsets_discovered);
 
@@ -409,13 +403,6 @@ Datadog::ProfilerStats::get_internal_metadata_json() const
     if (maybe_asyncio_thread_offset) {
         internal_metadata_json += R"("asyncio_thread_tasks_head_offset": )";
         append_to_string(internal_metadata_json, *maybe_asyncio_thread_offset);
-        internal_metadata_json += ",";
-    }
-
-    auto maybe_asyncio_loop_threads_count = get_asyncio_loop_threads_count();
-    if (maybe_asyncio_loop_threads_count) {
-        internal_metadata_json += R"("asyncio_loop_threads_count": )";
-        append_to_string(internal_metadata_json, *maybe_asyncio_loop_threads_count);
         internal_metadata_json += ",";
     }
 

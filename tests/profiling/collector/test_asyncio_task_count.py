@@ -55,7 +55,7 @@ def test_asyncio_task_count_present() -> None:
             metadata = json.load(fp)
         if metadata.get("asyncio_initialized"):
             found_initialized = True
-        if metadata.get("asyncio_loop_threads_count", 0) > 0:
+        if metadata.get("asyncio_loop_tracked"):
             found_loop = True
         if "asyncio_task_count" in metadata:
             assert isinstance(metadata["asyncio_task_count"], int)

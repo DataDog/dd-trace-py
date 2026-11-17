@@ -80,10 +80,11 @@ class EchionSampler
     // The pointer is borrowed and used as an address only by the sampling thread.
     PyObject* current_gc_frame_ = nullptr;
 
-    // Accumulated counts of sampled threads with a tracked asyncio loop, and of their tasks, in the current cycle.
-    // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), these only reflect the sampled subset,
-    // not all threads in the process. Only accessed from the sampling thread, so no lock/atomic is needed.
-    size_t asyncio_loop_threads_count_ = 0;
+    // Whether a sampled thread had a tracked asyncio loop, and the accumulated asyncio task count, in the current
+    // sampling cycle. When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), these only reflect the
+    // sampled subset, not all threads in the process. Only accessed from the sampling thread, so no lock/atomic is
+    // needed.
+    bool asyncio_loop_tracked_ = false;
     size_t asyncio_task_count_ = 0;
 
     // Maximum number of frames to collect for plain thread stacks.
@@ -236,11 +237,11 @@ class EchionSampler
 
     void reset_asyncio_counts()
     {
-        asyncio_loop_threads_count_ = 0;
+        asyncio_loop_tracked_ = false;
         asyncio_task_count_ = 0;
     }
-    void increment_asyncio_loop_threads_count() { asyncio_loop_threads_count_++; }
-    size_t asyncio_loop_threads_count() const { return asyncio_loop_threads_count_; }
+    void mark_asyncio_loop_tracked() { asyncio_loop_tracked_ = true; }
+    bool asyncio_loop_tracked() const { return asyncio_loop_tracked_; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
 
@@ -337,7 +338,7 @@ class EchionSampler
 
         asyncio_boundary_frame_.reset();
         uvloop_boundary_frame_.reset();
-        asyncio_loop_threads_count_ = 0;
+        asyncio_loop_tracked_ = false;
         asyncio_task_count_ = 0;
         rng_ = std::minstd_rand{ std::random_device{}() };
 
