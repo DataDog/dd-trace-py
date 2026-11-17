@@ -1,4 +1,5 @@
 from collections import defaultdict
+import sys
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -7,6 +8,7 @@ from weakref import WeakKeyDictionary
 
 from ddtrace.contrib.internal.langchain.constants import CHAIN_INPUTS_KEY
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -61,7 +63,10 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool", "runnable_lambda"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool", "runnable_lambda", "decision"]
+DECISION_PROVIDER_TAG = "decision_provider"
+# BaseDecisionModel._provider values that differ from the model_provider other integrations report
+DECISION_MODEL_PROVIDERS = {"google_genai": "google"}
 LANGCHAIN_BASE_URL_FIELDS = [
     "api_base",
     "api_host",
@@ -131,6 +136,29 @@ def _is_google_genai_backed(instance) -> bool:
     return module == "google.genai" or module.startswith("google.genai.")
 
 
+def _decision_has_provider_span(instance) -> bool:
+    """True if the decision model calls an SDK decisions method that ddtrace traces.
+
+    OpenAIClassifier and TypeSafeClassifier send raw HTTP requests, so only the Google classifier, which calls
+    google.genai Decisions.create, can have a provider span below it.
+    """
+    if getattr(instance, "_provider", None) != "google_genai":
+        return False
+    decisions_cls = getattr(sys.modules.get("google.genai.decisions"), "Decisions", None)
+    create = getattr(decisions_cls, "create", None)
+    return create is not None and is_wrapted(create) and LLMObs._integration_is_enabled("google_genai")
+
+
+def _to_json_value(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json", exclude_none=True)
+    if isinstance(value, dict):
+        return {k: _to_json_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_json_value(v) for v in value]
+    return value
+
+
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
@@ -182,6 +210,9 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         self._set_links(span)
+        if operation == "decision":
+            self._llmobs_set_meta_tags_from_decision(span, args, kwargs, response)
+            return
         model_provider = span.get_tag(PROVIDER)
         instance = self._instances.get(span)
 
@@ -246,7 +277,11 @@ class LangChainIntegration(BaseLLMIntegration):
         }
         span_kind = span_kind_map.get(operation, "workflow")
         metrics = {}
-        if operation in ("llm", "chat") and response is not None:
+        if operation == "decision":
+            span_kind = "workflow" if self._decision_is_workflow(span) else "llm"
+            if span_kind == "llm":
+                metrics = self._decision_usage(response)
+        elif operation in ("llm", "chat") and response is not None:
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(response)
             if total_tokens > 0:
                 metrics = {
@@ -833,6 +868,59 @@ class LangChainIntegration(BaseLLMIntegration):
             kind="task",
             input_value=safe_json(inputs),
             output_value=safe_json(response),
+        )
+
+    def _decision_is_workflow(self, span: Span) -> bool:
+        return span._get_ctx_item(PROXY_REQUEST) is True or _decision_has_provider_span(self._instances.get(span))
+
+    @staticmethod
+    def _decision_usage(response: Any) -> dict[str, Any]:
+        usage = _get_attr(response, "usage", None)
+        if not usage:
+            return {}
+        input_tokens = _get_attr(usage, "input_tokens", 0) or 0
+        output_tokens = _get_attr(usage, "output_tokens", 0) or 0
+        return {
+            INPUT_TOKENS_METRIC_KEY: input_tokens,
+            OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+            TOTAL_TOKENS_METRIC_KEY: _get_attr(usage, "total_tokens", 0) or input_tokens + output_tokens,
+        }
+
+    def _llmobs_set_meta_tags_from_decision(self, span: Span, args, kwargs, response: Any) -> None:
+        """Record the request (model, state, questions) as the input and the response without usage as the output.
+
+        The span is a workflow when a provider span exists below it, so tokens are only counted once.
+        """
+        is_workflow = self._decision_is_workflow(span)
+        request = get_argument_value(args, kwargs, 0, "input", optional=True)
+        input_body = {"model": span.get_tag(MODEL)}
+        if isinstance(request, dict):
+            input_body.update(_to_json_value(request))
+        input_content = safe_json(input_body) or ""
+        output_content = ""
+        if response is not None:
+            output = _to_json_value(response)
+            if isinstance(output, dict):
+                output.pop("usage", None)
+            output_content = safe_json(output) or ""
+        raw_provider = span.get_tag(PROVIDER) or ""
+        model_provider = DECISION_MODEL_PROVIDERS.get(raw_provider, raw_provider)
+        io: dict[str, Any] = (
+            {"input_value": input_content, "output_value": output_content}
+            if is_workflow
+            else {
+                "input_messages": [Message(role="user", content=input_content)],
+                "output_messages": [Message(role="assistant", content=output_content)],
+            }
+        )
+        _annotate_llmobs_span_data(
+            span,
+            kind="workflow" if is_workflow else "llm",
+            model_name=_get_attr(response, "model", None) or span.get_tag(MODEL) or "",
+            model_provider=model_provider,
+            metrics={} if is_workflow else self._decision_usage(response),
+            tags={DECISION_PROVIDER_TAG: model_provider} if model_provider else None,
+            **io,
         )
 
     def _set_base_span_tags(

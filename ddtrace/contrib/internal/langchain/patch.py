@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.langchain.constants import COMPONENT
 from ddtrace.contrib.internal.langchain.constants import MODEL_TAG
 from ddtrace.contrib.internal.langchain.constants import OPERATION_CHAIN
 from ddtrace.contrib.internal.langchain.constants import OPERATION_CHAT
+from ddtrace.contrib.internal.langchain.constants import OPERATION_DECISION
 from ddtrace.contrib.internal.langchain.constants import OPERATION_EMBEDDING
 from ddtrace.contrib.internal.langchain.constants import OPERATION_LLM
 from ddtrace.contrib.internal.langchain.constants import OPERATION_RETRIEVAL
@@ -445,6 +446,41 @@ async def patched_language_model_ainvoke(func, instance, args, kwargs):
     return await func(*args, **kwargs)
 
 
+def _decision_request_event(instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> LlmRequestEvent:
+    return _request_event(
+        instance,
+        OPERATION_DECISION,
+        args=args,
+        kwargs=kwargs,
+        provider=getattr(instance, "_provider", None),
+        model=getattr(instance, "model", None),
+    )
+
+
+def traced_decision_invoke(func, instance, args, kwargs):
+    event = _decision_request_event(instance, args, kwargs)
+    with core.context_with_event(event):
+        response = func(*args, **kwargs)
+        event.response = response
+        return response
+
+
+async def traced_decision_ainvoke(func, instance, args, kwargs):
+    event = _decision_request_event(instance, args, kwargs)
+    with core.context_with_event(event):
+        response = await func(*args, **kwargs)
+        event.response = response
+        return response
+
+
+def _base_decision_model() -> Optional[type]:
+    try:
+        from langchain_core.decisions import BaseDecisionModel
+    except ImportError:
+        return None
+    return BaseDecisionModel
+
+
 def traced_embedding(func, instance, args, kwargs):
     provider = instance.__class__.__name__.split("Embeddings")[0].lower()
     if provider == "openai" and func.__name__ == "embed_query":
@@ -610,6 +646,11 @@ def patch():
     wrap(Embeddings, "__init_subclass__", patched_embeddings_init_subclass)
     wrap(VectorStore, "__init_subclass__", patched_vectorstore_init_subclass)
 
+    BaseDecisionModel = _base_decision_model()
+    if BaseDecisionModel is not None:
+        wrap(BaseDecisionModel, "invoke", traced_decision_invoke)
+        wrap(BaseDecisionModel, "ainvoke", traced_decision_ainvoke)
+
     core.dispatch("langchain.patch", tuple())
 
     # Let products (LLMObs) attach their shared lifecycle subscribers without this
@@ -654,5 +695,9 @@ def unpatch():
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
+    BaseDecisionModel = _base_decision_model()
+    if BaseDecisionModel is not None:
+        unwrap(BaseDecisionModel, "invoke")
+        unwrap(BaseDecisionModel, "ainvoke")
     _unwrap_init_subclass(langchain_core.embeddings.Embeddings)
     _unwrap_init_subclass(langchain_core.vectorstores.VectorStore)
