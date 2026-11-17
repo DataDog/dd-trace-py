@@ -1089,6 +1089,39 @@ def test_other_streams_pass_through_live(guardrail_monitor, events, stream_analy
     guardrail_monitor._run_ai_guard_check.assert_not_called()
 
 
+@pytest.mark.parametrize("stream_analysis", [False, True])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_stream_passes_through_when_post_call_does_not_apply(mock_req, stream_analysis):
+    mock_req.return_value = mock_evaluate_response("DENY", reason="leak", block=True)
+    with override_ai_guard_config(_AI_GUARD_CONFIG):
+        guardrail = DatadogAIGuardGuardrail(block=True, event_hook=["pre_call"], default_on=True)
+    data = make_request_data(metadata={"ai_guard_messages": list(STORED)})
+    read = []
+    reading = []
+
+    async def source():
+        for content in ("Good", " day", "!"):
+            read.append(content)
+            reading.append(_READING_STREAM.get())
+            yield _chat_chunk(content=content)
+
+    async def run():
+        hook = guardrail.async_post_call_streaming_iterator_hook(
+            user_api_key_dict=Mock(), response=source(), request_data=data
+        )
+        first = await hook.__anext__()
+        return first, len(read), [chunk async for chunk in hook]
+
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=stream_analysis)):
+        first, read_before_first, rest = asyncio.run(run())
+
+    assert read_before_first == 1
+    assert first.choices[0].delta.content == "Good"
+    assert len(rest) == 2
+    assert reading == [False, False, False]
+    mock_req.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # TestProxyRequestClaim
 # ---------------------------------------------------------------------------

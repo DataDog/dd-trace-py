@@ -408,6 +408,11 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         When it is off, evaluate the answer after the last chunk. Other streams pass through live.
         """
         verbose_proxy_logger.debug("Datadog AI Guard: Post-Call Streaming Iterator Hook")
+        if not self.should_run_guardrail(data=request_data, event_type=GuardrailEventHooks.post_call):
+            # The post_call mode does not apply to this request, so the stream passes through unchanged.
+            async for chunk in response:
+                yield chunk
+            return
         # This first step runs in the request context. Keep the claim of this request, because the asyncio
         # finalizer can close this generator in the context of another request.
         claim = _REQUEST_CLAIM.get()
