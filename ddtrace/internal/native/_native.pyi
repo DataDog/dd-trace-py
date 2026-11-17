@@ -94,6 +94,7 @@ class CrashtrackerConfiguration:
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
         api_key: Optional[str] = None,
+        collect_otel_thread_contexts: bool = False,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -590,6 +591,9 @@ class TraceExporter:
         Send a trace payload to the Agent.
         :param data: The msgpack encoded trace payload to send.
         """
+        ...
+    def set_otlp_resource_attributes(self, attributes: dict[str, str]) -> None:
+        """Replace the resource attributes used by subsequent OTLP trace exports."""
         ...
     def shutdown(self, timeout_ns: int) -> None:
         """

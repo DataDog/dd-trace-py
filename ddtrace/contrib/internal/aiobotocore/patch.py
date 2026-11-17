@@ -133,14 +133,18 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    fallback_service = config._get_service(default=f"aws.{endpoint_name}")
+    # An explicit integration service (service or service_name) is used as-is; otherwise match botocore's
+    # ``aws.<endpoint>`` rather than falling back to DD_SERVICE.
+    service = ext_service(None, config.aiobotocore)
+    if service is None:
+        service = schematize_service_name(f"aws.{endpoint_name}")
     with tracer.trace(
         schematize_cloud_api_operation(f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
         set_service_and_source(
             span,
-            ext_service(None, config.aiobotocore, default=schematize_service_name(fallback_service)),
+            service,
             config.aiobotocore,
         )
         span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
