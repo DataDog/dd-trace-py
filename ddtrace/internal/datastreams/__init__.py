@@ -4,7 +4,6 @@ import importlib
 from typing import TYPE_CHECKING
 from typing import Optional
 
-from ddtrace.internal.atexit import ExitSignalCallbacks
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
@@ -28,9 +27,6 @@ _processor: Optional[DataStreamsProcessor] = None
 # Serializes processor creation and RC stop, so neither orphans a running processor.
 # Fork-safe: a child must not inherit a lock held by a parent thread.
 _processor_lock = Lock()
-# Shutdown callbacks of the live processors behind one handler, so re-creating a
-# processor (remote config re-enable) does not chain another.
-exit_signal_callbacks = ExitSignalCallbacks()
 
 
 def _import_integration_modules() -> None:

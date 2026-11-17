@@ -140,7 +140,7 @@ def enabled() -> bool:
 
 
 def start():
-    from ddtrace.internal.datastreams import exit_signal_callbacks
+    from ddtrace.internal.datastreams._exit_signal import exit_signal_callbacks
     from ddtrace.internal.products import manager
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 

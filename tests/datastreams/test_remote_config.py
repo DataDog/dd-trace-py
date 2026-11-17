@@ -26,9 +26,9 @@ from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datastreams import aiokafka as aiokafka_dsm
 from ddtrace.internal.datastreams import botocore as botocore_dsm
 from ddtrace.internal.datastreams import data_streams_processor
-from ddtrace.internal.datastreams import exit_signal_callbacks
 from ddtrace.internal.datastreams import google_cloud_pubsub as pubsub_dsm
 from ddtrace.internal.datastreams import kombu as kombu_dsm
+from ddtrace.internal.datastreams._exit_signal import exit_signal_callbacks
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.service import ServiceStatus

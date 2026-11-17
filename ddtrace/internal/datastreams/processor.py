@@ -13,7 +13,6 @@ from typing import Union
 
 from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
-from ddtrace.internal import datastreams as _datastreams
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
@@ -32,6 +31,7 @@ from ..agent import get_connection
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
+from ._exit_signal import exit_signal_callbacks
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .schemas.schema_builder import SchemaBuilder
@@ -141,9 +141,8 @@ class DataStreamsProcessor(PeriodicService):
         )(self._flush_stats)
 
         self._atexit_func = partial(_atexit, obj=self)
-        # Looked up at call time: hook modules import this module while the package is still initializing.
-        _datastreams.exit_signal_callbacks.add(self._atexit_func)
-        _datastreams.exit_signal_callbacks.install()
+        exit_signal_callbacks.add(self._atexit_func)
+        exit_signal_callbacks.install()
         ddtrace_atexit.register(self._atexit_func)
         self.start()
 
@@ -320,7 +319,7 @@ class DataStreamsProcessor(PeriodicService):
     def shutdown(self, timeout: Optional[float]) -> None:
         # A shut-down processor must not be flushed (and warn) again at exit.
         ddtrace_atexit.unregister(self._atexit_func)
-        _datastreams.exit_signal_callbacks.discard(self._atexit_func)
+        exit_signal_callbacks.discard(self._atexit_func)
         self.periodic()
         self.stop(timeout)
 
