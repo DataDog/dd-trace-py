@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 from typing import Optional
 
 from ddtrace._monkey import _get_patched_modules
+from ddtrace.contrib.internal.litellm._constants import TAG_MODEL
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
 from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
 from ddtrace.contrib.internal.litellm._constants import model_map
@@ -82,8 +83,9 @@ def has_fallbacks(kwargs):
 
 
 @contextmanager
-def fallback_dispatch(event):
+def fallback_dispatch(ctx):
     """Mark the wrapped call so the fallback runner's inner calls do not submit a second LLM span."""
+    event = ctx.event
     if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
         yield
         return
@@ -97,6 +99,7 @@ def fallback_dispatch(event):
         model = attempts.get("model")
         if model:
             event.model = model
+            span_from_context(ctx).set_tag(TAG_MODEL, model)
             event.request_kwargs["model"] = model
             if event.request_args:
                 event.request_args = (model, *event.request_args[1:])

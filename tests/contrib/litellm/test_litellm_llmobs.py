@@ -1142,3 +1142,71 @@ def test_completion_with_fallbacks_attributes_span_to_successful_model(litellm, 
     llm_spans = [s for s in spans if s.span_type == "llm"]
     assert len(llm_spans) == 1
     assert _get_llmobs_data_metastruct(llm_spans[0])["meta"]["model_name"] == fallback_model
+
+
+PRIMARY_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+FALLBACK_MODEL = "anthropic/claude-3-haiku-20240307"
+FALLBACK_MESSAGES = [{"content": "Hey, what is up?", "role": "user"}]
+
+
+def _failing_primary_kwargs(litellm):
+    """Make the primary model fail with a real exception while the fallback model answers with a mock response.
+
+    The mock responses go through litellm's real completion path and fallback runner, so no network is needed.
+    """
+    return {
+        "model": PRIMARY_MODEL,
+        "messages": FALLBACK_MESSAGES,
+        "mock_response": litellm.RateLimitError("rate limited", llm_provider="anthropic", model=PRIMARY_MODEL),
+        "fallbacks": [{"model": FALLBACK_MODEL, "mock_response": "fallback answer"}],
+    }
+
+
+def _assert_single_fallback_span(test_spans):
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    llm_spans = [s for s in spans if s.span_type == "llm"]
+    assert len(llm_spans) == 1
+    span = llm_spans[0]
+    assert span.get_tag("litellm.request.model") == FALLBACK_MODEL
+    # LLMObs drops the provider prefix once litellm has resolved the provider.
+    assert _get_llmobs_data_metastruct(span)["meta"]["model_name"].split("/")[-1] == FALLBACK_MODEL.split("/")[-1]
+    assert get_llmobs_output_messages(span)[0]["content"] == "fallback answer"
+
+
+def test_completion_runs_fallback_after_primary_failure(litellm, litellm_llmobs, test_spans):
+    # Sync streaming is not covered: litellm's sync fallback runner returns an async generator for streams.
+    litellm.completion(**_failing_primary_kwargs(litellm))
+    _assert_single_fallback_span(test_spans)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_acompletion_runs_fallback_after_primary_failure(litellm, litellm_llmobs, test_spans, stream):
+    resp = await litellm.acompletion(stream=stream, **_failing_primary_kwargs(litellm))
+    if stream:
+        await async_consume_stream_aiter(resp, 1)
+    _assert_single_fallback_span(test_spans)
+
+
+def test_completion_with_global_model_fallbacks_attributes_span_to_fallback(
+    litellm, litellm_llmobs, test_spans, monkeypatch
+):
+    """``litellm.model_fallbacks`` selects the fallback runner without a ``fallbacks`` kwarg.
+
+    The runner itself is stubbed: litellm re-applies the global list to the runner's inner calls, so a failing
+    primary model would recurse.
+    """
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    monkeypatch.setattr(litellm, "model_fallbacks", [FALLBACK_MODEL])
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(
+            model="claude-3-haiku-20240307", choices=[{"message": {"role": "assistant", "content": "fallback answer"}}]
+        )
+
+    def completion(*args, **kwargs):
+        traced_completion(inner_completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
+        return traced_completion(inner_completion, None, (), {"model": FALLBACK_MODEL, "messages": FALLBACK_MESSAGES})
+
+    traced_completion(completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
+    _assert_single_fallback_span(test_spans)

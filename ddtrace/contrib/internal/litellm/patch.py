@@ -91,14 +91,14 @@ def _handle_router_stream_response(resp, ctx, is_async=False):
 def traced_completion(func, instance, args, kwargs):
     event = _request_event(func.__name__, args, kwargs)
     if not kwargs.get("stream", False):
-        with core.context_with_event(event):
-            with fallback_dispatch(event):
+        with core.context_with_event(event) as ctx:
+            with fallback_dispatch(ctx):
                 event.response = func(*args, **kwargs)
             return event.response
     # The stream handler dispatches the ended event once the stream is consumed or closed.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            with fallback_dispatch(event):
+            with fallback_dispatch(ctx):
                 resp = func(*args, **kwargs)
         except Exception:
             ctx.dispatch_ended_event(*sys.exc_info())
@@ -109,13 +109,13 @@ def traced_completion(func, instance, args, kwargs):
 async def traced_acompletion(func, instance, args, kwargs):
     event = _request_event(func.__name__, args, kwargs)
     if not kwargs.get("stream", False):
-        with core.context_with_event(event):
-            with fallback_dispatch(event):
+        with core.context_with_event(event) as ctx:
+            with fallback_dispatch(ctx):
                 event.response = await func(*args, **kwargs)
             return event.response
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            with fallback_dispatch(event):
+            with fallback_dispatch(ctx):
                 resp = await func(*args, **kwargs)
         except Exception:
             ctx.dispatch_ended_event(*sys.exc_info())
