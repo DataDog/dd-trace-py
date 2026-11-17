@@ -199,6 +199,12 @@ product `stop()` also removes the operation listeners. These bundles do not own
 request cleanup, whose listeners remain registered separately. Repeated activation
 restores listeners after a reset without caching registration state.
 
+Bottle's shared web inspection bundles use the same activation path. Entry
+inspection is removed on disablement or product stop; response replacement and
+context cleanup listeners remain registered for callbacks already in progress.
+Their handlers check AppSec enablement, and repeated activation restores entry
+inspection after listener resets.
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from

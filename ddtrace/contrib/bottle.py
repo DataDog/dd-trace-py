@@ -21,6 +21,20 @@ iteration, later response hooks, and transport delivery occur outside this span.
 Bottle manages plugin ordering, route skip settings, and callback-cache resets.
 Unmatched requests and routes that skip the plugin do not create a Bottle span.
 
+Application security
+~~~~~~~~~~~~~~~~~~~~
+
+With ``DD_APPSEC_ENABLED=true``, the plugin supports WAF evaluation of request
+headers, URI, query parameters, cookies, path parameters, and callback response
+status and headers. Applications can also call
+``ddtrace.appsec.trace_utils.block_request()`` during the callback. Blocking remains
+available with ``DD_APM_TRACING_ENABLED=false``.
+
+Protection covers only matched callbacks that use the plugin. Request and response
+bodies are not inspected. Unmatched requests, skipped routes, earlier framework
+hooks, later response hooks, and streaming after callback return are outside this
+boundary.
+
 Configuration
 ~~~~~~~~~~~~~
 

@@ -1,9 +1,11 @@
 from collections.abc import Callable
+from collections.abc import Mapping
 from collections.abc import MutableMapping
 from typing import Any
 from typing import Optional
 from typing import cast
 
+from bottle import BaseResponse
 from bottle import HTTPResponse
 from bottle import request
 from bottle import response
@@ -11,6 +13,8 @@ from bottle import response
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
+from ddtrace.contrib.internal.web_framework import RequestInspectionDetails
+from ddtrace.contrib.internal.web_framework import blocking_execute_adapter
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -65,7 +69,8 @@ class TracePlugin:
                 headers_case_sensitive=True,
                 activate_distributed_headers=True,
             )
-            with core.context_with_event(event):
+
+            def invoke() -> Any:
                 try:
                     result = callback(*args, **kwargs)
                 except BaseException as error:
@@ -74,22 +79,64 @@ class TracePlugin:
                 _complete_request(event, result, None)
                 return result
 
+            with core.context_with_event(event):
+                return _execute_request(event, invoke, kwargs, _complete_request)
+
         return wrapped
+
+
+def _request_details(path_params: Mapping[str, Any]) -> RequestInspectionDetails:
+    """Collect the request data subscribers receive in place of Bottle's request object."""
+    return RequestInspectionDetails(
+        peer_ip=request.environ.get("REMOTE_ADDR"),
+        cookies=dict(request.cookies),
+        path_params=path_params,
+    )
+
+
+def _is_http_response(outcome: Any) -> bool:
+    return isinstance(outcome, HTTPResponse)
+
+
+def _response_body(outcome: HTTPResponse) -> Any:
+    return outcome.body
+
+
+def _build_blocked_response(status: int, headers: Mapping[str, str], body: bytes) -> HTTPResponse:
+    blocked = HTTPResponse(body=body, status=status, headers=headers)
+    # Completion hooks must see the replacement headers, without the application's headers or cookies.
+    blocked.apply(response)
+    return blocked
+
+
+_execute_request = blocking_execute_adapter(
+    request_details=_request_details,
+    is_response_object=_is_http_response,
+    extract_body=_response_body,
+    build_response=_build_blocked_response,
+)
+
+
+def _response_headers(response_data: BaseResponse) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for name, value in response_data.headers.allitems():
+        headers[name] = f"{headers[name]}, {value}" if name in headers else value
+    return headers
 
 
 def _complete_request(event: WebFrameworkRequestEvent, result: Any, error: Optional[BaseException]) -> None:
     try:
         if isinstance(result, HTTPResponse):
             event.response_status_code = result.status_code
-            event.response_headers = result.headers
+            event.response_headers = _response_headers(result)
             event.response_from_exception = False
         elif isinstance(error, HTTPResponse):
             event.response_status_code = error.status_code
             event.response_from_exception = True
-            event.response_headers = error.headers
+            event.response_headers = _response_headers(error)
         else:
             event.response_status_code = 500 if isinstance(error, Exception) else response.status_code
-            event.response_headers = response.headers
+            event.response_headers = _response_headers(response)
             event.response_from_exception = False
     except Exception:
         log.debug("Failed to collect Bottle response metadata", exc_info=True)

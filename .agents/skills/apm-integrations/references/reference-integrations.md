@@ -34,6 +34,36 @@ This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
+## Bottle inspection and blocking
+
+Bottle's TracePlugin.apply keeps the direct web.request context and invokes its
+callback through a closure that completes WebFrameworkRequestEvent metadata before
+returning or re-raising. The shared tracing subscriber owns propagation, spans,
+HTTP tags, and status-based handling of raised HTTPResponse objects.
+
+contrib.internal.web_framework.blocking_execute_adapter runs inside that context.
+It dispatches request/response inspection events, catches BlockingException including
+exception groups, closes discarded outcomes without iteration, and completes the
+replacement metadata. Build it once from request_details(kwargs),
+is_response_object(outcome), extract_body(outcome), and build_response(status,
+headers, body). Adapters must not invoke the application twice or manage spans.
+Returned iterables stay unchanged unless blocking replaces them.
+
+AppSec subscribers in appsec/_contrib/web_framework receive explicit peer IP,
+cookies, and path parameters. They own WAF evaluation, block_request, response
+templates, and context cleanup. Bundles live in internal.appsec.product_subscribers
+and use internal.core.subscriber.SubscriberBundle through the existing load_appsec
+activation path. Remove entry inspection on stop; keep response replacement and
+cleanup listeners for active callbacks. Use the web.request channel consistently.
+Request evaluation belongs inside the blocking handler because a context-entry
+exception skips context exit.
+
+Bottle's replacement callback applies the blocked HTTPResponse over the pending
+response to clear discarded headers and cookies. Replacement metadata clears
+response_from_exception. Preserve is_tracing_enabled(), which already supports
+standalone AppSec with APM tracing disabled. Request/response body inspection,
+later hooks, and response iteration remain outside the callback boundary.
+
 ## ElevenLabs Agents
 
 The ElevenLabs patch module wraps conversation worker lifecycle and uses
