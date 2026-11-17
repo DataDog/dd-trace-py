@@ -1,9 +1,5 @@
-# The intermediate base layer is built from this repository's own
-# benchmarks/Dockerfile by the benchmarking-platform `dd-trace-py` branch
-# pipeline and published as `cache-dd-trace-py`. Pinned by digest so the
-# in-repo build-benchmark-ci-images job is reproducible and does not move when
-# the platform pipeline pushes that tag again. The platform pipeline passes
-# this build-arg explicitly; the default is what the in-repo build uses.
+# Pinned by digest so the in-repo build is reproducible and does not move when
+# the base layer is republished.
 ARG INTERMEDIATE_CI_IMAGE=registry.ddbuild.io/ci/benchmarking-platform:cache-dd-trace-py@sha256:cb8a003489e7054482708df65689bb63f4153d3a74df8296a80ca2e50093b0d7
 FROM $INTERMEDIATE_CI_IMAGE
 
