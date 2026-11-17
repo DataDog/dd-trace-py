@@ -56,7 +56,9 @@ class LocalDecisionModel(decision.DecisionModel):
             else:
                 label = next(iter(question.criteria))
                 answers[name] = decision.ChoiceAnswer(
-                    choice=label, confidence=0.8, probabilities={k: 0.8 if k == label else 0.0 for k in question.criteria}
+                    choice=label,
+                    confidence=0.8,
+                    probabilities={k: 0.8 if k == label else 0.0 for k in question.criteria},
                 )
         return decision.DecisionResponse(
             answers=answers, model_name="local-decider-1", usage=RequestUsage(input_tokens=10, output_tokens=4)
@@ -152,13 +154,15 @@ class TestPydanticAIDecisions:
         assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="llm", model_name="local-decider-1")
 
     async def test_system_one(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        import os
+
         from pydantic_ai.models.system_one import SystemOneModel
         from pydantic_ai.providers.system_one import SystemOneProvider
 
-        import os
-
         provider = SystemOneProvider(base_url=VCR_TYPESAFE_URL, api_key=os.getenv("TYPESAFE_API_KEY", "not-a-real-key"))
-        result = await pydantic_ai.Agent(SystemOneModel("jev-latest", provider=provider), output_type=Triage).run(TICKET)
+        result = await pydantic_ai.Agent(SystemOneModel("jev-latest", provider=provider), output_type=Triage).run(
+            TICKET
+        )
         assert result.output.team == "engineering"
         (span,) = _decision_spans(test_spans)
         data = _get_llmobs_data_metastruct(span)

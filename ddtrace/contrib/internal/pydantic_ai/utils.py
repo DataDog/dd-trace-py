@@ -1,4 +1,5 @@
 import sys
+from typing import Any
 
 import wrapt
 
@@ -42,9 +43,9 @@ class TracedDecisionContextManager:
         self._dd_args = args
         self._dd_kwargs = kwargs
         self._dd_integration = integration
-        self._dd_span = None
-        self._dd_cm = None
-        self._dd_response = None
+        self._dd_span: Any = None
+        self._dd_cm: Any = None
+        self._dd_response: Any = None
 
     async def __aenter__(self):
         integration = self._dd_integration

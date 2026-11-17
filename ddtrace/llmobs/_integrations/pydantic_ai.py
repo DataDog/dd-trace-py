@@ -81,6 +81,8 @@ def _decision_wire(value: Any) -> Any:
         if item is not None:
             wire[f.name] = item
     return wire
+
+
 _OUTPUT_MARKERS = frozenset({"ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"})
 
 
