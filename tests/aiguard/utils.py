@@ -52,6 +52,7 @@ def mock_evaluate_response(
     tag_probs: Optional[dict[str, float]] = None,
     redaction_replacements: Optional[Any] = None,
     extra_tags: Optional[Any] = None,
+    extra_metastruct: Optional[Any] = None,
 ) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
@@ -69,6 +70,8 @@ def mock_evaluate_response(
         attributes["redaction_replacements"] = redaction_replacements
     if extra_tags is not None:
         attributes["extra_tags"] = extra_tags
+    if extra_metastruct is not None:
+        attributes["extra_metastruct"] = extra_metastruct
     mock_response.get_json.return_value = {"data": {"attributes": attributes}}
     return mock_response
 

@@ -21,7 +21,6 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.routing import extract_request_method_list
-from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
@@ -381,13 +380,10 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
-    mode = asm_config._user_event_mode
-    if mode == "disabled":
-        return
     try:
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
-        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user), config_django))
+        core.dispatch("django.login", (pin, request, user, config_django))
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
@@ -395,13 +391,10 @@ def traced_login(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
-    mode = asm_config._user_event_mode
-    if mode == "disabled":
-        return result_user
     try:
         result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "django.auth",
-            (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config_django),
+            (result_user, kwargs, pin, config_django),
         ).user
         if result and result.value[0]:
             return result.value[1]
@@ -414,9 +407,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def patch_create_user(django, pin, func, instance, args, kwargs):
     user = func(*args, **kwargs)
-    core.dispatch(
-        "django.create_user", (config_django, pin, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
-    )
+    core.dispatch("django.create_user", (config_django, pin, func, instance, args, kwargs, user))
     return user
 
 

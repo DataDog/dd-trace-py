@@ -15,7 +15,7 @@ log = get_logger(__name__)
 _API_RESPONSE_CACHE_DIR = os.path.join(os.getcwd(), ".ddtrace_api_cache")
 
 
-def _is_response_cache_enabled():
+def _is_response_cache_enabled() -> bool:
     return asbool(env.get("_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED", "false").lower())
 
 
@@ -34,7 +34,7 @@ def _get_normalized_cache_key(method: str, endpoint: str, payload: dict[str, t.A
     return hashlib.sha256(cache_key_data.encode()).hexdigest()
 
 
-def _read_from_cache(cache_key: str) -> t.Optional[dict]:
+def _read_from_cache(cache_key: str) -> t.Optional[dict[str, t.Any]]:
     """Read cached response if it exists"""
     if not cache_key or not _is_response_cache_enabled():
         return None
@@ -43,10 +43,10 @@ def _read_from_cache(cache_key: str) -> t.Optional[dict]:
     try:
         if os.path.exists(cache_file):
             with open(cache_file, encoding="utf-8") as f:
-                cached_data = json.load(f)
+                cached_data: dict[str, t.Any] = json.load(f)
                 log.debug("RESPONSE CACHE: Hit for key: %s", cache_key)
                 return cached_data
-    except Exception:  # noqa: E722
+    except Exception:
         log.debug("RESPONSE CACHE: Failed to read from cache for key: %s", cache_key, exc_info=True)
     return None
 
@@ -60,11 +60,11 @@ def _write_to_cache(cache_key: str, data: t.Any) -> None:
         with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(data, f)
             log.debug("RESPONSE CACHE: Wrote response for key: %s", cache_key)
-    except Exception:  # noqa: E722
+    except Exception:
         log.debug("RESPONSE CACHE: Failed to write to cache for key: %s", cache_key, exc_info=True)
 
 
-def _clean_api_response_cache_dir():
+def _clean_api_response_cache_dir() -> None:
     if os.path.exists(_API_RESPONSE_CACHE_DIR):
         shutil.rmtree(_API_RESPONSE_CACHE_DIR)
 

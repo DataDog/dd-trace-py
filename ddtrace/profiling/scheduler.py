@@ -22,9 +22,9 @@ class Scheduler(periodic.PeriodicService):
         self,
         before_flush: Optional[Callable[[], None]] = None,
         tracer: Optional[ProfilerTracer] = ddtrace.tracer,
-        interval: float = config.upload_interval,
+        interval: Optional[float] = None,
     ) -> None:
-        super().__init__(interval=interval)
+        super().__init__(interval=interval if interval is not None else config.upload_interval)
         self.before_flush: Optional[Callable[[], None]] = before_flush
         self._configured_interval: float = self.interval
         self._last_export: int = 0  # Overridden in _start_service
@@ -82,7 +82,9 @@ class ServerlessScheduler(Scheduler):
     FLUSH_AFTER_INTERVALS = 60.0
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        kwargs.setdefault("interval", self.FORCED_INTERVAL)
+        if kwargs.get("interval") is None:
+            kwargs["interval"] = self.FORCED_INTERVAL
+
         super().__init__(*args, **kwargs)
         self._profiled_intervals: int = 0
 

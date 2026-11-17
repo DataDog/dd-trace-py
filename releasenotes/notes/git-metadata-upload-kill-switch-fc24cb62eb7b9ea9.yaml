@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    CI Visibility: the pytest plugin now respects ``DD_CIVISIBILITY_GIT_UPLOAD_ENABLED`` (matching
+    dd-trace-js and dd-trace-go). When ``false``, the git metadata upload is skipped entirely;
+    upload once per pipeline instead (e.g. ``datadog-ci git-metadata upload`` in a setup job).
+    The pull request merge-base is still computed from local history when possible.

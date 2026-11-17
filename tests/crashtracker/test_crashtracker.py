@@ -159,6 +159,7 @@ def test_crashtracker_simple():
             assert not stdout_msg, stdout_msg
             assert not stderr_msg, stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 
@@ -200,6 +201,7 @@ def test_crashtracker_simple_fork():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)  # just in case
 
@@ -247,6 +249,7 @@ def test_crashtracker_simple_sigbus():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            utils.disable_core_dumps()
             with tempfile.TemporaryFile() as tmp_file:
                 tmp_file.write(b"aaaaaa")  # write some data to the file
                 fd = tmp_file.fileno()  # get the file descriptor
@@ -296,6 +299,7 @@ def test_crashtracker_raise_sigsegv():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            utils.disable_core_dumps()
             os.kill(os.getpid(), signal.SIGSEGV.value)
             sys.exit(-1)
 
@@ -330,6 +334,7 @@ def test_crashtracker_raise_sigbus():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            utils.disable_core_dumps()
             os.kill(os.getpid(), signal.SIGBUS.value)
             sys.exit(-1)
 
@@ -348,7 +353,9 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import ctypes
+import resource
 import sys
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
 ctypes.string_at(0)
 sys.exit(-1)
 """
@@ -396,6 +403,96 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
         assert not any(service.encode() in msg["body"] for msg in client.crash_messages())
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
+def test_crashtracker_preload_starts_before_products() -> None:
+    # A native crash during the startup of a product is reported only if the
+    # crashtracker is already running.
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.internal.products import manager
+
+    started_before_products: list[bool] = []
+    manager.run_protocol = lambda: started_before_products.append(crashtracking.is_started())
+
+    import ddtrace.bootstrap.preload  # noqa: F401
+
+    assert started_before_products == [True]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"}, err=None)
+def test_crashtracker_preload_panic_does_not_block_products() -> None:
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.internal.products import manager
+
+    class PanicException(BaseException):
+        pass
+
+    # is_panic_exception matches on the module and class name of pyo3_runtime.PanicException.
+    PanicException.__module__ = "pyo3_runtime"
+
+    def crashtracker_init(*args: object, **kwargs: object) -> None:
+        raise PanicException("crashtracker_init panicked")
+
+    crashtracking.crashtracker_init = crashtracker_init
+
+    run_protocol_calls: list[bool] = []
+    manager.run_protocol = lambda: run_protocol_calls.append(True)
+
+    import ddtrace.bootstrap.preload  # noqa: F401
+
+    assert not crashtracking.is_started()
+    assert run_protocol_calls == [True]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"}, err=None)
+def test_crashtracker_start_failure_reinstalls_segv_handler() -> None:
+    import sys
+    import types
+
+    from ddtrace.internal.core import crashtracking
+
+    class PanicException(BaseException):
+        pass
+
+    # is_panic_exception matches on the module and class name of pyo3_runtime.PanicException.
+    PanicException.__module__ = "pyo3_runtime"
+
+    calls: list[str] = []
+    stack_mod = types.ModuleType("ddtrace.internal.datadog.profiling.stack")
+    stack_mod.uninstall_segv_handler = lambda: calls.append("uninstall")  # type: ignore[attr-defined]
+    stack_mod.reinstall_segv_handler = lambda: calls.append("reinstall")  # type: ignore[attr-defined]
+    sys.modules["ddtrace.internal.datadog.profiling.stack"] = stack_mod
+
+    for exc_type in (RuntimeError, PanicException):
+
+        def crashtracker_init(*args: object, **kwargs: object) -> None:
+            raise exc_type("crashtracker_init failed")
+
+        crashtracking.crashtracker_init = crashtracker_init
+        calls.clear()
+
+        assert crashtracking.start() is False
+        assert calls == ["uninstall", "reinstall"], (exc_type, calls)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_start_propagates_base_exception() -> None:
+    import pytest
+
+    from ddtrace.internal.core import crashtracking
+
+    def crashtracker_init(*args: object, **kwargs: object) -> None:
+        raise KeyboardInterrupt()
+
+    crashtracking.crashtracker_init = crashtracker_init
+
+    with pytest.raises(KeyboardInterrupt):
+        crashtracking.start()
+
+
 auto_code = """
 import warnings
 # This test logs the following warning in py3.12:
@@ -404,6 +501,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import ctypes
 import ddtrace.auto
+import resource
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
 ctypes.string_at(0)
 sys.exit(-1)
 """
@@ -543,6 +642,8 @@ for i in range(3):
 
 time.sleep(0.1)
 
+import resource
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
 ctypes.string_at(0)
 sys.exit(-1)
 """
@@ -568,6 +669,85 @@ def test_crashtracker_all_threads(run_python_code_in_subprocess):
         assert b"test_thread_1" in report["body"]
         assert b"test_thread_2" in report["body"]
         assert b"string_at" in report["body"]
+
+
+# Tracing publishes the active span into the OTel thread-context slot on its own.
+# Crash tracking reads that slot at crash time; this script does not write the record.
+_otel_thread_context_crash_code = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ctypes
+import resource
+import sys
+import threading
+
+import ddtrace.auto
+from ddtrace.internal.settings._config import config
+from ddtrace.trace import tracer
+
+assert config._otel_thread_context_enabled, "DD_TRACE_OTEL_CTX_ENABLED did not enable thread context sharing"
+
+NUM_WORKERS = 3
+# Every worker plus the main thread must be inside its span before the crash.
+all_traced = threading.Barrier(NUM_WORKERS + 1)
+hold = threading.Event()
+
+
+def _traced_child():
+    with tracer.trace("otel-thread-context-child"):
+        return 1
+
+
+def _worker(index):
+    with tracer.trace(f"otel-thread-context-worker-{index}"):
+        assert _traced_child() == 1
+        all_traced.wait(timeout=30)
+        hold.wait()  # keep the span active until the process crashes
+
+
+# Start the workers outside any span so each one traces its own root span rather than
+# inheriting the main thread's active context.
+for i in range(NUM_WORKERS):
+    threading.Thread(target=_worker, args=(i,), daemon=True).start()
+
+with tracer.trace("otel-thread-context-work"):
+    assert _traced_child() == 1
+    all_traced.wait(timeout=30)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
+    ctypes.string_at(0)
+
+sys.exit(-1)
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_otel_thread_context(run_python_code_in_subprocess):
+    import json
+
+    service = "test_crashtracker_otel_thread_context"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        env["DD_TRACE_OTEL_CTX_ENABLED"] = "true"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(_otel_thread_context_crash_code, env=env)
+
+        assert not stdout, stdout
+        assert not stderr, stderr
+        assert exitcode == -11, exitcode
+
+        _ping = utils.get_crash_ping(client, service=service)
+
+        report = utils.get_crash_report(client, service=service)
+        assert b"string_at" in report["body"]
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
+        contexts = message["experimental"]["otel_thread_contexts"]
+        # 4 contexts: main thread, 3 workers
+        assert len(contexts) == 4, message["experimental"]
+        for context in contexts:
+            assert context["span_id"] is not None
+            assert context["trace_id"] is not None
 
 
 # Subprocess code for test_crashtracker_native_extension_crash.
@@ -611,6 +791,8 @@ _lib.trigger_crash.restype  = None
 _lib.trigger_crash.argtypes = []
 
 import ddtrace.auto  # starts the crashtracker
+import resource
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))  # crashing on purpose, no core dump
 _lib.trigger_crash()
 sys.exit(-1)
 """
@@ -735,6 +917,7 @@ def test_crashtracker_user_tags_profiling():
             assert not stdout_msg
             assert not stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 
@@ -782,6 +965,7 @@ def test_crashtracker_user_tags_core():
             assert not stdout_msg
             assert not stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 
@@ -823,6 +1007,7 @@ def test_crashtracker_process_tags():
             assert not stdout_msg
             assert not stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 
@@ -894,6 +1079,7 @@ def test_crashtracker_echild_hang():
                 # then crash.
                 time.sleep(0.1)
 
+                utils.disable_core_dumps()
                 ctypes.string_at(0)
                 sys.exit(-1)
             else:
@@ -967,6 +1153,7 @@ def test_crashtracker_no_zombies():
                 # then crash.
                 time.sleep(0.1)
 
+                utils.disable_core_dumps()
                 ctypes.string_at(0)
                 sys.exit(-1)
             else:
@@ -1019,6 +1206,7 @@ def test_crashtracker_receiver_env_inheritance():
             assert not stdout_msg, stdout_msg
             assert not stderr_msg, stderr_msg
 
+            utils.disable_core_dumps()
             ctypes.string_at(0)
             sys.exit(-1)
 

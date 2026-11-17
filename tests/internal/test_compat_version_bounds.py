@@ -68,7 +68,9 @@ def test_max_py_matches_requires_python_upper_bound() -> None:
     major: int = int(match.group(1))
     minor: int = int(match.group(2))
     last_supported: tuple[int, int] = (major, minor - 1)
-    assert MAX_PY == last_supported
+    # Official support must stay inside the packaging ceiling. Packaging may
+    # lead MAX_PY during a staged rollout (MAX_PY bump lands in a follow-on).
+    assert MAX_PY <= last_supported
 
 
 def test_version_bound_helpers() -> None:
@@ -78,7 +80,8 @@ def test_version_bound_helpers() -> None:
     assert is_at_least_py(*NEXT_MAX_PY, version=NEXT_MAX_PY)
     assert is_supported_python_version(version=NEXT_MAX_PY)
     assert is_supported_python_version(version=(3, 15))
-    assert not is_supported_python_version(version=(3, 16))
+    assert is_supported_python_version(version=(3, 16))
+    assert not is_supported_python_version(version=(3, 17))
     fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
     assert is_at_least_py(*NEXT_MAX_PY, version=fail_close)
     assert not is_supported_python_version(version=fail_close)
@@ -161,12 +164,12 @@ def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) 
     """is_at_least_py(*NEXT_MAX_PY) and is_supported_python_version read NEXT_MAX_PY."""
     compat: ModuleType = importlib.import_module("ddtrace.internal.compat")
 
-    monkeypatch.setattr(compat, "NEXT_MAX_PY", (3, 16))
-    assert not compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 15))
-    assert compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 16))
-    assert compat.is_supported_python_version(version=(3, 15))
+    monkeypatch.setattr(compat, "NEXT_MAX_PY", (3, 17))
+    assert not compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 16))
+    assert compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 17))
     assert compat.is_supported_python_version(version=(3, 16))
-    assert not compat.is_supported_python_version(version=(3, 17))
+    assert compat.is_supported_python_version(version=(3, 17))
+    assert not compat.is_supported_python_version(version=(3, 18))
 
 
 def test_wrapping_modules_import() -> None:
@@ -175,7 +178,7 @@ def test_wrapping_modules_import() -> None:
     import ddtrace.internal.wrapping.asyncs  # noqa: F401
     import ddtrace.internal.wrapping.generators  # noqa: F401
 
-    # wrapping.context fail-closes at import when wrap is unsupported (3.16+).
+    # wrapping.context fail-closes at import when wrap is unsupported (3.17+).
     if is_supported_python_version():
         import ddtrace.internal.wrapping.context  # noqa: F401
     else:
@@ -243,7 +246,7 @@ async def test_wrap_coroutine_on_315() -> None:
 
 
 def test_wrap_raises_not_implemented_on_future_py(monkeypatch: pytest.MonkeyPatch) -> None:
-    """wrap() must fail closed from 3.16 on."""
+    """wrap() must fail closed from NEXT_MAX_PY+1 on."""
     wrapping: ModuleType = importlib.import_module("ddtrace.internal.wrapping")
 
     # wrap()/wrap_bytecode resolve the module binding at call time.

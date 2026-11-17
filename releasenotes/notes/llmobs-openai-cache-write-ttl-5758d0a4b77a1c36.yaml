@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI integration now reports ``ephemeral_30m_input_tokens`` and ``ephemeral_12h_input_tokens`` metrics for Responses API calls.

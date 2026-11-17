@@ -5,7 +5,6 @@ from collections import defaultdict
 from functools import partial
 import gzip
 import struct
-import threading
 import time
 from typing import Any
 from typing import NamedTuple
@@ -22,6 +21,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import local
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -132,7 +132,7 @@ class DataStreamsProcessor(PeriodicService):
         self._hostname = compat.ensure_text(get_hostname())
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
-        self._current_context = threading.local()
+        self._current_context = local()
         self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(

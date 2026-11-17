@@ -1,0 +1,220 @@
+[[
+  {
+    "name": "aws.durable.execute",
+    "service": "tests.contrib.aws_durable_execution_sdk_python",
+    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk_python.test_wait_for_condition.<locals>.workflow",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6aeb502f00000000",
+      "_dd.sdk.otlp_export": "false",
+      "_dd.svc_src": "aws_durable_execution_sdk_python",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_durable_execution_sdk_python",
+      "aws.durable.execution_arn": "4c0f2b67-03f3-4010-b02a-beec999db4b8/inv-12345678-1234-1234-1234-123456789012",
+      "aws.durable.invocation_status": "pending",
+      "aws.durable.replayed": "false",
+      "component": "aws_durable_execution_sdk_python",
+      "language": "python",
+      "runtime-id": "9916ec3e82cc43e8a1328a72e3c1c4fd",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1.0
+    },
+    "duration": 4380306,
+    "start": 1793806383738979774
+  },
+     {
+       "name": "aws.durable.wait_for_condition",
+       "service": "tests.contrib.aws_durable_execution_sdk_python",
+       "resource": "poll",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "serverless",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "aws_durable_execution_sdk_python",
+         "aws.durable.operation_id": "1ced8f5be2db23a6513eba4d819c73806424748a7bc6fa0d792cc1c7d1775a97",
+         "aws.durable.operation_name": "poll",
+         "aws.durable.replayed": "false",
+         "component": "aws_durable_execution_sdk_python",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "aws.durable.operation_attempt": 0.0
+       },
+       "duration": 2241391,
+       "start": 1793806383739252896
+     }],
+[
+  {
+    "name": "aws.durable.execute",
+    "service": "tests.contrib.aws_durable_execution_sdk_python",
+    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk_python.test_wait_for_condition.<locals>.workflow",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6aeb502f00000000",
+      "_dd.sdk.otlp_export": "false",
+      "_dd.svc_src": "aws_durable_execution_sdk_python",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_durable_execution_sdk_python",
+      "aws.durable.execution_arn": "4c0f2b67-03f3-4010-b02a-beec999db4b8/inv-12345678-1234-1234-1234-123456789012",
+      "aws.durable.invocation_status": "pending",
+      "aws.durable.replayed": "true",
+      "component": "aws_durable_execution_sdk_python",
+      "language": "python",
+      "runtime-id": "9916ec3e82cc43e8a1328a72e3c1c4fd",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1.0
+    },
+    "duration": 5748531,
+    "start": 1793806383846276284
+  },
+     {
+       "name": "aws.durable.wait_for_condition",
+       "service": "tests.contrib.aws_durable_execution_sdk_python",
+       "resource": "poll",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "serverless",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "aws_durable_execution_sdk_python",
+         "aws.durable.operation_id": "1ced8f5be2db23a6513eba4d819c73806424748a7bc6fa0d792cc1c7d1775a97",
+         "aws.durable.operation_name": "poll",
+         "aws.durable.replayed": "false",
+         "component": "aws_durable_execution_sdk_python",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "aws.durable.operation_attempt": 1.0
+       },
+       "duration": 2072550,
+       "start": 1793806383846445642
+     },
+     {
+       "name": "aws.durable.wait",
+       "service": "tests.contrib.aws_durable_execution_sdk_python",
+       "resource": "pause",
+       "trace_id": 1,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "serverless",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "aws_durable_execution_sdk_python",
+         "aws.durable.operation_id": "c5faca15ac2f93578b39ef4b6bbb871bdedce4ddd584fd31f0bb66fade3947e6",
+         "aws.durable.operation_name": "pause",
+         "aws.durable.replayed": "false",
+         "component": "aws_durable_execution_sdk_python",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 1707169,
+       "start": 1793806383848613078
+     }],
+[
+  {
+    "name": "aws.durable.execute",
+    "service": "tests.contrib.aws_durable_execution_sdk_python",
+    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk_python.test_wait_for_condition.<locals>.workflow",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6aeb502f00000000",
+      "_dd.sdk.otlp_export": "false",
+      "_dd.svc_src": "aws_durable_execution_sdk_python",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_durable_execution_sdk_python",
+      "aws.durable.execution_arn": "4c0f2b67-03f3-4010-b02a-beec999db4b8/inv-12345678-1234-1234-1234-123456789012",
+      "aws.durable.invocation_status": "succeeded",
+      "aws.durable.replayed": "true",
+      "component": "aws_durable_execution_sdk_python",
+      "language": "python",
+      "runtime-id": "9916ec3e82cc43e8a1328a72e3c1c4fd",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1.0
+    },
+    "duration": 630757,
+    "start": 1793806383955447532
+  },
+     {
+       "name": "aws.durable.wait_for_condition",
+       "service": "tests.contrib.aws_durable_execution_sdk_python",
+       "resource": "poll",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "serverless",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "aws_durable_execution_sdk_python",
+         "aws.durable.operation_id": "1ced8f5be2db23a6513eba4d819c73806424748a7bc6fa0d792cc1c7d1775a97",
+         "aws.durable.operation_name": "poll",
+         "aws.durable.replayed": "true",
+         "component": "aws_durable_execution_sdk_python",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "aws.durable.operation_attempt": 1.0
+       },
+       "duration": 257663,
+       "start": 1793806383955584773
+     },
+     {
+       "name": "aws.durable.wait",
+       "service": "tests.contrib.aws_durable_execution_sdk_python",
+       "resource": "pause",
+       "trace_id": 2,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "serverless",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "aws_durable_execution_sdk_python",
+         "aws.durable.operation_id": "c5faca15ac2f93578b39ef4b6bbb871bdedce4ddd584fd31f0bb66fade3947e6",
+         "aws.durable.operation_name": "pause",
+         "aws.durable.replayed": "true",
+         "component": "aws_durable_execution_sdk_python",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 131604,
+       "start": 1793806383955918598
+     }]]

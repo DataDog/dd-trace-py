@@ -26,7 +26,7 @@ services:
   app:
     depends_on:
       - lib_inject
-    image: ${APP_IMAGE:-python:3.14.7}
+    image: ${APP_IMAGE:-python:3.14.9}
     environment:
       - PYTHONPATH=/datadog-lib
       - DD_TRACE_AGENT_URL=http://testagent:8126

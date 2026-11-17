@@ -162,10 +162,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = False
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = is_quarantined
-        test.is_disabled.return_value = is_disabled
-        test.is_attempt_to_fix.return_value = False
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = is_quarantined
+        test.should_disable.return_value = is_disabled
+        test.should_attempt_to_fix.return_value = False
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -181,10 +181,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = is_quarantined
-        test.is_disabled.return_value = is_disabled
-        test.is_attempt_to_fix.return_value = False
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = is_quarantined
+        test.should_disable.return_value = is_disabled
+        test.should_attempt_to_fix.return_value = False
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -204,10 +204,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = is_quarantined
-        test.is_disabled.return_value = is_disabled
-        test.is_attempt_to_fix.return_value = is_attempt_to_fix
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = is_quarantined
+        test.should_disable.return_value = is_disabled
+        test.should_attempt_to_fix.return_value = is_attempt_to_fix
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -237,10 +237,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = is_quarantined
-        test.is_disabled.return_value = is_disabled
-        test.is_attempt_to_fix.return_value = is_attempt_to_fix
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = is_quarantined
+        test.should_disable.return_value = is_disabled
+        test.should_attempt_to_fix.return_value = is_attempt_to_fix
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -259,10 +259,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = True
-        test.is_disabled.return_value = False
-        test.is_attempt_to_fix.return_value = False
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = True
+        test.should_disable.return_value = False
+        test.should_attempt_to_fix.return_value = False
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -280,10 +280,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = False
-        test.is_disabled.return_value = False
-        test.is_attempt_to_fix.return_value = True
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = False
+        test.should_disable.return_value = False
+        test.should_attempt_to_fix.return_value = True
 
         item = mock.MagicMock()
         item.user_properties = []

@@ -7,6 +7,17 @@ using namespace std;
 using namespace pybind11::literals;
 
 namespace py = pybind11;
+
+inline bool
+is_dict_or_frozendict(PyObject* obj)
+{
+#if PY_VERSION_HEX >= 0x030F0000
+    return PyAnyDict_Check(obj);
+#else
+    return PyDict_Check(obj);
+#endif
+}
+
 bool
 asbool(const py::object&);
 bool

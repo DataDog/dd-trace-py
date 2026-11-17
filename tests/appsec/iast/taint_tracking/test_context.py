@@ -23,6 +23,7 @@ from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_cont
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
+from ddtrace.appsec._iast._taint_tracking._context import is_in_taint_map
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_string
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -517,3 +518,19 @@ def test_get_ranges_public_api_returns_empty_without_context():
 
     finish_request_context(ctx)
     IAST_CONTEXT.set(None)
+
+
+def test_mapping_taint_context_lookup(iast_context_defaults, mapping_factory):
+    value = taint_pyobject("frozen_input", "parameter", "frozen_input", OriginType.PARAMETER)
+    mapping = mapping_factory({"value": value})
+
+    assert is_pyobject_tainted(value)
+    assert is_in_taint_map(mapping)
+    assert is_in_taint_map(mapping, IAST_CONTEXT.get())
+    assert not is_in_taint_map(mapping_factory({"value": "clean"}))
+
+    other_context = start_request_context()
+    try:
+        assert not is_in_taint_map(mapping, other_context)
+    finally:
+        finish_request_context(other_context)

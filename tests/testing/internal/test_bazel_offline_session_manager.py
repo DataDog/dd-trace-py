@@ -21,7 +21,7 @@ from tests.testing.mocks import CoverageReportUploadCapture
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import get_mock_git_instance
 from tests.testing.mocks import mock_api_client_settings
-from tests.utils import reinitialize_agentless_config
+from tests.testing.mocks import mock_test_environment
 
 
 @pytest.fixture(autouse=True)
@@ -65,7 +65,7 @@ class TestSessionManagerProviderSelection:
             patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             mock_client = mock_api_client_settings()
             mock_api_client_cls.return_value = mock_client
@@ -87,7 +87,7 @@ class TestSessionManagerProviderSelection:
             patch("ddtrace.testing.internal.session_manager.APIClient"),
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             sm = SessionManager(session=_make_session())
 
@@ -111,7 +111,7 @@ class TestSessionManagerProviderSelection:
             patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             sm = SessionManager(session=_make_session())
 
@@ -131,7 +131,7 @@ class TestSessionManagerProviderSelection:
             patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             mock_api_client_cls.return_value = mock_api_client_settings(coverage_upload_capture=capture)
             sm = SessionManager(session=_make_session())
@@ -152,11 +152,8 @@ class TestSessionManagerProviderSelection:
         with (
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
-            # Agentless settings resolve once at import; refresh them for the patched environment
-            # so the connector choice reflects this test's DD_CIVISIBILITY_AGENTLESS_ENABLED.
-            reinitialize_agentless_config()
             sm = SessionManager(session=_make_session())
 
         assert not isinstance(sm.connector_setup, NoOpBackendConnectorSetup)
@@ -176,7 +173,7 @@ class TestSessionManagerProviderSelection:
             patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             mock_api_client_cls.return_value = mock_api_client_settings()
             sm = SessionManager(session=_make_session())
@@ -195,7 +192,7 @@ class TestUploadGitDataSkipping:
             patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             mock_client = mock_api_client_settings()
             mock_api_client_cls.return_value = mock_client
@@ -212,7 +209,7 @@ class TestUploadGitDataSkipping:
             patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             assert get_offline_mode().manifest_enabled
             sm = SessionManager(session=_make_session())
@@ -453,7 +450,7 @@ class TestSkippingInManifestMode:
         with (
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             sm = SessionManager(session=_make_session())
 
@@ -472,7 +469,7 @@ class TestSkippingInManifestMode:
         with (
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-            patch.dict(os.environ, env),
+            mock_test_environment(env),
         ):
             sm = SessionManager(session=_make_session())
 

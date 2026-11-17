@@ -1,11 +1,14 @@
 import multiprocessing
 import os
 from pathlib import Path
+import signal
+import subprocess
 import sys
 
 import pytest
 
 from ddtrace.internal.datadog.profiling import stack as _stack_ext
+from tests._ddtest_env_helpers import strip_ddtest_leaked_env
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
@@ -153,8 +156,28 @@ def test_fork(tmp_path: Path) -> None:
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent() -> None:
     env = os.environ.copy()
-    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=env)
-    assert exitcode == 0
+    # This test sometimes hangs until the CI job times out. Run it in its own process group so that on a hang, both
+    # the parent and the forked child can be sent SIGABRT, which makes faulthandler print where they are stuck.
+    proc = subprocess.Popen(
+        ["python", os.path.join(os.path.dirname(__file__), "gevent_fork.py")],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=strip_ddtest_leaked_env(env),
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGABRT)
+        try:
+            stdout, stderr = proc.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            stdout, stderr = proc.communicate()
+        pytest.fail(
+            f"gevent_fork.py hung, thread dumps follow.\nstdout:\n{stdout.decode()}\nstderr:\n{stderr.decode()}"
+        )
+    assert proc.returncode == 0, (stdout, stderr)
 
 
 methods = multiprocessing.get_all_start_methods()

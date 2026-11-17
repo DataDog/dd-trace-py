@@ -9,9 +9,6 @@ suites:
     paths:
       - '@debugging'
       - '@bootstrap'
-      - '@core'
-      - '@remoteconfig'
-      - '@tracing'
       - tests/debugging/*
     matrix:
       command: pytest {cmdargs} tests/debugging/

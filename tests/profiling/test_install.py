@@ -129,7 +129,104 @@ def test_install_enabled_profiling_disabled_installs_at_startup() -> None:
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(
+        _DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="true",
+        DD_REMOTE_CONFIGURATION_ENABLED="true",
+        DD_PROFILING_ENABLED=None,
+    ),
+    out="OK\n",
+    err=None,
+)
+def test_install_remote_config_experiment_installs_at_startup() -> None:
+    # Remote config can start the profiler at runtime, so the experiment installs the hooks like the armed mode.
+    import sys
+
+    from ddtrace.internal._unpatched import _threading as ddtrace_threading
+    from ddtrace.internal.settings.profiling import config
+    from ddtrace.profiling.collector import _task
+    from ddtrace.profiling.collector import threading as profiling_threading
+
+    assert config.install
+    assert not config.enabled
+
+    hooks = profiling_threading._installed_thread_hooks
+    assert set(hooks) == {"_set_native_id", "_bootstrap_inner"}, hooks
+    assert ddtrace_threading.Thread._set_native_id is hooks["_set_native_id"]  # type: ignore[attr-defined]
+    assert ddtrace_threading.Thread._bootstrap_inner is hooks["_bootstrap_inner"]  # type: ignore[attr-defined]
+    assert "ddtrace.profiling._faulthandler" in sys.modules
+    assert _task._gevent_support_initialized  # type: ignore[attr-defined]
+
+    print("OK")
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        _DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="true",
+        DD_REMOTE_CONFIGURATION_ENABLED="false",
+        DD_PROFILING_ENABLED=None,
+    ),
+    out="OK\n",
+    err=None,
+)
+def test_install_remote_config_experiment_remote_config_disabled_installs_nothing() -> None:
+    # Nothing can start the profiler at runtime without Remote Config, so the experiment does not install the hooks.
+    import sys
+
+    assert "ddtrace.profiling._faulthandler" not in sys.modules
+
+    from ddtrace.internal._unpatched import _threading as ddtrace_threading
+    from ddtrace.internal.settings.profiling import config
+    from ddtrace.profiling.collector import _task
+    from ddtrace.profiling.collector import threading as profiling_threading
+
+    assert not config.install
+    assert profiling_threading._installed_thread_hooks == {}
+    set_native_id = ddtrace_threading.Thread._set_native_id  # type: ignore[attr-defined]
+    assert set_native_id.__module__ != profiling_threading.__name__
+    assert not _task._gevent_support_initialized  # type: ignore[attr-defined]
+
+    print("OK")
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        _DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="true",
+        DD_REMOTE_CONFIGURATION_ENABLED="true",
+        DD_PROFILING_ENABLED="false",
+    ),
+    out="OK\n",
+    err=None,
+)
+def test_install_remote_config_experiment_profiling_explicitly_disabled_installs_nothing() -> None:
+    # An explicit DD_PROFILING_ENABLED=false opts out of the experiment, so Remote Config cannot start the profiler.
+    import sys
+
+    assert "ddtrace.profiling._faulthandler" not in sys.modules
+
+    from ddtrace.internal._unpatched import _threading as ddtrace_threading
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.settings.profiling import config
+    from ddtrace.profiling.collector import _task
+    from ddtrace.profiling.collector import threading as profiling_threading
+
+    assert not config.remote_config_experiment
+    assert not config.install
+    assert profiling_threading._installed_thread_hooks == {}
+    set_native_id = ddtrace_threading.Thread._set_native_id  # type: ignore[attr-defined]
+    assert set_native_id.__module__ != profiling_threading.__name__
+    assert not _task._gevent_support_initialized  # type: ignore[attr-defined]
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
+
+    print("OK")
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="false", DD_PROFILING_ENABLED="1", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -218,7 +315,7 @@ def test_install_disabled_profiling_disabled_stack_disabled_installs_nothing() -
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="false", DD_PROFILING_ENABLED="1", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -883,5 +980,27 @@ def test_install_enabled_reported_in_telemetry() -> None:
     assert config.install
     values: list[object] = [c.args[1] for c in add_configuration.call_args_list if c.args[0] == "DD_PROFILING_ENABLED"]
     assert values[-1] == "armed", values
+
+    print("OK")
+
+
+@pytest.mark.subprocess(
+    env=dict(_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="true", DD_PROFILING_ENABLED=None),
+    out="OK\n",
+    err=None,
+)
+def test_install_remote_config_experiment_not_reported_as_armed_in_telemetry() -> None:
+    import sys
+    from unittest import mock
+
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    sys.modules.pop("ddtrace.internal.settings.profiling", None)
+    with mock.patch.object(telemetry_writer, "add_configuration") as add_configuration:
+        from ddtrace.internal.settings.profiling import config
+
+    assert config.install
+    values: list[object] = [c.args[1] for c in add_configuration.call_args_list if c.args[0] == "DD_PROFILING_ENABLED"]
+    assert "armed" not in values, values
 
     print("OK")

@@ -17,7 +17,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 from ddtrace.ext import http
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.contrib.utils import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
@@ -363,6 +363,27 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag("component") == "cherrypy"
         assert s.get_tag("span.kind") == "server"
+
+    def test_otel_semantics_preserves_custom_span_resource(self):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            self.getPage("/custom_span")
+            time.sleep(0.1)
+
+        self.assertStatus("200 OK")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "overridden"
+
+    def test_otel_semantics_sets_method_resource_before_in_handler_sampling(self):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            self.getPage("/sampled_resource")
+            time.sleep(0.1)
+
+        self.assertStatus("200 OK")
+        self.assertBody("GET")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "GET"
 
     def test_http_request_header_tracing(self):
         config.cherrypy.http.trace_headers(["Host", "my-header"])

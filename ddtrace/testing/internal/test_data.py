@@ -222,6 +222,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
         self.session = self.module.parent
 
         self._is_flaky_run = False
+        self.prevent_failure_suppression = False
+        self.no_auto_retry = False
 
     def __str__(self) -> str:
         return f"{self.parent.parent.name}/{self.parent.name}::{self.name}"
@@ -270,6 +272,15 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def is_attempt_to_fix(self) -> bool:
         return self.tags.get(TestTag.IS_ATTEMPT_TO_FIX) == TAG_TRUE
+
+    def should_quarantine(self) -> bool:
+        return not self.prevent_failure_suppression and self.is_quarantined()
+
+    def should_disable(self) -> bool:
+        return not self.prevent_failure_suppression and self.is_disabled()
+
+    def should_attempt_to_fix(self) -> bool:
+        return not self.no_auto_retry and self.is_attempt_to_fix()
 
     def has_parameters(self) -> bool:
         return TestTag.PARAMETERS in self.tags
@@ -460,6 +471,8 @@ class TestTag:
 
     TEST_TYPE = "test.type"
     IS_NEW = "test.is_new"
+    PREVENT_FAILURE_SUPPRESSION = "test.test_management.prevent_failure_suppression"
+    NO_AUTO_RETRY = "test.test_management.no_auto_retry"
     IS_QUARANTINED = "test.test_management.is_quarantined"
     IS_DISABLED = "test.test_management.is_test_disabled"
     IS_ATTEMPT_TO_FIX = "test.test_management.is_attempt_to_fix"

@@ -20,6 +20,17 @@ If you're trying to set up a local development environment, read `this <https://
 
 Thanks for working with us!
 
+Coding assistant skills
+=======================
+
+Shared repository skills live in ``.agents/skills/<name>/SKILL.md``. Codex, Cursor,
+OpenCode, and Pi discover this directory directly. Claude Code uses the relative
+symlink ``.claude/skills`` pointing to ``../.agents/skills``.
+
+Add and edit skills and their supporting files under ``.agents/skills``. Keep the
+compatibility symlink intact so all assistants use the same skills. Repository-wide
+instructions live in ``AGENTS.md``.
+
 .. _change_process:
 
 Change Process
@@ -161,6 +172,11 @@ documentation is the public population of library users. The Products and Core l
 this document, in the ``docs`` directory. The documentation for each Integration is contained in a docstring
 in that integration's ``__init__.py`` file. See :ref:`this page<integration_guidelines>` for more information
 on writing documentation for Integrations.
+
+Documentation builds in CI and Read the Docs use ``scripts/docs/build.sh``. The script downloads
+Python's documentation inventory to ``docs/_build/python3.inv`` before starting Sphinx, retrying up to
+five times with a two-second delay. If all attempts fail, the build stops. Use the same script for
+local builds to get this retry behavior.
 
 Logging
 -------

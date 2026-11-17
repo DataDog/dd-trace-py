@@ -6,6 +6,7 @@ from typing import Union
 from typing import cast
 from urllib import parse
 
+from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_ROUTE
 from ddtrace._trace.otel.http.resource import set_otel_http_resource
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
@@ -102,12 +103,19 @@ def _obfuscated_query(query: Optional[str]) -> Optional[Union[str, bytes]]:
     if pattern is None or getattr(pattern, "pattern", None) == b"":
         # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
         return None
-    return redact_query_string(query, pattern)
+    return redact_query_string(query, pattern, preserve_delimiter=config._query_string_obfuscation_preserve_delimiter)
 
 
 def _set_otel_query(span: Span, query: Optional[str]) -> None:
     if obfuscated := _obfuscated_query(query):
         span._set_attribute(otel_http.URL_QUERY, cast(Any, obfuscated))
+
+
+def _should_tag_query_string(integration_config: IntegrationConfig, trace_query_string: Optional[bool]) -> bool:
+    """An explicit request override takes precedence over both integration settings."""
+    if trace_query_string is not None:
+        return trace_query_string
+    return bool(integration_config.http_tag_query_string or integration_config.trace_query_string)
 
 
 def set_url_tags_otel_server(
@@ -116,6 +124,8 @@ def set_url_tags_otel_server(
     url: str,
     query: Optional[str],
     raw_uri: Optional[str] = None,
+    query_tagged_separately: bool = False,
+    trace_query_string: Optional[bool] = None,
 ) -> None:
     parsed = parse.urlsplit(url)
     if parsed.scheme:
@@ -141,10 +151,15 @@ def set_url_tags_otel_server(
         if port is not None:
             span._set_attribute(otel_http.SERVER_PORT, port)
 
-    # Either existing query-string option enables url.query capture.
-    if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
+    tag_query_string = _should_tag_query_string(integration_config, trace_query_string)
+    if not tag_query_string:
         return
-    _set_otel_query(span, query if query is not None else parsed.query)
+    if query is None:
+        # Without an explicit query, use the URL query unless the caller tags it separately.
+        if query_tagged_separately:
+            return
+        query = parsed.query
+    _set_otel_query(span, query)
 
 
 def _sanitized_url(url: str, query: Optional[str], tag_query_string: bool) -> Union[str, bytes]:
@@ -169,11 +184,17 @@ def _sanitized_url(url: str, query: Optional[str], tag_query_string: bool) -> Un
     )
 
 
-def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
+def set_url_tags_otel_client(
+    integration_config: IntegrationConfig,
+    span: Span,
+    url: str,
+    query: Optional[str],
+    trace_query_string: Optional[bool] = None,
+) -> None:
     url = _credentials_redacted_url(url)
     parsed = parse.urlparse(url)
 
-    tag_query_string = integration_config.http_tag_query_string or integration_config.trace_query_string
+    tag_query_string = _should_tag_query_string(integration_config, trace_query_string)
     # url.full must carry a separately supplied query even when it is not obfuscated.
     full_url = parse.urlunsplit(parse.urlsplit(url)._replace(query=query)) if query else url
     span._set_attribute(otel_http.URL_FULL, cast(Any, _sanitized_url(full_url, query, tag_query_string)))
@@ -213,6 +234,18 @@ def otel_client_url(
     return f"{scheme}://{host}{target if target.startswith('/') else ''}"
 
 
+def is_otel_server_error_status(status_code: int) -> bool:
+    """Whether a server response with this status marks the span as an error under OTel semantics."""
+    if (
+        _SERVER_ERROR_STATUSES not in env
+        and _SERVER_ERROR_STATUSES not in LOCAL_CONFIG
+        and _SERVER_ERROR_STATUSES not in FLEET_CONFIG
+    ):
+        # OTel treats any code at or above 500 as an error.
+        return status_code >= 500
+    return bool(config._http_server.is_error_code(status_code))
+
+
 # This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
@@ -242,20 +275,30 @@ class OTelHTTPSpanAttributes:
         raw_uri: Optional[str] = None,
         server_address: Optional[str] = None,
         fallback_server_address: Optional[str] = None,
+        query_tagged_separately: bool = False,
+        trace_query_string: Optional[bool] = None,
     ) -> None:
         if url is not None:
             try:
                 if self.is_client:
-                    set_url_tags_otel_client(self._integration_config, self._span, url, query)
+                    set_url_tags_otel_client(
+                        self._integration_config, self._span, url, query, trace_query_string=trace_query_string
+                    )
                 else:
-                    set_url_tags_otel_server(self._integration_config, self._span, url, query, raw_uri)
+                    set_url_tags_otel_server(
+                        self._integration_config,
+                        self._span,
+                        url,
+                        query,
+                        raw_uri,
+                        query_tagged_separately,
+                        trace_query_string=trace_query_string,
+                    )
             except ValueError as e:
                 # A malformed optional URL must not suppress metadata supplied separately.
                 # The URL is not logged because it may carry credentials or a sensitive query.
                 log.debug("failed to parse http url: %s", type(e).__name__)
-        elif query is not None and (
-            self._integration_config.http_tag_query_string or self._integration_config.trace_query_string
-        ):
+        elif query is not None and _should_tag_query_string(self._integration_config, trace_query_string):
             _set_otel_query(self._span, query)
 
         if self._span.get_tag(net.SERVER_ADDRESS) is not None:
@@ -302,31 +345,17 @@ class OTelHTTPSpanAttributes:
             if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
                 return status_code >= 400
             return bool(config._http_client.is_error_code(status_code))
-        setting = _SERVER_ERROR_STATUSES
-        if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
-            # OTel treats any code at or above 500 as an error.
-            return status_code >= 500
-        return bool(config._http_server.is_error_code(status_code))
+        return is_otel_server_error_status(status_code)
 
     def set_user_agent(self, user_agent: Optional[str]) -> None:
         if user_agent:
             self._span._set_attribute(otel_http.USER_AGENT_ORIGINAL, user_agent)
 
-    def set_client_addresses(
-        self,
-        client_address: Optional[str],
-        network_peer_address: Optional[str],
-    ) -> None:
-        if client_address:
-            self._span._set_attribute(otel_http.CLIENT_ADDRESS, client_address)
-        if network_peer_address:
-            self._span._set_attribute(otel_http.NETWORK_PEER_ADDRESS, network_peer_address)
-
     def set_resource(self, route: Optional[str]) -> None:
         if self._normalized_method is None:
             return
         if not self.is_client and route is None:
-            route = self._span.get_tag(http.ROUTE)
+            route = self._span.get_tag(http.ROUTE) or self._span._get_ctx_item(INSTRUMENTATION_HTTP_ROUTE)
         set_otel_http_resource(
             self._span,
             self._normalized_method,

@@ -3,6 +3,7 @@
 import http.server
 import os
 import pathlib
+import socket
 import subprocess
 import sys
 import threading
@@ -43,8 +44,18 @@ def _environment_without_proxies():
 
 def _wait(services, agent_url, timeout=30):
     # -S hides site-packages, so the run fails if a check imports a third-party client library.
+    # Skip backoff sleeps so failed checks exhaust their real retry budget quickly.
     return subprocess.run(
-        [sys.executable, "-S", str(_SCRIPT_PATH), *services],
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            "import pathlib, runpy, sys, time; time.sleep = lambda _: None; "
+            "script = sys.argv.pop(1); sys.path.insert(0, str(pathlib.Path(script).parent)); "
+            "runpy.run_path(script, run_name='__main__')",
+            str(_SCRIPT_PATH),
+            *services,
+        ],
         env={**_environment_without_proxies(), "DD_TRACE_AGENT_URL": agent_url},
         capture_output=True,
         text=True,
@@ -68,6 +79,34 @@ def test_client_library_check_fails_without_retries_when_the_library_is_missing(
 
     result = _wait(["postgres"], url)
 
-    assert result.returncode != 0
+    assert result.returncode == 1
     assert "ModuleNotFoundError" in result.stderr
     assert "Retrying" not in result.stderr
+
+
+@pytest.mark.parametrize("connection_refused", [False, True])
+def test_unhealthy_service_exits_with_retryable_status(http_status, connection_refused):
+    state, url = http_status
+    state["status"] = 503
+    if connection_refused:
+        with socket.socket() as closed_service:
+            closed_service.bind(("127.0.0.1", 0))
+            url = f"http://127.0.0.1:{closed_service.getsockname()[1]}"
+
+    result = _wait(["testagent", "postgres"], url)
+
+    assert result.returncode == 75, result.stderr
+    assert "Attempt 99: check_agent" in result.stderr
+    assert ("URLError" if connection_refused else "Agent not ready") in result.stderr
+    assert "testagent" in result.stderr
+    assert "check_postgres" not in result.stderr
+    assert "Succeeded" not in result.stderr
+
+
+def test_no_services_exits_with_usage_error(http_status):
+    _, url = http_status
+
+    result = _wait([], url)
+
+    assert result.returncode == 1
+    assert "usage:" in result.stdout

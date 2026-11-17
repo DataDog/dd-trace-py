@@ -101,6 +101,23 @@ def test_debugger_line_probe_on_instance_method(stuff):
     assert snapshot["debugger"]["snapshot"]["duration"] is None
 
 
+def test_debugger_line_probe_on_method_declaration(stuff):
+    snapshots = simple_debugger_test(
+        create_snapshot_line_probe(
+            probe_id="probe-method-declaration",
+            source_file="tests/submod/stuff.py",
+            line=35,
+            condition=None,
+        ),
+        stuff.Stuff().instancestuff,
+    )
+
+    (snapshot,) = snapshots
+    captures = snapshot["debugger"]["snapshot"]["captures"]["lines"]["35"]
+    assert set(captures["arguments"].keys()) == {"self", "bar"}
+    assert captures["locals"] == {}
+
+
 def test_debugger_coordinated_sampling_caps_loop_probe_per_trace(stuff):
     # A probe inside a high-iteration loop must not consume unbounded volume,
     # and must not starve the probe on the enclosing function. Each call runs in
@@ -396,7 +413,7 @@ def test_debugger_line_probe_on_imported_module_function(stuff):
             create_snapshot_line_probe(
                 probe_id="probe-instance-method",
                 source_file="tests/submod/stuff.py",
-                line=36,
+                line=35,
                 rate=1000,
             )
         ),
@@ -1038,6 +1055,67 @@ def test_debugger_metric_function_probe_fires_once_not_twice(mock_metrics, stuff
             )
 
 
+class _FloatRaises:
+    def __float__(self):
+        raise RuntimeError("customer-secret")
+
+
+@pytest.mark.parametrize(
+    "value,arg,message",
+    [
+        ({"getmember": [{"ref": "bar"}, "x"]}, {"x": 420}, "'dict' object has no attribute 'x'"),
+        ({"ref": "bar"}, {"x": 420}, "Value is not a number: dict"),
+        ({"ref": "bar"}, "customer-secret", "Value is not a number: str"),
+        ({"ref": "bar"}, 10**400, "Value is not a number: int"),
+        ({"ref": "bar"}, _FloatRaises(), "Value is not a number: _FloatRaises"),
+        ({"ref": "bar"}, float("nan"), "Value is not finite: nan"),
+        ({"ref": "bar"}, float("-inf"), "Value is not finite: -inf"),
+    ],
+)
+def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, arg, message):
+    with debugger() as d:
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, value))
+
+        for _ in range(100):
+            stuff.Stuff().instancestuff(arg)
+
+        (payload,) = d.uploader.wait_for_payloads()
+
+        assert not mock_metrics.gauge.mock_calls
+        assert d.signal_state_counter[SignalState.EVAL_ERROR] == 1
+        assert d.signal_state_counter[SignalState.SKIP_COND_ERROR] == 99
+        assert SignalState.DONE not in d.signal_state_counter
+        (error,) = payload["debugger"]["snapshot"]["evaluationErrors"]
+        assert error["expr"] == "test"
+        assert message in error["message"]
+        assert "customer-secret" not in error["message"]
+
+
+@pytest.mark.parametrize("evaluate_at", [ProbeEvalTiming.ENTRY, ProbeEvalTiming.EXIT, ProbeEvalTiming.DEFAULT])
+def test_debugger_metric_function_probe_value_error_reported(mock_metrics, stuff, evaluate_at):
+    probe = create_metric_function_probe(
+        probe_id="metric-function-probe-test",
+        module="tests.submod.stuff",
+        func_qname="mutator",
+        kind=MetricProbeKind.GAUGE,
+        name="test.gauge",
+        tags={"debugger.probeid": "metric-function-probe-test"},
+        evaluate_at=evaluate_at,
+        value=DDExpression(dsl="arg.x", callable=dd_compile({"getmember": [{"ref": "arg"}, "x"]})),
+    )
+    with debugger() as d:
+        d.add_probes(probe)
+
+        stuff.mutator([])
+
+        (payload,) = d.uploader.wait_for_payloads()
+
+        assert not mock_metrics.gauge.mock_calls
+        assert d.signal_state_counter[SignalState.EVAL_ERROR] == 1
+        (error,) = payload["debugger"]["snapshot"]["evaluationErrors"]
+        assert error["expr"] == "arg.x"
+
+
 def test_debugger_multiple_function_probes_on_same_function(stuff):
     probes = [
         create_snapshot_function_probe(
@@ -1449,6 +1527,9 @@ def test_debugger_condition_eval_error_get_reported_once(stuff):
         assert 1 == len(evaluationErrors)
         assert "foo == 42" == evaluationErrors[0]["expr"]
         assert "No such local variable: 'foo'" == evaluationErrors[0]["message"]
+
+        # The probe never captured, but the schema still requires stack to be a list
+        assert snapshot["debugger"]["snapshot"]["stack"] == []
 
 
 def test_debugger_function_probe_eval_on_entry(stuff):

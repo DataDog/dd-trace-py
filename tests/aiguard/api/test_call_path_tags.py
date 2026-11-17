@@ -30,8 +30,16 @@ class _FakeClient:
     def __init__(self):
         self.calls = []
 
-    def evaluate(self, messages, options=None, source=None, integration=None):
-        self.calls.append({"messages": messages, "options": options, "source": source, "integration": integration})
+    def evaluate(self, messages, options=None, source=None, integration=None, mcp_servers=None):
+        self.calls.append(
+            {
+                "messages": messages,
+                "options": options,
+                "source": source,
+                "integration": integration,
+                "mcp_servers": mcp_servers,
+            }
+        )
 
 
 def test_evaluate_auto_reports_the_package_as_the_call_path():
@@ -46,6 +54,7 @@ def test_evaluate_auto_reports_the_package_as_the_call_path():
             "options": {"block": aiguard_config._ai_guard_block},
             "source": AI_GUARD.SOURCE_AUTO,
             "integration": AI_GUARD.INTEGRATION_OPENAI,
+            "mcp_servers": None,
         }
     ]
 

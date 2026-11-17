@@ -69,7 +69,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"elasticsearch": ">=1.10"}
+    return {"elasticsearch": ">=1.10", "elastic_transport": "*", "opensearchpy": ">=1.1.0"}
 
 
 def get_versions() -> dict[str, str]:
@@ -227,7 +227,7 @@ def _get_perform_request_coro(transport):
                     data = result
 
                 took = data.get("took")
-                if took:
+                if took is not None:
                     span._set_attribute(metadata.TOOK, int(took))
             except Exception:
                 log.debug("Unexpected exception", exc_info=True)
