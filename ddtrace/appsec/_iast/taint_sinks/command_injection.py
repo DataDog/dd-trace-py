@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from typing import Union
 
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
@@ -11,6 +10,7 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CMDI
 
 from .._logs import iast_error
+from ._base import TEXT_TYPES
 from ._base import VulnerabilityBase
 
 
@@ -28,7 +28,7 @@ def _iast_report_cmdi(func_name: str, *args: object, **kwargs: object) -> None:
         _set_metric_iast_instrumented_sink(VULN_CMDI)
         IS_REPORTED_INTRUMENTED_SINK_METRIC = True
 
-    report_cmdi: Union[str, bytes, bytearray] = ""
+    report_cmdi: TEXT_TYPES = ""
     if len(args) == 0:
         shell_args = kwargs.get("args", [])
     elif isinstance(args[0], (list, tuple)):
