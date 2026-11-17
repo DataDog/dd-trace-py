@@ -46,7 +46,7 @@ class TestAPIClientGetSettings:
         [
             ({GitTag.BRANCH: "some-branch"}, "some-branch"),
             ({GitTag.TAG: "v1.0"}, "v1.0"),
-            ({}, "auto:git-detached-head"),
+            ({}, ""),
         ],
     )
     @pytest.mark.parametrize(

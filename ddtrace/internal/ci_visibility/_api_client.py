@@ -421,7 +421,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     "env": self._dd_env,
                     "repository_url": self._git_data.repository_url,
                     "sha": self._git_data.commit_sha,
-                    "branch": self._git_data.branch or "auto:git-detached-head",
+                    "branch": self._git_data.branch or "",
                     "configurations": self._configurations,
                 },
             }

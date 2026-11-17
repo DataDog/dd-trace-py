@@ -14,6 +14,7 @@ import subprocess
 from tempfile import TemporaryDirectory
 from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import TypeVar
 from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
@@ -94,6 +95,11 @@ COMMIT_COMMITTER_DATE = "git.commit.committer.date"
 # Git Commit Message
 COMMIT_MESSAGE = "git.commit.message"
 
+# Tested checkout, independent of the CI workspace.
+CHECKOUT_ROOT = "git.checkout.root"
+CHECKOUT_IS_CUSTOM = "git.checkout.is_custom"
+CI_MERGE_COMMIT_SHA = "ci.git.merge_commit_sha"
+
 # Python main package
 MAIN_PACKAGE = "python_main_package"
 
@@ -102,6 +108,100 @@ _RE_ORIGIN = re.compile(r"^origin/")
 _RE_TAGS = re.compile(r"^tags/")
 
 log = get_logger(__name__)
+
+
+def _normalize_commit_sha(value: Optional[str]) -> Optional[str]:
+    if value and re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", value):
+        return value.lower()
+    return value
+
+
+def _get_ci_merge_commit_sha(environ: MutableMapping[str, str], provider: Optional[str]) -> Optional[str]:
+    sha = None
+    if provider == "github" and re.fullmatch(r"refs/pull/[0-9]+/merge", environ.get("GITHUB_REF", "")):
+        sha = environ.get("GITHUB_SHA")
+    elif (
+        provider == "gitlab"
+        and environ.get("CI_MERGE_REQUEST_IID")
+        and environ.get("CI_MERGE_REQUEST_EVENT_TYPE") in ("merged_result", "merge_train")
+    ):
+        sha = environ.get("CI_COMMIT_SHA")
+    elif (
+        provider == "azurepipelines"
+        and environ.get("BUILD_REASON") == "PullRequest"
+        and re.fullmatch(r"refs/pull/[0-9]+/merge", environ.get("BUILD_SOURCEBRANCH", ""))
+    ):
+        sha = environ.get("BUILD_SOURCEVERSION")
+    elif (
+        provider == "travisci"
+        and environ.get("TRAVIS_EVENT_TYPE") == "pull_request"
+        and re.fullmatch(r"[0-9]+", environ.get("TRAVIS_PULL_REQUEST", ""))
+    ):
+        sha = environ.get("TRAVIS_COMMIT")
+    return _normalize_commit_sha(sha) if sha and re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", sha) else None
+
+
+def _same_checkout_path(left: str, right: str) -> bool:
+    return os.path.normcase(os.path.realpath(os.path.expanduser(left))) == os.path.normcase(
+        os.path.realpath(os.path.expanduser(right))
+    )
+
+
+def _matches_provider_revision(sha: Optional[str], provider: dict[str, Optional[str]]) -> bool:
+    return bool(sha) and _normalize_commit_sha(sha) in (
+        _normalize_commit_sha(provider.get(key)) for key in (COMMIT_SHA, COMMIT_HEAD_SHA, CI_MERGE_COMMIT_SHA)
+    )
+
+
+def _select_checkout_tags(
+    local: dict[str, Optional[str]], provider: dict[str, Optional[str]]
+) -> dict[str, Optional[str]]:
+    if not local.get(COMMIT_SHA):
+        tags = provider.copy()
+        tags.update({key: value for key, value in local.items() if value and not tags.get(key)})
+        return tags
+
+    tags = {
+        key: value
+        for key, value in provider.items()
+        if not key.startswith("git.") or key.startswith(("git.commit.head.", "git.pull_request."))
+    }
+    tags.update({key: value for key, value in local.items() if value})
+    root, workspace = local.get(CHECKOUT_ROOT), provider.get("ci.workspace_path")
+    if root:
+        if not workspace:
+            tags["ci.workspace_path"] = root
+        elif not _same_checkout_path(root, workspace):
+            tags[CHECKOUT_IS_CUSTOM] = "true"
+        elif not local.get(BRANCH) and _matches_provider_revision(local.get(COMMIT_SHA), provider):
+            # Only a positively matched detached checkout may borrow CI identity.
+            for key in (BRANCH, TAG, REPOSITORY_URL):
+                if provider.get(key):
+                    tags[key] = provider[key]
+            if provider.get(BRANCH) and not provider.get(TAG):
+                tags.pop(TAG, None)
+    return tags
+
+
+_TagValue = TypeVar("_TagValue", bound=Optional[str])
+
+
+def _get_git_operation_tags(
+    tags: dict[str, _TagValue], provider: dict[str, Optional[str]], user: dict[str, Optional[str]]
+) -> dict[str, _TagValue]:
+    known_revision = any(provider.get(key) for key in (COMMIT_SHA, COMMIT_HEAD_SHA, CI_MERGE_COMMIT_SHA))
+    unidentified_fallback = (
+        not tags.get(CHECKOUT_ROOT) and not user.get(COMMIT_SHA) and (not tags.get(COMMIT_SHA) or not known_revision)
+    )
+    if tags.get(CHECKOUT_IS_CUSTOM) != "true" and (
+        _matches_provider_revision(tags.get(COMMIT_SHA), provider) or unidentified_fallback
+    ):
+        return tags
+    return {
+        key: value
+        for key, value in tags.items()
+        if not key.startswith(("git.commit.head.", "git.pull_request.")) or user.get(key)
+    }
 
 
 class _GitSubprocessDetails(NamedTuple):

@@ -54,6 +54,9 @@ _UNSHALLOW_LOCK_TIMEOUT_ERROR = "unshallow lock timeout"
 
 
 class GitTag:
+    CHECKOUT_ROOT = "git.checkout.root"
+    CHECKOUT_IS_CUSTOM = "git.checkout.is_custom"
+
     # Git Repository URL
     REPOSITORY_URL = "git.repository_url"
 
@@ -634,6 +637,9 @@ def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
         GitTag.TAG: git.get_tag() if not branch else None,
         GitTag.COMMIT_MESSAGE: git.get_commit_message(),
     }
+
+    if tags.get(GitTag.COMMIT_SHA) and (root := git.get_workspace_path()):
+        tags[GitTag.CHECKOUT_ROOT] = root
 
     if user_info := git.get_user_info():
         tags.update(

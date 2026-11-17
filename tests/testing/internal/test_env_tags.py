@@ -241,7 +241,7 @@ def test_extract_git_user_provided_metadata_overwrites_ci(monkeypatch: pytest.Mo
 
 def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shallow_repo: tuple[str, str]) -> None:
     git_repo, head_sha = git_shallow_repo
-    github_sha = "abcd1234"
+    github_sha = Git(cwd=git_repo).get_commit_sha()
 
     github_event_path = f"{git_repo}/event.json"
     with open(github_event_path, "w") as f:
@@ -249,6 +249,7 @@ def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shall
 
     ci_env = {
         "GITHUB_SHA": github_sha,
+        "GITHUB_WORKSPACE": git_repo,
         "GITHUB_EVENT_PATH": github_event_path,
     }
 
@@ -294,7 +295,8 @@ def test_extract_git_head_commit_data_skips_deepen_when_git_fetch_disabled(
         json.dump({"pull_request": {"head": {"sha": head_sha}}}, f)
 
     ci_env = {
-        "GITHUB_SHA": "abcd1234",
+        "GITHUB_SHA": Git(cwd=git_repo).get_commit_sha(),
+        "GITHUB_WORKSPACE": git_repo,
         "GITHUB_EVENT_PATH": github_event_path,
         kill_switch: "false",
     }
@@ -423,7 +425,7 @@ def test_github_actions_base_branch_head_sha_extracted_from_event(
 ) -> None:
     """pull_request.base.sha from the GitHub event file is stored as base_branch_head_sha."""
     git_repo, head_sha = git_shallow_repo
-    github_sha = "abcd1234"
+    github_sha = Git(cwd=git_repo).get_commit_sha()
     base_branch_head_sha = "aabbccdd" * 5  # arbitrary fake SHA
 
     github_event_path = f"{git_repo}/event.json"

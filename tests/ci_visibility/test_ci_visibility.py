@@ -1029,9 +1029,11 @@ def test_run_protocol_unshallow_git_ge_227():
         ):
             mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
             with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
-                CIVisibilityGitClient._run_protocol(None, None, None, multiprocessing.Value(c_int, 0))
+                CIVisibilityGitClient._run_protocol(
+                    None, None, None, multiprocessing.Value(c_int, 0), _tags={ci.git.COMMIT_SHA: "latest1"}
+                )
 
-            mock_unshallow_repository.assert_called_once_with(cwd=None)
+            mock_unshallow_repository.assert_called_once_with(cwd=None, commit_sha="latest1")
 
 
 def test_run_protocol_does_not_unshallow_git_lt_227():
@@ -1052,7 +1054,9 @@ def test_run_protocol_does_not_unshallow_git_lt_227():
         ):
             mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
             with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
-                CIVisibilityGitClient._run_protocol(None, None, None, multiprocessing.Value(c_int, 0))
+                CIVisibilityGitClient._run_protocol(
+                    None, None, None, multiprocessing.Value(c_int, 0), _tags={ci.git.COMMIT_SHA: "latest1"}
+                )
 
             mock_unshallow_repository.assert_not_called()
 
@@ -2055,3 +2059,18 @@ class TestCIVisibilityGzipSupport:
             assert kwargs.get("use_gzip") is False
             assert mock_agent_info.call_count >= 2
             CIVisibility.disable()
+
+
+def test_codeowners_uses_tested_checkout_root(tmp_path):
+    from ddtrace.internal.codeowners import Codeowners
+
+    outer = tmp_path / "workflow"
+    inner = outer / "tools"
+    inner.mkdir(parents=True)
+    (outer / "CODEOWNERS").write_text("* @outer-owner\n")
+    (inner / "CODEOWNERS").write_text("* @inner-owner\n")
+    visibility = CIVisibility.__new__(CIVisibility)
+    visibility._tags = {ci.WORKSPACE_PATH: str(outer), ci.git.CHECKOUT_ROOT: str(inner)}
+    assert visibility.get_workspace_path() == str(inner)
+    assert visibility._tags[ci.WORKSPACE_PATH] == str(outer)
+    assert Codeowners(cwd=visibility.get_workspace_path()).of("test_file.py") == ["@inner-owner"]

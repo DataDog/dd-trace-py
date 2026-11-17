@@ -3,6 +3,10 @@ import logging
 import os
 import typing as t
 
+from ddtrace.ext.git import _get_ci_merge_commit_sha
+from ddtrace.ext.git import _get_git_operation_tags
+from ddtrace.ext.git import _normalize_commit_sha
+from ddtrace.ext.git import _select_checkout_tags
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal import ci
 from ddtrace.testing.internal import git
@@ -135,14 +139,9 @@ def get_env_tags() -> dict[str, str]:
     ci_provider_tags = ci.get_ci_tags(os.environ)
     user_supplied_tags = git.get_git_tags_from_dd_variables(os.environ)
 
-    provider_tags = ci_provider_tags
-    if local_git_tags.get(GitTag.COMMIT_SHA):
-        provider_tags = {
-            key: value
-            for key, value in ci_provider_tags.items()
-            if not key.startswith("git.") or key.startswith(("git.commit.head.", "git.pull_request."))
-        }
-    merge_tags(tags, local_git_tags, provider_tags)
+    if merge_sha := _get_ci_merge_commit_sha(os.environ, ci_provider_tags.get(CITag.PROVIDER_NAME)):
+        ci_provider_tags[CITag.GIT_MERGE_COMMIT_SHA] = merge_sha
+    tags = _select_checkout_tags(local_git_tags, ci_provider_tags)
     explicit_sha = user_supplied_tags.get(GitTag.COMMIT_SHA)
     if explicit_sha and explicit_sha.lower() != (tags.get(GitTag.COMMIT_SHA) or "").lower():
         if git.is_ref_a_tag(tags.get(GitTag.BRANCH)):
@@ -155,11 +154,24 @@ def get_env_tags() -> dict[str, str]:
                 key.startswith("git.commit.") and key != GitTag.COMMIT_SHA and not key.startswith("git.commit.head.")
             )
         }
+    if (
+        local_git_tags.get(GitTag.COMMIT_SHA)
+        and user_supplied_tags.get(GitTag.BRANCH)
+        and not user_supplied_tags.get(GitTag.TAG)
+    ):
+        tags.pop(GitTag.TAG, None)
+    elif (
+        local_git_tags.get(GitTag.COMMIT_SHA)
+        and user_supplied_tags.get(GitTag.TAG)
+        and not user_supplied_tags.get(GitTag.BRANCH)
+    ):
+        tags.pop(GitTag.BRANCH, None)
     merge_tags(tags, user_supplied_tags, get_custom_dd_tags(os.environ))
 
     _check_commit_sha_consistency(user_supplied_tags, ci_provider_tags, local_git_tags)
 
-    if head_sha := tags.get(GitTag.COMMIT_HEAD_SHA):
+    operation_tags = _get_git_operation_tags(tags, ci_provider_tags, user_supplied_tags)
+    if head_sha := operation_tags.get(GitTag.COMMIT_HEAD_SHA):
         merge_tags(tags, git.get_git_head_tags_from_git_command(head_sha, allow_fetch=_git_fetch_allowed()))
 
     normalize_git_tags(tags)
@@ -185,7 +197,24 @@ def get_env_tags() -> dict[str, str]:
     return {k: v for k, v in tags.items() if v}
 
 
+def get_git_operation_tags(tags: dict[str, str]) -> dict[str, str]:
+    if get_offline_mode().payload_files_enabled:
+        return tags
+    provider = ci.get_ci_tags(os.environ)
+    if merge_sha := _get_ci_merge_commit_sha(os.environ, provider.get(CITag.PROVIDER_NAME)):
+        provider[CITag.GIT_MERGE_COMMIT_SHA] = merge_sha
+    return _get_git_operation_tags(tags, provider, git.get_git_tags_from_dd_variables(os.environ))
+
+
 def normalize_git_tags(tags: _TagDict) -> None:
+    for key in (
+        GitTag.COMMIT_SHA,
+        GitTag.COMMIT_HEAD_SHA,
+        GitTag.PULL_REQUEST_BASE_BRANCH_SHA,
+        GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA,
+    ):
+        if key in tags:
+            tags[key] = _normalize_commit_sha(tags[key])
     # if git.BRANCH is a tag, we associate its value to TAG instead of BRANCH
     branch = tags.get(GitTag.BRANCH)
     tag = tags.get(GitTag.TAG)

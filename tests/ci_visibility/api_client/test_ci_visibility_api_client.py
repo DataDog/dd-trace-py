@@ -245,7 +245,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             client.fetch_settings(read_from_cache=False)
 
         attributes = json.loads(request.call_args[0][2])["data"]["attributes"]
-        assert attributes["branch"] == (branch or "auto:git-detached-head")
+        assert attributes["branch"] == (branch or "")
         assert attributes["sha"] == git_data.commit_sha
         assert attributes["repository_url"] == git_data.repository_url
         assert git_data.branch == branch

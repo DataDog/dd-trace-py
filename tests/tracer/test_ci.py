@@ -1,4 +1,5 @@
 from collections import Counter
+from contextlib import nullcontext
 import glob
 import json
 import os
@@ -768,3 +769,230 @@ def test_sha_override_does_not_restore_inferred_provider_tag(monkeypatch, tag, b
     assert git.BRANCH not in tags
     assert tags["ci.job.name"] == "tests"
     assert tags[git.COMMIT_HEAD_SHA] == "head-sha"
+
+
+@pytest.mark.parametrize("engine", ["legacy", "current"])
+@pytest.mark.parametrize("checkout", ["matched", "pr-head", "nested", "different-revision", "attached", "symlink"])
+def test_tested_checkout_identity(monkeypatch, git_repo, tmp_path, engine, checkout):
+    from ddtrace.testing.internal.env_tags import get_env_tags
+
+    monkeypatch.chdir(git_repo)
+    mirror = "https://mirror.example.com/tools.git"
+    git._git_subprocess_cmd(["remote", "set-url", "origin", mirror], cwd=git_repo)
+    sha = git.extract_commit_sha(cwd=git_repo)
+    checkout_root = git.extract_workspace_path(cwd=git_repo)
+    trace = tmp_path / "git.trace"
+    if checkout != "attached":
+        git._git_subprocess_cmd(["checkout", "--detach", "HEAD"], cwd=git_repo)
+    workspace = git_repo
+    if checkout == "nested":
+        workspace = os.path.dirname(git_repo)
+    elif checkout == "symlink":
+        link = tmp_path / "workspace-link"
+        link.symlink_to(git_repo, target_is_directory=True)
+        workspace = str(link)
+    environment = {
+        "GITHUB_ACTIONS": "true",
+        "GIT_TRACE": str(trace),
+        "GITHUB_WORKSPACE": workspace,
+        "GITHUB_SHA": sha if checkout not in ("pr-head", "different-revision") else "b" * 40,
+        "GITHUB_REPOSITORY": "example/workflow",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "GITHUB_REF": "refs/heads/topic",
+    }
+    if checkout == "pr-head":
+        event = tmp_path / "event.json"
+        event.write_text(json.dumps({"pull_request": {"head": {"sha": sha}, "base": {"ref": "main"}}}))
+        environment.update(
+            {
+                "GITHUB_REF": "refs/pull/123/merge",
+                "GITHUB_HEAD_REF": "topic",
+                "GITHUB_EVENT_PATH": str(event),
+            }
+        )
+    monkeypatch.setenv("GIT_TRACE", str(trace))
+    monkeypatch.setattr(os, "environ", environment)
+    with mock.patch("ddtrace.testing.internal.env_tags.get_offline_mode") as offline:
+        offline.return_value.payload_files_enabled = False
+        offline.return_value.manifest_enabled = False
+        tags = ci.tags(environment, cwd=git_repo) if engine == "legacy" else get_env_tags()
+
+    matched = checkout in ("matched", "pr-head", "symlink")
+    expected = {
+        "git.commit.sha": sha,
+        "git.checkout.root": checkout_root,
+        "ci.workspace_path": workspace,
+        "git.checkout.is_custom": "true" if checkout == "nested" else None,
+        "git.branch": "topic" if matched else ("master" if checkout == "attached" else None),
+        "git.repository_url": "https://github.com/example/workflow.git" if matched else mirror,
+        "ci.git.merge_commit_sha": "b" * 40 if checkout == "pr-head" else None,
+    }
+    assert {key: tags.get(key) for key in expected} == expected
+
+    assert trace.read_text().count("built-in: git rev-parse --show-toplevel") == 1
+
+
+@pytest.mark.parametrize("engine", ["legacy", "current"])
+def test_upload_requires_selected_commit(git_repo, engine):
+    from pathlib import Path
+
+    from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
+    from ddtrace.testing.internal.session_manager import SessionManager
+
+    assert git.extract_commit_sha(cwd=git_repo)
+    if engine == "legacy":
+        with mock.patch.object(CIVisibilityGitClient, "_search_commits", return_value=None) as search:
+            CIVisibilityGitClient._run_protocol(
+                mock.Mock(), mock.Mock(), "http://localhost", mock.Mock(), _tags={}, cwd=git_repo
+            )
+            search.assert_not_called()
+    else:
+        manager = SessionManager.__new__(SessionManager)
+        manager.env_tags = {}
+        manager.workspace_path = Path(git_repo)
+        manager.api_client = mock.Mock()
+        manager.api_client.get_known_commits.return_value = None
+        with mock.patch("ddtrace.testing.internal.session_manager.TelemetryAPI"):
+            manager._do_upload_git_data()
+        manager.api_client.get_known_commits.assert_not_called()
+
+
+@pytest.mark.parametrize("engine", ["legacy", "current"])
+@pytest.mark.parametrize(
+    "checkout", ["nested", "different-revision", "override", "override-base", "proven-head", "unreadable-override"]
+)
+def test_checkout_excludes_foreign_pr_operations(monkeypatch, git_repo, tmp_path, engine, checkout):
+    from ddtrace.testing.internal.ci import get_ci_tags
+    from ddtrace.testing.internal.env_tags import get_env_tags
+
+    monkeypatch.chdir(git_repo)
+    sha = git.extract_commit_sha(cwd=git_repo)
+    event = tmp_path / "event.json"
+    head = sha if checkout == "proven-head" else "f" * 40
+    event.write_text(
+        json.dumps({"pull_request": {"head": {"sha": head}, "base": {"ref": "outer-main", "sha": "e" * 40}}})
+    )
+    environment = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_WORKSPACE": os.path.dirname(git_repo) if checkout in ("nested", "override-base") else git_repo,
+        "GITHUB_SHA": "b" * 40 if checkout in ("different-revision", "proven-head") else sha,
+        "GITHUB_REPOSITORY": "example/workflow",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "GITHUB_REF": "refs/pull/123/merge",
+        "GITHUB_HEAD_REF": "topic",
+        "GITHUB_EVENT_PATH": str(event),
+    }
+    if checkout in ("override", "unreadable-override"):
+        environment["DD_GIT_COMMIT_SHA"] = "c" * 40
+    if checkout == "override-base":
+        environment["DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA"] = "d" * 40
+    monkeypatch.setattr(os, "environ", environment)
+    target = (
+        "ddtrace.ext.git.extract_git_head_metadata"
+        if engine == "legacy"
+        else "ddtrace.testing.internal.git.get_git_head_tags_from_git_command"
+    )
+    source = (
+        "ddtrace.ext.git.extract_git_metadata"
+        if engine == "legacy"
+        else "ddtrace.testing.internal.git.get_git_tags_from_git_command"
+    )
+    unreadable = mock.patch(source, return_value={}) if checkout == "unreadable-override" else nullcontext()
+    with (
+        unreadable,
+        mock.patch(target, return_value={}) as metadata,
+        mock.patch("ddtrace.testing.internal.env_tags.get_offline_mode") as offline,
+    ):
+        offline.return_value.payload_files_enabled = False
+        offline.return_value.manifest_enabled = False
+        tags = ci.tags(environment, cwd=git_repo) if engine == "legacy" else get_env_tags()
+    assert tags[git.COMMIT_HEAD_SHA] == head  # Keep workflow relationships on events.
+    with mock.patch("ddtrace.testing.internal.env_tags.get_offline_mode") as offline:
+        offline.return_value.payload_files_enabled = False
+        if engine == "current":
+            from ddtrace.testing.internal.env_tags import get_git_operation_tags
+
+            operation_tags = get_git_operation_tags(tags)
+        else:
+            operation_tags = git._get_git_operation_tags(
+                tags, get_ci_tags(environment), git.extract_user_git_metadata(environment)
+            )
+    if checkout == "proven-head":
+        assert metadata.call_count == 1
+        assert operation_tags[git.COMMIT_HEAD_SHA] == sha
+        assert operation_tags[git.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] == "e" * 40
+    else:
+        metadata.assert_not_called()
+        assert git.COMMIT_HEAD_SHA not in operation_tags
+        assert git.PULL_REQUEST_BASE_BRANCH_HEAD_SHA not in operation_tags
+        assert operation_tags.get(git.PULL_REQUEST_BASE_BRANCH_SHA) == (
+            "d" * 40 if checkout == "override-base" else None
+        )
+    assert operation_tags[git.COMMIT_SHA] == ("c" * 40 if checkout in ("override", "unreadable-override") else sha)
+
+
+@pytest.mark.parametrize("engine", ["legacy", "current"])
+@pytest.mark.parametrize("setting", ["DD_GIT_BRANCH", "DD_GIT_TAG"])
+def test_checkout_explicit_ref_priority(monkeypatch, git_repo, engine, setting):
+    from ddtrace.testing.internal.env_tags import get_env_tags
+
+    monkeypatch.chdir(git_repo)
+    git._git_subprocess_cmd(["tag", "local-tag"], cwd=git_repo)
+    if setting == "DD_GIT_BRANCH":
+        git._git_subprocess_cmd(["checkout", "--detach", "HEAD"], cwd=git_repo)
+    monkeypatch.setattr(os, "environ", {setting: "explicit-ref"})
+    tags = ci.tags(os.environ, cwd=git_repo) if engine == "legacy" else get_env_tags()
+    chosen, other = (git.BRANCH, git.TAG) if setting == "DD_GIT_BRANCH" else (git.TAG, git.BRANCH)
+    assert tags[chosen] == "explicit-ref"
+    assert not tags.get(other)
+
+
+@pytest.mark.parametrize(
+    "provider,environment,expected",
+    [
+        ("github", {"GITHUB_REF": "refs/pull/123/merge", "GITHUB_SHA": "A" * 40}, "a" * 40),
+        ("github", {"GITHUB_REF": "refs/heads/main", "GITHUB_SHA": "a" * 40}, None),
+        ("github", {"GITHUB_REF": "refs/pull/123/merge", "GITHUB_SHA": "invalid"}, None),
+        (
+            "gitlab",
+            {"CI_MERGE_REQUEST_IID": "12", "CI_MERGE_REQUEST_EVENT_TYPE": "merged_result", "CI_COMMIT_SHA": "a" * 40},
+            "a" * 40,
+        ),
+        (
+            "gitlab",
+            {"CI_MERGE_REQUEST_IID": "12", "CI_MERGE_REQUEST_EVENT_TYPE": "merge_train", "CI_COMMIT_SHA": "a" * 40},
+            "a" * 40,
+        ),
+        (
+            "gitlab",
+            {"CI_MERGE_REQUEST_IID": "12", "CI_MERGE_REQUEST_EVENT_TYPE": "detached", "CI_COMMIT_SHA": "a" * 40},
+            None,
+        ),
+        (
+            "azurepipelines",
+            {
+                "BUILD_REASON": "PullRequest",
+                "BUILD_SOURCEBRANCH": "refs/pull/12/merge",
+                "BUILD_SOURCEVERSION": "a" * 40,
+            },
+            "a" * 40,
+        ),
+        (
+            "azurepipelines",
+            {"BUILD_REASON": "Manual", "BUILD_SOURCEBRANCH": "refs/pull/12/merge", "BUILD_SOURCEVERSION": "a" * 40},
+            None,
+        ),
+        (
+            "travisci",
+            {"TRAVIS_EVENT_TYPE": "pull_request", "TRAVIS_PULL_REQUEST": "12", "TRAVIS_COMMIT": "a" * 40},
+            "a" * 40,
+        ),
+        (
+            "travisci",
+            {"TRAVIS_EVENT_TYPE": "pull_request", "TRAVIS_PULL_REQUEST": "false", "TRAVIS_COMMIT": "a" * 40},
+            None,
+        ),
+    ],
+)
+def test_only_identified_provider_merges_are_tagged(provider, environment, expected):
+    assert git._get_ci_merge_commit_sha(environment, provider) == expected

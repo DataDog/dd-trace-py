@@ -37,6 +37,7 @@ from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandle
 from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
 from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
 from ddtrace.testing.internal.env_tags import get_env_tags
+from ddtrace.testing.internal.env_tags import get_git_operation_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -149,7 +150,8 @@ class SessionManager:
             self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
 
         self.env_tags = get_env_tags()
-        if workspace_path := self.env_tags.get(CITag.WORKSPACE_PATH):
+        self._git_tags = get_git_operation_tags(self.env_tags)
+        if workspace_path := self.env_tags.get(GitTag.CHECKOUT_ROOT) or self.env_tags.get(CITag.WORKSPACE_PATH):
             self.workspace_path = Path(workspace_path)
         else:
             self.workspace_path = Path.cwd()
@@ -385,7 +387,7 @@ class SessionManager:
         return APIClient(
             service=self.service,
             env=self.env,
-            env_tags=self.env_tags,
+            env_tags=self._git_tags,
             itr_skipping_level=self.itr_skipping_level,
             configurations=self.platform_tags,
             connector_setup=self.connector_setup,
@@ -828,8 +830,9 @@ class SessionManager:
         """
         if self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA):
             return ""
-        base_sha = self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA)
-        head_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA)
+        tags = getattr(self, "_git_tags", self.env_tags)
+        base_sha = tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA)
+        head_sha = tags.get(GitTag.COMMIT_HEAD_SHA)
         if base_sha and head_sha:
             if merge_base := git.get_merge_base(base_sha, head_sha, warn=not quiet):
                 self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = merge_base
@@ -846,7 +849,8 @@ class SessionManager:
         local computation, whose stored value would make it return False.
         """
         return not self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA) and all(
-            self.env_tags.get(tag) for tag in (GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA, GitTag.COMMIT_HEAD_SHA)
+            getattr(self, "_git_tags", self.env_tags).get(tag)
+            for tag in (GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA, GitTag.COMMIT_HEAD_SHA)
         )
 
     def upload_git_data(self) -> None:
@@ -866,7 +870,7 @@ class SessionManager:
         if not asbool(env.get(DD_CIVISIBILITY_GIT_UPLOAD_ENABLED, "true")):
             log.debug("Git metadata upload disabled by %s, skipping", DD_CIVISIBILITY_GIT_UPLOAD_ENABLED)
             try:
-                git = Git()
+                git = Git(cwd=str(self.workspace_path))
                 # Best-effort: no fetch will ever run on this path, so a local
                 # failure on a shallow clone is expected and stays quiet; a
                 # failure on a non-shallow repo keeps the warning.
@@ -895,7 +899,7 @@ class SessionManager:
                     # git.pull_request.base_branch_sha. This is a single git command
                     # (no upload, no lock needed).
                     try:
-                        self._update_pr_merge_base(Git())
+                        self._update_pr_merge_base(Git(cwd=str(self.workspace_path)))
                     except RuntimeError:
                         log.debug("git binary unavailable, skipping merge-base computation on lock timeout")
                 return
@@ -908,16 +912,19 @@ class SessionManager:
 
     def _do_upload_git_data(self) -> None:
         """Run the actual upload flow; the caller should already hold the upload lock."""
+        commit_sha = (getattr(self, "env_tags", None) or {}).get(GitTag.COMMIT_SHA)
+        if not commit_sha:
+            log.debug("No selected Git commit, skipping metadata upload")
+            return
         # Missing `git` in minimal containers should not abort pytest startup.
         try:
-            git = Git()
+            git = Git(cwd=str(self.workspace_path))
         except RuntimeError:
             log.warning("Error calling git binary, skipping metadata upload")
             if TelemetryAPI._instance is not None:
                 TelemetryAPI.get().record_git_missing()
             return
 
-        commit_sha = (getattr(self, "env_tags", None) or {}).get(GitTag.COMMIT_SHA)
         latest_commits = git.get_latest_commits(commit_sha=commit_sha)
         if commit_sha and not latest_commits:
             log.warning("Selected Git commit is unavailable, skipping metadata upload")

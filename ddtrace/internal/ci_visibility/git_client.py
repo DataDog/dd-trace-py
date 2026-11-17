@@ -166,7 +166,8 @@ class CIVisibilityGitClient:
             return None
 
     def upload_git_metadata(self, cwd: Optional[str] = None) -> None:
-        if not self._get_git_dir(cwd=cwd):
+        cwd = self._get_git_dir(cwd=cwd)
+        if not cwd:
             log.debug("Missing .git directory; skipping git metadata upload")
             self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
             return
@@ -232,8 +233,12 @@ class CIVisibilityGitClient:
         try:
             if _tags is None:
                 _tags = {}
-            repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
             commit_sha = _tags.get(ci.git.COMMIT_SHA)
+            if not commit_sha:
+                log.debug("No selected Git commit, skipping metadata upload")
+                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
+                return
+            repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
 
             # If all latest commits are known to our gitdb backend, assume that unshallowing is unnecessary
             latest_commits = cls._get_latest_commits(cwd=cwd, commit_sha=commit_sha)

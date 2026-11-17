@@ -275,6 +275,7 @@ class TestGetGitTags:
         mock_git.get_branch.return_value = branch
         mock_git.get_tag.return_value = "v1.0"
         mock_git.get_commit_message.return_value = "Test commit"
+        mock_git.get_workspace_path.return_value = "/checkout"
         mock_git.get_user_info.return_value = GitUserInfo(
             author_name="John Doe",
             author_email="john@example.com",
@@ -288,6 +289,7 @@ class TestGetGitTags:
         result = get_git_tags_from_git_command()
 
         expected = {
+            GitTag.CHECKOUT_ROOT: "/checkout",
             GitTag.REPOSITORY_URL: "https://github.com/user/repo.git",
             GitTag.COMMIT_SHA: "abc123",
             GitTag.BRANCH: branch,
