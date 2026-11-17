@@ -532,7 +532,7 @@ class _RealtimeState:
         """Project an input-buffer offset (the VAD events' `audio_start_ms`/`audio_end_ms`,
         measured from the start of all audio written to the buffer this session) onto the wall clock.
 
-        AIDEV-NOTE: this assumes the client appends audio roughly in real time - true for a live
+        This assumes the client appends audio roughly in real time - true for a live
         microphone, which is the only case where a wall-clock speech window means anything. Knowing
         how much audio we had appended at a known instant, the offset is that instant minus the audio
         still ahead of it. The result is clamped to a window we can defend (no earlier than this
