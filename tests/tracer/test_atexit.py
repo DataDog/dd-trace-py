@@ -236,3 +236,33 @@ def test_exit_signal_callbacks_discard_stops_callback() -> None:
     callbacks.install()
     callbacks.discard(dropped)
     os.kill(os.getpid(), signal.SIGTERM)
+
+
+@pytest.mark.subprocess(out="ok\n", env={"DD_TESTING_RAISE": None})
+def test_exit_signal_callbacks_raising_callback_does_not_skip_others() -> None:
+    """A raising callback is swallowed and the remaining callbacks still run."""
+    from ddtrace.internal import atexit
+
+    def bad() -> None:
+        raise RuntimeError("boom")
+
+    callbacks = atexit.ExitSignalCallbacks()
+    callbacks.add(bad)
+    callbacks.add(lambda: print("ok", flush=True))
+    callbacks._run()
+
+
+@pytest.mark.subprocess(env={"DD_TESTING_RAISE": "1"})
+def test_exit_signal_callbacks_raising_callback_reraised_when_testing_raise() -> None:
+    """A raising callback is re-raised when DD_TESTING_RAISE=1."""
+    import pytest
+
+    from ddtrace.internal import atexit
+
+    def bad() -> None:
+        raise RuntimeError("boom")
+
+    callbacks = atexit.ExitSignalCallbacks()
+    callbacks.add(bad)
+    with pytest.raises(RuntimeError, match="boom"):
+        callbacks._run()

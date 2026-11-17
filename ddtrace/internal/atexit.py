@@ -125,7 +125,13 @@ class ExitSignalCallbacks:
     def _run(self) -> None:
         # Snapshot: a callback may discard itself while running.
         for callback in list(self._callbacks):
-            callback()
+            # One failing callback must not skip the others.
+            try:
+                callback()
+            except Exception:
+                log.debug("Exit signal callback %r failed", callback, exc_info=True)
+                if _native_config.get_raise():
+                    raise
 
     def install(self) -> None:
         """Install the handler, again only if it never got installed or the app replaced it.
