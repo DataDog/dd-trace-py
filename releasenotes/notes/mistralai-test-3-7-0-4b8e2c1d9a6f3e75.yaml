@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    mistralai: Adds test coverage for ``mistralai`` 3.7.0.
