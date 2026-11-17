@@ -228,6 +228,76 @@ def test_system_one_inline_image_is_not_recorded():
     assert result[2] == "https://example.com/a.png"
 
 
+PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
+
+@requires_systemone
+def test_systemone_assets_are_image_parts(litellm, request_vcr, litellm_llmobs, test_spans):
+    from litellm.types.decisions import DecisionsAsset
+
+    assets = {
+        "photo": {"type": "image", "format": "png", "data_base64": PNG},
+        "scan": DecisionsAsset(type="image", format="jpg", data_base64=PNG),
+    }
+    with request_vcr.use_cassette("systemone_typesafe.yaml"):
+        litellm.systemone(
+            model="typesafe/jev-latest",
+            state={"ticket": TICKET},
+            questions=SYSTEM_ONE_QUESTIONS,
+            assets=assets,
+            drop_params=True,
+        )
+    span = _spans(test_spans)[0]
+    message = _get_llmobs_data_metastruct(span)["meta"]["input"]["messages"][0]
+    assert PNG not in json.dumps(message["content"])
+    assert json.loads(message["content"])["assets"] == {"photo": "([IMAGE DETECTED])", "scan": "([IMAGE DETECTED])"}
+    assert [part["mime_type"] for part in message["image_parts"]] == ["image/png", "image/jpeg"]
+
+
+def test_system_one_oversized_asset_is_dropped():
+    from ddtrace.llmobs._integrations.litellm import _system_one_media
+
+    big = "A" * (5 * 1024 * 1024)
+    parts = []
+    assert _system_one_media({"a": {"format": "png", "data_base64": big}}, parts) == {"a": "[image omitted: too large]"}
+    assert parts == []
+
+
+def test_router_decisions_after_unpatch_and_repatch(litellm, request_vcr, litellm_llmobs, test_spans):
+    from ddtrace.contrib.internal.litellm.patch import patch
+    from ddtrace.contrib.internal.litellm.patch import unpatch
+
+    router = _decision_router(litellm)
+    unpatch()
+    with request_vcr.use_cassette("router_decisions.yaml", allow_playback_repeats=True):
+        router.decisions(model="decider", input=TICKET, questions=OPENAI_QUESTIONS)
+        litellm.decisions(model="openai/gpt-6-luna", input=TICKET, questions=OPENAI_QUESTIONS)
+    assert _spans(test_spans) == []
+    patch()
+    with request_vcr.use_cassette("router_decisions.yaml"):
+        router.decisions(model="decider", input=TICKET, questions=OPENAI_QUESTIONS)
+    assert [s.resource for s in _spans(test_spans)] == ["router.decisions", "decisions"]
+    with request_vcr.use_cassette("router_decisions.yaml"):
+        _decision_router(litellm).decisions(model="decider", input=TICKET, questions=OPENAI_QUESTIONS)
+    assert [s.resource for s in _spans(test_spans)] == ["router.decisions", "decisions"]
+
+
+async def test_router_adecisions_after_unpatch_and_repatch(litellm, request_vcr, litellm_llmobs, test_spans):
+    from ddtrace.contrib.internal.litellm.patch import patch
+    from ddtrace.contrib.internal.litellm.patch import unpatch
+
+    router = _decision_router(litellm)
+    unpatch()
+    with request_vcr.use_cassette("router_adecisions.yaml", allow_playback_repeats=True):
+        await router.adecisions(model="decider", input=TICKET, questions=OPENAI_QUESTIONS)
+        await litellm.adecisions(model="openai/gpt-6-luna", input=TICKET, questions=OPENAI_QUESTIONS)
+    assert _spans(test_spans) == []
+    patch()
+    with request_vcr.use_cassette("router_adecisions.yaml"):
+        await router.adecisions(model="decider", input=TICKET, questions=OPENAI_QUESTIONS)
+    assert [s.resource for s in _spans(test_spans)] == ["router.adecisions", "adecisions"]
+
+
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="litellm decisions need Python 3.10+")
 def test_decision_functions_patched(litellm):
     for name in ("decisions", "adecisions"):

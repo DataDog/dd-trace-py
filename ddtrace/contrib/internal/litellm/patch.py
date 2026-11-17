@@ -1,6 +1,9 @@
 import inspect
 import sys
 from typing import Any
+from typing import Callable
+from typing import Optional
+from typing import Union
 
 import litellm
 
@@ -149,10 +152,16 @@ async def traced_router_acompletion(func, instance, args, kwargs):
         return _handle_router_stream_response(resp, ctx, is_async=True)
 
 
-_decision_signatures: dict[Any, Any] = {}
+_decision_signatures: dict[Callable[..., Any], Union[inspect.Signature, bool]] = {}
+_DecisionTarget = tuple[Any, str, Callable[..., Any]]
 
 
-def _bind_arguments(func, args, kwargs):
+def _is_patched() -> bool:
+    """Whether tracing is on; wrappers that Router objects keep after unpatch() check it and pass through."""
+    return bool(getattr(litellm, "_datadog_patch", False))
+
+
+def _bind_arguments(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     """Return the call arguments by name, so positional arguments work across litellm signature changes."""
     if not args:
         return dict(kwargs)
@@ -163,13 +172,13 @@ def _bind_arguments(func, args, kwargs):
         except (TypeError, ValueError):
             signature = False
         _decision_signatures[func] = signature
-    if not signature:
+    if not isinstance(signature, inspect.Signature):
         return dict(kwargs, model=args[0])
     try:
         bound = signature.bind_partial(*args, **kwargs).arguments
     except TypeError:
         return dict(kwargs, model=args[0])
-    named = {}
+    named: dict[str, Any] = {}
     for name, value in bound.items():
         if signature.parameters[name].kind is inspect.Parameter.VAR_KEYWORD:
             named.update(value)
@@ -178,47 +187,75 @@ def _bind_arguments(func, args, kwargs):
     return named
 
 
-def _decision_event(operation, func, args, kwargs, router=None):
+def _decision_event(
+    operation: str,
+    func: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    router: Optional[Any] = None,
+) -> LlmRequestEvent:
     # litellm sends decisions with its own HTTP client, so no provider span exists below this one.
     return _request_event(operation, (), _bind_arguments(func, args, kwargs), router=router, submit_to_llmobs=True)
 
 
-def traced_decisions(func, instance, args, kwargs):
-    event = _decision_event(func.__name__, func, args, kwargs)
+def _call_traced(
+    operation: str,
+    func: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    router: Optional[Any] = None,
+) -> Any:
+    if not _is_patched():
+        return func(*args, **kwargs)
+    event = _decision_event(operation, func, args, kwargs, router=router)
     with core.context_with_event(event):
         event.response = func(*args, **kwargs)
         return event.response
 
 
-async def traced_adecisions(func, instance, args, kwargs):
-    event = _decision_event(func.__name__, func, args, kwargs)
+async def _acall_traced(
+    operation: str,
+    func: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    router: Optional[Any] = None,
+) -> Any:
+    if not _is_patched():
+        return await func(*args, **kwargs)
+    event = _decision_event(operation, func, args, kwargs, router=router)
     with core.context_with_event(event):
         event.response = await func(*args, **kwargs)
         return event.response
 
 
-def _traced_router_decision_endpoint(endpoint, router, call_type):
+def traced_decisions(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    return _call_traced(func.__name__, func, args, kwargs)
+
+
+async def traced_adecisions(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    return await _acall_traced(func.__name__, func, args, kwargs)
+
+
+def _traced_router_decision_endpoint(endpoint: Callable[..., Any], router: Any, call_type: str) -> Callable[..., Any]:
     operation = f"router.{call_type}"
     if call_type.startswith("a"):
 
-        async def traced_endpoint(*args, **kwargs):
-            event = _decision_event(operation, endpoint, args, kwargs, router=router)
-            with core.context_with_event(event):
-                event.response = await endpoint(*args, **kwargs)
-                return event.response
+        async def traced_endpoint(*args: Any, **kwargs: Any) -> Any:
+            return await _acall_traced(operation, endpoint, args, kwargs, router=router)
 
-    else:
+        return traced_endpoint
 
-        def traced_endpoint(*args, **kwargs):
-            event = _decision_event(operation, endpoint, args, kwargs, router=router)
-            with core.context_with_event(event):
-                event.response = endpoint(*args, **kwargs)
-                return event.response
+    def traced_sync_endpoint(*args: Any, **kwargs: Any) -> Any:
+        return _call_traced(operation, endpoint, args, kwargs, router=router)
 
-    return traced_endpoint
+    return traced_sync_endpoint
 
 
-def traced_router_factory_function(func, instance, args, kwargs):
+def traced_router_factory_function(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     endpoint = func(*args, **kwargs)
     call_type = get_argument_value(args, kwargs, 1, "call_type", True)
     if call_type not in DECISION_FUNCTIONS or not callable(endpoint):
@@ -226,24 +263,22 @@ def traced_router_factory_function(func, instance, args, kwargs):
     return _traced_router_decision_endpoint(endpoint, instance, call_type)
 
 
-def traced_router_decisions(func, instance, args, kwargs):
-    event = _decision_event(f"router.{func.__name__}", func, args, kwargs, router=instance)
-    with core.context_with_event(event):
-        event.response = func(*args, **kwargs)
-        return event.response
+def traced_router_decisions(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    return _call_traced(f"router.{func.__name__}", func, args, kwargs, router=instance)
 
 
-async def traced_router_adecisions(func, instance, args, kwargs):
-    event = _decision_event(f"router.{func.__name__}", func, args, kwargs, router=instance)
-    with core.context_with_event(event):
-        event.response = await func(*args, **kwargs)
-        return event.response
+async def traced_router_adecisions(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    return await _acall_traced(f"router.{func.__name__}", func, args, kwargs, router=instance)
 
 
-def _decision_targets():
+def _decision_targets() -> list[_DecisionTarget]:
     """(owner, name, wrapper) for each decision function this litellm version has."""
-    targets = []
-    owners = [litellm]
+    targets: list[_DecisionTarget] = []
+    owners: list[Any] = [litellm]
     for package in ("litellm.decisions", "litellm.systemone"):
         module = sys.modules.get(package)
         if module is not None and module is not litellm:
@@ -261,8 +296,8 @@ def _decision_targets():
         else:
             for name in DECISION_FUNCTIONS:
                 if callable(getattr(router_cls, name, None)):
-                    wrapper = traced_router_adecisions if name.startswith("a") else traced_router_decisions
-                    targets.append((router_cls, name, wrapper))
+                    router_wrapper = traced_router_adecisions if name.startswith("a") else traced_router_decisions
+                    targets.append((router_cls, name, router_wrapper))
     return targets
 
 

@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -25,6 +26,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import LLMOBS_IMAGE_INLINE_MAX_BYTES
 from ddtrace.llmobs._integrations.utils import _capture_inline_image
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
@@ -377,13 +379,13 @@ def _system_one_media(value: Any, image_parts: list[ImagePart]) -> Any:
             return IMAGE_DETECTED_MARKER
         return marker or value
     if isinstance(value, dict):
-        if isinstance(value.get("base64"), str):
-            mime_type = value.get("content_type") or value.get("media_type") or ""
-            image_part = format_image_part_with_guard(value["base64"], mime_type)
+        data, mime_type = _inline_image_data(value)
+        if data is not None:
+            image_part = format_image_part_with_guard(data, mime_type)
             if image_part:
                 image_parts.append(image_part)
                 return IMAGE_DETECTED_MARKER
-            return IMAGE_FALLBACK_MARKER
+            return IMAGE_TOO_LARGE_MARKER if len(data) > LLMOBS_IMAGE_INLINE_MAX_BYTES else IMAGE_FALLBACK_MARKER
         return {k: _system_one_media(v, image_parts) for k, v in value.items()}
     if isinstance(value, list):
         return [_system_one_media(v, image_parts) for v in value]
@@ -399,3 +401,15 @@ def _use_message_content_as_value(span: Span) -> None:
         except (ValueError, TypeError, KeyError, IndexError):
             continue
         _annotate_llmobs_span_data(span, **{key: body})
+
+
+def _inline_image_data(value: dict[str, Any]) -> tuple[Optional[str], str]:
+    """Base64 data and MIME type of an inline image object: an image (base64, content_type) or an asset
+    (data_base64, format). Returns (None, "") for anything else.
+    """
+    if isinstance(value.get("data_base64"), str):
+        image_format = str(value.get("format") or "").lower()
+        return value["data_base64"], f"image/{'jpeg' if image_format == 'jpg' else image_format}"
+    if isinstance(value.get("base64"), str):
+        return value["base64"], str(value.get("content_type") or value.get("media_type") or "")
+    return None, ""
