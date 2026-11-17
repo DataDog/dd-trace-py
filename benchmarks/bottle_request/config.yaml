@@ -1,0 +1,35 @@
+uninstrumented:
+  instrumented: false
+  tracer_enabled: false
+  outcome: success
+  otel_semantics: false
+disabled:
+  instrumented: true
+  tracer_enabled: false
+  outcome: success
+  otel_semantics: false
+success:
+  instrumented: true
+  tracer_enabled: true
+  outcome: success
+  otel_semantics: false
+returned-response:
+  instrumented: true
+  tracer_enabled: true
+  outcome: returned-response
+  otel_semantics: false
+raised-response:
+  instrumented: true
+  tracer_enabled: true
+  outcome: raised-response
+  otel_semantics: false
+raised-response-otel:
+  instrumented: true
+  tracer_enabled: true
+  outcome: raised-response
+  otel_semantics: true
+exception:
+  instrumented: true
+  tracer_enabled: true
+  outcome: exception
+  otel_semantics: false
