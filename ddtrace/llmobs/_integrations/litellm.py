@@ -153,7 +153,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         if input_tokens is not None or output_tokens is not None:
             total_tokens = _get_attr(usage, "total_tokens", None)
             metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens or (input_tokens or 0) + (output_tokens or 0)
-        # OpenAI format usage keeps cache counts under input_tokens_details; System One format usage keeps them on itself.
+        # OpenAI format usage keeps cache counts under input_tokens_details, System One format usage on itself.
         details = _get_attr(usage, "input_tokens_details", None) or usage
         cached_tokens = _get_attr(details, "cached_tokens", None)
         if cached_tokens:
@@ -349,7 +349,7 @@ def _set_system_one_io(span: Span, kwargs: dict[str, Any], response: Optional[An
     image parts and are replaced in the body by a marker. Audio and video clips are not recorded.
     """
     body = {k: kwargs[k] for k in SYSTEM_ONE_REQUEST_KEYS if kwargs.get(k) is not None}
-    data = load_data_value(body)
+    data = load_data_value(body)  # type: ignore[no-untyped-call]
     image_parts: list[ImagePart] = []
     if isinstance(data, dict):
         for key in ("images", "assets"):
@@ -362,7 +362,7 @@ def _set_system_one_io(span: Span, kwargs: dict[str, Any], response: Optional[An
     if not response:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
-    output = response.model_dump(mode="json") if hasattr(response, "model_dump") else load_data_value(response)
+    output = response.model_dump(mode="json") if hasattr(response, "model_dump") else load_data_value(response)  # type: ignore[no-untyped-call]
     if isinstance(output, dict):
         output.pop("usage", None)
     _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(output) or "")])

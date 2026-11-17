@@ -1,5 +1,6 @@
 import inspect
 import sys
+from typing import Any
 
 import litellm
 
@@ -148,7 +149,7 @@ async def traced_router_acompletion(func, instance, args, kwargs):
         return _handle_router_stream_response(resp, ctx, is_async=True)
 
 
-_decision_signatures: dict = {}
+_decision_signatures: dict[Any, Any] = {}
 
 
 def _bind_arguments(func, args, kwargs):
@@ -265,7 +266,7 @@ def _decision_targets():
     return targets
 
 
-_wrapped_decision_targets: list = []
+_wrapped_decision_targets: list[tuple[Any, str]] = []
 
 
 def traced_get_llm_provider(func, instance, args, kwargs):

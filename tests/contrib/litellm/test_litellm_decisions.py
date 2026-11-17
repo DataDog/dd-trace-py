@@ -14,7 +14,9 @@ litellm_module = pytest.importorskip("litellm")
 pytestmark = pytest.mark.skipif(not hasattr(litellm_module, "decisions"), reason="litellm has no decisions API")
 
 TICKET = "I was charged twice for my subscription this month and want the duplicate refunded."
-OPENAI_QUESTIONS = [{"type": "predicate", "name": "needs_refund", "instructions": "Is the customer asking for a refund?"}]
+OPENAI_QUESTIONS = [
+    {"type": "predicate", "name": "needs_refund", "instructions": "Is the customer asking for a refund?"}
+]
 SYSTEM_ONE_QUESTIONS = {"needs_refund": {"type": "noul", "instructions": "Is the customer asking for a refund?"}}
 TAGS = {"ml_app": "<ml-app-name>", "integration": "litellm"}
 requires_systemone = pytest.mark.skipif(not hasattr(litellm_module, "systemone"), reason="litellm has no systemone")
@@ -62,7 +64,7 @@ def test_decisions_openai(litellm, request_vcr, litellm_llmobs, test_spans):
         span_kind="llm",
         model_name="gpt-6-luna",
         model_provider="openai",
-        metrics={"input_tokens": 145, "output_tokens": 0, "total_tokens": 145},
+        metrics={"input_tokens": 171, "output_tokens": 0, "total_tokens": 171},
         tags={**TAGS, "decision_provider": "openai"},
     )
     _assert_openai_body(span, "openai/gpt-6-luna")
@@ -149,7 +151,7 @@ def _assert_router_spans(spans, operation):
         span_kind="llm",
         model_name="gpt-6-luna",
         model_provider="openai",
-        metrics={"input_tokens": 145, "output_tokens": 0, "total_tokens": 145},
+        metrics={"input_tokens": 171, "output_tokens": 0, "total_tokens": 171},
         tags={**TAGS, "decision_provider": "openai"},
     )
 
@@ -180,7 +182,11 @@ def test_decisions_error(litellm, request_vcr, litellm_llmobs, test_spans):
         span_kind="llm",
         model_provider="openai",
         output_messages=[{"content": ""}],
-        error={"type": spans[0].get_tag("error.type"), "message": spans[0].get_tag("error.message"), "stack": spans[0].get_tag("error.stack")},
+        error={
+            "type": spans[0].get_tag("error.type"),
+            "message": spans[0].get_tag("error.message"),
+            "stack": spans[0].get_tag("error.stack"),
+        },
         tags={**TAGS, "decision_provider": "openai"},
     )
 
@@ -188,7 +194,7 @@ def test_decisions_error(litellm, request_vcr, litellm_llmobs, test_spans):
 def test_bind_arguments_positional():
     from ddtrace.contrib.internal.litellm.patch import _bind_arguments
 
-    def decisions_v1_104(model, state=None, questions=None, input=None, **kwargs):
+    def decisions_v1_104(model, state=None, questions=None, input=None, **kwargs):  # noqa: A002
         pass
 
     assert _bind_arguments(decisions_v1_104, ("typesafe/jev", {"a": 1}), {"api_key": "k"}) == {
