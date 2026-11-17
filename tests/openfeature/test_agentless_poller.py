@@ -348,15 +348,14 @@ def test_dd_service_header_follows_service_changes_after_start(harness):
     assert src._requests[2]["headers"]["DD-Service"] == "my_billing"
 
 
-_USAGE_SERVICE_REJECTED = "Feature Flags: service %r has no ASCII APM name; DD-Service header not sent"
+_USAGE_SERVICE_REJECTED = "Feature Flags: service %r has an empty normalized name; DD-Service header not sent"
 
 
 # Each row: the service, the name that APM shows, and the DD-Service header (None: no header).
 # The APM names are the output of the Agent's NormalizeService
 # (datadog-agent pkg/trace/traceutil/normalize v0.82.3).
 # "" is an empty result. The Agent replaces it with a placeholder name.
-# The header is the APM name if it is not empty and is printable ASCII.
-# Otherwise there is no header. Usage never goes to a name that APM does not show.
+# The header is the APM name if it is not empty. Otherwise there is no header.
 _AGENT_SERVICE_NAMES = [
     ("checkout", "checkout", "checkout"),
     ("My Service", "my_service", "my_service"),
@@ -384,12 +383,12 @@ _AGENT_SERVICE_NAMES = [
     ("-svc", "-svc", "-svc"),
     (".svc", ".svc", ".svc"),
     (":svc", ":svc", ":svc"),
-    ("café-api", "café-api", None),
-    ("Café", "café", None),
-    ("支付", "支付", None),
+    ("café-api", "café-api", "café-api"),
+    ("Café", "café", "café"),
+    ("支付", "支付", "支付"),
     ("a🐶b", "a_b", "a_b"),
-    ("İstanbul", "İstanbul", None),
-    ("é" * 60, "é" * 50, None),
+    ("İstanbul", "İstanbul", "İstanbul"),
+    ("é" * 60, "é" * 50, "é" * 50),
     ("___", "", None),
     ("-", "-", "-"),
     ("", "", None),
@@ -448,12 +447,12 @@ def test_dd_service_normalized_once_when_source_is_built(harness, monkeypatch):
 def test_dd_service_rejection_logged_once_per_value(harness, caplog):
     src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
     with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
-        for service in ("café-api", "café-api", "支付"):
+        for service in ("___", "___", "!!!"):
             with override_global_config({"service": service}):
                 src.periodic()
 
     rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
-    assert rejected == [_USAGE_SERVICE_REJECTED % (service,) for service in ("café-api", "支付")]
+    assert rejected == [_USAGE_SERVICE_REJECTED % (service,) for service in ("___", "!!!")]
 
 
 def test_self_tracing_suppressed(harness):

@@ -89,8 +89,8 @@ def mock_cdn(monkeypatch):
 def local_cdn():
     """Serve the flag configuration from a local HTTP server. Yield its URL and the headers of each request.
 
-    The requests use the real HTTP client of the tracer. That client refuses some header values.
-    Thus these tests see the headers that really get to the endpoint.
+    The requests use the real HTTP client of the tracer. Thus these tests see the header bytes that
+    really get to the endpoint.
     """
     received: list = []
     body = _jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True))
@@ -202,7 +202,7 @@ def test_agentless_request_sends_dd_service_from_environment():
 @pytest.mark.parametrize(
     "service, expected", [("My Service", "my_service"), ("bad\nvalue", "bad_value"), (" svc", "_svc")], ids=repr
 )
-def test_request_carries_the_service_name_apm_shows(local_cdn, service, expected):
+def test_request_carries_the_normalized_service(local_cdn, service, expected):
     url, received = local_cdn
 
     _poll_local_cdn(url, service)
@@ -212,12 +212,22 @@ def test_request_carries_the_service_name_apm_shows(local_cdn, service, expected
     assert _get_ffe_config() is not None  # The configuration is applied.
 
 
-# APM shows these as "café-api", "支付" and no name. None of them is a printable ASCII name.
-@pytest.mark.parametrize("service", ["café-api", "支付", "___"], ids=repr)
-def test_request_sent_without_service_when_the_apm_name_is_empty_or_not_ascii(local_cdn, service):
+@pytest.mark.parametrize("service", ["café-api", "支付"], ids=repr)
+def test_request_carries_a_non_ascii_service_as_utf8(local_cdn, service):
     url, received = local_cdn
 
     _poll_local_cdn(url, service)
+
+    (headers,) = received
+    # http.server decodes header bytes as Latin-1. Encode them back to get the bytes on the wire.
+    assert headers["DD-Service"].encode("latin-1").decode("utf-8") == service
+    assert _get_ffe_config() is not None  # The configuration is applied.
+
+
+def test_request_sent_without_service_when_the_normalized_name_is_empty(local_cdn):
+    url, received = local_cdn
+
+    _poll_local_cdn(url, "___")
 
     (headers,) = received  # The poll still occurs.
     assert "DD-Service" not in headers
