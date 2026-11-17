@@ -8,4 +8,6 @@ upgrade:
   - |
     tracing: The ``DATADOG TRACER CONFIGURATION`` startup log is now a JSON object instead of a Python
     dictionary, and it is emitted whenever ``DD_TRACE_STARTUP_LOGS`` is enabled, which is the default, even when
-    the ``ddtrace`` logger level is above ``INFO``. Set ``DD_TRACE_STARTUP_LOGS=false`` to disable it.
+    the ``ddtrace`` logger level is above ``INFO``. Set ``DD_TRACE_STARTUP_LOGS=false`` to disable it. The URLs
+    it reports, such as ``agent_url``, no longer include the user info, query, or fragment, which can hold
+    credentials.

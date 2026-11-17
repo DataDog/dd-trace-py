@@ -225,8 +225,8 @@ def otel_sdk_resource_attributes() -> dict[str, str]:
 
     Resource.create() puts the attributes of otel_resource_attributes() over those its OTEL resource detector reads
     from OTEL_RESOURCE_ATTRIBUTES and OTEL_SERVICE_NAME, parsed here the same way, then defaults service.name. The
-    attributes the SDK describes itself with, such as telemetry.sdk.version, are left out. This does not import the
-    SDK, which is optional.
+    attributes the SDK generates rather than reads from the configuration, such as telemetry.sdk.version and the
+    random service.instance.id of recent SDK versions, are left out. This does not import the SDK, which is optional.
     """
     resource_attributes: dict[str, str] = {}
     for item in env.get("OTEL_RESOURCE_ATTRIBUTES", "").split(","):

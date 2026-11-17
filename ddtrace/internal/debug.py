@@ -54,20 +54,20 @@ def tags_to_str(tags: dict[str, Any]) -> str:
 _REDACTED = "<redacted>"
 
 
-def _sanitize_otlp_endpoint(endpoint: Optional[str]) -> Optional[str]:
-    """Remove the parts of an OTLP endpoint that can hold credentials: user info, query, and fragment.
+def _sanitize_url(url: Optional[str]) -> Optional[str]:
+    """Remove the parts of a URL that can hold credentials: user info, query, and fragment.
 
-    Returns None when the user info cannot be told apart from the rest of the endpoint.
+    Returns None when the user info cannot be told apart from the rest of the URL.
     """
-    if not endpoint:
-        return endpoint
+    if not url:
+        return url
     try:
-        parts = urlsplit(endpoint)
+        parts = urlsplit(url)
     except ValueError:
         return None
-    # Without a host, the endpoint has the host:port form gRPC accepts.
-    authority = parts.netloc or endpoint.split("?", 1)[0].split("#", 1)[0]
-    if endpoint.count("@") != authority.count("@"):
+    # Without a host, the URL is a Unix socket path or has the host:port form gRPC accepts.
+    authority = parts.netloc or url.split("?", 1)[0].split("#", 1)[0]
+    if url.count("@") != authority.count("@"):
         # A /, ? or # in the user info ends the authority before its @, which leaves part of it in the host or the
         # path: the user info cannot be told apart, so report nothing rather than part of it.
         return None
@@ -154,14 +154,14 @@ def _collect_otel(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         info["OTEL_TRACES_SAMPLER_ARG"] = sampler_arg
     info.update(
         {
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": _sanitize_otlp_endpoint(exporter.TRACES_ENDPOINT),
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": _sanitize_url(exporter.TRACES_ENDPOINT),
             "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": exporter.TRACES_PROTOCOL,
             "OTEL_EXPORTER_OTLP_TRACES_HEADERS": _redact_otlp_headers(exporter.TRACES_HEADERS),
             "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT": exporter.TRACES_TIMEOUT,
             # Logs
             "DD_LOGS_OTEL_ENABLED": config._otel_logs_enabled,
             "OTEL_LOGS_EXPORTER": "otlp" if config._otel_logs_enabled else "none",
-            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": _sanitize_otlp_endpoint(exporter.LOGS_ENDPOINT),
+            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": _sanitize_url(exporter.LOGS_ENDPOINT),
             "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": exporter.LOGS_PROTOCOL,
             "OTEL_EXPORTER_OTLP_LOGS_HEADERS": _redact_otlp_headers(exporter.LOGS_HEADERS),
             "OTEL_EXPORTER_OTLP_LOGS_COMPRESSION": exporter.LOGS_COMPRESSION,
@@ -170,13 +170,13 @@ def _collect_otel(tracer_info: TracerDebugInfo) -> dict[str, Any]:
             "OTEL_METRICS_EXPORTER": "otlp" if config._otel_metrics_enabled else "none",
             "OTEL_METRIC_EXPORT_INTERVAL": exporter.METRICS_METRIC_READER_EXPORT_INTERVAL,
             "OTEL_METRIC_EXPORT_TIMEOUT": exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT,
-            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": _sanitize_otlp_endpoint(exporter.METRICS_ENDPOINT),
+            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": _sanitize_url(exporter.METRICS_ENDPOINT),
             "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": exporter.METRICS_PROTOCOL,
             "OTEL_EXPORTER_OTLP_METRICS_HEADERS": _redact_otlp_headers(exporter.METRICS_HEADERS),
             "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION": exporter.METRICS_COMPRESSION,
             "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": exporter.METRICS_TEMPORALITY_PREFERENCE,
             # Settings shared by every signal
-            "OTEL_EXPORTER_OTLP_ENDPOINT": _sanitize_otlp_endpoint(exporter.ENDPOINT),
+            "OTEL_EXPORTER_OTLP_ENDPOINT": _sanitize_url(exporter.ENDPOINT),
             "OTEL_EXPORTER_OTLP_PROTOCOL": exporter.PROTOCOL,
             "OTEL_EXPORTER_OTLP_HEADERS": _redact_otlp_headers(exporter.HEADERS),
             "OTEL_LOG_LEVEL": _otel_log_level(),
@@ -200,8 +200,9 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         agent_error = None
     elif isinstance(tracer_info.writer, AgentWriterInterface):
         writer = tracer_info.writer
-        agent_url = writer.intake_url
-        reachable = agent.is_reachable(agent_url)  # type: ignore[no-untyped-call]
+        reachable = agent.is_reachable(writer.intake_url)  # type: ignore[no-untyped-call]
+        # The startup log is emitted by default, so it leaves out the credentials the URL can hold.
+        agent_url = _sanitize_url(writer.intake_url) or _REDACTED
         agent_error = None if reachable else "Agent not reachable at %s" % agent_url
     else:
         agent_url = "CUSTOM"
@@ -260,7 +261,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         in_virtual_env=is_venv,
         agent_url=agent_url,
         agent_error=agent_error,
-        statsd_url=agent_config.dogstatsd_url,
+        statsd_url=_sanitize_url(agent_config.dogstatsd_url),
         env=config.env or "",
         ddtrace_enabled=config._tracing_enabled,
         sampling_rules=sampling_rules,

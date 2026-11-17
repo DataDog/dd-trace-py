@@ -178,6 +178,22 @@ def test_startup_logs_redact_otlp_credentials():
     assert configuration["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
 
 
+def test_startup_logs_redact_agent_credentials():
+    (configuration,) = _startup_configurations(
+        {
+            "DD_TRACE_STARTUP_LOGS": "true",
+            # Nothing listens there either, so the startup log also reports that the Agent is not reachable.
+            "DD_TRACE_AGENT_URL": "http://user:secret-password@127.0.0.1:1",
+            "DD_DOGSTATSD_URL": "udp://user:secret-password@127.0.0.1:8125",
+        }
+    )
+
+    assert "secret" not in json.dumps(configuration)
+    assert configuration["agent_url"] == "http://127.0.0.1:1"
+    assert configuration["agent_error"] == "Agent not reachable at http://127.0.0.1:1"
+    assert configuration["statsd_url"] == "udp://127.0.0.1:8125"
+
+
 @pytest.mark.subprocess(
     env={"DD_TRACE_PROPAGATION_STYLE_INJECT": "datadog", "DD_TRACE_PROPAGATION_STYLE_EXTRACT": "tracecontext"},
 )
@@ -230,10 +246,11 @@ def test_otel_traces_sampler(rules, expected):
 
 
 @pytest.mark.parametrize(
-    "endpoint,expected",
+    "url,expected",
     [
         (None, None),
         ("", ""),
+        ("unix:///var/run/datadog/apm.socket", "unix:///var/run/datadog/apm.socket"),
         ("http://collector:4318", "http://collector:4318"),
         ("https://collector:4318/v1/logs", "https://collector:4318/v1/logs"),
         ("http://user:password@collector:4318/v1/logs?token=t#f", "http://collector:4318/v1/logs"),
@@ -249,10 +266,10 @@ def test_otel_traces_sampler(rules, expected):
         ("http://[::1", None),
     ],
 )
-def test_sanitize_otlp_endpoint(endpoint, expected):
-    from ddtrace.internal.debug import _sanitize_otlp_endpoint
+def test_sanitize_url(url, expected):
+    from ddtrace.internal.debug import _sanitize_url
 
-    assert _sanitize_otlp_endpoint(endpoint) == expected
+    assert _sanitize_url(url) == expected
 
 
 @pytest.mark.parametrize(
@@ -301,4 +318,9 @@ def test_otel_resource_attributes_report_the_sdk_resource():
         Resource = None
     if Resource is not None:
         exported = Resource.create(otel_resource_attributes()).attributes
-        assert reported == {k: v for k, v in exported.items() if not k.startswith("telemetry.sdk.")}
+        # Neither the attributes the SDK describes itself with nor the random service.instance.id that recent SDK
+        # versions generate for each process come from the configuration.
+        exported = {
+            k: v for k, v in exported.items() if not k.startswith("telemetry.sdk.") and k != "service.instance.id"
+        }
+        assert reported == exported, (reported, exported)
