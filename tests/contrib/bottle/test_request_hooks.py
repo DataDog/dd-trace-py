@@ -256,5 +256,34 @@ def test_response_metadata_failure_preserves_callback_outcome(app, tracer, test_
     assert request_span.finished
     assert request_span.parent_id == parent.span_id
     assert request_span.error == int(callback_fails)
+    assert_span_http_status_code(request_span, 500 if callback_fails else 200)
     assert request_span.get_tag("error.message") == (str(failure) if callback_fails else None)
     assert tracer.current_span() is None
+
+
+def test_callback_error_status_does_not_read_thread_local_status(app, test_spans, monkeypatch):
+    class BrokenStatusResponse:
+        headers = {}
+
+        @property
+        def status_code(self):
+            raise RuntimeError("response status unavailable")
+
+    monkeypatch.setattr(trace, "response", BrokenStatusResponse())
+    app.catchall = False
+    failure = ValueError("callback failed")
+
+    @app.route("/failure")
+    def fail():
+        raise failure
+
+    with pytest.raises(ValueError) as caught:
+        webtest.TestApp(app).get("/failure")
+
+    assert caught.value is failure
+    assert caught.value.__context__ is None
+    (span,) = test_spans.pop()
+    assert span.finished
+    assert span.error == 1
+    assert_span_http_status_code(span, 500)
+    assert span.get_tag("error.message") == str(failure)

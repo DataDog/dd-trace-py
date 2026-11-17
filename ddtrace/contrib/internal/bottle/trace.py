@@ -80,15 +80,16 @@ class TracePlugin:
 def _complete_request(event: WebFrameworkRequestEvent, result: Any, error: Optional[BaseException]) -> None:
     try:
         if isinstance(result, HTTPResponse):
-            response_data = result
+            event.response_status_code = result.status_code
+            event.response_headers = result.headers
+            event.response_from_exception = False
         elif isinstance(error, HTTPResponse):
-            response_data = error
+            event.response_status_code = error.status_code
+            event.response_headers = error.headers
+            event.response_from_exception = True
         else:
-            response_data = response
-        event.response_status_code = (
-            500 if isinstance(error, Exception) and not isinstance(error, HTTPResponse) else response_data.status_code
-        )
-        event.response_headers = response_data.headers
-        event.response_from_exception = isinstance(error, HTTPResponse)
+            event.response_status_code = 500 if isinstance(error, Exception) else response.status_code
+            event.response_headers = response.headers
+            event.response_from_exception = False
     except Exception:
         log.debug("Failed to collect Bottle response metadata", exc_info=True)
