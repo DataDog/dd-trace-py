@@ -15,6 +15,7 @@ import typing as t
 from _pytest import hookspec as pytest_hookspec
 from _pytest.reports import TestReport
 from _pytest.runner import runtestprotocol
+from _pytest.unittest import TestCaseFunction
 import pluggy
 import pytest
 
@@ -393,6 +394,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._store_passing_reports = asbool(env.get(_STORE_PASSING_REPORTS_ENV, "false"))
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
+        self.test_functions_by_nodeid: dict[str, t.Callable[..., t.Any]] = {}
         self.is_xdist_worker = False
         # Whether this worker hands the coverage report upload over to the xdist
         # controller, which produces a single combined report for the session.
@@ -932,10 +934,30 @@ class TestOptPlugin(TestOptPluginProtocol):
         except Exception:
             log.debug("Could not reset pytest-timeout timer for test attempt", exc_info=True)
 
+    def _restore_test_function(self, item: pytest.Item) -> None:
+        """Start every attempt with the test function the item had when its first attempt started.
+
+        Plugins such as pytest-mpl replace item.obj in pytest_runtest_call with a wrapper that stores the test's
+        return value and returns None, expecting each item to run once. Our retries call runtestprotocol() again on
+        the same item, so without this every attempt would wrap the previous attempt's wrapper, and pytest-mpl would
+        compare the None returned by the inner wrapper instead of the figure the test returned.
+
+        unittest items are left alone: pytest creates a new TestCase instance and test method for them on every run,
+        so they never see an earlier attempt's wrapper, and putting back the first attempt's method would run the
+        test body on the first attempt's instance instead of the one that setUp() just prepared.
+        """
+        if not isinstance(item, pytest.Function) or isinstance(item, TestCaseFunction):
+            return
+        current_function = item.obj
+        test_function = self.test_functions_by_nodeid.setdefault(item.nodeid, current_function)
+        if current_function is not test_function:
+            item.obj = test_function
+
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
     ) -> tuple[TestRun, _ReportGroup]:
         self._reset_pytest_timeout(item)
+        self._restore_test_function(item)
 
         test = self.tests_by_nodeid[item.nodeid]
         test_run = test.make_test_run()
