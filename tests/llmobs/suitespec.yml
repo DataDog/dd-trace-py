@@ -47,7 +47,7 @@ components:
     - ddtrace/contrib/internal/vllm/*
 suites:
   elevenlabs:
-    venvs_per_job: 3
+    venvs_per_job: 2
     services: [testagent]
     paths:
       - '@bootstrap'
@@ -449,7 +449,7 @@ suites:
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
   crewai:
     # Python versions follow crewai's requires-python: 0.102 supports <3.13 and 1.x <3.14.
-    venvs_per_job: 2
+    venvs_per_job: 3
     retry: 2
     paths:
       - '@bootstrap'
