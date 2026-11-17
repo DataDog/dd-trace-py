@@ -114,14 +114,14 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     return span
 
 
-class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType]):
+class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType], auto_register=False):
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
     override on_started/on_ended for their specific logic.
 
     Example:
-        class MySpanSubscriber(SpanTracingSubscriber):
+        class MySpanSubscriber(TracingSubscriber):
             event_names = ("my.span",)
 
             @classmethod
@@ -133,6 +133,9 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
                 if exc_info[1]:
                     span_from_context(ctx).set_tag("error", True)
     """
+
+    # Register here events that just create / finish spans
+    event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
@@ -152,14 +155,6 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         finally:
             if getattr(ctx.event, "_end_span", True):
                 _finish_span(ctx, exc_info)
-
-
-class SpanTracingSubscriber(TracingSubscriber[TracingEvent]):
-    """Default span lifecycle activated by tracing's subscriber bundle."""
-
-    # Register here events that just create / finish spans
-    auto_register = False
-    event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
 
 
 class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[TracingEventType]):

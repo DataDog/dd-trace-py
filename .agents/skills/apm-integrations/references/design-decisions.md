@@ -68,7 +68,9 @@ the product manager.
 Concrete SDK-independent tracing subscribers use explicit registration rather than class-definition registration.
 The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
 including explicitly deferred global tracer creation. Web request and span exception activation timing
-is unchanged. Custom subscriber registration defaults are unchanged.
+is unchanged. The generic span bundle registers `TracingSubscriber` directly. Its class declaration
+passes `auto_register=False` to defer only the base class; custom subclasses retain automatic
+registration unless they opt out with the existing class attribute.
 Ray retains SDK-dependent activation from its patch module until a separate migration.
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.

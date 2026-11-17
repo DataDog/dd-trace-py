@@ -9,7 +9,7 @@ WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
 )
 SPAN_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers._base",
-    subscribers=("SpanTracingSubscriber",),
+    subscribers=("TracingSubscriber",),
 )
 HTTP_CLIENT_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.http_client",

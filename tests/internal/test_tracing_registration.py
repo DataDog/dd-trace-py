@@ -29,7 +29,6 @@ def test_tracing_subscriber_definitions_do_not_register_listeners() -> None:
         module = modules[bundle.module]
         for name in bundle.subscribers:
             subscriber = getattr(module, name)
-            assert subscriber.auto_register is False
             for event_name in subscriber.event_names:
                 prefix = "context.started." if issubclass(subscriber, ContextSubscriber) else ""
                 assert not core.has_listeners(prefix + event_name), (name, event_name)

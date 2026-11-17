@@ -171,6 +171,57 @@ def test_base_context_subscriber():
     assert called == ["started", "foo", "ended"]
 
 
+def test_context_subscriber_can_defer_only_its_own_registration():
+    class ExplicitSubscriber(ContextSubscriber[SubscriberEvent], auto_register=False):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_started(cls, ctx: core.ExecutionContext[SubscriberEvent]) -> None:
+            called.append("started")
+
+    with core.context_with_event(SubscriberEvent()):
+        pass
+    assert called == []
+
+    ExplicitSubscriber.register()
+    ExplicitSubscriber.register()
+    with core.context_with_event(SubscriberEvent()):
+        pass
+    assert called == ["started"]
+
+    ExplicitSubscriber.unregister()
+    called.clear()
+
+    class AutomaticSubscriber(ExplicitSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+    with core.context_with_event(SubscriberEvent()):
+        pass
+    assert called == ["started"]
+
+
+def test_context_subscriber_class_attribute_still_defers_subclasses():
+    class ExplicitSubscriber(ContextSubscriber[SubscriberEvent]):
+        auto_register = False
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_started(cls, ctx: core.ExecutionContext[SubscriberEvent]) -> None:
+            called.append("started")
+
+    class ChildSubscriber(ExplicitSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+    with core.context_with_event(SubscriberEvent()):
+        pass
+    assert called == []
+
+    ChildSubscriber.register()
+    with core.context_with_event(SubscriberEvent()):
+        pass
+    assert called == ["started"]
+
+
 def test_base_context_subscriber_inheritance():
     """Test that inherited BaseContextSubscriber callbacks run parent then child."""
 
