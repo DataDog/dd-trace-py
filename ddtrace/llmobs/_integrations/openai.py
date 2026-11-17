@@ -25,11 +25,11 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_decision
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -51,7 +51,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._openai = openai
         self._client = None
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> _LLMObsSpan:
         traced_operations = (
             "createCompletion",
             "createChatCompletion",
@@ -67,7 +67,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(operation_id, submit_to_llmobs, **kwargs)
 
-    def _set_base_span_tags(self, span: Span, **kwargs) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs) -> None:
         span._set_attribute(COMPONENT, self.integration_config.integration_name)
 
         client = "OpenAI"
@@ -100,7 +100,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -145,7 +145,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_from_tool(span, kwargs, response)
 
     @staticmethod
-    def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: dict[str, Any], resp: Any) -> None:
+    def _llmobs_set_meta_tags_from_embedding(span: _LLMObsSpan, kwargs: dict[str, Any], resp: Any) -> None:
         """Extract prompt tags from an embedding and set them as temporary "_ml_obs.meta.*" tags."""
         encoding_format = kwargs.get("encoding_format") or "float"
         metadata = {"encoding_format": encoding_format}
@@ -169,7 +169,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(span, output_value=output_value)
 
     @staticmethod
-    def _llmobs_set_tags_from_tool(span: Span, kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_from_tool(span: _LLMObsSpan, kwargs: dict[str, Any], response: Any) -> None:
         """Extract tool name, arguments, and output from the request and response to be submitted to LLMObs."""
         tool_id = kwargs.get("tool_id", "unknown_tool_id")
         tool_name = kwargs.get("name", "unknown_tool")
@@ -189,14 +189,14 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_from_realtime_response(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         model_name: Optional[str],
         input_messages: list[Any],
         output_messages: list[Any],
         metadata: Optional[dict[str, Any]],
         metrics: Optional[dict[str, Any]],
         session_id: Optional[str] = None,
-        parent_span: Optional[Span] = None,
+        parent_span: Optional[_LLMObsSpan] = None,
     ) -> None:
         """Tag a per-turn Realtime llm span (the model's generation work) built by the state machine.
 
@@ -236,10 +236,10 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_from_realtime_workflow(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         name: str,
         session_id: Optional[str] = None,
-        parent_span: Optional[Span] = None,
+        parent_span: Optional[_LLMObsSpan] = None,
         input_value: Any = None,
         output_value: Any = None,
         metadata: Optional[dict[str, Any]] = None,
@@ -290,7 +290,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _extract_llmobs_metrics_tags(
-        span: Span, resp: Any, span_kind: str, kwargs: dict[str, Any]
+        span: _LLMObsSpan, resp: Any, span_kind: str, kwargs: dict[str, Any]
     ) -> Optional[dict[str, Any]]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         if span_kind == "workflow":

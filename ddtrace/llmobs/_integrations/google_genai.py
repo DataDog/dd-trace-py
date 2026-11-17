@@ -1,7 +1,6 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
@@ -47,7 +46,7 @@ EMBED_METADATA_PARAMS = [
 class GoogleGenAIIntegration(BaseLLMIntegration):
     _integration_name = "google_genai"
 
-    def _set_base_span_tags(self, span: SpanData, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
     def _llmobs_set_tags(

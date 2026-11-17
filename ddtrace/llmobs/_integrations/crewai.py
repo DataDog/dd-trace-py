@@ -11,13 +11,13 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _SpanLink
-from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
 
@@ -41,9 +41,9 @@ class CrewAIIntegration(BaseLLMIntegration):
     _crews_to_task_span_ids: dict[str, list[str]] = {}  # maps crew ID to list of task span_ids
     _crews_to_tasks: dict[str, dict[str, Any]] = {}  # maps crew ID to dictionary of task_id to span_id and span_links
     _planning_crew_ids: list[str] = []  # list of crew IDs that correspond to planning crew instances
-    _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, dict[str, dict[str, Any]]] = WeakKeyDictionary()
+    _flow_span_to_method_to_span_dict: WeakKeyDictionary[_LLMObsSpan, dict[str, dict[str, Any]]] = WeakKeyDictionary()
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> _LLMObsSpan:
         if kwargs.get("_ddtrace_ctx"):
             tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
             tracer.context_provider.activate(tracer_ctx)  # type: ignore[arg-type]
@@ -76,7 +76,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             span_dict.update({"span_id": str(span.span_id)})
         return span
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         return "agent" if kwargs.get("operation") == "agent" else None
 
     def _get_current_ctx(self):
@@ -91,7 +91,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -415,7 +415,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             _annotate_llmobs_span_data(flow_span, span_links=flow_span_span_links)
         return
 
-    def _llmobs_set_span_link_on_task(self, span: Optional[Span], args: Any, kwargs: Any) -> None:
+    def _llmobs_set_span_link_on_task(self, span: Optional[_LLMObsSpan], args: Any, kwargs: Any) -> None:
         """Set span links for the next queued task in a CrewAI workflow.
         This happens between task executions, (the current span is the crew span and the task span hasn't started yet)
         so we create span links to be set on the task span once it starts later.
