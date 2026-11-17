@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    AI Guard: Fixes an issue where a LiteLLM proxy with the Datadog AI Guard guardrail and the OpenAI
-    integration evaluates each prompt two times. The guardrail now evaluates text completions and streamed
-    answers, and holds a streamed answer until AI Guard evaluates it.
+    AI Guard: Fixes an issue where the LiteLLM proxy guardrail in pre_call and post_call modes and the OpenAI
+    integration both evaluate chat and text completion prompts. The guardrail now evaluates text completions
+    and streamed answers, and holds a streamed answer until AI Guard evaluates it.

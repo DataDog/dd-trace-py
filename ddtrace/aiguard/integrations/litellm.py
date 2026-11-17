@@ -47,6 +47,9 @@ from ddtrace.internal.utils.openai import openai_construct_completion_from_strea
 
 GUARDRAIL_NAME = "datadog_ai_guard"
 
+# The post-call hooks evaluate the answers of these call types only.
+_ANSWER_CALL_TYPES = frozenset({"completion", "acompletion", "text_completion", "atext_completion"})
+
 # This variable keeps the claim of the proxy request. The proxy runs the pre-call hook in the
 # request task, and the model call and the stream get a copy of that context.
 _REQUEST_CLAIM: ContextVar[Optional[_Claim]] = ContextVar("ai_guard_litellm_request_claim", default=None)
@@ -359,8 +362,14 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         event_type: GuardrailEventHooks = GuardrailEventHooks.pre_call
         if not self.should_run_guardrail(data=data, event_type=event_type):
             return data
-        # Claim only in the proxy. Other callers run this hook in their own task, and the claim stays there.
-        return await self._on_request(data, call_type, claim="proxy_server_request" in data)
+        # Claim only proxy requests whose answer the post-call hooks also evaluate.
+        # Other callers run this hook in their own task, where a claim stays.
+        claim = (
+            "proxy_server_request" in data
+            and call_type in _ANSWER_CALL_TYPES
+            and self.should_run_guardrail(data=data, event_type=GuardrailEventHooks.post_call) is True
+        )
+        return await self._on_request(data, call_type, claim=claim)
 
     async def async_moderation_hook(
         self, data: dict[str, Any], user_api_key_dict: UserAPIKeyAuth, call_type: CallTypesLiteral

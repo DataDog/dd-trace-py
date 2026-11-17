@@ -293,6 +293,35 @@ async def test_post_call_only_lets_the_openai_integration_evaluate_the_prompt(li
     assert evaluations == [("openai", "prompt"), ("litellm", "answer")]
 
 
+async def test_pre_call_only_mode_does_not_claim(litellm_proxy, evaluations):
+    # No post-call hook evaluates the answer in this mode, so the OpenAI listeners keep their evaluations.
+    litellm_proxy(event_hook=("pre_call",))
+
+    response = await _post("/chat/completions", {"model": MODEL, "messages": [{"role": "user", "content": PROMPT}]})
+
+    assert response.status_code == 200, response.text
+    assert evaluations == [("litellm", "prompt"), ("openai", "prompt")]
+    assert not is_aiguard_context_active()
+
+
+async def test_messages_api_does_not_claim(litellm_proxy, openai_stub, evaluations, monkeypatch):
+    # The post-call hooks do not evaluate Anthropic answers, so the OpenAI listeners keep their evaluations.
+    litellm_proxy()
+    # By default, litellm 1.82 sends this request to the Responses API with its own HTTP client.
+    # This setting makes it a chat completion through the OpenAI SDK, like litellm 1.78 always does.
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+
+    response = await _post(
+        "/v1/messages", {"model": MODEL, "max_tokens": 64, "messages": [{"role": "user", "content": PROMPT}]}
+    )
+
+    assert response.status_code == 200, response.text
+    # LiteLLM sends the Anthropic request of an OpenAI model as a chat completion.
+    assert openai_stub.requests[0]["messages"] == [{"role": "user", "content": PROMPT}]
+    assert evaluations == [("litellm", "prompt"), ("openai", "prompt")]
+    assert not is_aiguard_context_active()
+
+
 async def test_plain_openai_calls_outside_the_proxy(openai_stub, evaluations):
     with override_ai_guard_config(_AI_GUARD_CONFIG):
         guardrail = DatadogAIGuardGuardrail(block=True, event_hook=["pre_call", "post_call"], default_on=True)

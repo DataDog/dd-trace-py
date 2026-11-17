@@ -242,7 +242,7 @@ returns `True`. The framework evaluates both the request and the response itself
 | LangChain `generate` / `agenerate` | `.before` to `.finally` |
 | LangChain `stream` / `astream` | iteration start to stream end (`.stream.started` / `.stream.finally`) |
 | Strands invocation | before-invocation to after-invocation |
-| LiteLLM proxy guardrail (`pre_call` mode) | pre-call check to the end of the request (post-call hook, end of the model stream, or failure hook) |
+| LiteLLM proxy guardrail (chat and text completions, `pre_call` and `post_call` modes) | pre-call check to the end of the request (post-call hook, end of the model stream, or failure hook) |
 
 A claim is a shared object released by the handle `set_aiguard_context_active`
 returns, so a release from another asyncio task is seen by the claiming task.
@@ -250,12 +250,12 @@ Strands keeps the handle on `invocation_state`; a LangChain generate keeps it on
 its `_CallScope`, and a stream on the per-stream state the contrib passes to
 both stream events.
 
-The LiteLLM guardrail keeps the handle in a ContextVar of the request task. It claims only
-when the data has `proxy_server_request`. The proxy awaits the pre-call hook in the request
-task, and copies that context into the model call. The SDK `guardrails` argument runs
-the hook in the caller task, and a `during_call` hook runs beside the model call: they do not claim.
-With only the `pre_call` mode, no post-call hook releases the claim after a success. The claim
-then ends with the request task, and nothing evaluates the answer.
+The LiteLLM guardrail keeps the handle in a ContextVar of the request task. It claims only when
+the data has `proxy_server_request`, the request is a chat or text completion, and the `post_call`
+mode applies. The proxy awaits the pre-call hook in the request task, and copies that context into
+the model call. The SDK `guardrails` argument runs the hook in the caller task, and a `during_call`
+hook runs beside the model call: they do not claim. For other request types, and with only the
+`pre_call` mode, the guardrail does not claim, so the provider listeners keep their evaluations.
 In `post_call` mode, the guardrail reads all of a streamed chat or text answer and evaluates it
 before the proxy sends the first chunk. Other streams pass through live.
 `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` does not change this.

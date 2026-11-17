@@ -20,6 +20,7 @@ from ddtrace.aiguard.integrations.litellm import _READING_STREAM
 from ddtrace.aiguard.integrations.litellm import _REQUEST_CLAIM
 from ddtrace.aiguard.integrations.litellm import DatadogAIGuardGuardrail
 from ddtrace.aiguard.integrations.litellm import DatadogAIGuardGuardrailException
+from tests.aiguard.litellm_guardrail.conftest import _AI_GUARD_CONFIG
 from tests.aiguard.litellm_guardrail.conftest import assistant_msg
 from tests.aiguard.litellm_guardrail.conftest import function_msg
 from tests.aiguard.litellm_guardrail.conftest import make_choice
@@ -1080,6 +1081,41 @@ class TestProxyRequestClaim:
         await _pre_call(guardrail_monitor, _proxy_request_data(messages=[]))
 
         mock_req.assert_not_called()
+        assert not is_aiguard_context_active()
+
+    @pytest.mark.parametrize(
+        "call_type, body",
+        [
+            ("aresponses", {"input": "Hello"}),
+            ("responses", {"input": "Hello"}),
+            ("anthropic_messages", {"messages": [user_msg("Hello")], "max_tokens": 64}),
+        ],
+    )
+    async def test_no_claim_for_apis_without_answer_evaluation(self, mock_req, guardrail_monitor, call_type, body):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = {**_proxy_request_data(messages=[]), **body}
+
+        await _pre_call(guardrail_monitor, data, call_type=call_type)
+
+        # The guardrail still evaluates the prompt, but the provider listeners keep their evaluations.
+        assert data["metadata"]["ai_guard_messages"] == [Message(role="user", content="Hello")]
+        mock_req.assert_called_once()
+        assert not is_aiguard_context_active()
+
+    @pytest.mark.parametrize("event_hook, claimed", [(["pre_call"], False), (["pre_call", "post_call"], True)])
+    async def test_claim_needs_the_post_call_mode(self, mock_req, event_hook, claimed):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        with override_ai_guard_config(_AI_GUARD_CONFIG):
+            guardrail = DatadogAIGuardGuardrail(block=False, event_hook=event_hook, default_on=True)
+        data = _proxy_request_data()
+
+        await _pre_call(guardrail, data)
+
+        mock_req.assert_called_once()
+        assert is_aiguard_context_active() is claimed
+        await guardrail.async_post_call_failure_hook(
+            request_data=data, original_exception=Exception(), user_api_key_dict=Mock()
+        )
         assert not is_aiguard_context_active()
 
     async def test_no_claim_in_moderation_hook(self, mock_req, guardrail_monitor):
