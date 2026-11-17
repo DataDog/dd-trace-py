@@ -117,6 +117,12 @@ def test_manual_initialization_activates_all_families_without_optional_sdks() ->
     assert "vllm" not in sys.modules
     assert ddtrace.tracer is tracer
 
+    from ddtrace._trace import product
+
+    product.start()
+    assert "ray" not in sys.modules
+    assert "ddtrace._trace.subscribers.ray" not in sys.modules
+
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
 def test_deferred_global_initialization_preserves_manual_tracing() -> None:
