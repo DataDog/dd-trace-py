@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    aiobotocore: The integration is now tested with aiobotocore 3.10.0 and on Python 3.10 through 3.15.
