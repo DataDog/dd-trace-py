@@ -4,14 +4,17 @@ the decisions taken on OpenAI hosted MCP approval requests, and the MCP SDK clie
 
 from collections import OrderedDict
 from collections.abc import Sequence
+import enum
 import hashlib
 import ipaddress
 import os.path
 import re
 from types import ModuleType
 from typing import Any
+from typing import Literal
 from typing import NamedTuple
 from typing import Optional
+from typing import Union
 import unicodedata
 from urllib import parse
 from weakref import WeakKeyDictionary
@@ -345,8 +348,19 @@ _TRANSPORTS = {
     "mcp.client.sse": ("sse_client",),
     "mcp.client.streamable_http": ("streamable_http_client", "streamablehttp_client"),
 }
+
+
+class _Unidentified(enum.Enum):
+    SERVER = 0
+
+
+# A server that a known transport reached, but that no ID key identifies (for example an IDN host). Its
+# tool calls still get the check, as ordinary tool calls without MCP metadata.
+UNIDENTIFIED_SERVER: Literal[_Unidentified.SERVER] = _Unidentified.SERVER
+SessionServer = Union[MCPServer, Literal[_Unidentified.SERVER]]
+
 # Server of the read stream a transport yielded, which the ClientSession built on it keeps.
-_servers_by_stream: "WeakKeyDictionary[Any, MCPServer]" = WeakKeyDictionary()
+_servers_by_stream: "WeakKeyDictionary[Any, SessionServer]" = WeakKeyDictionary()
 _wrapped_transports: list[tuple[Any, Any]] = []
 
 
@@ -385,7 +399,7 @@ class _StreamsRecorder:
 
     __slots__ = ("_agen", "_server")
 
-    def __init__(self, agen: Any, server: MCPServer) -> None:
+    def __init__(self, agen: Any, server: SessionServer) -> None:
         self._agen = agen
         self._server = server
 
@@ -412,9 +426,10 @@ def _transport_capture(transport: str) -> Any:
         context_manager = f(*args, **kwargs)
         try:
             server = _transport_server(transport, args, kwargs)
-            if server is not None:
-                # The generator asynccontextmanager drives; the transport itself runs unchanged.
-                context_manager.gen = _StreamsRecorder(context_manager.gen, server)
+            # The generator asynccontextmanager drives; the transport itself runs unchanged.
+            context_manager.gen = _StreamsRecorder(
+                context_manager.gen, UNIDENTIFIED_SERVER if server is None else server
+            )
         except Exception:
             logger.debug("AI Guard MCP: failed to capture the %s parameters", transport, exc_info=True)
         return context_manager
@@ -455,8 +470,12 @@ def release_mcp_transports() -> None:
             logger.debug("AI Guard MCP: failed to unwrap %r", function, exc_info=True)
 
 
-def client_session_server(session: Any) -> Optional[MCPServer]:
-    """Server of an MCP ClientSession, from the transport that produced its read stream; None if unknown."""
+def client_session_server(session: Any) -> Optional[SessionServer]:
+    """Server of an MCP ClientSession, from the transport that produced its read stream.
+
+    UNIDENTIFIED_SERVER when a known transport produced the stream but no key identifies its server, and
+    None when the session does not come from a known transport.
+    """
     stream = getattr(session, "_read_stream", None)
     if stream is None:
         # mcp>=2 sessions keep their streams on their dispatcher.
