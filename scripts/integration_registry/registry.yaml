@@ -1125,7 +1125,7 @@ integrations:
   tested_versions_by_dependency:
     vllm:
       min: 0.10.2
-      max: 0.27.1
+      max: 0.33.0
 
 - integration_name: webbrowser
   is_external_package: false
