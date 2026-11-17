@@ -211,17 +211,22 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
     """Get module path from pytest item, converted to relative path."""
     abs_path = _get_module_path_from_item(item)
 
-    try:
-        return abs_path.relative_to(workspace_path)
-    except ValueError:
-        # If not within workspace, return as-is (fallback)
-        return abs_path
+    relative = _cached_relative_path(abs_path, workspace_path)
+    return Path(relative) if relative is not None else abs_path
 
 
 @lru_cache(maxsize=512)
 def _cached_relative_path(item_path: Path, workspace_path: Path) -> t.Optional[str]:
     """Return item_path relative to workspace_path as a string, or None if not under workspace."""
-    return relative_path(item_path, workspace_path)
+    relative = relative_path(item_path, workspace_path)
+    if relative is not None:
+        return relative
+    # Git reports physical roots; pytest may collect through a workspace symlink.
+    # Keep the common lexical path free of filesystem lookups.
+    try:
+        return relative_path(item_path.resolve(), workspace_path.resolve())
+    except (OSError, RuntimeError):
+        return None
 
 
 def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
