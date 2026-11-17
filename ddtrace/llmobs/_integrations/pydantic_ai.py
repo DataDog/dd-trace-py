@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+import dataclasses
 import functools
 from typing import Any
 from typing import Optional
@@ -8,7 +9,11 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import callable_name
 from ddtrace.llmobs._integrations.agent_manifest import is_flat_scalar_value
@@ -23,6 +28,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import AgentCapability
 from ddtrace.llmobs.types import AgentInstructionResolver
 from ddtrace.llmobs.types import AgentManifest
+from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
 
 
@@ -36,6 +42,45 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
 }
 
 FRAMEWORK_NAME = "PydanticAI"
+
+DECISION_PROVIDER_TAG = "decision_provider"
+# Decision models whose backend call is traced by another integration when it is enabled
+_DECISION_PROVIDER_INTEGRATIONS = {"TypeSafeModel": "typesafe", "OpenAIDecisionsModel": "openai"}
+_DECISION_MODEL_PROVIDERS = {
+    "TypeSafeModel": "typesafe",
+    "OpenAIDecisionsModel": "openai",
+    "GoogleDecisionsModel": "google",
+}
+# OpenAIDecisionsModel is left out: the openai decision_provider expects a list of answers
+_DECISION_PROVIDERS = {"TypeSafeModel": "typesafe", "SystemOneModel": "typesafe", "GoogleDecisionsModel": "google"}
+
+
+def _decision_model_class(model: Any, names: Any) -> Optional[str]:
+    for cls in type(model).__mro__:
+        if cls.__name__ in names:
+            return cls.__name__
+    return None
+
+
+def _system_one_model_provider(model: Any) -> str:
+    base_url = str(getattr(model, "base_url", "") or "").lower()
+    return "typesafe" if "typesafe" in base_url else "system-one"
+
+
+def _decision_wire(value: Any) -> Any:
+    """A decision question or answer in the Decisions protocol shape: type first, unset fields left out."""
+    if not dataclasses.is_dataclass(value) or isinstance(value, type):
+        return value
+    wire: dict[str, Any] = {"type": getattr(value, "type", None)}
+    for f in dataclasses.fields(value):
+        if f.name == "type":
+            continue
+        item = getattr(value, f.name)
+        if dataclasses.is_dataclass(item) and not isinstance(item, type):
+            item = {k: v for k, v in dataclasses.asdict(item).items() if v is not None}
+        if item is not None:
+            wire[f.name] = item
+    return wire
 _OUTPUT_MARKERS = frozenset({"ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"})
 
 
@@ -141,6 +186,10 @@ class PydanticAIIntegration(BaseLLMIntegration):
     ) -> None:
         span_kind = get_llmobs_span_kind(span)
 
+        if operation == "decision":
+            self._llmobs_set_tags_decision(span, args, kwargs, response, span_kind)
+            return
+
         if span_kind == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif span_kind == "tool":
@@ -151,6 +200,100 @@ class PydanticAIIntegration(BaseLLMIntegration):
             kind=span_kind,
             model_name=span.get_tag("pydantic_ai.request.model") or "",
             model_provider=span.get_tag("pydantic_ai.request.provider") or "",
+        )
+
+    @staticmethod
+    def _decision_span_kind(model: Any) -> str:
+        """workflow when the backend call already produces a provider llm span, llm otherwise."""
+        model_class = _decision_model_class(model, _DECISION_PROVIDER_INTEGRATIONS)
+        if model_class and LLMObs._integration_is_enabled(_DECISION_PROVIDER_INTEGRATIONS[model_class]):
+            return "workflow"
+        return "llm"
+
+    @staticmethod
+    def _decision_model_provider(model: Any) -> str:
+        model_class = _decision_model_class(model, (*_DECISION_MODEL_PROVIDERS, "SystemOneModel"))
+        if model_class == "SystemOneModel":
+            return _system_one_model_provider(model)
+        if model_class:
+            return _DECISION_MODEL_PROVIDERS[model_class]
+        system = getattr(model, "system", None) or ""
+        return PYDANTIC_AI_SYSTEM_TO_PROVIDER.get(system, system)
+
+    @staticmethod
+    def _decision_usage_metrics(response: Any) -> dict[str, Any]:
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "input_tokens", None)
+        output_tokens = getattr(usage, "output_tokens", None)
+        if input_tokens is None and output_tokens is None:
+            return {}
+        return {
+            INPUT_TOKENS_METRIC_KEY: input_tokens or 0,
+            OUTPUT_TOKENS_METRIC_KEY: output_tokens or 0,
+            TOTAL_TOKENS_METRIC_KEY: (input_tokens or 0) + (output_tokens or 0),
+        }
+
+    def _llmobs_set_tags_decision(
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any], span_kind: Optional[str]
+    ) -> None:
+        model = kwargs.get("instance")
+        request = get_argument_value(args, kwargs, 0, "request", optional=True)
+        model_name = getattr(response, "model_name", None) or getattr(model, "model_name", "") or ""
+        input_body = {
+            "model": getattr(model, "model_name", "") or "",
+            "state": getattr(request, "state", None),
+            "questions": {name: _decision_wire(q) for name, q in (getattr(request, "questions", None) or {}).items()},
+        }
+        output_body: dict[str, Any] = {}
+        if response is not None:
+            output_body = {
+                "model": model_name,
+                "answers": {name: _decision_wire(a) for name, a in (getattr(response, "answers", None) or {}).items()},
+            }
+        name = f"{type(model).__name__}.decide"
+        if span_kind == "workflow":
+            _annotate_llmobs_span_data(
+                span,
+                kind="workflow",
+                name=name,
+                input_value=safe_json(input_body),
+                output_value=safe_json(output_body) if output_body else "",
+            )
+            return
+        decision_provider = _DECISION_PROVIDERS.get(_decision_model_class(model, _DECISION_PROVIDERS) or "")
+        _annotate_llmobs_span_data(
+            span,
+            kind="llm",
+            name=name,
+            model_name=model_name,
+            model_provider=self._decision_model_provider(model),
+            input_messages=[Message(role="user", content=safe_json(input_body) or "")],
+            output_messages=[Message(role="assistant", content=safe_json(output_body) if output_body else "")],
+            metrics=self._decision_usage_metrics(response),
+            tags={DECISION_PROVIDER_TAG: decision_provider} if decision_provider else None,
+        )
+
+    def _set_apm_shadow_tags(
+        self,
+        span: Span,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        if operation != "decision":
+            return
+        model = kwargs.get("instance")
+        span_kind = get_llmobs_span_kind(span) or self._decision_span_kind(model)
+        if span_kind == "workflow":
+            self._apply_shadow_metrics(span, {}, span_kind)
+            return
+        self._apply_shadow_metrics(
+            span,
+            self._decision_usage_metrics(response),
+            span_kind,
+            model_name=getattr(response, "model_name", None) or getattr(model, "model_name", None),
+            model_provider=self._decision_model_provider(model),
         )
 
     def _llmobs_set_tags_agent(
