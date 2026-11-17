@@ -1628,6 +1628,38 @@ def test_a_microvm_sync_write_exports_outside_the_aggregator_lock(monkeypatch, a
         writer.stop(3.0)
 
 
+def test_a_microvm_sync_writer_delivers_every_trace_a_thread_finishes(monkeypatch, agent):
+    # The deferred write is kept in a thread-local slot that the flush clears. A thread that finishes
+    # a second trace must still reach the writer.
+    aggregator = _microvm_aggregator(monkeypatch, agent.port, sync_mode=True)
+    writer = aggregator.writer
+    real_buffer = writer._buffer
+    recording = writer._buffer = _RecordingBuffer()
+    recording.flush = lambda timeout_ns: None
+    errors = []
+
+    def finish_two_traces():
+        try:
+            for trace_id in (1, 2):
+                span = Span(name="op", trace_id=trace_id, span_id=trace_id)
+                aggregator.on_span_start(span)
+                span.finish()
+                aggregator.on_span_finish(span)
+                aggregator._flush_pending_sync_write()
+        except BaseException as error:
+            errors.append(error)
+
+    finisher = threading.Thread(target=finish_two_traces, daemon=True)
+    try:
+        finisher.start()
+        finisher.join(5.0)
+        assert not errors, errors
+        assert len(recording.writes) == 2
+    finally:
+        writer._buffer = real_buffer
+        writer.stop(3.0)
+
+
 def test_drop_buffered_traces_is_a_noop_for_a_buffer_writer_outside_microvm(monkeypatch, agent):
     monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
     with buffer_writer(agent.port) as writer:

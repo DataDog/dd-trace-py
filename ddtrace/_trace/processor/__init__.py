@@ -407,7 +407,7 @@ class SpanAggregator(SpanProcessor):
         # failed send is not retried by the next span finish.
         pending_writes = getattr(self._pending_sync_flush, "spans", None)
         if pending_writes:
-            self._pending_sync_flush.spans = None
+            self._pending_sync_flush.spans = []
             for buffer_writer, spans in pending_writes:
                 buffer_writer.write(spans)
         writer = getattr(self._pending_sync_flush, "writer", None)
