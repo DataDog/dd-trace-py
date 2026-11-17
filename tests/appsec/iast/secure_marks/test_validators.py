@@ -2,11 +2,14 @@
 
 from unittest import mock
 
+import pytest
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.secure_marks.validators import cmdi_validator
+from ddtrace.appsec._iast.secure_marks.validators import create_validator
 from ddtrace.appsec._iast.secure_marks.validators import path_traversal_validator
 from ddtrace.appsec._iast.secure_marks.validators import sqli_validator
 
@@ -81,3 +84,36 @@ def test_command_quote_validator():
     assert ranges
     for _range in ranges:
         assert _range.has_secure_mark(VulnerabilityType.COMMAND_INJECTION)
+
+
+def _custom_validate(command, flag=""):
+    return True
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda validated, unvalidated: ((validated, unvalidated), {}),
+        lambda validated, unvalidated: ((validated,), {"flag": unvalidated}),
+        lambda validated, unvalidated: ((), {"command": validated, "flag": unvalidated}),
+    ],
+    ids=["positional", "mixed", "keyword"],
+)
+def test_validator_with_positions_marks_only_configured_parameters(call):
+    """With parameter positions, only arguments bound to those positions are marked, however they are passed."""
+    validated, unvalidated = (
+        taint_pyobject(
+            pyobject=value,
+            source_name="test_validator_with_positions",
+            source_value=value,
+            source_origin=OriginType.PARAMETER,
+        )
+        for value in ("; rm -rf /", "--force")
+    )
+    args, kwargs = call(validated, unvalidated)
+
+    assert create_validator([VulnerabilityType.COMMAND_INJECTION], [0], _custom_validate, None, args, kwargs)
+
+    assert all(r.has_secure_mark(VulnerabilityType.COMMAND_INJECTION) for r in get_ranges(validated))
+    assert get_ranges(unvalidated)
+    assert not any(r.has_secure_mark(VulnerabilityType.COMMAND_INJECTION) for r in get_ranges(unvalidated))

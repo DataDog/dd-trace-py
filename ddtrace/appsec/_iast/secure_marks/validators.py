@@ -5,6 +5,7 @@ If a validator approves an input, we mark that input as secure for specific vuln
 """
 
 from collections.abc import Sequence
+import inspect
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -33,10 +34,28 @@ def create_validator(
         add_secure_mark(arg, vulnerability_types)
         i += 1
 
-    for arg in kwargs.values():
+    keyword_positions = _keyword_positions(wrapped) if parameter_positions and kwargs else {}
+    for name, arg in kwargs.items():
+        # With configured positions, a keyword argument is only validated when it binds to one of them.
+        if parameter_positions and keyword_positions.get(name) not in parameter_positions:
+            continue
         add_secure_mark(arg, vulnerability_types)
 
     return result
+
+
+def _keyword_positions(wrapped: Callable) -> dict[str, int]:
+    """Map the parameters of wrapped that can be passed by position or keyword to their zero-based positions."""
+    try:
+        parameters = inspect.signature(wrapped).parameters.values()
+    except Exception:
+        # The validator has already run, so an unusual callable must not raise into the application.
+        return {}
+    return {
+        param.name: position
+        for position, param in enumerate(parameters)
+        if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    }
 
 
 def path_traversal_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:

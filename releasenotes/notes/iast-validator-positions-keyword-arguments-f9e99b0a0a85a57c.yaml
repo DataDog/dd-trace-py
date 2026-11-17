@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes an issue where a custom ``INPUT_VALIDATOR`` configured with parameter
+    positions in ``DD_IAST_SECURITY_CONTROLS_CONFIGURATION`` also marked arguments passed by keyword
+    at other positions as validated, hiding vulnerabilities that involved those arguments.
