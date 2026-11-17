@@ -1,3 +1,5 @@
+from typing import Any
+
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -19,7 +21,7 @@ class CommandInjection(VulnerabilityBase):
 IS_REPORTED_INTRUMENTED_SINK_METRIC = False
 
 
-def _iast_report_cmdi(func_name, *args, **kwargs) -> None:
+def _iast_report_cmdi(func_name: str, *args: Any, **kwargs: Any) -> None:
     global IS_REPORTED_INTRUMENTED_SINK_METRIC
     if not IS_REPORTED_INTRUMENTED_SINK_METRIC:
         _set_metric_iast_instrumented_sink(VULN_CMDI)
