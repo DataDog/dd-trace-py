@@ -207,13 +207,15 @@ def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.
 
 @pytest.mark.subprocess
 def test_bundle_reactivates_after_full_hub_reset() -> None:
-    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace._trace._registration import register_subscribers
     from ddtrace.internal import core
     from ddtrace.internal.core import event_hub
 
-    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    register_subscribers()
     event_hub.reset()
     assert not core.has_listeners("context.started.web.request")
-    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    assert not core.has_listeners("context.exception")
+    register_subscribers()
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
+    assert core.has_listeners("context.exception")
