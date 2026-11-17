@@ -1015,7 +1015,7 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
     }
 
     std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->task_link_map()[child] = parent;
+    echion->link_task(parent, child);
 }
 
 void
