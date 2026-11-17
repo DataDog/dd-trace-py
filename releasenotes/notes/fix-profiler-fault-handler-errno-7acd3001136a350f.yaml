@@ -1,4 +1,0 @@
-fixes:
-  - |
-    profiling: Fixes incorrect application ``errno`` after chaining to a previous
-    ``SIGSEGV`` or ``SIGBUS`` handler.
