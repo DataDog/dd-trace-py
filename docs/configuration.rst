@@ -1460,8 +1460,11 @@ Logs
      type: Boolean
      default: True
      description: |
-         Enable or disable start up diagnostic logging. The diagnostics check that the agent is reachable, which
-         takes up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
+         Enable or disable start up diagnostic logging. When enabled, the tracer logs its configuration as a
+         ``DATADOG TRACER CONFIGURATION`` JSON object at the ``INFO`` level, even when the `ddtrace` logger level is
+         higher. The object includes the effective OpenTelemetry settings, keyed by the environment variables that
+         set them, with OTLP header values redacted. The diagnostics check that the agent is reachable, which takes
+         up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
      version_added:
        v4.18.0: The default changed from ``False`` to ``True``.
 
