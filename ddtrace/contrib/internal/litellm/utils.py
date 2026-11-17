@@ -95,14 +95,20 @@ def fallback_dispatch(ctx):
         yield
     finally:
         _fallback_dispatch_attempts.reset(token)
-        # The runner returns the first successful attempt, which is the last one made.
-        model = attempts.get("model")
-        if model:
+        # The runner returns the first successful attempt, which is the last one made. A dict fallback can override
+        # the messages, tools and generation params, so the span takes the whole request of that attempt.
+        attempt = attempts.get("request")
+        if attempt:
+            model, attempt_kwargs = attempt
             event.model = model
             span_from_context(ctx).set_tag(TAG_MODEL, model)
-            event.request_kwargs["model"] = model
-            if event.request_args:
-                event.request_args = (model, *event.request_args[1:])
+            request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
+            for key in ("litellm_logging_obj", "litellm_call_id"):
+                attempt_kwargs.pop(key, None)
+            request_kwargs.update(attempt_kwargs)
+            request_kwargs["model"] = model
+            event.request_kwargs = request_kwargs
+            event.request_args = ()
 
 
 class BaseLiteLLMStreamHandler:

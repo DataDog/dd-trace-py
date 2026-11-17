@@ -41,7 +41,7 @@ def _request_event(operation, args, kwargs, router=None):
     model = get_argument_value(args, kwargs, 0, "model", None)
     attempts = _fallback_dispatch_attempts.get()
     if attempts is not None and router is None:
-        attempts["model"] = model
+        attempts["request"] = (model, dict(kwargs))
     host = extract_host_tag(kwargs)
     tags = {}
     if model is not None:

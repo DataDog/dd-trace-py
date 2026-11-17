@@ -1147,6 +1147,7 @@ def test_completion_with_fallbacks_attributes_span_to_successful_model(litellm, 
 PRIMARY_MODEL = "anthropic/claude-sonnet-4-5-20250929"
 FALLBACK_MODEL = "anthropic/claude-3-haiku-20240307"
 FALLBACK_MESSAGES = [{"content": "Hey, what is up?", "role": "user"}]
+FALLBACK_OVERRIDE_MESSAGES = [{"content": "Fallback prompt", "role": "user"}]
 
 
 def _failing_primary_kwargs(litellm):
@@ -1158,7 +1159,14 @@ def _failing_primary_kwargs(litellm):
         "model": PRIMARY_MODEL,
         "messages": FALLBACK_MESSAGES,
         "mock_response": litellm.RateLimitError("rate limited", llm_provider="anthropic", model=PRIMARY_MODEL),
-        "fallbacks": [{"model": FALLBACK_MODEL, "mock_response": "fallback answer"}],
+        "fallbacks": [
+            {
+                "model": FALLBACK_MODEL,
+                "mock_response": "fallback answer",
+                "messages": FALLBACK_OVERRIDE_MESSAGES,
+                "temperature": 0.25,
+            }
+        ],
     }
 
 
@@ -1171,6 +1179,9 @@ def _assert_single_fallback_span(test_spans):
     # LLMObs drops the provider prefix once litellm has resolved the provider.
     assert _get_llmobs_data_metastruct(span)["meta"]["model_name"].split("/")[-1] == FALLBACK_MODEL.split("/")[-1]
     assert get_llmobs_output_messages(span)[0]["content"] == "fallback answer"
+    # The dict fallback overrides the prompt and params; the span carries the successful attempt's request.
+    assert get_llmobs_input_messages(span) == FALLBACK_OVERRIDE_MESSAGES
+    assert _get_llmobs_data_metastruct(span)["meta"]["metadata"]["temperature"] == 0.25
 
 
 def test_completion_runs_fallback_after_primary_failure(litellm, litellm_llmobs, test_spans):
@@ -1206,7 +1217,8 @@ def test_completion_with_global_model_fallbacks_attributes_span_to_fallback(
 
     def completion(*args, **kwargs):
         traced_completion(inner_completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
-        return traced_completion(inner_completion, None, (), {"model": FALLBACK_MODEL, "messages": FALLBACK_MESSAGES})
+        fallback_kwargs = {"model": FALLBACK_MODEL, "messages": FALLBACK_OVERRIDE_MESSAGES, "temperature": 0.25}
+        return traced_completion(inner_completion, None, (), fallback_kwargs)
 
     traced_completion(completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
     _assert_single_fallback_span(test_spans)
