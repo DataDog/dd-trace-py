@@ -35,6 +35,7 @@ components:
     - ddtrace/contrib/internal/typesafe/*
   openai:
     - ddtrace/contrib/internal/openai/*
+    - ddtrace/contrib/_events/openai_realtime.py
   langgraph:
     - ddtrace/contrib/internal/langgraph/*
   crewai:

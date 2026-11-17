@@ -56,7 +56,7 @@ Key points:
 - LLMObs tag setting is handled by product subscribers, not directly in the patch wrapper
 - The async variant is identical but uses `async def` / `await`
 
-Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans or agent/tool child spans; keep their creation, extraction, and finishing under one owner.
+Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as agent/tool child spans; keep their creation, extraction, and finishing under one owner. Sessions that only a product observes, such as OpenAI Realtime connections, hand a product-supplied observer to contrib through a typed core event (`ddtrace/contrib/_events/openai_realtime.py`), so contrib forwards events without importing the product.
 
 Existing events carrying `llmobs_integration` are handled directly by `LlmTracingSubscriber`.
 Preserve that contract when extending those integrations; use product subscribers for new

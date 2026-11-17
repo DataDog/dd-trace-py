@@ -1,6 +1,8 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.openai._constants import BASE_URL
+from ddtrace.contrib.internal.openai._constants import provider_name
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
@@ -42,40 +44,31 @@ OPENAI_DECISION_PROVIDER = "openai"
 class OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
 
-    def __init__(self, integration_config, openai):
-        # FIXME: this currently does not consider if the tracer is configured to
-        # use a different hostname. eg. tracer.configure(host="new-hostname")
-        # Ideally the metrics client should live on the tracer or some other core
-        # object that is strongly linked with configuration.
-        super().__init__(integration_config)
-        self._openai = openai
-        self._client = None
-
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
-        traced_operations = (
-            "createCompletion",
-            "createChatCompletion",
-            "createEmbedding",
-            "createResponse",
-            "parseChatCompletion",
-            "parseResponse",
-            "createRealtimeResponse",
-            "createDecision",
-        )
-        if operation_id in traced_operations:
-            submit_to_llmobs = True
-        log.debug("Creating LLM span for openai operation: %s", operation_id)
-        return super().trace(operation_id, submit_to_llmobs, **kwargs)
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
+        """Start a span that LLMObs creates itself, such as a Realtime turn's, with the OpenAI integration's
+        APM tags. The openai integration sets them on the spans of the requests it traces.
+        """
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
+        span._set_attribute(COMPONENT, self.integration_config.integration_name)
+        span._set_attribute("openai.request.provider", provider_name(self._base_url(span) or ""))
+        return span
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
-        span._set_attribute(COMPONENT, self.integration_config.integration_name)
+        """Nothing to do: the openai integration sets the OpenAI APM tags."""
 
-        client = "OpenAI"
-        if self._is_provider(span, "azure"):
-            client = "AzureOpenAI"
-        elif self._is_provider(span, "deepseek"):
-            client = "Deepseek"
-        span._set_attribute("openai.request.provider", client)
+    def llmobs_set_tags(
+        self,
+        span: Span,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        # The openai integration also traces file, model, image and audio requests, which carry no LLMObs
+        # data or APM shadow tags.
+        if not operation:
+            return
+        super().llmobs_set_tags(span, args, kwargs, response=response, operation=operation)
 
     def _get_model_provider(self, span) -> str:
         if self._is_provider(span, "azure"):
@@ -86,15 +79,19 @@ class OpenAIIntegration(BaseLLMIntegration):
             return "deepseek"
         return UNKNOWN_MODEL_PROVIDER
 
+    @staticmethod
+    def _base_url(span: Optional[Span]) -> Optional[str]:
+        if span is None:
+            return None
+        # The openai integration records the base URL of each request it traces; spans this integration
+        # starts itself record their client's in REQUEST_BASE_URL.
+        base_url = span._get_ctx_item(BASE_URL) or span._get_ctx_item(REQUEST_BASE_URL)
+        return str(base_url) if base_url else None
+
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
-        base_url = None
-        if span is not None:
-            base_url = span._get_ctx_item(REQUEST_BASE_URL)
+        base_url = self._base_url(span)
         if not base_url:
-            base_url = getattr(self._client, "_base_url", None)
-        base_url = str(base_url) if base_url else None
-        if not base_url or not isinstance(base_url, str):
             return False
         return provider.lower() in base_url.lower()
 

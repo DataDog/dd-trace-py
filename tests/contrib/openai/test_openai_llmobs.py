@@ -3774,12 +3774,10 @@ def test_shadow_tags_chat_completion_when_llmobs_disabled(tracer):
     """Verify shadow tags are set on OpenAI spans when LLMObs is disabled."""
     from unittest.mock import MagicMock
 
+    from ddtrace.contrib.internal.openai._constants import BASE_URL
     from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 
-    mock_openai = MagicMock()
-    mock_openai.version.VERSION = "1.0.0"
-    integration = OpenAIIntegration(MagicMock(), mock_openai)
-    integration._client = MagicMock(_base_url="https://api.openai.com/v1")
+    integration = OpenAIIntegration(MagicMock())
 
     response = MagicMock()
     response.usage.prompt_tokens = 10
@@ -3787,6 +3785,8 @@ def test_shadow_tags_chat_completion_when_llmobs_disabled(tracer):
     response.usage.total_tokens = 15
 
     with tracer.trace("openai.request") as span:
+        # The base URL the openai integration records for each request.
+        span._set_ctx_item(BASE_URL, "https://api.openai.com/v1")
         span._set_attribute("openai.response.model", "gpt-4o-mini")
         integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
 
@@ -3803,12 +3803,10 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
     """Verify cache-token shadow metrics propagate from openai usage to APM span."""
     from unittest.mock import MagicMock
 
+    from ddtrace.contrib.internal.openai._constants import BASE_URL
     from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 
-    mock_openai = MagicMock()
-    mock_openai.version.VERSION = "1.0.0"
-    integration = OpenAIIntegration(MagicMock(), mock_openai)
-    integration._client = MagicMock(_base_url="https://api.openai.com/v1")
+    integration = OpenAIIntegration(MagicMock())
 
     response = MagicMock()
     response.usage.prompt_tokens = 50
@@ -3821,6 +3819,8 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
     response.usage.input_tokens_details.cache_write_tokens = 34
 
     with tracer.trace("openai.request") as span:
+        # The base URL the openai integration records for each request.
+        span._set_ctx_item(BASE_URL, "https://api.openai.com/v1")
         span._set_attribute("openai.response.model", "gpt-4o-mini")
         integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
 
