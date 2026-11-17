@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: pydantic_ai: Adds tracing for decision model requests (``DecisionModel``), such as
+    ``TypeSafeModel``, ``SystemOneModel``, ``OpenAIDecisionsModel``, and ``GoogleDecisionsModel``. A request is a
+    workflow span when the provider integration already traces the call below it, and an LLM span with token usage
+    otherwise.

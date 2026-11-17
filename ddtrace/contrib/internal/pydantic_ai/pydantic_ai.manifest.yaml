@@ -1,7 +1,7 @@
 _v: 1
 name: pydantic_ai
 display_name: PydanticAI
-description: Instruments PydanticAI agent runs and user-defined tool executions, including streamed agent outputs, for tracing
+description: Instruments PydanticAI agent runs and user-defined tool executions, including streamed agent outputs and decision model requests, for tracing
   and LLM observability.
 packages:
 - name: pydantic-ai-slim
