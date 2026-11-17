@@ -1158,7 +1158,8 @@ def _failing_primary_kwargs(litellm):
     return {
         "model": PRIMARY_MODEL,
         "messages": FALLBACK_MESSAGES,
-        "mock_response": litellm.RateLimitError("rate limited", llm_provider="anthropic", model=PRIMARY_MODEL),
+        # The string form is deep-copied safely by the fallback runner of every litellm version.
+        "mock_response": "litellm.RateLimitError",
         "fallbacks": [
             {
                 "model": FALLBACK_MODEL,
