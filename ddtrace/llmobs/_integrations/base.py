@@ -5,21 +5,18 @@ from typing import Optional  # noqa:F401
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.service import int_service
 from ddtrace.internal.utils.service import set_service_and_source
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_GATEWAY_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
@@ -99,21 +96,10 @@ class BaseLLMIntegration:
         if submit_to_llmobs:
             span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.llmobs_enabled else 0)
         self._set_base_span_tags(span, **kwargs)
-        self._keep_request_gateway(span)
         self._annotate_integration_tag(span)
         if span_type == SpanTypes.LLM:
             self._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
         return span
-
-    @staticmethod
-    def _keep_request_gateway(span: Span) -> None:
-        """Copy the gateway kind of the current request onto the span, with or without LLMObs.
-
-        Read at start, because a streamed span finishes after the core context of its request exits.
-        """
-        gateway = core.find_item(GATEWAY)
-        if gateway is not None:
-            span._set_ctx_item(GATEWAY, gateway)
 
     def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
         """Stamp span kind (and agent name when available) into the span's LLMObs meta_struct at creation.
@@ -233,9 +219,6 @@ class BaseLLMIntegration:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
         if model_provider:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
-        gateway = span._get_ctx_item(GATEWAY) if span_kind == "llm" else None
-        if gateway:
-            span.set_tag(LLMOBS_APM_SHADOW_GATEWAY_TAG_KEY, gateway)
         # Only when LLMObs is off; otherwise _prepare_llmobs_span_data emits these at span finish
         # with better values. set_gen_ai_apm_tags also marks the span as artificially tagged, so
         # the backend can tell these apart from user-set gen_ai.* tags and skip creating a

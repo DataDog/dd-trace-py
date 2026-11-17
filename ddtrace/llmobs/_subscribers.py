@@ -74,13 +74,14 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
             return
         # Keep the request's integration on its context so the request finishes with the one it started with.
         ctx.set_item(_CONTEXT_KEY, integration)
+        if not integration.llmobs_enabled:
+            return
+        if event.submit_to_llmobs:
+            event.span_type = SpanTypes.LLM
         gateway = integration._llmobs_gateway(event.request_kwargs)
         if gateway:
-            # Set it with or without LLMObs, and also when this span is not submitted: the APM shadow tags
-            # use it too, and another integration can emit the llm span below it.
+            # Set it also when this span is not submitted: another integration can emit the llm span below it.
             ctx.set_item(GATEWAY, gateway)
-        if event.submit_to_llmobs and integration.llmobs_enabled:
-            event.span_type = SpanTypes.LLM
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
@@ -91,7 +92,6 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
         span = span_from_context(ctx)
         if event.submit_to_llmobs:
             span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if integration.llmobs_enabled else 0)
-        integration._keep_request_gateway(span)
         integration._set_base_span_tags(
             span,
             model=event.model,

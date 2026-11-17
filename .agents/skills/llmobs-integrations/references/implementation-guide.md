@@ -77,12 +77,11 @@ and integration start hooks. The lifecycle phases are:
 
 - `SpanLifecycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
   `event.submit_to_llmobs` and the integration's LLMObs enablement require it. An integration that can
-  detect an LLM gateway overrides `_llmobs_gateway()`. The shared subscriber sets the returned gateway kind
-  as a context item on the request context, with or without LLMObs, and whether or not the span is submitted.
-  Every integration span that starts below that context keeps the context item, so the `llm` span of a
-  downstream integration also gets the marker. `_apply_shadow_metrics` writes it to the APM shadow tag
-  `_dd.llmobs.gateway` of `llm` spans, also when LLMObs is disabled. With LLMObs, the shared layer also
-  writes it to `meta.metadata._dd.gateway` only on `llm` spans, and removes this key from every other span.
+  detect an LLM gateway overrides `_llmobs_gateway()`. When LLMObs is enabled, the shared subscriber sets the
+  returned gateway kind as a context item on the request context, whether or not the span is submitted.
+  Every LLMObs span that starts below that context keeps the context item, so the `llm` span of a downstream
+  integration also gets the marker. At finish, the shared LLMObs layer writes it to `meta.metadata._dd.gateway`
+  only on `llm` spans. A manually instrumented gateway can still set this key through metadata.
 - `SpanLifecycleEvents.SPAN_STARTED`: set base tags, annotate the integration, and stamp agent kind/name
   before children start. Preserve APM shadow tags and proxy handling from the reference.
 - `SpanLifecycleEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.

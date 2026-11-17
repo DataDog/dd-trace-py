@@ -896,13 +896,6 @@ class LLMObs(Service):
             export_to_llmobs=export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_data(llmobs_meta)
-        if not gateway:
-            # Remove the gateway key from every other span. This runs on the sanitized copy, so that values
-            # that were objects are also covered.
-            metadata = llmobs_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.METADATA)
-            metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD) if isinstance(metadata, dict) else None
-            if isinstance(metadata_dd, dict):
-                metadata_dd.pop(LLMOBS_STRUCT.GATEWAY, None)
         config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if config is not None:
             llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)
