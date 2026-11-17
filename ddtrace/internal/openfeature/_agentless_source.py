@@ -98,6 +98,22 @@ def _describe_error(error: BaseException) -> str:
     return f"{name}: {message}" if message else name
 
 
+def with_evaluator_capabilities(url: str) -> str:
+    """Return ``url`` with the capability query parameters the loaded evaluator supports.
+
+    Without support, the configured query is preserved, including an explicitly
+    supplied capability parameter, as Node.js does.
+    """
+    if DEPENDENT_FLAG_VARIANT_KEY_V1 not in get_evaluator_capabilities():
+        return url
+    parts = urlsplit(url)
+    capability_param = "cap_dependent-flags-variant-key"
+    items = parts.query.split("&") if parts.query else []
+    items = [item for item in items if unquote_plus(item.partition("=")[0]) != capability_param]
+    items.append(capability_param + "=v1")
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "&".join(items), parts.fragment))
+
+
 def _is_retryable_status(status: Optional[int]) -> bool:
     if status is None:
         return True
@@ -154,19 +170,11 @@ class AgentlessConfigurationSource(PeriodicService):
         # Split the endpoint into an origin (for the connection) and a request
         # target (path + query). get_connection drops the query, so the target
         # must carry it.
-        parts = urlsplit(endpoint)
-        self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
         # Negotiate once for the loaded evaluator, keeping conditional polls on
-        # the same URL variant. Without support, preserve the configured query,
-        # including an explicitly supplied capability parameter, as Node.js does.
-        query = parts.query
-        if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
-            capability_param = "cap_dependent-flags-variant-key"
-            items = query.split("&") if query else []
-            items = [item for item in items if unquote_plus(item.partition("=")[0]) != capability_param]
-            items.append(capability_param + "=v1")
-            query = "&".join(items)
-        self._request_target = urlunsplit(("", "", parts.path, query, "")) or "/"
+        # the same URL variant.
+        parts = urlsplit(with_evaluator_capabilities(endpoint))
+        self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
+        self._request_target = urlunsplit(("", "", parts.path, parts.query, "")) or "/"
         # The environment the endpoint is actually asked for. A custom endpoint does
         # not receive DD_ENV unless its own URL carries dd_env.
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]

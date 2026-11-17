@@ -159,14 +159,19 @@ def _canonicalize_list(values: typing.Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(unique, key=lambda value: value.encode("utf-8")))
 
 
-def append_flag_selection(url: str, selection: FlagSelection) -> typing.Optional[str]:
-    """Return ``url`` with the selection's query parameters, or None when it would be too long."""
+def append_flag_selection(
+    url: str, selection: FlagSelection, sent_url: typing.Callable[[str], str] = lambda url: url
+) -> typing.Optional[str]:
+    """Return ``url`` with the selection's query parameters, or None when it would be too long.
+
+    ``sent_url`` returns the URL as the source sends it, so the parameters the source adds count toward the limit.
+    """
     parameters = [f"selected_flag_tags={quote(tag, safe='')}" for tag in selection.tags]
     parameters += [f"selected_flag_key_patterns={quote(pattern, safe='')}" for pattern in selection.key_patterns]
     parts = urlsplit(url)
     query = "&".join(part for part in (parts.query, *parameters) if part)
     with_selection = urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
-    if len(with_selection.encode("utf-8")) > MAX_REQUEST_URL_BYTES:
+    if len(sent_url(with_selection).encode("utf-8")) > MAX_REQUEST_URL_BYTES:
         return None
     return with_selection
 
@@ -220,19 +225,21 @@ def recording_loaded_selection(
     return apply
 
 
-def selection_request_url(endpoint: str, requested: FlagSelection, claimed: FlagSelection) -> tuple[str, bool]:
+def selection_request_url(
+    endpoint: str, requested: FlagSelection, claimed: FlagSelection, sent_url: typing.Callable[[str], str]
+) -> tuple[str, bool]:
     """Return the URL to poll for ``claimed`` and whether it carries the selection.
 
     A selection equal to the claimed one is reported as the claimed one is. A different one is not
     used: it reports its own drop, and warns only if it would load other flags, since a dropped
-    selection and no selection both load every flag.
+    selection and no selection both load every flag. ``sent_url`` is as for append_flag_selection().
     """
     url, sent = endpoint, False
     reason: typing.Optional[str] = None
     limit = ""
     if claimed.reason is None:
         if claimed.tags or claimed.key_patterns:
-            with_selection = append_flag_selection(endpoint, claimed)
+            with_selection = append_flag_selection(endpoint, claimed, sent_url)
             if with_selection is not None:
                 url, sent = with_selection, True
             else:

@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import build_agentless_endpoint
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+from ddtrace.internal.openfeature._agentless_source import with_evaluator_capabilities
 from ddtrace.internal.openfeature._flag_selection import NO_SELECTION
 from ddtrace.internal.openfeature._flag_selection import FlagSelection
 from ddtrace.internal.openfeature._flag_selection import claim_process_selection
@@ -74,7 +75,9 @@ def create_agentless_source(
 
     claimed = claim_process_selection(flag_selection)
     try:
-        endpoint, flag_selection_sent = selection_request_url(endpoint, flag_selection, claimed)
+        endpoint, flag_selection_sent = selection_request_url(
+            endpoint, flag_selection, claimed, with_evaluator_capabilities
+        )
 
         log.debug("Feature Flags: starting agentless configuration source at %s", _redacted_origin(endpoint))
         return AgentlessConfigurationSource(

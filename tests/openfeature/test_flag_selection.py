@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 import threading
+from types import SimpleNamespace
 from unittest import mock
 from urllib.parse import parse_qsl
 from urllib.parse import urlsplit
@@ -24,6 +25,7 @@ from ddtrace.internal.openfeature._flag_selection import append_flag_selection
 from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
 from ddtrace.internal.openfeature._flag_selection import claim_process_selection
 from ddtrace.internal.openfeature._flag_selection import report_ignored
+import ddtrace.internal.openfeature._native as native_mod
 from ddtrace.internal.openfeature._source_selection import create_agentless_source
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -347,6 +349,42 @@ def test_request_url_limit_counts_the_fragment():
     assert append_flag_selection(endpoint, canonicalize_flag_selection(option)).endswith("#abc")
     longer = build_agentless_endpoint("datadoghq.com", None, "http://flags.example.test/rules#abcd")
     assert append_flag_selection(longer, canonicalize_flag_selection(option)) is None
+
+
+CAPABILITY_PARAMETER = "&cap_dependent-flags-variant-key=v1"
+
+
+@pytest.mark.parametrize(
+    "capabilities,url_length,sent",
+    [
+        ((), 8192, True),
+        ((native_mod.DEPENDENT_FLAG_VARIANT_KEY_V1,), 8192, False),
+        ((native_mod.DEPENDENT_FLAG_VARIANT_KEY_V1,), 8192 - len(CAPABILITY_PARAMETER), True),
+    ],
+    ids=["unsupported", "supported-over-limit", "supported-at-limit"],
+)
+def test_request_url_limit_counts_the_capability_parameter(
+    monkeypatch, caplog, count_metric, capabilities, url_length, sent
+):
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
+    endpoint = build_agentless_endpoint("datadoghq.com", "prod", None)
+    option = _option_with_url_length(endpoint, url_length)
+    with caplog.at_level(logging.ERROR, logger=SELECTION_LOGGER):
+        source = _create_source(option)
+
+    assert source._flag_selection_sent is sent
+    assert source._request_target.endswith(CAPABILITY_PARAMETER) is bool(capabilities)
+    if sent:
+        assert len(source._conn_url.rstrip("/") + source._request_target) == 8192
+        assert len(_sent_selection(source)[1]) == len(option["key_patterns"])
+        assert _not_sent(caplog) == []
+        assert count_metric.call_args_list == []
+    else:
+        assert _sent_selection(source) == ([], [])
+        assert [r.getMessage() for r in _not_sent(caplog)] == [NOT_SENT.format("too_many_values", URL_LIMIT)]
+        assert [c.args for c in count_metric.call_args_list] == [
+            (TELEMETRY_NAMESPACE.TRACERS, "flag_selection.dropped", 1, (("reason", "too_many_values"),))
+        ]
 
 
 @pytest.mark.parametrize(
@@ -942,7 +980,7 @@ def test_once_per_process_guards_reset_in_a_forked_child():
     ):
         claim_process_selection(claimed)
         second = canonicalize_flag_selection({"tags": ["b"]})
-        selection_request_url(endpoint, second, claim_process_selection(second))
+        selection_request_url(endpoint, second, claim_process_selection(second), lambda url: url)
         report_ignored("tag_load_failed")
         warn_remote_config(claimed)
 
@@ -954,7 +992,7 @@ def test_once_per_process_guards_reset_in_a_forked_child():
         ):
             third = canonicalize_flag_selection({"tags": ["c"]})
             inherited = claim_process_selection(third)
-            selection_request_url(endpoint, third, inherited)
+            selection_request_url(endpoint, third, inherited, lambda url: url)
             report_ignored("tag_load_failed")
             warn_remote_config(claimed)
         reset = (
