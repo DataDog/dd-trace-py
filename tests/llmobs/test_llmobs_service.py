@@ -1,5 +1,4 @@
 import contextlib
-import copy
 import json
 import os
 import re
@@ -2557,10 +2556,25 @@ def test_gateway_metadata_is_kept_on_other_spans(llmobs, span_kind, in_gateway_r
 def test_a_forged_dd_metadata_key_does_not_block_the_gateway(llmobs, writer, forged):
     with _gateway_request_context():
         with llmobs.llm(model_name="gpt-4o") as span:
-            # A copy, because the dedicated write changes a dict _dd in place.
-            _write_metadata(llmobs, span, writer, {"_dd": copy.deepcopy(forged)})
+            _write_metadata(llmobs, span, writer, {"_dd": forged})
 
     assert get_llmobs_metadata(span)["_dd"] == {"gateway": "litellm"}
+
+
+@pytest.mark.parametrize("writer", ["annotate", "integration"])
+def test_shared_dd_metadata_is_not_changed_by_the_gateway_marker(llmobs, writer):
+    """Metadata reused across spans keeps its _dd: the proxy marker must not reach a later direct span."""
+    shared = {"_dd": {"gateway": "dd_internal_ai_gateway", "cost_tags": ["team"]}}
+    with _gateway_request_context():
+        with llmobs.llm(model_name="gpt-4o") as proxied:
+            _write_metadata(llmobs, proxied, writer, shared)
+            _annotate_llmobs_span_data(proxied, cost_tags=["env"])
+    with llmobs.llm(model_name="gpt-4o") as direct:
+        _write_metadata(llmobs, direct, writer, shared)
+
+    assert shared == {"_dd": {"gateway": "dd_internal_ai_gateway", "cost_tags": ["team"]}}
+    assert get_llmobs_metadata(proxied)["_dd"] == {"gateway": "litellm", "cost_tags": ["team", "env"]}
+    assert get_llmobs_metadata(direct)["_dd"] == {"gateway": "dd_internal_ai_gateway", "cost_tags": ["team"]}
 
 
 def _processor_sets_dd_metadata(span):
