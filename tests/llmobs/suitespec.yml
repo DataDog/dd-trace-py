@@ -154,7 +154,7 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
-    venvs_per_job: 6
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@google_genai'
@@ -174,6 +174,9 @@ suites:
         - name: google_genai
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'google-genai~=1.21.1']
+        - name: google_genai
+          python: ['3.11', '3.14']
+          dependencies: [pytest-asyncio, 'google-genai~=3.2.0']
   vertexai:
     venvs_per_job: 5
     paths:
