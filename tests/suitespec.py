@@ -36,6 +36,8 @@ DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
     "DD_TESTING_RAISE": "1",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+    # Keep the startup diagnostics, on by default, out of the output the tests check.
+    "DD_TRACE_STARTUP_LOGS": "false",
     "DD_INJECTION_ENABLED": "1",
     "DD_INJECT_FORCE": "1",
     "DD_PATCH_MODULES": "unittest:false",

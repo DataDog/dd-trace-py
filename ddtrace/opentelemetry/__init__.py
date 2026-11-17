@@ -211,6 +211,11 @@ The following environment variables are supported:
 
 OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
 
+To check the settings in effect, read the ``DATADOG TRACER CONFIGURATION`` startup log, which
+``DD_TRACE_STARTUP_LOGS`` enables by default: it reports the value the SDK resolved for each setting above,
+keyed by its environment variable. ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_TIMEOUT`` are the exceptions, as the
+OpenTelemetry SDK exporters read them directly.
+
 
 Trace Mapping
 -------------

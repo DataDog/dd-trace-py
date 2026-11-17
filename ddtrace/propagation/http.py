@@ -51,13 +51,6 @@ from ._utils import get_wsgi_header
 
 log = get_logger(__name__)
 
-# This is required to ensure that all the modules that need to be
-# imported are imported while they are unrestricted.
-# Some frameworks (e.g. Temporal) have restrictions on imports
-# that make it impossible to import modules later.
-Context._init_tracestate_helpers()
-
-
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
 _HTTP_BAGGAGE_PREFIX: Literal["ot-baggage-"] = "ot-baggage-"

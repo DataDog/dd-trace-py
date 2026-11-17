@@ -6,6 +6,7 @@ import contextvars
 from enum import Enum
 import sys
 from typing import Any
+from typing import Callable
 from typing import Literal
 from typing import Optional
 from typing import TypeVar
@@ -1143,7 +1144,13 @@ class Context:
         self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
     ) -> None: ...
     @staticmethod
-    def _init_tracestate_helpers() -> None: ...
+    def _register_tracestate_helpers(
+        w3c_get_dd_list_member: Callable[..., str],
+        w3c_build_tracestate_members: Callable[..., list[str]],
+        normalize_otel_tracestate: Callable[[dict[str, str]], None],
+        materialize_otel_sampling_decision: Callable[[dict[str, str], Optional[int], bool, float, bool], None],
+        tracestate_max_bytes: int,
+    ) -> None: ...
 
 class SpanData:
     name: str

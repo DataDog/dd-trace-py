@@ -57,5 +57,5 @@ typing-extensions==4.16.0
 typing-inspection==0.4.2
 urllib3==2.6.3
 uuid-utils==0.15.0
-xxhash==4.0.2
+xxhash==4.1.0
 zstandard==0.25.0
