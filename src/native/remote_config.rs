@@ -49,7 +49,7 @@ pub struct RemoteConfigCapabilities(pub RemoteConfigCapabilitiesNative);
 ///
 /// `content` is the raw unparsed config bytes for adds/updates, or `None` to
 /// signal a deletion.
-#[pyclass(frozen, name = "RemoteConfigChange", skip_from_py_object)]
+#[pyclass(frozen, name = "RemoteConfigChange")]
 #[derive(Clone)]
 pub struct ChangeRecord {
     #[pyo3(get)]

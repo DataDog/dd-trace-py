@@ -4062,7 +4062,98 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_AWS_SDK_BEDROCKRUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_CLOUDWATCHLOGS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_DYNAMODB_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_EVENTBRIDGE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_KINESIS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_LAMBDA_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_REDSHIFT_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_S3_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SFN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SNS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SQS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_STATES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_STEPFUNCTIONS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -5155,9 +5246,9 @@
     ],
     "DD_TRACE_STARTUP_LOGS": [
       {
-        "implementation": "D",
+        "implementation": "C",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_TRACE_STATS_ADDITIONAL_TAGS": [
@@ -6231,9 +6322,9 @@
     ],
     "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],
