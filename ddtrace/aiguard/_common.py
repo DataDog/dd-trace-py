@@ -16,6 +16,8 @@ from ddtrace.aiguard._api_client import MCPServer
 from ddtrace.aiguard._api_client import Message
 from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._types import ResourceEvaluation
+from ddtrace.aiguard._types import ResourceTarget
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 
@@ -68,4 +70,11 @@ def evaluate_auto(
         source=AI_GUARD.SOURCE_AUTO,
         integration=integration,
         mcp_servers=mcp_servers,
+    )
+
+
+def evaluate_resource_auto(client: AIGuardClient, target: ResourceTarget, integration: str) -> ResourceEvaluation:
+    """Evaluate a target on behalf of an auto-instrumented AI package, with the same policy as evaluate_auto."""
+    return client._evaluate_resource(
+        target, Options(block=aiguard_config._ai_guard_block), source=AI_GUARD.SOURCE_AUTO, integration=integration
     )

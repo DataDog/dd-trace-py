@@ -1,4 +1,4 @@
-"""AI Guard evaluation of MCP tool calls run by openai-agents MCP servers.
+"""AI Guard evaluation of the MCP tool calls and connections of openai-agents MCP servers.
 
 openai-agents converts the tools of each configured MCP server into function tools and runs the
 ones the model selects through MCPUtil.invoke_mcp_tool, which knows the server, the original tool
@@ -6,7 +6,8 @@ name, the model-visible name and the model call ID. Applications can also call s
 directly. Both are evaluated before the tools/call request is sent; the contrib announces an
 agent-driven call once, at the adapter, and dispatches the server.call_tool event for direct calls
 only. Each call is evaluated on its own: the model response that selected it is evaluated, with its
-conversation, by the model provider's listener.
+conversation, by the model provider's listener. Each connection attempt gets a connection check
+before its transport opens.
 """
 
 from collections.abc import Mapping
@@ -20,11 +21,13 @@ from ddtrace.aiguard._api_client import Function
 from ddtrace.aiguard._api_client import Message
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import evaluate_auto
+from ddtrace.aiguard._common import evaluate_resource_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import MCPTransport
 from ddtrace.aiguard.integrations._mcp import client_mcp_server
 from ddtrace.aiguard.integrations._mcp import local_tool_call_id
+from ddtrace.aiguard.integrations._mcp import mcp_connect_target
 from ddtrace.aiguard.integrations._mcp import mcp_reference
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
@@ -123,3 +126,21 @@ def _openai_agents_mcp_call_tool_before(client: AIGuardClient, server: Any, tool
         raise
     except Exception:
         logger.debug("Failed to evaluate openai-agents MCP tool call", exc_info=True)
+
+
+def _openai_agents_mcp_connect_before(client: AIGuardClient, server: Any) -> None:
+    """Listener for openai_agents.mcp.connect.before; fails open, only AIGuardAbortError propagates.
+
+    The listener does not check a server that has no safe identifier. Its connection continues without change.
+    """
+    try:
+        if not (aiguard_config._ai_guard_mcp_enabled and aiguard_config._ai_guard_mcp_connections_enabled):
+            return
+        entry = _server_entry(server)
+        if entry is None:
+            return
+        evaluate_resource_auto(client, mcp_connect_target(entry), AI_GUARD.INTEGRATION_OPENAI_AGENTS)
+    except AIGuardAbortError:
+        raise
+    except Exception:
+        logger.debug("Failed to evaluate openai-agents MCP connection", exc_info=True)

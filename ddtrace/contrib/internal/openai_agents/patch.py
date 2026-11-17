@@ -129,7 +129,7 @@ _agent_mcp_call: ContextVar[Optional[_AgentMCPCall]] = ContextVar("dd_openai_age
 # Stands for arguments that could not be parsed: it matches no server.call_tool.
 _UNPARSED_ARGUMENTS = object()
 
-_MCPWrapper = Callable[[Callable[..., Awaitable[Any]], Any, tuple[Any, ...], dict[str, Any]], Awaitable[Any]]
+_MCPWrapper = Callable[[Callable[..., Any], Any, tuple[Any, ...], dict[str, Any]], Any]
 
 
 def _adapter_arguments(input_json: Any) -> Any:
@@ -202,6 +202,33 @@ async def _patched_mcp_server_call_tool(
         _call_tool_invocation.reset(token)
 
 
+class _CheckedStreams:
+    """The create_streams() context manager of an MCP server. It opens the transport after the connection check."""
+
+    __slots__ = ("_server", "_streams")
+
+    def __init__(self, server: Any, streams: Any) -> None:
+        self._server = server
+        self._streams = streams
+
+    async def __aenter__(self) -> Any:
+        await _dispatch_mcp_event("openai_agents.mcp.connect.before", (self._server,))
+        return await self._streams.__aenter__()
+
+    async def __aexit__(self, *exc_info: Any) -> Any:
+        return await self._streams.__aexit__(*exc_info)
+
+
+def _patched_create_streams(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    # Each connection attempt calls create_streams() once. The transport opens when the SDK enters the context manager.
+    streams = func(*args, **kwargs)
+    if not core.has_listeners("openai_agents.mcp.connect.before"):
+        return streams
+    return _CheckedStreams(instance, streams)
+
+
 # The SDK imports agents.mcp lazily, as it needs the optional mcp package: wrap it once it is imported.
 _MCP_MODULES = ("agents.mcp.util", "agents.mcp.server")
 # (owner, attribute, original) of each MCP wrap, restored as-is on unpatch: unwrapping would leave the
@@ -216,18 +243,22 @@ def _mcp_wrap_targets(module: ModuleType) -> list[tuple[Any, str, _MCPWrapper]]:
     base = getattr(module, "MCPServer", None)
     if base is None:
         return []
-    # Concrete SDK servers may override call_tool without calling super(), so each class that
-    # implements it gets wrapped. The abstract MCPServer.call_tool is never reached.
+    # A concrete SDK server can override call_tool or create_streams and not call super(), so each class that
+    # implements one of them gets a wrapper. The SDK never calls the abstract methods.
     targets: list[tuple[Any, str, _MCPWrapper]] = []
     for _, cls in inspect.getmembers(module, inspect.isclass):
-        call_tool = cls.__dict__.get("call_tool")
-        if (
-            cls.__module__ == module.__name__
-            and issubclass(cls, base)
-            and call_tool is not None
-            and not getattr(call_tool, "__isabstractmethod__", False)
+        for attr_name, wrapper in (
+            ("call_tool", _patched_mcp_server_call_tool),
+            ("create_streams", _patched_create_streams),
         ):
-            targets.append((cls, "call_tool", _patched_mcp_server_call_tool))
+            method = cls.__dict__.get(attr_name)
+            if (
+                cls.__module__ == module.__name__
+                and issubclass(cls, base)
+                and method is not None
+                and not getattr(method, "__isabstractmethod__", False)
+            ):
+                targets.append((cls, attr_name, wrapper))
     return targets
 
 

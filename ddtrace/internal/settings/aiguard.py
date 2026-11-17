@@ -22,6 +22,9 @@ ENV_LANGCHAIN_ENABLED = "DD_AI_GUARD_LANGCHAIN_ENABLED"
 # Adds MCP server metadata to evaluations and evaluates MCP approval requests. On by default;
 # false keeps MCP tool calls evaluated as ordinary tool calls.
 ENV_MCP_ENABLED = "DD_AI_GUARD_MCP_ENABLED"
+# This private variable is the rollout gate of the MCP connection checks. It is false by default because
+# the checks use a policy endpoint that is not available yet. The checks also need DD_AI_GUARD_MCP_ENABLED.
+ENV_MCP_CONNECTIONS_ENABLED = "_DD_AI_GUARD_MCP_CONNECTIONS_ENABLED"
 
 
 def _parse_timeout(raw: str) -> int:
@@ -56,6 +59,7 @@ class AIGuardConfig(DDConfig):
     _ai_guard_anthropic_enabled = DDConfig.var(bool, ENV_ANTHROPIC_ENABLED, default=True)
     _ai_guard_langchain_enabled = DDConfig.var(bool, ENV_LANGCHAIN_ENABLED, default=True)
     _ai_guard_mcp_enabled = DDConfig.var(bool, ENV_MCP_ENABLED, default=True)
+    _ai_guard_mcp_connections_enabled = DDConfig.var(bool, ENV_MCP_CONNECTIONS_ENABLED, default=False)
 
     # for tests purposes
     _ai_guard_config_keys = [
@@ -71,6 +75,7 @@ class AIGuardConfig(DDConfig):
         "_ai_guard_anthropic_enabled",
         "_ai_guard_langchain_enabled",
         "_ai_guard_mcp_enabled",
+        "_ai_guard_mcp_connections_enabled",
     ]
 
     def reset(self) -> None:
