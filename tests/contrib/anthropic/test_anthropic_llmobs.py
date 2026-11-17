@@ -370,8 +370,12 @@ class TestLLMObsAnthropic:
             extra_body={"temperature": 0.8},
             **sampling_kwargs(0.5),
         )
+        llm.messages.create(
+            model="claude-3-opus-20240229", max_tokens=15, messages=messages, extra_body={"temperature": 0}
+        )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
-        assert len(spans) == 2
+        assert len(spans) == 3
+        assert _get_llmobs_data_metastruct(spans[2])["meta"]["metadata"]["temperature"] == 0
         assert _get_llmobs_data_metastruct(spans[0])["meta"]["metadata"]["temperature"] == 0.8
         expected = sampling_kwargs(0.5).get("temperature", 0.8)
         assert _get_llmobs_data_metastruct(spans[1])["meta"]["metadata"]["temperature"] == expected
