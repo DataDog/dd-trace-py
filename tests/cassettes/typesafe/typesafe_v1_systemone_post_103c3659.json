@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.typesafe.ai/v1/systemone",
+    "headers": {
+      "Accept": "*/*",
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Content-Type": "application/json",
+      "User-Agent": "langchain-typesafe/0.1.0",
+      "Content-Length": "299"
+    },
+    "body": "{\"state\":\"I was charged twice for my subscription this month and want the duplicate refunded.\",\"model\":\"jev-latest\",\"questions\":{\"team\":{\"type\":\"choice\",\"criteria\":{\"billing\":\"Payment or refund issues.\",\"support\":\"Product bugs or outages.\"},\"instructions\":\"Which team should handle this message?\"}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Tue, 17 Nov 2026 16:42:08 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "x-typesafe-request-id": "req_01a1ea6325737159be778541b75c3f50",
+      "x-envoy-upstream-service-time": "28",
+      "Server": "cloudflare",
+      "set-cookie": "__cf_bm=YiNcj3pSbV0SMhUcNwCE623d_JsxK_ltpOfSFPKA05I-1794933728.617148-1.0.1.1-pzuRcL6b5NCfeX5R.GkeKwtNHJW5PQeKGbCbB17eaVwmK_gtrXezgs46y7KTWd4eh4EPTQ.y1nXLiU9_Yn.SGTvXX0K49f9mMteilPw_XLDVqDnrQrCWy.zdDTWmaR0J; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=typesafe.ai; Expires=Tue, 17 Nov 2026 17:12:08 GMT",
+      "cf-cache-status": "DYNAMIC",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a5c02fdbd9de8480-BOS",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"model\":\"jev-1.14.0\",\"answers\":{\"team\":{\"type\":\"choice\",\"choice\":\"billing\",\"confidence\":1.0,\"probabilities\":{\"billing\":1.0,\"support\":0.0}}},\"usage\":{\"input_tokens\":331,\"output_tokens\":31}}"
+  }
+}
