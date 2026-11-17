@@ -47,7 +47,7 @@ def create_validator(
 
 
 def _keyword_positions(wrapped: Callable, instance: Any) -> dict[str, int]:
-    """Map the parameters of wrapped that can be passed by position or keyword to their zero-based positions."""
+    """Map keyword parameter names to their zero-based signature positions."""
     # Top-level imports of inspect can interfere with gevent's monkey patching
     import inspect
 
@@ -63,7 +63,7 @@ def _keyword_positions(wrapped: Callable, instance: Any) -> dict[str, int]:
     return {
         param.name: position
         for position, param in enumerate(parameters)
-        if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+        if param.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
     }
 
 

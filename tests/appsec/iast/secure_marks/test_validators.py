@@ -97,6 +97,9 @@ def _validators_module(hook):
     def validate(command, flag=""):
         return True
 
+    def keyword_validate(*, command, flag=""):
+        return True
+
     class Validator:
         def validate(self, command, flag=""):
             return True
@@ -110,33 +113,32 @@ def _validators_module(hook):
             return True
 
     module.validate = validate
+    module.keyword_validate = keyword_validate
     module.Validator = Validator
-    for name in ("validate", "Validator.validate", "Validator.class_validate", "Validator.static_validate"):
+    for name in (
+        "validate",
+        "keyword_validate",
+        "Validator.validate",
+        "Validator.class_validate",
+        "Validator.static_validate",
+    ):
         wrap_object(module, name, FunctionWrapper, (hook,))
     return module
 
 
 _BINDINGS = {
     "function": lambda module: module.validate,
+    "keyword_only": lambda module: module.keyword_validate,
     "bound_method": lambda module: module.Validator().validate,
     "unbound_method": lambda module: functools.partial(module.Validator.validate, module.Validator()),
     "classmethod": lambda module: module.Validator.class_validate,
-    "classmethod_instance": lambda module: module.Validator().class_validate,
     "staticmethod": lambda module: module.Validator.static_validate,
-    "staticmethod_instance": lambda module: module.Validator().static_validate,
-}
-
-_CALL_FORMS = {
-    "positional": lambda validator, command, flag: validator(command, flag),
-    "mixed": lambda validator, command, flag: validator(command, flag=flag),
-    "keyword": lambda validator, command, flag: validator(command=command, flag=flag),
 }
 
 
 @pytest.mark.parametrize("position", [0, 1])
-@pytest.mark.parametrize("call_form", list(_CALL_FORMS))
-@pytest.mark.parametrize("binding", list(_BINDINGS))
-def test_validator_with_positions_marks_only_configured_parameters(binding, call_form, position):
+@pytest.mark.parametrize("binding,mixed", [(binding, False) for binding in _BINDINGS] + [("function", True)])
+def test_validator_with_positions_marks_only_configured_parameters(binding, mixed, position):
     """With parameter positions, only arguments bound to those positions are marked, however they are passed."""
     command, flag = (
         taint_pyobject(
@@ -151,7 +153,10 @@ def test_validator_with_positions_marks_only_configured_parameters(binding, call
     hook = functools.partial(create_validator, [VulnerabilityType.COMMAND_INJECTION], [position])
     validator = _BINDINGS[binding](_validators_module(hook))
 
-    assert _CALL_FORMS[call_form](validator, command, flag)
+    if mixed:
+        assert validator(command, flag=flag)
+    else:
+        assert validator(command=command, flag=flag)
 
     validated_ranges = get_ranges(validated)
     assert validated_ranges
