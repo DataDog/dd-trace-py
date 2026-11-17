@@ -195,7 +195,10 @@ def _decision_event(
     router: Optional[Any] = None,
 ) -> LlmRequestEvent:
     # litellm sends decisions with its own HTTP client, so no provider span exists below this one.
-    return _request_event(operation, (), _bind_arguments(func, args, kwargs), router=router, submit_to_llmobs=True)
+    event: LlmRequestEvent = _request_event(
+        operation, (), _bind_arguments(func, args, kwargs), router=router, submit_to_llmobs=True
+    )
+    return event
 
 
 def _call_traced(
