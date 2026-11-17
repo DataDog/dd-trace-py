@@ -1579,7 +1579,7 @@ MUL: "*"
 
     def test_completion_error(self, openai, openai_llmobs, test_spans):
         """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception) as exc_info:
             with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_error.yaml"):
                 model = "babbage-002"
                 client = openai.OpenAI()
@@ -1606,7 +1606,7 @@ MUL: "*"
             metrics={},
             error={
                 "type": "openai.AuthenticationError",
-                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "message": str(exc_info.value),
                 "stack": spans[0].get_tag("error.stack"),
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
@@ -1614,7 +1614,7 @@ MUL: "*"
 
     def test_chat_completion_error(self, openai, openai_llmobs, test_spans):
         """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception) as exc_info:
             with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_error.yaml"):
                 model = "gpt-3.5-turbo"
                 client = openai.OpenAI()
@@ -1636,7 +1636,7 @@ MUL: "*"
             metrics={},
             error={
                 "type": "openai.AuthenticationError",
-                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "message": str(exc_info.value),
                 "stack": spans[0].get_tag("error.stack"),
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
@@ -2724,7 +2724,7 @@ MUL: "*"
     )
     def test_response_error(self, openai, openai_llmobs, test_spans, snapshot_tracer):
         """Ensure erroneous llmobs records are emitted for response function call stream endpoints when configured."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception) as exc_info:
             with get_openai_vcr(subdirectory_name="v1").use_cassette("response_error.yaml"):
                 model = "gpt-4.1"
                 client = openai.OpenAI()
@@ -2744,7 +2744,7 @@ MUL: "*"
             metrics={},
             error={
                 "type": "openai.AuthenticationError",
-                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "message": str(exc_info.value),
                 "stack": spans[0].get_tag("error.stack"),
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
