@@ -450,3 +450,24 @@ def test_dsm_pathway_codec_decode_no_context():
     assert ctx.hash == processor.new_pathway().hash
     assert ctx.pathway_start_sec == mocked_time
     assert ctx.current_edge_start_sec == mocked_time
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=_ignore_dsm_flush_err)
+def test_processor_import_while_package_initializes():
+    """The processor module imports before the package defines exit_signal_callbacks, as hook modules do."""
+    import sys
+
+    import ddtrace.auto  # noqa: F401
+    from ddtrace.internal import datastreams
+
+    callbacks = datastreams.exit_signal_callbacks
+    # Re-import the processor with the package attribute missing, as during package initialization.
+    del datastreams.exit_signal_callbacks
+    del sys.modules["ddtrace.internal.datastreams.processor"]
+    import ddtrace.internal.datastreams.processor  # noqa: F401
+
+    datastreams.exit_signal_callbacks = callbacks
+    processor = datastreams.data_streams_processor(reset=True)
+    assert processor._atexit_func in callbacks._callbacks
+    processor.shutdown(timeout=1)
+    assert processor._atexit_func not in callbacks._callbacks
