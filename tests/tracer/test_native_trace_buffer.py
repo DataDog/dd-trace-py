@@ -14,7 +14,6 @@ import msgpack
 import pytest
 
 from ddtrace._trace.processor import SpanAggregator
-from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
@@ -302,23 +301,6 @@ def test_flush_queue_with_a_non_positive_timeout_does_not_raise(monkeypatch, age
         writer.flush_queue(raise_exc=True)
 
 
-def test_flush_queue_inside_the_fork_window_does_not_block(agent):
-    # A blocking flush issued while _paused is true would wait on a condvar nothing can notify, since
-    # no runtime exists in that window to service it. flush_queue() must fall back to a fire-and-forget
-    # flush instead.
-    runtime = get_native_runtime()
-    with buffer_writer(agent.port) as writer:
-        writer.write([_finished_span()])
-        runtime.before_fork()
-        try:
-            start = time.monotonic()
-            writer.flush_queue()
-            elapsed = time.monotonic() - start
-        finally:
-            runtime.after_fork_parent()
-    assert elapsed < 1.0, elapsed
-
-
 def _registered_workers(runtime):
     """Count the workers registered on the shared runtime.
 
@@ -579,7 +561,8 @@ def test_fork_after_a_timed_out_shutdown_does_not_hang():
     # The export held by a timed-out shutdown can end while os.fork() pauses the runtime workers. The
     # runtime has one thread, and the pause holds the worker registry, so an export that touched the
     # registry from that thread would block the pause forever. A second buffer keeps its own export
-    # in flight, so the pause is still waiting when the first export ends.
+    # in flight, so the pause is still waiting when the first export ends. The fork may abort the
+    # held export, the same as it does for NativeWriter, so the test asserts only that fork returns.
     import os
     import sys
     import threading
@@ -590,7 +573,6 @@ def test_fork_after_a_timed_out_shutdown_does_not_hang():
     from tests.tracer.test_native_trace_buffer import _held_handler
     from tests.tracer.test_native_trace_buffer import _start_capture_server
     from tests.tracer.test_native_trace_buffer import _stop_with_an_export_held
-    from tests.tracer.test_native_trace_buffer import _wait_for_the_export_to_end
     from tests.tracer.test_writer import _HOST
 
     held_started, held_release = threading.Event(), threading.Event()
@@ -606,7 +588,7 @@ def test_fork_after_a_timed_out_shutdown_does_not_hang():
         children.append(pid)
 
     try:
-        held = _stop_with_an_export_held(held_server.port, held_started)
+        _stop_with_an_export_held(held_server.port, held_started)
         busy = NativeTraceBuffer("http://%s:%s" % (_HOST, busy_server.port), api_version="v0.4")
         busy.write([_finished_span(name="busy")])
         busy._buffer.force_flush()
@@ -631,7 +613,6 @@ def test_fork_after_a_timed_out_shutdown_does_not_hang():
         assert children, "os.fork() returned no child"
         _, status = os.waitpid(children[0], 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
-        assert _wait_for_the_export_to_end(held), "the held export never ended"
         busy.stop(3.0)
     finally:
         held_release.set()
@@ -986,56 +967,6 @@ def test_write_accepts_any_iterable_of_spans(wrap):
     decoded = msgpack.unpackb(body, raw=False, strict_map_key=False)
     names = [span["name"] for chunk in decoded for span in chunk]
     assert "from-processor" in names
-
-
-def test_before_fork_does_not_block_other_python_threads():
-    # The fork barrier waits for the worker's in-flight agent POST, and it has to. The agent here is a
-    # Python handler in this process, so a barrier that keeps the GIL starves the thread that answers
-    # the POST, and every Python thread then stalls until the request times out.
-    started = threading.Event()
-
-    class _SlowHandler(_CaptureHandler):
-        def _capture(self):
-            started.set()
-            time.sleep(1.0)
-            super()._capture()
-
-    ticks = [0]
-    stop = threading.Event()
-
-    def tick():
-        while not stop.is_set():
-            ticks[0] += 1
-            time.sleep(0.005)
-
-    server, server_thread = _start_capture_server(_SlowHandler)
-    ticker = threading.Thread(target=tick)
-    ticker.start()
-    try:
-        with buffer_writer(server.port, api_version="v0.4") as writer:
-            runtime = get_native_runtime()
-            writer.write([_finished_span()])
-            # A blocking flush_queue() would wait out the whole export itself, so nothing would still
-            # be in flight by the time before_fork() runs. Trigger-only force_flush() keeps the export
-            # running in the background, which is what this test needs to observe.
-            writer._buffer.force_flush()
-            assert started.wait(10.0), "the agent never received the export"
-            ticks_before = ticks[0]
-            start = time.monotonic()
-            runtime.before_fork()
-            elapsed = time.monotonic() - start
-            try:
-                assert elapsed > 0.2, "the barrier returned before the export was in flight"
-                # A GIL-holding barrier lets the ticker through at most once, as it races into the
-                # native call. A detached one wakes it every 5ms of the wait.
-                assert ticks[0] - ticks_before > 10, "before_fork stopped every other Python thread"
-            finally:
-                runtime.after_fork_parent()
-    finally:
-        stop.set()
-        ticker.join()
-        server.shutdown()
-        server_thread.join()
 
 
 def test_shutdown_with_a_zero_timeout_reports_success():

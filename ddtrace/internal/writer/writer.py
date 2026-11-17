@@ -1841,13 +1841,7 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         try:
-            if get_native_runtime()._paused:
-                # No runtime exists to run the flush's own wait in a fork window: a blocking flush
-                # here would hang os.fork() forever. Trigger the flush and move on; the worker
-                # resumes and drains it once the fork completes.
-                self._buffer.force_flush()
-            else:
-                self._buffer.flush(_flush_timeout_ns())
+            self._buffer.flush(_flush_timeout_ns())
         except Exception as exc:
             if raise_exc:
                 raise
