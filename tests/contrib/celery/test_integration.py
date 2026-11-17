@@ -623,11 +623,20 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
             beat_service = celery.beat.EmbeddedService(self.app, thread=True)
             beat_service.start()
-            sleep(run_time_seconds + 0.3)
+
+            traces = []
+            deadline = time.monotonic() + self.ASYNC_GET_TIMEOUT
+            while time.monotonic() < deadline:
+                traces.extend(self.pop_traces())
+                deep_traces_count = sum(trace[0].name == "celery.beat.tick" and len(trace) > 1 for trace in traces)
+                if deep_traces_count >= target_task_run_count:
+                    break
+                sleep(0.1)
+
             beat_service.stop()
 
             actual_run_count = beat_service.service.get_scheduler().schedule["mytestschedule"].total_run_count
-            traces = self.pop_traces()
+            traces.extend(self.pop_traces())
             assert len(traces) >= actual_run_count
             assert traces[0][0].name == "celery.beat.tick"
 
@@ -973,6 +982,7 @@ def test_worker_custom_service_name_schematized():
         "meta.celery.correlation_id",
         "meta.celery.hostname",
         "meta.celery.reply_to",
+        "meta.celery.delivery_info.redelivered",  # None on celery 5.2, "False" on newer releases
     ]
 )
 def test_distributed_tracing_propagation_no_producer_span(

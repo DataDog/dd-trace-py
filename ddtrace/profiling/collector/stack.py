@@ -4,12 +4,12 @@ import logging
 from types import ModuleType
 import typing
 
-from ddtrace._trace.provider import BaseContextProvider
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
+from ddtrace.internal.native._native import BaseContextProvider
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
