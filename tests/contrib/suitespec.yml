@@ -258,7 +258,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, 'aiobotocore~=2.0.0']
         - name: aiobotocore
-          dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, aiobotocore]
+          dependencies: [pytest-asyncio, 'async_generator~=1.10', pytest-randomly, aiobotocore]
   aiohttp:
     venvs_per_job: 8
     pattern: ^aiohttp$
