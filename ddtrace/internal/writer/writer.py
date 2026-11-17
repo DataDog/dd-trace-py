@@ -913,6 +913,11 @@ def _configure_telemetry(builder: "native.TraceExporterBuilder", telemetry_share
         builder.enable_health_metrics()
 
 
+def _string_attributes(attributes: Optional[dict[str, str]]) -> dict[str, str]:
+    """Keep only the string pairs, which are all an OTLP resource can carry."""
+    return {key: value for key, value in (attributes or {}).items() if isinstance(key, str) and isinstance(value, str)}
+
+
 def _build_exporter_builder(
     *,
     intake_url: str,
@@ -1006,11 +1011,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         # Keep a copy so in-place tracer tag updates remain detectable.
-        self._resource_attributes = {
-            key: value
-            for key, value in (resource_attributes or {}).items()
-            if isinstance(key, str) and isinstance(value, str)
-        }
+        self._resource_attributes = _string_attributes(resource_attributes)
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._api_key = api_key
         self._agentless_stats_endpoint = agentless_stats_endpoint
@@ -1103,9 +1104,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         return exporter
 
     def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
-        self._resource_attributes = {
-            key: value for key, value in attributes.items() if isinstance(key, str) and isinstance(value, str)
-        }
+        self._resource_attributes = _string_attributes(attributes)
 
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
@@ -1596,6 +1595,7 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         stats_opt_out: Optional[bool] = False,
         otlp_endpoint: Optional[str] = None,
         otlp_metrics_endpoint: Optional[str] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
     ) -> None:
         self.intake_url = intake_url
         self._api_version = _resolve_api_version(api_version)
@@ -1618,6 +1618,8 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         self._stats_opt_out = stats_opt_out
         self._otlp_endpoint = otlp_endpoint
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
+        # Keep a copy so in-place tracer tag updates remain detectable.
+        self._resource_attributes = _string_attributes(resource_attributes)
         # In sync mode every write blocks until libdatadog has exported the batch. Serverless hosts
         # freeze or kill the process between requests, so a trace left buffered there is lost.
         self._sync_mode = sync_mode
@@ -1677,10 +1679,17 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             # A zero timeout reports every synchronous write as TimedOut.
             synchronous_export_timeout_ns=int((timeout if timeout > 0 else DEFAULT_TIMEOUT) * 1e9),
         )
+        if self._otlp_endpoint is not None:
+            buffer.set_otlp_resource_attributes(self._resource_attributes)
         if shared_worker is not None:
             buffer.set_telemetry_handle(shared_worker)
             telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
         return buffer
+
+    def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
+        self._resource_attributes = _string_attributes(attributes)
+        if self._otlp_endpoint is not None:
+            self._buffer.set_otlp_resource_attributes(self._resource_attributes)
 
     def __del__(self) -> None:
         # Dropping the native buffer leaves its workers registered on the process-wide runtime.
@@ -1956,6 +1965,7 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             stats_opt_out=self._stats_opt_out if stats_opt_out is None else stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
+            resource_attributes=self._resource_attributes,
         )
         # Build the replacement first: a failure there leaves this writer usable.
         # The caller installs the replacement after this method returns. Spans that finish in
@@ -2107,6 +2117,7 @@ def create_trace_writer(
             stats_opt_out=standalone_config.apm_opt_out,
             otlp_endpoint=otlp_endpoint,
             otlp_metrics_endpoint=otlp_metrics_endpoint,
+            resource_attributes=resource_attributes,
         )
 
     return NativeWriter(

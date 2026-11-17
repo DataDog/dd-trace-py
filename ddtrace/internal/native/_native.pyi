@@ -940,6 +940,12 @@ class TraceBuffer:
         exporter workers stay registered on the runtime until it shuts down.
         """
         ...
+    def set_otlp_resource_attributes(self, attributes: dict[str, str]) -> None:
+        """Replace the custom resource attributes of subsequent OTLP trace exports.
+
+        Does nothing after shutdown or discard.
+        """
+        ...
     def set_telemetry_handle(self, worker: Optional[TelemetryWorker] = None) -> None:
         """Send the exporter health metrics through worker. None stops the metrics."""
         ...

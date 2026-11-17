@@ -632,12 +632,14 @@ class SpanAggregator(SpanProcessor):
 
     def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
         with self._lock:
-            if isinstance(self.writer, NativeWriter):
+            if isinstance(self.writer, (NativeWriter, NativeTraceBuffer)):
                 self.writer._set_resource_attributes(attributes)
 
     def _replace_writer(self, writer: TraceWriter) -> None:
         with self._lock:
-            if isinstance(self.writer, NativeWriter) and isinstance(writer, NativeWriter):
+            if isinstance(self.writer, (NativeWriter, NativeTraceBuffer)) and isinstance(
+                writer, (NativeWriter, NativeTraceBuffer)
+            ):
                 writer._set_resource_attributes(self.writer._resource_attributes)
             self.writer = writer
 
@@ -662,7 +664,11 @@ class SpanAggregator(SpanProcessor):
             replacement = create_trace_writer(
                 response_callback=self._agent_response_callback,
                 agentless=enable,
-                resource_attributes=old_writer._resource_attributes if isinstance(old_writer, NativeWriter) else None,
+                resource_attributes=(
+                    old_writer._resource_attributes
+                    if isinstance(old_writer, (NativeWriter, NativeTraceBuffer))
+                    else None
+                ),
             )
             self._replace_writer(replacement)
         except Exception:

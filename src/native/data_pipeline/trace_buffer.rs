@@ -4,6 +4,7 @@
 //! libdatadog worker thread serializes and sends them. A thin Python class owns the configuration
 //! and the lifecycle, including the rebuild after a fork.
 
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
@@ -490,6 +491,16 @@ impl TraceBufferPy {
             stopped
         });
         stopped
+    }
+
+    /// Replace the custom resource attributes of subsequent OTLP trace exports.
+    ///
+    /// Does nothing after `shutdown` or `discard`: the exporter no longer exists then.
+    fn set_otlp_resource_attributes(&self, attributes: BTreeMap<String, String>) {
+        let exporter = self.exporter.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(exporter) = exporter.as_ref() {
+            exporter.set_otlp_resource_attributes(attributes);
+        }
     }
 
     /// Report the exporter's `trace_api.*` health metrics through an externally-owned telemetry

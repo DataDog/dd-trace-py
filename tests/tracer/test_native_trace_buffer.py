@@ -1031,7 +1031,7 @@ def _recorded_exporter_settings(construct, with_args=False):
 
     with (
         mock.patch.object(writer_module.native, "TraceExporterBuilder", _Recorder),
-        mock.patch.object(writer_module.native, "TraceBuffer", lambda *args, **kwargs: None),
+        mock.patch.object(writer_module.native, "TraceBuffer", lambda *args, **kwargs: mock.Mock()),
     ):
         construct()
     return calls
