@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6ae8e4f000000000",
       "_dd.sdk.otlp_export": "false",
-      "_dd.svc_src": "datadog",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
       "runtime-id": "24b44c1492c047d8af70dc79552d9a6b"
@@ -38,7 +38,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "datadog"
+         "_dd.svc_src": "m"
        },
        "metrics": {
          "_dd.llmobs.enabled": 0.0,
@@ -57,7 +57,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "datadog"
+            "_dd.svc_src": "m"
           },
           "metrics": {
             "_dd.llmobs.enabled": 0.0,
@@ -76,7 +76,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "datadog"
+         "_dd.svc_src": "m"
        },
        "metrics": {
          "_dd.llmobs.enabled": 0.0,
@@ -95,7 +95,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "datadog"
+            "_dd.svc_src": "m"
           },
           "metrics": {
             "_dd.llmobs.enabled": 0.0,
@@ -114,7 +114,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.svc_src": "datadog"
+               "_dd.svc_src": "m"
              },
              "metrics": {
                "_dd.llmobs.enabled": 0.0,
@@ -133,7 +133,7 @@
                 "type": "",
                 "error": 0,
                 "meta": {
-                  "_dd.svc_src": "datadog"
+                  "_dd.svc_src": "m"
                 },
                 "metrics": {
                   "_dd.llmobs.enabled": 0.0,
@@ -152,7 +152,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "datadog"
+         "_dd.svc_src": "m"
        },
        "metrics": {
          "_dd.llmobs.enabled": 0.0,
@@ -171,7 +171,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "datadog"
+            "_dd.svc_src": "m"
           },
           "metrics": {
             "_dd.llmobs.enabled": 0.0,

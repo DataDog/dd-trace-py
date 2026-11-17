@@ -3,6 +3,7 @@ import crewai
 from ddtrace import config
 from ddtrace.contrib.internal.crewai import _patch_v0
 from ddtrace.contrib.internal.crewai import _patch_v1
+from ddtrace.contrib.internal.crewai._constants import COMPONENT
 from ddtrace.contrib.internal.crewai.utils import CREWAI_VERSION
 from ddtrace.contrib.internal.crewai.utils import patched_find_triggered_methods
 from ddtrace.contrib.internal.crewai.utils import traced_agent_execute
@@ -14,7 +15,7 @@ from ddtrace.contrib.internal.crewai.utils import traced_tool_invoke
 from ddtrace.contrib.internal.crewai.utils import traced_tool_run
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
+from ddtrace.internal import integration_hooks
 
 
 def get_version() -> str:
@@ -38,9 +39,6 @@ def patch():
 
     crewai._datadog_patch = True
 
-    integration: CrewAIIntegration = CrewAIIntegration(integration_config=config.crewai)
-    crewai._datadog_integration = integration
-
     wrap(crewai, "Task.execute_async", traced_task_execute_async)
     wrap(crewai, "Agent.execute_task", traced_agent_execute)
     wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_invoke)
@@ -51,12 +49,18 @@ def patch():
     wrap(crewai, "Flow._find_triggered_methods", patched_find_triggered_methods)
     _version_patch.patch()
 
+    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
+
 
 def unpatch():
     if not getattr(crewai, "_datadog_patch", False):
         return
 
     crewai._datadog_patch = False
+
+    integration_hooks.on_unpatch(COMPONENT)
 
     unwrap(crewai.Task, "execute_async")
     unwrap(crewai.Agent, "execute_task")
@@ -68,5 +72,3 @@ def unpatch():
     crewai.Crew._get_context = crewai.Crew.__dict__["_get_context"].__wrapped__
     unwrap(crewai.Flow, "_find_triggered_methods")
     _version_patch.unpatch()
-
-    delattr(crewai, "_datadog_integration")

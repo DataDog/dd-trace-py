@@ -8,11 +8,13 @@ from typing import Iterator
 import crewai
 
 from ddtrace.contrib.internal.crewai.utils import CREWAI_VERSION
-from ddtrace.contrib.internal.crewai.utils import atrace_call
 from ddtrace.contrib.internal.crewai.utils import native_tool_call_id
-from ddtrace.contrib.internal.crewai.utils import trace_call
+from ddtrace.contrib.internal.crewai.utils import traced_agent_aexecute
+from ddtrace.contrib.internal.crewai.utils import traced_akickoff as _traced_akickoff
 from ddtrace.contrib.internal.crewai.utils import traced_flow_kickoff
 from ddtrace.contrib.internal.crewai.utils import traced_flow_method
+from ddtrace.contrib.internal.crewai.utils import traced_kickoff as _traced_kickoff
+from ddtrace.contrib.internal.crewai.utils import traced_task_aexecute
 from ddtrace.contrib.internal.crewai.utils import traced_tool_run
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -84,21 +86,13 @@ def _is_internal_flow(instance: Any) -> bool:
 def traced_kickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     if _reenters_kickoff(instance, args, kwargs):
         return func(*args, **kwargs)
-    return trace_call(func, instance, args, kwargs, "crew")
+    return _traced_kickoff(func, instance, args, kwargs)
 
 
 async def traced_akickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     if _reenters_kickoff(instance, args, kwargs):
         return await func(*args, **kwargs)
-    return await atrace_call(func, instance, args, kwargs, "crew")
-
-
-async def traced_task_aexecute(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    return await atrace_call(func, instance, args, kwargs, "task")
-
-
-async def traced_agent_aexecute(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    return await atrace_call(func, instance, args, kwargs, "agent")
+    return await _traced_akickoff(func, instance, args, kwargs)
 
 
 async def traced_user_flow_kickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:

@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6ae8d56800000000",
       "_dd.sdk.otlp_export": "false",
-      "_dd.svc_src": "datadog",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
       "runtime-id": "1d6be00dd0b344549f459fbf058511e8"
@@ -42,7 +42,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6ae8d56800000000",
       "_dd.sdk.otlp_export": "false",
-      "_dd.svc_src": "datadog",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
       "runtime-id": "1d6be00dd0b344549f459fbf058511e8"

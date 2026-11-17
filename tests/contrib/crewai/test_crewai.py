@@ -244,3 +244,57 @@ async def test_tool_error(crewai, use_ainvoke):
             await FailingTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]})
         else:
             FailingTool().run(entries=[10, 12, 14])
+
+
+async def test_flow_kickoff_cancellation_is_recorded(crewai, test_spans):
+    import asyncio
+
+    from ddtrace.contrib.internal.crewai.utils import traced_flow_kickoff
+
+    async def cancelled(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await traced_flow_kickoff(cancelled, object(), (), {})
+
+    (span,) = [span for trace in test_spans.pop_traces() for span in trace]
+    assert span.error == 1
+    assert span.get_tag("error.type") == "asyncio.exceptions.CancelledError"
+
+
+async def test_flow_method_cancellation_is_recorded(crewai, test_spans):
+    import asyncio
+    from types import SimpleNamespace
+
+    from ddtrace.contrib.internal.crewai.utils import traced_flow_method
+
+    async def cancelled(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await traced_flow_method(cancelled, SimpleNamespace(state={}), ("method",), {})
+
+    (span,) = [span for trace in test_spans.pop_traces() for span in trace]
+    assert span.error == 1
+    assert span.get_tag("error.type") == "asyncio.exceptions.CancelledError"
+
+
+async def test_flow_method_span_finishes_when_state_capture_raises(crewai, tracer, test_spans):
+    from types import SimpleNamespace
+
+    from ddtrace.contrib.internal.crewai.utils import traced_flow_method
+
+    class BrokenState:
+        def model_dump(self):
+            raise ValueError("cannot serialize state")
+
+    async def method(*args, **kwargs):
+        raise AssertionError("the method must not run when its state cannot be captured")
+
+    with pytest.raises(ValueError):
+        await traced_flow_method(method, SimpleNamespace(state=BrokenState()), ("method",), {})
+
+    assert tracer.current_span() is None
+    (span,) = [span for trace in test_spans.pop_traces() for span in trace]
+    assert span.error == 1
+    assert span.get_tag("error.type") == "builtins.ValueError"

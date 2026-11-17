@@ -1,19 +1,12 @@
 """Instrumentation specific to crewai<1.0."""
 
-from typing import Any
-from typing import Callable
-
 import crewai
 
-from ddtrace.contrib.internal.crewai.utils import trace_call
 from ddtrace.contrib.internal.crewai.utils import traced_flow_kickoff
 from ddtrace.contrib.internal.crewai.utils import traced_flow_method
+from ddtrace.contrib.internal.crewai.utils import traced_kickoff
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-
-
-def traced_kickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    return trace_call(func, instance, args, kwargs, "crew")
 
 
 def patch() -> None:

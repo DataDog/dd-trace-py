@@ -121,6 +121,17 @@ DEFAULT_SSRF_FUNCTIONS = {
     "webbrowser": {
         "open",
     },
+    "aiohttp.client": {
+        "get",
+        "post",
+        "put",
+        "patch",
+        "delete",
+        "head",
+        "options",
+        "request",
+        "ws_connect",
+    },
 }
 
 DBAPI_SQLITE = "sqlite"
