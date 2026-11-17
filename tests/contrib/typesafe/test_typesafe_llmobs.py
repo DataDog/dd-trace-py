@@ -317,13 +317,25 @@ def test_system_one_attached_image_referenced_in_text(typesafe_sdk, typesafe_llm
     }
 
 
-def test_system_one_openrouter_decision_provider(typesafe_sdk, typesafe_llmobs, test_spans):
+@pytest.mark.parametrize(
+    "base_url,expected_provider",
+    [
+        ("https://openrouter.ai/api/v1", "openrouter"),
+        ("https://my-resource.services.ai.azure.com/models", "azure_foundry"),
+        ("https://api.cloudflare.com/client/v4/accounts/abc/ai", "cloudflare"),
+        ("https://api.liquid.ai", "liquid"),
+        ("https://api.meragpt.com", "meragpt"),
+        ("https://api.typesafe.ai", "typesafe"),
+        ("http://localhost:8080", "typesafe"),
+    ],
+)
+def test_system_one_provider_from_base_url(typesafe_sdk, typesafe_llmobs, test_spans, base_url, expected_provider):
     span, _, _, _ = _call_with_recording_transport(
         typesafe_sdk,
         test_spans,
-        client_kwargs={"base_url": "https://openrouter.ai/api/v1"},
+        client_kwargs={"base_url": base_url},
         state=STATE,
         questions=build_questions(typesafe_sdk),
     )
-    assert get_llmobs_model_provider(span) == "openrouter"
+    assert get_llmobs_model_provider(span) == expected_provider
     assert get_llmobs_tags(span)["decision_provider"] == "typesafe"

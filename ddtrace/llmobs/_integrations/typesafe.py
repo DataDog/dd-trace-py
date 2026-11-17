@@ -26,6 +26,14 @@ log = get_logger(__name__)
 
 TYPESAFE_MODEL_PROVIDER = "typesafe"
 OPENROUTER_MODEL_PROVIDER = "openrouter"
+# Other servers that serve the System One API, matched by a substring of the client base_url
+SYSTEM_ONE_PROVIDERS_BY_URL = (
+    ("openrouter", OPENROUTER_MODEL_PROVIDER),
+    ("ai.azure.com", "azure_foundry"),
+    ("cloudflare", "cloudflare"),
+    ("liquid.ai", "liquid"),
+    ("meragpt", "meragpt"),
+)
 DECISION_PROVIDER_TAG = "decision_provider"
 TYPESAFE_DECISION_PROVIDER = "typesafe"
 # Matches the SDK's own pattern for automatic image references, which it scans request bodies for
@@ -47,10 +55,10 @@ class TypeSafeIntegration(BaseLLMIntegration):
         return str(base_url) if base_url else None
 
     def _get_model_provider(self, span: Span) -> str:
-        base_url = span._get_ctx_item(REQUEST_BASE_URL) or ""
-        # The SDK can be pointed at OpenRouter, which serves the same System One API
-        if OPENROUTER_MODEL_PROVIDER in base_url.lower():
-            return OPENROUTER_MODEL_PROVIDER
+        base_url = (span._get_ctx_item(REQUEST_BASE_URL) or "").lower()
+        for url_part, provider in SYSTEM_ONE_PROVIDERS_BY_URL:
+            if url_part in base_url:
+                return provider
         return TYPESAFE_MODEL_PROVIDER
 
     def _llmobs_set_tags(
