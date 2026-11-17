@@ -5,10 +5,12 @@ If a validator approves an input, we mark that input as secure for specific vuln
 """
 
 from collections.abc import Sequence
-import inspect
+import functools
 from typing import Any
 from typing import Callable
 from typing import Optional
+
+from wrapt import PartialCallableObjectProxy
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
@@ -34,7 +36,7 @@ def create_validator(
         add_secure_mark(arg, vulnerability_types)
         i += 1
 
-    keyword_positions = _keyword_positions(wrapped) if parameter_positions and kwargs else {}
+    keyword_positions = _keyword_positions(wrapped, instance) if parameter_positions and kwargs else {}
     for name, arg in kwargs.items():
         # With configured positions, a keyword argument is only validated when it binds to one of them.
         if parameter_positions and keyword_positions.get(name) not in parameter_positions:
@@ -44,9 +46,16 @@ def create_validator(
     return result
 
 
-def _keyword_positions(wrapped: Callable) -> dict[str, int]:
+def _keyword_positions(wrapped: Callable, instance: Any) -> dict[str, int]:
     """Map the parameters of wrapped that can be passed by position or keyword to their zero-based positions."""
+    # Top-level imports of inspect can interfere with gevent's monkey patching
+    import inspect
+
     try:
+        # A method called through its class reaches the hook partially applied to instance. wrapt 1.x reports the
+        # unbound signature for it, including self, which would shift every position by one.
+        if isinstance(wrapped, PartialCallableObjectProxy):
+            wrapped = functools.partial(wrapped.__wrapped__, instance)
         parameters = inspect.signature(wrapped).parameters.values()
     except Exception:
         # The validator has already run, so an unusual callable must not raise into the application.
