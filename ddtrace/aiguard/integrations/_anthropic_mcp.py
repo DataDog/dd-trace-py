@@ -25,6 +25,7 @@ from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard.integrations._mcp import UNIDENTIFIED_SERVER
 from ddtrace.aiguard.integrations._mcp import capture_mcp_transports
 from ddtrace.aiguard.integrations._mcp import client_session_server
 from ddtrace.aiguard.integrations._mcp import mcp_reference
@@ -49,9 +50,9 @@ _PROVIDER_SPAN_NAME = "anthropic.request"
 
 
 class MCPTool(NamedTuple):
-    """MCP metadata of a converted tool."""
+    """MCP metadata of a converted tool. server is None when no key identifies the server of the tool."""
 
-    server: MCPServer
+    server: Optional[MCPServer]
     original_name: str
 
 
@@ -107,21 +108,24 @@ def _tool_call_to_check(tool: Any, tool_input: Any) -> Optional[str]:
 
 
 def _evaluate_tool_call(tool: Any, arguments: str) -> None:
-    """Evaluate a direct MCP tool call as a lone assistant tool call."""
+    """Evaluate a direct MCP tool call as a lone assistant tool call; an ordinary one if the server is unidentified."""
     client = _client
     if client is None:
         return
     try:
         info: MCPTool = getattr(tool, _TOOL_ATTR)
-        server = info.server.copy()
-        server["tools"] = {}
         # No provider ID exists for a call made outside a model response.
         tool_call = ToolCall(
             id=f"call_{uuid4().replace('-', '')}", function=Function(name=tool.name, arguments=arguments)
         )
-        tool_call["mcp"] = mcp_reference(server, tool.name, info.original_name)
+        servers: Optional[list[MCPServer]] = None
+        if info.server is not None:
+            server = info.server.copy()
+            server["tools"] = {}
+            tool_call["mcp"] = mcp_reference(server, tool.name, info.original_name)
+            servers = [server]
         evaluate_auto(
-            client, [Message(role="assistant", tool_calls=[tool_call])], AI_GUARD.INTEGRATION_ANTHROPIC, [server]
+            client, [Message(role="assistant", tool_calls=[tool_call])], AI_GUARD.INTEGRATION_ANTHROPIC, servers
         )
     except AIGuardAbortError:
         # Raised bare: the tool runner turns any Exception, the SDK-compatible wrapper too, into a tool result.
@@ -150,7 +154,11 @@ async def _check_async(tool: Any, tool_input: Any) -> None:
 
 
 def _guard_tool(tool: Any, mcp_tool: Any, session: Any) -> None:
-    """Attach the MCP metadata of session to a converted tool and check its calls; no-op if unknown."""
+    """Attach the MCP metadata of session to a converted tool and check its calls.
+
+    No-op if the session does not come from a known transport. A known transport whose server no key
+    identifies still gets the checks, as ordinary tool calls without MCP metadata.
+    """
     if not aiguard_config._ai_guard_mcp_enabled:
         return
     server = client_session_server(session)
@@ -159,7 +167,7 @@ def _guard_tool(tool: Any, mcp_tool: Any, session: Any) -> None:
         return
     # A copy owned by this tool, so its to_dict() params resolve to it and to no other tool.
     tool.input_schema = dict(tool.input_schema)
-    setattr(tool, _TOOL_ATTR, MCPTool(server, original_name))
+    setattr(tool, _TOOL_ATTR, MCPTool(None if server is UNIDENTIFIED_SERVER else server, original_name))
     _tools_by_schema[id(tool.input_schema)] = tool
 
     # call() runs the validated original function captured at init, and tool(...) returns tool.func:
@@ -282,6 +290,8 @@ def attach_mcp(messages: list[Message], tools: dict[str, Any]) -> Optional[list[
             if tool is None:
                 continue
             info: MCPTool = getattr(tool, _TOOL_ATTR)
+            if info.server is None:
+                continue
             server = servers.get(info.server["id"])
             if server is None:
                 server = servers[info.server["id"]] = info.server.copy()
@@ -302,7 +312,8 @@ def mark_evaluated(messages: list[Message], tools: dict[str, Any]) -> None:
         for message in messages:
             for tool_call in message.get("tool_calls") or []:
                 tool = tools.get(tool_call["function"]["name"])
-                if tool is not None and "mcp" in tool_call:
+                # A tool of an unidentified server has no mcp reference, but the evaluation checked its call too.
+                if tool is not None and ("mcp" in tool_call or getattr(tool, _TOOL_ATTR).server is None):
                     evaluated_calls.append((tool, tool_call["function"]["arguments"]))
         key = _trace_key()
     except Exception:
