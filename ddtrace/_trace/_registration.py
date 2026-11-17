@@ -9,7 +9,13 @@ WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
 )
 
 
-subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS,)
+SPAN_EXCEPTION_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers._base",
+    subscribers=("SpanExceptionSubscriber",),
+)
+
+
+subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS, SPAN_EXCEPTION_SUBSCRIBERS)
 
 
 def register_subscribers() -> None:
