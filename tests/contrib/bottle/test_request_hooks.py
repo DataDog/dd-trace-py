@@ -6,6 +6,7 @@ import bottle
 import pytest
 import webtest
 
+from ddtrace.contrib.internal.bottle import trace
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.internal import core
 from tests.utils import assert_span_http_status_code
@@ -214,4 +215,46 @@ def test_disabled_tracing_keeps_active_parent_with_incoming_headers(app, tracer,
         start_span.assert_not_called()
         assert tracer.context_provider.active() is parent
         assert not parent.finished
+    assert tracer.current_span() is None
+
+
+@pytest.mark.parametrize("callback_fails", [False, True])
+def test_response_metadata_failure_preserves_callback_outcome(app, tracer, test_spans, monkeypatch, callback_fails):
+    class BrokenResponse:
+        status_code = 200
+
+        @property
+        def headers(self):
+            raise RuntimeError("response metadata failed")
+
+    monkeypatch.setattr(trace, "response", BrokenResponse())
+    app.catchall = False
+    failure = ValueError("callback failed")
+
+    @app.route("/metadata")
+    def callback():
+        if callback_fails:
+            raise failure
+        return "ok"
+
+    with tracer.trace("parent") as parent:
+        if callback_fails:
+            with pytest.raises(ValueError) as caught:
+                webtest.TestApp(app).get("/metadata")
+            assert caught.value is failure
+            assert caught.value.__context__ is None
+        else:
+            result = webtest.TestApp(app).get("/metadata")
+            assert result.status_int == 200
+            assert result.text == "ok"
+        assert tracer.current_span() is parent
+        assert not parent.finished
+
+    spans = test_spans.pop()
+    assert len(spans) == 2
+    request_span = next(span for span in spans if span is not parent)
+    assert request_span.finished
+    assert request_span.parent_id == parent.span_id
+    assert request_span.error == int(callback_fails)
+    assert request_span.get_tag("error.message") == (str(failure) if callback_fails else None)
     assert tracer.current_span() is None

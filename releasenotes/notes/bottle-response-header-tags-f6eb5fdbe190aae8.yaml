@@ -2,3 +2,6 @@ fixes:
   - |
     bottle: Fixes missing configured response-header tags for response objects
     returned or raised by route callbacks.
+  - |
+    bottle: Fixes an issue where response metadata collection errors replace
+    application responses or exceptions.

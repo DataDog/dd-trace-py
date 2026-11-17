@@ -12,9 +12,13 @@ from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
+
+
+log = get_logger(__name__)
 
 
 class TracePlugin:
@@ -74,14 +78,17 @@ class TracePlugin:
 
 
 def _complete_request(event: WebFrameworkRequestEvent, result: Any, error: Optional[BaseException]) -> None:
-    if isinstance(result, HTTPResponse):
-        response_data = result
-    elif isinstance(error, HTTPResponse):
-        response_data = error
-    else:
-        response_data = response
-    event.response_status_code = (
-        500 if isinstance(error, Exception) and not isinstance(error, HTTPResponse) else response_data.status_code
-    )
-    event.response_headers = response_data.headers
-    event.response_from_exception = isinstance(error, HTTPResponse)
+    try:
+        if isinstance(result, HTTPResponse):
+            response_data = result
+        elif isinstance(error, HTTPResponse):
+            response_data = error
+        else:
+            response_data = response
+        event.response_status_code = (
+            500 if isinstance(error, Exception) and not isinstance(error, HTTPResponse) else response_data.status_code
+        )
+        event.response_headers = response_data.headers
+        event.response_from_exception = isinstance(error, HTTPResponse)
+    except Exception:
+        log.debug("Failed to collect Bottle response metadata", exc_info=True)
