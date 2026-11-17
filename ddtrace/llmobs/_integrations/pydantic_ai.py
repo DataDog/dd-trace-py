@@ -61,6 +61,41 @@ _DECISION_PROVIDERS = {
 _LIST_ANSWERS_DECISION_PROVIDER = "openai"
 
 
+def _score_label(label: Any) -> str:
+    if label is None:
+        return ""
+    return label if isinstance(label, str) else safe_json(label) or ""
+
+
+def _openai_decision_answer(name: str, answer: Any) -> dict[str, Any]:
+    """A decision answer in the OpenAI Decisions API answer shape."""
+    answer_type = getattr(answer, "type", None)
+    if answer_type == "noul":
+        return {"type": "predicate", "name": name, "probability": answer.noul}
+    probabilities = getattr(answer, "probabilities", None) or {}
+    if answer_type == "choice":
+        return {
+            "type": "choice",
+            "name": name,
+            "choice": answer.choice,
+            "probabilities": [{"value": value, "probability": p} for value, p in probabilities.items()],
+            "confidence": answer.confidence,
+        }
+    if answer_type == "score":
+        legend = getattr(answer, "legend", None) or {}
+        return {
+            "type": "score",
+            "name": name,
+            "score": answer.score,
+            "probabilities": [
+                {"value": value, "label": _score_label(legend.get(value)), "probability": p}
+                for value, p in probabilities.items()
+            ],
+            "confidence": answer.confidence,
+        }
+    return {"name": name, **_decision_wire(answer)}
+
+
 def _decision_model_class(model: Any, names: Any) -> Optional[str]:
     for cls in type(model).__mro__:
         if cls.__name__ in names:
@@ -259,7 +294,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             answers = (getattr(response, "answers", None) or {}).items()
             output_body = {
                 "model": model_name,
-                "answers": [{"name": name, **_decision_wire(a)} for name, a in answers]
+                "answers": [_openai_decision_answer(name, a) for name, a in answers]
                 if list_answers
                 else {name: _decision_wire(a) for name, a in answers},
             }

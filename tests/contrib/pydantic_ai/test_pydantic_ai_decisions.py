@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import TypeAdapter
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -11,6 +12,7 @@ from tests.llmobs._utils import assert_llmobs_span_data
 
 
 decision = pytest.importorskip("pydantic_ai.models.decision")
+Answer = pytest.importorskip("openai.types.decision").Answer
 
 VCR_URL = "http://127.0.0.1:9126/vcr"
 TICKET = "Our dashboards and API calls have been timing out for 20 minutes and we have a demo in an hour."
@@ -107,6 +109,15 @@ class LocalDecisionModel(decision.DecisionModel):
         return decision.DecisionResponse(
             answers=answers, model_name="local-decider-1", usage=RequestUsage(input_tokens=10, output_tokens=4)
         )
+
+
+def _recorded_openai_answers():
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "cassettes", "openai", "openai_decisions_post_6bde0ba7.json"
+    )
+    with open(path) as f:
+        body = json.load(f)["response"]["body"]
+    return (json.loads(body) if isinstance(body, str) else body)["answers"]
 
 
 def _spans(test_spans):
@@ -222,10 +233,61 @@ class TestPydanticAIDecisions:
             tags={"decision_provider": "openai"},
         )
         answers = json.loads(data["meta"]["output"]["messages"][0]["content"])["answers"]
-        assert isinstance(answers, list)
-        assert {a["name"] for a in answers} == {"urgent", "team"}
-        assert next(a for a in answers if a["name"] == "team")["choice"] == "engineering"
-        assert data["metrics"]["total_tokens"] > 0
+        assert answers == _recorded_openai_answers()
+        TypeAdapter(list[Answer]).validate_python(answers)
+        assert data["metrics"] == {"input_tokens": 330, "output_tokens": 0, "total_tokens": 330}
+
+    async def test_openai_llm_answer_shapes(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        from pydantic_ai.models.openai_decisions import OpenAIDecisionsModel
+
+        class LocalOpenAIDecisionsModel(OpenAIDecisionsModel):
+            async def decide(self, request, model_settings):
+                return decision.DecisionResponse(
+                    model_name="gpt-6-luna",
+                    answers={
+                        "urgent": decision.NoulAnswer(noul=0.98),
+                        "team": decision.ChoiceAnswer(
+                            choice="engineering", confidence=0.9, probabilities={"billing": 0.1, "engineering": 0.9}
+                        ),
+                        "severity": decision.ScoreAnswer(
+                            score=1.8,
+                            confidence=0.7,
+                            probabilities={0: 0.0, 1: 0.2, 2: 0.8},
+                            legend={0: "low", 1: "medium", 2: "high"},
+                        ),
+                    },
+                )
+
+        model = LocalOpenAIDecisionsModel("gpt-6-luna", provider=openai_model()._provider)
+        async with model._decide(decision.DecisionRequest(state=TICKET, questions={}), {}) as _:
+            pass
+        (span,) = _decision_spans(_spans(test_spans))
+        answers = json.loads(_llmobs(span)["meta"]["output"]["messages"][0]["content"])["answers"]
+        assert answers == [
+            {"type": "predicate", "name": "urgent", "probability": 0.98},
+            {
+                "type": "choice",
+                "name": "team",
+                "choice": "engineering",
+                "probabilities": [
+                    {"value": "billing", "probability": 0.1},
+                    {"value": "engineering", "probability": 0.9},
+                ],
+                "confidence": 0.9,
+            },
+            {
+                "type": "score",
+                "name": "severity",
+                "score": 1.8,
+                "probabilities": [
+                    {"value": 0, "label": "low", "probability": 0.0},
+                    {"value": 1, "label": "medium", "probability": 0.2},
+                    {"value": 2, "label": "high", "probability": 0.8},
+                ],
+                "confidence": 0.7,
+            },
+        ]
+        TypeAdapter(list[Answer]).validate_python(answers)
 
     async def test_google_error(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         from pydantic_ai.exceptions import ModelHTTPError
