@@ -1,5 +1,4 @@
 ---
 features:
   - |
-    openfeature: Agentless Feature Flagging configuration requests now send the service name, as APM
-    normalizes it. This lets you break down Feature Flags usage by service.
+    openfeature: Agentless Feature Flagging configuration requests now include the service name.
