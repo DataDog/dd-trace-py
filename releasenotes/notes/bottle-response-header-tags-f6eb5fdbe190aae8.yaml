@@ -1,0 +1,4 @@
+fixes:
+  - |
+    bottle: Fixes missing configured response-header tags for response objects
+    returned or raised by route callbacks.

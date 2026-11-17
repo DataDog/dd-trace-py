@@ -18,7 +18,6 @@ from ddtrace import config
 from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace.contrib._events.exception import ContextExceptionEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
@@ -174,7 +173,6 @@ async def trace_middleware(
         with core.context_with_event(
             WebFrameworkRequestEvent(
                 http_operation="aiohttp.request",
-                tracing_enabled=is_tracing_enabled(),
                 component=config.aiohttp.integration_name,
                 integration_config=config.aiohttp,
                 request_headers=cast(MutableMapping[str, str], request.headers),

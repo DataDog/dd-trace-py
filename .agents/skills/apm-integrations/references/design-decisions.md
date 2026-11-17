@@ -69,15 +69,11 @@ The web request and span exception subscribers use explicit registration rather 
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 
-Lifecycle dispatch must not depend on a tracing span being present: with tracing
-disabled, other products can still consume the same events. Do not call
-`span_from_context()` simply to check whether a request can be finalized, since it
-creates a fallback span when no tracing subscriber is registered.
-For span-independent web integrations, capture `is_tracing_enabled()` in the request
-event's `tracing_enabled` field at entry, as aiohttp and Bottle do. This accounts for
-standalone security, which still needs request spans when tracing is disabled.
-Existing span-dependent integrations retain the default tracing decision until their
-lifecycle can run without spans.
+Bottle maps request and response metadata into WebFrameworkRequestEvent and leaves
+propagation, spans, and HTTP error policy to WebFrameworkRequestSubscriber. Raised
+HTTPResponse objects set response_from_exception so the subscriber applies status-based
+OpenTelemetry error semantics without deferring and re-raising the framework exception.
+Completion stays at the synchronous route callback boundary, before response iteration.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

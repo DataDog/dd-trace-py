@@ -12,13 +12,9 @@ from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-
-
-log = get_logger(__name__)
 
 
 class TracePlugin:
@@ -47,54 +43,34 @@ class TracePlugin:
 
     def apply(self, callback: Callable[..., Any], route: Any) -> Callable[..., Any]:
         def wrapped(*args: Any, **kwargs: Any) -> Any:
-            event: Optional[WebFrameworkRequestEvent]
-            try:
-                event = _prepare_request(self, route)
-            except Exception:
-                log.debug("Failed to prepare Bottle request metadata", exc_info=True)
-                event = None
-            if event is None:
+            if not is_tracing_enabled():
                 return callback(*args, **kwargs)
 
+            method = request.method
+            event = WebFrameworkRequestEvent(
+                http_operation="bottle.request",
+                service=self.service,
+                resource=f"{method} {route.rule}",
+                component=config.bottle.integration_name,
+                request_headers=cast(MutableMapping[str, str], request.headers),
+                request_url=request.url,
+                query=request.query_string,
+                request_route="/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")]),
+                request_method=method,
+                integration_config=config.bottle,
+                headers_case_sensitive=True,
+                activate_distributed_headers=True,
+            )
             with core.context_with_event(event):
-                result = None
-                error: Optional[BaseException] = None
                 try:
                     result = callback(*args, **kwargs)
-                    return result
-                except BaseException as exc:
-                    error = exc
+                except BaseException as error:
+                    _complete_request(event, None, error)
                     raise
-                finally:
-                    try:
-                        _complete_request(event, result, error)
-                    except Exception:
-                        log.debug("Failed to complete Bottle request metadata", exc_info=True)
-                    finally:
-                        # Do not retain the application's traceback through this frame.
-                        error = None
+                _complete_request(event, result, None)
+                return result
 
         return wrapped
-
-
-def _prepare_request(plugin: TracePlugin, route: Any) -> WebFrameworkRequestEvent:
-    method = request.method
-    full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
-    return WebFrameworkRequestEvent(
-        http_operation="bottle.request",
-        tracing_enabled=is_tracing_enabled(),
-        service=plugin.service,
-        resource=f"{method} {route.rule}",
-        component=config.bottle.integration_name,
-        request_headers=cast(MutableMapping[str, str], request.headers),
-        request_url=request.url,
-        query=request.query_string,
-        request_route=full_route,
-        request_method=method,
-        integration_config=config.bottle,
-        headers_case_sensitive=True,
-        activate_distributed_headers=True,
-    )
 
 
 def _complete_request(event: WebFrameworkRequestEvent, result: Any, error: Optional[BaseException]) -> None:

@@ -1,4 +1,4 @@
-"""Bottle supplies request metadata to the shared tracing subscriber."""
+"""Bottle maps framework metadata into the shared request subscriber."""
 
 from unittest.mock import Mock
 
@@ -6,12 +6,14 @@ import bottle
 import pytest
 import webtest
 
-from ddtrace._trace.subscribers import _base as tracing_subscribers
-from ddtrace._trace.subscribers import web_framework as web_subscribers
-from ddtrace.contrib.internal.bottle import trace
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.internal import core
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_http_config
+
+
+class Cancelled(BaseException):
+    pass
 
 
 @pytest.fixture
@@ -56,75 +58,53 @@ def test_bottle_outcomes_reach_shared_tracing_subscriber(app, tracer, test_spans
     assert tracer.current_span() is None
 
 
-def test_disabled_tracing_publishes_request_metadata(app, tracer, test_spans, monkeypatch):
+@pytest.mark.parametrize("raised", [False, True])
+def test_http_response_headers_reach_request_subscriber(app, tracer, test_spans, raised):
+    status = 403 if raised else 201
+
+    @app.route("/response")
+    def handler():
+        result = bottle.HTTPResponse("body", status=status, headers={"X-Response": "from-response"})
+        if raised:
+            raise result
+        return result
+
+    with override_http_config("bottle", {"trace_headers": ["x-response"]}):
+        response = webtest.TestApp(app).get("/response", expect_errors=True)
+
+    assert response.status_int == status
+    assert response.headers["X-Response"] == "from-response"
+    (span,) = test_spans.pop()
+    assert span.get_tag("http.response.headers.x-response") == "from-response"
+    assert_span_http_status_code(span, status)
+    assert span.finished
+
+
+def test_disabled_tracing_bypasses_request_subscriber(app, tracer, test_spans, monkeypatch):
     monkeypatch.setattr(tracer, "enabled", False)
-    observations = []
-    calls = []
+    started = Mock()
+    ended = Mock()
     start_span = Mock(wraps=tracer.start_span)
-    extract_headers = Mock(wraps=tracing_subscribers.trace_utils.activate_distributed_headers)
-    set_http_meta = Mock(wraps=web_subscribers.trace_utils.set_http_meta)
     monkeypatch.setattr(tracer, "start_span", start_span)
-    monkeypatch.setattr(tracing_subscribers.trace_utils, "activate_distributed_headers", extract_headers)
-    monkeypatch.setattr(web_subscribers.trace_utils, "set_http_meta", set_http_meta)
-
-    def on_started(ctx):
-        event = ctx.event
-        observations.append(("started", event.request_method, event.request_route, event.query))
-
-    def on_ended(ctx, exc_info):
-        event = ctx.event
-        observations.append(("ended", event.response_status_code, event.response_headers.get("X-Response")))
-
-    @app.route("/hello/<name>")
-    def hello(name):
-        calls.append(name)
-        assert tracer.current_span() is None
-        return bottle.HTTPResponse("hello", status=201, headers={"X-Response": "observed"})
-
-    core.on("context.started.web.request", on_started)
-    core.on("context.ended.web.request", on_ended)
-    try:
-        response = webtest.TestApp(app).get("/hello/world?key=value")
-    finally:
-        core.reset_listeners("context.started.web.request", on_started)
-        core.reset_listeners("context.ended.web.request", on_ended)
-
-    assert response.status_int == 201
-    assert response.text == "hello"
-    start_span.assert_not_called()
-    extract_headers.assert_not_called()
-    set_http_meta.assert_not_called()
-    assert calls == ["world"]
-    assert observations == [
-        ("started", "GET", "/hello/<name>", "key=value"),
-        ("ended", 201, "observed"),
-    ]
-    assert test_spans.pop() == []
-    assert tracer.current_span() is None
-
-
-@pytest.mark.parametrize("stage", ["_prepare_request", "_complete_request"])
-def test_metadata_hook_failure_keeps_bottle_callback_result(app, tracer, test_spans, monkeypatch, stage):
-    hook = Mock(side_effect=ValueError("metadata failed"))
-    monkeypatch.setattr(trace, stage, hook)
-    calls = []
 
     @app.route("/hello")
     def hello():
-        calls.append("hello")
-        return bottle.HTTPResponse("body", status=201)
+        assert tracer.current_span() is None
+        return "hello"
 
-    response = webtest.TestApp(app).get("/hello")
-    assert response.status_int == 201
-    assert response.text == "body"
-    assert calls == ["hello"]
-    hook.assert_called_once()
-    spans = test_spans.pop()
-    assert len(spans) == int(stage == "_complete_request")
-    if spans:
-        assert spans[0].finished
-        assert spans[0].error == 0
-    assert tracer.current_span() is None
+    core.on("context.started.web.request", started)
+    core.on("context.ended.web.request", ended)
+    try:
+        response = webtest.TestApp(app).get("/hello")
+    finally:
+        core.reset_listeners("context.started.web.request", started)
+        core.reset_listeners("context.ended.web.request", ended)
+
+    assert response.text == "hello"
+    started.assert_not_called()
+    ended.assert_not_called()
+    start_span.assert_not_called()
+    assert test_spans.pop() == []
 
 
 def test_span_finishes_before_after_request_hook(app, tracer, test_spans):
@@ -169,12 +149,56 @@ def test_tracing_toggle_during_request_preserves_entry_decision(app, tracer, mon
     assert tracer.current_span() is None
 
 
+@pytest.mark.parametrize("failure", [ValueError("callback failed"), Cancelled("cancelled")])
+def test_callback_exception_identity_and_parent_are_preserved(app, tracer, test_spans, failure):
+    app.catchall = False
+    completions = []
+
+    @app.route("/failure")
+    def fail():
+        raise failure
+
+    def ended(ctx, exc_info):
+        completions.append((ctx.identifier, exc_info[1]))
+
+    core.on("context.ended.web.request", ended)
+    try:
+        with tracer.trace("parent") as parent:
+            with pytest.raises(type(failure)) as caught:
+                webtest.TestApp(app).get("/failure")
+            assert caught.value is failure
+            assert caught.value.__context__ is None
+            assert tracer.current_span() is parent
+            assert not parent.finished
+    finally:
+        core.reset_listeners("context.ended.web.request", ended)
+
+    assert completions == [("web.request", failure)]
+    spans = test_spans.pop()
+    assert len(spans) == 2
+    request_span = next(span for span in spans if span is not parent)
+    assert request_span.finished
+    assert request_span.error == 1
+    assert request_span.get_tag("error.message") == str(failure)
+    assert tracer.current_span() is None
+
+
+def test_success_inside_an_exception_handler_is_not_an_error(app, tracer, test_spans):
+    @app.route("/success")
+    def success():
+        return "ok"
+
+    try:
+        raise ValueError("unrelated exception")
+    except ValueError:
+        assert webtest.TestApp(app).get("/success").text == "ok"
+
+    (span,) = test_spans.pop()
+    assert span.error == 0
+    assert_span_http_status_code(span, 200)
+
+
 def test_disabled_tracing_keeps_active_parent_with_incoming_headers(app, tracer, monkeypatch):
-    observations = []
-
-    def on_ended(ctx, exc_info):
-        observations.append((ctx.event.response_status_code, tracer.current_span()))
-
     @app.route("/hello")
     def hello():
         assert tracer.current_span() is parent
@@ -185,15 +209,8 @@ def test_disabled_tracing_keeps_active_parent_with_incoming_headers(app, tracer,
         monkeypatch.setattr(tracer, "enabled", False)
         start_span = Mock(wraps=tracer.start_span)
         monkeypatch.setattr(tracer, "start_span", start_span)
-        core.on("context.ended.web.request", on_ended)
-        try:
-            result = webtest.TestApp(app).get(
-                "/hello", headers={"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
-            )
-        finally:
-            core.reset_listeners("context.ended.web.request", on_ended)
+        result = webtest.TestApp(app).get("/hello", headers={"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"})
         assert result.text == "hello"
-        assert observations == [(200, parent)]
         start_span.assert_not_called()
         assert tracer.context_provider.active() is parent
         assert not parent.finished

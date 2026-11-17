@@ -59,8 +59,6 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.trace import tracer
 
-    # Tracer shutdown does not drain request contexts. Keep completion listeners
-    # registered so requests that finish later can close their spans.
     if tracer.enabled:
         tracer.shutdown()
 

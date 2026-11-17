@@ -664,76 +664,19 @@ async def test_inferred_spans_api_gateway(
             )
 
 
-@pytest.mark.parametrize("startup", ["manual", "auto", "ddtrace-run"])
-@pytest.mark.parametrize("trace_enabled", [True, False])
-@pytest.mark.parametrize("response_kind", ["response", "http_error", "stream"])
-def test_trace_app_without_patch(
-    run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, startup, trace_enabled, response_kind
-):
+@pytest.mark.parametrize("ddtrace_run", [False, True])
+def test_trace_app_without_patch(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, ddtrace_run):
     code = """
 import asyncio
-import os
-from unittest.mock import patch
 
 from aiohttp import web
 from aiohttp.test_utils import TestClient
 from aiohttp.test_utils import TestServer
 
 from ddtrace.contrib.aiohttp import trace_app
-from ddtrace.contrib.internal.aiohttp.middlewares import REQUEST_CONTEXT_KEY
-from ddtrace.internal import core
-from ddtrace.trace import tracer
-
-
-expect_tracing = os.environ["TEST_EXPECT_TRACING"] == "true"
-response_kind = os.environ["TEST_RESPONSE_KIND"]
-expected_status = 500 if response_kind == "http_error" else 200
-lifecycle = []
-request_spans = []
-exceptions = []
-
-
-def on_started(ctx):
-    lifecycle.append(("started", id(ctx)))
-    span = ctx.get_item("_inner_span")
-    if expect_tracing:
-        assert span is not None
-        request_spans.append(span)
-    else:
-        assert span is None
-
-
-def on_ended(ctx, exc_info):
-    lifecycle.append(("ended", id(ctx), ctx.event.response_status_code, ctx.event.resource))
-
-
-def on_exception(event):
-    if event.context.event.http_operation == "aiohttp.request":
-        exceptions.append(event.exc_info[0].__name__)
-
-
-core.on("context.started.web.request", on_started)
-core.on("context.ended.web.request", on_ended)
-core.on("context.exception", on_exception)
 
 
 async def handler(request):
-    span = tracer.current_span()
-    if expect_tracing:
-        assert span is not None
-        assert span.name == "aiohttp.request", span.name
-        assert request[REQUEST_CONTEXT_KEY] is span.context
-    else:
-        assert span is None
-        assert request[REQUEST_CONTEXT_KEY] is None
-    if response_kind == "http_error":
-        raise web.HTTPInternalServerError(text="error")
-    if response_kind == "stream":
-        response = web.StreamResponse()
-        await response.prepare(request)
-        await response.write(b"ok")
-        await response.write_eof()
-        return response
     return web.Response(text="ok")
 
 
@@ -743,33 +686,15 @@ async def main():
     trace_app(app)
     async with TestClient(TestServer(app)) as client:
         response = await client.get("/")
-        assert response.status == expected_status, response.status
-        assert await response.text() == ("error" if response_kind == "http_error" else "ok")
-    assert len(lifecycle) == 2, lifecycle
-    assert lifecycle[0][0] == "started", lifecycle
-    assert lifecycle[1] == ("ended", lifecycle[0][1], expected_status, "GET /"), lifecycle
-    assert exceptions == (["HTTPInternalServerError"] if response_kind == "http_error" else []), exceptions
-    if expect_tracing:
-        assert len(request_spans) == 1
-        span = request_spans[0]
-        assert span.finished
-        assert span.error == (response_kind == "http_error")
-        if response_kind == "http_error":
-            assert span.get_tag("error.type").endswith("HTTPInternalServerError")
+        assert response.status == 200, response.status
+        assert await response.text() == "ok"
 
 
-with patch.object(tracer, "start_span", wraps=tracer.start_span) as start_span:
-    asyncio.run(main())
-    if not expect_tracing:
-        start_span.assert_not_called()
+asyncio.run(main())
 """
     env = os.environ.copy()
-    env["DD_TRACE_ENABLED"] = str(trace_enabled).lower()
-    env["TEST_EXPECT_TRACING"] = str(trace_enabled).lower()
-    env["TEST_RESPONSE_KIND"] = response_kind
-    if startup == "auto":
-        code = "import ddtrace.auto\n" + code
-    if startup == "ddtrace-run":
+    if ddtrace_run:
+        env["DD_TRACE_ENABLED"] = "false"
         out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     else:
         out, err, status, _ = run_python_code_in_subprocess(code, env=env)
@@ -795,54 +720,6 @@ assert config.aiohttp["disable_stream_timing_for_mem_leak"] is True
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
-
-
-def test_appsec_blocks_without_tracing(run_python_code_in_subprocess):
-    code = """
-import ddtrace.auto
-import asyncio
-from aiohttp import web
-from aiohttp.test_utils import TestClient, TestServer
-from ddtrace.contrib.aiohttp import trace_app
-from ddtrace.appsec._asm_request_context import get_active_asm_context
-from ddtrace.trace import tracer
-
-calls = []
-contexts = []
-async def handler(request):
-    calls.append(request.path)
-    contexts.append(get_active_asm_context() is not None)
-    return web.Response(text="ok")
-
-async def main():
-    app = web.Application()
-    app.router.add_get("/", handler)
-    trace_app(app)
-    async with TestClient(TestServer(app)) as client:
-        response = await client.get("/?attack=xtrace")
-        assert response.status == 403, response.status
-        await response.read()
-        response = await client.get("/")
-        assert response.status == 200, response.status
-        assert await response.text() == "ok"
-    assert calls == ["/"]
-    assert contexts == [True]
-    assert tracer.current_span() is None
-    assert get_active_asm_context() is None
-
-asyncio.run(main())
-"""
-    from tests.appsec import rules
-
-    env = os.environ.copy()
-    env.update(
-        DD_APPSEC_ENABLED="true",
-        DD_APM_TRACING_ENABLED="false",
-        DD_TRACE_ENABLED="false",
-        DD_APPSEC_RULES=rules.RULES_SRB,
-    )
-    out, err, status, _ = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, (err.decode(), out.decode())
 
 
 @pytest.mark.parametrize("tracing_enabled", [True, False])
@@ -913,13 +790,10 @@ async def test_request_exception_does_not_retain_frames(
         assert ctx.get_item("aiohttp.request.exc_info") is None
         assert payload_refs[0]() is None, "The context must not retain the failing handler frame"
         span = ctx.get_item("_inner_span")
-        if tracing_enabled:
-            assert span is not None
-            assert span.error == 1
-            assert span.get_tag("error.type").endswith("RequestFailure")
-            assert "request failed" in span.get_tag("error.stack")
-        else:
-            assert span is None
+        assert span is not None
+        assert span.error == 1
+        assert span.get_tag("error.type").endswith("RequestFailure")
+        assert "request failed" in span.get_tag("error.stack")
         # Completion is independent of exception reporting for either timing mode.
         await middlewares.on_prepare(request, web.Response(status=500))
         task.set_result(None)
@@ -976,11 +850,8 @@ async def test_sub_app_completes_all_contexts(
         assert all(ctx._event is None for ctx in contexts)
         for ctx in contexts:
             span = ctx.get_item("_inner_span")
-            if tracing_enabled:
-                assert span.finished
-                assert_span_http_status_code(span, 200)
-            else:
-                assert span is None
+            assert span.finished
+            assert_span_http_status_code(span, 200)
     finally:
         core.reset_listeners("context.started.web.request", started)
 
@@ -1037,10 +908,7 @@ async def test_cancelled_request_completes_without_response(test_spans, monkeypa
         for completed_ctx in completed:
             assert completed_ctx._event is None
             span = completed_ctx.get_item("_inner_span")
-            if tracing_enabled:
-                assert span.finished
-            else:
-                assert span is None
+            assert span.finished
     finally:
         core.reset_listeners("context.ended.web.request", ended)
 

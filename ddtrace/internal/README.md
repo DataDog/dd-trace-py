@@ -176,15 +176,6 @@ Tracing retains its existing shutdown behavior and keeps these listeners registe
 Other subscriber families continue using class-definition registration until their
 activation paths are migrated.
 
-Tracer shutdown flushes finished traces and stops processors; it does not drain
-request execution contexts. Requests completing afterward still need their completion
-listeners to finish spans and attach final response metadata. Keeping listeners
-registered does not guarantee those spans are exported after tracer shutdown.
-Aiohttp and Bottle record the tracing decision on each request event and can emit
-metadata-only lifecycle events with `DD_TRACE_ENABLED=false`. Standalone security
-still creates the request span needed for AppSec processing. Other span-dependent
-integrations retain their request span creation and completion listeners.
-
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
 `LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
