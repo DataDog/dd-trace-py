@@ -661,7 +661,7 @@ integrations:
   tested_versions_by_dependency:
     loguru:
       min: 0.4.1
-      max: 0.7.3
+      max: 0.8.0
 
 - integration_name: mako
   is_external_package: true
