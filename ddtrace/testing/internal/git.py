@@ -169,16 +169,21 @@ class Git:
             git_env.update(GIT_NO_LAZY_FETCH="1", GIT_ALLOW_PROTOCOL="")
 
         with StopWatch() as sw:
-            process = subprocess.Popen(  # nosec: B603
-                git_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                cwd=self.cwd,
-                encoding="utf-8",
-                errors="surrogateescape",
-                env=git_env,
-            )
+            try:
+                process = subprocess.Popen(  # nosec: B603
+                    git_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    stdin=subprocess.PIPE,
+                    cwd=self.cwd,
+                    encoding="utf-8",
+                    errors="surrogateescape",
+                    env=git_env,
+                )
+            except InterruptedError:
+                raise
+            except OSError as error:
+                return _GitSubprocessDetails("", str(error), 1, sw.elapsed())
             stdout, stderr = process.communicate(input=input_string)
 
         return _GitSubprocessDetails(

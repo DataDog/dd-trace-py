@@ -1232,3 +1232,21 @@ class TestGitShallowBoundary:
 
         with patch.object(git, "_git_output", return_value=""):
             assert git.get_shallow_boundary() is None
+
+
+@pytest.mark.parametrize("error", [FileNotFoundError, NotADirectoryError, PermissionError])
+def test_git_process_filesystem_errors(error: type[OSError]) -> None:
+    git = Git()
+    with patch("ddtrace.testing.internal.git.subprocess.Popen", side_effect=error("unavailable workspace")):
+        assert git.get_commit_sha() == ""
+        assert git.get_merge_base("a" * 40, "b" * 40) == ""
+
+
+@pytest.mark.parametrize("error", [KeyboardInterrupt, InterruptedError])
+def test_git_process_interruption_propagates(error: type[BaseException]) -> None:
+    git = Git()
+    with (
+        patch("ddtrace.testing.internal.git.subprocess.Popen", side_effect=error),
+        pytest.raises(error),
+    ):
+        git.get_commit_sha()

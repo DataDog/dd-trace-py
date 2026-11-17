@@ -2655,3 +2655,43 @@ def test_checkout_root_drives_ownership_metadata_and_requests(tmp_path: Path) ->
         assert attributes["sha"] == "a" * 40
         assert attributes["repository_url"] == "https://github.com/example/tools.git"
     assert connector.post_json.call_args_list[0].args[1]["data"]["attributes"]["branch"] == ""
+
+
+@pytest.mark.parametrize("workspace_kind", ["missing", "file"])
+@pytest.mark.parametrize("upload_path", ["enabled", "disabled", "lock-timeout"])
+def test_unavailable_ci_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workspace_kind: str, upload_path: str
+) -> None:
+    from ddtrace.testing.internal.git import GitTag
+
+    workspace = tmp_path / "host-workspace"
+    if workspace_kind == "file":
+        workspace.write_text("not a directory")
+    manager = SessionManager.__new__(SessionManager)
+    manager.workspace_path = workspace
+    manager.env_tags = {
+        CITag.WORKSPACE_PATH: str(workspace),
+        GitTag.COMMIT_SHA: "a" * 40,
+        GitTag.COMMIT_HEAD_SHA: "a" * 40,
+        GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "b" * 40,
+    }
+    expected_tags = manager.env_tags.copy()
+    manager.api_client = Mock()
+    monkeypatch.setenv("DD_CIVISIBILITY_GIT_UPLOAD_ENABLED", "false" if upload_path == "disabled" else "true")
+    lock = (
+        patch.object(manager, "_upload_lock", return_value=nullcontext(False))
+        if upload_path == "lock-timeout"
+        else nullcontext()
+    )
+    with (
+        lock,
+        patch(
+            "ddtrace.testing.internal.session_manager.get_offline_mode",
+            return_value=Mock(manifest_enabled=False, payload_files_enabled=False),
+        ),
+        patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+    ):
+        manager.upload_git_data()
+        manager.cleanup_upload_artifacts()
+    manager.api_client.get_known_commits.assert_not_called()
+    assert manager.env_tags == expected_tags
