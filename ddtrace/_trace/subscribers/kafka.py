@@ -73,6 +73,7 @@ def set_kafka_meta(
 
 
 class KafkaProduceSubscriber(MessagingProduceSubscriber):
+    auto_register = False
     event_names = (KafkaProducerEvent.event_name,)
 
     @classmethod
@@ -95,6 +96,7 @@ class KafkaProduceSubscriber(MessagingProduceSubscriber):
 
 
 class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
+    auto_register = False
     event_names = (KafkaConsumeEvent.event_name,)
 
     @staticmethod
