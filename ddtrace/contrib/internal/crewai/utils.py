@@ -27,7 +27,9 @@ CREWAI_VERSION = parse_version(getattr(crewai, "__version__", ""))
 native_tool_call_id: ContextVar[Optional[str]] = ContextVar("ddtrace_crewai_native_tool_call_id", default=None)
 
 
-def _request_event(resource, span_name, operation, args, kwargs, instance=None) -> LlmRequestEvent:
+def _request_event(
+    resource: str, span_name: str, operation: str, args: Any, kwargs: Any, instance: Any = None
+) -> LlmRequestEvent:
     event = LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.crewai,
@@ -49,14 +51,21 @@ def _request_event(resource, span_name, operation, args, kwargs, instance=None) 
     return event
 
 
-def _finish(ctx, error):
+def _finish(ctx: Any, error: bool) -> None:
     if error:
         # LLMObs skips output tagging on errored spans, so record the error before the request finishes.
         span_from_context(ctx).set_exc_info(*sys.exc_info())
     ctx.dispatch_ended_event()
 
 
-def _traced_call(func, instance, args, kwargs, event, tool_call_id: Optional[str] = None):
+def _traced_call(
+    func: Callable[..., Any],
+    instance: Any,
+    args: Any,
+    kwargs: Any,
+    event: LlmRequestEvent,
+    tool_call_id: Optional[str] = None,
+) -> Any:
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         error = False
         try:
@@ -72,7 +81,7 @@ def _traced_call(func, instance, args, kwargs, event, tool_call_id: Optional[str
             _finish(ctx, error)
 
 
-async def _atraced_call(func, instance, args, kwargs, event):
+async def _atraced_call(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any, event: LlmRequestEvent) -> Any:
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         error = False
         try:
