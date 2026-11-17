@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    rq: The integration is now tested with rq 3.0.0.
