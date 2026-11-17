@@ -139,7 +139,9 @@ class _GoogleDecisionModel(decisions.BaseDecisionModel):
     def _classify(self, state, questions):
         return decisions.ClassifierResponse(
             model=self.model,
-            answers={"team": {"type": "choice", "choice": "billing", "probabilities": {"billing": 1.0}, "confidence": 1.0}},
+            answers={
+                "team": {"type": "choice", "choice": "billing", "probabilities": {"billing": 1.0}, "confidence": 1.0}
+            },
             usage={"input_tokens": 10, "output_tokens": 2},
         )
 
