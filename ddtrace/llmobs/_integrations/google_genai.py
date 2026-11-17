@@ -1,8 +1,18 @@
+from collections.abc import Mapping
+import json
 from typing import Any
 from typing import Optional
 
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
+from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_google_genai
@@ -10,9 +20,13 @@ from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
+from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import load_data_value
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
+from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
 
@@ -44,6 +58,17 @@ EMBED_METADATA_PARAMS = [
 ]
 
 
+DECISION_MODEL_PROVIDER = "google"
+DECISION_PROVIDER_TAG = "decision_provider"
+DECISION_REQUEST_KEYS = ("model", "input", "questions")
+DECISION_MEDIA_MARKERS = {
+    "image": IMAGE_FALLBACK_MARKER,
+    "audio": AUDIO_FALLBACK_MARKER,
+    "video": "[video]",
+    "document": FILE_FALLBACK_MARKER,
+}
+
+
 class GoogleGenAIIntegration(BaseLLMIntegration):
     _integration_name = "google_genai"
 
@@ -58,6 +83,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
+        if operation == "decision":
+            self._llmobs_set_tags_from_decision(span, kwargs, response)
+            return
         provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
         if response is not None:
             model_name = getattr(response, "model_version", "") or model_name
@@ -77,6 +105,13 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             metrics = extract_embedding_metrics_google_genai(response)
         elif operation == "llm":
             metrics = extract_generation_metrics_google_genai(response)
+        elif operation == "decision":
+            _, model_name = extract_provider_and_model_name(kwargs=kwargs)
+            usage = _get_attr(_decision_response_data(response), "usage", None)
+            self._apply_shadow_metrics(
+                span, _decision_metrics(usage), "llm", model_name=model_name, model_provider=DECISION_MODEL_PROVIDER
+            )
+            return
         else:
             return
         provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
@@ -100,6 +135,41 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             output_messages=self._extract_output_messages(response),
             metrics=extract_generation_metrics_google_genai(response),
             **({"tool_definitions": tools} if tools else {}),
+        )
+
+    def _llmobs_set_tags_from_decision(self, span, kwargs, response):
+        """Record the decisions request body as the input and the response body, without usage, as the output.
+
+        Inline media in the input is replaced by a marker, and inline images are captured as image parts. Only request
+        fields are taken from extra_body, since its other fields can carry credentials.
+        """
+        _, model_name = extract_provider_and_model_name(kwargs=kwargs)
+        body = {k: kwargs[k] for k in DECISION_REQUEST_KEYS if k in kwargs}
+        extra_body = kwargs.get("extra_body")
+        if isinstance(extra_body, Mapping):
+            body.update({k: v for k, v in extra_body.items() if k in DECISION_REQUEST_KEYS})
+        image_parts: list[ImagePart] = []
+        request = {k: _decision_input(v, image_parts) if k == "input" else load_data_value(v) for k, v in body.items()}
+        input_message = Message(role="user", content=safe_json(request) or "")
+        if image_parts:
+            input_message["image_parts"] = image_parts
+
+        output_messages = [Message(role="assistant", content="")]
+        metrics: dict[str, Any] = {}
+        output = _decision_response_data(response)
+        if isinstance(output, dict):
+            metrics = _decision_metrics(output.pop("usage", None))
+            output_messages = [Message(role="assistant", content=safe_json(output) or "")]
+
+        _annotate_llmobs_span_data(
+            span,
+            kind="llm",
+            model_name=model_name,
+            model_provider=DECISION_MODEL_PROVIDER,
+            input_messages=[input_message],
+            output_messages=output_messages,
+            metrics=metrics,
+            tags={DECISION_PROVIDER_TAG: DECISION_MODEL_PROVIDER},
         )
 
     def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
@@ -206,3 +276,62 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                     tool_definition_info = self._function_declaration_to_tool_definition(function_declaration)
                     tool_definitions.append(tool_definition_info)
         return tool_definitions
+
+
+def _decision_input(value: Any, image_parts: list[ImagePart]) -> Any:
+    """Return the decision input as JSON data, with inline media data replaced by a marker."""
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(mode="json", by_alias=True, exclude_none=True)
+    if isinstance(value, Mapping):
+        media_type = value.get("type")
+        if isinstance(media_type, str) and media_type in DECISION_MEDIA_MARKERS and value.get("data") is not None:
+            return {
+                **load_data_value({k: v for k, v in value.items() if k != "data"}),
+                "data": _media_marker(value, image_parts),
+            }
+        return {str(k): _decision_input(v, image_parts) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_decision_input(v, image_parts) for v in value]
+    return load_data_value(value)
+
+
+def _media_marker(part: Mapping[str, Any], image_parts: list[ImagePart]) -> str:
+    """Capture inline base64 image data as an image part; file and path data is never read."""
+    data = part.get("data")
+    media_type = part["type"]
+    if media_type == "image" and isinstance(data, str):
+        image_part = format_image_part_with_guard(data, part.get("mime_type") or "")
+        if image_part:
+            image_parts.append(image_part)
+            return IMAGE_DETECTED_MARKER
+    return DECISION_MEDIA_MARKERS[media_type]
+
+
+def _decision_response_data(response: Any) -> Optional[Any]:
+    """Return the decisions response body as JSON data, including for raw responses whose body was read."""
+    if response is None:
+        return None
+    http_response = getattr(response, "http_response", None)
+    if http_response is not None:
+        try:
+            return json.loads(http_response.content)
+        except Exception:
+            # A streamed raw response is not read yet, and reading it here would consume it for the caller
+            return None
+    if hasattr(response, "model_dump"):
+        return response.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return load_data_value(response)
+
+
+def _decision_metrics(usage: Any) -> dict[str, Any]:
+    metrics: dict[str, Any] = {}
+    for metric_key, usage_key in (
+        (INPUT_TOKENS_METRIC_KEY, "total_input_tokens"),
+        (OUTPUT_TOKENS_METRIC_KEY, "total_output_tokens"),
+        (TOTAL_TOKENS_METRIC_KEY, "total_tokens"),
+        (CACHE_READ_INPUT_TOKENS_METRIC_KEY, "total_cached_tokens"),
+    ):
+        value = _get_attr(usage, usage_key, None)
+        if isinstance(value, int):
+            metrics[metric_key] = value
+    return metrics

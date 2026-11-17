@@ -40,6 +40,7 @@ components:
     - ddtrace/contrib/internal/azure_servicebus/*
     - ddtrace/ext/azure_servicebus.py
   botocore:
+    - ddtrace/_trace/utils_botocore/*
     - ddtrace/contrib/internal/bedrock_inference_profiles.py
     - ddtrace/contrib/internal/botocore/*
     - ddtrace/contrib/internal/boto/*
@@ -78,6 +79,7 @@ components:
     # Shared test utilities
     - tests/contrib/patch.py
     - tests/contrib/config.py
+    - tests/contrib/utils.py
     - tests/contrib/otel_http_server.py
     - tests/contrib/__init__.py
     - tests/contrib/suitespec.yml
@@ -540,6 +542,8 @@ suites:
   aws_lambda:
     paths:
       - '@bootstrap'
+      - '@core'
+      - '@tracing'
       - '@contrib'
       - '@aws_lambda'
       - tests/contrib/aws_lambda/*
@@ -856,10 +860,10 @@ suites:
       variants:
         - name: celery
           python: ['3.9']
-          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery~=5.2', 'redis~=3.5']
+          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery~=5.2.0', 'redis~=3.5']
         - name: celery
           python: ['3.9']
-          dependencies: ['more_itertools<8.11.0', pytest-randomly, celery, 'redis~=3.5']
+          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery[redis]']
         - name: celery
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery[redis]']
@@ -1590,6 +1594,7 @@ suites:
       - '@bootstrap'
       - '@contrib'
       - '@httpx'
+      - ddtrace/appsec/_contrib/httpx/*
       - tests/contrib/httpx/*
       - tests/snapshots/tests.contrib.httpx.*
     services:
@@ -2434,6 +2439,7 @@ suites:
       - '@bootstrap'
       - '@contrib'
       - '@sourcecode'
+      - ddtrace/internal/gitmetadata.py
       - tests/sourcecode/*
     matrix:
       command: pytest {cmdargs} tests/sourcecode
