@@ -3,6 +3,7 @@ Trace queries to aws api done via botocore client
 """
 
 import collections
+from contextvars import ContextVar
 import json
 from typing import Union
 
@@ -198,12 +199,54 @@ def _ensure_before_sign_handler(client, handler) -> bool:
     return True
 
 
+_service_disabled_in_progress: ContextVar[bool] = ContextVar("_dd_botocore_service_disabled_in_progress", default=False)
+
+
+def _remove_before_sign_handler(client) -> None:
+    """Unregister a retained before-sign handler, e.g. when a service is disabled after the client's first call.
+    ``_ensure_before_sign_handler`` registers it again if the service is enabled later.
+    """
+    if not getattr(client, "_dd_before_sign_registered", False):
+        return
+    try:
+        client.meta.events.unregister("before-sign", unique_id=_DD_BEFORE_SIGN_HANDLER_UID)
+    except Exception:
+        log.warning("dd-trace-py: failed to unregister botocore before-sign handler", exc_info=True)
+        return
+    client._dd_before_sign_registered = False
+
+
+# botocore endpoint prefix -> ``DD_TRACE_AWS_SDK_<SERVICE>_ENABLED`` suffixes (same keys as dd-trace-js)
+_SERVICE_ENABLED_ENV_SUFFIXES = {
+    "bedrock-runtime": ("BEDROCKRUNTIME",),
+    "dynamodb": ("DYNAMODB",),
+    "events": ("EVENTBRIDGE",),
+    "kinesis": ("KINESIS",),
+    "lambda": ("LAMBDA",),
+    "logs": ("CLOUDWATCHLOGS",),
+    "redshift": ("REDSHIFT",),
+    "s3": ("S3",),
+    "sns": ("SNS",),
+    "sqs": ("SQS",),
+    "states": ("STATES", "STEPFUNCTIONS", "SFN"),
+}
+
+
+def _load_disabled_services() -> set[str]:
+    return {
+        endpoint
+        for endpoint, suffixes in _SERVICE_ENABLED_ENV_SUFFIXES.items()
+        if any(not asbool(env.get(f"DD_TRACE_AWS_SDK_{suffix}_ENABLED", default=True)) for suffix in suffixes)
+    }
+
+
 # Botocore default settings
 config._add(
     "botocore",
     {
         "_default_service": env.get("DD_BOTOCORE_SERVICE", default="aws"),
         "distributed_tracing": asbool(env.get("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
+        "disabled_services": _load_disabled_services(),
         "invoke_with_legacy_context": asbool(env.get("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
@@ -279,8 +322,9 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
 
-    # Don't trace response parsing for the internal bedrock:GetInferenceProfile call.
-    if _resolve_inference_profile_in_progress.get():
+    # Don't trace response parsing for the internal bedrock:GetInferenceProfile call
+    # or for a service disabled via DD_TRACE_AWS_SDK_<SERVICE>_ENABLED.
+    if _resolve_inference_profile_in_progress.get() or _service_disabled_in_progress.get():
         return original_func(*args, **kwargs)
     with (
         core.context_with_data(
@@ -313,6 +357,17 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
 
     if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
         return original_func(*args, **kwargs)
+
+    # Service disabled via DD_TRACE_AWS_SDK_<SERVICE>_ENABLED=false: no span and no propagation headers.
+    if endpoint_name in config.botocore["disabled_services"]:
+        _remove_before_sign_handler(instance)
+        token = _http_propagation_suppressed.set(True)
+        disabled_token = _service_disabled_in_progress.set(True)
+        try:
+            return original_func(*args, **kwargs)
+        finally:
+            _service_disabled_in_progress.reset(disabled_token)
+            _http_propagation_suppressed.reset(token)
 
     trace_operation = schematize_cloud_api_operation(
         f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name

@@ -923,6 +923,13 @@ AI Guard
        URL are never sent. This setting does not change blocking, which still follows the evaluation
        verdict and DD_AI_GUARD_BLOCK.
 
+       Tools of MCP servers configured in the OpenAI Agents SDK (MCPServerStdio, MCPServerSse,
+       MCPServerStreamableHttp) are evaluated before each call reaches the server, whether the
+       agent runs the tool or the application calls ``server.call_tool`` directly; a blocking
+       verdict raises ``AIGuardAbortError`` and the call is not sent. For stdio servers only the
+       command and the package or module it launches are sent, never other arguments or the
+       environment.
+
        MCP approval requests are evaluated before your application can approve them. Streamed
        responses of requests whose MCP tools can ask for approval are buffered until that
        evaluation completes, even when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off. So
@@ -1342,9 +1349,12 @@ Agent
 
    DD_TAGS:
      description: |
-         Set global tags to be attached to every span. Value must be either comma and/or space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3`` or ``key1:value1, key2:value2, key3``.
+         Set global tags to be attached to every span. Value must be either comma and/or
+         space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3``
+         or ``key1:value1, key2:value2, key3``. If a tag value is not supplied the value will
+         be an empty string.
 
-         If a tag value is not supplied the value will be an empty string.
+         OTLP export sends shared tags as resource attributes to reduce payload size.
 
      version_added:
        v0.38.0: Comma separated support added
@@ -1448,8 +1458,12 @@ Logs
 
    DD_TRACE_STARTUP_LOGS:
      type: Boolean
-     default: False
-     description: Enable or disable start up diagnostic logging.
+     default: True
+     description: |
+         Enable or disable start up diagnostic logging. The diagnostics check that the agent is reachable, which
+         takes up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
+     version_added:
+       v4.18.0: The default changed from ``False`` to ``True``.
 
 Sampling
 --------

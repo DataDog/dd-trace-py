@@ -2,7 +2,7 @@
 
 #include "_pymacro.h"
 
-#if defined(_PY310_AND_LATER)
+#if defined(PY310_AND_LATER)
 
 /* RAII guard for temporarily disabling Python's garbage collector.
  * Automatically disables GC in the constructor and re-enables it in the destructor
@@ -42,4 +42,4 @@ class pygc_temp_disable_guard_t
     int was_enabled_;
 };
 
-#endif // _PY310_AND_LATER
+#endif // PY310_AND_LATER
