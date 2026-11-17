@@ -251,6 +251,28 @@ def test_cmdi_deduplication(iast_context_deduplication_enabled):
         _end_iast_context_and_oce()
 
 
+@pytest.mark.parametrize("text", ["tainted", b"tainted", bytearray(b"tainted")], ids=["str", "bytes", "bytearray"])
+@pytest.mark.parametrize("container", [None, list, tuple], ids=["text", "list", "tuple"])
+def test_cmdi_keyword_tainted_text(text, container, iast_context_defaults):
+    tainted = taint_pyobject(text, source_name="test_source", source_value=str(text))
+    command = tainted if container is None else container(["echo", tainted])
+
+    _iast_report_cmdi("run", args=command)
+
+    report = get_iast_reporter()
+    assert report is not None
+    assert any(vulnerability.type == VULN_CMDI for vulnerability in report.vulnerabilities)
+
+
+@pytest.mark.parametrize(
+    "command", [None, 123, object(), [123, None], (123, None)], ids=["none", "int", "object", "list", "tuple"]
+)
+def test_cmdi_keyword_non_text_no_vulnerability(command, iast_context_defaults):
+    _iast_report_cmdi("run", args=command)
+
+    assert get_iast_reporter() is None
+
+
 @pytest.mark.parametrize("non_text_obj,obj_type", NON_TEXT_TYPES_TEST_DATA)
 def test_cmdi_non_text_types_no_vulnerability(non_text_obj, obj_type, iast_context_defaults):
     """Test that non-text types don't trigger command injection vulnerabilities."""
