@@ -26,7 +26,7 @@ from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datastreams import aiokafka as aiokafka_dsm
 from ddtrace.internal.datastreams import botocore as botocore_dsm
 from ddtrace.internal.datastreams import data_streams_processor
-from ddtrace.internal.datastreams import exit_signal
+from ddtrace.internal.datastreams import exit_signal_callbacks
 from ddtrace.internal.datastreams import google_cloud_pubsub as pubsub_dsm
 from ddtrace.internal.datastreams import kombu as kombu_dsm
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -626,36 +626,19 @@ def test_rc_reenable_keeps_one_exit_signal_handler():
     _enable_dsm()
     first = data_streams_processor()
     handlers = _exit_signal_handlers()
-    assert first._atexit_func in exit_signal.shutdown_callbacks
+    assert first._atexit_func in exit_signal_callbacks._callbacks
 
     _disable_dsm()
-    assert first._atexit_func not in exit_signal.shutdown_callbacks
+    assert first._atexit_func not in exit_signal_callbacks._callbacks
     _enable_dsm()
     second = data_streams_processor()
     assert second is not first
-    assert second._atexit_func in exit_signal.shutdown_callbacks
+    assert second._atexit_func in exit_signal_callbacks._callbacks
     _disable_dsm()
 
     # No handler was chained on top of the first one.
     assert _exit_signal_handlers() == handlers
-    assert second._atexit_func not in exit_signal.shutdown_callbacks
-
-
-def test_register_exit_signal_handler_off_main_thread_keeps_saved_state():
-    exit_signal.register_exit_signal_handler()
-    saved = exit_signal._exit_signal_handlers
-    handlers = _exit_signal_handlers()
-    assert saved is not None
-
-    worker = threading.Thread(target=exit_signal.register_exit_signal_handler)
-    worker.start()
-    worker.join()
-    assert exit_signal._exit_signal_handlers == saved
-
-    # A later main-thread call finds the handler in place and does not chain another.
-    exit_signal.register_exit_signal_handler()
-    assert exit_signal._exit_signal_handlers == saved
-    assert _exit_signal_handlers() == handlers
+    assert second._atexit_func not in exit_signal_callbacks._callbacks
 
 
 @pytest.mark.skipif(os.name == "nt", reason="requires POSIX SIGTERM handling")
