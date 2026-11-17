@@ -59,7 +59,13 @@ class LangGraphIntegration(BaseLLMIntegration):
             return "agent"
         return super()._llmobs_span_kind(operation_id, span, **kwargs)
 
-    def _on_request_span_started(self, span: Span, instance: Any = None, operation: str = "") -> None:
+    def _on_request_span_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
         if operation != "graph" or instance is None:
             return
         self._graph_spans_to_graph_instances[span] = instance

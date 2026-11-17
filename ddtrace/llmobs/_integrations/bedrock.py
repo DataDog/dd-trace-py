@@ -47,7 +47,13 @@ class BedrockIntegration(BaseLLMIntegration):
         # operation="agent" is set only by the top-level Bedrock agent request.
         return "agent" if kwargs.get("operation") == "agent" else None
 
-    def _on_request_span_started(self, span: Span, instance: Any = None, operation: str = "") -> None:
+    def _on_request_span_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
         # Only build the streamed output when it will be submitted, so APM-only streams buffer nothing.
         if operation == "ConverseStream" and span.span_type == SpanTypes.LLM:
             consumer = self._converse_output_stream_processor()
