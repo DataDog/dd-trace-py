@@ -6,6 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/build"
+MEMALLOC_DIR="${REPO_ROOT}/ddtrace/profiling/collector"
 
 echo "Script dir: ${SCRIPT_DIR}"
 echo "Repo root: ${REPO_ROOT}"
@@ -46,11 +47,28 @@ cmake \
     "${SCRIPT_DIR}/stack"
 popd
 
+# memalloc looks up libdd_wrapper at configure time, so dd_wrapper must be built first
+echo "Building dd_wrapper for memalloc..."
+cmake --build "${BUILD_DIR}/dd_wrapper"
+
+echo "Configuring cmake for memalloc..."
+mkdir -p "${BUILD_DIR}/memalloc"
+pushd "${BUILD_DIR}/memalloc"
+cmake \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
+    -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
+    -DRUST_GENERATED_HEADERS_DIR="${REPO_ROOT}/src/native/target$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")/include" \
+    -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
+    "${MEMALLOC_DIR}"
+popd
+
 # Merge compile_commands.json from all build directories
 MERGED_COMPILE_COMMANDS="${BUILD_DIR}/compile_commands.json"
 echo "Merging compile_commands.json files..."
 COMPILE_COMMANDS_FILES=()
-for subdir in dd_wrapper stack ddup; do
+for subdir in dd_wrapper stack memalloc ddup; do
     if [[ -f "${BUILD_DIR}/${subdir}/compile_commands.json" ]]; then
         COMPILE_COMMANDS_FILES+=("${BUILD_DIR}/${subdir}/compile_commands.json")
     fi
@@ -76,7 +94,7 @@ echo "Using merged compile_commands.json from: ${BUILD_DIR}"
 SOURCE_FILES=()
 while IFS= read -r -d '' file; do
     SOURCE_FILES+=("$file")
-done < <(find "${SCRIPT_DIR}" \
+done < <(find "${SCRIPT_DIR}" "${MEMALLOC_DIR}" \
     \( -name "*.cpp" -o -name "*.cc" \) \
     ! -path "*/build/*" \
     ! -path "*/CMakeFiles/*" \
@@ -91,7 +109,7 @@ echo "Found ${#SOURCE_FILES[@]} source files to analyze"
 CHECKS="bugprone-*,clang-analyzer-*,performance-*,-bugprone-easily-swappable-parameters,-clang-analyzer-security.insecureAPI.*,-performance-avoid-endl"
 
 # Header filter to only analyze our headers, not system headers
-HEADER_FILTER="${SCRIPT_DIR}/.*"
+HEADER_FILTER="(${SCRIPT_DIR}|${MEMALLOC_DIR})/.*"
 
 # Find run-clang-tidy (may be named differently on different systems)
 RUN_CLANG_TIDY=""

@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
 from dataclasses import field
+import functools
 import inspect
 import math
 import sys
@@ -12,6 +13,7 @@ from typing import Callable
 from typing import Iterator
 from typing import Literal
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 import urllib.parse
@@ -232,6 +234,22 @@ from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
+
+_F = TypeVar("_F", bound=Callable[..., None])
+
+# Product start and the Remote Config handler can both call LLMObs.enable() at boot, on different threads.
+# Without this lock both pass the enabled check, and the second instance registers a second set of span hooks.
+_LIFECYCLE_LOCK = forksafe.RLock()
+
+
+def _serialized(func: _F) -> _F:
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        with _LIFECYCLE_LOCK:
+            return func(*args, **kwargs)
+
+    return cast(_F, wrapper)
+
 
 _STANDARD_INTEGRATION_SPAN_NAMES = (
     CLAUDE_AGENT_SDK_APM_SPAN_NAME,
@@ -1042,6 +1060,7 @@ class LLMObs(Service):
         forksafe.unregister(self._child_after_fork)
 
     @classmethod
+    @_serialized
     def enable(
         cls,
         ml_app: Optional[str] = None,
@@ -2011,6 +2030,7 @@ class LLMObs(Service):
         return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
+    @_serialized
     def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
@@ -2032,6 +2052,21 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    @_serialized
+    def _reconcile_enabled(cls) -> None:
+        """Enable or disable LLMObs to match config._llmobs_enabled.
+
+        Product start and the Remote Config handler both go through here. The check and the change
+        happen under the lock, so neither can act on a value the other has already changed.
+        """
+        if config._llmobs_enabled and not cls.enabled:
+            log.debug("Enabling LLMObs to match configuration (ml_app=%r)", config._llmobs_ml_app)
+            cls.enable(ml_app=config._llmobs_ml_app, _auto=True)
+        elif not config._llmobs_enabled and cls.enabled:
+            log.debug("Disabling LLMObs to match configuration")
+            cls.disable(_auto=True)
 
     @classmethod
     @contextmanager

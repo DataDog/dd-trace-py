@@ -69,7 +69,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int, skip_from_py_object)]
+    #[pyclass(eq, eq_int)]
     enum Reason {
         Static,
         Default,
@@ -83,7 +83,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int, skip_from_py_object)]
+    #[pyclass(eq, eq_int)]
     enum ErrorCode {
         /// The type of the flag value does not match the expected type.
         TypeMismatch,

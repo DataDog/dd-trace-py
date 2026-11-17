@@ -2,6 +2,8 @@
 Tests for exposure event reporting in DataDogProvider.
 """
 
+from datetime import datetime
+import json
 from unittest import mock
 
 from openfeature import api
@@ -481,6 +483,24 @@ class TestExposureReporting:
         assert exposure_2["flag"]["key"] == "multi-subject-flag"
         assert exposure_2["subject"]["id"] == "user-2"
         assert exposure_2["variant"]["key"] == "true"
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_carries_only_supported_attributes(self, mock_get_writer, provider):
+        """Attribute values the evaluator ignores are left out of the exposure, so it still serializes."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+        process_ffe_configuration(create_config(create_boolean_flag("nested-flag", enabled=True, default_value=True)))
+        attributes = {"tier": "premium", "nested": {"a": 1}, "items": ["a"], "signup": datetime(2026, 1, 1)}
+
+        result = provider.resolve_boolean_details(
+            "nested-flag", False, EvaluationContext(targeting_key="user-123", attributes=attributes)
+        )
+
+        assert result.value is True
+        mock_writer.enqueue.assert_called_once()
+        event = mock_writer.enqueue.call_args[0][0]
+        assert event["subject"] == {"id": "user-123", "attributes": {"tier": "premium"}}
+        json.dumps(event)
 
 
 class TestExposureConnectionErrors:
