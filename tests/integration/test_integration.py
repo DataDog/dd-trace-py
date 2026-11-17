@@ -264,10 +264,25 @@ def test_single_trace_too_large():
     from tests.utils import AnyStr
 
     assert t._span_aggregator.partial_flush_enabled is True
-    buffer_spy = None
+
+    class WriteCounter:
+        """Count writes to the native buffer. A Mock would keep every batch alive through call_args_list."""
+
+        def __init__(self, buffer):
+            self._buffer = buffer
+            self.writes = 0
+
+        def write(self, spans, dd_origin=None):
+            self.writes += 1
+            return self._buffer.write(spans, dd_origin)
+
+        def __getattr__(self, name):
+            return getattr(self._buffer, name)
+
+    write_counter = None
     if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
         # Partial flush must hand the oversized trace to the buffer in pieces.
-        buffer_spy = t._span_aggregator.writer._buffer = mock.Mock(wraps=t._span_aggregator.writer._buffer)
+        write_counter = t._span_aggregator.writer._buffer = WriteCounter(t._span_aggregator.writer._buffer)
     with (
         mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None),
         mock.patch("ddtrace.internal.writer.writer.log") as log,
@@ -284,7 +299,7 @@ def test_single_trace_too_large():
             for call in log.warning.call_args_list:
                 assert call.args[0] == "native trace buffer dropped spans: %s"
                 assert "BatchFull" in call.args[1]
-            assert buffer_spy.write.call_count > 1, "partial flush never split the trace into chunks"
+            assert write_counter.writes > 1, "partial flush never split the trace into chunks"
         else:
             calls = [
                 mock.call(
