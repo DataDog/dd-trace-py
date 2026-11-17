@@ -902,3 +902,123 @@ async def test_guarded_func_keeps_the_tool_metadata(anthropic_sdk):
         assert inspect.iscoroutinefunction(tool.func)
         assert tool.func.__wrapped__.__name__ == "call_mcp"
         assert tool.to_dict()["name"] == "echo"
+
+
+# ---------------------------------------------------------------------------
+# Servers that no key identifies: the calls are still checked, as ordinary tool calls
+# ---------------------------------------------------------------------------
+
+
+# Reachable servers whose URL gives no url key, so a transport without a name has no server ID.
+UNIDENTIFIED_URLS = [
+    "https://bücher.example/mcp",
+    "https://xn--bcher-kva.example/mcp",
+    "https://[fe80::1%25eth0]/mcp",
+]
+
+
+def _assert_ordinary_tool_call(payload):
+    assert "mcp_servers" not in payload
+    (tool_call,) = payload["messages"][-1]["tool_calls"]
+    assert tool_call["function"]["name"] == "echo"
+    assert "mcp" not in tool_call
+
+
+@pytest.mark.parametrize("url", UNIDENTIFIED_URLS)
+@patch(EXECUTE_REQUEST)
+async def test_unidentified_server_direct_call_is_checked(mock_execute_request, anthropic_sdk, url):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    async with _remote_session(url) as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        await tool.call({"text": "hi"})
+
+        mock_execute_request.return_value = mock_evaluate_response("DENY")
+        with pytest.raises(AIGuardAbortError):
+            await tool.call({"text": "hi"})
+
+    session.call_tool.assert_awaited_once()
+    allowed, denied = _payloads(mock_execute_request)
+    _assert_ordinary_tool_call(allowed)
+    _assert_ordinary_tool_call(denied)
+
+
+@pytest.mark.parametrize("url", UNIDENTIFIED_URLS)
+@patch(EXECUTE_REQUEST)
+async def test_unidentified_server_direct_sync_call_block(mock_execute_request, anthropic_sdk, url):
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+    async with _remote_session(url) as session:
+        tool = mcp_tool(_mcp_tool_def(), session)
+        with pytest.raises(AIGuardAbortError):
+            await anyio.to_thread.run_sync(tool.call, {"text": "hi"})
+
+    session.call_tool.assert_not_called()
+    (payload,) = _payloads(mock_execute_request)
+    _assert_ordinary_tool_call(payload)
+
+
+@pytest.mark.parametrize("url", UNIDENTIFIED_URLS)
+@patch(EXECUTE_REQUEST)
+async def test_unidentified_server_tool_runner_block(mock_execute_request, anthropic_sdk, url):
+    """messages.parse has no evaluation, so the call check is the only one of the non-streaming runner."""
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+    async with _remote_session(url) as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = _async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool])
+        with pytest.raises(AIGuardAbortError):
+            async for _ in runner:
+                pass
+
+    session.call_tool.assert_not_called()
+    (payload,) = _tool_call_payloads(mock_execute_request)
+    _assert_ordinary_tool_call(payload)
+
+
+@pytest.mark.parametrize("url", UNIDENTIFIED_URLS)
+@patch(EXECUTE_REQUEST)
+async def test_unidentified_server_streaming_tool_runner_block(mock_execute_request, anthropic_sdk, url):
+    """Without stream analysis, the call check blocks the call before the tool runs."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+    async with _remote_session(url) as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = _async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
+        with pytest.raises(AIGuardAbortError):
+            async for stream in runner:
+                await stream.get_final_message()
+
+    session.call_tool.assert_not_called()
+    (payload,) = _tool_call_payloads(mock_execute_request)
+    assert payload["messages"][-1]["tool_calls"][0]["id"].startswith("call_")
+    _assert_ordinary_tool_call(payload)
+
+
+@patch(EXECUTE_REQUEST)
+async def test_unidentified_server_buffered_response_is_evaluated_once(mock_execute_request, anthropic_sdk_buffered):
+    """The buffered response evaluation checks the call, so the call itself is not evaluated again."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    async with _remote_session(UNIDENTIFIED_URLS[0]) as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = _async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
+        runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
+        async for stream in runner:
+            await stream.get_final_message()
+
+    session.call_tool.assert_awaited_once()
+    (payload,) = _tool_call_payloads(mock_execute_request)
+    assert payload["messages"][-1]["tool_calls"][0]["id"] == "toolu_1"
+    _assert_ordinary_tool_call(payload)
+
+
+@patch(EXECUTE_REQUEST)
+async def test_unidentified_server_response_block_prevents_tools_call(mock_execute_request, anthropic_sdk_buffered):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+    async with _remote_session(UNIDENTIFIED_URLS[0]) as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = _async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
+        runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
+        with pytest.raises(AIGuardAbortError):
+            async for _ in runner:
+                pass
+
+    session.call_tool.assert_not_called()

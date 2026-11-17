@@ -1349,9 +1349,12 @@ Agent
 
    DD_TAGS:
      description: |
-         Set global tags to be attached to every span. Value must be either comma and/or space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3`` or ``key1:value1, key2:value2, key3``.
+         Set global tags to be attached to every span. Value must be either comma and/or
+         space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3``
+         or ``key1:value1, key2:value2, key3``. If a tag value is not supplied the value will
+         be an empty string.
 
-         If a tag value is not supplied the value will be an empty string.
+         OTLP export sends shared tags as resource attributes to reduce payload size.
 
      version_added:
        v0.38.0: Comma separated support added
@@ -1455,8 +1458,12 @@ Logs
 
    DD_TRACE_STARTUP_LOGS:
      type: Boolean
-     default: False
-     description: Enable or disable start up diagnostic logging.
+     default: True
+     description: |
+         Enable or disable start up diagnostic logging. The diagnostics check that the agent is reachable, which
+         takes up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
+     version_added:
+       v4.18.0: The default changed from ``False`` to ``True``.
 
 Sampling
 --------
