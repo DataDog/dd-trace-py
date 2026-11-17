@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import logging
+import traceback
 
 from aiohttp import web
 from aiohttp.test_utils import TestClient
@@ -19,13 +20,17 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
+from ddtrace.appsec._iast.constants import VULN_SSRF
+from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.appsec._iast.taint_sinks import insecure_cookie
+from ddtrace.appsec._iast.taint_sinks import stacktrace_leak
 from ddtrace.appsec._iast.taint_sinks import unvalidated_redirect
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.internal import core
 from ddtrace.internal.security._patch_utils import try_unwrap
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.utils import override_global_config
 from tests.utils import scoped_tracer
@@ -34,6 +39,14 @@ from tests.utils import scoped_tracer
 TEST_FILE_PATH = "tests/appsec/integrations/aiohttp_tests/test_aiohttp_iast_sinks.py"
 TARGET = "https://www.datadoghq.com/target"
 COOKIE_VULNERABILITIES = {VULN_INSECURE_COOKIE, VULN_NO_HTTPONLY_COOKIE, VULN_NO_SAMESITE_COOKIE}
+SSRF_HANDLERS_PATH = "tests/appsec/integrations/aiohttp_tests/ssrf_handlers.py"
+SSRF_TARGET = "http://127.0.0.1:1/target"
+TRACEBACK = (
+    "Traceback (most recent call last):\n"
+    '  File "/app/service/handlers.py", line 42, in process\n'
+    "    result = compute(data)\n"
+    "ValueError: invalid literal\n"
+)
 
 
 def _taint_request_sources(ctx, request, max_body_size):
@@ -71,7 +84,7 @@ def _next_line():
     return inspect.currentframe().f_back.f_lineno + 1
 
 
-def _vulnerabilities(handler, method="GET", **kwargs):
+def _vulnerabilities(handler, method="GET", sub_app=False, **kwargs):
     spans = []
     completed = None
 
@@ -88,12 +101,18 @@ def _vulnerabilities(handler, method="GET", **kwargs):
         nonlocal completed
         completed = asyncio.Queue()
         app = web.Application()
-        app.router.add_route(method, "/sink", traced)
+        target = web.Application() if sub_app else app
+        target.router.add_route(method, "/sink", traced)
+        if sub_app:
+            trace_app(target)
+            app.add_subapp("/sub", target)
         trace_app(app)
         async with TestClient(TestServer(app)) as client:
-            response = await client.request(method, "/sink", allow_redirects=False, **kwargs)
+            path = "/sub/sink" if sub_app else "/sink"
+            response = await client.request(method, path, allow_redirects=False, **kwargs)
             await response.read()
-            await asyncio.wait_for(completed.get(), timeout=5)
+            for _ in range(2 if sub_app else 1):
+                await asyncio.wait_for(completed.get(), timeout=5)
             return response
 
     core.on("context.ended.web.request", ended)
@@ -271,3 +290,142 @@ def test_redirects_work_outside_a_request():
     response = web.HTTPFound(TARGET)
     assert response.headers["Location"] == TARGET
     assert web.Response(headers={"Location": TARGET}).headers["Location"] == TARGET
+
+
+@pytest.fixture(scope="module")
+def ssrf_handlers():
+    return _iast_patched_module("tests.appsec.integrations.aiohttp_tests.ssrf_handlers")
+
+
+def _line_of(handler, call):
+    lines, start = inspect.getsourcelines(handler)
+    return start + next(index for index, line in enumerate(lines) if call in line)
+
+
+def _evidence_text(vulnerability):
+    evidence = vulnerability["evidence"]
+    return evidence.get("value") or "".join(part["value"] for part in evidence.get("valueParts", ()))
+
+
+@pytest.mark.parametrize(
+    "name,call",
+    [
+        ("session_get", "session.get(url)"),
+        ("session_get_keyword", "session.get(url=url)"),
+        ("session_post", "session.post(url"),
+        ("session_put", "session.put(url)"),
+        ("session_patch", "session.patch(url)"),
+        ("session_delete", "session.delete(url)"),
+        ("session_head", "session.head(url)"),
+        ("session_options", "session.options(url)"),
+        ("session_request", 'session.request("GET", url)'),
+        ("session_request_keyword", 'session.request(method="GET", url=url)'),
+        ("module_request", 'aiohttp.request("GET", url'),
+        ("session_ws_connect", "session.ws_connect(url)"),
+    ],
+)
+def test_tainted_client_url_is_reported(ssrf_handlers, name, call):
+    handler = getattr(ssrf_handlers, name)
+    response, vulnerabilities = _vulnerabilities(handler, method="POST", data=SSRF_TARGET)
+    assert response.status == 200
+    assert [vulnerability["type"] for vulnerability in vulnerabilities] == [VULN_SSRF]
+    assert vulnerabilities[0]["evidence"]["valueParts"] == [{"value": SSRF_TARGET, "source": 0}]
+    assert vulnerabilities[0]["location"]["path"] == SSRF_HANDLERS_PATH
+    assert vulnerabilities[0]["location"]["line"] == _line_of(handler, call)
+
+
+def test_client_url_credentials_are_redacted(ssrf_handlers):
+    handler = ssrf_handlers.session_ws_connect_with_credentials
+    response, vulnerabilities = _vulnerabilities(handler, method="POST", data="room")
+    assert response.status == 200
+    assert [vulnerability["type"] for vulnerability in vulnerabilities] == [VULN_SSRF]
+    assert vulnerabilities[0]["evidence"]["valueParts"] == [
+        {"value": "ws://"},
+        {"redacted": True},
+        {"value": "@127.0.0.1:1/"},
+        {"value": "room", "source": 0},
+    ]
+
+
+def test_untainted_client_url_is_not_reported(ssrf_handlers):
+    response, vulnerabilities = _vulnerabilities(ssrf_handlers.session_get_untainted, method="POST", data=SSRF_TARGET)
+    assert response.status == 200
+    assert vulnerabilities == []
+
+
+def test_client_url_tainted_only_in_the_fragment_is_not_reported(ssrf_handlers):
+    ssrf_handlers.URLS.clear()
+    response, vulnerabilities = _vulnerabilities(
+        ssrf_handlers.session_get_tainted_fragment, method="POST", data="fragment"
+    )
+    assert response.status == 200
+    assert vulnerabilities == []
+    [(url, starts)] = ssrf_handlers.URLS
+    assert starts
+    assert all(start > url.index("#") for start in starts)
+
+
+def _current_traceback():
+    try:
+        int("invalid literal")
+    except ValueError:
+        return traceback.format_exc()
+
+
+@pytest.mark.parametrize("form", ["text", "body", "raised", "format_exc"])
+def test_stacktrace_in_response_body_is_reported(form):
+    async def handler(request):
+        if form == "raised":
+            raise web.HTTPInternalServerError(text=TRACEBACK)
+        if form == "body":
+            return web.Response(body=TRACEBACK.encode(), status=500)
+        if form == "format_exc":
+            return web.Response(text=_current_traceback(), status=500)
+        return web.Response(text=TRACEBACK, status=500)
+
+    response, vulnerabilities = _vulnerabilities(handler)
+    assert response.status == 500
+    assert [vulnerability["type"] for vulnerability in vulnerabilities] == [VULN_STACKTRACE_LEAK]
+    assert "Exception: ValueError" in _evidence_text(vulnerabilities[0])
+
+
+@pytest.mark.parametrize("method,status", [("HEAD", 500), ("GET", 204), ("GET", 304)])
+def test_stacktrace_in_a_body_that_is_not_sent_is_not_reported(method, status):
+    async def handler(request):
+        return web.Response(text=TRACEBACK, status=status)
+
+    response, vulnerabilities = _vulnerabilities(handler, method=method)
+    assert response.status == status
+    assert vulnerabilities == []
+
+
+def test_traced_sub_app_checks_the_response_once(monkeypatch):
+    checks = []
+    original = stacktrace_leak.iast_check_stacktrace_leak
+
+    def check(content):
+        checks.append(content)
+        return original(content)
+
+    monkeypatch.setattr(stacktrace_leak, "iast_check_stacktrace_leak", check)
+
+    async def handler(request):
+        return web.Response(text=TRACEBACK, status=500)
+
+    response, vulnerabilities = _vulnerabilities(handler, sub_app=True)
+    assert response.status == 500
+    assert [vulnerability["type"] for vulnerability in vulnerabilities] == [VULN_STACKTRACE_LEAK]
+    assert checks == [TRACEBACK]
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Traceback is a word, not a stack trace", "Traceback (most recent call last):\nnothing else"],
+)
+def test_response_without_stacktrace_is_not_reported(text):
+    async def handler(request):
+        return web.Response(text=text, status=500)
+
+    response, vulnerabilities = _vulnerabilities(handler)
+    assert response.status == 500
+    assert vulnerabilities == []
