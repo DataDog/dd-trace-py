@@ -109,20 +109,32 @@ class BootGate:
     """
 
     def __init__(self) -> None:
-        self._opened = original_Event()
-        self._opened.set()
+        self._condition = _threading.Condition()
+        self._open = True
 
     def is_open(self) -> bool:
-        return self._opened.is_set()
+        return self._open
 
-    def wait(self) -> None:
-        self._opened.wait()
+    def wait(self, target: "_GatedTarget") -> None:
+        """Wait until the gate opens or the target is released."""
+        with self._condition:
+            while not (self._open or target.released):
+                self._condition.wait()
+
+    def release(self, target: "_GatedTarget") -> None:
+        """Let a single held target through, e.g. to join its thread, while the gate stays closed."""
+        with self._condition:
+            target.released = True
+            self._condition.notify_all()
 
     def close(self) -> None:
-        self._opened.clear()
+        with self._condition:
+            self._open = False
 
     def open(self) -> None:
-        self._opened.set()
+        with self._condition:
+            self._open = True
+            self._condition.notify_all()
 
     @contextmanager
     def held(self) -> t.Iterator[None]:
@@ -145,17 +157,18 @@ class _GatedTarget:
         self._target = target
         self._one_shot = one_shot
         self.stop_requested = False
+        self.released = False
 
     def __call__(self) -> object:
         if not boot_gate.is_open():
-            boot_gate.wait()
+            boot_gate.wait(self)
             if self._must_skip():
                 return None
         return self._target()
 
     def _must_skip(self) -> bool:
-        # The gate opened early to stop the thread or to fork. One-shot threads still run before a fork.
-        return self.stop_requested or (_forking and not self._one_shot)
+        # Released while the gate is closed only to stop, join or fork. One-shot threads still run once.
+        return self.stop_requested or (self.released and not boot_gate.is_open() and not self._one_shot)
 
 
 @atexit.register
@@ -195,7 +208,7 @@ class PeriodicThread(_PeriodicThread):
 
     __autorestart__ = True
 
-    # One-shot threads run their target before a fork even when the boot gate holds them.
+    # One-shot threads run their target when released from the boot gate, e.g. to be joined before a fork.
     _one_shot = False
 
     def __init__(
@@ -217,11 +230,16 @@ class PeriodicThread(_PeriodicThread):
         super().stop()
 
     def join(self, timeout: t.Optional[float] = None) -> None:
-        # A started thread held by the boot gate cannot finish until the gate opens.
+        # A started thread held by the boot gate cannot finish until it is released. The gate stays closed for others.
         if self.is_started() and not boot_gate.is_open():
-            log.debug("Opening the boot gate early to join thread %s", self.name)
-            boot_gate.open()
+            log.debug("Releasing thread %s from the boot gate to join it", self.name)
+            boot_gate.release(self._gated_target)
         super().join(timeout)
+
+    def _after_fork(self, *, force: bool = False) -> None:
+        # A thread released to be joined before a fork waits on the boot gate again once restarted.
+        self._gated_target.released = False
+        super()._after_fork(force=force)
 
     def start(self) -> None:
         with _forking_lock:
@@ -431,10 +449,7 @@ def _before_fork() -> None:
         log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
 
-    # Threads held by the boot gate must be able to stop for the fork to proceed.
-    boot_gate.open()
-
-    # Join all the threads to ensure they are stopped before the fork.
+    # Join all the threads to ensure they are stopped before the fork. Joining releases them from the boot gate.
     for thread in _threads_to_restart_after_fork:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()

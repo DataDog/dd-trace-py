@@ -388,8 +388,32 @@ def test_stop_and_join_with_boot_gate_closed_do_not_run_target():
     periodic.join()
     one_shot.join()
 
-    assert threads.boot_gate.is_open()
+    # Joining releases only the joined threads: the gate stays closed.
+    assert not threads.boot_gate.is_open()
     assert calls == []
+    threads.boot_gate.open()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_join_with_boot_gate_closed_releases_only_the_joined_thread():
+    from ddtrace.internal import threads
+
+    calls = []
+    threads.boot_gate.close()
+
+    held = threads.PeriodicThread(0.01, lambda: calls.append("held"), name="test-still-held", no_wait_at_start=True)
+    joined = threads.Thread(target=lambda: calls.append("joined"), name="test-released-to-join")
+    held.start()
+    joined.start()
+
+    joined.join()
+
+    assert not threads.boot_gate.is_open()
+    assert calls == ["joined"]
+
+    threads.boot_gate.open()
+    held.stop()
+    held.join()
 
 
 @pytest.mark.subprocess(timeout=30)
@@ -403,7 +427,7 @@ def test_exit_with_boot_gate_closed_does_not_hang_or_run_target():
 
 
 @pytest.mark.subprocess(timeout=30)
-def test_fork_with_boot_gate_closed_releases_threads():
+def test_fork_with_boot_gate_closed_keeps_it_closed():
     import os
 
     from ddtrace.internal import threads
@@ -412,7 +436,7 @@ def test_fork_with_boot_gate_closed_releases_threads():
     threads.boot_gate.close()
 
     def record(name):
-        return lambda: calls.append((name, threads._forking))
+        return lambda: calls.append((name, threads.boot_gate.is_open()))
 
     periodic = threads.PeriodicThread(60, record("periodic"), name="test-gated-fork", no_wait_at_start=True)
     one_shot = threads.Thread(target=record("one-shot"), name="test-gated-fork-one-shot")
@@ -421,17 +445,17 @@ def test_fork_with_boot_gate_closed_releases_threads():
 
     pid = os.fork()
     if pid == 0:
-        # The child inherits the gate open.
-        os._exit(0 if threads.boot_gate.is_open() else 1)
+        # The child inherits the gate closed, as the hold is still active.
+        os._exit(0 if not threads.boot_gate.is_open() else 1)
 
     _, status = os.waitpid(pid, 0)
     assert os.WEXITSTATUS(status) == 0
-    assert threads.boot_gate.is_open()
+    assert not threads.boot_gate.is_open()
 
-    # The periodic thread stopped for the fork without running, while the one-shot thread, which is not restarted
-    # after it, ran before it.
-    assert ("periodic", True) not in calls, calls
-    assert ("one-shot", True) in calls, calls
+    # The one-shot thread, which is not restarted after the fork, ran before it, while the periodic thread was
+    # released only to stop and did not run.
+    assert calls == [("one-shot", False)], calls
+    threads.boot_gate.open()
 
 
 @pytest.mark.subprocess(timeout=30)

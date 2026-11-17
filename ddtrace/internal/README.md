@@ -460,9 +460,10 @@ Sitecustomize holds `threads.boot_gate` closed (`boot_gate.held()`) while
 preload and module cloning run, so that threads started meanwhile wait on it
 before running their target, and opens it once `cleanup_loaded_modules()`
 has finished, before the `post_preload` hooks and any user code run, as those
-may wait on ddtrace threads. The gate is released
-early before a fork, when a started thread is joined, and at exit; threads
-released to stop, or to fork if they are periodic, skip their target.
+may wait on ddtrace threads. Only the hold, and exit, open the gate. Joining a
+held thread, including the joins before a fork, releases that thread alone, and
+a restarted thread waits on the gate again; released periodic threads skip
+their target, while one-shot threads run it once.
 
 **Phase 2 — after fork**
 
