@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    celery: Fixes an issue where the embedded beat process (started with ``--beat``) could fail with
+    ``Bad file descriptor`` errors on its database or other connections after running for a while.
