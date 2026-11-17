@@ -82,8 +82,13 @@ class AnthropicIntegration(BaseLLMIntegration):
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         parameters = {}
-        if kwargs.get("temperature"):
-            parameters["temperature"] = kwargs.get("temperature")
+        # anthropic>=1.0 passes sampling params through ``extra_body``; explicit kwargs take precedence.
+        extra_body = kwargs.get("extra_body")
+        temperature = kwargs.get("temperature") or (
+            extra_body.get("temperature") if isinstance(extra_body, dict) else None
+        )
+        if temperature:
+            parameters["temperature"] = temperature
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         tool_definitions = None

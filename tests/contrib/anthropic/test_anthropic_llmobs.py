@@ -353,6 +353,30 @@ class TestLLMObsAnthropic:
             )
 
     @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_extra_body_temperature(
+        self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans
+    ):
+        """anthropic>=1.0 sends temperature via extra_body; explicit kwargs win when both are given."""
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm = anthropic.Anthropic(base_url="http://localhost:8000")
+        messages = [{"role": "user", "content": "Hello"}]
+        llm.messages.create(
+            model="claude-3-opus-20240229", max_tokens=15, messages=messages, extra_body={"temperature": 0.8}
+        )
+        llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            messages=messages,
+            extra_body={"temperature": 0.8},
+            **sampling_kwargs(0.5),
+        )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert _get_llmobs_data_metastruct(spans[0])["meta"]["metadata"]["temperature"] == 0.8
+        expected = sampling_kwargs(0.5).get("temperature", 0.8)
+        assert _get_llmobs_data_metastruct(spans[1])["meta"]["metadata"]["temperature"] == expected
+
+    @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_proxy(
         self,
         mock_anthropic_messages_post,
