@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Union
 
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
@@ -27,7 +28,7 @@ def _iast_report_cmdi(func_name: str, *args: object, **kwargs: object) -> None:
         _set_metric_iast_instrumented_sink(VULN_CMDI)
         IS_REPORTED_INTRUMENTED_SINK_METRIC = True
 
-    report_cmdi: object = ""
+    report_cmdi: Union[str, bytes, bytearray] = ""
     if len(args) == 0:
         shell_args = kwargs.get("args", [])
     elif isinstance(args[0], (list, tuple)):
