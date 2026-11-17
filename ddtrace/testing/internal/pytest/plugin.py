@@ -24,6 +24,7 @@ from ddtrace.contrib.internal.coverage.patch import stop_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+from ddtrace.internal.ci_visibility.utils import get_relative_path as _cached_relative_path
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
@@ -33,7 +34,6 @@ from ddtrace.internal.utils import deprecations as deprecation_utils
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.internal.utils.paths import relative_parts
-from ddtrace.internal.utils.paths import relative_path
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -213,20 +213,6 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
 
     relative = _cached_relative_path(abs_path, workspace_path)
     return Path(relative) if relative is not None else abs_path
-
-
-@lru_cache(maxsize=512)
-def _cached_relative_path(item_path: Path, workspace_path: Path) -> t.Optional[str]:
-    """Return item_path relative to workspace_path as a string, or None if not under workspace."""
-    relative = relative_path(item_path, workspace_path)
-    if relative is not None:
-        return relative
-    # Git reports physical roots; pytest may collect through a workspace symlink.
-    # Keep the common lexical path free of filesystem lookups.
-    try:
-        return relative_path(item_path.resolve(), workspace_path.resolve())
-    except (OSError, RuntimeError):
-        return None
 
 
 def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
