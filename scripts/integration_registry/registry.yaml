@@ -85,7 +85,7 @@ integrations:
   tested_versions_by_dependency:
     anthropic:
       min: 0.28.1
-      max: 0.117.0
+      max: 2.8.0
 
 - integration_name: anyio
   is_external_package: true
@@ -215,7 +215,7 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.10.1
-      max: 2.0.0
+      max: 2.4.0
 
 - integration_name: azure_servicebus
   is_external_package: true
@@ -268,8 +268,8 @@ integrations:
   - celery
   tested_versions_by_dependency:
     celery:
-      min: 5.5.3
-      max: 5.6.3
+      min: 5.2.7
+      max: 5.7.0
 
 - integration_name: cherrypy
   is_external_package: true
@@ -497,7 +497,7 @@ integrations:
   tested_versions_by_dependency:
     google-genai:
       min: 1.21.1
-      max: 2.34.0
+      max: 3.2.0
 
 - integration_name: graphql
   is_external_package: true
@@ -603,13 +603,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.2.19
+      max: 1.2.22
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.3.1
+      max: 4.3.2
     langgraph-prebuilt:
       min: 0.1.8
-      max: 1.1.1
+      max: 1.1.2
 
 - integration_name: litellm
   is_external_package: true
@@ -759,7 +759,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 3.29.0
+      max: 3.51.0
 
 - integration_name: openai_agents
   is_external_package: true

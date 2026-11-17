@@ -14,7 +14,7 @@ from .constants import SERVICE
 from .constants import TRACER_VERSION
 
 
-class RuntimeTagCollector(ValueCollector[str]):
+class RuntimeTagCollector(ValueCollector[tuple[str, str]]):
     periodic = False
     value: Optional[list[tuple[str, str]]] = []
 
@@ -25,7 +25,7 @@ class TracerTagCollector(RuntimeTagCollector):
     required_modules = ["ddtrace"]
 
     def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, str]]:
-        ddtrace = self.modules.get("ddtrace")
+        ddtrace = self.modules["ddtrace"]
 
         service = DEFAULT_SERVICE_NAME
         if ddtrace.config.service:
@@ -66,8 +66,8 @@ class PlatformTagCollector(RuntimeTagCollector):
     required_modules = ["platform", "ddtrace.version"]
 
     def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, str]]:
-        platform = self.modules.get("platform")
-        version = self.modules.get("ddtrace.version")
+        platform = self.modules["platform"]
+        version = self.modules["ddtrace.version"]
         tags = [
             (LANG, "python"),
             (LANG_INTERPRETER, platform.python_implementation()),
@@ -99,10 +99,12 @@ class PlatformTagCollectorV2(PlatformTagCollector):
         return tags
 
 
-class ProcessTagCollector(RuntimeTagCollector):
+class ProcessTagCollector(ValueCollector[str]):
     """Tag collector for process tags."""
 
-    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, str]]:
+    value: Optional[list[str]] = []
+
+    def collect_fn(self, keys: Optional[set[str]]) -> list[str]:
         # DEV: we do not access direct process_tags_list so we can
         # reload it in the tests
         process_tags_list = process_tags.process_tags_list

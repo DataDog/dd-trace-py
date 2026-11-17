@@ -1,0 +1,4 @@
+fixes:
+  - |
+    aiohttp: Fixes memory retention across keep-alive requests and unfinished
+    request spans when streaming handlers fail or requests are cancelled.
