@@ -22,6 +22,10 @@ suites:
   appsec:
     paths:
       - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - ddtrace/contrib/internal/trace_utils.py
+      - ddtrace/internal/security/*
       - '@appsec'
       - tests/appsec/*
     pattern: appsec$
@@ -438,6 +442,7 @@ suites:
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
+        _DD_IAST_PATCH_MODULES: tests.appsec.
       variants:
         - name: appsec_integrations_aiohttp
           python: ['3.9', '3.11']

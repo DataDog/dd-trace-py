@@ -3,7 +3,7 @@ from falcon import testing
 from ddtrace import config
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.contrib.utils import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 
 from .app import get_app
