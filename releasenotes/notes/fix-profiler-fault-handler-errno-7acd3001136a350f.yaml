@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes an issue where application code observes a changed ``errno``
+    after a user-sent ``SIGSEGV`` or ``SIGBUS`` is handled while profiling is enabled.
