@@ -457,7 +457,9 @@ def _decision_request_event(instance: Any, args: tuple[Any, ...], kwargs: dict[s
     )
 
 
-def traced_decision_invoke(func, instance, args, kwargs):
+def traced_decision_invoke(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     event = _decision_request_event(instance, args, kwargs)
     with core.context_with_event(event):
         response = func(*args, **kwargs)
@@ -465,7 +467,9 @@ def traced_decision_invoke(func, instance, args, kwargs):
         return response
 
 
-async def traced_decision_ainvoke(func, instance, args, kwargs):
+async def traced_decision_ainvoke(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     event = _decision_request_event(instance, args, kwargs)
     with core.context_with_event(event):
         response = await func(*args, **kwargs)

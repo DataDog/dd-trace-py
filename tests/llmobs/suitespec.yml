@@ -252,6 +252,7 @@ suites:
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
         - name: langchain
           python: ['3.12']
+          command: pytest -v {cmdargs} tests/contrib/langchain/test_langchain_decisions_llmobs.py
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'greenlet==3.0.3', respx, numpy, wrapt, 'langchain-core>=1.8', 'langchain-openai>=1.8', langchain-typesafe]
   litellm:
     venvs_per_job: 3

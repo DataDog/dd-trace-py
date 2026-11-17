@@ -165,6 +165,7 @@ def test_llmobs_decision_without_provider_span_is_llm(langchain_core, langchain_
     _assert_llm_decision_span(spans[0], response, "gemini-decision-1", "google")
 
 
+# Simulates a traced google.genai Decisions.create; it proves the kind and token rule, not a real child span.
 def test_llmobs_decision_with_provider_span_is_workflow(
     langchain_core, langchain_llmobs, test_spans, traced_google_decisions
 ):
