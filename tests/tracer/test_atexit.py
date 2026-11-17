@@ -266,3 +266,29 @@ def test_exit_signal_callbacks_raising_callback_reraised_when_testing_raise() ->
     callbacks.add(bad)
     with pytest.raises(RuntimeError, match="boom"):
         callbacks._run()
+
+
+@pytest.mark.subprocess(out="still alive\n")
+def test_exit_signal_callbacks_install_keeps_ignored_signals() -> None:
+    """Repeated install() calls leave ignored SIGTERM and SIGINT ignored, without registering again."""
+    import os
+    import signal
+    from unittest import mock
+
+    from ddtrace.internal import atexit
+
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    callbacks = atexit.ExitSignalCallbacks()
+    callbacks.add(lambda: print("callback called", flush=True))
+    with mock.patch.object(atexit, "register_on_exit_signal", wraps=atexit.register_on_exit_signal) as register:
+        callbacks.install()
+        callbacks.install()
+
+    assert register.call_count == 1
+    assert callbacks._installed_handlers == (signal.SIG_IGN, signal.SIG_IGN)
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        assert signal.getsignal(sig) is signal.SIG_IGN
+        os.kill(os.getpid(), sig)
+    print("still alive")
