@@ -275,4 +275,4 @@ def listen() -> None:
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _call_waf_first)
 
-    core.on("context.ended.wsgi.__call__", _on_context_ended)
+    core.on("wsgi.application.returned", _on_context_ended)

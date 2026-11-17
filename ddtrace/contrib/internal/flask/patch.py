@@ -113,6 +113,7 @@ werkzeug_version = parse_version(werkzeug_version_str)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
+    _request_context_name = "flask.request"
     _request_call_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_call_name = "flask.application"
     _response_call_name = "flask.response"
@@ -148,6 +149,11 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
+        event = ctx.event
+        event.request_method = request.method
+        event.request_url = request.base_url
+        event.request_headers = dict(request.headers)
+        event.query = request.query_string
 
         req_body = None
         result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results

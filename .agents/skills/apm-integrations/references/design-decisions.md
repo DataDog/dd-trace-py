@@ -67,7 +67,7 @@ subscriber package finishes loading through contrib; product startup activates i
 the product manager.
 Concrete SDK-independent tracing subscribers use explicit registration rather than class-definition registration.
 The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
-including explicitly deferred global tracer creation. Web request and span exception activation timing
+including explicitly deferred global tracer creation. Web request, Flask request, and span exception activation timing
 is unchanged. The generic span bundle registers `TracingSubscriber` directly. Its class declaration
 passes `auto_register=False` to defer only the base class; custom subclasses retain automatic
 registration unless they opt out with the existing class attribute.
@@ -81,10 +81,17 @@ request finishes: connection tasks can remain alive across keep-alive requests.
 Do not retain exception objects in deferred callbacks; record errors synchronously
 and allow cancellation to complete without requiring a response or tagging it as an error.
 
+Flask and WSGI defer their shared request context through response iteration.
+The iterable reports completion without owning spans; `WebFrameworkResponseEvent`
+lets tracing create the response child. Keep application-return security cleanup
+separate from response completion: AppSec and IAST consume
+`wsgi.application.returned` while the request context remains current. Retain
+Flask's metadata and blocking phase hooks rather than adding a second request owner.
+
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,
-flask and django. This pattern decouples patch code from span creation.
+Flask child operations and django. This pattern decouples patch code from span creation.
 
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call
