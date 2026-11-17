@@ -18,6 +18,9 @@ Realtime releases require the optional `websockets` dependency explicitly.
 SDK-owned retrieval ordering, tool execution, raw event visibility, cleanup,
 resource bounds, stored audio, and playback timing. Fixtures contain no provider
 credentials or live caller recordings.
+Patch/unpatch cases preserve application decorators installed before or after
+Datadog, including repeated patch cycles. Interruption cases cover non-round
+millisecond cutoffs with PCM and G.711 audio.
 
 For a live smoke run, install the integration's current dependencies, configure
 normal LLM Observability authentication and `OPENAI_API_KEY` in the environment,

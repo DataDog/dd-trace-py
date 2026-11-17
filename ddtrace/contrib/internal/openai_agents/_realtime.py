@@ -25,6 +25,7 @@ import weakref
 
 import agents
 import openai
+from wrapt import FunctionWrapper
 
 from ddtrace.contrib.internal.openai._realtime import _AUDIO_ACCUM_MAX_BYTES
 from ddtrace.contrib.internal.openai._realtime import _bytes_per_second
@@ -34,8 +35,6 @@ from ddtrace.contrib.internal.openai._realtime import _get_attr
 from ddtrace.contrib.internal.openai._realtime import _RealtimeState
 from ddtrace.contrib.internal.openai._realtime import _ResponseTurn
 from ddtrace.contrib.internal.openai._realtime import _segment_duration_ns
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.native import uuid4
@@ -828,12 +827,17 @@ class _AgentsRealtimeState(_RealtimeState):
             duration = _segment_duration_ns(audio.total_decoded_bytes, audio.mime, audio.rate)
             if len(items) == 1 and items[0].complete and items[0].expected == {0}:
                 cap = items[0].caps.get(0)
+                rate = _bytes_per_second(items[0].mime, items[0].rate)
+                # Match the sample-aligned prefix, rather than a rounded duration.
+                expected_bytes = int(cap * rate / 1000) if cap is not None and rate else None
+                if expected_bytes is not None and items[0].mime == "audio/pcm":
+                    expected_bytes -= expected_bytes % 2
                 if (
                     cap is not None
                     and cap > 0
                     and duration is not None
                     and duration > 0
-                    and duration == int(cap * 1_000_000)
+                    and audio.total_decoded_bytes == expected_bytes
                     and not audio.oversize
                 ):
                     onset = end - duration
@@ -1314,6 +1318,22 @@ _WRAPS = {
 }
 
 
+@dataclass
+class _WrappedMethod:
+    owner: Any
+    name: str
+    original: Any
+    wrapped_original: Any
+    installed: Any = None
+    active: bool = True
+
+    def enabled(self) -> bool:
+        return self.active
+
+
+_wrapped_methods: list[_WrappedMethod] = []
+
+
 def _patch_module(module: ModuleType) -> None:
     if not getattr(agents, "_datadog_patch", False):
         return
@@ -1321,8 +1341,13 @@ def _patch_module(module: ModuleType) -> None:
     if cls is None:
         return
     for name, wrapper in _WRAPS.items():
-        if hasattr(cls, name) and not hasattr(getattr(cls, name), "__wrapped__"):
-            wrap(module, "OpenAIRealtimeWebSocketModel." + name, wrapper)
+        if not hasattr(cls, name) or any(record.owner is cls and record.name == name for record in _wrapped_methods):
+            continue
+        descriptor = next(base.__dict__[name] for base in cls.__mro__ if name in base.__dict__)
+        record = _WrappedMethod(cls, name, cls.__dict__.get(name, _MISSING), descriptor)
+        record.installed = FunctionWrapper(descriptor, wrapper, enabled=record.enabled)
+        setattr(cls, name, record.installed)
+        _wrapped_methods.append(record)
 
 
 def patch_realtime() -> None:
@@ -1331,10 +1356,15 @@ def patch_realtime() -> None:
 
 def unpatch_realtime() -> None:
     ModuleWatchdog.unregister_module_hook(_MODULE, _patch_module)
-    module = sys.modules.get(_MODULE)
-    if module is not None:
-        cls = getattr(module, "OpenAIRealtimeWebSocketModel", None)
-        if cls:
-            for name in _WRAPS:
-                if hasattr(getattr(cls, name, None), "__wrapped__"):
-                    unwrap(cls, name)
+    while _wrapped_methods:
+        record = _wrapped_methods.pop()
+        # A later application decorator may retain our proxy. Disable it without
+        # removing that decorator or reactivating it on a subsequent patch cycle.
+        record.active = False
+        if record.owner.__dict__.get(record.name) is record.installed:
+            current = record.installed.__wrapped__
+            if record.original is _MISSING and current is record.wrapped_original:
+                delattr(record.owner, record.name)
+            else:
+                # Another wrapper may have been removed from beneath ours.
+                setattr(record.owner, record.name, current)

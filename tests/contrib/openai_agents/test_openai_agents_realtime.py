@@ -2,12 +2,14 @@
 
 import asyncio
 import base64
+import functools
 import json
 from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
 import pytest
+import wrapt
 
 from ddtrace.contrib.internal.openai._realtime import _usage_metrics
 from ddtrace.contrib.internal.openai_agents import _realtime
@@ -499,6 +501,121 @@ async def test_realtime_audio_byte_boundary(
     span, _ = llm_span(test_spans)
     message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
     assert bool(message.get("audio_parts")) is has_audio
+
+
+@pytest.mark.parametrize("method", ["connect", "_send_raw_message", "_handle_ws_event", "close"])
+@pytest.mark.parametrize("application_first", [True, False])
+@pytest.mark.asyncio
+async def test_realtime_preserves_application_wrappers(
+    agents: Any, openai_agents_llmobs: Any, test_spans: Any, socket: Socket, method: str, application_first: bool
+) -> None:
+    unpatch()
+    cls = sdk.OpenAIRealtimeWebSocketModel
+    original = cls.__dict__[method]
+    calls = []
+
+    def decorate(wrapped: Any) -> Any:
+        @functools.wraps(wrapped)
+        async def application_wrapper(*args: Any, **kwargs: Any) -> Any:
+            calls.append(method)
+            return await wrapped(*args, **kwargs)
+
+        return application_wrapper
+
+    try:
+        if application_first:
+            application_wrapper = decorate(original)
+            setattr(cls, method, application_wrapper)
+            patch()
+        else:
+            patch()
+            application_wrapper = decorate(getattr(cls, method))
+            setattr(cls, method, application_wrapper)
+        model = await connect(socket)
+        await socket.feed(created())
+        await socket.feed(done())
+        await model.close()
+        assert calls
+        unpatch()
+        assert cls.__dict__[method] is application_wrapper
+        count = len(calls)
+        model = await connect(socket)
+        assert getattr(model, "_dd_realtime_state", None) is None
+        await socket.feed(created("unpatched"))
+        await socket.feed(done("unpatched"))
+        await model.close()
+        assert len(calls) > count
+        # A retired proxy captured by the application must not reactivate when
+        # a later patch adds a fresh observer outside the application wrapper.
+        patch()
+        model = await connect(socket)
+        await socket.feed(created("repatched"))
+        await socket.feed({"type": "response.output_text.delta", "response_id": "repatched", "delta": "once"})
+        await socket.feed(done("repatched"))
+        await model.close()
+        spans = [span for trace in test_spans.pop_traces() for span in trace]
+        llms = [span for span in spans if span.resource == "createRealtimeResponse"]
+        assert len(llms) == 2
+        assert _get_llmobs_data_metastruct(llms[-1])["meta"]["output"]["messages"] == [
+            {"role": "assistant", "content": "once"}
+        ]
+    finally:
+        unpatch()
+        setattr(cls, method, original)
+        patch()
+
+
+@pytest.mark.skipif(not hasattr(wrapt, "unwrap_object"), reason="wrapt predates handle-based unwrapping")
+@pytest.mark.parametrize("application_first", [True, False])
+@pytest.mark.asyncio
+async def test_realtime_preserves_wrapt_handles(
+    agents: Any, openai_agents_llmobs: Any, test_spans: Any, socket: Socket, application_first: bool
+) -> None:
+    unpatch()
+    cls = sdk.OpenAIRealtimeWebSocketModel
+    original = cls.__dict__["_handle_ws_event"]
+    path = "OpenAIRealtimeWebSocketModel._handle_ws_event"
+    calls = []
+
+    async def application(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+        calls.append(True)
+        return await wrapped(*args, **kwargs)
+
+    try:
+        if not application_first:
+            patch()
+        handle = wrapt.wrap_function_wrapper(sdk, path, application)
+        patch()
+        assert wrapt.is_wrapped_by(cls.__dict__["_handle_ws_event"], handle)
+        unpatch()
+        assert wrapt.is_wrapped_by(cls.__dict__["_handle_ws_event"], handle)
+        patch()
+        assert wrapt.is_wrapped_by(cls.__dict__["_handle_ws_event"], handle)
+        wrapt.unwrap_object(sdk, path, handle)
+        assert not wrapt.is_wrapped_by(cls.__dict__["_handle_ws_event"], handle)
+        model = await connect(socket)
+        await socket.feed(created())
+        await socket.feed({"type": "response.output_text.delta", "response_id": "r1", "delta": "once"})
+        await socket.feed(done())
+        await model.close()
+        unpatch()
+        assert not wrapt.is_wrapped_by(cls.__dict__["_handle_ws_event"], handle)
+        model = await connect(socket)
+        assert getattr(model, "_dd_realtime_state", None) is None
+        await socket.feed(created("unpatched"))
+        await socket.feed(done("unpatched"))
+        await model.close()
+        assert not calls
+        span, _ = llm_span(test_spans)
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind="llm",
+            output_messages=[{"role": "assistant", "content": "once"}],
+        )
+    finally:
+        unpatch()
+        setattr(cls, "_handle_ws_event", original)
+        patch()
 
 
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
@@ -1497,13 +1614,26 @@ async def test_realtime_sideband_invalid_vad_duration_keeps_observed_onset(
 @pytest.mark.asyncio
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
 @pytest.mark.parametrize("generation_ready", [False, True])
-@pytest.mark.parametrize("clip_ms", [800, 1000])
+@pytest.mark.parametrize("complete_clip", [False, True])
+@pytest.mark.parametrize("cap_ms", [1000, 1001])
+@pytest.mark.parametrize("codec,byte_rate", [("pcm16", 48000), ("g711_ulaw", 8000)])
 async def test_realtime_cleared_continuation_anchors_complete_played_prefix(
-    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, generation_ready, clip_ms
+    agents,
+    openai_agents_llmobs,
+    test_spans,
+    socket,
+    monkeypatch,
+    generation_ready,
+    complete_clip,
+    cap_ms,
+    codec,
+    byte_rate,
 ):
     now = [10_000_000_000]
     monkeypatch.setattr(_realtime.time, "time_ns", lambda: now[0])
     model = await connect(socket, {"call_id": "truncated-continuation"})
+    await socket.feed({"type": "session.updated", "session": {"output_audio_format": codec}})
+    clip_ms = cap_ms if complete_clip else 800
     await socket.feed(created("r1"))
     await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
     now[0] = 11_000_000_000
@@ -1514,19 +1644,20 @@ async def test_realtime_cleared_continuation_anchors_complete_played_prefix(
     await socket.feed(done("r2", [output_item("a2", "answer")]))
     now[0] = 20_000_000_000
     await socket.feed({"type": "output_audio_buffer.cleared", "response_id": "r2"})
-    await bounded_output(socket, "a2", milliseconds=1000)
-    await socket.feed(retrieved("a2", b"\0\0" * (24 * clip_ms), "heard"))
+    await bounded_output(socket, "a2", milliseconds=cap_ms)
+    await socket.feed(retrieved("a2", b"\0" * (byte_rate * clip_ms // 1000), "heard"))
     await model.close()
     spans = [span for trace in test_spans.pop_traces() for span in trace]
     speech = [span for span in spans if span.resource == "createRealtimeAgentSpeech"]
-    trusted = generation_ready and clip_ms == 1000
+    trusted = generation_ready and complete_clip
     assert len(speech) == int(trusted)
     if trusted:
-        assert speech[0].start_ns == 19_000_000_000
-        assert speech[0].duration_ns == 1_000_000_000
+        assert speech[0].start_ns == 20_000_000_000 - cap_ms * 1_000_000
+        assert speech[0].duration_ns == cap_ms * 1_000_000
         assert speech[0].parent_id == second.parent_id
     message = _get_llmobs_data_metastruct(second)["meta"]["output"]["messages"][0]
-    assert len(base64.b64decode(message["audio_parts"][0]["content"])) == 44 + 48 * clip_ms
+    pcm_bytes_per_ms = 48 if codec == "pcm16" else 16
+    assert len(base64.b64decode(message["audio_parts"][0]["content"])) == 44 + pcm_bytes_per_ms * clip_ms
 
 
 @pytest.mark.asyncio

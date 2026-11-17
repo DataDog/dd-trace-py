@@ -1257,7 +1257,7 @@ def _segment_duration_ns(decoded_bytes: int, mime: str, sample_rate: int) -> Opt
     bytes_per_second = _bytes_per_second(mime, sample_rate)
     if not bytes_per_second:
         return None
-    return int(decoded_bytes / bytes_per_second * 1_000_000_000)
+    return decoded_bytes * 1_000_000_000 // bytes_per_second
 
 
 def _start_realtime_state(integration: Any, client: Any, model: Optional[str]) -> _RealtimeState:
