@@ -3,33 +3,46 @@ uninstrumented:
   tracer_enabled: false
   outcome: success
   otel_semantics: false
+  propagation_headers: true
 disabled:
   instrumented: true
   tracer_enabled: false
   outcome: success
   otel_semantics: false
+  propagation_headers: true
 success:
   instrumented: true
   tracer_enabled: true
   outcome: success
   otel_semantics: false
+  propagation_headers: true
 returned-response:
   instrumented: true
   tracer_enabled: true
   outcome: returned-response
   otel_semantics: false
+  propagation_headers: true
 raised-response:
   instrumented: true
   tracer_enabled: true
   outcome: raised-response
   otel_semantics: false
+  propagation_headers: true
 raised-response-otel:
   instrumented: true
   tracer_enabled: true
   outcome: raised-response
   otel_semantics: true
+  propagation_headers: true
 exception:
   instrumented: true
   tracer_enabled: true
   outcome: exception
   otel_semantics: false
+  propagation_headers: true
+success-no-propagation:
+  instrumented: true
+  tracer_enabled: true
+  outcome: success
+  otel_semantics: false
+  propagation_headers: false
