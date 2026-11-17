@@ -34,7 +34,7 @@ class TestConfig(BaseTestCase):
         # If none is provided the default should be ``None``
         with self.override_env(dict()):
             config = Config()
-            self.assertEqual(config.service, "tests.tracer")
+            self.assertEqual(config.service, "tests.internal")
 
         with self.override_env(dict(DD_SERVICE="my-service")):
             config = Config()
