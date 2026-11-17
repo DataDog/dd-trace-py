@@ -813,6 +813,18 @@ Datadog::Sample::push_gc_event(std::string_view event)
 }
 
 bool
+Datadog::Sample::push_gc_dropped_pauses(int64_t count)
+{
+    return push_label(ExportLabelKey::gc_dropped_pauses, count);
+}
+
+bool
+Datadog::Sample::push_gc_dropped_pause_ns(int64_t pause_ns)
+{
+    return push_label(ExportLabelKey::gc_dropped_pause_ns, pause_ns);
+}
+
+bool
 Datadog::Sample::push_absolute_ns(int64_t _timestamp_ns)
 {
     // If timeline is not enabled, then this is a no-op

@@ -28,9 +28,15 @@ _GEN_NAMES: tuple[str, ...] = (
 _GEN_COUNT: int = len(_GEN_NAMES)
 _GC_CONFIG_FRAME: str = "gc.config"
 _GC_FILE: str = "gc"
-# Cap on individually reported pauses per flush interval. Long pauses past the
-# cap fall back to the per-generation window totals.
-_MAX_PAUSE_EVENTS: int = 256
+# Cap on individually reported pauses per flush interval. Pauses past the cap
+# fall back to the per-generation window totals.
+_MAX_PAUSE_EVENTS: int = 1024
+# Short young collections can fill the buffer early in a busy interval, so the
+# last slots only take long pauses: a full collection late in the interval
+# still gets its own sample.
+_LONG_PAUSE_RESERVED_EVENTS: int = 64
+_SHORT_PAUSE_EVENT_LIMIT: int = _MAX_PAUSE_EVENTS - _LONG_PAUSE_RESERVED_EVENTS
+_LONG_PAUSE_NS: int = 10_000_000
 # String "gc event" label value: this sample is one pause (not a window total).
 # Backend Timeline filter keys on getStringLabel("gc event") == "pause".
 _GC_EVENT_PAUSE: str = "pause"
@@ -53,12 +59,15 @@ class GCCollector(collector.Collector):
       emitted one sample each, with an end timestamp, thread labels, a
       numeric "gc generation" label, and string "gc event"="pause" so the
       backend can tell a single pause from a window total. Their time is
-      not also added to the window totals. Events past the per-interval
-      cap fall back to the totals. The callback only writes into a
+      not also added to the window totals. The last slots before the
+      per-interval cap only take pauses of 10 ms or more, and pauses past
+      the cap fall back to the totals. The callback only writes into a
       preallocated ring; thread name and native id are resolved at
       snapshot() time.
     - A gc.config snapshot sample per flush carrying the interval's explicit
-      gc.collect() tally in the native gc-samples field.
+      gc.collect() tally in the native gc-samples field. When pauses missed
+      the event cap, numeric "gc dropped pauses" and "gc dropped pause ns"
+      labels give their count and total duration.
 
     Thresholds, freeze count, and cumulative collection totals are DEBUG-only.
     """
@@ -76,6 +85,8 @@ class GCCollector(collector.Collector):
     _snap_event_end_ns: list[int]
     _snap_event_thread_id: list[int]
     _event_threshold_ns: int
+    _dropped_pause_count: int
+    _dropped_pause_ns: int
     _explicit_count: int
     _orig_collect: Callable[..., int]
     _installed_collect: Optional[Callable[..., int]]
@@ -106,6 +117,8 @@ class GCCollector(collector.Collector):
         self._snap_event_pause_ns = [0] * _MAX_PAUSE_EVENTS
         self._snap_event_end_ns = [0] * _MAX_PAUSE_EVENTS
         self._snap_event_thread_id = [0] * _MAX_PAUSE_EVENTS
+        self._dropped_pause_count = 0
+        self._dropped_pause_ns = 0
         self._explicit_count = 0
         # Set before publishing gc.collect so a concurrent/reentrant caller
         # into _patched_collect never sees a missing attribute.
@@ -152,6 +165,8 @@ class GCCollector(collector.Collector):
             self._pause_count[i] = 0
             self._pause_total_ns[i] = 0
         self._event_count = 0
+        self._dropped_pause_count = 0
+        self._dropped_pause_ns = 0
         self._explicit_count = 0
 
     def _patched_collect(self, generation: int = 2) -> int:
@@ -183,16 +198,19 @@ class GCCollector(collector.Collector):
         if not self._lock.acquire(False):
             return
         try:
-            if pause_ns >= self._event_threshold_ns and self._event_count < _MAX_PAUSE_EVENTS:
+            if pause_ns >= self._event_threshold_ns:
                 i: int = self._event_count
-                self._event_gen[i] = gen
-                self._event_pause_ns[i] = pause_ns
-                self._event_end_ns[i] = end_ns
-                self._event_thread_id[i] = thread_id
-                self._event_count = i + 1
-            else:
-                self._pause_count[gen] += 1
-                self._pause_total_ns[gen] += pause_ns
+                if i < _MAX_PAUSE_EVENTS and (i < _SHORT_PAUSE_EVENT_LIMIT or pause_ns >= _LONG_PAUSE_NS):
+                    self._event_gen[i] = gen
+                    self._event_pause_ns[i] = pause_ns
+                    self._event_end_ns[i] = end_ns
+                    self._event_thread_id[i] = thread_id
+                    self._event_count = i + 1
+                    return
+                self._dropped_pause_count += 1
+                self._dropped_pause_ns += pause_ns
+            self._pause_count[gen] += 1
+            self._pause_total_ns[gen] += pause_ns
         finally:
             self._lock.release()
 
@@ -218,6 +236,8 @@ class GCCollector(collector.Collector):
                 self._snap_event_end_ns[i] = self._event_end_ns[i]
                 self._snap_event_thread_id[i] = self._event_thread_id[i]
             explicit: int = self._explicit_count
+            dropped_count: int = self._dropped_pause_count
+            dropped_ns: int = self._dropped_pause_ns
             self._pause_count[0] = 0
             self._pause_count[1] = 0
             self._pause_count[2] = 0
@@ -225,6 +245,8 @@ class GCCollector(collector.Collector):
             self._pause_total_ns[1] = 0
             self._pause_total_ns[2] = 0
             self._event_count = 0
+            self._dropped_pause_count = 0
+            self._dropped_pause_ns = 0
             self._explicit_count = 0
         finally:
             self._lock.release()
@@ -268,6 +290,10 @@ class GCCollector(collector.Collector):
         # event count to gc-samples.
         config_handle.push_gctime(0, explicit)
         config_handle.push_frame(_GC_CONFIG_FRAME, _GC_FILE, 0, 0)
+        if dropped_count:
+            # Labels, not values: the window totals above already include these pauses.
+            config_handle.push_gc_dropped_pauses(dropped_count)
+            config_handle.push_gc_dropped_pause_ns(dropped_ns)
         config_handle.push_monotonic_ns(time.monotonic_ns())
         config_handle.flush_sample()
 

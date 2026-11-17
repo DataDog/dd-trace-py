@@ -65,6 +65,8 @@ cdef extern from "sample.hpp" namespace "Datadog":
         bint push_gpu_device_name(string_view device_name)
         bint push_gc_generation(int64_t generation)
         bint push_gc_event(string_view event)
+        bint push_gc_dropped_pauses(int64_t count)
+        bint push_gc_dropped_pause_ns(int64_t pause_ns)
         bint push_monotonic_ns(int64_t monotonic_ns)
         bint push_absolute_ns(int64_t timestamp_ns)
         void push_frame(string_view _name, string_view _filename, uint64_t address, int64_t line)
@@ -581,6 +583,14 @@ cdef class SampleHandle:
     def push_gc_event(self, event: StringType) -> None:
         if self.ptr is not NULL:
             call_ddup_push_gc_event(self.ptr, event)
+
+    def push_gc_dropped_pauses(self, count: int) -> None:
+        if self.ptr is not NULL:
+            self.ptr.push_gc_dropped_pauses(clamp_to_int64_unsigned(count))
+
+    def push_gc_dropped_pause_ns(self, pause_ns: int) -> None:
+        if self.ptr is not NULL:
+            self.ptr.push_gc_dropped_pause_ns(clamp_to_int64_unsigned(pause_ns))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
