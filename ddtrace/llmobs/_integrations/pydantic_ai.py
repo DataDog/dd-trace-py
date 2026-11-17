@@ -51,8 +51,14 @@ _DECISION_MODEL_PROVIDERS = {
     "OpenAIDecisionsModel": "openai",
     "GoogleDecisionsModel": "google",
 }
-# OpenAIDecisionsModel is left out: the openai decision_provider expects a list of answers
-_DECISION_PROVIDERS = {"TypeSafeModel": "typesafe", "SystemOneModel": "typesafe", "GoogleDecisionsModel": "google"}
+_DECISION_PROVIDERS = {
+    "TypeSafeModel": "typesafe",
+    "SystemOneModel": "typesafe",
+    "GoogleDecisionsModel": "google",
+    "OpenAIDecisionsModel": "openai",
+}
+# The openai decision_provider reads answers as a list of named answers, like the OpenAI Decisions API returns them
+_LIST_ANSWERS_DECISION_PROVIDER = "openai"
 
 
 def _decision_model_class(model: Any, names: Any) -> Optional[str]:
@@ -246,11 +252,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
             "state": getattr(request, "state", None),
             "questions": {name: _decision_wire(q) for name, q in (getattr(request, "questions", None) or {}).items()},
         }
+        decision_provider = _DECISION_PROVIDERS.get(_decision_model_class(model, _DECISION_PROVIDERS) or "")
+        list_answers = span_kind != "workflow" and decision_provider == _LIST_ANSWERS_DECISION_PROVIDER
         output_body: dict[str, Any] = {}
         if response is not None:
+            answers = (getattr(response, "answers", None) or {}).items()
             output_body = {
                 "model": model_name,
-                "answers": {name: _decision_wire(a) for name, a in (getattr(response, "answers", None) or {}).items()},
+                "answers": [{"name": name, **_decision_wire(a)} for name, a in answers]
+                if list_answers
+                else {name: _decision_wire(a) for name, a in answers},
             }
         name = f"{type(model).__name__}.decide"
         if span_kind == "workflow":
@@ -262,7 +273,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 output_value=safe_json(output_body) if output_body else "",
             )
             return
-        decision_provider = _DECISION_PROVIDERS.get(_decision_model_class(model, _DECISION_PROVIDERS) or "")
         _annotate_llmobs_span_data(
             span,
             kind="llm",

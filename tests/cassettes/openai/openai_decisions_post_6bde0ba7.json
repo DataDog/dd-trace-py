@@ -1,0 +1,59 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/decisions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "pydantic-ai/2.68.0",
+      "x-stainless-lang": "python",
+      "x-stainless-package-version": "3.51.0",
+      "x-stainless-os": "MacOS",
+      "x-stainless-arch": "arm64",
+      "x-stainless-runtime": "CPython",
+      "x-stainless-runtime-version": "3.12.8",
+      "x-stainless-async": "async:asyncio",
+      "x-stainless-raw-response": "true",
+      "x-stainless-retry-count": "0",
+      "x-stainless-read-timeout": "600",
+      "Content-Length": "566"
+    },
+    "body": "{\"model\":\"gpt-6-luna\",\"input\":\"Our dashboards and API calls have been timing out for 20 minutes and we have a demo in an hour.\",\"questions\":[{\"type\":\"predicate\",\"name\":\"urgent\",\"instructions\":\"{\\\"field\\\": \\\"urgent\\\", \\\"question\\\": \\\"Does the ticket need a reply within one hour?\\\", \\\"goal\\\": \\\"Triage a support ticket.\\\"}\"},{\"type\":\"choice\",\"name\":\"team\",\"instructions\":\"{\\\"field\\\": \\\"team\\\", \\\"question\\\": \\\"Which team should handle the ticket?\\\", \\\"goal\\\": \\\"Triage a support ticket.\\\"}\",\"choices\":[{\"value\":\"billing\"},{\"value\":\"engineering\"},{\"value\":\"sales\"}]}]}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Tue, 17 Nov 2026 18:47:35 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "x-ratelimit-limit-requests": "30000",
+      "x-ratelimit-limit-tokens": "180000000",
+      "x-ratelimit-remaining-requests": "29999",
+      "x-ratelimit-remaining-tokens": "179999670",
+      "x-ratelimit-reset-requests": "2ms",
+      "x-ratelimit-reset-tokens": "0s",
+      "vary": "origin, access-control-request-method, access-control-request-headers",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-request-id,retry-after,server-timing-total, CF-Ray",
+      "server-timing-total": "258.008",
+      "openai-processing-ms": "258",
+      "x-request-id": "req_bdae03e4828d4232b00d4170cd7bcb2d",
+      "x-openai-proxy-wasm": "v0.1",
+      "Server": "cloudflare",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "__cf_bm=ZymwIDddzGYNHm7TRIsplWHPJnUV7iaknhnJ_7J5vks-1794941254.7760131-1.0.1.1-UGpaAdItnmyUcQIv0MhVZS98IRTIwDwPu9i4yBKwo3QPj3TAZ4aTgyuUHflKkm9ab3fhMMIzF.vCdWyhleru6X1qpiHSmbEZS1XE0fRmSOWrl.uB4J1sefAcFqoEBEgz; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=api.openai.com; Expires=Tue, 17 Nov 2026 19:17:35 GMT",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a5c0e79a5bc9e9fe-EWR",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"model\":\"gpt-6-luna\",\"answers\":[{\"type\":\"predicate\",\"name\":\"urgent\",\"probability\":0.98},{\"type\":\"choice\",\"name\":\"team\",\"choice\":\"engineering\",\"probabilities\":[{\"value\":\"billing\",\"probability\":0.0},{\"value\":\"engineering\",\"probability\":1.0},{\"value\":\"sales\",\"probability\":0.0}],\"confidence\":1.0}],\"usage\":{\"input_tokens\":330,\"input_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":330}}"
+  }
+}
