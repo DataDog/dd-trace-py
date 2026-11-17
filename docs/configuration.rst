@@ -859,6 +859,10 @@ AI Guard
        received before the first one is delivered) and increases peak memory usage proportional
        to the response size.
 
+       This option does not apply to the Datadog AI Guard guardrail of the LiteLLM proxy. In the
+       post_call mode, the guardrail holds a streamed chat or text answer until AI Guard evaluates it.
+       This increases the time to the first token and the memory use.
+
    DD_AI_GUARD_BLOCK:
      type: Boolean
      default: True

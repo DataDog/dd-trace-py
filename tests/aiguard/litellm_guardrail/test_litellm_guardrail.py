@@ -1,8 +1,13 @@
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
+from litellm.types.utils import Delta
+from litellm.types.utils import ModelResponseStream
+from litellm.types.utils import StreamingChoices
+from litellm.types.utils import TextCompletionResponse
 import pytest
 
 from ddtrace.aiguard._api_client import ContentPart
@@ -10,6 +15,9 @@ from ddtrace.aiguard._api_client import Function
 from ddtrace.aiguard._api_client import ImageURL
 from ddtrace.aiguard._api_client import Message
 from ddtrace.aiguard._api_client import ToolCall
+from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.aiguard.integrations.litellm import _READING_STREAM
+from ddtrace.aiguard.integrations.litellm import _REQUEST_CLAIM
 from ddtrace.aiguard.integrations.litellm import DatadogAIGuardGuardrail
 from ddtrace.aiguard.integrations.litellm import DatadogAIGuardGuardrailException
 from tests.aiguard.litellm_guardrail.conftest import assistant_msg
@@ -671,3 +679,454 @@ class TestAsyncHooks:
                     response=response,
                 )
             )
+
+
+# ---------------------------------------------------------------------------
+# TestTextCompletion
+# ---------------------------------------------------------------------------
+
+
+class TestTextCompletion:
+    """These tests cover text completion prompts and answers (/completions)."""
+
+    def test_string_prompt_is_one_user_message(self):
+        assert DatadogAIGuardGuardrail._convert_text_prompt("Say hi") == [user_msg("Say hi")]
+
+    def test_string_list_prompt_is_one_user_message_per_string(self):
+        assert DatadogAIGuardGuardrail._convert_text_prompt(["Say hi", "Say bye"]) == [
+            user_msg("Say hi"),
+            user_msg("Say bye"),
+        ]
+
+    def test_list_prompt_keeps_only_the_strings(self):
+        assert DatadogAIGuardGuardrail._convert_text_prompt(["Say hi", [1, 2], "Say bye"]) == [
+            user_msg("Say hi"),
+            user_msg("Say bye"),
+        ]
+
+    @pytest.mark.parametrize("prompt", [[1, 2, 3], [[1, 2], [3]], [], None, 42])
+    def test_token_ids_and_other_prompts_have_no_messages(self, prompt):
+        assert DatadogAIGuardGuardrail._convert_text_prompt(prompt) == []
+
+    @pytest.mark.parametrize("call_type", ["text_completion", "atext_completion"])
+    def test_prompt_is_evaluated(self, guardrail_monitor, call_type):
+        guardrail_monitor.get_guardrail_dynamic_request_body_params = Mock(return_value={})
+        guardrail_monitor._run_ai_guard_check = AsyncMock()
+
+        data = {"model": "gpt-4o-mini", "prompt": ["Say hi", "Say bye"], "metadata": {}}
+        asyncio.run(guardrail_monitor._on_request(data, call_type))
+
+        expected = [Message(role="user", content="Say hi"), Message(role="user", content="Say bye")]
+        assert guardrail_monitor._run_ai_guard_check.call_args[0][0] == expected
+        assert data["metadata"]["ai_guard_messages"] == expected
+
+    def test_token_id_prompt_is_not_evaluated(self, guardrail_monitor):
+        guardrail_monitor.get_guardrail_dynamic_request_body_params = Mock(return_value={})
+        guardrail_monitor._run_ai_guard_check = AsyncMock()
+
+        data = {"model": "gpt-4o-mini", "prompt": [[1, 2, 3]], "metadata": {}}
+        result = asyncio.run(guardrail_monitor._on_request(data, "atext_completion"))
+
+        guardrail_monitor._run_ai_guard_check.assert_not_called()
+        assert result is data
+
+    def test_prompt_is_ignored_for_chat_call_types(self, guardrail_monitor):
+        guardrail_monitor.get_guardrail_dynamic_request_body_params = Mock(return_value={})
+        guardrail_monitor._run_ai_guard_check = AsyncMock()
+
+        data = {"model": "gpt-4o-mini", "prompt": "Say hi", "metadata": {}}
+        asyncio.run(guardrail_monitor._on_request(data, "acompletion"))
+
+        guardrail_monitor._run_ai_guard_check.assert_not_called()
+
+    def test_text_completion_response_is_evaluated(self, guardrail_monitor):
+        guardrail_monitor.get_guardrail_dynamic_request_body_params = Mock(return_value={})
+        guardrail_monitor._run_ai_guard_check = AsyncMock()
+
+        stored = [Message(role="user", content="Say hi")]
+        response = TextCompletionResponse(choices=[{"text": "Hi!", "index": 0}, {"text": "Hello!", "index": 1}])
+        asyncio.run(guardrail_monitor._on_response(make_request_data(metadata={"ai_guard_messages": stored}), response))
+
+        assert guardrail_monitor._run_ai_guard_check.call_args[0][0] == [
+            Message(role="user", content="Say hi"),
+            Message(role="assistant", content="Hi!"),
+            Message(role="assistant", content="Hello!"),
+        ]
+
+
+# ---------------------------------------------------------------------------
+# TestStreamingIteratorHook
+# ---------------------------------------------------------------------------
+
+
+async def _stream(items):
+    for item in items:
+        yield item
+
+
+def _chat_chunk(index=0, **delta):
+    return ModelResponseStream(choices=[StreamingChoices(index=index, delta=Delta(**delta))])
+
+
+def _text_chunk(text, index=0):
+    return TextCompletionResponse(choices=[{"text": text, "index": index}])
+
+
+async def _read_stream_hook(guardrail, chunks, request_data):
+    hook = guardrail.async_post_call_streaming_iterator_hook(
+        user_api_key_dict=Mock(), response=_stream(chunks), request_data=request_data
+    )
+    return [chunk async for chunk in hook]
+
+
+class TestStreamingIteratorHook:
+    """These tests cover async_post_call_streaming_iterator_hook."""
+
+    STORED = [Message(role="user", content="Hello")]
+
+    def _setup(self, guardrail):
+        guardrail.get_guardrail_dynamic_request_body_params = Mock(return_value={})
+        guardrail._run_ai_guard_check = AsyncMock()
+        return make_request_data(metadata={"ai_guard_messages": list(self.STORED)})
+
+    def test_chat_stream_is_evaluated_and_replayed_in_order(self, guardrail_monitor):
+        data = self._setup(guardrail_monitor)
+        chunks = [
+            _chat_chunk(role="assistant", content=""),
+            _chat_chunk(content="Hello"),
+            _chat_chunk(content=" there!"),
+            _chat_chunk(),
+        ]
+
+        replayed = asyncio.run(_read_stream_hook(guardrail_monitor, chunks, data))
+
+        assert len(replayed) == len(chunks)
+        assert all(a is b for a, b in zip(replayed, chunks))
+        assert guardrail_monitor._run_ai_guard_check.call_args[0][0] == self.STORED + [
+            Message(role="assistant", content="Hello there!")
+        ]
+
+    def test_chat_stream_tool_call_deltas(self, guardrail_monitor):
+        data = self._setup(guardrail_monitor)
+        chunks = [
+            _chat_chunk(
+                role="assistant",
+                tool_calls=[
+                    {
+                        "index": 0,
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "get_weather", "arguments": ""},
+                    }
+                ],
+            ),
+            _chat_chunk(tool_calls=[{"index": 0, "function": {"arguments": '{"city": '}}]),
+            _chat_chunk(tool_calls=[{"index": 0, "function": {"arguments": '"Paris"}'}}]),
+        ]
+
+        asyncio.run(_read_stream_hook(guardrail_monitor, chunks, data))
+
+        answer = guardrail_monitor._run_ai_guard_check.call_args[0][0][-1]
+        assert answer["role"] == "assistant"
+        assert answer["tool_calls"] == [
+            ToolCall(id="call_1", function=Function(name="get_weather", arguments='{"city": "Paris"}'))
+        ]
+
+    def test_chat_stream_with_several_choices(self, guardrail_monitor):
+        data = self._setup(guardrail_monitor)
+        chunks = [_chat_chunk(index=0, content="Option A"), _chat_chunk(index=1, content="Option B")]
+
+        asyncio.run(_read_stream_hook(guardrail_monitor, chunks, data))
+
+        assert guardrail_monitor._run_ai_guard_check.call_args[0][0][1:] == [
+            Message(role="assistant", content="Option A"),
+            Message(role="assistant", content="Option B"),
+        ]
+
+    def test_text_stream_is_evaluated_per_choice(self, guardrail_monitor):
+        data = self._setup(guardrail_monitor)
+        chunks = [_text_chunk("Good"), _text_chunk("Bon", index=1), _text_chunk(" day!"), _text_chunk("jour!", index=1)]
+
+        replayed = asyncio.run(_read_stream_hook(guardrail_monitor, chunks, data))
+
+        assert all(a is b for a, b in zip(replayed, chunks)) and len(replayed) == len(chunks)
+        assert guardrail_monitor._run_ai_guard_check.call_args[0][0] == self.STORED + [
+            Message(role="assistant", content="Good day!"),
+            Message(role="assistant", content="Bonjour!"),
+        ]
+
+    @pytest.mark.parametrize(
+        "events",
+        [
+            [b"event: message_start\n\n", b"event: content_block_delta\n\n", b"event: message_stop\n\n"],
+            [{"type": "message_start"}, {"type": "content_block_delta"}, {"type": "message_stop"}],
+            [SimpleNamespace(type="response.output_text.delta", delta=text) for text in ("Good", " day", "!")],
+        ],
+        ids=["sse-bytes", "dict-events", "responses-events"],
+    )
+    def test_other_streams_pass_through_live(self, guardrail_monitor, events):
+        data = self._setup(guardrail_monitor)
+        read = []
+
+        async def source():
+            for event in events:
+                read.append(event)
+                yield event
+
+        async def run():
+            hook = guardrail_monitor.async_post_call_streaming_iterator_hook(
+                user_api_key_dict=Mock(), response=source(), request_data=data
+            )
+
+            async def first_step():
+                first = await hook.__anext__()
+                return first, len(read), _READING_STREAM.get()
+
+            # The first step runs in another task. The proxy also reads the first chunk in another task.
+            first, read_before_first, reading_after_first = await asyncio.create_task(first_step())
+            return first, read_before_first, reading_after_first, [chunk async for chunk in hook]
+
+        first, read_before_first, reading_after_first, rest = asyncio.run(run())
+
+        assert first is events[0]
+        assert read_before_first == 1
+        assert reading_after_first is False
+        assert rest == events[1:]
+        guardrail_monitor._run_ai_guard_check.assert_not_called()
+
+    def test_empty_stream_is_not_evaluated(self, guardrail_monitor):
+        data = self._setup(guardrail_monitor)
+
+        assert asyncio.run(_read_stream_hook(guardrail_monitor, [], data)) == []
+        guardrail_monitor._run_ai_guard_check.assert_not_called()
+
+    @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+    def test_block_raises_before_the_first_chunk(self, mock_req, guardrail):
+        mock_req.return_value = mock_evaluate_response("DENY", reason="leak", block=True)
+        guardrail.get_guardrail_dynamic_request_body_params = Mock(return_value={})
+        data = make_request_data(metadata={"ai_guard_messages": list(self.STORED)})
+        replayed = []
+
+        async def read():
+            hook = guardrail.async_post_call_streaming_iterator_hook(
+                user_api_key_dict=Mock(), response=_stream([_chat_chunk(content="secret")]), request_data=data
+            )
+            async for chunk in hook:
+                replayed.append(chunk)
+
+        with pytest.raises(DatadogAIGuardGuardrailException) as exc_info:
+            asyncio.run(read())
+
+        assert exc_info.value.status_code == 403
+        assert replayed == []
+        mock_req.assert_called_once()
+
+    def test_rebuild_failure_fails_open(self, guardrail_monitor):
+        data = self._setup(guardrail_monitor)
+        chunks = [_chat_chunk(content="Hello")]
+
+        with patch(
+            "ddtrace.aiguard.integrations.litellm.reconstruct_openai_chat", side_effect=RuntimeError("bad chunk")
+        ):
+            replayed = asyncio.run(_read_stream_hook(guardrail_monitor, chunks, data))
+
+        assert replayed == chunks
+        guardrail_monitor._run_ai_guard_check.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TestProxyRequestClaim
+# ---------------------------------------------------------------------------
+
+
+def _proxy_request_data(messages=None):
+    # The LiteLLM proxy adds proxy_server_request to the data of each request before the pre-call hooks.
+    data = make_request_data(messages=[user_msg("Hello")] if messages is None else messages)
+    data["proxy_server_request"] = {"url": "http://proxy.test/chat/completions", "method": "POST", "body": {}}
+    return data
+
+
+async def _pre_call(guardrail, data, call_type="acompletion"):
+    return await guardrail.async_pre_call_hook(user_api_key_dict=Mock(), cache=Mock(), data=data, call_type=call_type)
+
+
+async def _post_call_success(guardrail, data):
+    response = make_model_response(choices=[make_choice(content="Hi!")])
+    return await guardrail.async_post_call_success_hook(data=data, user_api_key_dict=Mock(), response=response)
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+class TestProxyRequestClaim:
+    """In the proxy, the guardrail owns the evaluation of the request, so the provider listeners skip it."""
+
+    async def test_pre_call_claims_until_post_call_success(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = _proxy_request_data()
+
+        await _pre_call(guardrail_monitor, data)
+        assert is_aiguard_context_active()
+
+        async def model_call():
+            return is_aiguard_context_active()
+
+        # The proxy starts the model call with asyncio.gather, which copies the request context.
+        assert await asyncio.gather(model_call()) == [True]
+
+        await _post_call_success(guardrail_monitor, data)
+        assert not is_aiguard_context_active()
+        assert mock_req.call_count == 2
+
+    async def test_text_completion_pre_call_claims(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = _proxy_request_data(messages=[])
+        data["prompt"] = "Say hi"
+
+        await _pre_call(guardrail_monitor, data, call_type="atext_completion")
+
+        assert is_aiguard_context_active()
+        await guardrail_monitor.async_post_call_failure_hook(
+            request_data=data, original_exception=Exception(), user_api_key_dict=Mock()
+        )
+        assert not is_aiguard_context_active()
+
+    async def test_stream_end_releases_claim(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = _proxy_request_data()
+        await _pre_call(guardrail_monitor, data)
+        active_while_reading = []
+
+        async def model_stream():
+            for content in ("Good", " day"):
+                active_while_reading.append(is_aiguard_context_active())
+                yield _chat_chunk(content=content)
+
+        hook = guardrail_monitor.async_post_call_streaming_iterator_hook(
+            user_api_key_dict=Mock(), response=model_stream(), request_data=data
+        )
+        first = await hook.__anext__()
+
+        assert active_while_reading == [True, True]
+        assert not is_aiguard_context_active()
+        assert first.choices[0].delta.content == "Good"
+        assert len([chunk async for chunk in hook]) == 1
+
+    async def test_passthrough_stream_end_releases_claim(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = _proxy_request_data()
+        await _pre_call(guardrail_monitor, data)
+
+        hook = guardrail_monitor.async_post_call_streaming_iterator_hook(
+            user_api_key_dict=Mock(), response=_stream([b"event: one\n\n", b"event: two\n\n"]), request_data=data
+        )
+        assert await hook.__anext__() == b"event: one\n\n"
+        assert is_aiguard_context_active()
+        assert [chunk async for chunk in hook] == [b"event: two\n\n"]
+
+        assert not is_aiguard_context_active()
+        mock_req.assert_called_once()
+
+    async def test_closed_stream_releases_only_its_own_claim(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+
+        async def request_a():
+            data = _proxy_request_data()
+            await _pre_call(guardrail_monitor, data)
+            hook = guardrail_monitor.async_post_call_streaming_iterator_hook(
+                user_api_key_dict=Mock(), response=_stream([b"event: one\n\n", b"event: two\n\n"]), request_data=data
+            )
+            await hook.__anext__()
+            return hook, _REQUEST_CLAIM.get()
+
+        async def request_b(hook):
+            await _pre_call(guardrail_monitor, _proxy_request_data())
+            # The asyncio finalizer can close an abandoned stream in the context of another request.
+            await hook.aclose()
+            return _REQUEST_CLAIM.get(), is_aiguard_context_active()
+
+        hook, claim_a = await asyncio.create_task(request_a())
+        claim_b, b_active = await asyncio.create_task(request_b(hook))
+
+        assert claim_a is not None and claim_a.released
+        assert claim_b is not None and not claim_b.released
+        assert b_active
+
+    async def test_failure_hook_releases_claim_from_another_task(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = _proxy_request_data()
+        await _pre_call(guardrail_monitor, data)
+
+        # Some litellm versions run the failure hooks with asyncio.create_task. The hook accepts new arguments.
+        await asyncio.create_task(
+            guardrail_monitor.async_post_call_failure_hook(
+                request_data=data,
+                original_exception=Exception("provider error"),
+                user_api_key_dict=Mock(),
+                traceback_str=None,
+                error_type=None,
+            )
+        )
+
+        assert not is_aiguard_context_active()
+
+    async def test_no_claim_without_proxy_server_request(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+
+        await _pre_call(guardrail_monitor, make_request_data(messages=[user_msg("Hello")]))
+
+        mock_req.assert_called_once()
+        assert not is_aiguard_context_active()
+
+    async def test_no_claim_without_messages(self, mock_req, guardrail_monitor):
+        await _pre_call(guardrail_monitor, _proxy_request_data(messages=[]))
+
+        mock_req.assert_not_called()
+        assert not is_aiguard_context_active()
+
+    async def test_no_claim_in_moderation_hook(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+
+        await guardrail_monitor.async_moderation_hook(
+            data=_proxy_request_data(), user_api_key_dict=Mock(), call_type="acompletion"
+        )
+
+        mock_req.assert_called_once()
+        assert not is_aiguard_context_active()
+
+    async def test_no_claim_when_pre_call_blocks(self, mock_req, guardrail):
+        mock_req.return_value = mock_evaluate_response("DENY", block=True)
+
+        with pytest.raises(DatadogAIGuardGuardrailException):
+            await _pre_call(guardrail, _proxy_request_data())
+
+        assert not is_aiguard_context_active()
+
+    async def test_pre_call_does_not_claim_twice(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = _proxy_request_data()
+
+        await _pre_call(guardrail_monitor, data)
+        await _pre_call(guardrail_monitor, data)
+        await _post_call_success(guardrail_monitor, data)
+
+        assert not is_aiguard_context_active()
+
+    async def test_success_hook_on_the_full_stream_does_not_evaluate_again(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = _proxy_request_data()
+        await _pre_call(guardrail_monitor, data)
+        deferred = []
+
+        async def model_stream():
+            yield _chat_chunk(content="Hello")
+            # At the end of a stream, litellm 1.82 runs the post-call success hook in a new task.
+            deferred.append(asyncio.create_task(_post_call_success(guardrail_monitor, data)))
+
+        hook = guardrail_monitor.async_post_call_streaming_iterator_hook(
+            user_api_key_dict=Mock(), response=model_stream(), request_data=data
+        )
+        assert len([chunk async for chunk in hook]) == 1
+        assert await deferred[0] is None
+
+        # The guardrail evaluates one prompt and one answer.
+        assert mock_req.call_count == 2
+        assert not is_aiguard_context_active()

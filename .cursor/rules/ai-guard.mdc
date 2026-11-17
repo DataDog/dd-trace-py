@@ -231,23 +231,35 @@ logged at debug and ignored.
 
 ### 5. Double-scan avoidance (`_context.py`)
 
-A framework integration (LangChain, Strands) and a provider integration
-(OpenAI, Anthropic) can both fire for the same call. To avoid scanning twice,
-the framework claims the AI Guard context for its whole model call, and
-provider listeners short-circuit when `is_aiguard_context_active()` returns
-`True`. The framework evaluates both the request and the response itself:
+A framework integration (LangChain, Strands, the LiteLLM proxy guardrail) and a
+provider integration (OpenAI, Anthropic) can both fire for the same call. To
+avoid scanning twice, the framework claims the AI Guard context for its whole
+model call, and provider listeners short-circuit when `is_aiguard_context_active()`
+returns `True`. The framework evaluates both the request and the response itself:
 
 | Framework path | Claim held from / to |
 |----------------|----------------------|
 | LangChain `generate` / `agenerate` | `.before` to `.finally` |
 | LangChain `stream` / `astream` | iteration start to stream end (`.stream.started` / `.stream.finally`) |
 | Strands invocation | before-invocation to after-invocation |
+| LiteLLM proxy guardrail (`pre_call` mode) | pre-call check to the end of the request (post-call hook, end of the model stream, or failure hook) |
 
 A claim is a shared object released by the handle `set_aiguard_context_active`
 returns, so a release from another asyncio task is seen by the claiming task.
 Strands keeps the handle on `invocation_state`; a LangChain generate keeps it on
 its `_CallScope`, and a stream on the per-stream state the contrib passes to
 both stream events.
+
+The LiteLLM guardrail keeps the handle in a ContextVar of the request task. It claims only
+when the data has `proxy_server_request`. The proxy awaits the pre-call hook in the request
+task, and copies that context into the model call. The SDK `guardrails` argument runs
+the hook in the caller task, and a `during_call` hook runs beside the model call: they do not claim.
+With only the `pre_call` mode, no post-call hook releases the claim after a success. The claim
+then ends with the request task, and nothing evaluates the answer.
+In `post_call` mode, the guardrail reads all of a streamed chat or text answer and evaluates it
+before the proxy sends the first chunk. Other streams pass through live.
+`DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` does not change this.
+Some LiteLLM versions also run the post-call success hook on the full stream: the guardrail skips it.
 
 With `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` on, LangChain itself buffers
 `stream()` / `astream()`: every chunk is read, the response is evaluated, and
