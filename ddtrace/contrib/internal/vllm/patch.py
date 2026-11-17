@@ -22,6 +22,7 @@ from ddtrace.trace import tracer
 if TYPE_CHECKING:
     from vllm.v1.engine.output_processor import OutputProcessor
 
+from ._constants import ADD_REQUEST_DROPS_TRACE_HEADERS_VERSION
 from ._constants import ARG_POSITION_ADD_REQUEST_TRACE_HEADERS
 from ._constants import ARG_POSITION_LOG_STATS
 from ._constants import ARG_POSITION_TRACE_HEADERS
@@ -49,6 +50,18 @@ COMPONENT = "vllm"
 
 def _supported_versions() -> dict[str, str]:
     return {"vllm": ">=0.10.2"}
+
+
+def _vllm_at_least(minimum: str) -> bool:
+    from packaging.version import InvalidVersion
+    from packaging.version import parse as parse_version
+
+    try:
+        return parse_version(parse_version(getattr(vllm, "__version__", "0.0.0")).base_version) >= parse_version(
+            minimum
+        )
+    except InvalidVersion:
+        return False
 
 
 def _uses_input_processor() -> bool:
@@ -109,7 +122,13 @@ def traced_processor_process_inputs(func, instance, args, kwargs):
 
 
 async def traced_async_llm_add_request(func, instance, args, kwargs):
-    """Inject Datadog trace context into trace_headers before AsyncLLM preprocesses the request."""
+    """Inject Datadog trace context into trace_headers before AsyncLLM preprocesses the request.
+
+    Skipped on vLLM >= 0.33: it drops trace_headers here when no OTLP traces endpoint is set (and logs a warning),
+    and the process_inputs_async wrapper injects the context instead.
+    """
+    if _vllm_at_least(ADD_REQUEST_DROPS_TRACE_HEADERS_VERSION):
+        return await func(*args, **kwargs)
     args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_ADD_REQUEST_TRACE_HEADERS)
     return await func(*args, **kwargs)
 
