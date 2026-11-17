@@ -32,9 +32,10 @@ class _ActivityInboundInterceptor(temporalio.worker.ActivityInboundInterceptor):
 
     def _get_span(self, input: temporalio.worker.ExecuteActivityInput) -> Any:
         info = temporalio.activity.info()
+        parent_ctx = self.root.propagator.extract_headers(input.headers)
         return self.root._start_span(
             operation_name=OperationNames.RUN_ACTIVITY,
-            parent_ctx=self.root.propagator.extract_headers(input.headers),
+            parent_ctx=parent_ctx,
             resource_name=info.activity_type,
             activate=True,
             span_id=(
@@ -43,7 +44,7 @@ class _ActivityInboundInterceptor(temporalio.worker.ActivityInboundInterceptor):
                 else None
             ),
             attributes=self._get_activity_attributes(info),
-            parent_from_header=True,
+            parent_from_header=parent_ctx is not None and parent_ctx._is_remote,
         )
 
     @staticmethod

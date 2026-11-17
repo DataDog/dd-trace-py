@@ -28,6 +28,9 @@ from .propagator import _Propagator
 # non-passthrough modules into a per-instance module namespace; unsandboxed
 # workflow tasks capture their own context.
 _trace_disconnected: contextvars.ContextVar[bool] = contextvars.ContextVar("_trace_disconnected", default=False)
+# Run-ids whose handler requested trace disconnection. ContextVar writes from a
+# handler task do not reach continue_as_new in the run task; this shared set does.
+_disconnect_requested_runs: set[str] = set()
 
 # Live RunWorkflow span for the current execution, set before user code runs.
 # Never None — RunWorkflow is exempt from the replay guard in span_ctx.
@@ -149,7 +152,12 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
         if ctx is not None:
             return ctx
 
-        # Make RunWorkflow the parent
+        # Make RunWorkflow the parent.  Return the live Span (not a Context) so
+        # tracer.start_span() initializes _parent and local-root inheritance;
+        # a Context would make these spans local roots and TopLevelSpanProcessor
+        # would mark each one _dd.top_level=1.
+        if self._run_workflow_span is not None:
+            return self._run_workflow_span
         return self.recover_workflow_span()
 
     def recover_workflow_span(self) -> Any:
@@ -227,10 +235,15 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
         inside handler code lack ``dd.trace_id``/``dd.span_id``.
         """
         span = self._run_workflow_span
+        if span is None:
+            # Initial signals (signal-with-start, buffered) can fire before
+            # execute_workflow sets the span. Skip seeding so the handler falls
+            # back to recover_workflow_span() for parenting; the span genuinely
+            # does not exist yet for span_from_workflow_context().
+            yield
+            return
         token_span = _active_workflow_span.set(span)
-        token_info = _current_span_info.set(
-            (format_trace_id(span.trace_id), str(span.span_id)) if span is not None else None
-        )
+        token_info = _current_span_info.set((format_trace_id(span.trace_id), str(span.span_id)))
         try:
             yield
         finally:
@@ -290,7 +303,10 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
         self.root = root
 
     def continue_as_new(self, input: temporalio.worker.ContinueAsNewInput) -> NoReturn:
-        if not _trace_disconnected.get():
+        run_id = temporalio.workflow.info().run_id
+        disconnected = _trace_disconnected.get() or run_id in _disconnect_requested_runs
+        _disconnect_requested_runs.discard(run_id)
+        if not disconnected:
             span = self.root._run_workflow_span
             service = span.service if span is not None else None
             input.headers = self.root.propagator.inject_headers(
@@ -402,3 +418,10 @@ def disconnect_trace_span_from_workflow_context() -> None:
 
     """
     _trace_disconnected.set(True)
+    # Also record the run so continue_as_new — running in the run task, not the
+    # handler task that requested the disconnect — can observe the request.
+    # Span objects use __slots__, so the flag cannot live on the span itself.
+    try:
+        _disconnect_requested_runs.add(temporalio.workflow.info().run_id)
+    except Exception:
+        pass  # not called from workflow context; task-local flag still applies

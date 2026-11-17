@@ -6,8 +6,7 @@ description: Instruments Temporal workflow execution and activity dispatch acros
 packages:
 - name: temporalio
 category:
-- rpc.client
-- rpc.server
+- other
 systems:
 - temporal
 creation_date: '2026-09-17'

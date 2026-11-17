@@ -1,39 +1,21 @@
-"""Datadog tracing integration for the Temporal Python SDK.
+"""The temporal__ integration traces all workflows, activities, signals,
+queries, updates, child workflows, and Nexus operations executed with the
+``temporalio`` library.
 
-This package provides a Datadog (``ddtrace``) tracing interceptor for the
-Temporal Python SDK.
+Enabling
+~~~~~~~~
 
-Usage (manual)::
+The ``temporal`` integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-    from temporalio.client import Client
-    from ddtrace.contrib.temporal import DatadogTracingInterceptor
-
-    interceptor = DatadogTracingInterceptor(
-        service_name="my-service",
-        extra_tags={"deployment.environment": "prod"},
-    )
-    client = await Client.connect("localhost:7233", interceptors=[interceptor])
-
-Or enable automatically via :func:`ddtrace.patch` (auto-injects a default
-interceptor into every ``Client`` and allows the ``ddtrace`` namespace through
-the Temporal workflow sandbox so workflow code can call
-``span_from_workflow_context``)::
+Alternatively, use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(temporal=True)
 
-``patch(logging=True)`` is recommended separately to opt in to ``dd.trace_id``
-log injection.
+    # use temporalio like usual
 
-Environment settings:
-
-- ``DD_TRACE_TEMPORAL_ENABLED`` — set to ``false`` to disable the
-  integration (default: ``true``).
-- ``DD_TEMPORAL_SERVICE`` / ``DD_TEMPORAL_SERVICE_NAME`` — override the
-  service name on all Temporal spans. When unset, the service falls back to
-  the global ``DD_SERVICE``.
-
-Workflow code can tag the ``RunWorkflow`` span, or detach the next
+Workflow code can tag the ``RunWorkflow`` span or detach the next
 ``continue_as_new`` run from the current trace::
 
     from ddtrace.contrib.temporal import disconnect_trace_span_from_workflow_context
@@ -45,6 +27,25 @@ Workflow code can tag the ``RunWorkflow`` span, or detach the next
 
     disconnect_trace_span_from_workflow_context()
     workflow.continue_as_new(...)
+
+
+Configuration
+~~~~~~~~~~~~~
+
+Use the following environment variables to configure the integration:
+
+``DD_TRACE_TEMPORAL_ENABLED``
+   Whether to enable the integration. Defaults to ``True``.
+
+``DD_TEMPORAL_SERVICE`` / ``DD_TEMPORAL_SERVICE_NAME``
+   The service name for ``temporal`` spans. By default, spans inherit the
+   service name from their parent span or the global ``DD_SERVICE``.
+
+Worker-side spans (``RunWorkflow``, ``RunActivity``, handlers) are always
+kept: the client's sampling decision does not apply to the worker because
+the two may run with different sampling rules.
+
+.. __: https://github.com/temporalio/sdk-python
 """
 
 from .interceptor import DatadogTracingInterceptor

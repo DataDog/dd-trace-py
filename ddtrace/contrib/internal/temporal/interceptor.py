@@ -124,9 +124,14 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
             span.context.span_id = span_id
         if activate:
             tracer.context_provider.activate(span)
-        force_keep = parent_ctx is None or parent_from_header
-        self._annotator.annotate(span, operation_name, attributes, self.propagator.get_baggage(parent_ctx), force_keep)
-        self.propagator.set_baggage(span.context)
+        # A Span parent is a same-process (local) parent: it should not
+        # force_keep (which would overwrite the local sampling decision) and
+        # the annotator reads the parent service from its context, not the span.
+        is_local_span_parent = isinstance(parent_ctx, Span)
+        force_keep = parent_ctx is None or (parent_from_header and not is_local_span_parent)
+        baggage_ctx = parent_ctx.context if is_local_span_parent else parent_ctx
+        self._annotator.annotate(span, operation_name, attributes, self.propagator.get_baggage(baggage_ctx), force_keep)
+        self.propagator.set_baggage(span.context, span.service)
         return span
 
     def _finish_span(
@@ -257,7 +262,14 @@ def _register_sandbox_passthrough() -> None:
     global _passthrough_registered
     if _passthrough_registered:
         return
-    from temporalio.worker.workflow_sandbox._restrictions import SandboxRestrictions
+    try:
+        from temporalio.worker.workflow_sandbox._restrictions import SandboxRestrictions
 
-    SandboxRestrictions.passthrough_modules_default.update(_SANDBOX_PASSTHROUGH_MODULES)
+        SandboxRestrictions.passthrough_modules_default.update(_SANDBOX_PASSTHROUGH_MODULES)
+    except (ImportError, AttributeError):
+        log.warning(
+            "Could not register ddtrace as a Temporal sandbox passthrough module; "
+            "span_from_workflow_context() will not work from workflow code",
+            exc_info=True,
+        )
     _passthrough_registered = True
