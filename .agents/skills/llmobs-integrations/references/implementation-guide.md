@@ -244,16 +244,16 @@ customize the two hooks below instead of stamping kind at finish time.
 
 **`_llmobs_span_kind(self, operation_id, span, **kwargs) -> Optional[str]`**
 
-Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI, `interface_type="agent"` for Bedrock). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
+Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI and Bedrock agents). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
 
 **`_llmobs_agent_name_at_start(self, span, **kwargs) -> Optional[str]`**
 
 Return the agent's LLMObs display name when it can be determined at `trace()` call time. Return `None` to fall back to the span resource name. Override when the integration can resolve the name from kwargs (e.g. Google ADK passes `_dd_agent=<agent_instance>` and the integration reads `agent.name`).
 
-If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph),
-`_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. Stamp the name directly
-in the integration's `trace()` override after calling `super().trace()` and before returning
-the span. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
+For subscriber-based integrations, the shared SPAN_STARTED subscriber does not pass the event's
+instance to `_llmobs_agent_name_at_start`. When the name comes from the instance (e.g. LangGraph's
+graph name), stamp it in `_on_request_span_started()`, which receives the instance and runs before
+children start. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
 `ddtrace/llmobs/_integrations/google_adk.py` when the instance is available to the agent-name hook.
 
 ## Hosted voice conversations: ElevenLabs Agents

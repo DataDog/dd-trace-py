@@ -7,12 +7,12 @@ from typing import cast
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib.internal.botocore.services._bedrock_models import parse_model_id
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input
