@@ -67,3 +67,13 @@ def test_get_covered_files_normalizes_windows_separators() -> None:
         mock.patch("ddtrace.testing.internal.tracer_api.coverage.Path", PureWindowsPath),
     ):
         assert list(data.get_covered_files(root)) == ["/tests/test_example.py"]
+
+
+def test_get_covered_files_maps_aliases_before_the_repository() -> None:
+    data = CoverageData()
+    installed = "/repo/.cache/venv/lib/python3.12/site-packages/ddtrace"
+    data._covered_file_paths = [f"{installed}/contrib/valkey.py", "/repo/tests/test_valkey.py", "/outside/module.py"]
+    assert set(data.get_covered_files(Path("/repo"), [(Path(installed), "ddtrace")])) == {
+        "/ddtrace/contrib/valkey.py",
+        "/tests/test_valkey.py",
+    }

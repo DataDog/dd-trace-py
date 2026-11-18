@@ -336,6 +336,9 @@ class Git:
             return None
         return set(filter(None, (changed.stdout + untracked.stdout).split("\0")))
 
+    def is_tracked(self, path: str) -> bool:
+        return self._call_git(["ls-files", "--error-unmatch", "--", path]).return_code == 0
+
     def is_tia_worktree_clean(self) -> bool:
         result = self._call_git(["status", "--porcelain", "-z", "--untracked-files=normal"])
         return result.return_code == 0 and not result.stdout

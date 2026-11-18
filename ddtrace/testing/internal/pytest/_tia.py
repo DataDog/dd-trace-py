@@ -14,6 +14,7 @@ import typing as t
 
 import pytest
 
+import ddtrace
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.api_client import APIClient
@@ -84,6 +85,18 @@ def _document(graph: Graph) -> dict[str, t.Any]:
     }
 
 
+def _installed_source_aliases(root: Path, git: Git) -> tuple[tuple[Path, str], ...]:
+    """Trace an installed ddtrace back to the repository when the repository is dd-trace-py itself.
+
+    dd-trace-py tests its built wheel in CI: ddtrace is imported from site-packages, which coverage and TIA otherwise
+    ignore as third-party code, and the checkout's ddtrace/ is removed so that it cannot shadow the wheel.
+    """
+    installed = Path(ddtrace.__file__).resolve().parent
+    if to_repo_rel(installed / "__init__.py", root) is not None or not git.is_tracked("ddtrace/__init__.py"):
+        return ()
+    return ((installed, "ddtrace"),)
+
+
 class TIAPlugin:
     def __init__(
         self,
@@ -101,6 +114,7 @@ class TIAPlugin:
             raise ValueError("TIA requires a Git repository")
         self.root = Path(workspace).resolve()
         self.git = Git(cwd=str(self.root))
+        self.aliases = _installed_source_aliases(self.root, self.git)
         self.hash = configuration_hash(config, self.root, configurations)
         repository_id = _filter_sensitive_info(repository_url or self.git.get_repository_url())
         if not repository_id:
@@ -152,7 +166,11 @@ class TIAPlugin:
         self._import_module_wrapper: t.Optional[t.Callable[..., ModuleType]] = None
         config.add_cleanup(self.close)
         if self._owns_coverage:
-            install_coverage(self.root, file_level_coverage=is_file_level_coverage_enabled())
+            install_coverage(
+                self.root,
+                file_level_coverage=is_file_level_coverage_enabled(),
+                extra_include_paths=[source for source, _ in self.aliases],
+            )
         if not is_coverage_installed():
             raise ValueError("TIA requires dd-coverage collection")
         self.monitor.activate()
@@ -163,11 +181,11 @@ class TIAPlugin:
                 return module
             try:
                 filename = getattr(module, "__file__", None)
-                if isinstance(filename, str) and to_repo_rel(filename, self.root) is not None:
+                if isinstance(filename, str) and to_repo_rel(filename, self.root, self.aliases) is not None:
                     # Cached dynamic imports execute neither module code nor an import bytecode.
                     path = Path(filename)
                     if self.monitor.phase == "test" and self.monitor.current_nodeid is not None:
-                        files = coverage_for_files([path]).get_covered_files(self.root)
+                        files = coverage_for_files([path]).get_covered_files(self.root, self.aliases)
                         self._test_deps.setdefault(self.monitor.current_nodeid, set()).update(
                             file.lstrip("/") for file in files
                         )
@@ -186,7 +204,7 @@ class TIAPlugin:
         files = set()
         for module in list(sys.modules.values()):
             filename = getattr(module, "__file__", None)
-            if isinstance(filename, str) and (relative := to_repo_rel(filename, self.root)) is not None:
+            if isinstance(filename, str) and (relative := to_repo_rel(filename, self.root, self.aliases)) is not None:
                 files.add(relative)
         return files
 
@@ -203,12 +221,14 @@ class TIAPlugin:
 
     def record_coverage(self, item: pytest.Item, coverage: CoverageData) -> None:
         try:
-            files = {path.lstrip("/") for path in coverage.get_covered_files(self.root)}
+            files = {path.lstrip("/") for path in coverage.get_covered_files(self.root, self.aliases)}
             if not files:
                 self.always.add(item.nodeid)
             files.update(
                 path.lstrip("/")
-                for path in coverage_for_files([self.root / self.items[item.nodeid]]).get_covered_files(self.root)
+                for path in coverage_for_files([self.root / self.items[item.nodeid]]).get_covered_files(
+                    self.root, self.aliases
+                )
             )
             self._test_deps.setdefault(item.nodeid, set()).update(files)
         except Exception:
@@ -222,7 +242,7 @@ class TIAPlugin:
     @pytest.hookimpl(trylast=True)
     def pytest_collection_modifyitems(self, config: pytest.Config, items: list[pytest.Item]) -> None:
         for item in items:
-            rel = to_repo_rel(_test_file(item), self.root)
+            rel = to_repo_rel(_test_file(item), self.root, self.aliases)
             if rel is None:
                 self.recording_failed = True
                 return
@@ -302,17 +322,21 @@ class TIAPlugin:
             shared.update(self._loaded_files())
         # Pytest also uses import_module to load test modules; their roots remain per-test.
         test_files = set(self.items.values())
-        shared_roots = {path for path in self._shared_roots if to_repo_rel(str(path), self.root) not in test_files}
+        shared_roots = {
+            path for path in self._shared_roots if to_repo_rel(str(path), self.root, self.aliases) not in test_files
+        }
         for plugin in session.config.pluginmanager.get_plugins():
             filename = getattr(plugin, "__file__", None)
             if isinstance(filename, str):
-                rel = to_repo_rel(filename, self.root)
+                rel = to_repo_rel(filename, self.root, self.aliases)
                 if rel:
                     # pytest_plugins strings do not create import edges from conftest files.
                     shared_roots.add(Path(filename))
-        shared.update(path.lstrip("/") for path in coverage_for_files(shared_roots).get_covered_files(self.root))
+        shared.update(
+            path.lstrip("/") for path in coverage_for_files(shared_roots).get_covered_files(self.root, self.aliases)
+        )
         if session.config.inipath:
-            rel = to_repo_rel(session.config.inipath, self.root)
+            rel = to_repo_rel(session.config.inipath, self.root, self.aliases)
             if rel:
                 shared.add(rel)
         for nodeid in self.selected:

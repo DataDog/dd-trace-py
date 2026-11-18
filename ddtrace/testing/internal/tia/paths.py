@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
+import typing as t
 
 
 # Path segments that never hold first-party repository code: virtual
@@ -24,7 +26,7 @@ _EXCLUDED_SEGMENTS = frozenset(
 )
 
 
-def _compute_repo_rel(filename: str, root: Path) -> str | None:
+def _compute_repo_rel(filename: str, root: Path, aliases: t.Sequence[tuple[Path, str]] = ()) -> str | None:
     """Uncached core of :func:`to_repo_rel`."""
     try:
         p = Path(filename)
@@ -36,6 +38,11 @@ def _compute_repo_rel(filename: str, root: Path) -> str | None:
         # can be dependencies.
         if not p.is_file():
             return None
+        for source, prefix in aliases:
+            try:
+                return (PurePosixPath(prefix) / p.relative_to(source).as_posix()).as_posix()
+            except ValueError:
+                continue
         rel = p.relative_to(root)
     except (OSError, ValueError, RuntimeError):
         return None
@@ -47,12 +54,18 @@ def _compute_repo_rel(filename: str, root: Path) -> str | None:
     return rel.as_posix()
 
 
-def to_repo_rel(filename: str | os.PathLike[str] | None, root: Path) -> str | None:
+def to_repo_rel(
+    filename: str | os.PathLike[str] | None, root: Path, aliases: t.Sequence[tuple[Path, str]] = ()
+) -> str | None:
     """Normalize a filename to a repo-root-relative POSIX path.
 
     Returns None for synthetic locations (`<string>`, `<frozen ...>`),
     non-strings, paths outside the repository, and paths inside virtual
     environments / site-packages / similar third-party trees.
+
+    Each alias maps a resolved directory, such as an installed package, to the
+    repo-relative path its files come from. Aliases are checked first and are
+    exempt from the third-party exclusions.
 
     Deliberately a pure function with no module-level cache: the monitor
     memoizes per instance (see ImportMonitor.repo_rel), so concurrent or
@@ -67,4 +80,4 @@ def to_repo_rel(filename: str | os.PathLike[str] | None, root: Path) -> str | No
             return None
     if not isinstance(filename, str) or not filename or filename.startswith("<"):
         return None
-    return _compute_repo_rel(filename, root)
+    return _compute_repo_rel(filename, root, aliases)

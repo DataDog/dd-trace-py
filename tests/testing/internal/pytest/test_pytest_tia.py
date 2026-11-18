@@ -46,6 +46,7 @@ def tia_backend(pytester, monkeypatch):
     git.get_commit_sha.return_value = SHA
     git.get_tia_changed_files.return_value = set()
     git.is_tia_worktree_clean.return_value = True
+    git.is_tracked.return_value = False
     with (
         patch("ddtrace.testing.internal.pytest._tia.Git", return_value=git),
         patch("ddtrace.testing.internal.session_manager.APIClient", return_value=client),
