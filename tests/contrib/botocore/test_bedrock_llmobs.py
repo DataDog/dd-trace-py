@@ -5,6 +5,7 @@ from unittest.mock import patch as mock_patch
 import pytest
 
 from ddtrace.contrib.internal.bedrock_inference_profiles import _clear_inference_profile_cache
+from ddtrace.contrib.internal.botocore.services.bedrock import _extract_streamed_response_metadata
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -210,6 +211,20 @@ class TestLLMObsBedrock:
         assert metrics["input_tokens"] == 4
         assert metrics["output_tokens"] == 20
         assert metrics["total_tokens"] == 24
+
+    @pytest.mark.parametrize("stream_metadata", [None, "unexpected", {"usage": None}])
+    def test_llmobs_invoke_stream_non_dict_metadata_keeps_invocation_metrics(self, stream_metadata):
+        request = {"model_provider": "amazon"}
+        streamed_body = [
+            {
+                "amazon-bedrock-invocationMetrics": {"inputTokenCount": 3, "outputTokenCount": 5},
+                "metadata": stream_metadata,
+            }
+        ]
+        result = _extract_streamed_response_metadata(request, streamed_body)
+        assert result["usage.prompt_tokens"] == 3
+        assert result["usage.completion_tokens"] == 5
+        assert request["usage"] == {"input_tokens": 3, "output_tokens": 5}
 
     def test_llmobs_anthropic_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(

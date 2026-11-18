@@ -388,7 +388,10 @@ def _extract_streamed_response_metadata(request: dict[str, Any], streamed_body: 
         pass  # ai21 does not support streamed responses
     elif provider in [_AMAZON, _ANTHROPIC, _COHERE, _META] and streamed_body:
         metadata = streamed_body[-1].get("amazon-bedrock-invocationMetrics", {})
-        usage = streamed_body[-1].get("metadata", {}).get("usage", {})
+        # The final chunk can carry "metadata": null, so treat a non-dict value as absent.
+        stream_metadata = streamed_body[-1].get("metadata")
+        if isinstance(stream_metadata, dict) and isinstance(stream_metadata.get("usage"), dict):
+            usage = stream_metadata["usage"]
     elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
