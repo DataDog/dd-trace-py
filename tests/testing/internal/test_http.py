@@ -1183,6 +1183,33 @@ class TestBackendConnectorSetup:
         connector = connector_setup.get_connector_for_subdomain(Subdomain.LOGS)
         assert connector.default_headers["dd-api-key"] == "internal-key"
 
+    def test_detect_setup_reads_internal_site(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """detect_setup (internal path) must prefer _CI_DD_SITE over DD_SITE."""
+        _set_environ(
+            monkeypatch,
+            {
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
+                "_CI_DD_API_KEY": "internal-key",
+                "_CI_DD_SITE": "datad0g.com",
+                "DD_SITE": "datadoghq.com",
+            },
+        )
+
+        connector_setup = BackendConnectorSetup.detect_setup()
+        assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
+        assert connector_setup.site == "datad0g.com"
+
+    def test_detect_standard_setup_ignores_internal_site(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """detect_standard_setup must not read _CI_DD_SITE."""
+        _set_environ(
+            monkeypatch,
+            {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "public-key", "_CI_DD_SITE": "datad0g.com"},
+        )
+
+        connector_setup = BackendConnectorSetup.detect_standard_setup()
+        assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
+        assert connector_setup.site == "datadoghq.com"
+
     def test_detect_setup_still_reads_internal_agent_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """detect_setup (internal path) must still honour _CI_DD_AGENT_URL."""
         _set_environ(monkeypatch, {"_CI_DD_AGENT_URL": "http://internal-agent:8126"})
