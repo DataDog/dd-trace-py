@@ -15,12 +15,12 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs.types import _SpanLink
-from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
@@ -46,14 +46,14 @@ ALLOWED_MODEL_SETTINGS_KEYS = [
 
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
-    _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[Span, dict[str, Any]] = WeakKeyDictionary()
+    _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[_LLMObsSpan, dict[str, Any]] = WeakKeyDictionary()
     _agent_manifests: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
-    _graph_spans_to_graph_instances: WeakKeyDictionary[Span, Any] = WeakKeyDictionary()
+    _graph_spans_to_graph_instances: WeakKeyDictionary[_LLMObsSpan, Any] = WeakKeyDictionary()
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: LangGraph spans carry no provider or model tags."""
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         # Graph spans are agents, known at start for agent attribution.
         if kwargs.get("operation") == "graph":
             return "agent"
@@ -61,7 +61,7 @@ class LangGraphIntegration(BaseLLMIntegration):
 
     def _on_request_span_started(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         instance: Any = None,
         operation: str = "",
         request_kwargs: Optional[dict[str, Any]] = None,
@@ -79,7 +79,7 @@ class LangGraphIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -154,7 +154,7 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         return agent_manifest
 
-    def _get_node_metadata_from_span(self, span: Span, instance_id: str) -> dict[str, Any]:
+    def _get_node_metadata_from_span(self, span: _LLMObsSpan, instance_id: str) -> dict[str, Any]:
         """
         Get the node metadata for a given span and its node instance id.
         Additionally, set the span and trace ids on its metadata should another node in a later
@@ -230,7 +230,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         except Exception as e:
             logger.debug("Error in LangGraph span linking operation", exc_info=e)
 
-    def _handle_finished_graph(self, graph_span: Span, finished_tasks: dict[str, Any], is_subgraph_node: bool):
+    def _handle_finished_graph(self, graph_span: _LLMObsSpan, finished_tasks: dict[str, Any], is_subgraph_node: bool):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
         Generate the output-to-output span links for the last nodes in a pregel graph.
         If the graph isn't a subgraph, add a span link from the graph span to the calling LLMObs parent span.
@@ -261,7 +261,7 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         return
 
-    def _handle_intermediary_graph_tick(self, graph_span: Span, next_tasks: dict, finished_tasks: dict):
+    def _handle_intermediary_graph_tick(self, graph_span: _LLMObsSpan, next_tasks: dict, finished_tasks: dict):
         """
         Handle graph ticks that aren't at the end of the graph execution. Link all next tasks to their trigger tasks
         from the dict of finished tasks. Any finished tasks that do not trigger any queued tasks should be
@@ -285,7 +285,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         self,
         task,
         queued_node,
-        graph_span: Span,
+        graph_span: _LLMObsSpan,
         task_trigger_channels_to_finished_tasks: dict[str, list[Union[str, tuple[str, str]]]],
     ) -> list[str]:
         """
@@ -314,7 +314,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         return trigger_ids
 
     def _link_standalone_terminal_tasks(
-        self, graph_span: Span, finished_tasks: dict[str, Any], used_finished_tasks_ids: set[str]
+        self, graph_span: _LLMObsSpan, finished_tasks: dict[str, Any], used_finished_tasks_ids: set[str]
     ):
         """
         Default handler that links any finished tasks not used as triggers for queued tasks to the outer graph span.
@@ -546,7 +546,7 @@ def _append_finished_task_to_channel_writes_map(
         tasks_for_trigger.append(finished_task_id)
 
 
-def _default_span_link(span: Span) -> _SpanLink:
+def _default_span_link(span: _LLMObsSpan) -> _SpanLink:
     """
     Create a default input-to-input span link for a given span, if there are no
     referenced spans that represent the causal link. In this case, we assume

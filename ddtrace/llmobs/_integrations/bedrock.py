@@ -31,7 +31,6 @@ from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -40,16 +39,16 @@ log = get_logger(__name__)
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the botocore integration sets the Bedrock model tags."""
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         # operation="agent" is set only by the top-level Bedrock agent request.
         return "agent" if kwargs.get("operation") == "agent" else None
 
     def _on_request_span_started(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         instance: Any = None,
         operation: str = "",
         request_kwargs: Optional[dict[str, Any]] = None,
@@ -62,7 +61,7 @@ class BedrockIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -75,7 +74,7 @@ class BedrockIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
