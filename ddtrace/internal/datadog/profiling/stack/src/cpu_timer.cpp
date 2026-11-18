@@ -463,6 +463,24 @@ adopt_postfork_altstack(OwnedAltStack& altstack)
     return true;
 }
 
+// Whether the live state that a registration on the current thread will replace installed the alt stack
+// this thread is using. The replacement then takes over that stack instead of mistaking it for an
+// application-owned one. On CPython 3.13+, the child registers the forking thread natively and again from
+// threading._after_fork().
+bool
+live_state_owns_current_altstack(uint64_t python_thread_id, pid_t current_tid)
+{
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    const auto it = g_state.live_by_thread_id.find(python_thread_id);
+    if (it == g_state.live_by_thread_id.end() || it->second->native_tid != static_cast<uint64_t>(current_tid)) {
+        return false;
+    }
+    const OwnedAltStack& altstack = it->second->altstack;
+    stack_t current{};
+    return altstack.installed && sigaltstack(nullptr, &current) == 0 && !(current.ss_flags & SS_DISABLE) &&
+           current.ss_sp == altstack.stack_sp && current.ss_size == altstack.stack_size;
+}
+
 bool
 install_current_thread_altstack(OwnedAltStack& altstack)
 {
@@ -1345,7 +1363,8 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
       reinterpret_cast<PyThreadState*>(static_cast<uintptr_t>(1)); // NOLINT(performance-no-int-to-ptr)
     state->tstate = g_state.fault_injection_enabled.load(std::memory_order_acquire) ? fault_injection_tstate : tstate;
 
-    if (current_thread && !adopt_postfork_altstack(state->altstack) &&
+    const bool take_live_altstack = current_thread && live_state_owns_current_altstack(python_thread_id, current_tid);
+    if (current_thread && !take_live_altstack && !adopt_postfork_altstack(state->altstack) &&
         !install_current_thread_altstack(state->altstack)) {
         return;
     }
@@ -1373,6 +1392,11 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
         if (existing != g_state.live_by_thread_id.end()) {
             auto old = std::move(existing->second);
             const bool old_current_thread = current_tid == static_cast<pid_t>(old->native_tid);
+            if (take_live_altstack && old_current_thread) {
+                // Retiring the old state must not disable or unmap the stack the new state now owns.
+                state_ptr->altstack = old->altstack;
+                old->altstack = OwnedAltStack{};
+            }
             g_state.live_by_thread_id.erase(existing);
             retire_state_locked(std::move(old), old_current_thread);
         }

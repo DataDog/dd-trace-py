@@ -743,6 +743,64 @@ def test_cpu_timer_postfork_child_reinitializes_without_stale_altstack():
 
 @pytest.mark.subprocess(
     env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_reregister_current_thread",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_reregister_current_thread_keeps_its_altstack():
+    # A thread that registers itself again must keep the CPU-timer alt stack it already installed.
+    # CPython 3.13+ does this to the forking thread in the child, from threading._after_fork().
+    import faulthandler
+    import os
+    import signal
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    def burn_cpu(duration_ns):
+        deadline = time.thread_time_ns() + duration_ns
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    # faulthandler installs its handler with SA_ONSTACK, so it runs on the current alt stack.
+    faulthandler.register(signal.SIGUSR1, file=open(os.devnull, "w"))
+
+    p = profiler.Profiler()
+    p.start()
+    result = {}
+
+    def reregister():
+        assert burn_cpu(50_000_000) > 0
+        result["before"] = stack._cpu_timer_debug_stats()
+        stack.register_thread(threading.get_ident(), threading.get_native_id(), "renamed")
+        # This would run on unmapped memory if the replaced state had released the stack.
+        signal.raise_signal(signal.SIGUSR1)
+        assert burn_cpu(50_000_000) > 0
+        result["after"] = stack._cpu_timer_debug_stats()
+
+    thread = threading.Thread(target=reregister)
+    thread.start()
+    thread.join()
+    p.stop()
+
+    before, after = result["before"], result["after"]
+    assert after["active"] is True, after
+    assert after["live_count"] == before["live_count"], (before, after)
+    assert after["app_altstack_present"] == before["app_altstack_present"], (before, after)
+    assert after["reused_altstack_count"] == before["reused_altstack_count"], (before, after)
+    assert after["leaked_altstack_count"] == 0, after
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_postfork_worker",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
