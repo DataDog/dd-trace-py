@@ -1126,6 +1126,154 @@ def test_shutdown_from_another_thread_cancels_a_start_in_progress(cdn, api_key, 
         later.shutdown()
 
 
+def _hold_source_creation(monkeypatch, resume):
+    """Make each start wait for ``resume`` before it builds its source, and return an event set when one waits."""
+    import ddtrace.internal.openfeature._source_selection as source_selection
+
+    create = source_selection.create_agentless_source
+    holding = threading.Event()
+
+    def held_create(*args, **kwargs):
+        holding.set()
+        resume.wait(timeout=5)
+        return create(*args, **kwargs)
+
+    monkeypatch.setattr(source_selection, "create_agentless_source", held_create)
+    return holding
+
+
+def test_concurrent_initialize_reports_ready_only_on_the_new_selection(cdn, api_key, monkeypatch):
+    cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
+    first = _provider({"tags": ["a"]})
+    first.initialize(EvaluationContext())
+    first.shutdown()
+
+    cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-b"))
+    provider = _provider({"tags": ["b"]})
+    resume = threading.Event()
+    holding = _hold_source_creation(monkeypatch, resume)
+    starting = threading.Thread(target=provider.initialize, args=(EvaluationContext(),))
+    starting.start()
+    try:
+        assert holding.wait(timeout=5)
+        # The second initialization must wait for the first to claim B, not pass on A's snapshot.
+        threading.Timer(0.2, resume.set).start()
+        provider.initialize(EvaluationContext())
+        assert provider._status == ProviderStatus.READY
+        assert provider.resolve_boolean_details("selected-b", False).value is True
+    finally:
+        resume.set()
+        starting.join(timeout=5)
+        provider.shutdown()
+
+
+def test_initialize_after_a_cancelled_start_ends_with_a_poller(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]}, timeout=1.0)
+    later = _provider({"tags": ["b"]})
+    resume = threading.Event()
+    holding = _hold_source_creation(monkeypatch, resume)
+    outcomes = {}
+
+    def initialize(name):
+        try:
+            provider.initialize(EvaluationContext())
+            outcomes[name] = provider._status
+        except ProviderNotReadyError:
+            outcomes[name] = "cancelled"
+
+    cancelled = threading.Thread(target=initialize, args=("cancelled",))
+    cancelled.start()
+    reinitializing = None
+    try:
+        assert holding.wait(timeout=5)
+        provider.shutdown()
+        reinitializing = threading.Thread(target=initialize, args=("reinitialized",))
+        reinitializing.start()
+        threading.Event().wait(0.1)
+        resume.set()
+        cancelled.join(timeout=5)
+        reinitializing.join(timeout=5)
+        assert outcomes == {"cancelled": "cancelled", "reinitialized": ProviderStatus.READY}
+        assert provider._configuration_source is not None
+
+        provider.shutdown()
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        resume.set()
+        cancelled.join(timeout=5)
+        if reinitializing is not None:
+            reinitializing.join(timeout=5)
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_failed_teardown_of_a_cancelled_start_keeps_the_claim_for_the_next_shutdown(cdn, api_key, monkeypatch):
+    import ddtrace.internal.openfeature._source_selection as source_selection
+
+    provider = _provider({"tags": ["a"]})
+    later = _provider({"tags": ["b"]})
+    create = source_selection.create_agentless_source
+    started = threading.Event()
+    resume = threading.Event()
+    sources = []
+
+    def create_with_a_held_start(*args, **kwargs):
+        source = create(*args, **kwargs)
+        if sources:
+            return source
+        sources.append(source)
+        start, join = source.start, source.join
+        failures = [RuntimeError("join failed")]
+
+        def held_start():
+            start()
+            started.set()
+            resume.wait(timeout=5)
+
+        def join_failing_once(*join_args, **join_kwargs):
+            if failures:
+                raise failures.pop()
+            return join(*join_args, **join_kwargs)
+
+        source.start = held_start
+        source.join = join_failing_once
+        return source
+
+    monkeypatch.setattr(source_selection, "create_agentless_source", create_with_a_held_start)
+    errors = []
+
+    def initialize():
+        try:
+            provider.initialize(EvaluationContext())
+        except RuntimeError as error:
+            errors.append(error)
+
+    starting = threading.Thread(target=initialize)
+    starting.start()
+    try:
+        assert started.wait(timeout=5)
+        provider.shutdown()
+        resume.set()
+        starting.join(timeout=5)
+        assert len(errors) == 1
+        [source] = sources
+        assert provider._configuration_source is source
+        other = canonicalize_flag_selection({"tags": ["b"]})
+        assert claim_process_selection(other).tags == ("a",)
+        _flag_selection.release_process_selection()
+
+        provider.shutdown()
+        assert provider._configuration_source is None
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        resume.set()
+        starting.join(timeout=5)
+        provider.shutdown()
+        later.shutdown()
+
+
 def test_forked_child_drops_a_start_reservation_from_the_parent():
     import ddtrace.internal.openfeature._provider as provider_module
 
