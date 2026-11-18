@@ -204,25 +204,36 @@ def release_process_selection() -> None:
 
 
 def snapshot_from_other_selection() -> bool:
-    """Whether the shared snapshot was loaded under a selection other than the one claimed now.
+    """Whether the shared snapshot has other flags than the selection claimed now would load.
 
-    True only after a claim was released and replaced by a different one, until the new
-    selection's first configuration is applied.
+    True only after a claim was released and replaced by one that loads other flags, until the new
+    selection's first configuration is applied. A dropped selection and no selection both load every flag.
     """
     with _lock:
-        return _claim_count > 0 and _loaded is not None and _loaded != _claimed
+        claimed = NO_SELECTION if _dropped_reason is not None else _claimed
+        return _claim_count > 0 and _loaded is not None and _loaded != claimed
 
 
 def recording_loaded_selection(
-    apply_configuration: typing.Callable[[typing.Any], None], selection: FlagSelection
+    apply_configuration: typing.Callable[[typing.Any], None],
+    selection: FlagSelection,
+    notify_providers: typing.Callable[[], None],
 ) -> typing.Callable[[typing.Any], None]:
-    """Wrap ``apply_configuration`` to remember which selection the applied configuration has."""
+    """Wrap ``apply_configuration`` to remember that the applied configuration has ``selection``'s flags.
+
+    Pass NO_SELECTION for a selection that was not sent. Applying notifies providers before the selection
+    is recorded, so the first apply under a new selection notifies them again: a provider that reset its
+    readiness in between would otherwise miss the configuration.
+    """
 
     def apply(configuration: typing.Any) -> None:
         global _loaded
         apply_configuration(configuration)
         with _lock:
+            changed = _loaded != selection
             _loaded = selection
+        if changed:
+            notify_providers()
 
     return apply
 

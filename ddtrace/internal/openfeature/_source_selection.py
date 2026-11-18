@@ -17,6 +17,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import build_agentless_endpoint
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 from ddtrace.internal.openfeature._agentless_source import with_evaluator_capabilities
+from ddtrace.internal.openfeature._config import _notify_providers_config_received
 from ddtrace.internal.openfeature._flag_selection import NO_SELECTION
 from ddtrace.internal.openfeature._flag_selection import FlagSelection
 from ddtrace.internal.openfeature._flag_selection import claim_process_selection
@@ -82,7 +83,11 @@ def create_agentless_source(
         log.debug("Feature Flags: starting agentless configuration source at %s", _redacted_origin(endpoint))
         return AgentlessConfigurationSource(
             endpoint=endpoint,
-            apply_configuration=recording_loaded_selection(apply_configuration, claimed),
+            apply_configuration=recording_loaded_selection(
+                apply_configuration,
+                claimed if flag_selection_sent else NO_SELECTION,
+                _notify_providers_config_received,
+            ),
             api_key=None if has_custom_endpoint else api_key,
             poll_interval=ffe_config.configuration_source_agentless_poll_interval_seconds,
             request_timeout=ffe_config.configuration_source_agentless_request_timeout_seconds,

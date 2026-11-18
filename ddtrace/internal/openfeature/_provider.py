@@ -223,6 +223,7 @@ class DataDogProvider(AbstractProvider):
         # Agentless configuration-source poller; started in initialize() when
         # agentless is the resolved source and stopped in shutdown().
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
+        self._configuration_source_lock = forksafe.Lock()
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
@@ -494,17 +495,21 @@ class DataDogProvider(AbstractProvider):
         self._configuration_source = source
 
     def _stop_configuration_source(self) -> None:
-        """Stop the agentless poller if it was started."""
-        if self._configuration_source is None:
+        """Stop the agentless poller if it was started.
+
+        Concurrent shutdowns stop the poller and release its claim once.
+        """
+        with self._configuration_source_lock:
+            source, self._configuration_source = self._configuration_source, None
+        if source is None:
             return
 
         try:
-            self._configuration_source.stop()
-            self._configuration_source.join()
+            source.stop()
+            source.join()
             logger.debug("Feature Flags: agentless configuration source stopped")
         except ServiceStatusError:
             logger.debug("Agentless configuration source is already stopped", exc_info=True)
-        self._configuration_source = None
         release_process_selection()
 
     def resolve_boolean_details(

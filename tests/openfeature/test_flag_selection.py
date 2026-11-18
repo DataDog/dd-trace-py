@@ -765,15 +765,34 @@ def test_claim_is_released_with_its_last_reference():
 def test_loaded_selection_is_recorded_only_after_a_successful_apply():
     a = canonicalize_flag_selection({"tags": ["a"]})
     b = canonicalize_flag_selection({"tags": ["b"]})
-    _flag_selection.recording_loaded_selection(lambda _: None, a)({})
+    _flag_selection.recording_loaded_selection(lambda _: None, a, lambda: None)({})
     claim_process_selection(b)
 
     def reject(_):
         raise ValueError("rejected")
 
     with pytest.raises(ValueError):
-        _flag_selection.recording_loaded_selection(reject, b)({})
+        _flag_selection.recording_loaded_selection(reject, b, lambda: None)({})
     assert _flag_selection.snapshot_from_other_selection() is True
+
+
+def test_first_apply_under_a_new_selection_notifies_again_once_it_is_recorded():
+    a = canonicalize_flag_selection({"tags": ["a"]})
+    b = canonicalize_flag_selection({"tags": ["b"]})
+    _flag_selection.recording_loaded_selection(lambda _: None, a, lambda: None)({})
+    claim_process_selection(b)
+    events = []
+
+    def apply(_):
+        events.append(("applied", _flag_selection.snapshot_from_other_selection()))
+
+    def notify():
+        events.append(("notified", _flag_selection.snapshot_from_other_selection()))
+
+    apply_b = _flag_selection.recording_loaded_selection(apply, b, notify)
+    apply_b({})
+    apply_b({})
+    assert events == [("applied", True), ("notified", False), ("applied", False)]
 
 
 def test_missing_api_key_takes_no_claim():
@@ -913,6 +932,40 @@ def test_repeated_shutdown_does_not_release_another_providers_claim(cdn, api_key
             provider.shutdown()
 
 
+def test_concurrent_shutdown_releases_the_claim_once(cdn, api_key, monkeypatch):
+    first = _provider({"tags": ["a"]})
+    second = _provider({"tags": ["b"]})
+    later = _provider({"tags": ["c"]})
+    joining = threading.Event()
+    resume = threading.Event()
+    try:
+        first.initialize(EvaluationContext())
+        second.initialize(EvaluationContext())
+        source = first._configuration_source
+        join = source.join
+
+        def blocking_join(*args, **kwargs):
+            joining.set()
+            resume.wait(timeout=5)
+            return join(*args, **kwargs)
+
+        monkeypatch.setattr(source, "join", blocking_join)
+        stopping = threading.Thread(target=first.shutdown)
+        stopping.start()
+        assert joining.wait(timeout=5)
+        # The poller is stopped, so a second shutdown racing the join would see ServiceStatusError.
+        first.shutdown()
+        resume.set()
+        stopping.join(timeout=5)
+
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["a"], [])
+    finally:
+        resume.set()
+        for provider in (first, second, later):
+            provider.shutdown()
+
+
 def test_new_selection_after_release_waits_for_its_own_poll(cdn, api_key, caplog):
     cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
     first = _provider({"tags": ["a"]})
@@ -987,6 +1040,106 @@ def test_same_selection_after_release_uses_the_loaded_configuration(cdn, api_key
         assert same._status == ProviderStatus.READY
     finally:
         same.shutdown()
+
+
+_OVER_THE_URL_LIMIT = _option_with_url_length(build_agentless_endpoint("datadoghq.com", None, None), 8193)
+
+
+@pytest.mark.parametrize(
+    "first_option,later_option",
+    [
+        ({"tags": "malformed"}, None),
+        (None, {"tags": ["x" * 201]}),
+        (_OVER_THE_URL_LIMIT, {}),
+        ({"tags": "malformed"}, _OVER_THE_URL_LIMIT),
+    ],
+    ids=["malformed-then-none", "none-then-invalid-tag", "url-limit-then-none", "malformed-then-url-limit"],
+)
+def test_dropped_and_no_selection_after_release_use_the_loaded_configuration(cdn, api_key, first_option, later_option):
+    first = _provider(first_option)
+    first.initialize(EvaluationContext())
+    first.shutdown()
+
+    cdn.respond = lambda target: _FakeResponse(404)
+    later = _provider(later_option, timeout=0.2)
+    try:
+        later.initialize(EvaluationContext())
+        assert later._status == ProviderStatus.READY
+    finally:
+        later.shutdown()
+
+
+def test_sent_selection_after_a_dropped_one_waits_for_its_own_poll(cdn, api_key):
+    first = _provider({"tags": "malformed"})
+    first.initialize(EvaluationContext())
+    first.shutdown()
+
+    cdn.respond = lambda target: _FakeResponse(404)
+    later = _provider({"tags": ["a"]}, timeout=0.2)
+    try:
+        with pytest.raises(ProviderNotReadyError):
+            later.initialize(EvaluationContext())
+    finally:
+        later.shutdown()
+
+
+class _SignalingEvent(threading.Event):
+    def __init__(self):
+        super().__init__()
+        self.waiting = threading.Event()
+
+    def wait(self, timeout=None):
+        self.waiting.set()
+        return super().wait(timeout)
+
+
+def test_provider_starting_while_the_new_selection_is_applied_becomes_ready(cdn, api_key):
+    from ddtrace.internal.openfeature._config import _register_provider
+    from ddtrace.internal.openfeature._config import _unregister_provider
+
+    cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
+    first = _provider({"tags": ["a"]})
+    first.initialize(EvaluationContext())
+    first.shutdown()
+
+    # Only the second provider's first poll succeeds; the third provider's own poller keeps failing.
+    responses = [_FakeResponse(200, _flag_body("selected-b"))]
+    cdn.respond = lambda target: responses.pop(0) if responses else _FakeResponse(404)
+    second = _provider({"tags": ["b"]})
+    third = _provider({"tags": ["b"]}, timeout=1.0)
+    third._config_received = _SignalingEvent()
+    outcome = []
+
+    def initialize_third():
+        try:
+            third.initialize(EvaluationContext())
+            outcome.append(third._status)
+        except ProviderNotReadyError as error:
+            outcome.append(error)
+
+    class _StartsThirdDuringTheApply:
+        thread = None
+
+        def on_configuration_received(self):
+            # Runs while the second provider's poller applies the new selection, before it is recorded.
+            if self.thread is None:
+                self.thread = threading.Thread(target=initialize_third)
+                self.thread.start()
+                assert third._config_received.waiting.wait(timeout=5)
+
+    spy = _StartsThirdDuringTheApply()
+    _register_provider(third)
+    _register_provider(spy)
+    try:
+        second.initialize(EvaluationContext())
+        spy.thread.join(timeout=5)
+        assert outcome == [ProviderStatus.READY]
+    finally:
+        _unregister_provider(spy)
+        if spy.thread is not None:
+            spy.thread.join(timeout=5)
+        second.shutdown()
+        third.shutdown()
 
 
 def test_not_sent_is_logged_once_per_provider_initialization(cdn, api_key, caplog, count_metric):
