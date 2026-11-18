@@ -182,6 +182,7 @@ class TIAPlugin:
         self.failed: set[str] = set()
         self.always: set[str] = set()
         self.deselected = 0
+        self.deselected_items: list[pytest.Item] = []
         self.recording_failed = False
         self._dynamic_imports_active = False
         self._original_import_module = importlib.import_module
@@ -303,6 +304,7 @@ class TIAPlugin:
             item.nodeid for item in items if item.get_closest_marker("datadog_itr_unskippable") is not None
         )
         dropped = [item for item in items if item.nodeid not in self.selected]
+        self.deselected_items[:] = dropped
         if dropped:
             config.hook.pytest_deselected(items=dropped)
             items[:] = [item for item in items if item.nodeid in self.selected]
