@@ -3,8 +3,8 @@ from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._writer import LLMObsSpanEvent
-from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
@@ -20,7 +20,7 @@ class EvaluatorRunner(PeriodicService):
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super().__init__(interval=interval)
         self._lock = RLock()
-        self._buffer: list[tuple[LLMObsSpanEvent, Span]] = []
+        self._buffer: list[tuple[LLMObsSpanEvent, _LLMObsSpan]] = []
         self._buffer_limit = 1000
 
         self.llmobs_service = llmobs_service
@@ -56,7 +56,7 @@ class EvaluatorRunner(PeriodicService):
             evaluators=self.evaluators,
         )
 
-    def enqueue(self, span_event: LLMObsSpanEvent, span: Span) -> None:
+    def enqueue(self, span_event: LLMObsSpanEvent, span: _LLMObsSpan) -> None:
         if self.status == ServiceStatus.STOPPED:
             return
         with self._lock:

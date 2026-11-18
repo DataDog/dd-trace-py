@@ -111,8 +111,11 @@ def stop(join=False):
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
 and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so class definitions do not register
-them implicitly. Any compatibility activation during initialization belongs to the product.
+subscribers must disable class-definition registration so imports do not activate them
+implicitly. Set the `auto_register = False` class attribute to also defer registration
+for subclasses. Context subscribers can instead pass `auto_register=False` in the class
+declaration to defer only that class, preserving automatic registration for its subclasses.
+Any compatibility activation during initialization belongs to the product.
 
 Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
@@ -158,23 +161,22 @@ Each nested middleware callback retains its own context, and response preparatio
 shared by request clones. The existing `disable_stream_timing_for_mem_leak` option still
 completes at header preparation to release request state sooner.
 
-Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` and `SPAN_EXCEPTION_SUBSCRIBERS` in
-`ddtrace._trace._registration`.
+Tracing declares SDK-independent subscriber bundles in `ddtrace._trace._registration`.
 Its `register_subscribers()` helper activates every declared bundle. Product startup
 calls this helper directly. Normal `ddtrace` initialization installs an import hook
 that calls it after the subscriber package loads through contrib. Waiting for the
 package to finish avoids registering against partially initialized subscriber bases
 and preserves lightweight bare tracer imports.
-Listeners remain available with `DD_TRACE_ENABLED=false` so existing
-integrations can finish their spans without enabling tracing. This supports manual
-instrumentation without starting the product manager. `_DD_GLOBAL_TRACER_INIT=false` preserves deferred initialization;
-product startup can still activate the bundles explicitly. The web request and span exception subscribers use
-explicit registration rather than class-definition registration. Integrations emit
-events without registering tracing listeners themselves. Repeated activation does not duplicate
-listeners and can restore listeners after a reset.
-Tracing retains its existing shutdown behavior and keeps these listeners registered.
-Other subscriber families continue using class-definition registration until their
-activation paths are migrated.
+The subscriber package also explicitly activates `MANUAL_SUBSCRIBER_BUNDLES` for
+manual instrumentation, including when global tracer creation is deferred. Web request
+and span exception bundles retain their existing activation timing. Listeners remain
+available with `DD_TRACE_ENABLED=false` so existing integrations can finish their spans
+without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
+Concrete product subscribers disable class-definition registration; custom subscriber
+registration defaults are unchanged. Integrations emit events without registering
+tracing listeners themselves. Ray retains SDK-dependent activation from its patch
+module until a separate migration. Tracing retains its existing shutdown behavior
+and keeps these listeners registered.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls

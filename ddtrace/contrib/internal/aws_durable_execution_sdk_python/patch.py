@@ -294,8 +294,6 @@ def patch():
     if getattr(aws_durable_execution_sdk_python, "_datadog_patch", False):
         return
 
-    import ddtrace._trace.subscribers.aws_durable  # noqa: F401
-
     aws_durable_execution_sdk_python._datadog_patch = True
 
     # durable_execution is re-exported from the top-level __init__

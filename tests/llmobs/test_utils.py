@@ -589,6 +589,28 @@ class TestAnnotateLLMObsSpanData:
             assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10, "output_tokens": 5}
             assert {"env": "prod", "version": "1.0"}.items() <= data[LLMOBS_STRUCT.TAGS].items()
 
+    def test_gateway_merges_into_dd_metadata(self, llmobs):
+        """The gateway is merged into metadata._dd. The cost tags and the agent manifest stay there."""
+        with llmobs.llm(name="test_span") as span:
+            _annotate_llmobs_span_data(span, metadata={"temperature": 0.5}, cost_tags=["team"])
+            _annotate_llmobs_span_data(span, agent_manifest={"name": "travel_agent"})
+            _annotate_llmobs_span_data(span, gateway="litellm")
+            _annotate_llmobs_span_data(span, cost_tags=["env"])
+            metadata = span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA]
+            assert metadata == {
+                "temperature": 0.5,
+                "_dd": {"cost_tags": ["team", "env"], "agent_manifest": {"name": "travel_agent"}, "gateway": "litellm"},
+            }
+
+    @pytest.mark.parametrize("forged", ["boom", ["boom"], 1, None])
+    def test_dd_metadata_that_is_not_a_dict_is_replaced(self, llmobs, forged):
+        """The dedicated _dd writes replace a value that is not a dict, and do not raise."""
+        with llmobs.llm(name="test_span") as span:
+            _annotate_llmobs_span_data(span, metadata={"_dd": forged})
+            _annotate_llmobs_span_data(span, gateway="litellm", cost_tags=["team"])
+            metadata = span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA]
+            assert metadata == {"_dd": {"cost_tags": ["team"], "gateway": "litellm"}}
+
 
 class TestSanitizeSpanEventData:
     """Non-string mapping keys are stringified so the msgpack meta_struct intake path

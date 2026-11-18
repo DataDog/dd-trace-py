@@ -21,9 +21,9 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_metadata
-from ddtrace.trace import Span
 
 
 MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature", "tags")
@@ -45,12 +45,12 @@ class LiteLLMIntegration(BaseLLMIntegration):
     # Shared with the contrib, which fills it in as litellm resolves providers.
     _model_map = model_map
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the contrib sets the APM model/host tags itself."""
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -77,7 +77,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
 
-    def _update_litellm_metadata(self, span: Span, kwargs: dict[str, Any], operation: str):
+    def _update_litellm_metadata(self, span: _LLMObsSpan, kwargs: dict[str, Any], operation: str):
         metadata = get_llmobs_metadata(span) or {}
         base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
@@ -128,7 +128,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
             )
         return new_model_list
 
-    def _resolve_model_name(self, span: Span, response: Optional[Any], model_name: str, model_provider: str) -> str:
+    def _resolve_model_name(
+        self, span: _LLMObsSpan, response: Optional[Any], model_name: str, model_provider: str
+    ) -> str:
         # Azure requires an arbitrary deployment name as the request model; the canonical model
         # comes from the response. azure_ai is excluded — LiteLLM rewrites its response model to
         # "azure_ai/<deployment>", which would not match the cost catalog.
@@ -153,7 +155,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         )
 
     def _get_span_kind(
-        self, span: Span, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
+        self, span: _LLMObsSpan, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
     ) -> str:
         """
         Workflow span should be submitted to LLMObs if:
@@ -240,3 +242,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         request_kwargs = kwargs.get("request_kwargs") or {}
         base_url = request_kwargs.get("base_url") or request_kwargs.get("api_base")
         return str(base_url) if base_url else None
+
+    def _llmobs_gateway(self, request_kwargs: dict[str, Any]) -> Optional[str]:
+        # The LiteLLM proxy server sets proxy_server_request on the calls that it makes to litellm.
+        return "litellm" if request_kwargs.get("proxy_server_request") else None
