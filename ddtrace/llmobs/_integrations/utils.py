@@ -52,7 +52,7 @@ from ddtrace.llmobs._integrations.audio_utils import g711_variant  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
-from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime as realtime_audio_format_to_mime
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _validate_prompt

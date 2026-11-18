@@ -1,0 +1,4 @@
+startup:
+  mode: startup
+receive:
+  mode: receive

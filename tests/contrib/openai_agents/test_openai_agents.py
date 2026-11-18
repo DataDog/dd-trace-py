@@ -9,6 +9,7 @@ async def test_openai_agents(agents, request_vcr, simple_agent):
 
 
 @pytest.mark.snapshot
+@pytest.mark.usefixtures("sync_runner_loop")
 def test_openai_agents_sync(agents, request_vcr, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):

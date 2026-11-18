@@ -2805,6 +2805,13 @@
         "default": "true"
       }
     ],
+    "DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_OPENAI_SERVICE": [
       {
         "implementation": "A",

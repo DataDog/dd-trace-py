@@ -17,6 +17,7 @@ from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import is_flat_scalar_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
@@ -45,6 +46,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # a map of OpenAI trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
+
+    def realtime_integration(self, openai: Any) -> OpenAIIntegration:
+        """Supply OpenAI wire extraction independently of provider trace processors."""
+        return OpenAIIntegration(self.integration_config, openai)
 
     def trace(
         self,
