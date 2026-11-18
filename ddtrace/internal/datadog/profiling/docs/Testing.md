@@ -89,7 +89,7 @@ The Valgrind runs check for leaks instead.
 In Docker, ThreadSanitizer needs `--security-opt seccomp=unconfined`, because it calls `personality()` to disable address randomization.
 
 `--valgrind` runs CTest under `valgrind` memcheck with the `valgrind.supp` files in each test directory. It needs Linux.
-CI runs it on amd64. On arm64 it reports uninitialized values in Rust regex code.
+Run it on amd64. On arm64, such as Docker on Apple silicon, it reports uninitialized values in Rust regex code.
 
 The same `profiling_native` matrix runs all three in CI.
 
