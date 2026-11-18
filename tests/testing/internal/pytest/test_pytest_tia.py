@@ -16,6 +16,10 @@ from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.pytest._tia import _document
 from ddtrace.testing.internal.pytest._tia import configuration_hash
+from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_TIA_REASON
+from ddtrace.testing.internal.test_data import ModuleRef
+from ddtrace.testing.internal.test_data import SuiteRef
+from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.tia.processes import ProcessMonitor
 from ddtrace.testing.internal.tia.selection import Graph
 from ddtrace.testing.internal.tia.selection import load_graph
@@ -23,6 +27,7 @@ from ddtrace.testing.internal.tia.selection import select_tests
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import is_coverage_installed
 from tests.testing.internal.pytest.utils import assert_stats
+from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
 
@@ -116,10 +121,108 @@ def test_no_changes_deselects_all_successfully(pytester, tia_backend):
     client, _ = tia_backend
     pytester.makepyfile(test_example="def test_one(): pass")
     _baseline(client, {"test_example.py::test_one": {"test_example.py"}})
-    result = pytester.inline_run()
+    with EventCapture.capture() as events:
+        result = pytester.inline_run()
     result.assertoutcome()
     assert sum(len(call.items) for call in result.getcalls("pytest_deselected")) == 1
     assert result.ret == 0
+    [test] = events.events_by_type("test")
+    assert test["content"]["meta"]["test.status"] == "skip"
+    assert test["content"]["meta"]["test.skipped_by_itr"] == "true"
+    [session] = events.events_by_type("test_session_end")
+    assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+    for kind in ("test_suite_end", "test_module_end"):
+        [event] = events.events_by_type(kind)
+        assert event["content"]["meta"]["test.status"] == "skip"
+
+
+@pytest.mark.parametrize("server_level", [None, "test", "suite"])
+def test_tia_reports_test_and_session_savings(pytester, tia_backend, monkeypatch, server_level):
+    client, git = tia_backend
+    settings = client.get_settings.return_value
+    settings.itr_enabled = server_level is not None
+    settings.skipping_enabled = server_level is not None
+    monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", str(server_level == "suite"))
+    suite_ref = SuiteRef(ModuleRef(""), "test_example.py")
+    client.get_skippable_tests.return_value = (
+        {suite_ref if server_level == "suite" else TestRef(suite_ref, "test_affected")},
+        "server-correlation-id",
+    )
+    pytester.makepyfile(
+        test_example="""
+        import pytest
+        def test_affected(): pass
+        @pytest.mark.parametrize('value', [1, 2])
+        def test_unaffected(value): assert False
+        """,
+        test_skipped="def test_skipped(): assert False",
+    )
+    other = pytester.path / "other"
+    other.mkdir()
+    (other / "test_other.py").write_text("def test_other(): assert False")
+    tests = {
+        "test_example.py::test_affected": {"test_example.py", "changed.py"},
+        "test_example.py::test_unaffected[1]": {"test_example.py"},
+        "test_example.py::test_unaffected[2]": {"test_example.py"},
+        "test_skipped.py::test_skipped": {"test_skipped.py"},
+        "other/test_other.py::test_other": {"other/test_other.py"},
+    }
+    _baseline(client, tests)
+    git.get_tia_changed_files.return_value = {"changed.py"}
+    with EventCapture.capture() as events:
+        result = pytester.inline_run()
+    assert_stats(result, passed=1, deselected=4)
+    test_events = list(events.events_by_type("test"))
+    assert len(test_events) == 5
+    skipped = [event["content"] for event in test_events if event["content"]["meta"]["test.status"] == "skip"]
+    assert len(skipped) == 4
+    for event in skipped:
+        assert event["meta"]["test.skipped_by_itr"] == "true"
+        assert event["meta"]["test.skip_reason"] == SKIPPED_BY_TIA_REASON
+        assert event["meta"]["test.itr.tests_skipping.enabled"] == "true"
+        assert event["meta"]["test.final_status"] == "skip"
+        assert event["trace_id"] and event["span_id"]
+        assert "itr_correlation_id" not in event
+    assert len({event["span_id"] for event in skipped}) == 4
+    for value in (1, 2):
+        event = events.event_by_test_name(f"test_unaffected[{value}]")
+        assert json.loads(event["content"]["meta"]["test.parameters"])["arguments"] == {"value": str(value)}
+    affected = events.event_by_test_name("test_affected")["content"]["meta"]
+    assert affected["test.status"] == "pass"
+    assert "test.skipped_by_itr" not in affected
+    [session] = events.events_by_type("test_session_end")
+    assert session["content"]["meta"]["test.itr.tests_skipping.enabled"] == "true"
+    assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
+    assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+    assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "test"
+    assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 4
+    suites = list(events.events_by_type("test_suite_end"))
+    modules = list(events.events_by_type("test_module_end"))
+    assert len(suites) == 3
+    assert len(modules) == 2
+    assert len({event["content"]["test_suite_id"] for event in suites}) == 3
+    assert len({event["content"]["test_module_id"] for event in modules}) == 2
+    for event in suites:
+        expected = "pass" if event["content"]["meta"]["test.suite"] == "test_example.py" else "skip"
+        assert event["content"]["meta"]["test.status"] == expected
+        assert event["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+    document = client.store_tia_map.call_args.args[1]
+    graph = load_graph(document["map"], document)
+    assert not graph.always
+    assert graph.tests["test_example.py::test_unaffected[1]"] == tests["test_example.py::test_unaffected[1]"]
+
+
+def test_explicit_deselection_is_not_reported_as_tia_savings(pytester, tia_backend):
+    client, _ = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass\ndef test_two(): pass")
+    _baseline(client, {"test_example.py::test_one": {"test_example.py"}})
+    with EventCapture.capture() as events:
+        result = pytester.inline_run("-k", "one")
+    assert_stats(result, passed=1, deselected=1)
+    [test] = events.events_by_type("test")
+    assert test["content"]["meta"]["test.status"] == "pass"
+    [session] = events.events_by_type("test_session_end")
+    assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 0
 
 
 @pytest.mark.parametrize("changed", [None, {"conftest.py"}])
@@ -362,7 +465,9 @@ def test_remote_map_is_cached_for_later_collection_only_runs(pytester, tia_backe
     client, _ = tia_backend
     pytester.makepyfile(test_example="def test_one(): pass")
     _baseline(client, {"test_example.py::test_one": {"test_example.py"}})
-    pytester.inline_run("--collect-only")
+    with EventCapture.capture() as events:
+        pytester.inline_run("--collect-only")
+    assert not list(events.events_by_type("test"))
     client.lookup_tia_map.assert_called_once()
     client.lookup_tia_map.reset_mock()
 

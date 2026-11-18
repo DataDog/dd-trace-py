@@ -60,6 +60,16 @@ only block publication when they occur in the recorded dependencies, such as
 an imported module, test file, or pytest configuration. Unrelated generated
 reports such as ``coverage.xml`` do not need to be ignored for maps to be
 published. TIA replaces server-side ITR skipping for its session.
+Pytest still reports unaffected tests as deselected. Datadog receives a skipped
+test event for each TIA deselection, using the existing ITR skip tags, telemetry,
+and session savings count, with the reason
+``Skipped by Datadog Test Impact Analysis``. Fully skipped suites and modules
+are reported as skipped; partially skipped suites keep their executed results.
+This reporting is enabled independently of server-side ITR settings and uses
+test-level counts even when server-side ITR is configured for suites. Explicit
+pytest deselections (such as ``-k``) and collection-only runs do not count as TIA
+savings. Reporting neither executes fixtures nor gives skipped tests fresh
+dependency entries.
 The recorder identity is part of the configuration hash, so maps produced by
 an older recorder or an incomplete dependency-recording revision are not
 reused. The plugin runs in a single pytest process; distributed xdist, offline,
