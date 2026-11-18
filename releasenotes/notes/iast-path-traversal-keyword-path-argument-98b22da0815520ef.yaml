@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes an issue where path traversal vulnerabilities are not reported when the
+    path is passed by keyword, as in ``os.remove(path=...)``, ``shutil.copy(src=...)``,
+    ``glob.glob(pathname=...)`` or ``tarfile.open(name=...)``.

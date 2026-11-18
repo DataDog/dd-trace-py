@@ -85,10 +85,9 @@ suites:
           python: ["3.12", "3.13", '3.14', '3.15']
           dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
-    # TODO(py-315): the anthropic SDK is not 3.15-ready: the old row rejects
-    # new API kwargs and the newest row hits pydantic model construction
-    # errors. Re-add 3.15 once the SDK supports it.
-    venvs_per_job: 6
+    # TODO(py-315): 3.15 is covered only by the newest (unpinned) row; the older rows
+    # reject new API kwargs on 3.15. Revisit if those rows need 3.15.
+    venvs_per_job: 9
     paths:
       - '@bootstrap'
       - '@anthropic'
@@ -105,7 +104,13 @@ suites:
           dependencies: [pytest-asyncio, vcrpy, 'anthropic~=0.28.0', 'httpx~=0.27.0']
         - name: anthropic
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [pytest-asyncio, vcrpy, anthropic, 'httpx<0.28.0']
+          dependencies: [pytest-asyncio, vcrpy, 'anthropic<1', 'httpx<0.28.0']
+        - name: anthropic
+          python: ['3.10', '3.14']
+          dependencies: [pytest-asyncio, vcrpy, 'anthropic>=1,<2']
+        - name: anthropic
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [pytest-asyncio, vcrpy, anthropic]
   claude_agent_sdk:
     venvs_per_job: 7
     paths:
@@ -137,7 +142,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           # Pinned to the newest 0.2.x release past the 48h lock cooldown so the
           # current SDK line stays covered without latest-tracking (see above).
-          dependencies: ['claude-agent-sdk==0.2.160', pytest-asyncio]
+          dependencies: ['claude-agent-sdk==0.2.182', pytest-asyncio]
   google_adk:
     venvs_per_job: 7
     paths:
@@ -154,7 +159,7 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
-    venvs_per_job: 6
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@google_genai'
@@ -174,6 +179,9 @@ suites:
         - name: google_genai
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'google-genai~=1.21.1']
+        - name: google_genai
+          python: ['3.11', '3.14']
+          dependencies: [pytest-asyncio, 'google-genai~=3.2.0']
   vertexai:
     venvs_per_job: 5
     paths:
@@ -366,11 +374,9 @@ suites:
           python: ['3.10', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, typesafe-sdk]
   openai:
-    # TODO(py-315): the old openai rows fail to build on 3.15 (requires-python
-    # <3.15 in the dependency chain) and the newest rows hit openai SDK pydantic
-    # model construction errors on 3.15. Re-add 3.15 once the openai SDK
-    # supports it.
-    venvs_per_job: 5
+    # The old openai rows fail to build on 3.15 (requires-python <3.15 in the dependency chain),
+    # so 3.15 only runs the latest row.
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@openai'
@@ -389,9 +395,10 @@ suites:
         - name: openai
           python: ['3.9', '3.10', '3.11']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai[embeddings,datalib]==1.30.1', 'pillow==9.5.0', 'httpx==0.27.2']
+        # pytest<9.2: pytest 9.2+ breaks pytest-asyncio 0.21.1, which this row pins.
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow]
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow, 'pytest<9.2', websockets]
         - name: openai
           python: ['3.10', '3.13', '3.14']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=3.26.0', pillow]
@@ -533,8 +540,9 @@ suites:
     # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
     # run on Python 3.15 yet. Add 3.15 to the python lists once those
     # dependencies publish 3.15 wheels.
-    venvs_per_job: 2
-    # Allow time for GPU placement in addition to the 15-minute test target.
+    # Keep the full matrix on two GPU jobs to reduce pressure on runner placement.
+    venvs_per_job: 4
+    # Allow time for GPU placement and for the environments in each shard to run.
     timeout: 50m
     paths:
       - '@bootstrap'
@@ -554,5 +562,5 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2', 'transformers<5']
         - name: vllm
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
