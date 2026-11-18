@@ -74,8 +74,17 @@ def _chat_completion_events() -> bytes:
     return ("".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n").encode()
 
 
+def _embeddings() -> dict[str, Any]:
+    return {
+        "object": "list",
+        "data": [{"object": "embedding", "index": 0, "embedding": [0.1, 0.2]}],
+        "model": MODEL,
+        "usage": {"prompt_tokens": 2, "total_tokens": 2},
+    }
+
+
 class OpenAIStub:
-    """This offline OpenAI API answers chat completions as JSON, or as server-sent events for streams."""
+    """This offline OpenAI API answers embeddings and chat completions, with server-sent events for chat streams."""
 
     def __init__(self) -> None:
         self.requests: list[dict[str, Any]] = []
@@ -83,6 +92,8 @@ class OpenAIStub:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content or b"{}")
         self.requests.append(body)
+        if request.url.path.endswith("/embeddings"):
+            return httpx.Response(200, json=_embeddings())
         if not request.url.path.endswith("/chat/completions"):
             return httpx.Response(404, json={"error": {"message": f"no stub for {request.url.path}"}})
         if body.get("stream"):
@@ -104,13 +115,20 @@ def verdicts():
 
 
 @pytest.fixture
-def evaluations(verdicts):
+def evaluated_messages():
+    """Record the messages of each AI Guard evaluation, in the order of the evaluations fixture."""
+    return []
+
+
+@pytest.fixture
+def evaluations(verdicts, evaluated_messages):
     """Record (integration, target) for each AI Guard evaluation."""
     calls: list[tuple[Any, str]] = []
     evaluate = AIGuardClient.evaluate
 
     def record(self: AIGuardClient, messages: list[Any], *args: Any, **kwargs: Any) -> Any:
         calls.append((kwargs.get("integration"), _target(messages)))
+        evaluated_messages.append(list(messages))
         return evaluate(self, messages, *args, **kwargs)
 
     def verdict(url: str, payload: Any) -> Mock:
@@ -248,7 +266,7 @@ async def test_chat_completion_stream(litellm_proxy, openai_stub, evaluations):
     assert not is_aiguard_context_active()
 
 
-async def test_text_completion(litellm_proxy, openai_stub, evaluations):
+async def test_text_completion(litellm_proxy, openai_stub, evaluations, evaluated_messages):
     litellm_proxy()
 
     response = await _post("/completions", {"model": MODEL, "prompt": PROMPT})
@@ -256,6 +274,7 @@ async def test_text_completion(litellm_proxy, openai_stub, evaluations):
     assert response.status_code == 200, response.text
     assert response.json()["choices"][0]["text"] == ANSWER
     assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
+    assert evaluated_messages[1] == [{"role": "user", "content": PROMPT}, {"role": "assistant", "content": ANSWER}]
     # LiteLLM sends the text completion of a chat model as a chat completion.
     assert openai_stub.requests[0]["messages"] == [{"role": "user", "content": PROMPT}]
     assert not is_aiguard_context_active()
@@ -359,6 +378,22 @@ async def test_post_call_only_lets_the_openai_integration_evaluate_the_prompt(li
     assert evaluations == [("openai", "prompt"), ("litellm", "answer")]
 
 
+@pytest.mark.parametrize("stream, stream_analysis", [(False, False), (True, False), (True, True)])
+async def test_post_call_only_evaluates_the_answer_with_the_prompt(
+    litellm_proxy, evaluations, evaluated_messages, stream
+):
+    # Without the pre-call check, the guardrail gets the prompt from the request for the answer evaluation.
+    litellm_proxy(event_hook=("post_call",))
+
+    response = await _post(
+        "/chat/completions", {"model": MODEL, "messages": [{"role": "user", "content": PROMPT}], "stream": stream}
+    )
+
+    assert response.status_code == 200, response.text
+    assert evaluations == [("openai", "prompt"), ("litellm", "answer")]
+    assert evaluated_messages[1] == [{"role": "user", "content": PROMPT}, {"role": "assistant", "content": ANSWER}]
+
+
 async def test_pre_call_only_mode_does_not_claim(litellm_proxy, evaluations):
     # No post-call hook evaluates the answer in this mode, so the OpenAI listeners keep their evaluations.
     litellm_proxy(event_hook=("pre_call",))
@@ -372,7 +407,7 @@ async def test_pre_call_only_mode_does_not_claim(litellm_proxy, evaluations):
 
 async def test_messages_api_does_not_claim(litellm_proxy, openai_stub, evaluations, monkeypatch):
     # The post-call hooks do not evaluate Anthropic answers, so the OpenAI listeners keep their evaluations.
-    litellm_proxy()
+    guardrail = litellm_proxy()
     # By default, litellm 1.82 sends this request to the Responses API with its own HTTP client.
     # This setting makes it a chat completion through the OpenAI SDK, like litellm 1.78 always does.
     monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
@@ -385,6 +420,22 @@ async def test_messages_api_does_not_claim(litellm_proxy, openai_stub, evaluatio
     # LiteLLM sends the Anthropic request of an OpenAI model as a chat completion.
     assert openai_stub.requests[0]["messages"] == [{"role": "user", "content": PROMPT}]
     assert evaluations == [("litellm", "prompt"), ("openai", "prompt")]
+    # The client sends no metadata. The response header must still show the guardrail.
+    assert guardrail.guardrail_name in response.headers.get("x-litellm-applied-guardrails", "").split(",")
+    assert not is_aiguard_context_active()
+
+
+@pytest.mark.parametrize("event_hook", [("pre_call", "post_call"), ("during_call",)])
+async def test_embeddings_are_not_evaluated(litellm_proxy, openai_stub, evaluations, event_hook):
+    # Some litellm versions send the call type "embeddings" to the hooks. This value is not a CallTypes value.
+    litellm_proxy(event_hook=event_hook)
+
+    response = await _post("/embeddings", {"model": MODEL, "input": PROMPT})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"][0]["embedding"] == [0.1, 0.2]
+    assert len(openai_stub.requests) == 1
+    assert evaluations == []
     assert not is_aiguard_context_active()
 
 

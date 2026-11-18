@@ -304,23 +304,27 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
     ) -> Optional[Union[Exception, str, dict[str, Any]]]:
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
 
-        request_messages = self.get_guardrails_messages_for_call_type(
-            call_type=CallTypes(call_type),
-            data=data,
-        )
+        try:
+            # The proxy also sends call types that are not CallTypes values, for example "embeddings".
+            request_call_type = CallTypes(call_type)
+        except ValueError:
+            verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. Unknown call type %s", call_type)
+            return data
+        request_messages = self.get_guardrails_messages_for_call_type(call_type=request_call_type, data=data)
         if not request_messages and call_type in ("text_completion", "atext_completion"):
             request_messages = self._convert_text_prompt(data.get("prompt"))
         if not request_messages:
             verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. No messages found in request")
             return data
 
-        ai_guard_messages = self._convert_request_messages(request_messages)
-        data.setdefault("metadata", {})["ai_guard_messages"] = ai_guard_messages
-        completed = await self._run_ai_guard_check(ai_guard_messages, dynamic_params)
+        completed = await self._run_ai_guard_check(self._convert_request_messages(request_messages), dynamic_params)
         # After an AI Guard error, do not claim: the provider listeners then evaluate the prompt again.
         if claim and completed:
             _claim_request()
 
+        # Some litellm versions record the applied guardrail only in a metadata dict that is not empty.
+        if not data.get("metadata"):
+            data["metadata"] = {"applied_guardrails": []}
         add_guardrail_to_applied_guardrails_header(request_data=data, guardrail_name=self.guardrail_name)
         return data
 
@@ -352,7 +356,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
             return None
 
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
-        messages: list[Message] = list(data.get("metadata", {}).get("ai_guard_messages", []))
+        # Get the prompt from the request. The client controls the request metadata, so do not keep the prompt there.
+        messages = self._convert_request_messages(data.get("messages") or self._convert_text_prompt(data.get("prompt")))
         messages.extend(response_messages)
         await self._run_ai_guard_check(messages, dynamic_params, can_block)
 
@@ -392,7 +397,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         try:
             event_type: GuardrailEventHooks = GuardrailEventHooks.post_call
             if not self.should_run_guardrail(data=data, event_type=event_type):
-                return data
+                # The proxy uses a return value that is not None as the new response.
+                return None
             if _READING_STREAM.get():
                 # The streaming hook reads the model stream now, and it evaluates this answer itself.
                 return None
