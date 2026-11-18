@@ -204,6 +204,14 @@ class _AgentsRealtimeState(_RealtimeState):
             if item:
                 item.entry = self.entries[response_id]
 
+    def _handle_response_delta(self, event: Any, event_type: str) -> None:
+        entry = self.entries.get(_get_attr(event, "response_id", None) or "")
+        if self.sideband and entry and entry.truncated:
+            # Buffered generation events do not describe the acknowledged playback
+            # prefix. Only a stored item snapshot may restore that prefix.
+            return
+        super()._handle_response_delta(event, event_type)
+
     def _finish_response(self, response_id: Optional[str], response: Any) -> None:
         entry = self.entries.get(response_id or "")
         if entry is None:
@@ -251,9 +259,9 @@ class _AgentsRealtimeState(_RealtimeState):
                             transcripts.append(part["transcript"])
                         if isinstance(part.get("text"), str):
                             texts.append(part["text"])
-            if transcripts:
+            if transcripts and not entry.truncated:
                 entry.turn.transcript = "".join(transcripts)
-            if texts:
+            if texts and not entry.truncated:
                 entry.turn.text = "".join(texts)
             self._preparing_response = entry
             try:
@@ -666,6 +674,8 @@ class _AgentsRealtimeState(_RealtimeState):
         if data.get("status") in ("completed", "incomplete"):
             item.generation_done = True
         if item_id not in entry.items:
+            if entry.truncated:
+                item.last_index = -1
             entry.items.append(item_id)
         for index, part in enumerate(data.get("content") or []):
             if not isinstance(part, dict):
@@ -677,7 +687,7 @@ class _AgentsRealtimeState(_RealtimeState):
             text = part.get("transcript")
             if not isinstance(text, str):
                 text = part.get("text")
-            if isinstance(text, str):
+            if isinstance(text, str) and index <= item.last_index and index not in item.caps:
                 item.transcripts[index] = text
         self._want_item(item)
         if self._preparing_response is not entry:
@@ -786,8 +796,10 @@ class _AgentsRealtimeState(_RealtimeState):
                 for k in sorted(current.transcripts)
                 if 0 <= k <= current.last_index
             ]
-            if texts:
+            if texts or entry.truncated:
                 entry.turn.transcript = "".join(texts)
+            if entry.truncated:
+                entry.turn.text = ""
 
         selected: list[tuple[_Item, int, str]] = []
         complete = bool(owned)

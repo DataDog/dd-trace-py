@@ -1982,3 +1982,70 @@ async def test_realtime_primary_text_is_captured_once(agents, openai_agents_llmo
     )
     root = next(s for s in spans if s.resource == "createRealtimeTurn")
     assert_llmobs_span_data(_get_llmobs_data_metastruct(root), span_kind="workflow", input_value="table for two")
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize(
+    "late_event", ["item_done", "response_done", "transcript_delta", "new_item", "evicted_summary"]
+)
+@pytest.mark.parametrize("retrieved_prefix", [False, True])
+@pytest.mark.asyncio
+async def test_realtime_truncation_survives_late_generation(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, late_event, retrieved_prefix
+):
+    monkeypatch.setenv("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "false")
+    if late_event == "evicted_summary":
+        monkeypatch.setattr(_realtime, "_MAX_ITEMS", 1)
+    model = await connect(socket, {"call_id": "late-generation"})
+    await socket.feed(created())
+    await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
+    item = output_item(transcript="unheard generated text")
+    item["status"] = "in_progress"
+    await socket.feed({"type": "response.output_item.added", "response_id": "r1", "output_index": 0, "item": item})
+    await socket.feed(
+        {
+            "type": "conversation.item.truncated",
+            "item_id": "a1",
+            "content_index": 0,
+            "audio_end_ms": int(retrieved_prefix),
+        }
+    )
+    if retrieved_prefix:
+        await socket.feed(retrieved(audio=b"\1\0" * 24, transcript="heard"))
+    await socket.feed({"type": "output_audio_buffer.cleared", "response_id": "r1"})
+    if late_event in ("response_done", "evicted_summary"):
+        output = [output_item(transcript="unheard generated text")]
+        if late_event == "evicted_summary":
+            output.append(output_item("a2", transcript="unheard evicting item"))
+        await socket.feed(done(output=output))
+    elif late_event in ("item_done", "new_item"):
+        await socket.feed(
+            {
+                "type": "response.output_item.done",
+                "response_id": "r1",
+                "output_index": 0,
+                "item": output_item("a2" if late_event == "new_item" else "a1", transcript="unheard generated text"),
+            }
+        )
+    else:
+        await socket.feed(
+            {
+                "type": "response.output_audio_transcript.delta",
+                "response_id": "r1",
+                "item_id": "a1",
+                "content_index": 0,
+                "delta": "unheard late caption",
+            }
+        )
+    await model.close()
+    span, spans = llm_span(test_spans)
+    root = next(s for s in spans if s.resource == "createRealtimeTurn")
+    for exported in (span, root):
+        assert "unheard" not in json.dumps(_get_llmobs_data_metastruct(exported)["meta"].get("output"))
+    if retrieved_prefix:
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind="llm",
+            output_messages=[{"role": "assistant", "content": "heard", "audio_parts": mock.ANY}],
+        )
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(root), span_kind="workflow", output_value="heard")
