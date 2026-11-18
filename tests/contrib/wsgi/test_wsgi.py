@@ -459,6 +459,30 @@ def test_http_response_header_tracing(tracer, test_spans):
         config.wsgi.http._reset()
 
 
+def test_span_modifier_http_tags_survive_completion(tracer: Any, test_spans: Any) -> None:
+    def modifier(span: Span, environ: dict[str, Any]) -> None:
+        span._set_attribute("http.url", "http://localhost/redacted")
+        span._set_attribute("http.method", "REDACTED")
+        span._set_attribute("http.query.string", "redacted")
+
+    config.wsgi.http.trace_headers(["my-header"])
+    try:
+        with override_http_config("wsgi", dict(trace_query_string=True)):
+            app = TestApp(DDWSGIMiddleware(application, tracer=tracer, span_modifier=modifier))
+            response = app.get("/?secret=value", headers={"my-header": "test_value"})
+    finally:
+        config.wsgi.http._reset()
+
+    assert response.status_int == 200
+    request_span = test_spans.pop()[0]
+    assert request_span.name == "wsgi.request"
+    assert request_span.get_tag("http.url") == "http://localhost/redacted"
+    assert request_span.get_tag("http.method") == "REDACTED"
+    assert request_span.get_tag("http.query.string") == "redacted"
+    assert request_span.get_tag("http.request.headers.my-header") == "test_value"
+    assert request_span.get_tag("http.status_code") == "200"
+
+
 def test_service_name_can_be_overriden(tracer, test_spans):
     with override_config("wsgi", dict(service_name="test-override-service")):
         app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
@@ -727,6 +751,68 @@ def test_wsgi_response_iterable_completes_once_and_forwards_attributes() -> None
     assert completions == [(None, None, None)]
     with pytest.raises(StopIteration):
         next(iterable)
+
+
+@pytest.mark.parametrize("wrapped_is_iterator", [False, True])
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close"])
+def test_wsgi_response_iterable_closes_returned_iterable(wrapped_is_iterator: bool, terminal: str) -> None:
+    close_calls: list[str] = []
+
+    class GeneratorBackedResponse:
+        def __iter__(self) -> Iterator[bytes]:
+            try:
+                yield b"one"
+                yield b"two"
+            finally:
+                close_calls.append("iterator")
+
+        def close(self) -> None:
+            close_calls.append("response")
+
+    completions: list[ExcInfoType] = []
+    iterable = _WSGIResponseIterable(
+        GeneratorBackedResponse(), completions.append, wrapped_is_iterator=wrapped_is_iterator
+    )
+    if terminal == "exhaustion":
+        assert list(iterable) == [b"one", b"two"]
+        assert close_calls == ["iterator"]
+    else:
+        assert next(iterable) == b"one"
+    iterable.close()
+
+    # PEP 3333: the server's close() must reach the object the application returned.
+    assert close_calls == ["iterator", "response"]
+    assert completions == [(None, None, None)]
+
+
+def test_wsgi_response_iterable_closes_returned_iterable_when_iterator_close_fails() -> None:
+    close_calls: list[str] = []
+
+    class FailingIterator:
+        def __iter__(self) -> "FailingIterator":
+            return self
+
+        def __next__(self) -> bytes:
+            raise StopIteration
+
+        def close(self) -> None:
+            raise RuntimeError("iterator close failure")
+
+    class Response:
+        def __iter__(self) -> FailingIterator:
+            return FailingIterator()
+
+        def close(self) -> None:
+            close_calls.append("response")
+
+    completions: list[ExcInfoType] = []
+    iterable = _WSGIResponseIterable(Response(), completions.append)
+    with pytest.raises(RuntimeError, match="iterator close failure"):
+        iterable.close()
+
+    assert close_calls == ["response"]
+    assert len(completions) == 1
+    assert completions[0][0] is RuntimeError
 
 
 def test_wsgi_response_iterable_reports_error_once() -> None:

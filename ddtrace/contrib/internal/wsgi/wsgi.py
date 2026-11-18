@@ -69,7 +69,16 @@ def _supported_versions() -> dict[str, str]:
 class _WSGIResponseIterable:
     """Report response completion without owning tracing or security resources."""
 
-    __slots__ = ("__wrapped__", "_iterator", "_on_complete", "_completed", "_closed", "_close", "_context")
+    __slots__ = (
+        "__wrapped__",
+        "_iterator",
+        "_on_complete",
+        "_completed",
+        "_closed",
+        "_close",
+        "_iterator_close",
+        "_context",
+    )
 
     def __init__(
         self,
@@ -84,7 +93,11 @@ class _WSGIResponseIterable:
         self._on_complete = on_complete
         self._completed = False
         self._closed = False
-        self._close = getattr(self.__wrapped__, "close", None)
+        # PEP 3333 requires calling close() on the iterable the application returned,
+        # which differs from the iterator when its __iter__ returns a new object.
+        # That iterator (usually a generator) is still closed so it exits promptly.
+        self._close = getattr(wrapped, "close", None)
+        self._iterator_close = getattr(self._iterator, "close", None) if self._iterator is not wrapped else None
 
     def __iter__(self) -> _WSGIResponseIterable:
         return self
@@ -118,8 +131,12 @@ class _WSGIResponseIterable:
     def _close_response(self) -> None:
         exc_info: ExcInfoType = (None, None, None)
         try:
-            if self._close is not None:
-                self._close()
+            try:
+                if self._iterator_close is not None:
+                    self._iterator_close()
+            finally:
+                if self._close is not None:
+                    self._close()
         except BaseException:
             exc_info = sys.exc_info()
             raise
@@ -576,13 +593,8 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
         request_headers = parsed_headers if parsed_headers is not None else get_request_headers(environ)
-        event = core.current.event
-        event.request_method = environ.get("REQUEST_METHOD", "")
-        event.request_url = url
-        event.request_headers = request_headers
-        event.query = environ.get("QUERY_STRING")
-        # Match legacy metadata lookup; span-start security context still uses case-sensitive headers.
-        event.headers_case_sensitive = False
+        # Request metadata is tagged here, before span_modifier runs, and is not copied
+        # onto the event, so completion cannot overwrite the modifier's changes.
         core.dispatch("wsgi.request.prepared", (self, req_span, url, request_headers, environ))
 
     def _response_span_modifier(self, resp_span, response):
