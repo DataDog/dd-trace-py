@@ -2458,6 +2458,13 @@
         "default": null
       }
     ],
+    "DD_LLMOBS_ELEVENLABS_CONVERSATION_COST_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_LLMOBS_ENABLED": [
       {
         "implementation": "A",

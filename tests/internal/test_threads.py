@@ -374,3 +374,18 @@ def test_restart_failures_are_logged_after_releasing_forking_lock(monkeypatch):
         ("failed to restart periodic thread %s after fork: %s", "failing-restart", False),
         ("failed to start periodic thread %s: %s", "failing-start", False),
     ]
+
+
+def test_daemon_thread_runs_without_joining_native_workers():
+    done = Event()
+    observed = []
+
+    def target():
+        import threading
+
+        observed.append(threading.current_thread().daemon)
+        done.set()
+
+    threads.start_daemon_thread(target, name="test-daemon")
+    assert done.wait(5)
+    assert observed == [True]

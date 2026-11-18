@@ -30,6 +30,7 @@ __all__ = [
     "local",
     "original_Event",
     "original_local",
+    "start_daemon_thread",
 ]
 
 
@@ -59,6 +60,15 @@ def _(threading: ModuleType) -> None:
 
     # Same module, as far as typing is concerned.
     _app_threading = t.cast(t.Any, threading)
+
+
+def start_daemon_thread(target: t.Callable[[], None], name: str) -> None:
+    """Start best-effort work that must not delay shutdown or the native fork barrier.
+
+    The caller owns any shared state's fork safety. Unlike PeriodicThread, this
+    worker is never joined or restarted by ddtrace, including after a fork.
+    """
+    _threading.Thread(target=target, name=name, daemon=True).start()
 
 
 def current_thread() -> _threading.Thread:

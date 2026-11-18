@@ -24,6 +24,24 @@ Standalone speech-to-text, text-to-speech, and browser transports are not instru
 Conversation costs (unreleased)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+With LLM Observability and this integration enabled, the tracer automatically
+requests post-call billing using the conversation's existing SDK client and
+credentials. Both synchronous and asynchronous conversations use the SDK's
+synchronous details endpoint in a background daemon thread. Credentials must
+permit reading conversation details. Collection makes at most five requests in
+a 30-second retry window, with SDK retries disabled and request timeouts of at
+most three seconds. Up to eight conversations collect concurrently; additional
+conversations are skipped. Collection never delays interpreter shutdown or
+raises an error into the conversation.
+
+Set ``DD_LLMOBS_ELEVENLABS_CONVERSATION_COST_ENABLED=false`` before starting the
+process, or set ``ddtrace.config.elevenlabs["conversation_cost_enabled"] = False``
+before starting a conversation, to disable these additional requests. Closed
+clients, missing permissions, delayed billing, capacity limits, or process exit
+can leave costs unavailable. Use a verified post-call webhook for delivery that
+must survive process exit. To supply an override asynchronously, disable automatic
+collection and submit the override first.
+
 Use ``LLMObs.submit_conversation_cost(details)`` to submit USD billing from a
 completed conversation-details response your application already obtained. For
 application-verified post-call transcription webhook data, set
