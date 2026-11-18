@@ -30,6 +30,10 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     // stacks. Non-task thread stacks can stop at the configured reporting limit.
     const size_t max_frames = asyncio_loop ? MAX_STACK_UNWIND_SAFETY_LIMIT : echion.stack_max_frames();
     python_stack_unwind_result = UnwindResult::Unknown();
+    // Mark before unwinding so a failed stack copy is not reported as a missing tracked loop.
+    if (asyncio_loop) {
+        echion.mark_asyncio_loop_tracked();
+    }
 #if PY_VERSION_HEX >= 0x030c0000
     // Nested running Tasks are placed on the stack by frame address. See merge_nested_on_cpu_tasks.
     std::vector<PyObject*>* frame_addrs = asyncio_loop ? &python_stack_frame_addrs : nullptr;
