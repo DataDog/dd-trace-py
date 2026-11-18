@@ -304,7 +304,7 @@ impl TraceExporterBuilderPy {
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
     fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
-        let shared_runtime = shared_runtime.as_arc()?;
+        let shared_runtime = shared_runtime.as_arc().clone();
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
             inner: Some(
@@ -377,7 +377,7 @@ impl TraceExporterPy {
         let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
             "TraceExporter has already been consumed",
         ))?;
-        let telemetry_handle = worker.map(|worker| worker.clone_handle()).transpose()?;
+        let telemetry_handle = worker.map(|worker| worker.clone_handle());
         exporter.set_telemetry_handle(telemetry_handle);
         Ok(())
     }
