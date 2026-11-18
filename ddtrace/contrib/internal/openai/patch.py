@@ -22,7 +22,8 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 
-config._add("openai", {})
+# Private opt-in while the additional playback-observation latency is validated.
+config._add("openai", {"_realtime_barge_in_enabled": False})
 
 
 def get_version() -> str:

@@ -26,6 +26,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_complet
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_decision
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
@@ -66,6 +67,11 @@ class OpenAIIntegration(BaseLLMIntegration):
             submit_to_llmobs = True
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(operation_id, submit_to_llmobs, **kwargs)
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        if operation_id == "createRealtimeTurn" and self.integration_config.get("_realtime_barge_in_enabled", False):
+            return "workflow"
+        return super()._llmobs_span_kind(operation_id, span, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span._set_attribute(COMPONENT, self.integration_config.integration_name)
@@ -243,6 +249,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         input_value: Any = None,
         output_value: Any = None,
         metadata: Optional[dict[str, Any]] = None,
+        metrics: Optional[dict[str, Any]] = None,
+        tags: Optional[dict[str, str]] = None,
     ) -> None:
         """Tag a workflow-kind span in the realtime turn tree.
 
@@ -256,6 +264,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         if parent_span is not None:
             parent_id = str(parent_span.span_id)
             trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
+        if tags is not None and "model_provider" in tags:
+            provider = _get_llmobs_data_metastruct(span).get("tags", {}).get("model_provider")
+            if isinstance(provider, str) and provider.strip():
+                # Playback may finish under a different annotation context; retain this root's override.
+                tags = {**tags, "model_provider": provider}
         _annotate_llmobs_span_data(
             span,
             name=name,
@@ -267,7 +280,20 @@ class OpenAIIntegration(BaseLLMIntegration):
             input_value=input_value if input_value is not None else "",
             output_value=output_value if output_value is not None else "",
             metadata=metadata,
+            metrics=metrics,
+            tags=tags,
         )
+
+    def _realtime_attribution(self, span: Span) -> dict[str, str]:
+        data = _get_llmobs_data_metastruct(span)
+        allowed = {"agent_name", "agent_version", "prompt_id", "prompt_version", "ml_app_version"}
+        tags = {key: value for key, value in data.get("tags", {}).items() if key in allowed and isinstance(value, str)}
+        prompt = data.get("meta", {}).get("input", {}).get("prompt", {})
+        for field, tag in (("id", "prompt_id"), ("version", "prompt_version")):
+            value = prompt.get(field)
+            if isinstance(value, (str, int)) and not isinstance(value, bool):
+                tags[tag] = str(value)[:200]
+        return tags
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         span_kind = (
