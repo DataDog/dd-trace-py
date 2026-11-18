@@ -39,6 +39,7 @@ def patch():
     This duplicated doesn't look nice. The nicer alternative is to use an ObjectProxy on top
     of Valkey and StrictValkey. However, it means that any "import valkey.Valkey" won't be instrumented.
     """
+    # A second patch() call must not wrap the client methods twice and emit duplicate spans.
     if getattr(valkey, "_datadog_patch", False):
         return
     valkey._datadog_patch = True
