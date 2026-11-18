@@ -347,7 +347,7 @@ tests/openfeature/                        @DataDog/feature-flagging-and-experime
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities
 ddtrace/_trace/                                    @DataDog/apm-sdk-capabilities
-ddtrace/_trace/subscribers/                        @DataDog/apm-sdk-capabilities @DataDog/python-guild @DataDog/apm-idm-python
+ddtrace/_trace/subscribers/                        @DataDog/python-guild @DataDog/apm-idm-python
 ddtrace/_trace/span.py                             @DataDog/apm-sdk-capabilities @DataDog/apm-core-python
 # File commonly updated for integrations, widen ownership to help with PR review
 ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities @DataDog/python-guild @DataDog/apm-idm-python

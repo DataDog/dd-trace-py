@@ -104,6 +104,12 @@ web request bundle.
 
 ## Subscriber bundles
 
+Product-neutral subscriber machinery (`Subscriber`, `ContextSubscriber`, and
+`SubscriberBundle`) lives in `ddtrace.internal.core.subscriber`. Keep shared
+dispatch and registration behavior there. Span-creating bases (`TracingSubscriber`
+and `SpanLifecycleSubscriber`) and span exception handling remain in
+`ddtrace._trace.subscribers._base`, alongside the tracing subscribers that use them.
+
 Products can group related subscribers with `SubscriberBundle` from
 `ddtrace.internal.core.subscriber`:
 
