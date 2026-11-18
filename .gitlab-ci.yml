@@ -161,6 +161,9 @@ run-tests-trigger:
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
    DD_TEST_RUNTIME_PROBE: "$DD_TEST_RUNTIME_PROBE"
+   # Set from "Run pipeline" to report Test Optimization data to staging (see .test_base).
+   # When unset, GitLab forwards the literal '$_CI_DD_STAGING_API_KEY', so downstream code treats that literal as unset.
+   _CI_DD_STAGING_API_KEY: $_CI_DD_STAGING_API_KEY
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
