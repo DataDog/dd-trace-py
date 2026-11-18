@@ -292,7 +292,7 @@ def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = Non
     }
 
 
-def extract_git_version(cwd=None):
+def extract_git_version(cwd: Optional[str] = None) -> tuple[int, ...]:
     output = _git_subprocess_cmd("--version")
     try:
         version_info = tuple([int(part) for part in output.split()[2].split(".")])
@@ -306,7 +306,7 @@ def _extract_remote_url_with_details(cwd: Optional[str] = None) -> _GitSubproces
     return _git_subprocess_cmd_with_details("config", "--get", "remote.origin.url", cwd=cwd)
 
 
-def extract_remote_url(cwd=None):
+def extract_remote_url(cwd: Optional[str] = None) -> str:
     remote_url, error, _, returncode = _extract_remote_url_with_details(cwd=cwd)
     if returncode == 0:
         return remote_url
