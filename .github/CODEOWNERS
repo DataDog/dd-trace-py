@@ -199,6 +199,7 @@ ddtrace/aiguard/                    @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
 ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
+ddtrace/contrib/_events/subprocess.py        @DataDog/asm-python
 ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/asm-python
 ddtrace/contrib/internal/urllib              @DataDog/asm-python
 ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
@@ -258,6 +259,9 @@ src/native/crashtracker*                     @DataDog/profiling-python @DataDog/
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
+# Shared integration event contracts also need their product owners.
+ddtrace/contrib/_events/llm.py                               @DataDog/apm-python-guild @DataDog/apm-idm-python @DataDog/ml-observability
+ddtrace/contrib/_events/aws_sdk_bedrock_runtime.py            @DataDog/ml-observability
 ddtrace/contrib/internal/aws_sdk_bedrock_runtime/              @DataDog/ml-observability
 tests/contrib/aws_sdk_bedrock_runtime/                        @DataDog/ml-observability
 ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
@@ -347,7 +351,8 @@ tests/openfeature/                        @DataDog/feature-flagging-and-experime
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities
 ddtrace/_trace/                                    @DataDog/apm-sdk-capabilities
-ddtrace/_trace/subscribers/                        @DataDog/apm-sdk-capabilities @DataDog/apm-python-guild @DataDog/apm-idm-python
+# Tracing subscribers
+ddtrace/_trace/subscribers/                        @DataDog/apm-python-guild @DataDog/apm-idm-python
 ddtrace/_trace/span.py                             @DataDog/apm-sdk-capabilities @DataDog/apm-core-python
 # File commonly updated for integrations, widen ownership to help with PR review
 ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities @DataDog/apm-python-guild @DataDog/apm-idm-python
@@ -377,6 +382,8 @@ tests/test_sampling.py                             @DataDog/apm-sdk-capabilities
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities
 tests/opentelemetry/                               @DataDog/apm-sdk-capabilities
 tests/tracer/                                      @DataDog/apm-sdk-capabilities
+# This file covers both core subscriber machinery and tracing subscriber behavior.
+tests/internal/test_subscribers.py                 @DataDog/apm-core-python @DataDog/apm-python-guild @DataDog/apm-idm-python
 tests/tracer/test_otel_thread_context.py            @DataDog/apm-sdk-capabilities @DataDog/apm-core-python @DataDog/asm-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
