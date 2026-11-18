@@ -966,6 +966,67 @@ def test_concurrent_shutdown_releases_the_claim_once(cdn, api_key, monkeypatch):
             provider.shutdown()
 
 
+def test_start_during_shutdown_does_not_start_a_second_poller(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]})
+    later = _provider({"tags": ["b"]})
+    joining = threading.Event()
+    resume = threading.Event()
+    try:
+        provider.initialize(EvaluationContext())
+        source = provider._configuration_source
+        join = source.join
+
+        def blocking_join(*args, **kwargs):
+            joining.set()
+            resume.wait(timeout=5)
+            return join(*args, **kwargs)
+
+        monkeypatch.setattr(source, "join", blocking_join)
+        stopping = threading.Thread(target=provider.shutdown)
+        stopping.start()
+        assert joining.wait(timeout=5)
+        provider._start_configuration_source()
+        assert provider._configuration_source is source
+        resume.set()
+        stopping.join(timeout=5)
+        assert provider._configuration_source is None
+
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        resume.set()
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_failed_poller_join_leaves_the_claim_to_the_next_shutdown(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]})
+    later = _provider({"tags": ["b"]})
+    try:
+        provider.initialize(EvaluationContext())
+        source = provider._configuration_source
+        join = source.join
+        failures = [RuntimeError("Cannot join the current periodic thread")]
+
+        def join_failing_once(*args, **kwargs):
+            if failures:
+                raise failures.pop()
+            return join(*args, **kwargs)
+
+        monkeypatch.setattr(source, "join", join_failing_once)
+        with pytest.raises(RuntimeError):
+            provider.shutdown()
+        assert provider._configuration_source is source
+
+        provider.shutdown()
+        assert provider._configuration_source is None
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        provider.shutdown()
+        later.shutdown()
+
+
 def test_new_selection_after_release_waits_for_its_own_poll(cdn, api_key, caplog):
     cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
     first = _provider({"tags": ["a"]})

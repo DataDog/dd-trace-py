@@ -224,6 +224,7 @@ class DataDogProvider(AbstractProvider):
         # agentless is the resolved source and stopped in shutdown().
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
         self._configuration_source_lock = forksafe.Lock()
+        self._stopping_configuration_source = False
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
@@ -497,19 +498,30 @@ class DataDogProvider(AbstractProvider):
     def _stop_configuration_source(self) -> None:
         """Stop the agentless poller if it was started.
 
-        Concurrent shutdowns stop the poller and release its claim once.
+        One shutdown at a time tears the poller down, and the source stays in place until the join succeeds:
+        a concurrent initialize() starts no second poller, and after a failed join the next shutdown finishes
+        the teardown and releases the claim once.
         """
         with self._configuration_source_lock:
-            source, self._configuration_source = self._configuration_source, None
-        if source is None:
-            return
+            source = self._configuration_source
+            if source is None or self._stopping_configuration_source:
+                return
+            self._stopping_configuration_source = True
 
         try:
-            source.stop()
+            try:
+                source.stop()
+            except ServiceStatusError:
+                logger.debug("Agentless configuration source is already stopped", exc_info=True)
             source.join()
-            logger.debug("Feature Flags: agentless configuration source stopped")
-        except ServiceStatusError:
-            logger.debug("Agentless configuration source is already stopped", exc_info=True)
+        except BaseException:
+            with self._configuration_source_lock:
+                self._stopping_configuration_source = False
+            raise
+        with self._configuration_source_lock:
+            self._configuration_source = None
+            self._stopping_configuration_source = False
+        logger.debug("Feature Flags: agentless configuration source stopped")
         release_process_selection()
 
     def resolve_boolean_details(
