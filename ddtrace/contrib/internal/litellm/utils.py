@@ -82,6 +82,24 @@ def has_fallbacks(kwargs):
     return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
 
 
+def defer_outer_span_to_openai(attempts, kwargs, model):
+    """Stop the outer span of a fallback run from being submitted when an attempt gets its own OpenAI span.
+
+    This runs before the OpenAI span starts, so that span takes the nearest remaining LLMObs span as its parent
+    instead of the outer span, which is no longer exported.
+    """
+    outer = attempts.get("span")
+    if outer is None or outer.span_type is None or not has_downstream_openai_span(kwargs, model):
+        return
+    from ddtrace.llmobs import LLMObs
+
+    outer.span_type = None
+    parent = outer._parent
+    while parent is not None and (parent.finished or parent.span_type != "llm"):
+        parent = parent._parent
+    LLMObs._instance._llmobs_context_provider.activate(parent)
+
+
 @contextmanager
 def fallback_dispatch(ctx):
     """Mark the wrapped call so the fallback runner's inner calls do not submit a second LLM span."""
@@ -89,7 +107,7 @@ def fallback_dispatch(ctx):
     if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
         yield
         return
-    attempts: dict = {}
+    attempts: dict = {"span": span_from_context(ctx)}
     token = _fallback_dispatch_attempts.set(attempts)
     try:
         yield
@@ -101,11 +119,7 @@ def fallback_dispatch(ctx):
         if attempt:
             model, attempt_kwargs = attempt
             event.model = model
-            span = span_from_context(ctx)
-            span.set_tag(TAG_MODEL, model)
-            if has_downstream_openai_span(attempt_kwargs, model):
-                # The OpenAI integration emits the span for this attempt, so this one must not be submitted too.
-                span.span_type = None
+            span_from_context(ctx).set_tag(TAG_MODEL, model)
             request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
             for key in ("litellm_logging_obj", "litellm_call_id"):
                 attempt_kwargs.pop(key, None)

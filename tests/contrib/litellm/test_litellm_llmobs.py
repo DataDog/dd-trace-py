@@ -6,10 +6,13 @@ from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import safe_json
@@ -1234,9 +1237,14 @@ def test_completion_with_openai_fallback_defers_to_openai_span(litellm, litellm_
     def inner_completion(*args, **kwargs):
         return litellm.ModelResponse(model="gpt-4o-mini")
 
+    def openai_completion(*args, **kwargs):
+        # Stands in for the span of the OpenAI integration, which starts inside litellm's call.
+        with LLMObs.llm(model_name="gpt-4o-mini", model_provider="openai", name="OpenAI.createChatCompletion"):
+            return inner_completion()
+
     def completion(*args, **kwargs):
         traced_completion(inner_completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
-        return traced_completion(inner_completion, None, (), {"model": openai_model, "messages": FALLBACK_MESSAGES})
+        return traced_completion(openai_completion, None, (), {"model": openai_model, "messages": FALLBACK_MESSAGES})
 
     with mock.patch(_OPENAI_ENABLED, return_value=True):
         traced_completion(
@@ -1246,4 +1254,7 @@ def test_completion_with_openai_fallback_defers_to_openai_span(litellm, litellm_
             {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": [openai_model]},
         )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
-    assert len([s for s in spans if s.span_type == "llm"]) == 0
+    llm_spans = [s for s in spans if s.span_type == "llm"]
+    assert [s.name for s in llm_spans] == ["OpenAI.createChatCompletion"]
+    # The unexported outer span must not be recorded as the parent.
+    assert get_llmobs_parent_id(llm_spans[0]) == ROOT_PARENT_ID

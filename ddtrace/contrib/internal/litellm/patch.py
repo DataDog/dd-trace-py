@@ -13,6 +13,7 @@ from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import _fallback_dispatch_attempts
+from ddtrace.contrib.internal.litellm.utils import defer_outer_span_to_openai
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.internal.litellm.utils import fallback_dispatch
 from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
@@ -42,6 +43,7 @@ def _request_event(operation, args, kwargs, router=None):
     attempts = _fallback_dispatch_attempts.get()
     if attempts is not None and router is None:
         attempts["request"] = (model, dict(kwargs))
+        defer_outer_span_to_openai(attempts, kwargs, model)
     host = extract_host_tag(kwargs)
     tags = {}
     if model is not None:
