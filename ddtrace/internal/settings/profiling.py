@@ -660,8 +660,8 @@ class ProfilingConfigGC(DDConfig):
         validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Float",
         help=(
-            "GC pauses at least this long, in milliseconds, are reported as individual timeline events. "
-            "Shorter pauses are only counted in the per-interval totals."
+            "GC pauses at least this long, in milliseconds, are reported as individual samples, "
+            "up to 1,024 per interval. Other pauses are only counted in the per-interval totals."
         ),
     )
 
