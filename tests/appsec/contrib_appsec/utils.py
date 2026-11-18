@@ -287,6 +287,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     # Expected ep.path values (as stored in the endpoint collection) that must
     # be discovered. Each child class must override with framework-specific routes.
     ENDPOINT_DISCOVERY_EXPECTED_PATHS: ClassVar[set[str]] = set()
+    ENDPOINT_DISCOVERY_UNREQUESTED_PATHS: ClassVar[set[str]] = set()
 
     @staticmethod
     def endpoint_path_to_uri(path: str) -> str:
@@ -374,6 +375,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 if ep.method not in ("GET", "*", "POST") or "/static/" in ep.path:
                     continue
                 found.add(ep.path)
+                if ep.path in self.ENDPOINT_DISCOVERY_UNREQUESTED_PATHS:
+                    continue
                 uri = self.endpoint_path_to_uri(ep.path)
                 response = (
                     interface.client.post(uri, data=json.dumps({"data": "content"}), content_type="application/json")
@@ -387,6 +390,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
                 assert find_resource(resource)
         assert expected <= found, f"missing paths: {expected - found}"
+        assert self.ENDPOINT_DISCOVERY_UNREQUESTED_PATHS <= found, (
+            f"missing paths: {self.ENDPOINT_DISCOVERY_UNREQUESTED_PATHS - found}"
+        )
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(

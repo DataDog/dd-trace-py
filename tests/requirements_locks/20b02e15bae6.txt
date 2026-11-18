@@ -17,6 +17,6 @@ pytest-cov==7.1.0
 pytest-mock==3.17.0
 pytest-randomly==5.0.0
 sortedcontainers==2.4.0
-sqlalchemy==2.0.55
+sqlalchemy==2.0.57
 tomli==2.5.0
 typing-extensions==4.16.0

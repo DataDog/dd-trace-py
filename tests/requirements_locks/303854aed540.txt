@@ -2,7 +2,7 @@ annotated-types==0.8.0
 anyio==4.15.1
 attrs==26.1.0
 cffi==2.1.1
-claude-agent-sdk==0.2.160
+claude-agent-sdk==0.2.182
 click==8.5.0
 coverage[toml]==7.16.2
 cryptography==50.0.2
