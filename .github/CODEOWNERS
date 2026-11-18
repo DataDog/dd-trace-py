@@ -69,6 +69,7 @@ docker-compose.yml                  @DataDog/python-guild
 repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
 static-analysis.datadog.yml         @DataDog/python-guild
+staging.datadog.yml             @DataDog/apm-python-guild
 .gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
 .github/                            @DataDog/python-guild  @DataDog/apm-core-python
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
