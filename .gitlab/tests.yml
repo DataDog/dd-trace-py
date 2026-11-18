@@ -70,8 +70,6 @@ extract_test_artifacts:
     # are on the same filesystem. The default cache is in the home directory, which is
     # not on the filesystem of the checkout, so uv copies every file into each venv.
     UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
-    # Log Test Optimization and TIA decisions (map lookup, selection reason, publishing).
-    DD_TEST_DEBUG: "1"
   before_script:
     - |
       # These suites need LiteLLM versions that the internal index does not permit.

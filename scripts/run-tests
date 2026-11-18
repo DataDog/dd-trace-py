@@ -105,6 +105,8 @@ def _configure_ci_test_optimization_environment(env: dict[str, str], python_hint
         and python_version >= _TIA_MIN_PYTHON_VERSION
     ):
         env["DD_TIA_ENABLED"] = "true"
+        # Log TIA decisions (map lookup, selection reason, publishing) while it is being dogfooded.
+        env.setdefault("DD_TEST_DEBUG", "1")
 
 
 class TestEnvironmentError(RuntimeError):
