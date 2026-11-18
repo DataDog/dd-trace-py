@@ -927,8 +927,21 @@ class _BaggageHeader:
         return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
 
     @staticmethod
-    def _inject(span_context: Context, headers: dict[str, str]) -> None:
-        baggage_items = span_context._baggage.items()
+    def _inject(
+        span_context: Context, headers: dict[str, str], extra_items: Optional[dict[str, Optional[str]]] = None
+    ) -> None:
+        """Encode the context's baggage into the ``baggage`` header.
+
+        ``extra_items`` apply to this request only and are never written to the (trace-shared)
+        context. They go first so they survive truncation, win on a key collision, and a ``None``
+        value drops that key from the header.
+        """
+        if extra_items:
+            merged = {k: v for k, v in extra_items.items() if v is not None}
+            merged.update((k, v) for k, v in span_context._baggage.items() if k not in extra_items)
+            baggage_items = merged.items()
+        else:
+            baggage_items = span_context._baggage.items()
         if not baggage_items:
             return
 
@@ -1196,13 +1209,15 @@ class HTTPPropagator:
                 span_context,
             )
 
-        core.dispatch("http.span_inject", (span_context, headers))
+        # Listeners add request-scoped baggage items here rather than mutating span_context.
+        extra_baggage: dict[str, Optional[str]] = {}
+        core.dispatch("http.span_inject", (span_context, headers, extra_baggage))
         if not config._propagation_style_inject:
             return
 
         # baggage should be injected regardless of existing span or trace id
         if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
-            _BaggageHeader._inject(span_context, headers)
+            _BaggageHeader._inject(span_context, headers, extra_baggage)
 
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:

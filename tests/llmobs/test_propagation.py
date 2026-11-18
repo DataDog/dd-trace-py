@@ -1,9 +1,11 @@
 import json
 import logging
 import os
+from unittest import mock
 
 import pytest
 
+from ddtrace import config
 from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
 from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
@@ -1178,13 +1180,140 @@ def test_llmobs_context_survives_dropped_apm_trace_headers(llmobs, llmobs_events
     }
 
 
-def test_activate_baggage_wins_over_tags(llmobs):
-    """Both carriers present: baggage is the copy that cannot have been dropped en route."""
-    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID, parent_id="111111111")
-    ctx.set_baggage_item(BAGGAGE_PARENT_ID_KEY, "222222222")
+def test_activate_prefers_baggage_when_carriers_agree(llmobs):
+    """Both carriers written by one hop: baggage wins, so its hex trace ID needs no format guess."""
+    ctx = _make_upstream_llmobs_context(_AMBIGUOUS_WIRE_TRACE_ID, parent_id="111111111")
+    ctx.set_baggage_item(BAGGAGE_PARENT_ID_KEY, "111111111")
+    ctx.set_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY, _AMBIGUOUS_HEX_TRACE_ID)
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w") as span:
-        assert get_llmobs_parent_id(span) == "222222222"
+        assert get_llmobs_parent_id(span) == "111111111"
+        assert get_llmobs_trace_id(span) == _AMBIGUOUS_HEX_TRACE_ID
+
+
+def test_activate_uses_tags_when_baggage_is_stale(llmobs):
+    """A -> B -> C where B rewrites only the tags: the tag parent differs from the baggage parent,
+    so every field comes from the tags (B), none from A's forwarded baggage.
+    """
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID, parent_id="111111111")
+    ctx._meta[PROPAGATED_ML_APP_KEY] = "app-b"
+    ctx.set_baggage_item(BAGGAGE_PARENT_ID_KEY, "222222222")
+    ctx.set_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY, "ab" * 16)
+    ctx.set_baggage_item(BAGGAGE_ML_APP_KEY, "app-a")
+    ctx.set_baggage_item(BAGGAGE_SESSION_ID_KEY, "session-a")
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == "111111111"
+        assert get_llmobs_trace_id(span) == _HEX_TRACE_ID
+        assert get_llmobs_ml_app(span) == "app-b"
+        assert get_llmobs_session_id(span) != "session-a"
+
+
+def test_activate_ignores_baggage_on_restart(llmobs):
+    """`restart` drops the inbound trace but keeps baggage; LLMObs must not continue across it."""
+    ctx = _extract_baggage_only_context(_HEX_TRACE_ID)
+    with mock.patch.object(config, "_propagation_behavior_extract", "restart"):
+        llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == ROOT_PARENT_ID
+        assert get_llmobs_trace_id(span) != _HEX_TRACE_ID
+
+
+def test_activate_distributed_headers_without_any_context_does_not_raise(llmobs):
+    llmobs.activate_distributed_headers({})
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == ROOT_PARENT_ID
+
+
+def test_inject_does_not_write_llmobs_items_to_shared_baggage(llmobs):
+    """Concurrent injections from one trace share span.context._baggage, so the request-scoped
+    items must only go on the request.
+    """
+    with llmobs.workflow("w") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    assert _extract_baggage(headers)[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+    assert not [k for k in span.context.get_all_baggage_items() if k.startswith("llmobs.")]
+
+
+def test_inject_replaces_inbound_llmobs_baggage(llmobs):
+    """Inbound `llmobs.*` items stay on the extracted context; they must not be forwarded."""
+    inbound = _extract_baggage_only_context(_HEX_TRACE_ID, parent_id="987654321", **{"user.id": "u1"})
+    llmobs._instance.tracer.context_provider.activate(inbound)
+    with llmobs.workflow("w") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    baggage = _extract_baggage(headers)
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+    assert baggage["user.id"] == "u1"
+    assert headers["baggage"].count("llmobs.parent_id=") == 1
+
+
+def test_inject_without_llmobs_context_sends_no_llmobs_baggage(llmobs):
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    assert not [k for k in _extract_baggage(headers) if k.startswith("llmobs.")]
+
+
+def test_thread_pool_child_keeps_its_own_trace_after_injection(llmobs, patched_futures):
+    """An injection from one LLMObs trace must not leak its trace ID into a thread-pool child of
+    another LLMObs trace under the same APM trace.
+    """
+    import concurrent.futures
+
+    def child():
+        with llmobs.tool("t") as t:
+            return get_llmobs_trace_id(t)
+
+    with llmobs._instance.tracer.trace("request"):
+        with llmobs.workflow("w1") as w1:
+            HTTPPropagator.inject(w1.context, {})
+        with llmobs.workflow("w2") as w2:
+            with concurrent.futures.ThreadPoolExecutor(1) as ex:
+                child_trace_id = ex.submit(child).result()
+    assert child_trace_id == get_llmobs_trace_id(w2)
+    assert child_trace_id != get_llmobs_trace_id(w1)
+
+
+def test_asyncio_child_keeps_its_own_trace_after_injection(llmobs, patched_asyncio):
+    import asyncio
+
+    async def child():
+        with llmobs.tool("t") as t:
+            return get_llmobs_trace_id(t)
+
+    async def main():
+        with llmobs._instance.tracer.trace("request"):
+            with llmobs.workflow("w1") as w1:
+                HTTPPropagator.inject(w1.context, {})
+            with llmobs.workflow("w2") as w2:
+                child_trace_id = await asyncio.create_task(child())
+        return get_llmobs_trace_id(w2), child_trace_id
+
+    w2_trace_id, child_trace_id = asyncio.run(main())
+    assert child_trace_id == w2_trace_id
+
+
+def test_thread_pool_child_ignores_inbound_placeholder_trace_id(llmobs, patched_futures):
+    """An inbound request made outside any LLMObs span carries no usable parent; its trace ID must
+    not replace the local root's in thread-pool children.
+    """
+    import concurrent.futures
+
+    inbound = _extract_baggage_only_context("cd" * 16, parent_id=ROOT_PARENT_ID)
+    llmobs._instance.tracer.context_provider.activate(inbound)
+    llmobs._instance._activate_llmobs_distributed_context({}, inbound)
+
+    def child():
+        with llmobs.tool("t") as t:
+            return get_llmobs_trace_id(t)
+
+    with llmobs.workflow("w") as w:
+        with concurrent.futures.ThreadPoolExecutor(1) as ex:
+            child_trace_id = ex.submit(child).result()
+    assert child_trace_id == get_llmobs_trace_id(w)
+    assert child_trace_id != "cd" * 16
 
 
 def test_activate_falls_back_to_tags_when_no_baggage(llmobs):

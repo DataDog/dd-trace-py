@@ -70,6 +70,11 @@ BAGGAGE_PARENT_AGENT_NAME_KEY = "llmobs.parent_agent_name"
 
 BAGGAGE_AGENT_NAME_MAX_LENGTH = 512
 
+# Process-local slot for the canonical hex LLMObs trace ID on an LLMObs parent Context. Not
+# `_dd.p.`-prefixed, so it is never injected. Local reads use this, never `llmobs.*` baggage:
+# baggage is shared by the whole trace, so a value read back from it can belong to another trace.
+LLMOBS_TRACE_ID_HEX_CTX_KEY = "_ml_obs.llmobs_trace_id_hex"
+
 PROPAGATED_KEY_TO_BAGGAGE_KEY = {
     PROPAGATED_PARENT_ID_KEY: BAGGAGE_PARENT_ID_KEY,
     PROPAGATED_LLMOBS_TRACE_ID_KEY: BAGGAGE_LLMOBS_TRACE_ID_KEY,

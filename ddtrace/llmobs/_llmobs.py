@@ -34,6 +34,7 @@ from ddtrace.ext import net
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -103,6 +104,7 @@ from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID_HEX_CTX_KEY
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_AGENT_VERSION
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -2675,8 +2677,11 @@ class LLMObs(Service):
             context = active.context.copy(active.trace_id, active.span_id)
             context._meta = dict(context._meta)
             # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
-            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
+            hex_trace_id = get_llmobs_trace_id(active)
+            wire_trace_id = _trace_id_to_wire(hex_trace_id) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            if hex_trace_id:
+                context._meta[LLMOBS_TRACE_ID_HEX_CTX_KEY] = hex_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
             ml_app = get_llmobs_ml_app(active)
             if ml_app:
@@ -2755,10 +2760,10 @@ class LLMObs(Service):
                 sampling_state = llmobs_parent._get_ctx_item(LLMOBS_SAMPLING)
             else:
                 parent_ctx = llmobs_parent
-                # Baggage carries canonical hex; only the decimal tag carrier needs normalizing.
-                llmobs_trace_id = parent_ctx.get_baggage_item(
-                    BAGGAGE_LLMOBS_TRACE_ID_KEY
-                ) or _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
+                # Prefer the private canonical hex; only the decimal wire value needs normalizing.
+                llmobs_trace_id = parent_ctx._meta.get(LLMOBS_TRACE_ID_HEX_CTX_KEY) or _normalize_wire_trace_id_to_hex(
+                    parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                )
                 ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
                 session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
@@ -3784,13 +3789,19 @@ class LLMObs(Service):
         return cls._instance._api_client.get_spans(base_params)
 
     @classmethod
-    def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:
+    def _inject_llmobs_context(
+        cls,
+        span_context: Context,
+        request_headers: dict[str, str],
+        extra_baggage: Optional[dict[str, Optional[str]]] = None,
+    ) -> None:
         """Stamp the active LLMObs context onto an outbound request.
 
         Written to both carriers: `_dd.p.llmobs_*` tags on span_context._meta (legacy, rides
         x-datadog-tags) and `llmobs.*` baggage items, which survive if APM trace headers are dropped.
-        This runs from the http.span_inject hook, before the baggage header is encoded, so items set
-        here make it onto the request.
+        The baggage items go into `extra_baggage`, which the propagator merges into this request's
+        header only: span_context's baggage is shared by the whole trace and by concurrent
+        injections, so a request-scoped parent ID must never be stored there.
         """
         if cls.enabled is False:
             return
@@ -3813,9 +3824,9 @@ class LLMObs(Service):
             # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
             wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(generate_128bit_trace_id())
-            hex_trace_id = active_context.get_baggage_item(
-                BAGGAGE_LLMOBS_TRACE_ID_KEY
-            ) or _normalize_wire_trace_id_to_hex(wire_trace_id)
+            hex_trace_id = active_context._meta.get(LLMOBS_TRACE_ID_HEX_CTX_KEY) or _normalize_wire_trace_id_to_hex(
+                wire_trace_id
+            )
             sample_rate = active_context._meta.get(PROPAGATED_SAMPLE_RATE)
             sampling_decision = active_context._meta.get(PROPAGATED_SAMPLING_DECISION)
         else:
@@ -3859,14 +3870,12 @@ class LLMObs(Service):
                 parent_agent_name[:BAGGAGE_AGENT_NAME_MAX_LENGTH] if parent_agent_name is not None else None
             ),
         }
-        # A Context's baggage is shared by every span in the trace, so a key left alone here
-        # would keep a previous injection's value and misattribute this request. Every key is
-        # written or removed, never skipped.
+        if extra_baggage is None:
+            return
+        # None drops the key from this request, so inbound `llmobs.*` items are never forwarded
+        # alongside (or instead of) ours. Without an LLMObs context there is nothing to send.
         for baggage_key, value in baggage_values.items():
-            if value is None:
-                span_context.remove_baggage_item(baggage_key)
-            else:
-                span_context.set_baggage_item(baggage_key, str(value))
+            extra_baggage[baggage_key] = str(value) if active_context is not None and value is not None else None
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
@@ -3899,12 +3908,24 @@ class LLMObs(Service):
             telemetry.record_inject_distributed_headers(error)
 
     @staticmethod
-    def _read_propagated_value(context: Context, propagated_key: str) -> Optional[str]:
-        """Read one propagated LLMObs value, preferring baggage over the legacy `_dd.p.*` tag."""
-        value = context.get_baggage_item(PROPAGATED_KEY_TO_BAGGAGE_KEY[propagated_key])
-        if value is not None:
-            return str(value)
-        return context._meta.get(propagated_key)
+    def _select_propagated_carrier(context: Context) -> Optional[str]:
+        """Pick the carrier to read all inbound LLMObs fields from: "baggage", "tags", or None.
+
+        Baggage is the primary carrier. A tag parent that differs from the baggage parent means a
+        tag-only hop (older dd-trace-py, or an SDK without the baggage carrier) sat in between and
+        forwarded stale baggage, so the tags win. Reading every field from one carrier keeps two
+        hops' contexts from being spliced together.
+        """
+        tag_parent = context._meta.get(PROPAGATED_PARENT_ID_KEY)
+        # `restart` severs the inbound trace but keeps baggage; honor the boundary for LLMObs too.
+        if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
+            baggage_parent = None
+        else:
+            baggage_parent = context.get_baggage_item(BAGGAGE_PARENT_ID_KEY)
+        stale_baggage = tag_parent not in (None, ROOT_PARENT_ID) and baggage_parent != tag_parent
+        if stale_baggage or baggage_parent is None:
+            return "tags" if tag_parent is not None else None
+        return "baggage"
 
     @classmethod
     def _activate_llmobs_distributed_context(cls, request_headers: dict[str, str], context: Context) -> None:
@@ -3912,7 +3933,19 @@ class LLMObs(Service):
         try:
             if cls.enabled is False:
                 return
-            _parent_id = cls._read_propagated_value(context, PROPAGATED_PARENT_ID_KEY)
+            carrier = cls._select_propagated_carrier(context)
+            if carrier == "baggage":
+
+                def read(propagated_key: str) -> Optional[str]:
+                    value = context.get_baggage_item(PROPAGATED_KEY_TO_BAGGAGE_KEY[propagated_key])
+                    return str(value) if value is not None else None
+
+            else:
+
+                def read(propagated_key: str) -> Optional[str]:
+                    return context._meta.get(propagated_key)
+
+            _parent_id = read(PROPAGATED_PARENT_ID_KEY) if carrier is not None else None
             if _parent_id is None or _parent_id == ROOT_PARENT_ID:
                 error = "missing_parent_id"
                 log.debug("Failed to extract LLMObs parent ID from request headers.")
@@ -3923,13 +3956,14 @@ class LLMObs(Service):
                 error = "invalid_parent_id"
                 log.warning("Failed to parse LLMObs parent ID from request headers.")
                 return
-            # Read per-carrier, not via `_read_propagated_value`: baggage holds hex, the tag holds
-            # decimal. Preferring the hex keeps the ambiguous 32-digit case from being misread.
-            canonical_llmobs_trace_id = context.get_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY)
-            if canonical_llmobs_trace_id is not None:
-                parent_llmobs_trace_id = _trace_id_to_wire(canonical_llmobs_trace_id)
+            # Baggage carries canonical hex, the tag carries decimal.
+            hex_llmobs_trace_id = read(PROPAGATED_LLMOBS_TRACE_ID_KEY) if carrier == "baggage" else None
+            if hex_llmobs_trace_id is not None:
+                parent_llmobs_trace_id = _trace_id_to_wire(hex_llmobs_trace_id)
             else:
-                parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                parent_llmobs_trace_id = (
+                    context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) if carrier == "tags" else None
+                )
             if parent_llmobs_trace_id is None:
                 error = "missing_parent_llmobs_trace_id"
                 if context.trace_id:
@@ -3946,8 +3980,8 @@ class LLMObs(Service):
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
             if parent_llmobs_trace_id is not None:
                 llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = parent_llmobs_trace_id
-            if canonical_llmobs_trace_id is not None:
-                llmobs_context.set_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY, canonical_llmobs_trace_id)
+            if hex_llmobs_trace_id is not None:
+                llmobs_context._meta[LLMOBS_TRACE_ID_HEX_CTX_KEY] = hex_llmobs_trace_id
             for propagated_key in (
                 PROPAGATED_ML_APP_KEY,
                 PROPAGATED_SAMPLE_RATE,
@@ -3956,7 +3990,7 @@ class LLMObs(Service):
                 PROPAGATED_PARENT_AGENT_ID_KEY,
                 PROPAGATED_PARENT_AGENT_NAME_KEY,
             ):
-                value = cls._read_propagated_value(context, propagated_key)
+                value = read(propagated_key)
                 if value is not None:
                     llmobs_context._meta[propagated_key] = value
             cls._instance._llmobs_context_provider.activate(llmobs_context)

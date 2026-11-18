@@ -5,4 +5,11 @@ features:
     header under the ``llmobs.*`` namespace, in addition to the existing ``_dd.p.llmobs_*`` tags.
     Since baggage propagates independently of APM trace identity, LLMObs traces are no longer
     fragmented by a hop that drops the APM headers. Both carriers are read, so this is
-    backwards compatible with older tracer versions.
+    backwards compatible with older tracer versions. This requires ``baggage`` in
+    ``DD_TRACE_PROPAGATION_STYLE`` (the default). With
+    ``DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT=restart``, inbound LLMObs baggage is ignored.
+upgrade:
+  - |
+    LLM Observability: ``LLMObs.activate_distributed_headers()`` no longer raises an exception when the
+    request headers have no APM trace context. LLMObs context can now arrive in baggage alone, so the
+    method logs a debug message and returns when the headers carry no LLMObs context.
