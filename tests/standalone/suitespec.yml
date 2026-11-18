@@ -13,5 +13,7 @@ suites:
       - tests/aiguard/utils.py
     matrix:
       command: pytest {cmdargs} tests/standalone/
+      env:
+        DD_TIA_ENABLED: 'true'
       variants:
         - name: standalone
