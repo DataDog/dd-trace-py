@@ -25,10 +25,12 @@ Realtime support requires ``openai-agents>=0.2.0`` and ``websockets>=14.0``; att
 ``call_id`` requires ``openai-agents>=0.5.0``. Older non-Realtime Agents versions remain supported.
 Enable LLM Observability to capture one workflow per turn, with model generation and speech
 windows, transcripts, audio, tools, and provider-reported token usage.
+Realtime span capture does not automatically evaluate or block Realtime turns through AI Guard;
+OpenAI Chat/Responses and Agents MCP tool evaluations use their separate AI Guard hooks.
 
 On call attachments, server playback events determine the agent speech window. Audio is retrieved
 from stored conversation items, preferring requests already made by the SDK or application.
-Successful retrieval events remain visible to application listeners. Set
+Additional retrieval is enabled by default. Successful retrieval events remain visible to application listeners. Set
 ``DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED=false`` to disable additional audio requests;
 passive observation of existing retrieval replies continues. Set ``DD_OPENAI_REALTIME_ENABLED=false``
 to disable Realtime instrumentation while retaining ordinary Agents instrumentation.

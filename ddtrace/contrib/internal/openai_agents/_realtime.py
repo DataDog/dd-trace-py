@@ -32,6 +32,7 @@ from ddtrace.contrib.internal.openai._realtime import _bytes_per_second
 from ddtrace.contrib.internal.openai._realtime import _decoded_b64_len
 from ddtrace.contrib.internal.openai._realtime import _encoded_realtime_audio_size
 from ddtrace.contrib.internal.openai._realtime import _get_attr
+from ddtrace.contrib.internal.openai._realtime import _InputTurn
 from ddtrace.contrib.internal.openai._realtime import _RealtimeState
 from ddtrace.contrib.internal.openai._realtime import _ResponseTurn
 from ddtrace.contrib.internal.openai._realtime import _segment_duration_ns
@@ -156,11 +157,29 @@ class _AgentsRealtimeState(_RealtimeState):
         self._output_audio_speed: Optional[float] = 0.25
         self.handling = 0
         self.intents: dict[str, int] = {}
+        self.input_text_ids: OrderedDict[str, None] = OrderedDict()
         self._input_audio_mime = self._output_audio_mime = "audio/pcm"
 
     def on_client_event(self, event: Any) -> None:
         if self.sideband and isinstance(event, dict) and event.get("type") == "conversation.item.truncate":
             return
+        if self.sideband and isinstance(event, dict) and event.get("type") == "conversation.item.create":
+            item = event.get("item")
+            if isinstance(item, dict) and item.get("role") == "user":
+                # Server acknowledgements cover both local and primary-channel text.
+                # Observing that canonical item once avoids duplicating echoed sends,
+                # including sends for which the server assigns the item ID.
+                event = {
+                    **event,
+                    "item": {
+                        **item,
+                        "content": [
+                            part
+                            for part in item.get("content", [])
+                            if not isinstance(part, dict) or part.get("type") not in ("input_text", "text")
+                        ],
+                    },
+                }
         super().on_client_event(event)
 
     def _start_response(self, response_id: Optional[str]) -> None:
@@ -267,7 +286,7 @@ class _AgentsRealtimeState(_RealtimeState):
         self.transcript_timers.pop(id(entry.turn), None)
         if entry.turn in self._awaiting:
             self._awaiting.remove(entry.turn)
-        self._check(entry)
+        self._finalize_turn(entry.turn)
 
     def _finalize_turn(self, turn: _ResponseTurn, force: bool = False) -> None:
         entry = next((e for e in self.entries.values() if e.turn is turn), None)
@@ -401,8 +420,11 @@ class _AgentsRealtimeState(_RealtimeState):
         entry = getattr(self, "_emitting", None)
         if entry and entry.derived:
             metadata["agent_speech_timing"] = "audio_duration"
-        if self.sideband and entry and entry.has_audio and not entry.turn.audio.chunks:
-            metadata["output_audio_capture"] = "omitted"
+        if self.sideband and entry and entry.has_audio:
+            audio = entry.turn.audio
+            encoded_size = _encoded_realtime_audio_size(audio.total_decoded_bytes, audio.mime or entry.mime)
+            if not audio.chunks or (encoded_size is not None and encoded_size > _AUDIO_ACCUM_MAX_BYTES):
+                metadata["output_audio_capture"] = "omitted"
         return metadata
 
     def _turn_end_ns(self, turn: _ResponseTurn) -> Optional[int]:
@@ -546,6 +568,8 @@ class _AgentsRealtimeState(_RealtimeState):
             item.raw_byte_bound = math.ceil((item.audio_end_ms - item.audio_start_ms) * rate / 1000)
         elif item.generation_done and item.side.audio.total_decoded_bytes:
             item.raw_byte_bound = item.side.audio.total_decoded_bytes
+        if not self._input_transcription_enabled:
+            self._want_item(item)
 
     def _known_audio_bytes(self, item: _Item) -> Optional[int]:
         if item.raw_byte_bound is not None:
@@ -699,6 +723,14 @@ class _AgentsRealtimeState(_RealtimeState):
         item.expected.update(expected)
         status = data.get("status")
         stable = status == "completed" or (status == "incomplete" and item.generation_done)
+        if item.entry and item.entry.truncated and not item.input_audio:
+            # An unfinished snapshot cannot restore captions invalidated by an
+            # acknowledged interruption. A zero-length part has no heard text.
+            transcripts = {
+                index: text
+                for index, text in transcripts.items()
+                if stable and index <= item.last_index and item.caps.get(index) != 0
+            }
         if stable and (transcripts or (item.entry and item.entry.truncated)):
             item.transcripts = transcripts
             if item.entry and not item.input_audio and item.entry.truncated:
@@ -925,10 +957,15 @@ class _AgentsRealtimeState(_RealtimeState):
                 ):
                     item.caps[index] = min(item.caps.get(index, end_ms), end_ms)
                     item.last_index = min(item.last_index, index)
-                    if item.complete and item.entry and not item.input_audio:
+                    if item.entry and not item.input_audio:
                         rate = _bytes_per_second(item.mime, item.rate)
                         part = item.parts.get(index)
-                        cut = rate is None or part is None or int(end_ms * rate / 1000) < _decoded_b64_len(part)
+                        cut = (
+                            not item.complete
+                            or rate is None
+                            or part is None
+                            or int(end_ms * rate / 1000) < _decoded_b64_len(part)
+                        )
                         for part_index in list(item.transcripts):
                             if part_index > index or (part_index == index and cut):
                                 item.transcripts.pop(part_index, None)
@@ -941,6 +978,7 @@ class _AgentsRealtimeState(_RealtimeState):
                             if other and after:
                                 other.last_index = -1
                                 other.parts.clear()
+                                other.transcripts.clear()
                                 other.wanted = False
                             after |= item_id == item.id
                     self._rebuild(item)
@@ -977,8 +1015,35 @@ class _AgentsRealtimeState(_RealtimeState):
                         for entry in window:
                             entry.window = window
                     self.active = None
+        if self.sideband and event_type in (
+            "conversation.item.added",
+            "conversation.item.created",
+            "conversation.item.done",
+        ):
+            data = event.get("item")
+            if isinstance(data, dict) and data.get("role") == "user":
+                text_item_id = data.get("id")
+                parts = [
+                    part
+                    for part in data.get("content", [])
+                    if isinstance(part, dict) and part.get("type") in ("input_text", "text") and part.get("text")
+                ]
+                if isinstance(text_item_id, str) and text_item_id and parts and text_item_id not in self.input_text_ids:
+                    self._absorb_input_item({"role": "user", "content": parts})
+                    self.input_text_ids[text_item_id] = None
+                    while len(self.input_text_ids) > _MAX_ITEMS:
+                        self.input_text_ids.popitem(last=False)
         if event_type == "input_audio_buffer.cleared":
             self.input_offsets.clear()
+        if self.sideband and event_type == "input_audio_buffer.committed":
+            committed_id = event.get("item_id")
+            pending = self._pending_input
+            if isinstance(committed_id, str) and pending.item_id and pending.item_id != committed_id:
+                # A second commit supersedes the pending caller, but earlier
+                # retrieval replies still own the earlier caller's accumulator.
+                self._pending_input = _InputTurn()
+                self._pending_input.text = pending.text
+                self._pending_input.tool_results = list(pending.tool_results)
         super().on_server_event(event)
         if self.sideband and event_type == "input_audio_buffer.committed":
             self._remember_input(event)
@@ -1100,6 +1165,7 @@ class _AgentsRealtimeState(_RealtimeState):
         self.requests.clear()
         self.application_requests.clear()
         self.input_offsets.clear()
+        self.input_text_ids.clear()
         self.intents.clear()
         self._pending_input.audio.clear()
         self._responses.clear()
