@@ -757,6 +757,7 @@ def _annotate_llmobs_span_data(
     session_id: Optional[str] = None,
     span_links: Optional[list[_SpanLink]] = None,
     agent_manifest: Optional[dict[str, Any]] = None,
+    gateway: Optional[str] = None,
     config: Optional[dict[str, Any]] = None,
     expected_output: Optional[Any] = None,
     experiment_input: Optional[str] = None,
@@ -815,16 +816,23 @@ def _annotate_llmobs_span_data(
             # Metadata keys are serialized as strings, so coerce non-string keys here. Values are
             # left as-is for in-process consumers; _sanitize_span_event_data handles them at finish.
             meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
-        if agent_manifest is not None or cost_tags is not None:
+        if agent_manifest is not None or cost_tags is not None or gateway is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
-            metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            existing_dd = meta[LLMOBS_STRUCT.METADATA].get(LLMOBS_STRUCT.METADATA_DD)
+            # Copy: metadata keeps the caller's _dd by reference, and other spans can share it. A value that is not
+            # a dict is replaced, because _dd is reserved.
+            metadata_dd = dict(existing_dd) if isinstance(existing_dd, dict) else {}
+            meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD] = metadata_dd
             if agent_manifest is not None:
                 metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
             if cost_tags is not None:
-                existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
+                existing_cost_tags = list(metadata_dd.get(LLMOBS_STRUCT.COST_TAGS) or [])
                 for cost_tag in cost_tags:
                     if cost_tag not in existing_cost_tags:
                         existing_cost_tags.append(cost_tag)
+                metadata_dd[LLMOBS_STRUCT.COST_TAGS] = existing_cost_tags
+            if gateway is not None:
+                metadata_dd[LLMOBS_STRUCT.GATEWAY] = gateway
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
