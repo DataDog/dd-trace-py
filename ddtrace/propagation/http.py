@@ -935,10 +935,25 @@ class _BaggageHeader:
         ``extra_items`` apply to this request only and are never written to the (trace-shared)
         context. They go first so they survive truncation, win on a key collision, and a ``None``
         value drops that key from the header.
+
+        With ``extra_items``, members already in the outbound ``baggage`` header (set by the caller,
+        or by an earlier injection into a reused dict) are kept after the context's items, except
+        for the request-scoped keys, which this request owns.
         """
         if extra_items:
             merged = {k: v for k, v in extra_items.items() if v is not None}
             merged.update((k, v) for k, v in span_context._baggage.items() if k not in extra_items)
+            existing_items: dict[str, str] = {}
+            existing_header = headers.get(_HTTP_HEADER_BAGGAGE)
+            if existing_header:
+                existing_items = _BaggageHeader._extract({_HTTP_HEADER_BAGGAGE: existing_header})._baggage
+                merged.update((k, v) for k, v in existing_items.items() if k not in extra_items and k not in merged)
+            if not merged:
+                # Drop a header that only held request-scoped keys (stale llmobs.* items from an
+                # earlier injection), but never a caller's header we could not parse.
+                if existing_items and all(k in extra_items for k in existing_items):
+                    del headers[_HTTP_HEADER_BAGGAGE]
+                return
             baggage_items = merged.items()
         else:
             baggage_items = span_context._baggage.items()

@@ -1256,6 +1256,58 @@ def test_inject_without_llmobs_context_sends_no_llmobs_baggage(llmobs):
     assert not [k for k in _extract_baggage(headers) if k.startswith("llmobs.")]
 
 
+def test_reused_headers_drop_stale_llmobs_baggage(llmobs):
+    """A dict reused after an LLMObs injection must not keep the earlier request's parent."""
+    headers = {}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert "baggage" in headers
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert "baggage" not in headers
+
+
+def test_reused_headers_keep_caller_baggage_and_drop_stale_llmobs_baggage(llmobs):
+    headers = {"baggage": "tenant=a"}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert _extract_baggage(headers) == {"tenant": "a"}
+
+
+def test_inject_keeps_caller_baggage_header(llmobs):
+    headers = {"baggage": "tenant=a"}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    baggage = _extract_baggage(headers)
+    assert baggage["tenant"] == "a"
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+
+
+def test_inject_replaces_caller_llmobs_baggage(llmobs):
+    headers = {"baggage": "llmobs.parent_id=1,tenant=a"}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert _extract_baggage(headers)[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+    assert headers["baggage"].count("llmobs.parent_id=") == 1
+
+
+def test_inject_context_baggage_wins_over_caller_header(llmobs):
+    llmobs._instance.tracer.context_provider.activate(Context(trace_id=123, span_id=456, baggage={"tenant": "ctx"}))
+    headers = {"baggage": "tenant=caller"}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert _extract_baggage(headers)["tenant"] == "ctx"
+
+
+def test_inject_leaves_unparseable_caller_header_untouched(llmobs):
+    headers = {"baggage": "not-a-member"}
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert headers["baggage"] == "not-a-member"
+
+
 def test_thread_pool_child_keeps_its_own_trace_after_injection(llmobs, patched_futures):
     """An injection from one LLMObs trace must not leak its trace ID into a thread-pool child of
     another LLMObs trace under the same APM trace.
