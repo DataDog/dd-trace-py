@@ -93,21 +93,29 @@ def defer_outer_span_to_openai(attempts, kwargs, model):
         return
     from ddtrace.llmobs import LLMObs
 
+    attempts["span_type"] = outer.span_type
     outer.span_type = None
-    parent = outer._parent
-    while parent is not None and (parent.finished or parent.span_type != "llm"):
-        parent = parent._parent
-    LLMObs._instance._llmobs_context_provider.activate(parent)
+    # Restore the LLMObs parent that was active before the outer span, local span or distributed context.
+    LLMObs._instance._llmobs_context_provider.activate(attempts["llmobs_parent"])
+
+
+def active_llmobs_parent():
+    """Return the LLMObs span or context that is active now, before the outer litellm span starts."""
+    from ddtrace.llmobs import LLMObs
+
+    if not LLMObs.enabled:
+        return None
+    return LLMObs._instance._llmobs_context_provider.active()
 
 
 @contextmanager
-def fallback_dispatch(ctx):
+def fallback_dispatch(ctx, llmobs_parent):
     """Mark the wrapped call so the fallback runner's inner calls do not submit a second LLM span."""
     event = ctx.event
     if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
         yield
         return
-    attempts: dict = {"span": span_from_context(ctx)}
+    attempts: dict = {"span": span_from_context(ctx), "llmobs_parent": llmobs_parent}
     token = _fallback_dispatch_attempts.set(attempts)
     try:
         yield
@@ -119,7 +127,11 @@ def fallback_dispatch(ctx):
         if attempt:
             model, attempt_kwargs = attempt
             event.model = model
-            span_from_context(ctx).set_tag(TAG_MODEL, model)
+            span = span_from_context(ctx)
+            span.set_tag(TAG_MODEL, model)
+            if "span_type" in attempts and not has_downstream_openai_span(attempt_kwargs, model):
+                # An earlier OpenAI attempt dropped this span, but a different model answered: restore it.
+                span.span_type = attempts["span_type"]
             request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
             for key in ("litellm_logging_obj", "litellm_call_id"):
                 attempt_kwargs.pop(key, None)
