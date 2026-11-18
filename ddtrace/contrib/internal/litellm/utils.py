@@ -85,6 +85,9 @@ def has_fallbacks(kwargs):
     return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
 
 
+_OPENAI_SDK_PROVIDERS = ("openai", "azure", "azure_text", "text-completion-openai")
+
+
 def _emits_openai_span(kwargs, model) -> bool:
     """Determine whether the answering attempt really runs the OpenAI SDK.
 
@@ -95,10 +98,10 @@ def _emits_openai_span(kwargs, model) -> bool:
         return False
     provider_override = kwargs.get("custom_llm_provider")
     if provider_override:
-        return str(provider_override).lower() in ("openai", "azure", "text-completion-openai")
+        return str(provider_override).lower() in _OPENAI_SDK_PROVIDERS
     provider, _, _ = (model or "").lower().partition("/")
     # Bare model names ("gpt-4o") are OpenAI's own; any other provider prefix routes elsewhere ("ollama/gpt-oss").
-    return provider in ("openai", "azure", "text-completion-openai") or "/" not in (model or "")
+    return provider in _OPENAI_SDK_PROVIDERS or "/" not in (model or "")
 
 
 def _is_cache_hit(response) -> bool:

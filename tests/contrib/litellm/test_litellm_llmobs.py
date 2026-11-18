@@ -1301,6 +1301,20 @@ def test_completion_with_failed_openai_fallback_keeps_span_of_answering_model(li
     assert outer.get_tag("litellm.request.model") == FALLBACK_MODEL
 
 
+@pytest.mark.parametrize(
+    "fallback_kwargs",
+    [
+        {"model": "gpt-35-turbo-instruct", "custom_llm_provider": "azure_text"},
+        {"model": "azure/my-deployment"},
+    ],
+)
+def test_completion_with_azure_fallback_defers_to_openai_span(litellm, litellm_llmobs, test_spans, fallback_kwargs):
+    from ddtrace.contrib.internal.litellm.utils import _emits_openai_span
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        assert _emits_openai_span(fallback_kwargs, fallback_kwargs["model"])
+
+
 def test_completion_with_openai_fallback_cache_hit_keeps_outer_span(litellm, litellm_llmobs, test_spans):
     """A cache hit never calls the OpenAI SDK, so no OpenAI span exists and the outer span must be kept."""
     from ddtrace.contrib.internal.litellm.patch import traced_completion
