@@ -1305,8 +1305,7 @@ def test_completion_with_openai_fallback_keeps_distributed_llmobs_parent(litellm
     from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
     from ddtrace.trace import Context
 
-    inbound = Context(trace_id=111, span_id=222)
-    inbound._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = "111"
+    inbound = Context(trace_id=111, span_id=222, meta={PROPAGATED_LLMOBS_TRACE_ID_KEY: "111"})
     LLMObs._instance._llmobs_context_provider.activate(inbound)
 
     def openai_completion(*args, **kwargs):
@@ -1337,8 +1336,7 @@ def test_completion_with_two_openai_fallbacks_keeps_distributed_llmobs_parent(li
     from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
     from ddtrace.trace import Context
 
-    inbound = Context(trace_id=111, span_id=222)
-    inbound._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = "111"
+    inbound = Context(trace_id=111, span_id=222, meta={PROPAGATED_LLMOBS_TRACE_ID_KEY: "111"})
     LLMObs._instance._llmobs_context_provider.activate(inbound)
 
     def openai_completion(*args, **kwargs):

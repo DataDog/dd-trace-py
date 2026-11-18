@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIO
 from ddtrace.contrib.internal.litellm._constants import model_map
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
@@ -91,13 +92,11 @@ def defer_outer_span_to_openai(attempts, kwargs, model):
     outer = attempts.get("span")
     if outer is None or not has_downstream_openai_span(kwargs, model):
         return
-    from ddtrace.llmobs import LLMObs
-
     if outer.span_type is not None:
         attempts["span_type"] = outer.span_type
         outer.span_type = None
     # Restore the LLMObs parent that was active before the outer span, local span or distributed context.
-    LLMObs._instance._llmobs_context_provider.activate(attempts["llmobs_parent"])
+    core.dispatch("litellm.llmobs.activate_parent", (attempts["llmobs_parent"],))
 
 
 def _is_cache_hit(response) -> bool:
@@ -106,11 +105,9 @@ def _is_cache_hit(response) -> bool:
 
 def active_llmobs_parent():
     """Return the LLMObs span or context that is active now, before the outer litellm span starts."""
-    from ddtrace.llmobs import LLMObs
-
-    if not LLMObs.enabled:
-        return None
-    return LLMObs._instance._llmobs_context_provider.active()
+    return core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+        "litellm.llmobs.active_parent", ()
+    ).parent.value
 
 
 @contextmanager

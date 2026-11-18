@@ -82,9 +82,7 @@ class InstrumentedCoverage(CoverageMode):
             # Version-gated: mypy lints under 3.10 where instrumentation_py3_12
             # and sys.monitoring are unreachable. The logic is identical to the
             # CollectInContext.__enter__ code it replaces (see main's code.py).
-            from ddtrace.internal.coverage.instrumentation_py3_12 import (  # type: ignore[attr-defined]
-                update_disable_optimization,
-            )
+            from ddtrace.internal.coverage.instrumentation_py3_12 import update_disable_optimization  # type: ignore[attr-defined]
 
             if update_disable_optimization():
                 sys.monitoring.restart_events()  # type: ignore[attr-defined]

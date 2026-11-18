@@ -1039,6 +1039,8 @@ class LLMObs(Service):
         )
         core.reset_listeners("elevenlabs.conversation.start", create_conversation_state)
         core.reset_listeners("threading.submit", self._on_threading_submit)
+        core.reset_listeners("litellm.llmobs.active_parent", self._on_litellm_active_parent)
+        core.reset_listeners("litellm.llmobs.activate_parent", self._on_litellm_activate_parent)
         core.reset_listeners("threading.execution", self._on_threading_execution)
         core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
         core.reset_listeners("asyncio.execute_task", self._on_asyncio_execute_task)
@@ -1213,6 +1215,8 @@ class LLMObs(Service):
             )
             core.on("elevenlabs.conversation.start", create_conversation_state, "state")
             core.on("threading.submit", cls._instance._on_threading_submit, "llmobs_ctx")
+            core.on("litellm.llmobs.active_parent", cls._instance._on_litellm_active_parent, "parent")
+            core.on("litellm.llmobs.activate_parent", cls._instance._on_litellm_activate_parent)
             core.on("threading.execution", cls._instance._on_threading_execution)
             core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)
             core.on("asyncio.execute_task", cls._instance._on_asyncio_execute_task)
@@ -2693,6 +2697,13 @@ class LLMObs(Service):
                 context._meta[PARENT_AGENT_VERSION] = parent_agent_version
             return context
         return None
+
+    def _on_litellm_active_parent(self) -> Optional[Any]:
+        """Return the active LLMObs span or context, so litellm can restore it after dropping its own span."""
+        return self._llmobs_context_provider.active()
+
+    def _on_litellm_activate_parent(self, parent: Optional[Any]) -> None:
+        self._llmobs_context_provider.activate(parent)
 
     def _on_threading_submit(self) -> tuple[Optional[Context], Optional[RoutingContextType]]:
         """Capture what must cross into an executor worker: LLMObs context plus routing.
