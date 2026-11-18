@@ -1479,6 +1479,90 @@ def test_waiting_start_is_bounded_by_the_initialization_timeout(cdn, api_key):
         provider.shutdown()
 
 
+def test_initialize_that_times_out_waiting_for_a_start_does_not_report_ready(cdn, api_key, monkeypatch):
+    cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
+    first = _provider({"tags": ["a"]})
+    first.initialize(EvaluationContext())
+    first.shutdown()
+
+    cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-b"))
+    provider = _provider({"tags": ["b"]}, timeout=0.3)
+    resume = threading.Event()
+    holding = _hold_source_creation(monkeypatch, resume)
+    starting = threading.Thread(target=lambda: _initialize_quietly(provider))
+    starting.start()
+    try:
+        assert holding.wait(timeout=5)
+        # The first start has not claimed B yet, so A's snapshot must not make this one READY.
+        with pytest.raises(ProviderNotReadyError):
+            provider.initialize(EvaluationContext())
+    finally:
+        resume.set()
+        starting.join(timeout=5)
+        provider.shutdown()
+
+
+def _initialize_quietly(provider):
+    try:
+        provider.initialize(EvaluationContext())
+    except ProviderNotReadyError:
+        pass
+
+
+def test_start_during_a_retired_poller_teardown_waits_for_it(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]})
+    later = _provider({"tags": ["b"]})
+    joining = threading.Event()
+    resume = threading.Event()
+    try:
+        provider.initialize(EvaluationContext())
+        retired = provider._configuration_source
+        joins = [RuntimeError("join failed")]
+
+        def join_failing_then_held(*args, **kwargs):
+            if joins:
+                raise joins.pop()
+            joining.set()
+            resume.wait(timeout=5)
+
+        monkeypatch.setattr(retired, "join", join_failing_then_held)
+        with pytest.raises(RuntimeError):
+            provider.shutdown()
+        assert provider._retired_configuration_sources == [retired]
+
+        stopping = threading.Thread(target=provider.shutdown)
+        stopping.start()
+        assert joining.wait(timeout=5)
+        reinitializing = threading.Thread(target=lambda: _initialize_quietly(provider))
+        reinitializing.start()
+        threading.Event().wait(0.1)
+        # The teardown owns no current poller, and a start must not add one it does not own.
+        assert provider._configuration_source is None
+        resume.set()
+        stopping.join(timeout=5)
+        reinitializing.join(timeout=5)
+        assert provider._retired_configuration_sources == []
+        assert provider._configuration_source is not None
+
+        provider.shutdown()
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        resume.set()
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_forked_child_gets_a_new_lifecycle_event():
+    import ddtrace.internal.openfeature._provider as provider_module
+
+    provider = _provider(None)
+    inherited = provider._configuration_source_changed
+    provider_module._reset_provider_state_in_child()
+    assert provider._configuration_source_changed is not inherited
+    assert not provider._configuration_source_changed.is_set()
+
+
 def test_forked_child_drops_a_start_reservation_from_the_parent():
     import ddtrace.internal.openfeature._provider as provider_module
 
