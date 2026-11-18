@@ -1358,8 +1358,9 @@ def test_completion_with_openai_fallback_failing_before_sdk_keeps_error_span(lit
     [
         {"model": "ollama/gpt-oss:20b"},
         {"model": "openai/gpt-4o-mini", "mock_response": "fallback answer"},
+        {"model": "gpt-oss:20b", "custom_llm_provider": "ollama"},
     ],
-    ids=["non_openai_provider_named_gpt", "mock_response"],
+    ids=["non_openai_provider_named_gpt", "mock_response", "provider_override"],
 )
 def test_completion_with_fallback_without_openai_span_keeps_llm_span(
     litellm, litellm_llmobs, test_spans, fallback_kwargs

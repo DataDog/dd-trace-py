@@ -93,6 +93,9 @@ def _emits_openai_span(kwargs, model) -> bool:
     """
     if not has_downstream_openai_span(kwargs, model) or kwargs.get("mock_response") is not None:
         return False
+    provider_override = kwargs.get("custom_llm_provider")
+    if provider_override:
+        return str(provider_override).lower() in ("openai", "azure", "text-completion-openai")
     provider, _, _ = (model or "").lower().partition("/")
     # Bare model names ("gpt-4o") are OpenAI's own; any other provider prefix routes elsewhere ("ollama/gpt-oss").
     return provider in ("openai", "azure", "text-completion-openai") or "/" not in (model or "")
