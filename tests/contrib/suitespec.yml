@@ -2631,7 +2631,7 @@ suites:
           dependencies: ['pytest<=8', pytest-randomly, 'tornado~=6.2']
         - name: tornado
           python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-randomly, 'tornado==6.2']
+          dependencies: ['pytest<9.2', pytest-randomly, 'tornado==6.2']
         - name: tornado
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'tornado==6.3.1']
