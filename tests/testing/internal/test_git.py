@@ -258,7 +258,6 @@ class TestGit:
                 "include1",
             ],
             GitTelemetry.GET_OBJECTS,
-            local_only=True,
         )
 
 

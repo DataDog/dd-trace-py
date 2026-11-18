@@ -465,6 +465,12 @@ def _get_rev_list_with_details(
 ) -> _GitSubprocessDetails:
     if commit_sha and not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_sha):
         return _GitSubprocessDetails("", "Invalid selected commit SHA", 0, 1)
+    if commit_sha:
+        selected = _git_subprocess_cmd_with_details(
+            "rev-parse", "--verify", commit_sha + "^{commit}", cwd=cwd, local_only=True
+        )
+        if selected.returncode != 0 or selected.stdout.lower() != commit_sha.lower():
+            return _GitSubprocessDetails("", selected.stderr, selected.duration, 1)
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):
         command.append('--since="1 month ago"')
@@ -478,7 +484,7 @@ def _get_rev_list_with_details(
         command.extend(inclusions)
     if not commit_sha:
         return _git_subprocess_cmd_with_details(*command, cwd=cwd)
-    result = _git_subprocess_cmd_with_details(*command, cwd=cwd, local_only=True)
+    result = _git_subprocess_cmd_with_details(*command, cwd=cwd)
     excluded = {sha.lower() for sha in excluded_commit_shas or []}
     objects = {line.split(" ", 1)[0].lower() for line in result.stdout.splitlines()}
     if result.returncode == 0 and commit_sha.lower() not in excluded and commit_sha.lower() not in objects:
@@ -490,7 +496,6 @@ def _get_rev_list_with_details(
             "--no-walk=unsorted",
             commit_sha,
             cwd=cwd,
-            local_only=True,
         )
         if selected.returncode != 0:
             return selected

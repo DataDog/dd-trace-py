@@ -2,6 +2,7 @@ import contextlib
 from ctypes import c_int
 import json
 import multiprocessing
+import os
 from pathlib import Path
 import re
 import socket
@@ -581,7 +582,10 @@ def test_git_client_get_latest_commits(git_repo):
 
 
 @pytest.mark.parametrize("engine", ["legacy", "current"])
-@pytest.mark.parametrize("selection", ["recent", "old", "uppercase", "boundary", "promisor", "missing", "invalid"])
+@pytest.mark.parametrize(
+    "selection",
+    ["recent", "old", "uppercase", "boundary", "promisor", "missing", "invalid", "treeless", "old-treeless"],
+)
 def test_git_upload_uses_selected_history_and_actual_pack(git_repo_empty, engine, selection):
     checkout = str(git_repo_empty)
 
@@ -592,8 +596,14 @@ def test_git_upload_uses_selected_history_and_actual_pack(git_repo_empty, engine
 
     tree = git("hash-object", "-t", "tree", "-w", "--stdin", content="")
     timestamp = int(time.time())
+    trees = {}
 
     def commit(message, date, parent=None):
+        commit_tree = tree
+        if selection.endswith("treeless"):
+            blob = git("hash-object", "-w", "--stdin", content=message)
+            commit_tree = git("mktree", content=f"100644 blob {blob}\tfile.txt\n")
+        trees[message] = commit_tree
         parent_line = f"parent {parent}\n" if parent else ""
         return git(
             "hash-object",
@@ -601,12 +611,12 @@ def test_git_upload_uses_selected_history_and_actual_pack(git_repo_empty, engine
             "commit",
             "-w",
             "--stdin",
-            content=f"tree {tree}\n{parent_line}author Test <test@example.com> {date} +0000\n"
+            content=f"tree {commit_tree}\n{parent_line}author Test <test@example.com> {date} +0000\n"
             f"committer Test <test@example.com> {date} +0000\n\n{message}\n",
         )
 
-    parent = commit("parent", timestamp - 120) if selection == "boundary" else None
-    selected = commit("selected", 1 if selection == "old" else timestamp - 60, parent)
+    parent = commit("parent", timestamp - 120) if selection in ("boundary", "treeless") else None
+    selected = commit("selected", 1 if selection in ("old", "old-treeless") else timestamp - 60, parent)
     head = commit("checkout", timestamp, selected)
     git("update-ref", "HEAD", head)
     if selection in ("boundary", "promisor"):
@@ -627,19 +637,46 @@ def test_git_upload_uses_selected_history_and_actual_pack(git_repo_empty, engine
         if selection == "promisor":
             git("config", "remote.origin.promisor", "true")
             git("config", "remote.origin.partialclonefilter", "blob:none")
+    if selection.endswith("treeless"):
+        git("config", "uploadpack.allowFilter", "true")
+        git("config", "uploadpack.allowAnySHA1InWant", "true")
+        partial = str(Path(checkout) / "partial")
+        git("clone", "--no-local", "--no-checkout", "--filter=tree:0", checkout, partial)
+        checkout = partial
+        assert git("rev-parse", "--is-shallow-repository") == "false"
+        if parent:
+            git("cat-file", "-e", trees["selected"])
+        missing_tree = trees["parent" if parent else "selected"]
+        assert (
+            subprocess.run(
+                ["git", "cat-file", "-e", missing_tree],
+                cwd=checkout,
+                env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": ""},
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).returncode
+            != 0
+        )
     if selection == "missing":
         selected = "f" * 40
     elif selection == "invalid":
         selected = "--all"
     elif selection == "uppercase":
         selected = selected.upper()
+    if selection == "promisor":
+        if engine == "legacy":
+            assert not CIVisibilityGitClient._get_filtered_revisions([], [], cwd=checkout, commit_sha=selected)
+        else:
+            assert not Git(cwd=checkout).get_filtered_revisions([], [], commit_sha=selected)
     tags = {ci.git.COMMIT_SHA: selected, ci.git.REPOSITORY_URL: "https://example.com/repository.git"}
     searches = []
     packed_commits = []
+    packed_objects = set()
 
     def inspect_pack(packfile):
         objects = git("verify-pack", "-v", str(Path(packfile).with_suffix(".idx")))
         packed_commits.extend(line.split()[0] for line in objects.splitlines() if " commit " in line)
+        packed_objects.update(line.split()[0] for line in objects.splitlines() if " tree " in line)
         return Path(packfile).stat().st_size
 
     if engine == "legacy":
@@ -688,6 +725,8 @@ def test_git_upload_uses_selected_history_and_actual_pack(git_repo_empty, engine
         assert selected.lower() in packed_commits and head not in packed_commits
         if parent:
             assert parent in searches[-1] and parent in packed_commits
+    if selection.endswith("treeless"):
+        assert missing_tree in packed_objects
     assert git("rev-parse", "HEAD") == head
 
 

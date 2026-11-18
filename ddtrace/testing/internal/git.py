@@ -360,6 +360,10 @@ class Git:
     ) -> list[str]:
         if commit_sha and not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_sha):
             return []
+        if commit_sha:
+            selected_details = self._call_git(["rev-parse", "--verify", commit_sha + "^{commit}"], local_only=True)
+            if selected_details.return_code != 0 or selected_details.stdout.lower() != commit_sha.lower():
+                return []
         exclusions = [f"^{sha}" for sha in excluded_commits]
         output = self._git_output(
             [
@@ -373,7 +377,6 @@ class Git:
                 *included_commits,
             ],
             GitTelemetry.GET_OBJECTS,
-            local_only=True,
         )
         if not output and not commit_sha:
             return []
@@ -382,7 +385,6 @@ class Git:
             selected = self._git_output(
                 ["rev-list", "--objects", "--filter=blob:none", "--no-object-names", "--no-walk=unsorted", commit_sha],
                 GitTelemetry.GET_OBJECTS,
-                local_only=True,
             )
             if not selected:
                 return []
