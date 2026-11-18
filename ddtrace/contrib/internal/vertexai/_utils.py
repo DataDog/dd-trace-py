@@ -21,10 +21,9 @@ class BaseVertexAIStreamHandler:
         """Dispatch the deferred ended event with the streamed chunks, which finishes the span."""
         ctx = self.options["ctx"]
         ctx.event.response = self.chunks
-        if exception:
-            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
-        else:
-            ctx.dispatch_ended_event()
+        # The traced stream records a stream error on the span before finalizing, so dispatching it again would
+        # report the same failure twice.
+        ctx.dispatch_ended_event()
 
 
 class VertexAIStreamHandler(BaseVertexAIStreamHandler, StreamHandler):
