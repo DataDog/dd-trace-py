@@ -100,6 +100,10 @@ def defer_outer_span_to_openai(attempts, kwargs, model):
     LLMObs._instance._llmobs_context_provider.activate(attempts["llmobs_parent"])
 
 
+def _is_cache_hit(response) -> bool:
+    return bool((getattr(response, "_hidden_params", None) or {}).get("cache_hit"))
+
+
 def active_llmobs_parent():
     """Return the LLMObs span or context that is active now, before the outer litellm span starts."""
     from ddtrace.llmobs import LLMObs
@@ -130,8 +134,11 @@ def fallback_dispatch(ctx, llmobs_parent):
             event.model = model
             span = span_from_context(ctx)
             span.set_tag(TAG_MODEL, model)
-            if "span_type" in attempts and not has_downstream_openai_span(attempt_kwargs, model):
-                # An earlier OpenAI attempt dropped this span, but a different model answered: restore it.
+            if "span_type" in attempts and (
+                not has_downstream_openai_span(attempt_kwargs, model) or _is_cache_hit(event.response)
+            ):
+                # An earlier OpenAI attempt dropped this span, but the answer did not come from an OpenAI span
+                # (a different model answered, or litellm's cache did): restore it.
                 span.span_type = attempts["span_type"]
             request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
             for key in ("litellm_logging_obj", "litellm_call_id"):

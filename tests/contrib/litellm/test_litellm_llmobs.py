@@ -1362,3 +1362,28 @@ def test_completion_with_two_openai_fallbacks_keeps_distributed_llmobs_parent(li
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     llm_spans = [s for s in spans if s.span_type == "llm"]
     assert [get_llmobs_parent_id(s) for s in llm_spans] == ["222", "222"]
+
+
+def test_completion_with_openai_fallback_cache_hit_keeps_outer_span(litellm, litellm_llmobs, test_spans):
+    """A cache hit never calls the OpenAI SDK, so no OpenAI span exists and the outer span must be kept."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def cached_completion(*args, **kwargs):
+        response = litellm.ModelResponse(model="gpt-4o-mini")
+        response._hidden_params["cache_hit"] = True
+        return response
+
+    def completion(*args, **kwargs):
+        return traced_completion(
+            cached_completion, None, (), {"model": "openai/gpt-4o-mini", "messages": FALLBACK_MESSAGES}
+        )
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": ["openai/gpt-4o-mini"]},
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [s.name for s in spans if s.span_type == "llm"] == ["litellm.request"]
