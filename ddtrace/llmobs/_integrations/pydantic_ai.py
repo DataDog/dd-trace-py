@@ -105,15 +105,12 @@ def _collect_dynamic_system_prompts(agent: Any) -> list[Any]:
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
-    _running_agents: dict[int, list[int]] = {}  # dictionary mapping agent span ID to tool span ID(s)
-    _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
     def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
         span = super().trace(operation_id, submit_to_llmobs, **kwargs)
         kind = kwargs.get("kind", None)
         if kind:
-            self._register_span(span, kind)
             _annotate_llmobs_span_data(span, kind=kind)
         return span
 
@@ -563,17 +560,3 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if get_origin(candidate) is not None:
             return False
         return callable(candidate) and not isinstance(candidate, type)
-
-    def _register_span(self, span: Span, kind: Any) -> None:
-        if kind == "agent":
-            self._register_agent(span)
-        elif kind == "tool":
-            self._register_tool(span)
-
-    def _register_agent(self, span: Span) -> None:
-        self._latest_agent = span.span_id
-        self._running_agents[span.span_id] = []
-
-    def _register_tool(self, span: Span) -> None:
-        if self._latest_agent is not None:
-            self._running_agents[self._latest_agent].append(span.span_id)

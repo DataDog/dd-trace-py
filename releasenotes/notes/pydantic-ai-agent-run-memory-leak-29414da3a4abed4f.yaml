@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    pydantic_ai: Fixes a memory leak that causes memory usage to grow with every agent run in long-running
+    processes, including when LLM Observability is disabled.
