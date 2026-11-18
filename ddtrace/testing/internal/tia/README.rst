@@ -206,3 +206,21 @@ metadata, so the sizes compare complete representations rather than file-index
 encoding alone. This small corpus is not a scaling benchmark. A shared schema
 must also define how previously failed tests stay runnable and how test-array
 indices remain valid when records are reordered or merged.
+
+Staging end-to-end script
+-------------------------
+
+``scripts/ci_visibility/tia_staging_e2e.py`` runs normal
+``DD_SITE=datad0g.com DD_TIA_ENABLED=1 pytest --ddtrace`` sessions against
+staging, using the active Python 3.12+ environment. Install this branch's ddtrace
+and pytest there, and supply ``DD_API_KEY`` in the environment or in the blank
+setting near the top of the script. ``--python`` selects a different Python.
+The script enables agentless mode so the API key is sent directly to staging.
+
+``--prepare-only`` creates the eight-case shop corpus and prints a command for
+running pytest manually. The default run checks initial recording, unchanged
+selection, affected failures and recovery, a fresh clone retrieving its map
+from staging, cached dynamic imports, and shared fixture dependencies. Corpus
+repositories, clones, maps, subprocess logs, and ``summary.json`` remain under
+``.cache/tia-staging/run-*/``. Saved logs redact the API key. Committed copies
+of the script must keep the API-key setting empty.
