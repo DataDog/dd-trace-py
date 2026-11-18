@@ -269,6 +269,21 @@ class TestObjectFlagResolution:
         assert result.reason == Reason.STATIC
         assert result.variant == "var-object"
 
+    def test_repeat_object_evaluation_returns_the_shared_value(self, provider):
+        """A repeat evaluation returns the same read-only object until the configuration changes."""
+        value = {"key": "value", "nested": [1, 2.5, None]}
+        process_ffe_configuration(create_config(create_json_flag("test-object-flag", value)))
+
+        first = provider.resolve_object_details("test-object-flag", {}).value
+        second = provider.resolve_object_details("test-object-flag", {}).value
+        assert first == value
+        assert second is first
+
+        process_ffe_configuration(create_config(create_json_flag("test-object-flag", value)))
+        reloaded = provider.resolve_object_details("test-object-flag", {}).value
+        assert reloaded == value
+        assert reloaded is not first
+
     def test_resolve_object_flag_no_config(self, provider):
         """Should return default value with ERROR reason and PROVIDER_NOT_READY when no config."""
         _set_ffe_config(None)
