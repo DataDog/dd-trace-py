@@ -1,0 +1,1 @@
+COMPONENT = "google_adk"

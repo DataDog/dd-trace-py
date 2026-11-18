@@ -90,10 +90,10 @@ def test_subscriber_calls_request_span_started_hook(subscriber, integrations):
     subscriber.register()
     instance = object()
 
-    _request("llama_index", instance=instance, operation="chain")
+    _request("llama_index", instance=instance, operation="chain", request_kwargs={"k": 2})
 
     integrations["llama_index"]._on_request_span_started.assert_called_once_with(
-        mock.ANY, instance=instance, operation="chain"
+        mock.ANY, instance=instance, operation="chain", request_kwargs={"k": 2}
     )
     integrations["anthropic"]._on_request_span_started.assert_not_called()
 

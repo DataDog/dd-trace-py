@@ -1,14 +1,21 @@
 """Tests for IAST secure marks validators."""
 
+import functools
+import types
 from unittest import mock
+
+import pytest
+from wrapt import FunctionWrapper
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.secure_marks.validators import cmdi_validator
+from ddtrace.appsec._iast.secure_marks.validators import create_validator
 from ddtrace.appsec._iast.secure_marks.validators import path_traversal_validator
 from ddtrace.appsec._iast.secure_marks.validators import sqli_validator
+from ddtrace.internal.security._patch_utils import wrap_object
 
 
 def test_path_traversal_validator():
@@ -81,3 +88,86 @@ def test_command_quote_validator():
     assert ranges
     for _range in ranges:
         assert _range.has_secure_mark(VulnerabilityType.COMMAND_INJECTION)
+
+
+def _validators_module(hook):
+    """Build a module whose validators are wrapped the same way custom security controls wrap them."""
+    module = types.ModuleType("custom_validators")
+
+    def validate(command, flag=""):
+        return True
+
+    def keyword_validate(*, command, flag=""):
+        return True
+
+    def named_self_validate(self, flag=""):
+        return True
+
+    class Validator:
+        def validate(self, command, flag=""):
+            return True
+
+        @classmethod
+        def class_validate(cls, command, flag=""):
+            return True
+
+        @staticmethod
+        def static_validate(command, flag=""):
+            return True
+
+    module.validate = validate
+    module.keyword_validate = keyword_validate
+    module.named_self_validate = named_self_validate
+    module.Validator = Validator
+    for name in (
+        "validate",
+        "keyword_validate",
+        "named_self_validate",
+        "Validator.validate",
+        "Validator.class_validate",
+        "Validator.static_validate",
+    ):
+        wrap_object(module, name, FunctionWrapper, (hook,))
+    return module
+
+
+_BINDINGS = {
+    "function": lambda module: module.validate,
+    "function_named_self": lambda module: lambda command, flag: module.named_self_validate(self=command, flag=flag),
+    "keyword_only": lambda module: module.keyword_validate,
+    "bound_method": lambda module: module.Validator().validate,
+    "unbound_method": lambda module: functools.partial(module.Validator.validate, module.Validator()),
+    "keyword_receiver": lambda module: functools.partial(module.Validator.validate, self=module.Validator()),
+    "classmethod": lambda module: module.Validator.class_validate,
+    "staticmethod": lambda module: module.Validator.static_validate,
+}
+
+
+@pytest.mark.parametrize("position", [0, 1])
+@pytest.mark.parametrize("binding,mixed", [(binding, False) for binding in _BINDINGS] + [("function", True)])
+def test_validator_with_positions_marks_only_configured_parameters(binding, mixed, position, iast_context_defaults):
+    """With parameter positions, only arguments bound to those positions are marked, however they are passed."""
+    command, flag = (
+        taint_pyobject(
+            pyobject=value,
+            source_name="test_validator_with_positions",
+            source_value=value,
+            source_origin=OriginType.PARAMETER,
+        )
+        for value in ("; rm -rf /", "--force")
+    )
+    validated, unvalidated = (command, flag) if position == 0 else (flag, command)
+    hook = functools.partial(create_validator, [VulnerabilityType.COMMAND_INJECTION], [position])
+    validator = _BINDINGS[binding](_validators_module(hook))
+
+    if mixed:
+        assert validator(command, flag=flag)
+    else:
+        assert validator(command=command, flag=flag)
+
+    validated_ranges = get_ranges(validated)
+    assert validated_ranges
+    assert all(r.has_secure_mark(VulnerabilityType.COMMAND_INJECTION) for r in validated_ranges)
+    unvalidated_ranges = get_ranges(unvalidated)
+    assert unvalidated_ranges
+    assert not any(r.has_secure_mark(VulnerabilityType.COMMAND_INJECTION) for r in unvalidated_ranges)
