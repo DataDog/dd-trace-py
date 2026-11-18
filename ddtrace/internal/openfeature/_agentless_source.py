@@ -128,6 +128,18 @@ def _normalize_service(service: str) -> str:
     return "".join(normalized)
 
 
+def _span_service() -> Any:
+    """Return the service of the spans: ``config.service`` with ``DD_SERVICE_MAPPING`` applied.
+
+    ``Tracer.start_span`` applies the mapping the same way. For example, with
+    ``DD_SERVICE=checkout`` and ``DD_SERVICE_MAPPING=checkout:store``, spans use ``store``.
+    """
+    service = ddconfig.service
+    if service is not None:
+        service = ddconfig.service_mapping.get(service, service)
+    return service
+
+
 def _usage_service_header(service: Any) -> Optional[str]:
     """Return the DD-Service header value for a tracer service, or None to omit the header.
 
@@ -223,7 +235,7 @@ class AgentlessConfigurationSource(PeriodicService):
         self._etag: Optional[str] = None
         # Compute the DD-Service value once here, not on each poll.
         # This changes only the header value. ddtrace.config.service does not change.
-        self._service = ddconfig.service
+        self._service = _span_service()
         self._service_header = _usage_service_header(self._service)
         self._failure_warnings: set[str] = set()
         self._malformed_payload_logged = False
@@ -403,11 +415,11 @@ class AgentlessConfigurationSource(PeriodicService):
     def _dd_service_header(self) -> Optional[str]:
         """Return the DD-Service header value, or None to omit the header.
 
-        The value is computed when the source is built. Code can change the service later
-        (``ddtrace.config.service = "checkout"``). Then the next poll computes the new value
-        once, and later polls use it again.
+        The value is computed when the source is built. Code can change the service or the
+        mapping later (``ddtrace.config.service = "checkout"``). Then the next poll computes the
+        new value once, and later polls use it again.
         """
-        service = ddconfig.service
+        service = _span_service()
         if service != self._service:
             self._service = service
             self._service_header = _usage_service_header(service)

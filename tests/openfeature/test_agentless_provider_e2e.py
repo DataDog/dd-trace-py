@@ -255,6 +255,29 @@ def test_agentless_request_sends_normalized_dd_service_from_environment():
     assert request["headers"]["DD-Service"] == "my_service"
 
 
+@pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": "checkout", "DD_SERVICE_MAPPING": "checkout:store"})
+def test_agentless_request_sends_mapped_dd_service_from_environment():
+    """DD_SERVICE_MAPPING renames the service of the spans. The header sends the same name."""
+    import ddtrace
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._source_selection import create_agentless_source
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+    from tests.openfeature.test_agentless_provider_e2e import _FakeConn
+    from tests.openfeature.test_agentless_provider_e2e import _FakeResponse
+
+    requests = []
+    source_mod.get_connection = lambda url, timeout=None: _FakeConn(_FakeResponse(304), requests)
+
+    source = create_agentless_source(ffe_config, lambda _: None)
+    assert source is not None
+    source.periodic()
+
+    assert ddtrace.config.service == "checkout"
+    assert ddtrace.config.service_mapping == {"checkout": "store"}
+    (request,) = requests
+    assert request["headers"]["DD-Service"] == "store"
+
+
 @pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": None})
 def test_agentless_request_sends_inferred_service():
     """Without DD_SERVICE, the header has the inferred service. The spans use the same service."""

@@ -348,6 +348,37 @@ def test_dd_service_header_follows_service_changes_after_start(harness):
     assert src._requests[2]["headers"]["DD-Service"] == "my_billing"
 
 
+# Each row: DD_SERVICE_MAPPING, the service of the spans, and the DD-Service header.
+_MAPPED_SERVICES = [
+    ({"checkout": "store"}, "store", "store"),
+    ({"checkout": "My Store"}, "My Store", "my_store"),
+    # The mapping renames other services only, so the spans keep checkout.
+    ({"mysql": "checkout-db"}, "checkout", "checkout"),
+]
+
+
+@pytest.mark.parametrize("mapping, span_service, header", _MAPPED_SERVICES, ids=[repr(m[0]) for m in _MAPPED_SERVICES])
+def test_dd_service_header_is_the_mapped_span_service(harness, monkeypatch, tracer, mapping, span_service, header):
+    monkeypatch.setattr(ddconfig, "service_mapping", mapping)
+    src = harness([_FakeResponse(304)])
+    with override_global_config({"service": "checkout"}):
+        src.periodic()
+        with tracer.trace("op") as span:
+            assert span.service == span_service
+
+    assert src._requests[0]["headers"]["DD-Service"] == header
+
+
+def test_dd_service_header_follows_mapping_changes(harness, monkeypatch):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    with override_global_config({"service": "checkout"}):
+        for mapping in ({}, {"checkout": "store"}, {"checkout": "payments"}):
+            monkeypatch.setattr(ddconfig, "service_mapping", mapping)
+            src.periodic()
+
+    assert [r["headers"]["DD-Service"] for r in src._requests] == ["checkout", "store", "payments"]
+
+
 _USAGE_SERVICE_REJECTED = "Feature Flags: service %r has an empty normalized name; DD-Service header not sent"
 
 
