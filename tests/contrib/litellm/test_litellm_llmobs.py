@@ -1579,7 +1579,9 @@ def test_completion_with_direct_fallback_after_proxy_primary_keeps_llm_span(lite
         return litellm.ModelResponse(model="claude-3-haiku-20240307")
 
     def completion(*args, **kwargs):
-        return traced_completion(inner_completion, None, (), {"model": FALLBACK_MODEL, "messages": FALLBACK_MESSAGES})
+        return traced_completion(
+            inner_completion, None, (), {"model": FALLBACK_MODEL, "messages": FALLBACK_MESSAGES, "api_base": None}
+        )
 
     with mock.patch.object(config, "_llmobs_instrumented_proxy_urls", {proxy_url}):
         traced_completion(
@@ -1590,7 +1592,7 @@ def test_completion_with_direct_fallback_after_proxy_primary_keeps_llm_span(lite
                 "model": PRIMARY_MODEL,
                 "messages": FALLBACK_MESSAGES,
                 "api_base": proxy_url,
-                "fallbacks": [{"model": FALLBACK_MODEL}],
+                "fallbacks": [{"model": FALLBACK_MODEL, "api_base": None}],
             },
         )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
