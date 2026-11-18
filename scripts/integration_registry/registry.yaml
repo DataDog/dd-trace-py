@@ -739,7 +739,7 @@ integrations:
   tested_versions_by_dependency:
     mysql-connector-python:
       min: 8.0.33
-      max: 26.7.0
+      max: 26.10.0
 
 - integration_name: mysqldb
   is_external_package: true

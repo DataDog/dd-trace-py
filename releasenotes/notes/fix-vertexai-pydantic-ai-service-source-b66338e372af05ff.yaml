@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    vertexai, pydantic_ai: Fixes an issue where spans reported ``datadog`` as the source of their service
+    name instead of how the service name was set.
