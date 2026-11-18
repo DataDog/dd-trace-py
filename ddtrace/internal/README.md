@@ -199,6 +199,20 @@ client, they remain in the caller's Context so Flask can safely re-push and pop 
 saved context objects. The legacy Flask preservation flag follows the same rule.
 Ordinary requests retain isolated execution for interleaved response streams.
 
+`ddtrace.contrib.internal.flask.response_adapter` preserves an inactive adapter
+for the shared blocking protocol. Flask patching does not import or install it.
+It reads peer IP, cookies, and matched path parameters while Flask's request
+context is available and can replace a normalized response before `start_response`
+commits it. A discarded response is closed without consuming its body, including
+its `call_on_close` callbacks. Completion copies response headers without losing
+repeated values or consuming or closing a response that will still be sent.
+
+The shared inspection events and synchronous execution helper are prerequisites;
+this extraction does not activate AppSec subscribers. Standalone adapter tests use
+synthetic response-producing callbacks and do not identify a production Flask hook.
+Future activation must reuse the existing request context rather than introduce
+another request lifecycle owner.
+
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
 `LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
