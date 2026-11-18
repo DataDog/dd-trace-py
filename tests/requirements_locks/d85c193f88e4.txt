@@ -4,7 +4,7 @@ greenlet==3.2.4
 hypothesis==6.45.0
 iniconfig==2.3.1
 mock==5.2.0
-mysql-connector-python==26.7.0
+mysql-connector-python==26.10.0
 packaging==26.3
 pluggy==1.7.0
 psycopg2-binary==2.9.13

@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    mysql: The integration is now tested with mysql-connector-python 26.10.0.
