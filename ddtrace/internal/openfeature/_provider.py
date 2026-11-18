@@ -49,6 +49,7 @@ from ddtrace.internal.openfeature._exposure_decision import ExposureDecision
 from ddtrace.internal.openfeature._exposure_decision import FlagMetadata
 from ddtrace.internal.openfeature._exposure_decision import complete_exposure_decision
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
+from ddtrace.internal.openfeature._flag_selection import FlagSelectionValues
 from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
 from ddtrace.internal.openfeature._flag_selection import release_process_selection
 from ddtrace.internal.openfeature._flag_selection import snapshot_from_other_selection
@@ -161,7 +162,7 @@ class DataDogProvider(AbstractProvider):
         self,
         *args: typing.Any,
         initialization_timeout: typing.Optional[float] = None,
-        flag_selection: typing.Optional[typing.Mapping[str, typing.Optional[typing.Sequence[str]]]] = None,
+        flag_selection: typing.Optional[typing.Mapping[str, typing.Optional[FlagSelectionValues]]] = None,
         **kwargs: typing.Any,
     ) -> None:
         super().__init__(*args, **kwargs)

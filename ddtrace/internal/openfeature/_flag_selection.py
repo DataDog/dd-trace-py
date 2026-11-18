@@ -62,6 +62,8 @@ _WHITE_SPACE = (
     "\u2028\u2029\u202f\u205f\u3000"
 )
 _LIST_TYPES = (list, tuple, set, frozenset)
+# The provider's annotation for one list; keep it in step with _LIST_TYPES.
+FlagSelectionValues = typing.Union[list[str], tuple[str, ...], set[str], frozenset[str]]
 
 _NOT_SENT_MESSAGE = "flag_selection was not sent (%s: %s). Loading the full flag configuration."
 _IGNORED_MESSAGE = "flag_selection was ignored by the server (%s). Loaded the full flag configuration."
