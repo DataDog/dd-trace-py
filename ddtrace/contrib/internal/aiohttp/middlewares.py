@@ -376,7 +376,12 @@ def _route_methods(route: AbstractRoute) -> list[str]:
 def _collect_routes(app: web.Application) -> None:
     if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED:
         return
-    for route in app.router.routes():
+    try:
+        routes = app.router.routes()
+    except Exception:
+        log.debug("Failed to enumerate aiohttp routes for endpoint collection", exc_info=True)
+        return
+    for route in routes:
         try:
             resource = route.resource
             if resource is not None:

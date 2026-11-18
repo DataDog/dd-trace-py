@@ -1,6 +1,7 @@
 import pathlib
 
 from aiohttp import web
+from aiohttp.abc import AbstractRouter
 import pytest
 
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
@@ -124,6 +125,39 @@ async def test_trace_app_called_from_a_startup_handler_collects_the_routes(aioht
     await aiohttp_client(app)
 
     assert _endpoint("POST", "/users/{id}") in _collected()
+
+
+class _HandRolledRouter(AbstractRouter):
+    async def resolve(self, request):
+        raise web.HTTPNotFound()
+
+
+def _hand_rolled_router_application():
+    with pytest.warns(DeprecationWarning):
+        return web.Application(router=_HandRolledRouter())
+
+
+async def test_application_with_a_router_without_routes_starts(aiohttp_client):
+    app = _hand_rolled_router_application()
+    trace_app(app)
+
+    client = await aiohttp_client(app)
+
+    assert (await client.get("/")).status == 404
+    assert _collected() == set()
+
+
+async def test_trace_app_called_from_a_startup_handler_with_a_router_without_routes(aiohttp_client):
+    app = _hand_rolled_router_application()
+
+    async def trace_on_startup(app):
+        trace_app(app)
+
+    app.on_startup.append(trace_on_startup)
+
+    await aiohttp_client(app)
+
+    assert _collected() == set()
 
 
 async def test_trace_app_called_from_a_cleanup_context_collects_the_routes(aiohttp_client):
