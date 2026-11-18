@@ -101,7 +101,11 @@ def fallback_dispatch(ctx):
         if attempt:
             model, attempt_kwargs = attempt
             event.model = model
-            span_from_context(ctx).set_tag(TAG_MODEL, model)
+            span = span_from_context(ctx)
+            span.set_tag(TAG_MODEL, model)
+            if has_downstream_openai_span(attempt_kwargs, model):
+                # The OpenAI integration emits the span for this attempt, so this one must not be submitted too.
+                span.span_type = None
             request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
             for key in ("litellm_logging_obj", "litellm_call_id"):
                 attempt_kwargs.pop(key, None)

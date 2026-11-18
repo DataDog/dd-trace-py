@@ -1223,3 +1223,27 @@ def test_completion_with_global_model_fallbacks_attributes_span_to_fallback(
 
     traced_completion(completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
     _assert_single_fallback_span(test_spans)
+
+
+def test_completion_with_openai_fallback_defers_to_openai_span(litellm, litellm_llmobs, test_spans):
+    """When the successful fallback is an OpenAI model, the OpenAI integration owns the LLM span, not litellm."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    openai_model = "openai/gpt-4o-mini"
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="gpt-4o-mini")
+
+    def completion(*args, **kwargs):
+        traced_completion(inner_completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
+        return traced_completion(inner_completion, None, (), {"model": openai_model, "messages": FALLBACK_MESSAGES})
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": [openai_model]},
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len([s for s in spans if s.span_type == "llm"]) == 0
