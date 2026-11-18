@@ -240,3 +240,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         request_kwargs = kwargs.get("request_kwargs") or {}
         base_url = request_kwargs.get("base_url") or request_kwargs.get("api_base")
         return str(base_url) if base_url else None
+
+    def _llmobs_gateway(self, request_kwargs: dict[str, Any]) -> Optional[str]:
+        # The LiteLLM proxy server sets proxy_server_request on the calls that it makes to litellm.
+        return "litellm" if request_kwargs.get("proxy_server_request") else None
