@@ -71,7 +71,9 @@ including explicitly deferred global tracer creation. Web request and span excep
 is unchanged. The generic span bundle registers `TracingSubscriber` directly. Its class declaration
 passes `auto_register=False` to defer only the base class; custom subclasses retain automatic
 registration unless they opt out with the existing class attribute.
-Ray retains SDK-dependent activation from its patch module until a separate migration.
+Ray's SDK-dependent bundle is activated by a tracing-owned import hook after its integration patch
+module finishes loading. Ordinary tracing startup does not import Ray. Repeated product startup
+restores Ray listeners after that module has loaded; the integration does not activate them itself.
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 
