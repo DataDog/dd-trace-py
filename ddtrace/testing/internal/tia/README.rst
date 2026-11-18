@@ -1,13 +1,19 @@
 Test Impact Analysis
 ====================
 
-``DD_TIA_ENABLED=1 pytest`` activates import-based dependency recording and
-selection through ``ddtrace.testing``. The import monitor, repository path
-filter, and file selector are adapted from
-`pytest-filemon <https://github.com/gnufede/pytest-filemon>`_ under Apache-2.0
-(see ``LICENSE.Apache`` at the repository root). They add no dependency on the
-external pytest plugin. Git commands, configuration access, HTTP transport,
-authentication, compression, retries, and plugin lifecycle reuse ddtrace code.
+``DD_TIA_ENABLED=1 pytest`` activates coverage-based dependency recording and
+selection through ``ddtrace.testing``. TIA consumes the existing per-test
+``dd-coverage`` data used by ITR, including executed repository files and the
+collector's transitive import-time dependencies. It does not wrap
+``builtins.__import__`` or ``importlib.import_module``. When ITR coverage is also
+enabled, both features share the same test execution context; TIA alone does
+not enable per-test coverage uploads.
+
+The process-spawn guard, repository path filter, and file selector are adapted
+from `pytest-filemon <https://github.com/gnufede/pytest-filemon>`_ under
+Apache-2.0 (see ``LICENSE.Apache`` at the repository root). Coverage collection,
+thread and multiprocessing propagation, Git commands, configuration access,
+HTTP transport, authentication, retries, and plugin lifecycle reuse ddtrace code.
 
 Maps are local-first. Before querying ``lookup``, the plugin checks
 ``.testoptimization/tia/<configuration_hash>/<commit>.json`` inside Git's
@@ -19,10 +25,16 @@ JSON writer. A failed remote upload does not discard the local map. Local
 cache failures do not prevent backend lookup or upload. These files live
 outside the tracked worktree, so caching does not make a clean checkout dirty.
 
-The map covers repository files imported by tests, fixtures, and collection.
-It does not track arbitrary data-file reads or code outside the repository.
-Shared fixture and conftest dependencies conservatively affect every test.
-Cached imports are recorded, including transitive module edges. Subprocess
+The map covers repository files executed by tests and fixtures, augmented with
+the collector's import-time dependencies. It does not track arbitrary data-file
+reads or code outside the repository. Conftest files and their dependency
+closures conservatively affect every test, including cached fixture dependencies.
+Repository modules loaded before instrumentation are treated conservatively as
+shared dependencies. A test without observed coverage always runs. Joined
+threads and supported multiprocessing children use dd-coverage's propagation.
+The collector uses its existing file-level or line-level mode, selected by
+``_DD_COVERAGE_FILE_LEVEL``. A collector installed by another caller is reused
+and left installed when TIA finishes. Subprocess
 creation makes a test always run; subprocesses created during collection or
 fixture setup make all recorded tests always run. Missing, malformed, or
 incompatible maps and failed Git queries run all tests. Changed files outside
@@ -34,7 +46,9 @@ unexecuted tests cannot acquire a fresh baseline. Maps from dirty worktrees,
 collection-only runs, interrupted sessions, and collection errors are not
 uploaded. The worktree must be clean both before and after execution and HEAD
 must remain unchanged. TIA replaces server-side ITR skipping for its session.
-The first implementation runs in a single pytest process; distributed xdist,
+The recorder identity is part of the configuration hash, so maps produced by
+an older import-hook recorder are not reused. The plugin runs in a single pytest
+process; distributed xdist,
 offline, discovery, and all-flaky-test modes keep their existing behavior.
 
 Artifact transport
@@ -105,3 +119,38 @@ map's source commit for both local and remote maps, so neither relies on a
 machine-specific filesystem-mtime snapshot. Other Test Optimization requests,
 including fetching session settings and reporting test results, continue to
 use the backend when a local map avoids the TIA lookup request.
+
+Synthetic end-to-end scenario
+-----------------------------
+
+``tests/testing/internal/pytest/test_pytest_tia_e2e.py`` runs fresh pytest
+processes against a six-case corpus in a real Git repository. It reuses the
+Test Optimization HTTP test server and exercises artifact PUT/lookup requests
+over localhost. It does not call a live Datadog backend. Discover the testing
+environment, then select only the scenario::
+
+    scripts/run-tests --list tests/testing/internal/pytest/test_pytest_tia_e2e.py
+    scripts/run-tests --venv <testing-environment-hash> -- -n 0 -k test_tia_ddcoverage_end_to_end
+
+The scenario records six tests initially. An unchanged run selects only the
+subprocess case. A regression in ``shop/cart.py`` selects its two parametrized
+cases and the subprocess case; another unchanged run retains those failed
+cases. Fixing the cart clears their failure state. A fresh checkout restores
+an artifact whose matched commit differs from its source commit and still
+selects the affected cart cases. Changing a shared fixture dependency runs all
+six tests. TIA alone does not send ITR coverage uploads.
+
+Each run writes ``.cache/tia-e2e/run-*/summary.json``, subprocess logs, and two
+map renderings: ``map-current.json`` and ``map-ruby-shaped.json``. The latter
+is a comparison view of the same dependency graph, using a framework scope,
+a list of suite/name/parameters test records, ``global_files``, and test-array
+indices in ``always_run``. Pytest's scoped node IDs distinguish parametrized
+cases; argument values cannot be reconstructed from the current map, so the
+comparison's ``parameters.arguments`` stays empty. The wire format is unchanged.
+
+The summary reports compact JSON sizes and diagnostic gzip sizes. Gzip is not
+used by artifact upload. The list-based view contains additional identity
+metadata, so the sizes compare complete representations rather than file-index
+encoding alone. This small corpus is not a scaling benchmark. A shared schema
+must also define how previously failed tests stay runnable and how test-array
+indices remain valid when records are reordered or merged.

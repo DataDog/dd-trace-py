@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import builtins
 import hashlib
-import importlib
 import json
 import subprocess
 import sys
@@ -16,10 +15,13 @@ from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.pytest._tia import _document
 from ddtrace.testing.internal.pytest._tia import configuration_hash
-from ddtrace.testing.internal.tia.imports import ImportMonitor
+from ddtrace.testing.internal.tia.processes import ProcessMonitor
 from ddtrace.testing.internal.tia.selection import Graph
 from ddtrace.testing.internal.tia.selection import load_graph
 from ddtrace.testing.internal.tia.selection import select_tests
+from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+from ddtrace.testing.internal.tracer_api.coverage import is_coverage_installed
+from tests.testing.internal.pytest.utils import assert_stats
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
 
@@ -202,38 +204,26 @@ def test_disabled_has_no_tia_requests(pytester, tia_backend, monkeypatch):
 def test_collect_error_restores_hooks(pytester, tia_backend):
     client, _ = tia_backend
     original = builtins.__import__
+    installed = is_coverage_installed()
     pytester.makepyfile("raise RuntimeError('collection failed')")
     assert pytester.inline_run().ret != 0
     assert builtins.__import__ is original
+    assert is_coverage_installed() == installed
     client.store_tia_map.assert_not_called()
 
 
-def test_monitor_tracks_cached_dynamic_relative_imports_and_processes(tmp_path, monkeypatch):
-    package = tmp_path / "tia_pkg"
-    package.mkdir()
-    (package / "__init__.py").write_text("")
-    (package / "child.py").write_text("VALUE = 1")
-    monkeypatch.syspath_prepend(str(tmp_path))
-    original_import = builtins.__import__
-    original_dynamic = importlib.import_module
-    monitor = ImportMonitor(tmp_path)
+def test_process_monitor_restores_process_entry_points():
+    original = subprocess.Popen.__init__
+    monitor = ProcessMonitor()
     try:
         monitor.activate()
         monitor.phase = "test"
-        monitor.current_nodeid = "first"
-        importlib.import_module("tia_pkg.child")
-        monitor.current_nodeid = "second"
-        builtins.__import__("child", {"__package__": "tia_pkg"}, fromlist=["VALUE"], level=1)
-        assert monitor.test_deps["first"] == {"tia_pkg/__init__.py", "tia_pkg/child.py"}
-        assert monitor.test_deps["second"] == monitor.test_deps["first"]
+        monitor.current_nodeid = "test"
         subprocess.run([sys.executable, "-c", "pass"], check=True)
-        assert monitor.spawn_tests == {"second"}
+        assert monitor.spawn_tests == {"test"}
     finally:
         monitor.deactivate()
-        sys.modules.pop("tia_pkg.child", None)
-        sys.modules.pop("tia_pkg", None)
-    assert builtins.__import__ is original_import
-    assert importlib.import_module is original_dynamic
+    assert subprocess.Popen.__init__ is original
 
 
 @pytest.mark.parametrize(
@@ -292,6 +282,8 @@ def test_generated_map_is_reused_without_lookup_when_upload_fails(pytester, tia_
     client.store_tia_map.return_value = False
     pytester.makepyfile(test_example="def test_one(): pass")
     pytester.inline_run().assertoutcome(passed=1)
+    document = client.store_tia_map.call_args.args[1]
+    assert not load_graph(document["map"], document).always
     client.lookup_tia_map.assert_called_once()
     client.lookup_tia_map.reset_mock()
 
@@ -456,3 +448,86 @@ def test_pytest_uses_artifact_transport_and_then_local_cache(pytester, tia_backe
     metadata = json.loads(lookups[0].kwargs["data"])["data"]["attributes"]
     assert metadata["repository_id"] == "https://example.com/repo.git"
     assert len(metadata["suite_id"]) == len(metadata["env_hash"]) == 64
+
+
+@pytest.mark.parametrize("file_level", ["true", "false"])
+def test_execution_coverage_from_joined_thread(pytester, tia_backend, monkeypatch, file_level):
+    client, _ = tia_backend
+    monkeypatch.setenv("_DD_COVERAGE_FILE_LEVEL", file_level)
+    pytester.makepyfile(tia_thread_worker="def compute(): return 42")
+    pytester.makepyfile(
+        test_example="""
+        import builtins
+        import threading
+        from tia_thread_worker import compute
+
+        def test_thread():
+            assert not getattr(builtins.__import__, "_filemon_tracking", False)
+            results = []
+            thread = threading.Thread(target=lambda: results.append(compute()))
+            thread.start()
+            thread.join()
+            assert results == [42]
+    """
+    )
+    try:
+        pytester.inline_run().assertoutcome(passed=1)
+        document = client.store_tia_map.call_args.args[1]
+        graph = load_graph(document["map"], document)
+        assert {"tia_thread_worker.py", "test_example.py"} <= graph.tests["test_example.py::test_thread"]
+        assert not graph.always
+    finally:
+        sys.modules.pop("tia_thread_worker", None)
+
+
+def test_tia_and_itr_share_the_per_test_collector(pytester, tia_backend):
+    client, _ = tia_backend
+    client.get_settings.return_value.coverage_enabled = True
+    pytester.makepyfile(test_example="def test_one(): pass")
+    with patch("ddtrace.testing.internal.pytest.plugin.coverage_collection", wraps=coverage_collection) as collect:
+        pytester.inline_run().assertoutcome(passed=1)
+    assert collect.call_count == 1
+    document = client.store_tia_map.call_args.args[1]
+    assert load_graph(document["map"], document).tests["test_example.py::test_one"] == {"test_example.py"}
+
+
+def test_tia_does_not_uninstall_a_borrowed_collector(pytester, tia_backend):
+    pytester.makepyfile(test_example="def test_one(): pass")
+    with (
+        patch("ddtrace.testing.internal.pytest._tia.is_coverage_installed", return_value=True),
+        patch("ddtrace.testing.internal.pytest._tia.install_coverage") as install,
+        patch("ddtrace.testing.internal.pytest._tia.uninstall_coverage") as uninstall,
+    ):
+        pytester.inline_run().assertoutcome(passed=1)
+    install.assert_not_called()
+    uninstall.assert_not_called()
+
+
+def test_tia_keeps_coverage_from_every_retry(pytester, tia_backend):
+    client, _ = tia_backend
+    client.get_settings.return_value.auto_test_retries.enabled = True
+    pytester.makepyfile(tia_retry_first="VALUE = 1", tia_retry_last="VALUE = 2")
+    pytester.makepyfile(
+        test_example="""
+        attempts = 0
+
+        def test_retry():
+            global attempts
+            attempts += 1
+            if attempts == 1:
+                import tia_retry_first
+                assert tia_retry_first.VALUE == 0
+            import tia_retry_last
+            assert tia_retry_last.VALUE == 2
+    """
+    )
+    try:
+        assert_stats(pytester.inline_run(), passed=1)
+        document = client.store_tia_map.call_args.args[1]
+        graph = load_graph(document["map"], document)
+        assert {"test_example.py", "tia_retry_first.py", "tia_retry_last.py"} <= graph.tests[
+            "test_example.py::test_retry"
+        ]
+    finally:
+        sys.modules.pop("tia_retry_first", None)
+        sys.modules.pop("tia_retry_last", None)

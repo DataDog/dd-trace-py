@@ -1,4 +1,4 @@
-"""Import-based test impact analysis for a single pytest process."""
+"""Coverage-based test impact analysis for a single pytest process."""
 
 from __future__ import annotations
 
@@ -7,23 +7,31 @@ import json
 import logging
 from pathlib import Path
 import platform
+import sys
 import typing as t
 
 import pytest
 
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_DIR
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
+from ddtrace.testing.internal.pytest.utils import _test_file
 from ddtrace.testing.internal.tia.artifacts import ArtifactMetadata
-from ddtrace.testing.internal.tia.imports import ImportMonitor
 from ddtrace.testing.internal.tia.paths import to_repo_rel
+from ddtrace.testing.internal.tia.processes import ProcessMonitor
 from ddtrace.testing.internal.tia.selection import DATA_VERSION
 from ddtrace.testing.internal.tia.selection import Graph
 from ddtrace.testing.internal.tia.selection import load_graph
 from ddtrace.testing.internal.tia.selection import select_tests
 from ddtrace.testing.internal.tia.store import LocalMapStore
+from ddtrace.testing.internal.tracer_api.coverage import CoverageData
+from ddtrace.testing.internal.tracer_api.coverage import coverage_for_files
+from ddtrace.testing.internal.tracer_api.coverage import install_coverage
+from ddtrace.testing.internal.tracer_api.coverage import is_coverage_installed
+from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
@@ -34,6 +42,7 @@ def configuration_hash(config: pytest.Config, root: Path, configurations: dict[s
     """Identify the invocation using repository-relative working and root directories."""
     data = {
         "version": DATA_VERSION,
+        "collector": "dd-coverage",
         "command": list(config.invocation_params.args),
         "addopts": env.get("PYTEST_ADDOPTS", ""),
         "root": config.rootpath.resolve().relative_to(root).as_posix(),
@@ -55,17 +64,6 @@ def _selectors_active(config: pytest.Config) -> bool:
         or getattr(options, "failedfirst", False)
         or any("::" in arg for arg in config.args)
     )
-
-
-def _expand(files: set[str], edges: dict[str, set[str]]) -> set[str]:
-    result = set(files)
-    pending = list(files)
-    while pending:
-        for dep in edges.get(pending.pop(), ()):
-            if dep not in result:
-                result.add(dep)
-                pending.append(dep)
-    return result
 
 
 def _document(graph: Graph) -> dict[str, t.Any]:
@@ -134,7 +132,10 @@ class TIAPlugin:
             if self.graph is not None and self.graph.base_commit is not None
             else None
         )
-        self.monitor = ImportMonitor(self.root)
+        self._preloaded_files = self._loaded_files()
+        self._owns_coverage = not is_coverage_installed()
+        self._test_deps: dict[str, set[str]] = {}
+        self.monitor = ProcessMonitor()
         self.items: dict[str, str] = {}
         self.selected: set[str] = set()
         self.finished: set[str] = set()
@@ -143,9 +144,39 @@ class TIAPlugin:
         self.always: set[str] = set()
         self.deselected = 0
         self.recording_failed = False
-        config.add_cleanup(self.monitor.deactivate)
-        if not self.monitor.activate():
-            raise ValueError("Another import monitor owns the import hooks")
+        config.add_cleanup(self.close)
+        if self._owns_coverage:
+            install_coverage(self.root, file_level_coverage=is_file_level_coverage_enabled())
+        if not is_coverage_installed():
+            raise ValueError("TIA requires dd-coverage collection")
+        self.monitor.activate()
+
+    def _loaded_files(self) -> set[str]:
+        files = set()
+        for module in list(sys.modules.values()):
+            filename = getattr(module, "__file__", None)
+            if isinstance(filename, str) and (relative := to_repo_rel(filename, self.root)) is not None:
+                files.add(relative)
+        return files
+
+    def close(self) -> None:
+        self.monitor.deactivate()
+        if self._owns_coverage and is_coverage_installed():
+            uninstall_coverage()
+
+    def record_coverage(self, item: pytest.Item, coverage: CoverageData) -> None:
+        try:
+            files = {path.lstrip("/") for path in coverage.get_covered_files(self.root)}
+            if not files:
+                self.always.add(item.nodeid)
+            files.update(
+                path.lstrip("/")
+                for path in coverage_for_files([self.root / self.items[item.nodeid]]).get_covered_files(self.root)
+            )
+            self._test_deps.setdefault(item.nodeid, set()).update(files)
+        except Exception:
+            self.recording_failed = True
+            log.debug("Could not record TIA coverage", exc_info=True)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_collection(self) -> None:
@@ -154,7 +185,7 @@ class TIAPlugin:
     @pytest.hookimpl(trylast=True)
     def pytest_collection_modifyitems(self, config: pytest.Config, items: list[pytest.Item]) -> None:
         for item in items:
-            rel = to_repo_rel(item.path, self.root)
+            rel = to_repo_rel(_test_file(item), self.root)
             if rel is None:
                 self.recording_failed = True
                 return
@@ -191,8 +222,7 @@ class TIAPlugin:
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_fixture_setup(self) -> t.Generator[None, None, None]:
-        # A cached fixture can serve later tests without executing another import.
-        # Its dependencies must therefore outlive the test which first requested it.
+        # A process launched by a shared fixture can affect tests which reuse its cached result.
         phase = self.monitor.phase
         self.monitor.phase = "fixture"
         try:
@@ -210,7 +240,7 @@ class TIAPlugin:
         if report.when == "teardown" and report.nodeid in self.called:
             self.finished.add(report.nodeid)
 
-    @pytest.hookimpl(trylast=True)
+    @pytest.hookimpl(tryfirst=True)
     @catch_and_log_exceptions()
     def pytest_sessionfinish(self, session: pytest.Session, exitstatus: int) -> None:
         self.monitor.deactivate()
@@ -228,30 +258,25 @@ class TIAPlugin:
             return
         old = self.graph
         tests = {nodeid: deps for nodeid, deps in old.tests.items() if nodeid in self.items} if old else {}
-        shared = set(self.monitor.import_deps)
-        if old:
-            shared.update(old.import_deps)
-        module_files = set(self.items.values())
-        module_deps: dict[str, set[str]] = {}
-        for caller, imported in self.monitor.collect_deps:
-            if caller in module_files:
-                module_deps.setdefault(caller, set()).add(imported)
-            elif imported not in module_files:
-                shared.add(imported)
+        shared = set(old.import_deps) if old else set()
+        # Previously imported code may not have been instrumented. Preserve all loaded repository files in that case.
+        if self._preloaded_files:
+            shared.update(self._loaded_files())
+        shared_roots: list[Path] = []
         for plugin in session.config.pluginmanager.get_plugins():
             filename = getattr(plugin, "__file__", None)
             if isinstance(filename, str) and Path(filename).name == "conftest.py":
                 rel = to_repo_rel(filename, self.root)
                 if rel:
-                    shared.add(rel)
+                    shared_roots.append(Path(filename))
+        shared.update(path.lstrip("/") for path in coverage_for_files(shared_roots).get_covered_files(self.root))
         if session.config.inipath:
             rel = to_repo_rel(session.config.inipath, self.root)
             if rel:
                 shared.add(rel)
         for nodeid in self.selected:
-            if nodeid in self.finished:
-                own = self.monitor.test_deps.get(nodeid, set()) | {self.items[nodeid]}
-                tests[nodeid] = _expand(own | module_deps.get(self.items[nodeid], set()), self.monitor.edges)
+            if nodeid in self.finished and nodeid in self._test_deps:
+                tests[nodeid] = self._test_deps[nodeid] | {self.items[nodeid]}
             else:
                 # Interrupted, disabled, or setup-failed tests must never acquire a fresh baseline.
                 tests.pop(nodeid, None)
@@ -259,7 +284,7 @@ class TIAPlugin:
         if self.monitor.spawn_shared:
             always.update(tests)
         failed = (old.failed - self.finished if old else set()) | self.failed
-        graph = Graph(self.commits[0], tests, _expand(shared, self.monitor.edges), failed, always)
+        graph = Graph(self.commits[0], tests, shared, failed, always)
         if tests:
             document = _document(graph)
             self.store.save(self.hash, document)

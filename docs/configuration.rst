@@ -1052,7 +1052,7 @@ Test Visibility
      default: False
 
      description: |
-        Enables import-based Test Impact Analysis in the pytest plugin, including test reporting,
+        Enables Test Impact Analysis using dd-coverage in the pytest plugin, including test reporting,
         without requiring ``--ddtrace``. Uses a local dependency map matching the pytest command,
         configuration, and recent commit history, querying the backend on a cache miss,
         then deselects unaffected tests. Local and remote lookups consider the 20 most recent commits.

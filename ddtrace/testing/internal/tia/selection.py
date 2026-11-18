@@ -1,5 +1,5 @@
 # Adapted from pytest-filemon (Apache-2.0).
-"""File-level test selection: recorded per-test import dependencies vs. changed files.
+"""File-level test selection: recorded per-test coverage dependencies vs. changed files.
 
 A dependency is a repository file.  A test runs when it has no recorded
 data, failed in the recorded run, one of its dependency files changed,
