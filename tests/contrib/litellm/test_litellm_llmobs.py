@@ -1385,3 +1385,29 @@ def test_completion_with_openai_fallback_cache_hit_keeps_outer_span(litellm, lit
         )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert [s.name for s in spans if s.span_type == "llm"] == ["litellm.request"]
+
+
+def test_completion_with_openai_fallback_failing_before_sdk_keeps_error_span(litellm, litellm_llmobs, test_spans):
+    """An OpenAI attempt that fails before the OpenAI SDK runs creates no OpenAI span, so the outer span records it."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def failing_completion(*args, **kwargs):
+        raise RuntimeError("rate limited")
+
+    def completion(*args, **kwargs):
+        return traced_completion(
+            failing_completion, None, (), {"model": "openai/gpt-4o-mini", "messages": FALLBACK_MESSAGES}
+        )
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with pytest.raises(RuntimeError):
+            traced_completion(
+                completion,
+                None,
+                (),
+                {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": ["openai/gpt-4o-mini"]},
+            )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    llm_spans = [s for s in spans if s.span_type == "llm"]
+    assert [s.name for s in llm_spans] == ["litellm.request"]
+    assert llm_spans[0].error == 1

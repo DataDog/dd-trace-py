@@ -132,10 +132,13 @@ def fallback_dispatch(ctx, llmobs_parent):
             span = span_from_context(ctx)
             span.set_tag(TAG_MODEL, model)
             if "span_type" in attempts and (
-                not has_downstream_openai_span(attempt_kwargs, model) or _is_cache_hit(event.response)
+                not has_downstream_openai_span(attempt_kwargs, model)
+                or event.response is None
+                or _is_cache_hit(event.response)
             ):
                 # An earlier OpenAI attempt dropped this span, but the answer did not come from an OpenAI span
-                # (a different model answered, or litellm's cache did): restore it.
+                # (a different model answered, litellm's cache did, or the call failed before an OpenAI span could
+                # record it): restore it.
                 span.span_type = attempts["span_type"]
             request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
             for key in ("litellm_logging_obj", "litellm_call_id"):
