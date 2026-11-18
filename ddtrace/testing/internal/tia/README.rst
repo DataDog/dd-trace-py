@@ -133,6 +133,18 @@ machine-specific filesystem-mtime snapshot. Other Test Optimization requests,
 including fetching session settings and reporting test results, continue to
 use the backend when a local map avoids the TIA lookup request.
 
+Debugging artifact reuse
+------------------------
+
+``DD_TRACE_DEBUG=1`` logs local map cache hits and misses, successful backend
+restores with their matched and source commits, and the artifact POST/PUT
+response status codes. These messages contain no request headers or artifact
+bodies. A compatible local map avoids the lookup POST; a clean, completed
+session can still upload its map with PUT. To verify remote restoration, use a
+fresh clone with the same repository URL and pytest invocation and no local
+TIA cache. A lookup returning HTTP 200 followed by deselection demonstrates
+that the backend supplied the map.
+
 Synthetic end-to-end scenario
 -----------------------------
 

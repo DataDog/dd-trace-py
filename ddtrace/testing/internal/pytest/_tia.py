@@ -117,6 +117,7 @@ class TIAPlugin:
         self.clean = self.git.is_tia_worktree_clean()
         self.store = LocalMapStore(self.git.get_git_path(f"{TEST_OPTIMIZATION_DIR}/tia"))
         document = self.store.load(self.hash, self.commits)
+        log.debug("TIA: local map cache %s", "hit" if document is not None else "miss")
         if document is None:
             document = client.lookup_tia_map(self.metadata, self.commits)
             graph = load_graph(document.get("map"), document) if isinstance(document, dict) else None
@@ -125,6 +126,11 @@ class TIAPlugin:
                 and graph is not None
                 and document.get("matched_commit", graph.base_commit) in self.commits
             ):
+                log.debug(
+                    "TIA: restored backend map matched_commit=%s source_commit=%s",
+                    document.get("matched_commit", graph.base_commit),
+                    graph.base_commit,
+                )
                 self.store.save(self.hash, document)
             else:
                 document = None

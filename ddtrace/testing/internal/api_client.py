@@ -100,6 +100,11 @@ class APIClient:
                 headers={"Content-Type": "application/vnd.api+json", "Accept": "application/json"},
                 expected_status_codes=(404,),
             )
+            log.debug(
+                "TIA artifact POST %s/lookup returned HTTP %s",
+                ARTIFACTS_ENDPOINT,
+                result.response.status_code if result.response is not None else None,
+            )
             if result.response is not None and result.response.status_code == 404:
                 return None
             result.on_error_raise_exception()
@@ -127,6 +132,11 @@ class APIClient:
                 data=content,
                 headers={"Content-Type": "application/octet-stream"},
                 is_json_response=True,
+            )
+            log.debug(
+                "TIA artifact PUT %s returned HTTP %s",
+                ARTIFACTS_ENDPOINT,
+                result.response.status_code if result.response is not None else None,
             )
             result.on_error_raise_exception()
             return result.response is not None and result.response.status_code == 201
