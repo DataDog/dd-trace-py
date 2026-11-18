@@ -45,7 +45,10 @@ def tia_backend(pytester, monkeypatch):
     git.get_tia_commits.return_value = [SHA]
     git.get_commit_sha.return_value = SHA
     git.get_tia_changed_files.return_value = set()
+    git.get_tia_untracked_files.return_value = set()
     git.is_tia_worktree_clean.return_value = True
+    git.is_shallow_repository.return_value = False
+    git.has_commit.return_value = True
     with (
         patch("ddtrace.testing.internal.pytest._tia.Git", return_value=git),
         patch("ddtrace.testing.internal.session_manager.APIClient", return_value=client),
@@ -119,12 +122,31 @@ def test_no_changes_deselects_all_successfully(pytester, tia_backend):
     assert result.ret == 0
 
 
-@pytest.mark.parametrize("changed", [None, {"new_module.py"}, {"conftest.py"}])
-def test_uncertain_new_or_shared_changes_run_all(pytester, tia_backend, changed):
+@pytest.mark.parametrize("changed", [None, {"conftest.py"}])
+def test_uncertain_or_shared_changes_run_all(pytester, tia_backend, changed):
     client, git = tia_backend
     pytester.makepyfile(test_example="def test_one(): pass")
     _baseline(client, {"test_example.py::test_one": {"test_example.py"}}, shared={"conftest.py"})
     git.get_tia_changed_files.return_value = changed
+    pytester.inline_run().assertoutcome(passed=1)
+
+
+def test_unmapped_changes_only_run_new_tests(pytester, tia_backend):
+    client, git = tia_backend
+    pytester.makepyfile(test_example="def test_old(): pass\ndef test_new(): pass")
+    _baseline(client, {"test_example.py::test_old": {"test_example.py"}})
+    git.get_tia_changed_files.return_value = {"new_module.py", "notes.txt"}
+    result = pytester.inline_run()
+    result.assertoutcome(passed=1)
+    assert sum(len(call.items) for call in result.getcalls("pytest_deselected")) == 1
+
+
+def test_new_conftest_affects_existing_tests(pytester, tia_backend):
+    client, git = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass")
+    pytester.makeconftest("VALUE = 1")
+    _baseline(client, {"test_example.py::test_one": {"test_example.py"}})
+    git.get_tia_changed_files.return_value = {"conftest.py"}
     pytester.inline_run().assertoutcome(passed=1)
 
 
@@ -186,6 +208,41 @@ def test_no_upload_from_collection_only_or_dirty_worktree(pytester, tia_backend,
     if not args:
         git.is_tia_worktree_clean.return_value = False
     pytester.inline_run(*args)
+    client.store_tia_map.assert_not_called()
+
+
+@pytest.mark.parametrize("before", [False, True])
+def test_untracked_report_does_not_prevent_publication(pytester, tia_backend, before):
+    client, git = tia_backend
+    if before:
+        (pytester.path / "coverage.xml").write_text("<coverage/>")
+    pytester.makepyfile(
+        test_example="from pathlib import Path\ndef test_one(): Path('coverage.xml').write_text('<coverage/>')"
+    )
+    git.get_tia_untracked_files.return_value = {"coverage.xml"}
+    pytester.inline_run().assertoutcome(passed=1)
+    client.store_tia_map.assert_called_once()
+    client.lookup_tia_map.reset_mock()
+    pytester.inline_run().assertoutcome()
+    client.lookup_tia_map.assert_not_called()
+
+
+@pytest.mark.parametrize("untracked", [{"test_example.py"}, {"conftest.py"}, None])
+def test_untracked_inputs_or_unknown_state_prevent_publication(pytester, tia_backend, untracked):
+    client, git = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass")
+    pytester.makeconftest("VALUE = 1")
+    git.get_tia_untracked_files.return_value = untracked
+    pytester.inline_run().assertoutcome(passed=1)
+    client.store_tia_map.assert_not_called()
+    assert not list((pytester.path / ".git").rglob(f"{SHA}.json"))
+
+
+def test_tracked_changes_during_execution_prevent_publication(pytester, tia_backend):
+    client, git = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass")
+    git.is_tia_worktree_clean.side_effect = [True, False]
+    pytester.inline_run().assertoutcome(passed=1)
     client.store_tia_map.assert_not_called()
 
 
@@ -326,6 +383,81 @@ def test_cached_map_from_recent_ancestor_is_used(pytester, tia_backend):
     pytester.inline_run().assertoutcome(passed=1)
     client.lookup_tia_map.assert_not_called()
     git.get_tia_changed_files.assert_called_with(SHA)
+
+
+def test_shallow_cache_miss_fetches_history_before_backend_lookup(pytester, tia_backend):
+    client, git = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass")
+    commits = [SHA] + [f"{index:040x}" for index in range(19)]
+    git.is_shallow_repository.return_value = True
+    git.unshallow_repository.return_value = Mock(return_code=0)
+    git.get_tia_commits.side_effect = [[SHA], commits]
+    pytester.inline_run().assertoutcome(passed=1)
+    git.unshallow_repository.assert_called_once_with(SHA, full_history=True)
+    assert client.lookup_tia_map.call_args.args[1] == commits
+
+
+def test_unshallow_rechecks_local_ancestor_cache_before_backend(pytester, tia_backend):
+    client, git = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass")
+    pytester.inline_run().assertoutcome(passed=1)
+    client.lookup_tia_map.reset_mock()
+    head = "b" * 40
+    git.get_commit_sha.return_value = head
+    git.get_tia_commits.side_effect = [[head], [head, SHA]]
+    git.is_shallow_repository.return_value = True
+    git.unshallow_repository.return_value = Mock(return_code=0)
+    pytester.inline_run().assertoutcome()
+    git.unshallow_repository.assert_called_once_with(head, full_history=True)
+    client.lookup_tia_map.assert_not_called()
+
+
+def test_local_hit_with_available_source_does_not_fetch(pytester, tia_backend):
+    _, git = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass")
+    pytester.inline_run().assertoutcome(passed=1)
+    git.is_shallow_repository.return_value = True
+    pytester.inline_run().assertoutcome()
+    git.unshallow_repository.assert_not_called()
+
+
+def test_local_hit_with_missing_source_fetches_before_diff(pytester, tia_backend):
+    client, git = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass")
+    _baseline(client, {"test_example.py::test_one": {"test_example.py"}})
+    pytester.inline_run("--collect-only")
+    client.lookup_tia_map.reset_mock()
+    git.is_shallow_repository.return_value = True
+    git.has_commit.return_value = False
+    git.unshallow_repository.return_value = Mock(return_code=0)
+    git.get_tia_changed_files.side_effect = lambda source: set() if git.unshallow_repository.called else None
+    pytester.inline_run("--collect-only")
+    git.unshallow_repository.assert_called_once_with(SHA, full_history=True)
+    client.lookup_tia_map.assert_not_called()
+
+
+def test_unshallow_opt_out_uses_available_history(pytester, tia_backend, monkeypatch):
+    client, git = tia_backend
+    monkeypatch.setenv("DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED", "false")
+    pytester.makepyfile(test_example="def test_one(): pass")
+    git.is_shallow_repository.return_value = True
+    pytester.inline_run().assertoutcome(passed=1)
+    git.unshallow_repository.assert_not_called()
+    assert client.lookup_tia_map.call_args.args[1] == [SHA]
+
+
+@pytest.mark.parametrize("failure", [1, OSError("fetch unavailable")])
+def test_unshallow_failure_uses_available_history(pytester, tia_backend, failure):
+    client, git = tia_backend
+    pytester.makepyfile(test_example="def test_one(): pass")
+    git.is_shallow_repository.return_value = True
+    if isinstance(failure, Exception):
+        git.unshallow_repository.side_effect = failure
+    else:
+        git.unshallow_repository.return_value = Mock(return_code=failure)
+    pytester.inline_run().assertoutcome(passed=1)
+    assert client.lookup_tia_map.call_args.args[1] == [SHA]
+    client.store_tia_map.assert_called_once()
 
 
 def test_cache_write_failure_does_not_prevent_remote_upload(pytester, tia_backend):

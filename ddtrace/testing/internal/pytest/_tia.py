@@ -17,6 +17,7 @@ import pytest
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.api_client import APIClient
+from ddtrace.testing.internal.constants import DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED
 from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_DIR
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
@@ -35,6 +36,7 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import is_coverage_installed
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.utils import _filter_sensitive_info
+from ddtrace.testing.internal.utils import asbool
 
 
 log = logging.getLogger(__name__)
@@ -84,6 +86,14 @@ def _document(graph: Graph) -> dict[str, t.Any]:
     }
 
 
+def _plugin_roots(config: pytest.Config) -> set[Path]:
+    return {
+        Path(filename)
+        for plugin in config.pluginmanager.get_plugins()
+        if isinstance(filename := getattr(plugin, "__file__", None), str)
+    }
+
+
 class TIAPlugin:
     def __init__(
         self,
@@ -116,8 +126,12 @@ class TIAPlugin:
             raise ValueError("TIA requires a local commit")
         self.clean = self.git.is_tia_worktree_clean()
         self.store = LocalMapStore(self.git.get_git_path(f"{TEST_OPTIMIZATION_DIR}/tia"))
+        self._unshallow_attempted = False
         document = self.store.load(self.hash, self.commits)
         log.debug("TIA: local map cache %s", "hit" if document is not None else "miss")
+        if document is None and self._maybe_unshallow():
+            document = self.store.load(self.hash, self.commits)
+            log.debug("TIA: local map cache after unshallow %s", "hit" if document is not None else "miss")
         if document is None:
             document = client.lookup_tia_map(self.metadata, self.commits)
             graph = load_graph(document.get("map"), document) if isinstance(document, dict) else None
@@ -135,6 +149,8 @@ class TIAPlugin:
             else:
                 document = None
         self.graph = load_graph(document.get("map"), document) if document is not None else None
+        if self.graph is not None and self.graph.base_commit and not self.git.has_commit(self.graph.base_commit):
+            self._maybe_unshallow()
         self.changed = (
             self.git.get_tia_changed_files(self.graph.base_commit)
             if self.graph is not None and self.graph.base_commit is not None
@@ -188,6 +204,24 @@ class TIAPlugin:
         self._dynamic_imports_active = True
         importlib.import_module = import_module
 
+    def _maybe_unshallow(self) -> bool:
+        if self._unshallow_attempted or not asbool(env.get(DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED, "true")):
+            return False
+        self._unshallow_attempted = True
+        try:
+            if not self.git.is_shallow_repository():
+                return False
+            log.debug("TIA: fetching full history for artifact lookup and source diffs")
+            result = self.git.unshallow_repository(self.commits[0], full_history=True)
+            # A failed fetch can still have made some history available.
+            self.commits = self.git.get_tia_commits() or self.commits
+            if result.return_code:
+                log.debug("TIA: unshallow failed; continuing with available history")
+            return True
+        except Exception:
+            log.debug("TIA: could not unshallow; continuing with available history", exc_info=True)
+            return False
+
     def _loaded_files(self) -> set[str]:
         files = set()
         for module in list(sys.modules.values()):
@@ -234,10 +268,12 @@ class TIAPlugin:
                 return
             self.items[item.nodeid] = rel
         changed = self.changed
-        if self.graph is not None and changed:
-            known = self.graph.import_deps.union(*(deps for deps in self.graph.tests.values()))
-            # New source/configuration can alter resolution without a previously recorded edge.
-            if any(path not in known for path in changed):
+        if changed:
+            roots = _plugin_roots(config)
+            if config.inipath:
+                roots.add(config.inipath)
+            # Newly added pytest configuration can affect all tests before it appears in a map.
+            if any(to_repo_rel(path, self.root) in changed for path in roots):
                 changed = None
         if _selectors_active(config) or not self.monitor.valid:
             changed = None
@@ -309,13 +345,8 @@ class TIAPlugin:
         # Pytest also uses import_module to load test modules; their roots remain per-test.
         test_files = set(self.items.values())
         shared_roots = {path for path in self._shared_roots if to_repo_rel(str(path), self.root) not in test_files}
-        for plugin in session.config.pluginmanager.get_plugins():
-            filename = getattr(plugin, "__file__", None)
-            if isinstance(filename, str):
-                rel = to_repo_rel(filename, self.root)
-                if rel:
-                    # pytest_plugins strings do not create import edges from conftest files.
-                    shared_roots.add(Path(filename))
+        # pytest_plugins strings do not create import edges from conftest files.
+        shared_roots.update(path for path in _plugin_roots(session.config) if to_repo_rel(path, self.root))
         shared.update(path.lstrip("/") for path in coverage_for_files(shared_roots).get_covered_files(self.root))
         if session.config.inipath:
             rel = to_repo_rel(session.config.inipath, self.root)
@@ -333,6 +364,12 @@ class TIAPlugin:
         failed = (old.failed - self.finished if old else set()) | self.failed
         graph = Graph(self.commits[0], tests, shared, failed, always)
         if tests:
+            untracked = self.git.get_tia_untracked_files()
+            dependencies = shared.union(*tests.values())
+            if untracked is None or untracked & dependencies:
+                # Reports may be untracked, but every observed input needs a committed baseline.
+                log.debug("TIA: not publishing a map with untracked dependencies or unknown Git state")
+                return
             document = _document(graph)
             self.store.save(self.hash, document)
             self.client.store_tia_map(self.metadata, document)
