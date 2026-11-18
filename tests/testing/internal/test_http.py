@@ -37,12 +37,12 @@ from tests.utils import reinitialize_agentless_config
 _TIMEOUT_MS = int(DEFAULT_TIMEOUT_SECONDS * 1000)
 
 
-def _post_call(path: str, body: bytes, headers: dict):
+def _post_call(path: str, body: bytes, headers: dict[str, str]) -> t.Any:
     """The call a POST to path makes on the native client."""
     return call(path, headers=list(headers.items()), timeout_ms=_TIMEOUT_MS, body=body)
 
 
-def _headers(headers: dict) -> "Mock":
+def _headers(headers: dict[str, t.Any]) -> t.Callable[[str], t.Optional[str]]:
     """A native response's case-insensitive header lookup, for header.side_effect."""
     lowered = {name.lower(): str(value) for name, value in headers.items()}
     return lambda name: lowered.get(name.lower())
@@ -902,7 +902,7 @@ class TestBackendConnector:
         assert body.count(b"--boundary123") == 3  # 2 file separators + 1 end
 
 
-def _set_environ(monkeypatch: pytest.MonkeyPatch, environ: dict) -> None:
+def _set_environ(monkeypatch: pytest.MonkeyPatch, environ: dict[str, str]) -> None:
     """Replace the environment, then re-resolve the settings derived from it.
 
     The agentless settings resolve once at import, so the connector-mode decision would otherwise
@@ -1387,8 +1387,8 @@ class _FakeGevent:
     """
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch, hub_exists: bool = True, in_hub: bool = False) -> None:
-        self.spawned: list = []
-        self.deadlines: list = []
+        self.spawned: list[t.Callable[[], t.Any]] = []
+        self.deadlines: list[t.Any] = []
         self.expire_while_spawning = False
         self.expire_while_waiting = False
         self.foreign_timeout: t.Optional[BaseException] = None
@@ -1444,7 +1444,8 @@ def _ok_client(mock_http_client: Mock) -> Mock:
     mock_response.header.side_effect = _headers({})
     mock_response.body.return_value = b""
     mock_http_client.return_value.post.return_value = mock_response
-    return mock_http_client.return_value
+    client: Mock = mock_http_client.return_value
+    return client
 
 
 class TestGevent:
