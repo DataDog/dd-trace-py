@@ -123,7 +123,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/claude_agent_sdk/
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: claude_agent_sdk
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
@@ -172,7 +172,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/google_genai
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: google_genai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
@@ -198,7 +198,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         # Oldest supported SDK (google-cloud-aiplatform 1.71.1), held by the existing locks.
         # A fresh lock picks a newer google-cloud-aiplatform instead.
@@ -228,7 +228,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: llama_index
           python: ['3.10', '3.11', '3.12', '3.13']
@@ -257,7 +257,7 @@ suites:
     matrix:
       command: pytest -v {cmdargs} tests/contrib/langchain
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: langchain
           python: ['3.9', '3.10', '3.11', '3.12']
@@ -280,7 +280,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/litellm
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
@@ -315,7 +315,7 @@ suites:
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: llmobs
           python: ['3.9']
@@ -360,7 +360,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/mistralai
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: mistralai
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
@@ -481,7 +481,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/crewai
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: crewai
           python: ['3.10', '3.11', '3.12']
@@ -532,7 +532,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/pydantic_ai
       env:
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: pydantic_ai
           python: ['3.9']
@@ -568,7 +568,7 @@ suites:
         # vLLM 0.27 samples with FlashInfer, which JIT-compiles a kernel with nvcc.
         # The CI image has no CUDA toolkit, so use the PyTorch sampler.
         VLLM_USE_FLASHINFER_SAMPLER: '0'
-        DD_TIA_ENABLED: 'true'
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: vllm
           python: ['3.10', '3.11', '3.12', '3.13']
