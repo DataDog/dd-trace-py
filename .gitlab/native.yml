@@ -43,6 +43,17 @@ include:
   tags: ["arch:amd64"]
   timeout: 20m
   needs: []
+  variables:
+    KUBERNETES_CPU_REQUEST: "12"
+    KUBERNETES_CPU_LIMIT: "12"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    # Without DD_DISABLE_VPA, VPA overrides the KUBERNETES_* values and sets
+    # a lower memory limit, which causes OOMKills.
+    DD_DISABLE_VPA: "true"
+    # nproc shows all the CPUs of the node, not the CPU limit of the pod.
+    # Keep the number of clang-tidy processes equal to the CPU limit.
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
   before_script:
     - pyenv global 3.12
     # Same as profiling_native: keep the active pyenv libpython findable when
@@ -51,7 +62,6 @@ include:
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:clang_tidy_build[collapsed=true]\r\e[0Kclang-tidy on profiling C++ code"
-      export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
       # Run clang-tidy on profiling C++ code (builds only profiling, skips pip install of full package)
       ddtrace/internal/datadog/profiling/run_clang_tidy.sh
       echo -e "\e[0Ksection_end:`date +%s`:clang_tidy_build\r\e[0K"
