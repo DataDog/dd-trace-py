@@ -105,11 +105,11 @@ class TIAPlugin:
         repository_id = _filter_sensitive_info(repository_url or self.git.get_repository_url())
         if not repository_id:
             raise ValueError("TIA requires a repository URL")
+        # EVP rejects JSON punctuation in query strings; runtime configurations are already part of env_hash.
         self.metadata = ArtifactMetadata(
             repository_id=repository_id,
             suite_id=hashlib.sha256(test_command.encode("utf-8")).hexdigest(),
             env_hash=self.hash,
-            configurations=configurations,
         )
         self.commits = self.git.get_tia_commits()
         if not self.commits:

@@ -12,8 +12,11 @@ import tempfile
 import textwrap
 import typing as t
 from urllib.parse import parse_qs
+from urllib.parse import unquote_plus
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
+
+import pytest
 
 from ddtrace.testing.internal.tia.selection import load_graph
 from tests.testing.internal.pytest.test_pytest_xdist import MockCIVisibilityServer
@@ -36,7 +39,40 @@ class _ArtifactState:
 
 
 class _ArtifactHandler(_MockCIVisibilityHandler):
+    def do_GET(self) -> None:
+        server = t.cast(t.Any, self.server)
+        prefix = server.evp_prefix
+        if self.path == "/info" and prefix:
+            self._send_json({"endpoints": [f"{prefix}/"], "config": {"default_env": "test"}})
+            return
+        super().do_GET()
+
+    def _prepare_evp(self) -> bool:
+        server = t.cast(t.Any, self.server)
+        prefix = server.evp_prefix
+        if prefix is None:
+            return True
+        if not self.path.startswith(f"{prefix}/"):
+            self._send_json({}, 404)
+            return False
+        # Match the Agent's decoded-query allowlist, which excludes JSON object punctuation.
+        allowed = '/_-+@?&=.:"[]'
+        if any(
+            not (char.isascii() and (char.isalnum() or char in allowed))
+            for char in unquote_plus(urlsplit(self.path).query)
+        ):
+            self._send_json({"error": "invalid EVP query string"}, 400)
+            return False
+        server.proxy_paths.append(self.path)
+        assert self.headers.get("X-Datadog-EVP-Subdomain") in ("api", "citestcycle-intake", "citestcov-intake")
+        assert self.headers.get("DD-API-KEY") is None
+        self.path = self.path[len(prefix) :]
+        self.headers["DD-API-KEY"] = "test-api-key-xdist"
+        return True
+
     def do_PUT(self) -> None:
+        if not self._prepare_evp():
+            return
         if urlsplit(self.path).path != _ENDPOINT:
             super().do_PUT()
             return
@@ -47,22 +83,42 @@ class _ArtifactHandler(_MockCIVisibilityHandler):
         assert self.headers.get("DD-API-KEY") == "test-api-key-xdist"
         assert self.headers.get("Content-Encoding") is None
         assert self.headers.get("DD-APPLICATION-KEY") is None
-        identity = tuple(str(query[key]) for key in _IDENTITY)
+        identity = (
+            *tuple(str(query[key]) for key in _IDENTITY),
+            json.dumps(json.loads(query.get("configurations", "{}")), sort_keys=True),
+        )
         key = (*identity, query["git_commit_sha"])
         deduplicated = state.artifacts.get(key, (None, None))[0] == body
         state.artifacts[key] = (body, query["git_commit_sha"])
         state.uploads.append({"query": query, "document": json.loads(body), "bytes": len(body)})
-        self._send_json({"blob_id": hashlib.sha256(body).hexdigest(), "deduplicated": deduplicated}, 201)
+        self._send_json(
+            {
+                "data": {
+                    "type": "ci_app_tia_artifact_upload",
+                    "id": query["git_commit_sha"],
+                    "attributes": {"blob_id": hashlib.sha256(body).hexdigest(), "deduplicated": deduplicated},
+                }
+            },
+            201,
+        )
 
     def do_POST(self) -> None:
+        if not self._prepare_evp():
+            return
         if self.path != f"{_ENDPOINT}/lookup":
             super().do_POST()
             return
         state: _ArtifactState = t.cast(t.Any, self.server).tia
         request = json.loads(self._read_body())
-        assert request["data"]["type"] == "test_params"
+        if request["data"]["type"] != "ci_app_tia_artifact_lookup":
+            self._send_json({"error": "unexpected resource type"}, 400)
+            return
+        assert isinstance(request["data"]["id"], str) and request["data"]["id"]
         attributes = request["data"]["attributes"]
-        identity = tuple(str(attributes[key]) for key in _IDENTITY)
+        identity = (
+            *tuple(str(attributes[key]) for key in _IDENTITY),
+            json.dumps(attributes.get("configurations", {}), sort_keys=True),
+        )
         lookup = {"request": attributes, "matched_commit": None, "source_commit": None}
         state.lookups.append(lookup)
         for commit in attributes["git_commit_shas"]:
@@ -72,7 +128,7 @@ class _ArtifactHandler(_MockCIVisibilityHandler):
             body, source = artifact
             lookup.update(matched_commit=commit, source_commit=source)
             self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("x-dd-tia-git-commit-sha", commit)
             self.send_header("x-dd-tia-source-commit", source)
@@ -181,7 +237,8 @@ def _ruby_shape(document: dict[str, t.Any]) -> dict[str, t.Any]:
     }
 
 
-def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None:  # noqa: F811
+@pytest.mark.parametrize("transport", ["agentless", "evp_v2", "evp_v4"])
+def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path, transport: str) -> None:  # noqa: F811
     artifact_root = Path(__file__).resolve().parents[4] / ".cache" / "tia-e2e"
     artifact_root.mkdir(parents=True, exist_ok=True)
     output = Path(tempfile.mkdtemp(prefix="run-", dir=artifact_root))
@@ -203,6 +260,8 @@ def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None: 
         state = _ArtifactState()
         server = t.cast(t.Any, backend.server)
         server.tia = state
+        server.evp_prefix = None if transport == "agentless" else f"/evp_proxy/{transport.removeprefix('evp_')}"
+        server.proxy_paths = []
         server.RequestHandlerClass = _ArtifactHandler
 
         def run(label: str, root: Path, selected: set[str], failures: int = 0) -> None:
@@ -218,6 +277,12 @@ def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None: 
                     "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "false",
                 },
             )
+            if server.evp_prefix:
+                env["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "false"
+                env["DD_TRACE_AGENT_URL"] = backend.url
+                env["_CI_DD_AGENT_URL"] = backend.url
+                env.pop("DD_CIVISIBILITY_AGENTLESS_URL", None)
+                env.pop("DD_API_KEY", None)
             env.pop("PYTEST_ADDOPTS", None)
             env.pop("_CI_DD_API_KEY", None)
             result = subprocess.run(
@@ -265,6 +330,7 @@ def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None: 
             )
 
         run("initial", test_project, all_tests)
+        assert len(state.uploads) == 1, f"Initial {transport} run did not upload an artifact; see {output}"
         baseline = state.uploads[0]["document"]
         graph = load_graph(baseline["map"], baseline)
         assert graph is not None
@@ -315,6 +381,11 @@ def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None: 
         run("fixture_plugin_fixed", test_project, all_tests)
         assert len(state.lookups) == 2
         assert backend.count_requests("/api/v2/citestcov") == 0
+        assert all("configurations" not in upload["query"] for upload in state.uploads)
+        assert all("configurations" not in lookup["request"] for lookup in state.lookups)
+        if server.evp_prefix:
+            assert any(urlsplit(path).path == f"{server.evp_prefix}{_ENDPOINT}" for path in server.proxy_paths)
+            assert sum(path.endswith(f"{_ENDPOINT}/lookup") for path in server.proxy_paths) == 2
 
         comparison = _ruby_shape(baseline)
         current_bytes = json.dumps(baseline, sort_keys=True, separators=(",", ":")).encode()
@@ -322,6 +393,7 @@ def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None: 
         (output / "map-current.json").write_text(json.dumps(baseline, indent=2))
         (output / "map-ruby-shaped.json").write_text(json.dumps(comparison, indent=2))
         summary = {
+            "transport": transport,
             "phases": phases,
             "map_sizes": {
                 "current_json": len(current_bytes),

@@ -76,21 +76,28 @@ Metadata is derived from the existing Test Optimization identity:
   pytest root directories, runtime configuration tags, Python version, pytest
   version, and map format version.
 * ``language`` is ``python``; ``compatibility_version`` defaults to ``0``.
-* ``configurations`` contains the same flat runtime configuration tags as ITR.
+* Runtime configurations use the same flat tags as ITR and are included in
+  ``env_hash``. The optional ``configurations`` metadata field is omitted from
+  both upload and lookup: the Agent's decoded-query allowlist rejects the
+  punctuation in a JSON object. This keeps artifact identity consistent across
+  agentless and EVP sessions without losing configuration isolation.
 
 ``PUT /api/unstable/ci/tia/artifacts`` sends the dependency document as raw
 UTF-8 JSON bytes with ``Content-Type: application/octet-stream``. Metadata and
-``git_commit_sha`` are query parameters; ``configurations`` is a URL-encoded
-JSON object. Bodies larger than 5 MiB are not uploaded. A successful upload
-returns HTTP 201 with ``blob_id`` and ``deduplicated``. The raw body is not
+``git_commit_sha`` are query parameters. Bodies larger than 5 MiB are not
+uploaded. A successful upload returns HTTP 201 with a JSON:API
+``ci_app_tia_artifact_upload`` resource whose
+``data.attributes`` contains ``blob_id`` and ``deduplicated``. The raw body is not
 wrapped in a JSON:API envelope and is not gzip-compressed.
 
 ``POST /api/unstable/ci/tia/artifacts/lookup`` sends a JSON:API request with
-ITR's ``test_params`` resource type, metadata in ``data.attributes``, and
-``git_commit_shas`` in nearest-first order. The plugin sends its 20 most recent
+the ``ci_app_tia_artifact_lookup`` resource type, a generated request ID,
+metadata in ``data.attributes``, and ``git_commit_shas`` in nearest-first order.
+The plugin sends its 20 most recent
 local commits, without a date cutoff or extra fetch; the transport accepts up
 to 100 commits. HTTP 404 is an ordinary miss and runs all tests when no local
-map was available. HTTP 200 returns raw UTF-8 JSON bytes and two headers:
+map was available. HTTP 200 returns the stored UTF-8 JSON bytes with
+``Content-Type: application/json`` and two headers:
 
 * ``x-dd-tia-git-commit-sha`` identifies the matched commit, which must be one
   of the requested SHAs. The local cache indexes the response by this commit.
@@ -119,8 +126,9 @@ IDs. ``tests`` and ``import_deps`` reference indices into ``files``; ``failed``
 and ``always`` contain node IDs. Git diffs include both rename paths, deletions,
 working-tree modifications, and nonignored untracked files.
 
-Transport failures do not change the pytest result. Git compares against the
-map's source commit for both local and remote maps, so neither relies on a
+The artifact endpoints must be enabled for the organization; a disabled
+endpoint returns HTTP 404. Transport failures do not change the pytest result.
+Git compares against the map's source commit for both local and remote maps, so neither relies on a
 machine-specific filesystem-mtime snapshot. Other Test Optimization requests,
 including fetching session settings and reporting test results, continue to
 use the backend when a local map avoids the TIA lookup request.
@@ -131,8 +139,11 @@ Synthetic end-to-end scenario
 ``tests/testing/internal/pytest/test_pytest_tia_e2e.py`` runs fresh pytest
 processes against an eight-case corpus in a real Git repository. It reuses the
 Test Optimization HTTP test server and exercises artifact PUT/lookup requests
-over localhost. It does not call a live Datadog backend. Discover the testing
-environment, then select only the scenario::
+over localhost. The ten-phase scenario runs in agentless mode and with EVP v2
+and v4 simulations. The EVP simulations apply the Agent's query allowlist,
+subdomain routing header, and API-key injection, and exercise proxy discovery
+through ``/info``. They do not run a real Agent or call a live Datadog backend.
+Discover the testing environment, then select only the scenario::
 
     scripts/run-tests --list tests/testing/internal/pytest/test_pytest_tia_e2e.py
     scripts/run-tests --venv <testing-environment-hash> -- -n 0 -k test_tia_ddcoverage_end_to_end

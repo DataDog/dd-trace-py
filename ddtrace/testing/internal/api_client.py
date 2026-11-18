@@ -90,12 +90,14 @@ class APIClient:
         try:
             attributes = metadata.attributes()
             attributes["git_commit_shas"] = commits
-            payload = {"data": {"type": "test_params", "attributes": attributes}}
+            payload = {
+                "data": {"id": str(uuid.uuid4()), "type": "ci_app_tia_artifact_lookup", "attributes": attributes}
+            }
             result = self.connector.request(
                 "POST",
                 f"{ARTIFACTS_ENDPOINT}/lookup",
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/vnd.api+json", "Accept": "application/octet-stream"},
+                headers={"Content-Type": "application/vnd.api+json", "Accept": "application/json"},
                 expected_status_codes=(404,),
             )
             if result.response is not None and result.response.status_code == 404:

@@ -1,4 +1,4 @@
-"""Metadata and opaque bytes exchanged with the TIA artifact service."""
+"""Metadata and JSON document bytes exchanged with the TIA artifact service."""
 
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ def is_git_sha(value: t.Any) -> bool:
 
 @dataclass(frozen=True)
 class ArtifactMetadata:
-    repository_id: t.Union[str, int]
-    suite_id: t.Union[str, int]
+    repository_id: str
+    suite_id: str
     env_hash: str
     language: str = "python"
     compatibility_version: int = 0

@@ -19,7 +19,7 @@ from ddtrace.testing.internal.tia.artifacts import ArtifactMetadata
 
 HEAD = "a" * 40
 SOURCE = "b" * 40
-CONTENT = b"\x00\xffopaque database bytes\n"
+CONTENT = b'{ "tests": ["b", "a"], "name": "\\u00e9" }\n'
 
 
 @pytest.fixture
@@ -50,7 +50,14 @@ def lookup_result(content=CONTENT, matched=HEAD, source=SOURCE, status=200):
 def test_upload_uses_put_raw_bytes_and_encoded_query(client_and_connector, metadata):
     client, connector = client_and_connector
     connector.request.return_value = BackendResult(
-        response=Mock(status_code=201), parsed_response={"blob_id": "blob", "deduplicated": False}
+        response=Mock(status_code=201),
+        parsed_response={
+            "data": {
+                "type": "ci_app_tia_artifact_upload",
+                "id": HEAD,
+                "attributes": {"blob_id": "blob", "deduplicated": False},
+            }
+        },
     )
     assert client.store_tia_artifact(metadata, HEAD, CONTENT)
     args, kwargs = connector.request.call_args
@@ -80,9 +87,11 @@ def test_lookup_keeps_matched_and_source_commits_separate(client_and_connector, 
     args, kwargs = connector.request.call_args
     assert args == ("POST", f"{ARTIFACTS_ENDPOINT}/lookup")
     payload = json.loads(kwargs["data"])
+    assert isinstance(payload["data"]["id"], str) and payload["data"]["id"]
     assert payload == {
         "data": {
-            "type": "test_params",
+            "id": payload["data"]["id"],
+            "type": "ci_app_tia_artifact_lookup",
             "attributes": {
                 **metadata.attributes(),
                 "git_commit_shas": [HEAD],
@@ -91,7 +100,7 @@ def test_lookup_keeps_matched_and_source_commits_separate(client_and_connector, 
     }
     assert kwargs["headers"] == {
         "Content-Type": "application/vnd.api+json",
-        "Accept": "application/octet-stream",
+        "Accept": "application/json",
     }
     assert not kwargs.get("is_json_response", False)
 
@@ -177,7 +186,14 @@ def test_invalid_json_map_is_a_miss(client_and_connector, metadata, content):
 def test_json_map_is_uploaded_as_raw_utf8_bytes(client_and_connector, metadata):
     client, connector = client_and_connector
     connector.request.return_value = BackendResult(
-        response=Mock(status_code=201), parsed_response={"blob_id": "blob", "deduplicated": True}
+        response=Mock(status_code=201),
+        parsed_response={
+            "data": {
+                "type": "ci_app_tia_artifact_upload",
+                "id": HEAD,
+                "attributes": {"blob_id": "blob", "deduplicated": True},
+            }
+        },
     )
     document = {"base_commit": HEAD, "map": {"version": 1, "files": ["module.py"]}}
     assert client.store_tia_map(metadata, document)

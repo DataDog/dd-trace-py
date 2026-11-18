@@ -67,6 +67,7 @@ def test_tia_env_enables_without_ddtrace_flag(pytester, tia_backend):
     result.assertoutcome(passed=1)
     client.lookup_tia_map.assert_called_once()
     args = client.lookup_tia_map.call_args.args
+    assert args[0].configurations is None
     assert len(args[0].env_hash) == 64
     assert args[0].repository_id == "https://example.com/repo.git"
     assert len(args[0].suite_id) == 64
@@ -267,6 +268,7 @@ def test_configuration_hash_is_stable_across_checkouts_and_configuration_order(t
     a = configuration_hash(config(first), first, {"os": "linux", "arch": "arm64"})
     b = configuration_hash(config(second), second, {"arch": "arm64", "os": "linux"})
     assert a == b
+    assert configuration_hash(config(second), second, {"arch": "amd64", "os": "linux"}) != a
     changed = config(second)
     changed.invocation_params.args = ("other_tests", "-q")
     assert configuration_hash(changed, second, {"arch": "arm64", "os": "linux"}) != a
