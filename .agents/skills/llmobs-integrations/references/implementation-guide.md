@@ -81,7 +81,7 @@ LLMObs tagging runs in the finishing phase, before the span records an exception
 span at an earlier time, set `ctx.event._end_span = False`, dispatch the ended event, then call
 `span.finish(finish_time=...)` (Google ADK's abandoned tool streams).
 
-Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans; keep their creation, extraction, and finishing under one owner.
+Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as agent/tool child spans; keep their creation, extraction, and finishing under one owner. Sessions that only a product observes, such as OpenAI Realtime connections, hand a product-supplied observer to contrib through a typed core event (`ddtrace/contrib/_events/openai_realtime.py`), so contrib forwards events without importing the product.
 
 ## LLMObs subscribers and registration
 
