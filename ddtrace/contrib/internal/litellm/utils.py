@@ -11,7 +11,6 @@ from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIO
 from ddtrace.contrib.internal.litellm._constants import model_map
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
@@ -70,6 +69,9 @@ def has_downstream_openai_span(kwargs, model=None):
     return is_openai_model and not stream and _openai_is_patched()
 
 
+# Duplicated from ddtrace.llmobs._constants to keep the contrib free of llmobs imports.
+_PROXY_REQUEST = "llmobs.proxy_request"
+
 # Set while a call that submits an LLM span runs litellm's fallback runner, which re-enters
 # ``litellm.completion``/``acompletion`` once per attempt. Those inner calls skip their own span and record the model
 # they were asked for here, so the outer span can be attributed to the attempt that produced the response.
@@ -83,41 +85,18 @@ def has_fallbacks(kwargs):
     return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
 
 
-def defer_outer_span_to_openai(attempts, kwargs, model):
-    """Stop the outer span of a fallback run from being submitted when an attempt gets its own OpenAI span.
-
-    This runs before the OpenAI span starts, so that span takes the nearest remaining LLMObs span as its parent
-    instead of the outer span, which is no longer exported.
-    """
-    outer = attempts.get("span")
-    if outer is None or not has_downstream_openai_span(kwargs, model):
-        return
-    if outer.span_type is not None:
-        attempts["span_type"] = outer.span_type
-        outer.span_type = None
-    # Restore the LLMObs parent that was active before the outer span, local span or distributed context.
-    core.dispatch("litellm.llmobs.activate_parent", (attempts["llmobs_parent"],))
-
-
 def _is_cache_hit(response) -> bool:
     return bool((getattr(response, "_hidden_params", None) or {}).get("cache_hit"))
 
 
-def active_llmobs_parent():
-    """Return the LLMObs span or context that is active now, before the outer litellm span starts."""
-    return core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-        "litellm.llmobs.active_parent", ()
-    ).parent.value
-
-
 @contextmanager
-def fallback_dispatch(ctx, llmobs_parent):
+def fallback_dispatch(ctx):
     """Mark the wrapped call so the fallback runner's inner calls do not submit a second LLM span."""
     event = ctx.event
     if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
         yield
         return
-    attempts: dict = {"span": span_from_context(ctx), "llmobs_parent": llmobs_parent}
+    attempts: dict = {}
     token = _fallback_dispatch_attempts.set(attempts)
     try:
         yield
@@ -131,15 +110,14 @@ def fallback_dispatch(ctx, llmobs_parent):
             event.model = model
             span = span_from_context(ctx)
             span.set_tag(TAG_MODEL, model)
-            if "span_type" in attempts and (
-                not has_downstream_openai_span(attempt_kwargs, model)
-                or event.response is None
-                or _is_cache_hit(event.response)
+            if (
+                has_downstream_openai_span(attempt_kwargs, model)
+                and event.response is not None
+                and not _is_cache_hit(event.response)
             ):
-                # An earlier OpenAI attempt dropped this span, but the answer did not come from an OpenAI span
-                # (a different model answered, litellm's cache did, or the call failed before an OpenAI span could
-                # record it): restore it.
-                span.span_type = attempts["span_type"]
+                # The OpenAI integration emitted the LLM span for the answering attempt, so this span becomes a
+                # workflow span: it keeps the trace intact without repeating the span's tokens and cost.
+                span._set_ctx_item(_PROXY_REQUEST, True)
             request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
             for key in ("litellm_logging_obj", "litellm_call_id"):
                 attempt_kwargs.pop(key, None)

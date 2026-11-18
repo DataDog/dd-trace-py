@@ -7,7 +7,6 @@ from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metrics
@@ -1254,10 +1253,12 @@ def test_completion_with_openai_fallback_defers_to_openai_span(litellm, litellm_
             {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": [openai_model]},
         )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
-    llm_spans = [s for s in spans if s.span_type == "llm"]
-    assert [s.name for s in llm_spans] == ["OpenAI.createChatCompletion"]
-    # The unexported outer span must not be recorded as the parent.
-    assert get_llmobs_parent_id(llm_spans[0]) == ROOT_PARENT_ID
+    outer = next(s for s in spans if s.name == "litellm.request")
+    child = next(s for s in spans if s.name == "OpenAI.createChatCompletion")
+    # The OpenAI span is the only LLM span; the outer one is a workflow span with no tokens of its own.
+    assert get_llmobs_span_kind(outer) == "workflow"
+    assert get_llmobs_span_kind(child) == "llm"
+    assert get_llmobs_parent_id(child) == str(outer.span_id)
 
 
 def test_completion_with_failed_openai_fallback_keeps_span_of_answering_model(litellm, litellm_llmobs, test_spans):
@@ -1296,70 +1297,8 @@ def test_completion_with_failed_openai_fallback_keeps_span_of_answering_model(li
     llm_names = sorted(s.name for s in spans if s.span_type == "llm")
     assert llm_names == ["OpenAI.createChatCompletion", "litellm.request"]
     outer = next(s for s in spans if s.name == "litellm.request")
+    assert get_llmobs_span_kind(outer) == "llm"
     assert outer.get_tag("litellm.request.model") == FALLBACK_MODEL
-
-
-def test_completion_with_openai_fallback_keeps_distributed_llmobs_parent(litellm, litellm_llmobs, test_spans):
-    """The OpenAI span takes the inbound distributed LLMObs context as parent, not a new root."""
-    from ddtrace.contrib.internal.litellm.patch import traced_completion
-    from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
-    from ddtrace.trace import Context
-
-    inbound = Context(trace_id=111, span_id=222, meta={PROPAGATED_LLMOBS_TRACE_ID_KEY: "111"})
-    LLMObs._instance._llmobs_context_provider.activate(inbound)
-
-    def openai_completion(*args, **kwargs):
-        with LLMObs.llm(model_name="gpt-4o-mini", model_provider="openai", name="OpenAI.createChatCompletion"):
-            return litellm.ModelResponse(model="gpt-4o-mini")
-
-    def completion(*args, **kwargs):
-        return traced_completion(
-            openai_completion, None, (), {"model": "openai/gpt-4o-mini", "messages": FALLBACK_MESSAGES}
-        )
-
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
-        traced_completion(
-            completion,
-            None,
-            (),
-            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": ["openai/gpt-4o-mini"]},
-        )
-    spans = [s for trace in test_spans.pop_traces() for s in trace]
-    llm_spans = [s for s in spans if s.span_type == "llm"]
-    assert [s.name for s in llm_spans] == ["OpenAI.createChatCompletion"]
-    assert get_llmobs_parent_id(llm_spans[0]) == "222"
-
-
-def test_completion_with_two_openai_fallbacks_keeps_distributed_llmobs_parent(litellm, litellm_llmobs, test_spans):
-    """Every OpenAI attempt, not only the first, takes the inbound distributed LLMObs context as parent."""
-    from ddtrace.contrib.internal.litellm.patch import traced_completion
-    from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
-    from ddtrace.trace import Context
-
-    inbound = Context(trace_id=111, span_id=222, meta={PROPAGATED_LLMOBS_TRACE_ID_KEY: "111"})
-    LLMObs._instance._llmobs_context_provider.activate(inbound)
-
-    def openai_completion(*args, **kwargs):
-        with LLMObs.llm(model_name="gpt-4o-mini", model_provider="openai", name="OpenAI.createChatCompletion"):
-            return litellm.ModelResponse(model="gpt-4o-mini")
-
-    def completion(*args, **kwargs):
-        for _ in range(2):
-            response = traced_completion(
-                openai_completion, None, (), {"model": "openai/gpt-4o-mini", "messages": FALLBACK_MESSAGES}
-            )
-        return response
-
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
-        traced_completion(
-            completion,
-            None,
-            (),
-            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": ["openai/gpt-4o-mini"] * 2},
-        )
-    spans = [s for trace in test_spans.pop_traces() for s in trace]
-    llm_spans = [s for s in spans if s.span_type == "llm"]
-    assert [get_llmobs_parent_id(s) for s in llm_spans] == ["222", "222"]
 
 
 def test_completion_with_openai_fallback_cache_hit_keeps_outer_span(litellm, litellm_llmobs, test_spans):
@@ -1384,7 +1323,7 @@ def test_completion_with_openai_fallback_cache_hit_keeps_outer_span(litellm, lit
             {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": ["openai/gpt-4o-mini"]},
         )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
-    assert [s.name for s in spans if s.span_type == "llm"] == ["litellm.request"]
+    assert [(s.name, get_llmobs_span_kind(s)) for s in spans if s.span_type == "llm"] == [("litellm.request", "llm")]
 
 
 def test_completion_with_openai_fallback_failing_before_sdk_keeps_error_span(litellm, litellm_llmobs, test_spans):
@@ -1410,4 +1349,5 @@ def test_completion_with_openai_fallback_failing_before_sdk_keeps_error_span(lit
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     llm_spans = [s for s in spans if s.span_type == "llm"]
     assert [s.name for s in llm_spans] == ["litellm.request"]
+    assert get_llmobs_span_kind(llm_spans[0]) == "llm"
     assert llm_spans[0].error == 1
