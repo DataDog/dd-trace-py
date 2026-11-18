@@ -17,6 +17,8 @@ from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -24,6 +26,23 @@ log = get_logger(__name__)
 # co_lines() is available from Python 3.10+; check once at import time.
 # TODO: remove _CO_LINES_SUPPORTED and the findlinestarts fallback once Python 3.9 support is dropped.
 _CO_LINES_SUPPORTED = hasattr((lambda: None).__code__, "co_lines")
+
+
+def get_code_coverage_enabled_override() -> t.Optional[bool]:
+    """Return the environment override for code coverage collection, if any is set.
+
+    DD_CIVISIBILITY_CODE_COVERAGE_ENABLED is tri-state: when unset, the backend-provided settings
+    decide whether code coverage collection is enabled; when set to true/false, code coverage
+    collection is forced on/off. The private _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE variable
+    only forces collection on, so it only takes effect when the public variable is unset; when
+    both are set, the public variable wins.
+    """
+    env_value = env.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED")
+    if env_value is not None:
+        return asbool(env_value)
+    if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
+        return True
+    return None
 
 
 def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
