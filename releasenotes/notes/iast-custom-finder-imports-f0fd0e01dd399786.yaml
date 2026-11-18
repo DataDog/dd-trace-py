@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: Prevents a startup hang when IAST encounters application code imported by a custom Python package finder that does not support recursive queries. During discovery, IAST limits automatic first-party instrumentation to ordinary source modules under the application's entry directory.
