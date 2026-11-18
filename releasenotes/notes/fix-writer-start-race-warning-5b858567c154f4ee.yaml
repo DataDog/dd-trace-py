@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes a spurious ``failed to start writer service`` warning that is logged when several threads
+    or tasks finish their first traces at the same time. No traces were dropped when this warning appeared.

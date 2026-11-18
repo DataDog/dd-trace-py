@@ -25,6 +25,8 @@ from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import _opentelemetry
 from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
@@ -1021,6 +1023,29 @@ def test_racing_start():
             t.join()
 
         assert len(writer._encoder) == 100
+
+
+def test_lost_start_race_does_not_warn():
+    """A write that loses the first-write start race must not log a warning: the writer is running."""
+    writer = NativeWriter("http://dne:1234")
+    real_start = writer.start
+
+    def start_after_other_thread_won():
+        # Another thread starts the writer between the status check and start(), so start() raises.
+        real_start()
+        raise ServiceStatusError(NativeWriter, ServiceStatus.RUNNING)
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.object(writer, "periodic"))
+        stack.enter_context(mock.patch.object(writer, "start", side_effect=start_after_other_thread_won))
+        mock_log = stack.enter_context(mock.patch("ddtrace.internal.writer.writer.log"))
+        stack.callback(writer.stop, 3.0)
+
+        writer.write([Span("name")])
+
+        assert writer.status == ServiceStatus.RUNNING
+        assert len(writer._encoder) == 1
+        mock_log.warning.assert_not_called()
 
 
 def test_native_exporter_shutdown_waits_for_send() -> None:
