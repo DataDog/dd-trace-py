@@ -1003,6 +1003,142 @@ def test_log_handler_shutting_the_provider_down_during_start_does_not_deadlock(c
             provider.shutdown()
 
 
+class _OnFirstNotSentError(logging.Handler):
+    """Run ``action`` from the first "not sent" error, which a start logs while it builds the source."""
+
+    def __init__(self, action):
+        super().__init__()
+        self.action = action
+        self.ran = False
+
+    def emit(self, record):
+        if not self.ran and record.getMessage().startswith("flag_selection was not sent"):
+            self.ran = True
+            self.action()
+
+
+@pytest.fixture
+def created_sources(monkeypatch):
+    import ddtrace.internal.openfeature._source_selection as source_selection
+
+    create = source_selection.create_agentless_source
+    created = []
+
+    def recording_create(*args, **kwargs):
+        source = create(*args, **kwargs)
+        created.append(source)
+        return source
+
+    monkeypatch.setattr(source_selection, "create_agentless_source", recording_create)
+    return created
+
+
+def test_shutdown_from_a_log_handler_cancels_the_start(cdn, api_key, created_sources):
+    provider = _provider({"tags": "malformed"})
+    later = _provider({"tags": ["b"]})
+    handler = _OnFirstNotSentError(provider.shutdown)
+    selection_logger = logging.getLogger(SELECTION_LOGGER)
+    selection_logger.addHandler(handler)
+    try:
+        with pytest.raises(ProviderNotReadyError):
+            provider.initialize(EvaluationContext())
+        assert handler.ran
+        [source] = created_sources
+        # The cancelled start released its claim and never started the poller.
+        assert provider._configuration_source is None
+        assert source._worker is None
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        selection_logger.removeHandler(handler)
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_initialize_from_a_log_handler_during_the_start_starts_one_poller(cdn, api_key, created_sources):
+    provider = _provider({"tags": "malformed"}, timeout=0.3)
+    later = _provider({"tags": ["b"]})
+
+    def initialize_again():
+        try:
+            provider.initialize(EvaluationContext())
+        except ProviderNotReadyError:
+            pass
+
+    handler = _OnFirstNotSentError(initialize_again)
+    selection_logger = logging.getLogger(SELECTION_LOGGER)
+    selection_logger.addHandler(handler)
+    try:
+        provider.initialize(EvaluationContext())
+        assert handler.ran
+        assert len(created_sources) == 1
+        assert provider._configuration_source is created_sources[0]
+
+        provider.shutdown()
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        selection_logger.removeHandler(handler)
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_shutdown_from_another_thread_cancels_a_start_in_progress(cdn, api_key, monkeypatch):
+    import ddtrace.internal.openfeature._source_selection as source_selection
+
+    provider = _provider({"tags": ["a"]})
+    later = _provider({"tags": ["b"]})
+    create = source_selection.create_agentless_source
+    creating = threading.Event()
+    resume = threading.Event()
+
+    def held_create(*args, **kwargs):
+        source = create(*args, **kwargs)
+        creating.set()
+        resume.wait(timeout=5)
+        return source
+
+    monkeypatch.setattr(source_selection, "create_agentless_source", held_create)
+    outcome = []
+
+    def initialize():
+        try:
+            provider.initialize(EvaluationContext())
+            outcome.append("ready")
+        except ProviderNotReadyError:
+            outcome.append("cancelled")
+
+    starting = threading.Thread(target=initialize)
+    starting.start()
+    try:
+        assert creating.wait(timeout=5)
+        provider.shutdown()
+        resume.set()
+        starting.join(timeout=5)
+        assert outcome == ["cancelled"]
+        assert provider._configuration_source is None
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        resume.set()
+        starting.join(timeout=5)
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_forked_child_drops_a_start_reservation_from_the_parent():
+    import ddtrace.internal.openfeature._provider as provider_module
+
+    provider = _provider(None)
+    provider._starting_configuration_source = True
+    provider._stopping_configuration_source = True
+    provider_module._reset_provider_state_in_child()
+    assert provider._starting_configuration_source is False
+    # A teardown reservation stays: retrying the parent's join in the child can block.
+    assert provider._stopping_configuration_source is True
+    provider._stopping_configuration_source = False
+
+
 def test_concurrent_starts_start_one_poller(cdn, api_key, monkeypatch):
     import ddtrace.internal.openfeature._source_selection as source_selection
 

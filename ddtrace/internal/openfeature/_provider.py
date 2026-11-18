@@ -220,12 +220,13 @@ class DataDogProvider(AbstractProvider):
         # hooks and telemetry all key off the resolved decision (``_active``), matching
         # dd-trace-js where the same switch gates the provider and its writers.
 
-        # Agentless configuration-source poller; started in initialize() when
-        # agentless is the resolved source and stopped in shutdown(). The lock makes a start one step and
-        # gives a teardown one owner; the source, and its claim, stay until that teardown's join succeeds.
-        # Reentrant because a start logs under it, and a log handler may shut the provider down.
+        # Agentless configuration-source poller; started in initialize() when agentless is the resolved
+        # source and stopped in shutdown(). The lock only guards these fields, never logging or callbacks:
+        # a start and a teardown each reserve the source under it and do their work outside it.
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
-        self._configuration_source_lock = forksafe.RLock()
+        self._configuration_source_lock = forksafe.Lock()
+        self._starting_configuration_source = False
+        self._configuration_source_start_cancelled = False
         self._stopping_configuration_source = False
 
         # Initialize flag evaluation metrics tracking
@@ -348,7 +349,9 @@ class DataDogProvider(AbstractProvider):
         # Start the agentless poller when agentless is the resolved source
         # (no-op otherwise). Mirrors dd-trace-js starting the source from the
         # provider lifecycle rather than at tracer init.
-        self._start_configuration_source()
+        if not self._start_configuration_source():
+            # A shutdown, for example from a log handler, cancelled this initialization.
+            raise ProviderNotReadyError("The Feature Flagging provider was shut down during initialization")
 
         try:
             # Start the exposure writer for reporting
@@ -471,42 +474,69 @@ class DataDogProvider(AbstractProvider):
         self._initialization_timed_out = False
         logger.debug("Feature Flags: provider shut down; see writer shutdown outcomes for delivery or unfinished work")
 
-    def _start_configuration_source(self) -> None:
+    def _start_configuration_source(self) -> bool:
         """Start the agentless poller when agentless is the resolved source.
 
-        Concurrent starts, and a start during a teardown, find the source in place and add no poller or claim.
+        Returns False when a shutdown during the start cancelled it. Another start during this one, or
+        during a teardown, returns at once and adds no poller or claim.
         """
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
         with self._configuration_source_lock:
-            if self._configuration_source is not None:
-                return
+            if self._configuration_source is not None or self._starting_configuration_source:
+                return True
+            self._starting_configuration_source = True
+            self._configuration_source_start_cancelled = False
 
+        source = None
+        started = False
+        try:
             source = create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
-            if source is None:
-                return
-
-            # A poller of the released selection may have notified this provider after attach()
-            # registered it. Nothing under the new claim has polled yet, so no notification is lost.
-            if snapshot_from_other_selection():
-                self._config_received.clear()
-                self._status = ProviderStatus.NOT_READY
-
-            try:
-                source.start()
-            except ServiceStatusError:
-                logger.debug("Agentless configuration source is already running", exc_info=True)
-            except Exception:
+            if source is not None and not self._configuration_source_start_cancelled:
+                # A poller of the released selection may have notified this provider after attach()
+                # registered it. Nothing under the new claim has polled yet, so no notification is lost.
+                if snapshot_from_other_selection():
+                    self._config_received.clear()
+                    self._status = ProviderStatus.NOT_READY
+                try:
+                    source.start()
+                except ServiceStatusError:
+                    logger.debug("Agentless configuration source is already running", exc_info=True)
+                started = True
+        except BaseException:
+            with self._configuration_source_lock:
+                self._starting_configuration_source = False
+            if source is not None:
                 release_process_selection()
-                raise
-            self._configuration_source = source
+            raise
+
+        with self._configuration_source_lock:
+            self._starting_configuration_source = False
+            cancelled = self._configuration_source_start_cancelled
+            if source is not None and not cancelled:
+                self._configuration_source = source
+                return True
+        if source is not None:
+            try:
+                if started:
+                    try:
+                        source.stop()
+                    except ServiceStatusError:
+                        logger.debug("Agentless configuration source is already stopped", exc_info=True)
+                    source.join()
+            finally:
+                release_process_selection()
+        return not cancelled
 
     def _stop_configuration_source(self) -> None:
-        """Stop the agentless poller if it was started.
+        """Stop the agentless poller if it was started, or cancel a start in progress.
 
-        Stop and join run outside the lock. After a failed join the next shutdown finishes the teardown.
+        After a failed join the source stays, and the next shutdown finishes the teardown.
         """
         with self._configuration_source_lock:
+            if self._starting_configuration_source:
+                self._configuration_source_start_cancelled = True
+                return
             source = self._configuration_source
             if source is None or self._stopping_configuration_source:
                 return
@@ -525,8 +555,8 @@ class DataDogProvider(AbstractProvider):
         with self._configuration_source_lock:
             self._configuration_source = None
             self._stopping_configuration_source = False
-        logger.debug("Feature Flags: agentless configuration source stopped")
         release_process_selection()
+        logger.debug("Feature Flags: agentless configuration source stopped")
 
     def resolve_boolean_details(
         self,
@@ -891,9 +921,12 @@ _providers_with_exposure_cache: "weakref.WeakSet[DataDogProvider]" = weakref.Wea
 
 
 @forksafe.register
-def _reset_exposure_cache_locks() -> None:
+def _reset_provider_state_in_child() -> None:
     for provider in list(_providers_with_exposure_cache):
         provider._exposure_cache_lock._at_fork_reinit()  # type: ignore[attr-defined]
+        # A start in progress at the fork ran on a parent thread, so the child can start again. A teardown
+        # in progress stays reserved: the parent's stop does not survive the fork, so a retried join blocks.
+        provider._starting_configuration_source = False
 
 
 class ExposureLoggingHook(Hook):
