@@ -860,7 +860,7 @@ suites:
       variants:
         - name: celery
           python: ['3.9']
-          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery~=5.2', 'redis~=3.5']
+          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery~=5.2.0', 'kombu~=5.2.0', 'redis~=3.5']
         - name: celery
           python: ['3.9']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery[redis]']
