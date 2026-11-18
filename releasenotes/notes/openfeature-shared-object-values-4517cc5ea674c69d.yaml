@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    openfeature: Repeat evaluations of an object flag now return the same shared ``dict`` or
+    ``list`` until the next configuration update, instead of building a new one each time,
+    which makes large JSON flag values much faster to evaluate. Treat the value as read-only,
+    and copy it before you change it: a change is visible to every later evaluation.

@@ -661,6 +661,17 @@ for an application serving inference with an LLM through PyTorch:
   :alt: Alternative text
 
 
+.. _feature_flag_object_values:
+
+Object Flag Values Are Read-Only
+--------------------------------
+
+An object flag returns its JSON value as a ``dict``, ``list`` or scalar. The provider builds
+that object once for each variation of a configuration, and every later evaluation of the
+variation returns the same object, until the next configuration update. Treat it as read-only.
+A change to it is visible to every later evaluation of the flag, on every thread. To change
+the value, copy it first, for example with ``copy.deepcopy``.
+
 .. _feature_flag_exposure_hook:
 
 Feature Flag Exposures in Your Own Data Store
