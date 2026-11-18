@@ -1043,7 +1043,7 @@ integrations:
   tested_versions_by_dependency:
     tornado:
       min: 6.1.0
-      max: 6.6.0
+      max: 6.6.1
 
 - integration_name: trio
   is_external_package: true
