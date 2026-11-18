@@ -1329,3 +1329,36 @@ def test_completion_with_openai_fallback_keeps_distributed_llmobs_parent(litellm
     llm_spans = [s for s in spans if s.span_type == "llm"]
     assert [s.name for s in llm_spans] == ["OpenAI.createChatCompletion"]
     assert get_llmobs_parent_id(llm_spans[0]) == "222"
+
+
+def test_completion_with_two_openai_fallbacks_keeps_distributed_llmobs_parent(litellm, litellm_llmobs, test_spans):
+    """Every OpenAI attempt, not only the first, takes the inbound distributed LLMObs context as parent."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+    from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
+    from ddtrace.trace import Context
+
+    inbound = Context(trace_id=111, span_id=222)
+    inbound._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = "111"
+    LLMObs._instance._llmobs_context_provider.activate(inbound)
+
+    def openai_completion(*args, **kwargs):
+        with LLMObs.llm(model_name="gpt-4o-mini", model_provider="openai", name="OpenAI.createChatCompletion"):
+            return litellm.ModelResponse(model="gpt-4o-mini")
+
+    def completion(*args, **kwargs):
+        for _ in range(2):
+            response = traced_completion(
+                openai_completion, None, (), {"model": "openai/gpt-4o-mini", "messages": FALLBACK_MESSAGES}
+            )
+        return response
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": ["openai/gpt-4o-mini"] * 2},
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    llm_spans = [s for s in spans if s.span_type == "llm"]
+    assert [get_llmobs_parent_id(s) for s in llm_spans] == ["222", "222"]

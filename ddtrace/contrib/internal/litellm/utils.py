@@ -89,12 +89,13 @@ def defer_outer_span_to_openai(attempts, kwargs, model):
     instead of the outer span, which is no longer exported.
     """
     outer = attempts.get("span")
-    if outer is None or outer.span_type is None or not has_downstream_openai_span(kwargs, model):
+    if outer is None or not has_downstream_openai_span(kwargs, model):
         return
     from ddtrace.llmobs import LLMObs
 
-    attempts["span_type"] = outer.span_type
-    outer.span_type = None
+    if outer.span_type is not None:
+        attempts["span_type"] = outer.span_type
+        outer.span_type = None
     # Restore the LLMObs parent that was active before the outer span, local span or distributed context.
     LLMObs._instance._llmobs_context_provider.activate(attempts["llmobs_parent"])
 
