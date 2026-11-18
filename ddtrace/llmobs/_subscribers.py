@@ -9,6 +9,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -70,8 +71,14 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
             return
         # Keep the request's integration on its context so the request finishes with the one it started with.
         ctx.set_item(_CONTEXT_KEY, integration)
-        if event.submit_to_llmobs and integration.llmobs_enabled:
+        if not integration.llmobs_enabled:
+            return
+        if event.submit_to_llmobs:
             event.span_type = SpanTypes.LLM
+        gateway = integration._llmobs_gateway(event.request_kwargs)
+        if gateway:
+            # Set it also when this span is not submitted: another integration can emit the llm span below it.
+            ctx.set_item(GATEWAY, gateway)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
