@@ -36,6 +36,7 @@
 
     "ddtrace.internal.ci_visibility": "product:ci_visibility",
     "ddtrace.internal.test_visibility": "product:ci_visibility",
+    "ddtrace.contrib.internal.unittest": "product:ci_visibility",
 
     "ddtrace.errortracking": "product:errortracking",
 
