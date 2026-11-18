@@ -38,7 +38,7 @@ dependency closures conservatively affect every test, including cached fixture
 dependencies. Dynamic imports during collection and fixture setup also supply
 shared roots; pytest's test-module imports remain per-test.
 Repository modules loaded before instrumentation are treated conservatively as
-shared dependencies. A test without observed coverage always runs. Joined
+shared dependencies; modules imported afterwards are recorded per test. A test without observed coverage always runs. Joined
 threads and supported multiprocessing children use dd-coverage's propagation.
 The collector uses its existing file-level or line-level mode, selected by
 ``_DD_COVERAGE_FILE_LEVEL``. A collector installed by another caller is reused

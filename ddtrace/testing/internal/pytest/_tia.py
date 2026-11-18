@@ -47,7 +47,7 @@ def configuration_hash(config: pytest.Config, root: Path, configurations: dict[s
     """Identify the invocation using repository-relative working and root directories."""
     data = {
         "version": DATA_VERSION,
-        "collector": "dd-coverage-v2",
+        "collector": "dd-coverage-v3",
         "command": list(config.invocation_params.args),
         "addopts": env.get("PYTEST_ADDOPTS", ""),
         "root": config.rootpath.resolve().relative_to(root).as_posix(),
@@ -361,9 +361,9 @@ class TIAPlugin:
         old = self.graph
         tests = {nodeid: deps for nodeid, deps in old.tests.items() if nodeid in self.items} if old else {}
         shared = set(old.import_deps) if old else set()
-        # Previously imported code may not have been instrumented. Preserve all loaded repository files in that case.
-        if self._preloaded_files:
-            shared.update(self._loaded_files())
+        # Code imported before coverage started is not instrumented, so no test records its use. Modules imported later
+        # are instrumented, and tests record them per test.
+        shared.update(self._preloaded_files)
         # Pytest also uses import_module to load test modules; their roots remain per-test.
         test_files = set(self.items.values())
         shared_roots = {
