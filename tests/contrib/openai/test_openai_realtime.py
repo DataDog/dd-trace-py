@@ -13,7 +13,8 @@ from types import SimpleNamespace
 import pytest
 
 from ddtrace.contrib.internal.openai import _realtime
-from ddtrace.contrib.internal.openai._realtime import _RealtimeState
+from ddtrace.llmobs._integrations import openai_realtime
+from ddtrace.llmobs._integrations.openai_realtime import _RealtimeState
 from ddtrace.llmobs._integrations.utils import g711_to_pcm16
 from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 
@@ -629,7 +630,7 @@ def test_realtime_usage_named_counts(value):
                 )
             }
         )
-    assert _realtime._usage_metrics({"input_tokens": 4, "output_tokens": 6, **details}) == expected
+    assert openai_realtime._usage_metrics({"input_tokens": 4, "output_tokens": 6, **details}) == expected
 
 
 @pytest.mark.parametrize(
@@ -816,7 +817,7 @@ def test_realtime_state_user_speech_anchored_on_vad_onset(monkeypatch):
     lead-in is trimmed off the captured audio too, so the clip covers the window the span reports.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -847,7 +848,7 @@ def test_realtime_state_consecutive_turns_do_not_overlap(monkeypatch):
     user speech spanned the whole of turn N's agent response.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -887,7 +888,7 @@ def test_realtime_state_barge_in_windows_still_overlap(monkeypatch):
     hear the agent over their own speech and the reported overlap is the true one.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -916,7 +917,7 @@ def test_realtime_state_segment_keeps_the_format_its_audio_arrived_under(monkeyp
     overstate the agent-speech window six-fold.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -954,7 +955,7 @@ def test_realtime_state_truncation_caps_agent_speech_to_what_was_heard(monkeypat
     before, which is why the first interruption of a connection is still reported untruncated.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -995,7 +996,7 @@ def test_realtime_state_held_turn_submitted_when_playback_ends(monkeypatch):
     without waiting for the next turn or for close - and with its audio intact.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -1025,7 +1026,7 @@ def test_realtime_state_no_hold_for_clients_that_never_truncate(monkeypatch):
     response.done as before - it pays none of the holding cost.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -1047,8 +1048,8 @@ def test_realtime_state_park_deadline_is_capped(monkeypatch):
     does it early, so capping the wait costs almost no real truncations.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
-    monkeypatch.setattr(_realtime, "_PARK_MAX_NS", 2 * 1_000_000_000)  # 2 s, vs a 30 s response
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime, "_PARK_MAX_NS", 2 * 1_000_000_000)  # 2 s, vs a 30 s response
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -1078,7 +1079,7 @@ def test_realtime_state_user_speech_falls_back_to_first_append_without_vad(monke
     user talks, so the first buffered chunk is the onset and nothing is trimmed.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -1120,10 +1121,10 @@ def test_realtime_state_long_lead_in_does_not_discard_the_users_speech(monkeypat
     surfaces nothing but an `[audio]` marker.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     # 300 ms of lead-in is 14400 bytes at 48 B/ms, so a 12000-byte cap trips before the onset while
     # still leaving room for the 200 ms of speech (9600 bytes) that follows.
-    monkeypatch.setattr(_realtime, "_AUDIO_ACCUM_MAX_BYTES", 12_000)
+    monkeypatch.setattr(openai_realtime, "_AUDIO_ACCUM_MAX_BYTES", 12_000)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -1154,7 +1155,7 @@ def test_realtime_decoded_b64_len_is_exact(raw_len):
     timeline and lands the cut on an odd byte, splitting a sample.
     """
     raw = b"\x01\x02" * (raw_len // 2) + b"\x03" * (raw_len % 2)
-    assert _realtime._decoded_b64_len(_b64(raw)) == raw_len
+    assert openai_realtime._decoded_b64_len(_b64(raw)) == raw_len
 
 
 def test_realtime_state_trim_leading_keeps_the_byte_cap_consistent():
@@ -1163,13 +1164,13 @@ def test_realtime_state_trim_leading_keeps_the_byte_cap_consistent():
     The trim drops whole chunks, so a cap tracked by subtraction drifts from the surviving chunks
     whenever `append` has already freed them.
     """
-    accumulator = _realtime._AudioAccumulator()
+    accumulator = openai_realtime._AudioAccumulator()
     for _ in range(10):
         accumulator.append(_b64(b"\x01\x02" * 240))  # 480 bytes each
     accumulator.trim_leading(480 * 3)
 
     assert len(accumulator.chunks) == 7
-    assert accumulator._bytes == sum(_realtime._decoded_b64_len(c) for c in accumulator.chunks)
+    assert accumulator._bytes == sum(openai_realtime._decoded_b64_len(c) for c in accumulator.chunks)
     assert not accumulator.oversize
 
 
@@ -1182,7 +1183,7 @@ def test_realtime_state_input_buffer_clock_survives_a_late_session_format(monkey
     that followed rather than just the first.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     mic = _Mic(state, clock)
 

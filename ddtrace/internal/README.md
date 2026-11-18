@@ -174,8 +174,12 @@ available with `DD_TRACE_ENABLED=false` so existing integrations can finish thei
 without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
 Concrete product subscribers disable class-definition registration; custom subscriber
 registration defaults are unchanged. Integrations emit events without registering
-tracing listeners themselves. Ray retains SDK-dependent activation from its patch
-module until a separate migration. Tracing retains its existing shutdown behavior
+tracing listeners themselves. Ray's SDK-dependent bundle remains separate: a tracing-owned
+import hook activates it after `ddtrace.contrib.internal.ray.patch` finishes loading.
+This also supports manual patching with deferred global tracer initialization, without
+importing Ray during ordinary tracing startup. Repeated tracing startup restores Ray
+listeners once that integration module has loaded. Ray unpatching retains completion
+listeners for active work. Tracing retains its existing shutdown behavior
 and keeps these listeners registered.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
