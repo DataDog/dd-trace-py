@@ -25,6 +25,12 @@ from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tia.artifacts import ARTIFACTS_ENDPOINT
+from ddtrace.testing.internal.tia.artifacts import MAX_ARTIFACT_BYTES
+from ddtrace.testing.internal.tia.artifacts import MAX_LOOKUP_COMMITS
+from ddtrace.testing.internal.tia.artifacts import Artifact
+from ddtrace.testing.internal.tia.artifacts import ArtifactMetadata
+from ddtrace.testing.internal.tia.artifacts import is_git_sha
 
 
 log = logging.getLogger(__name__)
@@ -76,6 +82,79 @@ class APIClient:
     def close(self) -> None:
         self.connector.close()
         self.coverage_connector.close()
+
+    def lookup_tia_artifact(self, metadata: ArtifactMetadata, commits: list[str]) -> t.Optional[Artifact]:
+        commits = commits[:MAX_LOOKUP_COMMITS]
+        if not commits or not all(is_git_sha(commit) for commit in commits):
+            return None
+        try:
+            attributes = metadata.attributes()
+            attributes["git_commit_shas"] = commits
+            payload = {"data": {"type": "test_params", "attributes": attributes}}
+            result = self.connector.request(
+                "POST",
+                f"{ARTIFACTS_ENDPOINT}/lookup",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/vnd.api+json", "Accept": "application/octet-stream"},
+                expected_status_codes=(404,),
+            )
+            if result.response is not None and result.response.status_code == 404:
+                return None
+            result.on_error_raise_exception()
+            if result.response is None or result.response.status_code != 200:
+                return None
+            content = result.response_body
+            if not isinstance(content, bytes) or not content or len(content) > MAX_ARTIFACT_BYTES:
+                return None
+            matched_commit = result.response.header("x-dd-tia-git-commit-sha")
+            source_commit = result.response.header("x-dd-tia-source-commit")
+            if matched_commit not in commits or not is_git_sha(source_commit):
+                return None
+            return Artifact(content, t.cast(str, matched_commit), t.cast(str, source_commit))
+        except Exception:
+            log.debug("Could not look up TIA artifact; running all tests", exc_info=True)
+            return None
+
+    def store_tia_artifact(self, metadata: ArtifactMetadata, commit: str, content: bytes) -> bool:
+        if not is_git_sha(commit) or not content or len(content) > MAX_ARTIFACT_BYTES:
+            return False
+        try:
+            result = self.connector.request(
+                "PUT",
+                metadata.upload_path(commit),
+                data=content,
+                headers={"Content-Type": "application/octet-stream"},
+                is_json_response=True,
+            )
+            result.on_error_raise_exception()
+            return result.response is not None and result.response.status_code == 201
+        except Exception:
+            log.debug("Could not store TIA artifact", exc_info=True)
+            return False
+
+    def lookup_tia_map(self, metadata: ArtifactMetadata, commits: list[str]) -> t.Optional[dict[str, t.Any]]:
+        artifact = self.lookup_tia_artifact(metadata, commits)
+        if artifact is None:
+            return None
+        try:
+            document = json.loads(artifact.content)
+            if not isinstance(document, dict):
+                return None
+            # The response headers carry provenance even when the blob was reused for another commit.
+            document["base_commit"] = artifact.source_commit
+            document["matched_commit"] = artifact.matched_commit
+            return document
+        except (ValueError, TypeError):
+            log.debug("Could not decode TIA dependency map; running all tests", exc_info=True)
+            return None
+
+    def store_tia_map(self, metadata: ArtifactMetadata, document: dict[str, t.Any]) -> bool:
+        try:
+            content = json.dumps(document, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            return self.store_tia_artifact(metadata, document["base_commit"], content)
+        except (KeyError, ValueError, TypeError):
+            log.debug("Could not encode TIA dependency map", exc_info=True)
+            return False
 
     def get_settings(self) -> Settings:
         telemetry = self.telemetry_api.with_request_metric_names(

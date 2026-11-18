@@ -460,6 +460,7 @@ class BackendConnector(threading.local):
         is_json_response: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
+        expected_status_codes: tuple[int, ...] = (),
     ) -> BackendResult:
         attempts_so_far = 0
 
@@ -496,7 +497,12 @@ class BackendConnector(threading.local):
                 break
 
         if result.error_type:
-            log.warning(
+            log_error = (
+                log.debug
+                if result.response is not None and result.response.status_code in expected_status_codes
+                else log.warning
+            )
+            log_error(
                 "Request %s %s failed after %d attempt(s): %s", method, path, attempts_so_far, result.error_description
             )
 
@@ -613,6 +619,7 @@ class NoOpBackendConnector:
         is_json_response: bool = False,
         telemetry: t.Any = None,
         max_attempts: int = 1,
+        expected_status_codes: tuple[int, ...] = (),
     ) -> BackendResult:
         log.debug("NoOp connector: skipping %s %s in offline mode", method, path)
         return BackendResult()

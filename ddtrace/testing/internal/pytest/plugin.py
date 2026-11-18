@@ -38,6 +38,7 @@ from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
+from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
 from ddtrace.testing.internal.logging import setup_logging
@@ -59,6 +60,8 @@ from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.xdist import XdistManifest
 from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import is_xdist_enabled_from_args
+from ddtrace.testing.internal.pytest.xdist import is_xdist_worker_process
 from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
@@ -1731,7 +1734,7 @@ def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
     if _is_option_true("no-ddtrace", early_config, args):
         return False
 
-    return _is_option_true("ddtrace", early_config, args)
+    return _is_option_true("ddtrace", early_config, args) or asbool(env.get("DD_TIA_ENABLED", "false"))
 
 
 def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -> bool:
@@ -1776,6 +1779,39 @@ def pytest_load_initial_conftests(
     _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))
 
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
+
+    if asbool(env.get("DD_TIA_ENABLED", "false")):
+        offline = get_offline_mode()
+        if (
+            is_xdist_worker_process()
+            or is_xdist_enabled_from_args(args)
+            or offline.manifest_enabled
+            or offline.payload_files_enabled
+            or session_manager.atf_all_flaky_tests
+        ):
+            log.debug("TIA is unavailable for distributed, offline, or all-flaky test sessions")
+        else:
+            # Keep the import recorder off the default plugin startup path.
+            from ddtrace.testing.internal.pytest._tia import TIAPlugin
+
+            try:
+                tia = TIAPlugin(
+                    early_config,
+                    session_manager._build_api_client(),
+                    session_manager.platform_tags,
+                    test_command=session_manager.session.test_command,
+                    repository_url=session_manager.env_tags.get(GitTag.REPOSITORY_URL),
+                )
+                early_config.pluginmanager.register(tia, "ddtrace-tia")
+                # A map must describe tests which actually ran, independently of server-side ITR decisions.
+                session_manager.settings.skipping_enabled = False
+                session_manager.session.set_itr_attributes(
+                    itr_enabled=session_manager.settings.itr_enabled,
+                    skipping_enabled=False,
+                    skipping_level=session_manager.itr_skipping_level,
+                )
+            except Exception:
+                log.debug("Could not initialize TIA; running all tests", exc_info=True)
 
     # NOTE: Coverage collection decision tree:
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
