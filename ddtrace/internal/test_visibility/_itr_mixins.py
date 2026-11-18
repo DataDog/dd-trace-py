@@ -17,7 +17,7 @@ class ITRMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_itr_skipped(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]):
+    def mark_itr_skipped(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]) -> None:
         log.debug("Marking item %s as skipped by ITR", item_id)
 
         if not isinstance(item_id, (ext_api.TestSuiteId, ext_api.TestId)):
@@ -27,14 +27,14 @@ class ITRMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]):
+    def mark_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]) -> None:
         log.debug("Marking item %s as unskippable by ITR", item_id)
 
         require_ci_visibility_service().get_item_by_id(item_id).mark_itr_unskippable()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_itr_forced_run(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]):
+    def mark_itr_forced_run(item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]) -> None:
         log.debug("Marking item %s as forced run by ITR", item_id)
 
         require_ci_visibility_service().get_item_by_id(item_id).mark_itr_forced_run()
@@ -80,7 +80,9 @@ class ITRMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def add_coverage_data(item_id, coverage_data) -> None:
+    def add_coverage_data(
+        item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId], coverage_data: dict[Path, CoverageLines]
+    ) -> None:
         """Adds coverage data to an item, merging with existing coverage data if necessary"""
         log.debug("Adding coverage data for item id %s", item_id)
 
