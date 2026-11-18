@@ -2,6 +2,12 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
+from ddtrace._trace._inferred_proxy import _set_inferred_proxy_tags
+from ddtrace._trace.http_meta import set_http_meta
+from ddtrace._trace.http_tags import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.web_framework import WebFrameworkRequestEvent
@@ -28,11 +34,6 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             event.set_resource = True
 
         if config._otel_trace_semantics_enabled and event.request_method:
-            # HTTP tagging is needed only once an instrumented request starts.
-            from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
-            from ddtrace._trace.otel.http.tags import set_method_tag
-            from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
-
             span: Span = span_from_context(ctx)
             set_method_tag(span, event.request_method)
             # Set the currently known resource before sampling; preserve span-start callback replacements.
@@ -47,11 +48,6 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
         ctx: core.ExecutionContext[WebFrameworkRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        # Keep request-only helpers off the tracing initialization path.
-        from ddtrace._trace._inferred_proxy import _set_inferred_proxy_tags
-        from ddtrace._trace.http_meta import set_http_meta
-        from ddtrace._trace.http_tags import set_instrumentation_resource
-
         event: WebFrameworkRequestEvent = ctx.event
         status_code = event.response_status_code
         method = event.request_method
