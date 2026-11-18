@@ -3,7 +3,6 @@ import json
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -72,7 +71,7 @@ DECISION_MEDIA_MARKERS = {
 class GoogleGenAIIntegration(BaseLLMIntegration):
     _integration_name = "google_genai"
 
-    def _set_base_span_tags(self, span: SpanData, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
     def _llmobs_set_tags(

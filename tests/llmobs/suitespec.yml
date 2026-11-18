@@ -533,8 +533,9 @@ suites:
     # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
     # run on Python 3.15 yet. Add 3.15 to the python lists once those
     # dependencies publish 3.15 wheels.
-    venvs_per_job: 3
-    # Allow time for GPU placement in addition to the 15-minute test target.
+    # Keep the full matrix on two GPU jobs to reduce pressure on runner placement.
+    venvs_per_job: 4
+    # Allow time for GPU placement and for the environments in each shard to run.
     timeout: 50m
     paths:
       - '@bootstrap'
