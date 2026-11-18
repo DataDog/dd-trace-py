@@ -558,7 +558,7 @@ class LockCollector(collector.CaptureSamplerCollector):
             current: Callable[..., Any] = collector._get_patch_target()
             if not isinstance(current, _LockAllocatorWrapper):
                 log.debug(
-                    "%s: gevent monkey-patching overwrote lock profiler wrapper on %s.%s; re-applying.",
+                    "[profiling] %s: gevent monkey-patching overwrote lock profiler wrapper on %s.%s; re-applying.",
                     type(collector).__name__,
                     collector.MODULE.__name__,
                     collector.PATCHED_LOCK_NAME,
@@ -640,7 +640,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         original_lock: Callable[..., Any] = self._get_patch_target()
         if isinstance(original_lock, _LockAllocatorWrapper):
             log.debug(
-                "%s: %s.%s is already patched, skipping to avoid double-wrapping.",
+                "[profiling] %s: %s.%s is already patched, skipping to avoid double-wrapping.",
                 type(self).__name__,
                 self.MODULE.__name__,
                 self.PATCHED_LOCK_NAME,
@@ -680,4 +680,9 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
+        # If _start_service failed before patch ran (e.g. _c_initialize_gevent_support raised),
+        # _original_lock is still None; restoring it would set the module attribute to None.
+        if self._original_lock is None:
+            return
+
         self._set_patch_target(self._original_lock)

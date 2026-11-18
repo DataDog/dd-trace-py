@@ -128,8 +128,18 @@ def test_tags_propagated() -> None:
     assert config.tags["hello"] == "python"
     assert config.tags["foo"] == "bar"
 
-    # When Profiler is instantiated and libdd is enabled, it should call ddup.config
-    Profiler()
+    # When the profiler is started and libdd is enabled, it should call ddup.config
+    # Collectors are disabled: this test only covers the exporter configuration, and
+    # starting the native collectors with a mocked ddup module would crash them.
+    prof = Profiler(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+    prof.start()
+    prof.stop(flush=False)
 
     mock_ddup.config.assert_called()
 
@@ -150,8 +160,18 @@ def test_process_tags_propagated() -> None:
     from ddtrace.profiling.profiler import Profiler  # noqa: I001
     from ddtrace.internal.datadog.profiling import ddup
 
-    # When Profiler is instantiated and libdd is enabled, it should call ddup.config
-    Profiler()
+    # When the profiler is started and libdd is enabled, it should call ddup.config
+    # Collectors are disabled: this test only covers the exporter configuration, and
+    # starting the native collectors with a mocked ddup module would crash them.
+    prof = Profiler(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+    prof.start()
+    prof.stop(flush=False)
 
     ddup.config.assert_called()
 

@@ -3,19 +3,35 @@ from pathlib import Path
 from unittest import mock
 from unittest.mock import patch
 
+import anthropic as anthropic_module
 import pytest
 
+from ddtrace.contrib.internal.anthropic.patch import patch as patch_anthropic
+from ddtrace.contrib.internal.anthropic.patch import unpatch as unpatch_anthropic
+from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs import _product
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
+from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._integrations.anthropic import _extract_anthropic_image_source
 from ddtrace.llmobs._integrations.utils import LLMOBS_IMAGE_INLINE_MAX_BYTES
+from ddtrace.llmobs._llmobs import _INTEGRATIONS_W_PROPAGATION_SUPPORT
+from ddtrace.llmobs._subscribers import LLMObsLlmSubscriber
+from ddtrace.llmobs._subscribers import integration_for
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.trace import Span
 from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.test_anthropic import BETA_SKIP_REASON
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
+from tests.contrib.anthropic.utils import httpx
+from tests.contrib.anthropic.utils import sampling_kwargs
 from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import aiterate_stream
@@ -23,9 +39,12 @@ from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import assert_llmobs_span_data
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
+from tests.utils import override_global_config
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
+WEB_SEARCH_PROMPT = "Use web search to find the latest released version of the Python package requests on PyPI."
+WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 3}
 WEATHER_OUTPUT_MESSAGE_1 = '<thinking>\nThe get_weather tool is directly relevant for answering this \
 question about the weather in a specific location. \n\nThe get_weather tool requires a "location" \
 parameter. The user has provided the location of "San Francisco, CA" in their question, so we have \
@@ -301,7 +320,7 @@ class TestLLMObsAnthropic:
             stream = llm.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=16000,
-                temperature=1,
+                **sampling_kwargs(1),
                 thinking={"type": "enabled", "budget_tokens": 1024},
                 messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
                 stream=True,
@@ -328,10 +347,38 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     },
                 ],
-                metadata={"temperature": 1, "max_tokens": 16000.0},
+                metadata={**sampling_kwargs(1), "max_tokens": 16000.0},
                 metrics={"input_tokens": 50, "output_tokens": 200, "total_tokens": 250},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
+
+    @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_extra_body_temperature(
+        self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans
+    ):
+        """anthropic>=1.0 sends temperature via extra_body; explicit kwargs win when both are given."""
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm = anthropic.Anthropic(base_url="http://localhost:8000")
+        messages = [{"role": "user", "content": "Hello"}]
+        llm.messages.create(
+            model="claude-3-opus-20240229", max_tokens=15, messages=messages, extra_body={"temperature": 0.8}
+        )
+        llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            messages=messages,
+            extra_body={"temperature": 0.8},
+            **sampling_kwargs(0.5),
+        )
+        llm.messages.create(
+            model="claude-3-opus-20240229", max_tokens=15, messages=messages, extra_body={"temperature": 0}
+        )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 3
+        assert _get_llmobs_data_metastruct(spans[2])["meta"]["metadata"]["temperature"] == 0
+        assert _get_llmobs_data_metastruct(spans[0])["meta"]["metadata"]["temperature"] == 0.8
+        expected = sampling_kwargs(0.5).get("temperature", 0.8)
+        assert _get_llmobs_data_metastruct(spans[1])["meta"]["metadata"]["temperature"] == expected
 
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_proxy(
@@ -357,7 +404,7 @@ class TestLLMObsAnthropic:
             model="claude-3-opus-20240229",
             max_tokens=15,
             system="Respond only in all caps.",
-            temperature=0.8,
+            **sampling_kwargs(0.8),
             messages=messages,
         )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -376,7 +423,7 @@ class TestLLMObsAnthropic:
             output_value=safe_json(
                 [{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}], ensure_ascii=False
             ),
-            metadata={"temperature": 0.8, "max_tokens": 15.0},
+            metadata={**sampling_kwargs(0.8), "max_tokens": 15.0},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
 
@@ -386,7 +433,7 @@ class TestLLMObsAnthropic:
             model="claude-3-opus-20240229",
             max_tokens=15,
             system="Respond only in all caps.",
-            temperature=0.8,
+            **sampling_kwargs(0.8),
             messages=messages,
         )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -423,6 +470,40 @@ class TestLLMObsAnthropic:
         assert len(spans) == 1
         assert get_llmobs_model_provider(spans[0]) == "google"
 
+    def test_completion_web_search(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
+        """web_search_count is read from usage.server_tool_use.web_search_requests."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_web_search.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": WEB_SEARCH_PROMPT}],
+                tools=[WEB_SEARCH_TOOL],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = _get_llmobs_data_metastruct(spans[0])["metrics"]
+        assert metrics["web_search_count"] == 1
+        # Web fetch has no per-call price, so it is not recorded.
+        assert not any("fetch" in key for key in metrics)
+
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_completion_web_search_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
+        """Streamed usage keeps server_tool_use from the final message_delta event."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_web_search_stream.yaml"):
+            stream = llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": WEB_SEARCH_PROMPT}],
+                tools=[WEB_SEARCH_TOOL],
+                stream=True,
+            )
+            consume_stream(stream)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["metrics"]["web_search_count"] == 1
+
     def test_completion(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -434,7 +515,7 @@ class TestLLMObsAnthropic:
                 model="claude-3-opus-20240229",
                 max_tokens=15,
                 system="Respond only in all caps.",
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -458,7 +539,7 @@ class TestLLMObsAnthropic:
                 {"content": "What is the best selling book?", "role": "user"},
             ],
             output_messages=[{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}],
-            metadata={"temperature": 0.8, "max_tokens": 15.0},
+            metadata={**sampling_kwargs(0.8), "max_tokens": 15.0},
             metrics={"input_tokens": 32, "output_tokens": 15, "total_tokens": 47},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
@@ -473,7 +554,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 system=[
                     {
                         "type": "text",
@@ -508,7 +589,7 @@ class TestLLMObsAnthropic:
                 {"content": "What is the best selling book?", "role": "user"},
             ],
             output_messages=[{"content": "HELLO THERE! ACCORDING TO VARIOUS SOURCES, THE", "role": "assistant"}],
-            metadata={"temperature": 0.8, "max_tokens": 15.0},
+            metadata={**sampling_kwargs(0.8), "max_tokens": 15.0},
             metrics={
                 "input_tokens": 43,
                 "output_tokens": 15,
@@ -533,7 +614,7 @@ class TestLLMObsAnthropic:
                     model="claude-3-opus-20240229",
                     max_tokens=15,
                     system="Respond only in all caps.",
-                    temperature=0.8,
+                    **sampling_kwargs(0.8),
                     messages=[
                         {
                             "role": "user",
@@ -563,7 +644,7 @@ class TestLLMObsAnthropic:
                         "message": spans[0].get_tag("error.message"),
                         "stack": spans[0].get_tag("error.stack"),
                     },
-                    metadata={"temperature": 0.8, "max_tokens": 15.0},
+                    metadata={**sampling_kwargs(0.8), "max_tokens": 15.0},
                     tags={
                         "ml_app": "<ml-app-name>",
                         "service": "tests.contrib.anthropic",
@@ -582,7 +663,7 @@ class TestLLMObsAnthropic:
             stream = llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -617,7 +698,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metadata={**sampling_kwargs(0.8), "max_tokens": 15.0},
                 metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -633,7 +714,7 @@ class TestLLMObsAnthropic:
             with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -673,7 +754,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metadata={**sampling_kwargs(0.8), "max_tokens": 15.0},
                 metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -687,7 +768,7 @@ class TestLLMObsAnthropic:
             with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -715,7 +796,7 @@ class TestLLMObsAnthropic:
             async with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -742,7 +823,7 @@ class TestLLMObsAnthropic:
             async with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -772,7 +853,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -811,7 +892,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metadata={**sampling_kwargs(0.8), "max_tokens": 15.0},
                 metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -823,7 +904,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **sampling_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -858,7 +939,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metadata={**sampling_kwargs(0.8), "max_tokens": 15.0},
                 metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -1418,7 +1499,7 @@ class TestLLMObsAnthropic:
             "model": "claude-sonnet-4-20250514",
             "max_tokens": 100,
             "system": large_system_prompt,
-            "temperature": 0.1,
+            **sampling_kwargs(0.1),
             "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
         }
         with request_vcr.use_cassette("anthropic_completion_cache_write.yaml"):
@@ -1448,7 +1529,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **sampling_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1483,7 +1564,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **sampling_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1518,7 +1599,7 @@ class TestLLMObsAnthropic:
                 model="claude-sonnet-4-20250514",
                 max_tokens=100,
                 system=large_system_prompt,
-                temperature=0.1,
+                **sampling_kwargs(0.1),
                 messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -1541,7 +1622,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **sampling_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1569,7 +1650,7 @@ class TestLLMObsAnthropic:
             "model": "claude-sonnet-4-20250514",
             "max_tokens": 100,
             "system": large_system_prompt,
-            "temperature": 0.1,
+            **sampling_kwargs(0.1),
             "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
             "stream": True,
         }
@@ -1606,7 +1687,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **sampling_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1641,7 +1722,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **sampling_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1701,7 +1782,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=16000,
-                temperature=1,
+                **sampling_kwargs(1),
                 thinking={"type": "enabled", "budget_tokens": 1024},
                 messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
             )
@@ -1720,7 +1801,7 @@ class TestLLMObsAnthropic:
                 },
                 {"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON QUIXOTE"', "role": "assistant"},
             ],
-            metadata={"temperature": 1, "max_tokens": 16000.0},
+            metadata={**sampling_kwargs(1), "max_tokens": 16000.0},
             metrics={"input_tokens": 50, "output_tokens": 200, "total_tokens": 250},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
@@ -1739,7 +1820,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=16000,
-                temperature=1,
+                **sampling_kwargs(1),
                 thinking={"type": "enabled", "budget_tokens": 1024},
                 messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=tools,
@@ -1770,7 +1851,7 @@ class TestLLMObsAnthropic:
                     ],
                 },
             ],
-            metadata={"max_tokens": 16000.0, "temperature": 1},
+            metadata={"max_tokens": 16000.0, **sampling_kwargs(1)},
             metrics={"input_tokens": 100, "output_tokens": 150, "total_tokens": 250},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             tool_definitions=EXPECTED_TOOL_DEFINITIONS,
@@ -1790,7 +1871,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=16000,
-                temperature=1,
+                **sampling_kwargs(1),
                 thinking={"type": "enabled", "budget_tokens": 1024},
                 messages=[
                     {"role": "user", "content": WEATHER_PROMPT},
@@ -1859,7 +1940,7 @@ class TestLLMObsAnthropic:
                     "role": "assistant",
                 },
             ],
-            metadata={"max_tokens": 16000.0, "temperature": 1},
+            metadata={"max_tokens": 16000.0, **sampling_kwargs(1)},
             metrics={"input_tokens": 200, "output_tokens": 30, "total_tokens": 230},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             tool_definitions=EXPECTED_TOOL_DEFINITIONS,
@@ -2003,6 +2084,7 @@ def test_shadow_tags_chat_when_llmobs_disabled(tracer):
     response.usage.output_tokens = 8
     response.usage.cache_creation_input_tokens = None
     response.usage.cache_read_input_tokens = None
+    response.usage.server_tool_use = None
 
     with tracer.trace("anthropic.request") as span:
         span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
@@ -2030,6 +2112,7 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
     response.usage.output_tokens = 8
     response.usage.cache_creation_input_tokens = 5
     response.usage.cache_read_input_tokens = 3
+    response.usage.server_tool_use = None
 
     with tracer.trace("anthropic.request") as span:
         span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
@@ -2084,3 +2167,155 @@ def test_get_model_provider_is_per_span(tracer):
 
     # The first span still resolves independently after the second request.
     assert integration._get_model_provider(bedrock_span) == "amazon"
+
+
+@pytest.fixture
+def subscriber_lifecycle(tracer):
+    LLMObs.disable()
+    unpatch_anthropic()
+    with (
+        override_global_config({"_llmobs_ml_app": "subscriber-tests", "_dd_api_key": "not-a-real-key"}),
+        patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter"),
+        patch("ddtrace.llmobs._llmobs.LLMObsEvalMetricWriter"),
+        patch("ddtrace.llmobs._llmobs.EvaluatorRunner"),
+    ):
+        try:
+
+            def enable():
+                LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
+                tracer._span_aggregator.llmobs_processor._keep_meta_struct = True
+
+            yield enable
+        finally:
+            unpatch_anthropic()
+            LLMObs.disable()
+
+
+@pytest.mark.parametrize("patch_before_enable", [True, False])
+def test_subscriber_real_patch_enable_lifecycle(subscriber_lifecycle, test_spans, patch_before_enable):
+    def respond(request):
+        return httpx.Response(
+            200,
+            json={
+                "id": "msg-test",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-opus-20240229",
+                "content": [{"type": "text", "text": "Hello"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 5, "output_tokens": 1},
+            },
+        )
+
+    def request(enabled):
+        # Observe actual writes while preserving the real span and extraction methods.
+        writes = []
+        set_attribute = Span._set_attribute
+
+        def record_attribute(span, key, value):
+            writes.append(key)
+            return set_attribute(span, key, value)
+
+        integration = integration_for("anthropic")
+        with (
+            patch.object(Span, "_set_attribute", record_attribute),
+            patch.object(integration, "_set_base_span_tags", wraps=integration._set_base_span_tags) as base_tags,
+            patch.object(integration, "llmobs_set_tags", wraps=integration.llmobs_set_tags) as response_tags,
+        ):
+            client.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=10,
+                messages=[{"role": "user", "content": "Hi"}],
+            )
+        spans = [span for trace in test_spans.pop_traces() for span in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.span_type == (SpanTypes.LLM if enabled else None)
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == int(enabled)
+        assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 5
+        base_tags.assert_called_once()
+        response_tags.assert_called_once()
+        assert writes.count(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 1
+        if enabled:
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(span),
+                span_kind="llm",
+                model_name="claude-3-opus-20240229",
+                input_messages=[{"role": "user", "content": "Hi"}],
+                output_messages=[{"role": "assistant", "content": "Hello"}],
+            )
+
+    with anthropic_module.Anthropic(
+        api_key="not-a-real-key", http_client=httpx.Client(transport=httpx.MockTransport(respond))
+    ) as client:
+        if patch_before_enable:
+            patch_anthropic()
+            request(False)
+        subscriber_lifecycle()
+        if not patch_before_enable:
+            patch_anthropic()
+        integration = integration_for("anthropic")
+        assert integration.llmobs_enabled
+        request(True)
+        LLMObs.disable()
+        assert not integration.llmobs_enabled
+        request(False)
+        subscriber_lifecycle()
+        assert integration_for("anthropic") is integration
+        assert integration.llmobs_enabled
+        request(True)
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_subscriber_real_unpatch_inflight(subscriber_lifecycle, test_spans, request_vcr, streaming):
+    subscriber_lifecycle()
+    patch_anthropic()
+    integration = integration_for("anthropic")
+
+    # Unpatch while the real SDK request is in progress, before response extraction.
+    def unpatch_during_request(request):
+        unpatch_anthropic()
+        assert integration_for("anthropic") is None
+
+    with anthropic_module.Anthropic(
+        api_key="not-a-real-key", http_client=httpx.Client(event_hooks={"request": [unpatch_during_request]})
+    ) as client:
+        cassette = "anthropic_completion_stream.yaml" if streaming else "anthropic_completion.yaml"
+        with request_vcr.use_cassette(cassette):
+            response = client.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                messages=[{"role": "user", "content": "Hi"}],
+                stream=streaming,
+            )
+            if streaming:
+                assert not test_spans.pop_traces()
+                list(response)
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) > 0
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="llm")
+    assert integration.llmobs_enabled
+
+
+def test_product_start_restores_bundle_with_real_enable(subscriber_lifecycle):
+    subscriber_lifecycle()
+    patch_anthropic()
+    LLMObs.disable()
+    LLMObsLlmSubscriber.unregister()
+    assert not core.has_listeners("span.finishing.llm.request")
+    # Keep the normal product enablement path and limit automatic patching to this integration.
+    modules = ",".join(
+        f"{name}:false"
+        for name in list(SUPPORTED_LLMOBS_INTEGRATIONS.values()) + list(_INTEGRATIONS_W_PROPAGATION_SUPPORT.values())
+    )
+    # The product manager only calls start() when LLMObs is enabled, and disable() above turned it off.
+    with (
+        patch.dict("os.environ", {"DD_PATCH_MODULES": modules + ",anthropic:true"}),
+        override_global_config({"_llmobs_enabled": True}),
+    ):
+        _product.start()
+    assert LLMObs.enabled
+    assert core.has_listeners("span.finishing.llm.request")
+    assert integration_for("anthropic").llmobs_enabled

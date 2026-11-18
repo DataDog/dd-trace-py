@@ -93,13 +93,13 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         ):
             self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)
 
-    def _telemetry_record_event_created(self):
+    def _telemetry_record_event_created(self) -> None:
         record_event_created(
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
-    def _telemetry_record_event_finished(self):
+    def _telemetry_record_event_finished(self) -> None:
         record_event_finished(
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,

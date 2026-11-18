@@ -4,11 +4,11 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.contrib.internal.trace_utils import int_service
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.utils.service import int_service
+from ddtrace.internal.utils.service import set_service_and_source
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -93,6 +93,8 @@ class BaseLLMIntegration:
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
+        if submit_to_llmobs:
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.llmobs_enabled else 0)
         self._set_base_span_tags(span, **kwargs)
         self._annotate_integration_tag(span)
         if span_type == SpanTypes.LLM:
@@ -116,6 +118,21 @@ class BaseLLMIntegration:
             _annotate_llmobs_span_data(span, kind=span_kind, name=agent_name)
         else:
             _annotate_llmobs_span_data(span, kind=span_kind)
+
+    def _on_request_span_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Run integration-specific setup once a subscriber-owned request span has started.
+
+        Called by the shared LLMObs SPAN_STARTED subscriber after base tags and span kind are set,
+        whether or not LLMObs is enabled, and before the wrapped call runs, so child spans can read
+        what is recorded here (for example span links).
+        """
+        pass
 
     def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
         """Return the LLMObs name to stamp alongside the agent kind at start, or None to defer to finish.

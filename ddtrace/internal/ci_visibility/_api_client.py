@@ -35,7 +35,10 @@ from ddtrace.internal.ci_visibility.telemetry.api_request import record_api_requ
 from ddtrace.internal.ci_visibility.telemetry.constants import ERROR_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import GIT_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import EARLY_FLAKE_DETECTION_TELEMETRY
+from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_pages_fetched
 from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_tests_count
+from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_total_fetch_ms
+from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_total_request_ms
 from ddtrace.internal.ci_visibility.telemetry.git import record_settings_response
 from ddtrace.internal.ci_visibility.telemetry.itr import SKIPPABLE_TESTS_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
@@ -336,7 +339,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         self,
         method: str,
         endpoint: str,
-        payload: dict,
+        payload: dict[str, t.Any],
         metric_names: APIRequestMetricNames,
         timeout: t.Optional[float] = None,
         read_from_cache: bool = True,
@@ -533,7 +536,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         }
 
         try:
-            skippable_response: _SkippableResponse = self._do_request_with_telemetry(
+            skippable_response: t.Optional[_SkippableResponse] = self._do_request_with_telemetry(
                 "POST", SKIPPABLE_ENDPOINT, payload, metric_names, timeout, read_from_cache=read_from_cache
             )
         except Exception:  # noqa: E722
@@ -589,8 +592,15 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         page_state: t.Optional[str] = None
         max_pages = _get_known_tests_max_pages()
 
+        pages_fetched = 0
+        # Page-call time includes internal retries and decoding, but excludes merging test identities.
+        total_request_ms = 0.0
+        fetch_sw = StopWatch()
+        fetch_sw.start()
+
         for page_number in range(max_pages):
-            # First page: empty page_info lets backend use its default max (10k).
+            pages_fetched += 1
+            # First page: empty page_info lets the backend choose its default page size.
             # Subsequent pages: only send page_state.
             request_page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
 
@@ -609,9 +619,13 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             }
 
             try:
+                request_sw = StopWatch()
+                request_sw.start()
                 parsed_response = self._do_request_with_telemetry(
                     "POST", KNOWN_TESTS_ENDPOINT, payload, metric_names, read_from_cache=read_from_cache
                 )
+                request_sw.stop()
+                total_request_ms += request_sw.elapsed() * 1000
             except Exception:  # noqa: E722
                 return None
 
@@ -661,7 +675,11 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
             return None
 
+        fetch_sw.stop()
         record_early_flake_detection_tests_count(len(known_test_ids))
+        record_early_flake_detection_pages_fetched(pages_fetched)
+        record_early_flake_detection_total_fetch_ms(fetch_sw.elapsed() * 1000)
+        record_early_flake_detection_total_request_ms(total_request_ms)
 
         return known_test_ids
 
@@ -755,7 +773,7 @@ class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
         super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
         self._api_key = api_key
 
-    def _get_headers(self):
+    def _get_headers(self) -> dict[str, str]:
         return {AGENTLESS_API_KEY_HEADER_NAME: self._api_key}
 
     def _redact_headers(self) -> dict[str, str]:
@@ -782,7 +800,7 @@ class EVPProxyTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
         base_url = combine_url_path(agent_url, evp_proxy_base_url)
         super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
 
-    def _get_headers(self):
+    def _get_headers(self) -> dict[str, str]:
         return {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
 
     def _redact_headers(self) -> dict[str, str]:

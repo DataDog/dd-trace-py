@@ -3,6 +3,11 @@ from os import path
 from ddtrace.internal.settings import env
 
 
+# Fixed platform request details for the AWS Lambda MicroVM /run lifecycle hook.
+MICROVM_RUN_HOOK_METHOD = "POST"
+MICROVM_RUN_HOOK_PATH = "/aws/lambda-microvms/runtime/v1/run"
+
+
 def in_aws_lambda() -> bool:
     """Returns whether the environment is an AWS Lambda.
     This is accomplished by checking if the AWS_LAMBDA_FUNCTION_NAME environment
@@ -31,3 +36,8 @@ def in_gcp_function() -> bool:
 def in_azure_function() -> bool:
     """Returns whether the environment is an Azure Function."""
     return env.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and env.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
+
+
+def in_aws_lambda_microvm() -> bool:
+    """Returns whether the environment is an AWS Lambda MicroVM."""
+    return bool(env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN", "").strip())

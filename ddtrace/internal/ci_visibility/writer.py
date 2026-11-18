@@ -15,10 +15,10 @@ from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 from ddtrace.version import __version__
 
 from .. import service
+from .._runtime_id import get_runtime_id
 from ..evp_proxy.constants import EVP_PROXY_AGENT_ENDPOINT
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from .constants import AGENTLESS_BASE_URL
@@ -229,7 +229,11 @@ class CIVisibilityWriter(HTTPWriter):
             super().stop(timeout=timeout)
 
     def recreate(
-        self, appsec_enabled: Optional[bool] = None, llmobs_enabled: Optional[bool] = None
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "CIVisibilityWriter":
         return self.__class__(
             intake_url=self.intake_url,

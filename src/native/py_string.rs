@@ -1,6 +1,7 @@
 use std::{borrow::Borrow, ops::Deref as _};
 
-use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
+use libdd_trace_model::{AttributeValue, TraceText, ValueTypes};
+use libdd_trace_utils::span::{vec_map::VecMap, SpanBytes, SpanText, TraceData};
 use pyo3::{
     exceptions::PyValueError,
     types::{PyAnyMethods as _, PyBytesMethods as _, PyString, PyStringMethods as _},
@@ -303,6 +304,13 @@ impl std::borrow::Borrow<str> for PyBackedString {
     }
 }
 
+// libdatadog's `BufferSize` blanket impl for `v04::Span<T>` needs `AsRef` on both wire types.
+impl AsRef<str> for PyBackedString {
+    fn as_ref(&self) -> &str {
+        self.deref()
+    }
+}
+
 impl PartialEq for PyBackedString {
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
@@ -320,6 +328,39 @@ impl Default for PyBackedString {
 impl std::fmt::Debug for PyBackedString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.deref().fmt(f)
+    }
+}
+
+// libdatadog requires `Clone` for `TraceText`, and it can call `clone` on a thread that has no
+// Python thread state, for example during interpreter shutdown. Attaching to Python from that
+// thread can panic or hang. For that reason, `clone` never touches `py_object`. It copies a
+// `Rust` or `PyObject` string into new Rust-owned memory, and the copy loses the Python object.
+// A clone of Python `None` becomes an empty string, and `is_py_none` returns false for it.
+// To keep the Python object, hold the GIL and call `clone_ref`.
+// No test covers this path: PyO3 cannot start an interpreter in `cargo test`.
+impl Clone for PyBackedString {
+    fn clone(&self) -> Self {
+        match self.tag {
+            Tag::Static => Self {
+                view_ptr: self.view_ptr,
+                view_len: self.view_len,
+                tag: Tag::Static,
+                py_object: None,
+            },
+            Tag::Rust | Tag::PyObject => Self::from_box(Box::<str>::from(self.deref())),
+        }
+    }
+}
+
+impl From<String> for PyBackedString {
+    fn from(value: String) -> Self {
+        Self::from_box(value.into_boxed_str())
+    }
+}
+
+impl TraceText for PyBackedString {
+    fn from_static(s: &'static str) -> Self {
+        <Self as SpanText>::from_static_str(s)
     }
 }
 
@@ -341,6 +382,13 @@ impl SpanText for PyBackedString {
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Bytes(Vec<u8>);
 
+impl Bytes {
+    /// Wrap already-packed msgpack bytes.
+    pub(crate) fn from_owned_bytes(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+}
+
 impl SpanBytes for Bytes {
     fn from_static_bytes(value: &'static [u8]) -> Self {
         Self(value.to_vec())
@@ -353,9 +401,21 @@ impl Borrow<[u8]> for Bytes {
     }
 }
 
+// `AsRef` on both wire types is what libdatadog's `BufferSize` blanket impl for
+// `v04::Span<T>` requires. Implementing it lets the native trace buffer bound itself by
+// libdatadog's own per-span byte estimate instead of a count we maintain ourselves.
+impl AsRef<[u8]> for Bytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct PyTraceData;
-impl TraceData for PyTraceData {
+impl ValueTypes for PyTraceData {
     type Text = PyBackedString;
     type Bytes = Bytes;
+    type Array = Vec<AttributeValue<Self>>;
+    type Map = VecMap<PyBackedString, AttributeValue<Self>>;
 }
+impl TraceData for PyTraceData {}

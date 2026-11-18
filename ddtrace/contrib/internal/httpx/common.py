@@ -8,6 +8,7 @@ from typing import Optional
 
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace._trace.otel.http.tags import otel_client_url
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
@@ -182,7 +183,7 @@ def httpx_url_to_str(url: Any) -> str:
         url += b":" + ensure_binary(str(port))
     url += raw_path
 
-    return ensure_text(url)
+    return otel_client_url(ensure_text(url), scheme, host, port, raw_path)
 
 
 def httpx_get_service_name(request: Any, integration_config: IntegrationConfig) -> Optional[str]:

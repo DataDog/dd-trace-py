@@ -29,6 +29,8 @@ Version resolution:
 Errors:
 - CI only uses 'latest' AND latest is outside declared range (testing wrong version)
 - CI has explicit bounds but doesn't cover all required majors
+- 'latest' did not resolve and explicit bounds do not cover all required majors
+  (not reported as missing majors)
 
 Warnings:
 - CI only uses 'latest' but latest is within declared range (works but fragile)
@@ -47,6 +49,8 @@ from functools import lru_cache
 from pathlib import Path
 import re
 import sys
+import time
+from typing import Any
 
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -95,21 +99,35 @@ class SilencedItem:
     location: Location
 
 
+PYPI_ATTEMPTS = 5
+
+
 @lru_cache(maxsize=100)
 def get_pypi_latest_version(package: str) -> Version | None:
-    """Query PyPI for the latest version of a package."""
-    try:
-        url = f"https://pypi.org/pypi/{package}/json"
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            return Version(data["info"]["version"])
-    except Exception:
-        pass
-    return None
+    """Query PyPI for the latest version of a package
+
+    Returns None if PyPI does not know the package.
+    Transient PyPI errors are retried, and a lookup that keeps failing aborts the run.
+    """
+    url = f"https://pypi.org/pypi/{package}/json"
+    last_error: Exception | None = None
+    for attempt in range(PYPI_ATTEMPTS):
+        if attempt:
+            time.sleep(2**attempt)
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return Version(response.json()["info"]["version"])
+        except Exception as e:
+            last_error = e
+    raise SystemExit(
+        f"❌ Could not query PyPI for the latest {package} version after {PYPI_ATTEMPTS} attempts: {last_error}"
+    )
 
 
-def load_pyproject() -> tuple[dict, str]:
+def load_pyproject() -> tuple[dict[str, Any], str]:
     """Load and parse pyproject.toml from the current directory."""
     pyproject_path = Path("pyproject.toml")
     if not pyproject_path.exists():
@@ -196,6 +214,13 @@ def parse_dependency(dep_line: str) -> tuple[str, str]:
         return dep_line.strip(), ""
 
 
+def _version_matches_spec(version_text: str, spec_set: SpecifierSet) -> bool:
+    try:
+        return Version(version_text) in spec_set
+    except Exception:
+        return False
+
+
 def get_major_versions_from_specifier(spec_string: str) -> set[int]:
     """
     Calculate which major versions are allowed by a specifier.
@@ -227,12 +252,9 @@ def get_major_versions_from_specifier(spec_string: str) -> set[int]:
         # We test x.0.0, x.99.99 to cover the range
         test_versions = [f"{major}.0.0", f"{major}.99.99"]
         for test_ver in test_versions:
-            try:
-                if Version(test_ver) in spec_set:
-                    majors.add(major)
-                    break
-            except Exception:
-                pass
+            if _version_matches_spec(test_ver, spec_set):
+                majors.add(major)
+                break
 
     return majors
 
@@ -261,14 +283,14 @@ class PyprojectDep:
     location: Location
 
 
-def extract_pyproject_dependencies(data: dict, content: str) -> dict[str, PyprojectDep]:
+def extract_pyproject_dependencies(data: dict[str, Any], content: str) -> dict[str, PyprojectDep]:
     """
     Extract all dependencies and their required major versions from pyproject.toml.
 
     Returns:
         Dict mapping package name to PyprojectDep with majors and location
     """
-    deps = {}
+    deps: dict[str, PyprojectDep] = {}
 
     # Check project.dependencies
     if "project" in data and "dependencies" in data["project"]:
@@ -377,12 +399,9 @@ def analyze_version_spec(spec: str) -> tuple[set[int], bool]:
     for major in range(11):
         test_versions = [f"{major}.0.0", f"{major}.50.0", f"{major}.99.99"]
         for test_ver in test_versions:
-            try:
-                if Version(test_ver) in spec_set:
-                    satisfying_majors.add(major)
-                    break
-            except Exception:
-                pass
+            if _version_matches_spec(test_ver, spec_set):
+                satisfying_majors.add(major)
+                break
 
     if not satisfying_majors:
         return set(), False
@@ -405,9 +424,12 @@ def extract_suitespec_tested_versions() -> dict[str, DepInfo]:
     for environments in get_test_environments(nightly=False).values():
         for environment in environments:
             for dependency in environment.direct_dependencies:
+                requirement: Requirement | None
                 try:
                     requirement = Requirement(dependency)
                 except Exception:
+                    requirement = None
+                if requirement is None:
                     continue
                 package = requirement.name.lower()
                 info = tested.setdefault(package, DepInfo())
@@ -547,7 +569,7 @@ def check_coverage(
     warnings = []
     silenced = []
 
-    def add_issue(level: str, pkg: str, reason: str, ci_info: DepInfo):
+    def add_issue(level: str, pkg: str, reason: str, ci_info: DepInfo) -> None:
         """Add an issue to errors/warnings or silenced if allowed."""
         if ci_info.allowed_locations:
             for loc in ci_info.allowed_locations:
@@ -574,6 +596,19 @@ def check_coverage(
             has_latest = ci_info.has_latest
             ci_locs = format_locations(ci_info.locations)
 
+            # Unresolved latest (unknown package) is not missing coverage: the
+            # majors a bare spec would cover are unknown.
+            explicit_covers_required: bool = required_majors <= explicit_majors
+            if has_latest and ci_info.latest_major is None and not explicit_covers_required:
+                reason: str = (
+                    f"{pkg_name}: could not resolve latest version from PyPI. "
+                    f"Cannot determine the latest major.\n"
+                    f"    pyproject.toml: {pyproject_loc}\n"
+                    f"    CI: {ci_locs}"
+                )
+                add_issue("error", pkg_name, reason, ci_info)
+                continue
+
             # Check if only using 'latest' with no explicit bounds
             if has_latest and not explicit_majors:
                 suggested_bounds = ", ".join(f'">={m},<{m + 1}"' for m in sorted(required_majors))
@@ -590,27 +625,15 @@ def check_coverage(
                     )
                     add_issue("warning", pkg_name, reason, ci_info)
                 else:
-                    # Latest is outside declared range or couldn't be resolved - error
-                    if latest_major is None:
-                        # PyPI query failed - could be network issue, package not found, etc.
-                        reason = (
-                            f"{pkg_name}: CI only uses 'latest' but could not resolve latest version from PyPI "
-                            f"(network error or package not found). "
-                            f"Replace 'latest' with {suggested_bounds} to explicitly cover "
-                            f"the declared range {sorted(required_majors)}.\n"
-                            f"    pyproject.toml: {pyproject_loc}\n"
-                            f"    CI: {ci_locs}"
-                        )
-                    else:
-                        # Latest is outside declared range
-                        reason = (
-                            f"{pkg_name}: CI only uses 'latest' with no explicit version bounds, "
-                            f"but latest ({latest_major}) is outside declared range {sorted(required_majors)}. "
-                            f"Replace 'latest' with {suggested_bounds} to explicitly cover "
-                            f"the declared range.\n"
-                            f"    pyproject.toml: {pyproject_loc}\n"
-                            f"    CI: {ci_locs}"
-                        )
+                    # Latest resolved, but it is outside the declared range.
+                    reason = (
+                        f"{pkg_name}: CI only uses 'latest' with no explicit version bounds, "
+                        f"but latest ({latest_major}) is outside declared range {sorted(required_majors)}. "
+                        f"Replace 'latest' with {suggested_bounds} to explicitly cover "
+                        f"the declared range.\n"
+                        f"    pyproject.toml: {pyproject_loc}\n"
+                        f"    CI: {ci_locs}"
+                    )
                     add_issue("error", pkg_name, reason, ci_info)
             elif all_tested_majors:
                 # Check coverage using all tested majors (including latest)

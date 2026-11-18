@@ -77,6 +77,9 @@ _RESOURCES = {
         "create": _endpoint_hooks._ResponseHook,
         "parse": _endpoint_hooks._ResponseParseHook,
     },
+    "decisions.Decisions": {
+        "create": _endpoint_hooks._DecisionHook,
+    },
 }
 
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"

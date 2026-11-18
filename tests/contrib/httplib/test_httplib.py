@@ -3,7 +3,6 @@ import http.client as httplib
 import socket
 import sys
 from unittest import mock
-import urllib.error
 from urllib.request import Request
 from urllib.request import build_opener
 from urllib.request import urlopen
@@ -61,6 +60,16 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
     def get_https_connection(self, *args, **kwargs):
         conn = httplib.HTTPSConnection(*args, **kwargs)
         return conn
+
+    @contextlib.contextmanager
+    def https_over_plain_tcp(self):
+        """Send HTTPSConnection traffic to the local plain-HTTP httpbin.
+
+        The integration derives the https scheme from the connection class, not from TLS, so
+        skipping the handshake keeps the test off third-party hosts, which can stall the job.
+        """
+        with mock.patch.object(httplib.HTTPSConnection, "connect", httplib.HTTPConnection.connect):
+            yield
 
     def test_patch(self):
         """
@@ -145,14 +154,40 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
     def test_resource_with_otel_semantics(self):
         conn = self.get_http_connection(SOCKET)
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True), contextlib.closing(conn):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)), contextlib.closing(conn):
             conn.request("GET", "/status/200")
             resp = conn.getresponse()
             resp.read()
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].resource, "GET")
+        span = spans[0]
+        self.assertEqual(span.resource, "GET")
+        assert span.get_tag("http.request.method") == "GET"
+        assert span.get_tag("url.full") == URL_200
+        assert span.get_tag("http.method") is None
+        assert span.get_tag("http.url") is None
+
+    def _putrequest_tags(self, conn, target):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            conn.putrequest("GET", target)
+        span = conn._datadog_span
+        tags = {**span.get_tags(), **span.get_metrics()}
+        span.finish()
+        return tags
+
+    def test_otel_semantics_ipv6_host(self):
+        tags = self._putrequest_tags(self.get_http_connection("[::1]"), "/x")
+        assert tags["url.full"] == "http://[::1]/x"
+        assert tags["server.address"] == "::1"
+        assert tags["server.port"] == 80
+
+    def test_otel_semantics_absolute_form_target(self):
+        conn = self.get_http_connection("proxy.local", 3128)
+        tags = self._putrequest_tags(conn, "http://origin.example/x")
+        assert tags["url.full"] == "http://origin.example/x"
+        assert tags["server.address"] == "origin.example"
+        assert tags["server.port"] == 80
 
     def test_httplib_request_get_request_multiqs(self):
         with self.override_http_config("httplib", dict(trace_query_string=True)):
@@ -166,17 +201,11 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                 we capture a span for the request
         """
         # TODO: figure out how to use https in our local httpbin container
-        conn = self.get_https_connection("icanhazdadjoke.com")
-        with contextlib.closing(conn):
-            conn.request(
-                "GET",
-                "/j/R7UfaahVfFd",
-                headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
-            )
+        conn = self.get_https_connection(SOCKET)
+        with self.https_over_plain_tcp(), contextlib.closing(conn):
+            conn.request("GET", "/status/200")
             resp = conn.getresponse()
-            # DEV: We don't care if the result was successful or not, just that we successfully
-            #   traced an HTTPS request. Relying on third party services is not ideal and can be flaky
-            status = resp.status
+            self.assertEqual(resp.status, 200)
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
@@ -185,13 +214,13 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.span_type, "http")
         self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
-        self.assertEqual(span.error, status not in (200, 404))
+        self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "GET"
         assert span.get_tag("component") == "httplib"
         assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("out.host") == "icanhazdadjoke.com"
-        assert_span_http_status_code(span, status)
-        assert span.get_tag("http.url") == "https://icanhazdadjoke.com/j/R7UfaahVfFd"
+        assert span.get_tag("out.host") == "localhost"
+        assert_span_http_status_code(span, 200)
+        assert span.get_tag("http.url") == f"https://{SOCKET}/status/200"
 
     def test_httplib_request_post_request(self):
         """
@@ -410,19 +439,10 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                we capture a span for the request
         """
         # TODO: figure out how to use https in our local httpbin container
-        url = "https://icanhazdadjoke.com/j/R7UfaahVfFd"
-        req = Request(
-            url,
-            headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
-        )
-        # DEV: We don't care if the result was successful or not, just that we successfully
-        #   traced an HTTPS request. Relying on third party services is not ideal and can be flaky
-        with override_global_tracer(self.tracer):
-            try:
-                resp = urlopen(req)
-                status = resp.getcode()
-            except urllib.error.HTTPError as e:
-                status = e.code
+        url = f"https://{SOCKET}/status/200"
+        with override_global_tracer(self.tracer), self.https_over_plain_tcp():
+            resp = urlopen(url)
+            self.assertEqual(resp.getcode(), 200)
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
@@ -431,12 +451,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.span_type, "http")
         self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
-        self.assertEqual(span.error, status not in (200, 404))
+        self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
-        self.assertEqual(span.get_tag("out.host"), "icanhazdadjoke.com")
-        assert_span_http_status_code(span, status)
+        self.assertEqual(span.get_tag("out.host"), "localhost")
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag("http.url"), url)
 
     def test_urllib_request_object(self):

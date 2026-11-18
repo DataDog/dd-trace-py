@@ -1,6 +1,6 @@
 [
     {
-        "dependencyName": "aiobotocore",
+        "libraryName": "aiobotocore",
         "integrationName": "aiobotocore",
         "autoInstrumented": false,
         "versions": [
@@ -45,11 +45,22 @@
                 "tested": [
                     "3.9.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.0.0",
+                "tested": [
+                    "3.9.1"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "botocore",
+        "libraryName": "botocore",
         "integrationName": "aiobotocore",
         "autoInstrumented": false,
         "versions": [
@@ -94,11 +105,22 @@
                 "tested": [
                     "1.43.56"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.15.32",
+                "tested": [
+                    "1.43.75"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "aiohttp",
+        "libraryName": "aiohttp",
         "integrationName": "aiohttp",
         "autoInstrumented": true,
         "versions": [
@@ -121,18 +143,19 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=3.7",
                 "tested": [
-                    "3.14.3"
+                    "3.14.5"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "aiohttp-jinja2",
+        "libraryName": "aiohttp-jinja2",
         "integrationName": "aiohttp_jinja2",
         "autoInstrumented": true,
         "versions": [
@@ -144,7 +167,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.5.0",
@@ -159,7 +183,7 @@
         ]
     },
     {
-        "dependencyName": "aiokafka",
+        "libraryName": "aiokafka",
         "integrationName": "aiokafka",
         "autoInstrumented": true,
         "versions": [
@@ -182,7 +206,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.9.0",
@@ -194,7 +219,7 @@
         ]
     },
     {
-        "dependencyName": "aiomysql",
+        "libraryName": "aiomysql",
         "integrationName": "aiomysql",
         "autoInstrumented": true,
         "versions": [
@@ -206,7 +231,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.1.0",
@@ -218,7 +244,7 @@
         ]
     },
     {
-        "dependencyName": "aiopg",
+        "libraryName": "aiopg",
         "integrationName": "aiopg",
         "autoInstrumented": true,
         "versions": [
@@ -241,7 +267,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.16.0",
@@ -249,11 +276,10 @@
                     "1.4.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
-        "dependencyName": "algoliasearch",
+        "libraryName": "algoliasearch",
         "integrationName": "algoliasearch",
         "autoInstrumented": true,
         "versions": [
@@ -265,27 +291,53 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.6.3",
                 "tested": [
-                    "2.6.3"
+                    "2.6.3",
+                    "3.0.0"
                 ]
             }
         ],
         "pinned": true
     },
     {
-        "dependencyName": "anthropic",
+        "libraryName": "anthropic",
         "integrationName": "anthropic",
         "autoInstrumented": true,
         "versions": [
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
-                        "3.10",
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=0.28.0",
+                "tested": [
+                    "0.28.1",
+                    "0.125.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=0.28.0",
+                "tested": [
+                    "0.28.1",
+                    "0.125.0",
+                    "1.17.0",
+                    "2.8.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.11",
                         "3.12"
                     ]
@@ -293,25 +345,50 @@
                 "supportedRange": ">=0.28.0",
                 "tested": [
                     "0.28.1",
-                    "0.117.0"
+                    "0.125.0",
+                    "2.8.0"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.13",
+                        "3.13"
+                    ]
+                },
+                "supportedRange": ">=0.28.0",
+                "tested": [
+                    "0.125.0",
+                    "2.8.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.14"
                     ]
                 },
                 "supportedRange": ">=0.28.0",
                 "tested": [
-                    "0.117.0"
+                    "0.125.0",
+                    "1.17.0",
+                    "2.8.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.28.0",
+                "tested": [
+                    "2.8.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "anyio",
+        "libraryName": "anyio",
         "integrationName": "anyio",
         "autoInstrumented": true,
         "versions": [
@@ -336,7 +413,7 @@
                 "supportedRange": ">=3.4.0",
                 "tested": [
                     "3.7.1",
-                    "4.15.0"
+                    "4.16.0"
                 ]
             },
             {
@@ -345,18 +422,19 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=3.4.0",
                 "tested": [
-                    "4.15.0"
+                    "4.16.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "aredis",
+        "libraryName": "aredis",
         "integrationName": "aredis",
         "autoInstrumented": true,
         "versions": [
@@ -374,7 +452,7 @@
         ]
     },
     {
-        "dependencyName": "pytest-asyncio",
+        "libraryName": "pytest-asyncio",
         "integrationName": "asyncio",
         "autoInstrumented": true,
         "versions": [
@@ -403,12 +481,23 @@
                 "tested": [
                     "1.2.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "1.4.0"
+                ]
             }
         ],
         "pinned": true
     },
     {
-        "dependencyName": "asyncpg",
+        "libraryName": "asyncpg",
         "integrationName": "asyncpg",
         "autoInstrumented": true,
         "versions": [
@@ -421,7 +510,7 @@
                 "supportedRange": ">=0.23.0",
                 "tested": [
                     "0.23.0",
-                    "0.31.0"
+                    "0.32.0"
                 ]
             },
             {
@@ -433,7 +522,7 @@
                 "supportedRange": ">=0.23.0",
                 "tested": [
                     "0.24.0",
-                    "0.31.0"
+                    "0.32.0"
                 ]
             },
             {
@@ -442,18 +531,19 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.23.0",
                 "tested": [
-                    "0.31.0"
+                    "0.32.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "avro",
+        "libraryName": "avro",
         "integrationName": "avro",
         "autoInstrumented": true,
         "versions": [
@@ -475,7 +565,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -486,7 +577,7 @@
         ]
     },
     {
-        "dependencyName": "aws-durable-execution-sdk-python",
+        "libraryName": "aws-durable-execution-sdk-python",
         "integrationName": "aws_durable_execution_sdk_python",
         "autoInstrumented": true,
         "versions": [
@@ -496,18 +587,20 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.4.0",
                 "tested": [
-                    "1.4.0"
+                    "1.4.0",
+                    "3.0.1"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "datadog-lambda",
+        "libraryName": "datadog-lambda",
         "integrationName": "aws_lambda",
         "autoInstrumented": true,
         "versions": [
@@ -536,6 +629,17 @@
                 "tested": [
                     "8.127.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "8.128.0"
+                ]
             }
         ],
         "aliases": [
@@ -543,7 +647,32 @@
         ]
     },
     {
-        "dependencyName": "azure-cosmos",
+        "libraryName": "aws-sdk-bedrock-runtime",
+        "integrationName": "aws_sdk_bedrock_runtime",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.12",
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.11.0",
+                "tested": [
+                    "0.11.0",
+                    "0.12.0"
+                ]
+            }
+        ],
+        "aliases": [
+            "aws_sdk_bedrock_runtime"
+        ]
+    },
+    {
+        "libraryName": "azure-cosmos",
         "integrationName": "azure_cosmos",
         "autoInstrumented": true,
         "versions": [
@@ -563,12 +692,24 @@
                     "4.9.0",
                     "4.15.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=4.9.0",
+                "tested": [
+                    "4.9.0",
+                    "4.17.1"
+                ]
             }
         ],
         "pinned": true
     },
     {
-        "dependencyName": "azure-functions",
+        "libraryName": "azure-functions",
         "integrationName": "azure_durable_functions",
         "autoInstrumented": true,
         "versions": [
@@ -582,6 +723,7 @@
                         "3.13"
                     ]
                 },
+                "supportedRange": "*",
                 "tested": [
                     "1.24.0"
                 ]
@@ -589,7 +731,7 @@
         ]
     },
     {
-        "dependencyName": "azure-functions-durable",
+        "libraryName": "azure-functions-durable",
         "integrationName": "azure_durable_functions",
         "autoInstrumented": true,
         "versions": [
@@ -601,6 +743,7 @@
                         "3.11"
                     ]
                 },
+                "supportedRange": ">=1.2.1",
                 "tested": [
                     "1.2.1",
                     "1.4.0"
@@ -613,6 +756,7 @@
                         "3.13"
                     ]
                 },
+                "supportedRange": ">=1.2.1",
                 "tested": [
                     "1.2.1",
                     "1.5.0"
@@ -621,7 +765,7 @@
         ]
     },
     {
-        "dependencyName": "azure-eventhub",
+        "libraryName": "azure-eventhub",
         "integrationName": "azure_eventhubs",
         "autoInstrumented": true,
         "versions": [
@@ -640,12 +784,25 @@
                     "5.12.2",
                     "5.15.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=5.12.0",
+                "tested": [
+                    "5.12.2",
+                    "5.15.1"
+                ]
             }
         ],
         "pinned": true
     },
     {
-        "dependencyName": "azure-functions",
+        "libraryName": "azure-functions",
         "integrationName": "azure_functions",
         "autoInstrumented": true,
         "versions": [
@@ -697,14 +854,14 @@
                 "tested": [
                     "1.10.1",
                     "1.24.0",
-                    "2.0.0"
+                    "2.4.0"
                 ]
             }
         ],
         "pinned": true
     },
     {
-        "dependencyName": "azure-servicebus",
+        "libraryName": "azure-servicebus",
         "integrationName": "azure_servicebus",
         "autoInstrumented": true,
         "versions": [
@@ -723,36 +880,23 @@
                 "tested": [
                     "7.14.2"
                 ]
-            }
-        ],
-        "pinned": true
-    },
-    {
-        "dependencyName": "boto3",
-        "integrationName": "botocore",
-        "autoInstrumented": true,
-        "versions": [
+            },
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
-                        "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13",
-                        "3.14"
+                        "3.15"
                     ]
                 },
+                "supportedRange": ">=7.14.0",
                 "tested": [
-                    "1.34.49",
-                    "1.38.26"
+                    "7.14.3"
                 ]
             }
         ],
         "pinned": true
     },
     {
-        "dependencyName": "botocore",
+        "libraryName": "boto3",
         "integrationName": "botocore",
         "autoInstrumented": true,
         "versions": [
@@ -764,7 +908,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -777,7 +922,33 @@
         "pinned": true
     },
     {
-        "dependencyName": "bottle",
+        "libraryName": "botocore",
+        "integrationName": "botocore",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.9",
+                        "3.10",
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            }
+        ],
+        "pinned": true
+    },
+    {
+        "libraryName": "bottle",
         "integrationName": "bottle",
         "autoInstrumented": true,
         "versions": [
@@ -800,7 +971,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.12",
@@ -811,30 +983,42 @@
         ]
     },
     {
-        "dependencyName": "celery",
+        "libraryName": "celery",
         "integrationName": "celery",
         "autoInstrumented": true,
         "versions": [
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
-                        "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13",
-                        "3.14"
+                        "3.9"
                     ]
                 },
                 "supportedRange": ">=4.4",
                 "tested": [
-                    "5.5.3"
+                    "5.2.7",
+                    "5.6.3"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10",
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=4.4",
+                "tested": [
+                    "5.7.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "cherrypy",
+        "libraryName": "cherrypy",
         "integrationName": "cherrypy",
         "autoInstrumented": false,
         "versions": [
@@ -858,7 +1042,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=17.0.0",
@@ -869,7 +1054,7 @@
         ]
     },
     {
-        "dependencyName": "claude-agent-sdk",
+        "libraryName": "claude-agent-sdk",
         "integrationName": "claude_agent_sdk",
         "autoInstrumented": true,
         "versions": [
@@ -880,21 +1065,24 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.0.23",
                 "tested": [
                     "0.0.23",
-                    "0.1.21",
+                    "0.1.22",
                     "0.1.29",
-                    "0.1.49"
+                    "0.1.49",
+                    "0.2.160"
                 ]
             }
-        ]
+        ],
+        "pinned": true
     },
     {
-        "dependencyName": "python-consul",
+        "libraryName": "python-consul",
         "integrationName": "consul",
         "autoInstrumented": true,
         "versions": [
@@ -906,7 +1094,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.1",
@@ -917,7 +1106,7 @@
         ]
     },
     {
-        "dependencyName": "crewai",
+        "libraryName": "crewai",
         "integrationName": "crewai",
         "autoInstrumented": true,
         "versions": [
@@ -938,7 +1127,7 @@
         ]
     },
     {
-        "dependencyName": "django",
+        "libraryName": "django",
         "integrationName": "django",
         "autoInstrumented": true,
         "versions": [
@@ -970,7 +1159,7 @@
                     "4.2.20",
                     "4.2.21",
                     "4.2.30",
-                    "5.2.17"
+                    "5.2.19"
                 ]
             },
             {
@@ -984,7 +1173,7 @@
                     "4.2.20",
                     "4.2.21",
                     "4.2.30",
-                    "5.2.17"
+                    "5.2.19"
                 ]
             },
             {
@@ -999,8 +1188,8 @@
                     "4.2.21",
                     "4.2.30",
                     "5.2",
-                    "5.2.17",
-                    "6.1.1"
+                    "5.2.19",
+                    "6.1.3"
                 ]
             },
             {
@@ -1014,8 +1203,8 @@
                     "4.2.20",
                     "4.2.21",
                     "4.2.30",
-                    "5.2.17",
-                    "6.1.1"
+                    "5.2.19",
+                    "6.1.3"
                 ]
             },
             {
@@ -1027,13 +1216,13 @@
                 },
                 "supportedRange": ">=2.2.8",
                 "tested": [
-                    "6.1.1"
+                    "6.1.3"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "dogpile-cache",
+        "libraryName": "dogpile-cache",
         "integrationName": "dogpile_cache",
         "autoInstrumented": true,
         "versions": [
@@ -1069,7 +1258,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -1085,7 +1275,7 @@
         ]
     },
     {
-        "dependencyName": "dramatiq",
+        "libraryName": "dramatiq",
         "integrationName": "dramatiq",
         "autoInstrumented": true,
         "versions": [
@@ -1120,7 +1310,7 @@
         ]
     },
     {
-        "dependencyName": "elastic-transport",
+        "libraryName": "elastic-transport",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1130,6 +1320,7 @@
                         "3.9"
                     ]
                 },
+                "supportedRange": "*",
                 "tested": [
                     "8.17.1",
                     "8.19.0",
@@ -1145,6 +1336,7 @@
                         "3.13"
                     ]
                 },
+                "supportedRange": "*",
                 "tested": [
                     "8.17.1",
                     "8.19.0",
@@ -1157,16 +1349,29 @@
                         "3.14"
                     ]
                 },
+                "supportedRange": "*",
                 "tested": [
                     "8.19.0",
                     "9.1.0",
+                    "9.4.2"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "8.19.0",
                     "9.4.2"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "elasticsearch",
+        "libraryName": "elasticsearch",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1200,7 +1405,7 @@
                     "7.17.13",
                     "8.0.1",
                     "9.0.0",
-                    "9.5.0"
+                    "9.5.1"
                 ]
             },
             {
@@ -1215,13 +1420,27 @@
                     "7.17.13",
                     "8.0.1",
                     "9.1.0",
-                    "9.5.0"
+                    "9.5.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.10",
+                "tested": [
+                    "7.13.4",
+                    "7.17.13",
+                    "8.0.1",
+                    "9.5.1"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "elasticsearch1",
+        "libraryName": "elasticsearch1",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1233,7 +1452,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.10",
@@ -1244,7 +1464,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch2",
+        "libraryName": "elasticsearch2",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1256,7 +1476,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.10",
@@ -1267,7 +1488,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch5",
+        "libraryName": "elasticsearch5",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1279,7 +1500,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.10",
@@ -1290,7 +1512,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch6",
+        "libraryName": "elasticsearch6",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1302,7 +1524,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.10",
@@ -1313,7 +1536,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch7",
+        "libraryName": "elasticsearch7",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1334,11 +1557,23 @@
                     "7.17.12",
                     "7.17.13"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.10",
+                "tested": [
+                    "7.13.4",
+                    "7.17.13"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "opensearch-py",
+        "libraryName": "opensearch-py",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1352,6 +1587,7 @@
                         "3.13"
                     ]
                 },
+                "supportedRange": ">=1.1.0",
                 "tested": [
                     "1.1.0",
                     "2.0.1",
@@ -1364,16 +1600,52 @@
                         "3.14"
                     ]
                 },
+                "supportedRange": ">=1.1.0",
                 "tested": [
                     "1.1.0",
                     "2.0.1",
                     "3.0.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.1.0",
+                "tested": [
+                    "1.1.0",
+                    "2.0.1",
+                    "3.2.0"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "falcon",
+        "libraryName": "elevenlabs",
+        "integrationName": "elevenlabs",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.12",
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.70.0",
+                "tested": [
+                    "2.70.0",
+                    "2.78.0"
+                ]
+            }
+        ]
+    },
+    {
+        "libraryName": "falcon",
         "integrationName": "falcon",
         "autoInstrumented": true,
         "versions": [
@@ -1390,25 +1662,26 @@
                 "tested": [
                     "3.0.1",
                     "3.1.3",
-                    "4.3.1"
+                    "4.4.0"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=3.0",
                 "tested": [
-                    "4.3.1"
+                    "4.4.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "fastapi",
+        "libraryName": "fastapi",
         "integrationName": "fastapi",
         "autoInstrumented": true,
         "versions": [
@@ -1435,7 +1708,7 @@
                 "tested": [
                     "0.64.0",
                     "0.90.1",
-                    "0.141.1"
+                    "0.162.0"
                 ]
             },
             {
@@ -1449,24 +1722,25 @@
                 "supportedRange": ">=0.64.0",
                 "tested": [
                     "0.86.0",
-                    "0.141.1"
+                    "0.162.0"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.64.0",
                 "tested": [
-                    "0.141.1"
+                    "0.162.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "flask",
+        "libraryName": "flask",
         "integrationName": "flask",
         "autoInstrumented": true,
         "versions": [
@@ -1491,7 +1765,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.1.4",
@@ -1504,7 +1779,7 @@
         ]
     },
     {
-        "dependencyName": "flask-cache",
+        "libraryName": "flask-cache",
         "integrationName": "flask_cache",
         "autoInstrumented": false,
         "versions": [
@@ -1522,7 +1797,7 @@
         ]
     },
     {
-        "dependencyName": "flask-caching",
+        "libraryName": "flask-caching",
         "integrationName": "flask_cache",
         "autoInstrumented": false,
         "versions": [
@@ -1534,6 +1809,7 @@
                         "3.11"
                     ]
                 },
+                "supportedRange": ">=0.13",
                 "tested": [
                     "1.10.1",
                     "2.1.0"
@@ -1546,15 +1822,28 @@
                         "3.13"
                     ]
                 },
+                "supportedRange": ">=0.13",
                 "tested": [
                     "1.10.1",
                     "2.3.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.13",
+                "tested": [
+                    "2.5.1"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "gevent",
+        "libraryName": "gevent",
         "integrationName": "gevent",
         "autoInstrumented": true,
         "versions": [
@@ -1598,7 +1887,8 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=21.1.2",
@@ -1609,7 +1899,7 @@
         ]
     },
     {
-        "dependencyName": "google-adk",
+        "libraryName": "google-adk",
         "integrationName": "google_adk",
         "autoInstrumented": true,
         "versions": [
@@ -1629,6 +1919,18 @@
                 "testedRuntimes": {
                     "python": [
                         "3.10",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.0.0",
+                "tested": [
+                    "1.0.0",
+                    "2.11.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.11",
                         "3.12",
                         "3.13",
@@ -1638,13 +1940,13 @@
                 "supportedRange": ">=1.0.0",
                 "tested": [
                     "1.0.0",
-                    "2.9.0"
+                    "2.12.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "google-cloud-pubsub",
+        "libraryName": "google-cloud-pubsub",
         "integrationName": "google_cloud_pubsub",
         "autoInstrumented": true,
         "versions": [
@@ -1685,11 +1987,22 @@
                 "tested": [
                     "2.37.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.10.0",
+                "tested": [
+                    "2.41.0"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "google-genai",
+        "libraryName": "google-genai",
         "integrationName": "google_genai",
         "autoInstrumented": true,
         "versions": [
@@ -1697,10 +2010,7 @@
                 "testedRuntimes": {
                     "python": [
                         "3.9",
-                        "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13"
+                        "3.10"
                     ]
                 },
                 "supportedRange": ">=1.21.1",
@@ -1711,18 +2021,35 @@
             {
                 "testedRuntimes": {
                     "python": [
+                        "3.11",
                         "3.14"
                     ]
                 },
                 "supportedRange": ">=1.21.1",
                 "tested": [
-                    "1.41.0"
+                    "1.21.1",
+                    "2.34.0",
+                    "3.2.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.12",
+                        "3.13",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.21.1",
+                "tested": [
+                    "1.21.1",
+                    "2.34.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "graphql-core",
+        "libraryName": "graphql-core",
         "integrationName": "graphql",
         "autoInstrumented": true,
         "versions": [
@@ -1765,11 +2092,24 @@
                 "tested": [
                     "3.2.6"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=3.1",
+                "tested": [
+                    "3.1.7",
+                    "3.2.13",
+                    "3.3.1"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "grpcio",
+        "libraryName": "grpcio",
         "integrationName": "grpc",
         "autoInstrumented": true,
         "versions": [
@@ -1845,34 +2185,22 @@
                 "tested": [
                     "1.75.1"
                 ]
-            }
-        ]
-    },
-    {
-        "dependencyName": "gunicorn",
-        "integrationName": "gunicorn",
-        "autoInstrumented": false,
-        "versions": [
+            },
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
-                        "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13",
-                        "3.14"
+                        "3.15"
                     ]
                 },
+                "supportedRange": ">=1.34",
                 "tested": [
-                    "20.0.4",
-                    "23.0.0"
+                    "1.84.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "httpx",
+        "libraryName": "httpx",
         "integrationName": "httpx",
         "autoInstrumented": true,
         "versions": [
@@ -1896,7 +2224,8 @@
                 "testedRuntimes": {
                     "python": [
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.25",
@@ -1909,7 +2238,7 @@
         ]
     },
     {
-        "dependencyName": "httpx2",
+        "libraryName": "httpx2",
         "integrationName": "httpx2",
         "autoInstrumented": true,
         "versions": [
@@ -1927,23 +2256,35 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13",
-                        "3.14"
+                        "3.10"
                     ]
                 },
                 "supportedRange": ">=2.0",
                 "tested": [
                     "2.0.0",
-                    "2.12.0"
+                    "2.14.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.0",
+                "tested": [
+                    "2.0.0",
+                    "2.16.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "jinja2",
+        "libraryName": "jinja2",
         "integrationName": "jinja2",
         "autoInstrumented": true,
         "versions": [
@@ -1989,7 +2330,8 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.10",
@@ -2001,7 +2343,7 @@
         ]
     },
     {
-        "dependencyName": "confluent-kafka",
+        "libraryName": "confluent-kafka",
         "integrationName": "kafka",
         "autoInstrumented": true,
         "versions": [
@@ -2045,7 +2387,7 @@
         ]
     },
     {
-        "dependencyName": "kombu",
+        "libraryName": "kombu",
         "integrationName": "kombu",
         "autoInstrumented": false,
         "versions": [
@@ -2072,7 +2414,7 @@
                 "supportedRange": ">=4.6.6",
                 "tested": [
                     "5.2.4",
-                    "5.6.2"
+                    "5.7.0"
                 ]
             },
             {
@@ -2080,18 +2422,19 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=4.6.6",
                 "tested": [
-                    "5.6.2"
+                    "5.7.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "langchain-core",
+        "libraryName": "langchain-core",
         "integrationName": "langchain",
         "autoInstrumented": true,
         "versions": [
@@ -2125,7 +2468,7 @@
         ]
     },
     {
-        "dependencyName": "langgraph",
+        "libraryName": "langgraph",
         "integrationName": "langgraph",
         "autoInstrumented": true,
         "versions": [
@@ -2150,7 +2493,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -2158,13 +2502,13 @@
                     "0.2.23",
                     "0.3.21",
                     "0.3.22",
-                    "1.2.11"
+                    "1.2.22"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "langgraph-checkpoint",
+        "libraryName": "langgraph-checkpoint",
         "integrationName": "langgraph",
         "autoInstrumented": true,
         "versions": [
@@ -2187,20 +2531,21 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
                 "tested": [
                     "1.0.12",
                     "2.1.2",
-                    "4.2.0"
+                    "4.3.2"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "langgraph-prebuilt",
+        "libraryName": "langgraph-prebuilt",
         "integrationName": "langgraph",
         "autoInstrumented": true,
         "versions": [
@@ -2223,26 +2568,38 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
                 "tested": [
                     "0.1.8",
-                    "1.1.0"
+                    "1.1.2"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "litellm",
+        "libraryName": "litellm",
         "integrationName": "litellm",
         "autoInstrumented": true,
         "versions": [
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
+                        "3.9"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "1.65.4",
+                    "1.83.9"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.10",
                         "3.11",
                         "3.12",
@@ -2252,7 +2609,7 @@
                 "supportedRange": "*",
                 "tested": [
                     "1.65.4",
-                    "1.80.16"
+                    "1.108.2"
                 ]
             },
             {
@@ -2263,14 +2620,24 @@
                 },
                 "supportedRange": "*",
                 "tested": [
-                    "1.80.16"
+                    "1.108.2"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "1.65.4"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
-        "dependencyName": "llama-index-core",
+        "libraryName": "llama-index-core",
         "integrationName": "llama_index",
         "autoInstrumented": true,
         "versions": [
@@ -2299,6 +2666,17 @@
                 "tested": [
                     "0.14.24"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.11.0",
+                "tested": [
+                    "0.14.25"
+                ]
             }
         ],
         "aliases": [
@@ -2307,7 +2685,7 @@
         ]
     },
     {
-        "dependencyName": "logbook",
+        "libraryName": "logbook",
         "integrationName": "logbook",
         "autoInstrumented": true,
         "versions": [
@@ -2319,7 +2697,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.0.0",
@@ -2331,7 +2710,7 @@
         ]
     },
     {
-        "dependencyName": "stdlib.logging",
+        "libraryName": "stdlib.logging",
         "integrationName": "logging",
         "autoInstrumented": true,
         "versions": [
@@ -2343,7 +2722,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -2353,7 +2733,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "loguru",
+        "libraryName": "loguru",
         "integrationName": "loguru",
         "autoInstrumented": true,
         "versions": [
@@ -2376,7 +2756,8 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.4.0",
@@ -2388,7 +2769,7 @@
         ]
     },
     {
-        "dependencyName": "mako",
+        "libraryName": "mako",
         "integrationName": "mako",
         "autoInstrumented": true,
         "versions": [
@@ -2411,19 +2792,20 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.0.0",
                 "tested": [
                     "1.0.14",
-                    "1.4.1"
+                    "1.4.3"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "mariadb",
+        "libraryName": "mariadb",
         "integrationName": "mariadb",
         "autoInstrumented": true,
         "versions": [
@@ -2446,7 +2828,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.0.0",
@@ -2457,7 +2840,7 @@
         ]
     },
     {
-        "dependencyName": "mcp",
+        "libraryName": "mcp",
         "integrationName": "mcp",
         "autoInstrumented": true,
         "versions": [
@@ -2474,13 +2857,26 @@
                 "supportedRange": ">=1.10.0",
                 "tested": [
                     "1.10.1",
-                    "1.28.1"
+                    "1.30.0",
+                    "2.3.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.10.0",
+                "tested": [
+                    "1.30.0",
+                    "2.3.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "mistralai",
+        "libraryName": "mistralai",
         "integrationName": "mistralai",
         "autoInstrumented": true,
         "versions": [
@@ -2491,7 +2887,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.0.0",
@@ -2503,7 +2900,7 @@
         ]
     },
     {
-        "dependencyName": "mlflow",
+        "libraryName": "mlflow",
         "integrationName": "mlflow",
         "autoInstrumented": false,
         "versions": [
@@ -2516,7 +2913,7 @@
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "2.11.4"
+                    "2.11.5"
                 ]
             },
             {
@@ -2524,18 +2921,19 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.16.0"
+                    "3.18.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "mlflow-skinny",
+        "libraryName": "mlflow-skinny",
         "integrationName": "mlflow",
         "autoInstrumented": false,
         "versions": [
@@ -2544,18 +2942,19 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.16.0"
+                    "3.18.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "mlflow-tracing",
+        "libraryName": "mlflow-tracing",
         "integrationName": "mlflow",
         "autoInstrumented": false,
         "versions": [
@@ -2564,18 +2963,19 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.16.0"
+                    "3.18.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "molten",
+        "libraryName": "molten",
         "integrationName": "molten",
         "autoInstrumented": true,
         "versions": [
@@ -2587,7 +2987,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.0",
@@ -2598,7 +2999,7 @@
         ]
     },
     {
-        "dependencyName": "mysql-connector-python",
+        "libraryName": "mysql-connector-python",
         "integrationName": "mysql",
         "autoInstrumented": true,
         "versions": [
@@ -2632,7 +3033,8 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=8.0.5",
@@ -2643,7 +3045,7 @@
         ]
     },
     {
-        "dependencyName": "mysqlclient",
+        "libraryName": "mysqlclient",
         "integrationName": "mysqldb",
         "autoInstrumented": true,
         "versions": [
@@ -2665,18 +3067,19 @@
                 "testedRuntimes": {
                     "python": [
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
                 "tested": [
-                    "2.2.6"
+                    "2.3.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "openai",
+        "libraryName": "openai",
         "integrationName": "openai",
         "autoInstrumented": true,
         "versions": [
@@ -2699,7 +3102,23 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.10",
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=1.0",
+                "tested": [
+                    "1.0.0",
+                    "1.30.1",
+                    "1.66.0",
+                    "1.76.2",
+                    "1.109.1",
+                    "3.26.1",
+                    "3.51.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.11"
                     ]
                 },
@@ -2710,13 +3129,26 @@
                     "1.66.0",
                     "1.76.2",
                     "1.109.1",
-                    "3.16.2"
+                    "3.51.0"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.12",
+                        "3.12"
+                    ]
+                },
+                "supportedRange": ">=1.0",
+                "tested": [
+                    "1.66.0",
+                    "1.76.2",
+                    "1.109.1",
+                    "3.51.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.13"
                     ]
                 },
@@ -2725,13 +3157,37 @@
                     "1.66.0",
                     "1.76.2",
                     "1.109.1",
-                    "3.16.2"
+                    "3.26.1",
+                    "3.51.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=1.0",
+                "tested": [
+                    "3.26.1",
+                    "3.51.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.0",
+                "tested": [
+                    "3.51.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "openai-agents",
+        "libraryName": "openai-agents",
         "integrationName": "openai_agents",
         "autoInstrumented": true,
         "versions": [
@@ -2774,11 +3230,22 @@
                 "tested": [
                     "0.22.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.0.2",
+                "tested": [
+                    "0.22.3"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "protobuf",
+        "libraryName": "protobuf",
         "integrationName": "protobuf",
         "autoInstrumented": false,
         "versions": [
@@ -2807,11 +3274,22 @@
                 "tested": [
                     "7.35.1"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "7.36.2"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "psycopg",
+        "libraryName": "psycopg",
         "integrationName": "psycopg",
         "autoInstrumented": true,
         "versions": [
@@ -2831,21 +3309,32 @@
                 "testedRuntimes": {
                     "python": [
                         "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13",
-                        "3.14"
+                        "3.11"
                     ]
                 },
                 "supportedRange": ">=3.0.0",
                 "tested": [
-                    "3.3.4"
+                    "3.3.8"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.12",
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=3.0.0",
+                "tested": [
+                    "3.3.7"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "psycopg2-binary",
+        "libraryName": "psycopg2-binary",
         "integrationName": "psycopg",
         "autoInstrumented": true,
         "versions": [
@@ -2864,11 +3353,22 @@
                 "tested": [
                     "2.9.10"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.9.10",
+                "tested": [
+                    "2.9.13"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "pydantic-ai-slim",
+        "libraryName": "pydantic-ai-slim",
         "integrationName": "pydantic_ai",
         "autoInstrumented": true,
         "versions": [
@@ -2899,12 +3399,23 @@
                     "1.0.0",
                     "1.63.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "1.63.0"
+                ]
             }
         ],
         "pinned": true
     },
     {
-        "dependencyName": "pylibmc",
+        "libraryName": "pylibmc",
         "integrationName": "pylibmc",
         "autoInstrumented": true,
         "versions": [
@@ -2916,7 +3427,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.6.2",
@@ -2927,7 +3439,7 @@
         ]
     },
     {
-        "dependencyName": "pymemcache",
+        "libraryName": "pymemcache",
         "integrationName": "pymemcache",
         "autoInstrumented": true,
         "versions": [
@@ -2953,7 +3465,7 @@
         ]
     },
     {
-        "dependencyName": "pymongo",
+        "libraryName": "pymongo",
         "integrationName": "pymongo",
         "autoInstrumented": true,
         "versions": [
@@ -2968,7 +3480,8 @@
                     "3.8.0",
                     "3.9.0",
                     "3.13.0",
-                    "4.17.0"
+                    "4.17.0",
+                    "4.18.3"
                 ]
             },
             {
@@ -2984,13 +3497,27 @@
                 "supportedRange": ">=3.8.0",
                 "tested": [
                     "3.12.3",
-                    "4.17.0"
+                    "4.17.0",
+                    "4.18.3"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=3.8.0",
+                "tested": [
+                    "3.12.3",
+                    "4.17.0",
+                    "4.19.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "pymysql",
+        "libraryName": "pymysql",
         "integrationName": "pymysql",
         "autoInstrumented": true,
         "versions": [
@@ -3003,7 +3530,7 @@
                 "supportedRange": ">=0.10",
                 "tested": [
                     "0.10.1",
-                    "1.2.0"
+                    "1.2.3"
                 ]
             },
             {
@@ -3013,18 +3540,19 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.10",
                 "tested": [
-                    "1.2.0"
+                    "1.2.3"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "pynamodb",
+        "libraryName": "pynamodb",
         "integrationName": "pynamodb",
         "autoInstrumented": true,
         "versions": [
@@ -3036,19 +3564,20 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=5.5.1",
                 "tested": [
-                    "5.5.1"
+                    "5.5.1",
+                    "6.1.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
-        "dependencyName": "pyodbc",
+        "libraryName": "pyodbc",
         "integrationName": "pyodbc",
         "autoInstrumented": true,
         "versions": [
@@ -3071,18 +3600,19 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=4.0.31",
                 "tested": [
-                    "5.3.0"
+                    "5.5.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "pyramid",
+        "libraryName": "pyramid",
         "integrationName": "pyramid",
         "autoInstrumented": true,
         "versions": [
@@ -3105,7 +3635,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.10",
@@ -3116,7 +3647,7 @@
         ]
     },
     {
-        "dependencyName": "pytest",
+        "libraryName": "pytest",
         "integrationName": "pytest",
         "autoInstrumented": false,
         "versions": [
@@ -3130,7 +3661,6 @@
                 "tested": [
                     "6.2.5",
                     "7.4.4",
-                    "8.4.1",
                     "8.4.2"
                 ]
             },
@@ -3139,49 +3669,23 @@
                     "python": [
                         "3.10",
                         "3.11",
-                        "3.12"
+                        "3.12",
+                        "3.13",
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=6.0",
                 "tested": [
-                    "6.2.5",
-                    "7.4.4",
-                    "8.4.1",
-                    "8.4.2",
-                    "9.0.2",
-                    "9.0.3"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.13"
-                    ]
-                },
-                "supportedRange": ">=6.0",
-                "tested": [
-                    "6.2.5",
                     "7.4.4",
                     "8.4.2",
-                    "9.0.2",
-                    "9.0.3"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.14"
-                    ]
-                },
-                "supportedRange": ">=6.0",
-                "tested": [
-                    "8.4.2"
+                    "9.2.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "pytest-bdd",
+        "libraryName": "pytest-bdd",
         "integrationName": "pytest_bdd",
         "autoInstrumented": false,
         "versions": [
@@ -3204,19 +3708,20 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
                 "tested": [
-                    "6.0.1"
+                    "6.0.1",
+                    "9.0.1"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
-        "dependencyName": "torch",
+        "libraryName": "torch",
         "integrationName": "pytorch",
         "autoInstrumented": false,
         "versions": [
@@ -3272,11 +3777,22 @@
                 "tested": [
                     "2.14.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.0",
+                "tested": [
+                    "2.15.0"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "ray",
+        "libraryName": "ray",
         "integrationName": "ray",
         "autoInstrumented": false,
         "versions": [
@@ -3298,7 +3814,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "ray",
+        "libraryName": "ray",
         "integrationName": "ray_serve",
         "autoInstrumented": false,
         "versions": [
@@ -3320,7 +3836,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "redis",
+        "libraryName": "redis",
         "integrationName": "redis",
         "autoInstrumented": true,
         "versions": [
@@ -3370,11 +3886,24 @@
                 "tested": [
                     "6.4.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "4.6.0",
+                    "5.0.1",
+                    "8.1.0"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "redis-py-cluster",
+        "libraryName": "redis-py-cluster",
         "integrationName": "rediscluster",
         "autoInstrumented": true,
         "versions": [
@@ -3395,7 +3924,7 @@
         ]
     },
     {
-        "dependencyName": "requests",
+        "libraryName": "requests",
         "integrationName": "requests",
         "autoInstrumented": true,
         "versions": [
@@ -3417,7 +3946,8 @@
                         "3.10",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.25.1",
@@ -3440,7 +3970,7 @@
         ]
     },
     {
-        "dependencyName": "rq",
+        "libraryName": "rq",
         "integrationName": "rq",
         "autoInstrumented": true,
         "versions": [
@@ -3466,18 +3996,19 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.8",
                 "tested": [
-                    "2.12.0"
+                    "3.0.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "sanic",
+        "libraryName": "sanic",
         "integrationName": "sanic",
         "autoInstrumented": true,
         "versions": [
@@ -3533,7 +4064,8 @@
                 "testedRuntimes": {
                     "python": [
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=20.12.0",
@@ -3544,7 +4076,7 @@
         ]
     },
     {
-        "dependencyName": "snowflake-connector-python",
+        "libraryName": "snowflake-connector-python",
         "integrationName": "snowflake",
         "autoInstrumented": false,
         "versions": [
@@ -3617,11 +4149,22 @@
                 "tested": [
                     "3.17.2"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.4.6",
+                "tested": [
+                    "4.0.0"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "sqlalchemy",
+        "libraryName": "sqlalchemy",
         "integrationName": "sqlalchemy",
         "autoInstrumented": false,
         "versions": [
@@ -3629,7 +4172,18 @@
                 "testedRuntimes": {
                     "python": [
                         "3.9",
-                        "3.10",
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=1.3",
+                "tested": [
+                    "1.3.24",
+                    "2.0.55"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.11",
                         "3.12"
                     ]
@@ -3637,25 +4191,26 @@
                 "supportedRange": ">=1.3",
                 "tested": [
                     "1.3.24",
-                    "2.0.52"
+                    "2.1.6"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.3",
                 "tested": [
-                    "2.0.52"
+                    "2.1.6"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "pysqlite3-binary",
+        "libraryName": "pysqlite3-binary",
         "integrationName": "sqlite3",
         "autoInstrumented": true,
         "versions": [
@@ -3672,11 +4227,22 @@
                 "tested": [
                     "0.5.2.post3"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "0.5.4.post2"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "starlette",
+        "libraryName": "starlette",
         "integrationName": "starlette",
         "autoInstrumented": true,
         "versions": [
@@ -3705,7 +4271,7 @@
                     "0.15.0",
                     "0.20.4",
                     "0.33.0",
-                    "1.6.0"
+                    "1.7.0"
                 ]
             },
             {
@@ -3718,7 +4284,7 @@
                 "tested": [
                     "0.21.0",
                     "0.33.0",
-                    "1.6.0"
+                    "1.8.0"
                 ]
             },
             {
@@ -3726,18 +4292,19 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.14.0",
                 "tested": [
-                    "1.6.0"
+                    "1.8.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "structlog",
+        "libraryName": "structlog",
         "integrationName": "structlog",
         "autoInstrumented": true,
         "versions": [
@@ -3760,7 +4327,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=20.2.0",
@@ -3772,7 +4340,7 @@
         ]
     },
     {
-        "dependencyName": "stdlib.subprocess",
+        "libraryName": "stdlib.subprocess",
         "integrationName": "subprocess",
         "autoInstrumented": true,
         "versions": [
@@ -3784,7 +4352,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -3794,7 +4363,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "tornado",
+        "libraryName": "tornado",
         "integrationName": "tornado",
         "autoInstrumented": false,
         "versions": [
@@ -3828,19 +4397,19 @@
                 "testedRuntimes": {
                     "python": [
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=6.1",
                 "tested": [
-                    "6.4.1"
+                    "6.6"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
-        "dependencyName": "trio",
+        "libraryName": "trio",
         "integrationName": "trio",
         "autoInstrumented": true,
         "versions": [
@@ -3863,18 +4432,51 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.21.0",
                 "tested": [
-                    "0.34.0"
+                    "0.35.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "stdlib.unittest",
+        "libraryName": "typesafe-sdk",
+        "integrationName": "typesafe",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=0.6.0",
+                "tested": [
+                    "0.6.0",
+                    "0.7.5"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.6.0",
+                "tested": [
+                    "0.7.5"
+                ]
+            }
+        ]
+    },
+    {
+        "libraryName": "stdlib.unittest",
         "integrationName": "unittest",
         "autoInstrumented": true,
         "versions": [
@@ -3886,7 +4488,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -3896,7 +4499,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "urllib3",
+        "libraryName": "urllib3",
         "integrationName": "urllib3",
         "autoInstrumented": false,
         "versions": [
@@ -3949,64 +4552,113 @@
                     "2.0.0",
                     "2.7.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.25.0",
+                "tested": [
+                    "2.0.0",
+                    "2.8.0"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "valkey",
+        "libraryName": "valkey",
         "integrationName": "valkey",
         "autoInstrumented": true,
         "versions": [
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
-                        "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13"
+                        "3.9"
                     ]
                 },
                 "supportedRange": ">=6.0.0",
                 "tested": [
-                    "6.0.2"
+                    "6.0.2",
+                    "6.1.1"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.14"
+                        "3.10"
                     ]
                 },
                 "supportedRange": ">=6.0.0",
                 "tested": [
                     "6.1.1"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=6.0.0",
+                "tested": [
+                    "6.2.0"
+                ]
             }
         ]
     },
     {
-        "dependencyName": "google-cloud-aiplatform",
+        "libraryName": "google-cloud-aiplatform",
         "integrationName": "vertexai",
         "autoInstrumented": true,
         "versions": [
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=1.71.1",
+                "tested": [
+                    "1.71.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.10",
                         "3.11",
                         "3.12"
                     ]
                 },
+                "supportedRange": ">=1.71.1",
                 "tested": [
-                    "1.71.1"
+                    "1.71.1",
+                    "2.7.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.13",
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.71.1",
+                "tested": [
+                    "2.7.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "vertexai",
+        "libraryName": "vertexai",
         "integrationName": "vertexai",
         "autoInstrumented": true,
         "versions": [
@@ -4027,7 +4679,7 @@
         ]
     },
     {
-        "dependencyName": "vertica-python",
+        "libraryName": "vertica-python",
         "integrationName": "vertica",
         "autoInstrumented": true,
         "versions": [
@@ -4047,7 +4699,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "vllm",
+        "libraryName": "vllm",
         "integrationName": "vllm",
         "autoInstrumented": true,
         "versions": [
@@ -4055,7 +4707,17 @@
                 "testedRuntimes": {
                     "python": [
                         "3.10",
-                        "3.11",
+                        "3.11"
+                    ]
+                },
+                "supportedRange": ">=0.10.2",
+                "tested": [
+                    "0.10.2"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.12",
                         "3.13"
                     ]
@@ -4063,13 +4725,24 @@
                 "supportedRange": ">=0.10.2",
                 "tested": [
                     "0.10.2",
-                    "0.27.1"
+                    "0.33.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=0.10.2",
+                "tested": [
+                    "0.33.0"
                 ]
             }
         ]
     },
     {
-        "dependencyName": "yaaredis",
+        "libraryName": "yaaredis",
         "integrationName": "yaaredis",
         "autoInstrumented": true,
         "versions": [
@@ -4092,7 +4765,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.0.0",

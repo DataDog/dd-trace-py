@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    CI Visibility: Removes the legacy pytest plugin. The ``DD_PYTEST_USE_NEW_PLUGIN`` and
+    ``DD_PYTEST_USE_NEW_PLUGIN_BETA`` environment variables no longer have any effect; the
+    pytest plugin is always used. Remove these environment variables from your configuration
+    to silence the deprecation warning emitted while they are set.

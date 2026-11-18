@@ -94,7 +94,7 @@ Execution, once per pipeline:
    measurement exactly. A scenario with no entry runs and reports but is not gated.
 
    Each file under `slos/` is owned by a team via `.github/CODEOWNERS` (the file name is the
-   team slug, e.g. `apm-sdk-capabilities-python.yml`), so editing a threshold routes review to
+   team slug, e.g. `apm-sdk-capabilities.yml`), so editing a threshold routes review to
    that team automatically. If your team has no file yet, add one named `<team-slug>.yml`, add a
    matching CODEOWNERS rule, and push — `tests-gen` validates SLO integrity via gen_gitlab_config.py.
 
@@ -138,24 +138,13 @@ Add the scenario name to `FLAKY_BENCHMARKS_REGEX` in `microbenchmarks.yml`. It i
 `|`-delimited regex matched against scenario names. A flagged benchmark still runs and still
 reports its numbers, so trends stay visible; it just does not fail the pipeline.
 
-> [!NOTE]
-> `FLAKY_BENCHMARKS_REGEX` is not declared in `microbenchmarks.yml` yet, and the gate does not
-> read it yet either — the `check-slo-breaches` job currently runs `bp-runner` against the SLO
-> file and nothing consults a flaky list. Adding the empty variable declaration, and the gate
-> support behind it, is tracked separately.
->
-> This is nonetheless the intended mechanism, so record the name here when the declaration lands
-> rather than reaching for something else. In particular, do not work around it by deleting the
-> scenario's thresholds from the SLO template: that drops the benchmark out of reporting as well as
-> out of gating, so nobody sees the trend either.
-
 Marking a benchmark flaky is a stopgap, not a resolution: it means nothing is watching that code
 path for regressions. Open an issue to either stabilize the scenario or remove it.
 
 ## SLO ownership
 
 SLO thresholds live in one per-team file under `.gitlab/benchmarks/slos/`, named
-`<team-slug>.yml` (e.g. `apm-sdk-capabilities-python.yml`). Each file is owned by its team via
+`<team-slug>.yml` (e.g. `apm-sdk-capabilities.yml`). Each file is owned by its team via
 `.github/CODEOWNERS`, so editing a threshold routes review to that team automatically — GitHub
 CODEOWNERS is file-level, so splitting the SLOs by team into separate files is what lets the gate
 route per team. `scripts/gen_gitlab_config.py` merges all of these into the single generated

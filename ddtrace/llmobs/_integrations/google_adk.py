@@ -5,12 +5,12 @@ from typing import Optional
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -31,18 +31,29 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         if provider:
             span.set_tag("google_adk.request.provider", provider)
 
-    def set_session_id(self, span: Span, session_id: Optional[str]) -> None:
-        """Set the ADK session id as the LLMObs session for this span.
+    def _on_request_span_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Set the ADK session id as the LLMObs session of an agent span.
 
-        Called at agent-span creation so the session id propagates to child tool and
-        code-execute spans, which are created before the agent span finishes.
+        Set at creation so the session id propagates to child tool and code-execute spans,
+        which are created before the agent span finishes.
         """
-        if not self.llmobs_enabled or not session_id:
+        if operation != "agent" or not self.llmobs_enabled:
             return
-        _annotate_llmobs_span_data(span, session_id=session_id)
+        session_id = (request_kwargs or {}).get("session_id")
+        if session_id:
+            _annotate_llmobs_span_data(span, session_id=session_id)
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        return "agent" if kwargs.get("operation") == "agent" else None
 
     def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
-        agent = kwargs.get("_dd_agent")
+        agent = kwargs.get("instance")
         return getattr(agent, "name", None) if agent else None
 
     def _llmobs_set_tags(

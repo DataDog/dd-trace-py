@@ -48,6 +48,7 @@ backoff
 backport
 backported
 backporting
+backports
 Bazel
 bdd
 bikeshedding
@@ -59,6 +60,7 @@ cassandra
 cattrs
 cetera
 CGroup
+cgroup
 cgroups
 cmake
 cherrypy
@@ -194,6 +196,7 @@ libclang
 libdatadog
 libddwaf
 libFuzzer
+lication
 lifecycle
 linters
 litellm
@@ -325,6 +328,7 @@ starlette
 statsd
 stderr
 stdout
+streamable
 setuptools
 Str
 stringable
@@ -364,6 +368,7 @@ unobfuscated
 unpatch
 unpatched
 unregister
+unschedulable
 unshallow
 unvendored
 unversioned

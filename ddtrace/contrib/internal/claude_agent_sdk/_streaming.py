@@ -10,13 +10,14 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.internal.claude_agent_sdk.utils import extract_partial_message_usage
+from ddtrace.contrib.internal.claude_agent_sdk.utils import request_event
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._utils import add_span_link
-from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.types import Message
+from ddtrace.internal.utils.formats import safe_json
+from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import make_traced_stream
 
 
 log = get_logger(__name__)
@@ -26,6 +27,34 @@ log = get_logger(__name__)
 class _SpanRef:
     span_id: str
     trace_id: str
+
+    def as_link(self) -> tuple[str, str]:
+        return (self.span_id, self.trace_id)
+
+
+def _end_span_context(ctx: core.ExecutionContext, exception: Optional[BaseException] = None) -> None:
+    """Record exception on the context's span, then dispatch the deferred ended event.
+
+    The error is set directly on the span rather than passed to dispatch_ended_event, which only
+    records it when a traceback is present.
+    """
+    if exception is not None:
+        span_from_context(ctx).set_exc_info(type(exception), exception, exception.__traceback__)
+    ctx.dispatch_ended_event()
+
+
+def _start_span_context(
+    span_name: str,
+    resource: str,
+    operation: str,
+    request_kwargs: Optional[dict[str, Any]] = None,
+    instance: Any = None,
+    activate: bool = True,
+) -> core.ExecutionContext:
+    """Start a span whose ended event is dispatched later by _end_span_context."""
+    event = request_event(span_name, resource, operation, request_kwargs, instance=instance, activate=activate)
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        return ctx
 
 
 @dataclass
@@ -122,18 +151,24 @@ async def filter_forced_partial_noise(resp):
         yield chunk
 
 
-def handle_streamed_response(integration, resp, args, kwargs, span, operation, instance=None, filter_partial=False):
+def handle_streamed_response(resp, ctx, operation, instance=None, filter_partial=False):
     return make_traced_stream(
         resp,
-        ClaudeAgentSdkAsyncStreamHandler(
-            integration, span, args, kwargs, operation=operation, instance=instance, filter_partial=filter_partial
-        ),
+        ClaudeAgentSdkAsyncStreamHandler(ctx, operation=operation, instance=instance, filter_partial=filter_partial),
     )
 
 
 class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
-    def __init__(self, integration, span, args, kwargs, operation, instance=None, filter_partial=False):
-        super().__init__(integration, span, args, kwargs)
+    """Drives the agent span's context plus the step, llm and tool span contexts it opens.
+
+    LLMObs-specific work (message extraction, span links, LLMObs parenting) happens in the
+    lifecycle subscribers; this handler only passes them the raw SDK data in request_kwargs.
+    The integration slot BaseStreamHandler keeps for other integrations goes unused.
+    """
+
+    def __init__(self, ctx, operation, instance=None, filter_partial=False):
+        super().__init__(None, span_from_context(ctx), [], ctx.event.request_kwargs)
+        self.ctx = ctx
         self.operation = operation
         self.instance = instance
         # Indicates whether we enabled include_partial_messages ourselves
@@ -150,11 +185,14 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._partial_current_id_by_scope: dict[Optional[str], str] = {}
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
-        self.current_step_span = None
-        self.current_llm_span = None
+        self.current_step_ctx: Optional[core.ExecutionContext] = None
+        self.current_llm_ctx: Optional[core.ExecutionContext] = None
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
-        self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
-        self._accumulated_input_messages: Optional[list[Message]] = None
+        # Conversation so far as raw (role, SDK content) turns following the prompt. Each llm/step
+        # span gets a copy as its input; LLMObs turns it into messages only when it is enabled.
+        self._history: list[tuple[str, Any]] = []
+        self._step_history_snapshot: Optional[list[tuple[str, Any]]] = None  # history before llm extension
+        self._prompt_kwargs: Optional[dict[str, Any]] = None
         # Buffer of consecutive AssistantMessage chunks that share a message_id.
         # The turn is flushed (one llm span emitted) when a chunk with a different
         # message_id arrives, or a UserMessage/ResultMessage ends the turn.
@@ -237,14 +275,14 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._flush_pending_turn()
 
             # Finalize any open llm span first.
-            if self.current_llm_span is not None:
+            if self.current_llm_ctx is not None:
                 self._finalize_llm_span(None, exception=exception)
 
             # Finalize any open or deferred step span.
-            if self._step_response_chunk is not None and self.current_step_span is not None:
+            if self._step_response_chunk is not None and self.current_step_ctx is not None:
                 self._finalize_step_span(self._step_response_chunk, exception=exception)
                 self._step_response_chunk = None
-            elif self.current_step_span is not None:
+            elif self.current_step_ctx is not None:
                 self._finalize_step_span(None, exception=exception)
 
             model = _extract_model_from_response(self.chunks)
@@ -252,14 +290,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 self.primary_span._set_attribute("claude_agent_sdk.request.model", model)
             if self.context is not None:
                 self.request_kwargs["_dd_context"] = self.context
-
-            self.integration.llmobs_set_tags(
-                self.primary_span,
-                args=self.request_args,
-                kwargs=self.request_kwargs,
-                response=self.chunks if self.chunks else None,
-                operation=self.operation,
-            )
+            self.ctx.event.response = self.chunks if self.chunks else None
 
             # Finalize incomplete tools so they emit the same span data as completed ones.
             if self._active_tool_spans:
@@ -276,7 +307,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         except Exception:
             log.warning("Error processing claude_agent_sdk stream response.", exc_info=True)
         finally:
-            self.primary_span.finish()
+            # The exception, if any, is already on the span (see BaseStreamHandler.handle_exception).
+            self.ctx.dispatch_ended_event()
 
     def _snapshot(self, span) -> _SpanRef:
         """Capture span_id and trace_id as plain strings — decoupled from the Span object lifetime."""
@@ -284,138 +316,100 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
 
     def _create_step_span(self) -> None:
         """Open a step span and an llm child span for the next inference cycle."""
-        self.current_step_span = self.integration.trace(
+        # Link each new step span from the previous step span.
+        step_links = [self._last_step_span_ref.as_link()] if self._last_step_span_ref is not None else []
+        # Link each new llm span from the previous tool outputs (fan-in), or from the previous llm span if no tools ran.
+        if self._step_tool_span_refs:
+            llm_links = [ref.as_link() for ref in self._step_tool_span_refs]
+            self._step_tool_span_refs.clear()
+        elif self._last_llm_span_ref is not None:
+            llm_links = [self._last_llm_span_ref.as_link()]
+        else:
+            llm_links = []
+
+        self.current_step_ctx = _start_span_context(
             "claude_agent_sdk.step",
-            submit_to_llmobs=True,
-            span_name="claude_agent_sdk.step",
+            "claude_agent_sdk.step",
+            "step",
+            {"span_links": step_links},
             instance=self.instance,
         )
-        self.current_llm_span = self.integration.trace(
+        self.current_llm_ctx = _start_span_context(
             "claude_agent_sdk.llm",
-            submit_to_llmobs=True,
-            span_name="claude_agent_sdk.llm",
+            "claude_agent_sdk.llm",
+            "llm",
+            {"span_links": llm_links},
             instance=self.instance,
             activate=False,  # spans the caller starts while iterating should not nest under this span
         )
-        self._keep_step_active_in_llmobs()
-        # Link each new llm span from the previous tool outputs (fan-in), or from the previous llm span if no tools ran.
-        if self._step_tool_span_refs:
-            for tool_ref in self._step_tool_span_refs:
-                add_span_link(self.current_llm_span, tool_ref.span_id, tool_ref.trace_id, "output", "input")
-            self._step_tool_span_refs.clear()
-        elif self._last_llm_span_ref is not None:
-            add_span_link(
-                self.current_llm_span,
-                self._last_llm_span_ref.span_id,
-                self._last_llm_span_ref.trace_id,
-                "output",
-                "input",
-            )
 
-        # Link each new step span from the previous step span.
-        if self._last_step_span_ref is not None:
-            add_span_link(
-                self.current_step_span,
-                self._last_step_span_ref.span_id,
-                self._last_step_span_ref.trace_id,
-                "output",
-                "input",
-            )
+    def _input_kwargs(self, history: list[tuple[str, Any]]) -> dict[str, Any]:
+        """Return the llm/step input: the prompt as first seen plus the given turns.
 
-    def _keep_step_active_in_llmobs(self) -> None:
-        """Re-activate the step span as the active LLMObs span.
-
-        Creating the llm (or a tool) span makes that leaf the active LLMObs span, so anything
-        opened while the turn is still buffering would parent under it instead of the step.
-        Re-activating the step keeps it the parent.
+        The prompt is snapshotted on first use so later prompt-stream messages don't rewrite the
+        input of earlier turns.
         """
-        if self.current_step_span is None or not self.integration.llmobs_enabled:
-            return
-        from ddtrace.llmobs import LLMObs
-
-        if LLMObs._instance is not None:
-            LLMObs._instance._llmobs_context_provider.activate(self.current_step_span)
+        if self._prompt_kwargs is None:
+            prompt_wrapper = self.request_kwargs.get("prompt_wrapper")
+            self._prompt_kwargs = {
+                "prompt": self.request_kwargs.get("prompt"),
+                "prompt_values": list(prompt_wrapper.captured_values) if prompt_wrapper is not None else None,
+            }
+        return {**self._prompt_kwargs, "history": history}
 
     def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
         """Close the llm span with the AssistantMessage data."""
-        if self.current_llm_span is None:
+        if self.current_llm_ctx is None:
             return
-        span = self.current_llm_span
-        self.current_llm_span = None
+        ctx = self.current_llm_ctx
+        self.current_llm_ctx = None
 
-        if self._accumulated_input_messages is None:
-            self._accumulated_input_messages = self.integration.extract_llm_input_messages(
-                self.request_args, self.request_kwargs, self.primary_span
-            )
+        ctx.event.request_kwargs.update(self._input_kwargs(list(self._history)))
+        ctx.event.response = chunk
+        self._last_llm_span_ref = self._snapshot(span_from_context(ctx))
+        _end_span_context(ctx, exception)
 
-        self.integration.llmobs_set_tags(
-            span,
-            args=[],
-            kwargs={"input_messages": list(self._accumulated_input_messages)},
-            response=chunk,
-            operation="llm",
-        )
-        if exception is not None:
-            span.set_exc_info(type(exception), exception, exception.__traceback__)
-        self._last_llm_span_ref = self._snapshot(span)
-        span.finish()
-
-        # Extend accumulated context with the assistant's response for the next step.
+        # Extend the conversation with the assistant's response for the next step.
         if chunk is not None:
             content = getattr(chunk, "content", []) or []
             if isinstance(content, list):
-                self._accumulated_input_messages.extend(self.integration.parse_content_blocks("assistant", content))
+                self._history.append(("assistant", content))
 
     def _finalize_step_span(self, chunk: Any, exception: BaseException | None = None) -> None:
-        if self.current_step_span is None:
+        if self.current_step_ctx is None:
             log.debug("_finalize_step_span for claude agent sdk called with no step span active")
             return
-        span = self.current_step_span
-        self.current_step_span = None
+        ctx = self.current_step_ctx
+        self.current_step_ctx = None
 
-        input_msgs = self._step_input_snapshot
-        if input_msgs is None:
-            if self._accumulated_input_messages is None:
-                self._accumulated_input_messages = self.integration.extract_llm_input_messages(
-                    self.request_args, self.request_kwargs, self.primary_span
-                )
-            input_msgs = self._accumulated_input_messages
-        self._step_input_snapshot = None
+        history = self._step_history_snapshot
+        if history is None:
+            history = list(self._history)
+        self._step_history_snapshot = None
 
-        self.integration.llmobs_set_tags(
-            span,
-            args=[],
-            kwargs={"input_messages": list(input_msgs)},
-            response=chunk,
-            operation="step",
-        )
-        if exception is not None:
-            span.set_exc_info(type(exception), exception, exception.__traceback__)
-        self._last_step_span_ref = self._snapshot(span)
-        span.finish()
+        ctx.event.request_kwargs.update(self._input_kwargs(history))
+        ctx.event.response = chunk
+        self._last_step_span_ref = self._snapshot(span_from_context(ctx))
+        _end_span_context(ctx, exception)
 
     def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str, is_error: bool = False) -> None:
-        tool_span = tool_data["tool_span"]
+        ctx = tool_data["tool_ctx"]
+        tool_span = span_from_context(ctx)
 
         if is_error:
             tool_span.error = 1
             tool_span.set_tag(ERROR_TYPE, "ToolError")
             tool_span.set_tag(ERROR_MSG, tool_output)
 
-        self.integration.llmobs_set_tags(
-            tool_span,
-            args=[],
-            kwargs={
+        ctx.event.request_kwargs.update(
+            {
                 "tool_input": tool_data["tool_input"],
                 "tool_output": tool_output,
                 "tool_id": tool_data.get("tool_id", ""),
-            },
-            response=None,
-            operation="tool",
+            }
         )
-
         self._step_tool_span_refs.append(self._snapshot(tool_span))
-        tool_span.finish()
+        _end_span_context(ctx)
 
     def _handle_assistant_message(self, chunk: Any, content: Any) -> None:
         """Buffer the chunk, deduping by message_id so one model turn maps to one llm span.
@@ -450,7 +444,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
 
         # New turn: flush the previous one, then start buffering this chunk.
         self._flush_pending_turn()
-        if self.current_step_span is None:
+        if self.current_step_ctx is None:
             self._create_step_span()
         self._pending_chunks = [chunk]
         self._pending_message_id = incoming_id
@@ -477,14 +471,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._pending_message_id = None
         self._pending_partial_id = None
 
-        if self.current_step_span is None:
+        if self.current_step_ctx is None:
             self._create_step_span()
 
-        if self._accumulated_input_messages is None:
-            self._accumulated_input_messages = self.integration.extract_llm_input_messages(
-                self.request_args, self.request_kwargs, self.primary_span
-            )
-        self._step_input_snapshot = list(self._accumulated_input_messages)
+        self._step_history_snapshot = list(self._history)
 
         response = self._merge_assistant_chunks(chunks)
         # Older SDKs (< 0.1.49) don't put a message_id on AssistantMessage, so fall back to the
@@ -572,12 +562,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if not self._active_tool_spans and self._step_response_chunk is not None:
             self._finalize_step_span(self._step_response_chunk)
             self._step_response_chunk = None
-            if self._accumulated_input_messages is None:
-                self._accumulated_input_messages = self.integration.extract_llm_input_messages(
-                    self.request_args, self.request_kwargs, self.primary_span
-                )
             user_content = getattr(chunk, "content", []) or []
-            self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
+            self._history.append(("user", user_content))
             self._create_step_span()
 
     def _handle_tool_use_block(self, block: Any) -> None:
@@ -585,31 +571,25 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         tool_id = getattr(block, "id", "")
         tool_name = getattr(block, "name", "unknown_tool")
         tool_input = getattr(block, "input", {})
-        tool_span = self.integration.trace(
-            "claude_agent_sdk.tool",
-            submit_to_llmobs=True,
-            span_name=f"claude_agent_sdk.tool.{tool_name}",
-            activate=False,
-        )
         # Link from the current turn's llm span, which is still open (not yet finalized) when
         # tools are opened eagerly. Fall back to the last finalized llm span if it is gone.
         llm_ref = (
-            self._snapshot(self.current_llm_span) if self.current_llm_span is not None else self._last_llm_span_ref
+            self._snapshot(span_from_context(self.current_llm_ctx))
+            if self.current_llm_ctx is not None
+            else self._last_llm_span_ref
         )
-        if llm_ref is not None:
-            add_span_link(
-                tool_span,
-                llm_ref.span_id,
-                llm_ref.trace_id,
-                "output",
-                "input",
-            )
+        tool_ctx = _start_span_context(
+            f"claude_agent_sdk.tool.{tool_name}",
+            "claude_agent_sdk.tool",
+            "tool",
+            {"span_links": [llm_ref.as_link()] if llm_ref is not None else []},
+            activate=False,
+        )
         self._active_tool_spans[tool_id] = {
-            "tool_span": tool_span,
+            "tool_ctx": tool_ctx,
             "tool_input": tool_input,
             "tool_id": tool_id,
         }
-        self._keep_step_active_in_llmobs()
 
     def _handle_tool_result_block(self, block: Any) -> None:
         """Finalize the matching tool span for a ToolResultBlock if one is active."""

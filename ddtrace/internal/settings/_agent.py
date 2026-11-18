@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._otel_remapper import select_exporter
 
 
 DEFAULT_HOSTNAME = "localhost"
@@ -70,9 +71,14 @@ def _derive_stats_url(config: "AgentConfig") -> str:
 
 
 def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
-    # OTLP traces export is active when OTEL_TRACES_EXPORTER=otlp and the user has not
-    # overridden the agent protocol version (which disables OTLP export).
-    return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp" and not config._trace_agent_protocol_version
+    # OTel semantics force OTLP export ahead of the agent-protocol override.
+    if config._trace_otel_semantics_enabled:
+        return True
+    return (
+        select_exporter("OTEL_TRACES_EXPORTER", env.get("OTEL_TRACES_EXPORTER", "")) == "otlp"
+        and not config._trace_agent_protocol_version
+        and not config._trace_api_version
+    )
 
 
 def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
@@ -162,7 +168,25 @@ class AgentConfig(DDConfig):
         "trace_agent_protocol_version",
         default=None,
         help_type="String",
-        help="Stores the agent protocol version override; when set, OTLP export is disabled",
+        help="Stores the agent protocol version override; when set, OTLP export is disabled "
+        "unless OTel semantics are enabled",
+    )
+
+    _trace_api_version = DDConfig.v(
+        Optional[str],
+        "trace_api_version",
+        default=None,
+        help_type="String",
+        help="Stores the trace API version override; when set, OTLP export is disabled "
+        "unless OTel semantics are enabled",
+    )
+
+    _trace_otel_semantics_enabled = DDConfig.v(
+        bool,
+        "trace_otel_semantics_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Stores whether OTel HTTP semantic conventions are enabled",
     )
 
     _trace_native_span_events = DDConfig.v(

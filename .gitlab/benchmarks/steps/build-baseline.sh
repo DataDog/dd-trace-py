@@ -2,11 +2,16 @@
 set -e -o pipefail
 
 # If we have a tag (e.g. v2.21.1), then use the PyPI published wheel
-# Otherwise, try to download from S3 by commit SHA, or build the wheel from scratch
-if [[ -n "${BASELINE_TAG}" ]];
+# Otherwise, try to download from S3 by commit SHA, or build the wheel from scratch.
+# A tag can exist on GitHub before its wheels are on PyPI, so a failed PyPI
+# download also falls back to S3 / building from source.
+if [[ -n "${BASELINE_TAG}" ]] && python3.12 -m pip download --no-deps "ddtrace==${BASELINE_TAG:1}";
 then
-  python3.12 -m pip download --no-deps "ddtrace==${BASELINE_TAG:1}"
+  echo "Successfully downloaded ${BASELINE_TAG} from PyPI"
 else
+  if [[ -n "${BASELINE_TAG}" ]]; then
+    echo "${BASELINE_TAG} is not available on PyPI, falling back to S3 / building from source"
+  fi
   # Try to download the wheel from S3 using the baseline commit SHA
   S3_BUCKET="dd-trace-py-builds"
   S3_INDEX_URL="https://${S3_BUCKET}.s3.amazonaws.com/${BASELINE_COMMIT_SHA}/index.html"

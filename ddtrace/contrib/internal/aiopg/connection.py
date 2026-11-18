@@ -1,14 +1,18 @@
-from aiopg import __version__
-from aiopg.utils import _ContextManager
+import inspect
+from typing import Any
+from typing import Callable
+from typing import Generator
+from typing import Optional
+
 import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.psycopg.cursor import psycopg2_python_encoding
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -16,12 +20,45 @@ from ddtrace.ext import db
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
-from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
 
 
-AIOPG_VERSION = parse_version(__version__)
+class _TracedAwaitable(wrapt.ObjectProxy):
+    def __init__(self, original: Any, wrap_result: Callable[[Any], Any]) -> None:
+        super().__init__(original)
+
+        async def traced_result() -> Any:
+            return wrap_result(await original)
+
+        self._self_coro = traced_result()
+
+    def __await__(self) -> Generator[Any, None, Any]:
+        return self._self_coro.__await__()
+
+    def __iter__(self) -> Generator[Any, None, Any]:
+        # aiopg 0.16 uses yield from rather than await.
+        return self.__await__()
+
+    def send(self, value: Any) -> Any:
+        return self._self_coro.send(value)
+
+    def throw(self, *args: Any) -> Any:
+        try:
+            return self._self_coro.throw(*args)
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self) -> Any:
+        # Keep active awaiters attached so aiopg can notify them of connection closure.
+        if inspect.getcoroutinestate(self._self_coro) == inspect.CORO_CREATED:
+            self._self_coro.close()
+        return self.__wrapped__.close()
+
+
+def _wrap_context_manager(context: Any, wrap_result: Callable[[Any], Any]) -> Any:
+    context._coro = _TracedAwaitable(context._coro, wrap_result)
+    return context
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
@@ -31,6 +68,13 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         super().__init__(cursor)
         pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
+
+    async def __aenter__(self) -> Any:
+        result = await self.__wrapped__.__aenter__()
+        return self if result is self.__wrapped__ else result
+
+    def _dbapi_query_encoding(self) -> str:
+        return psycopg2_python_encoding(self.__wrapped__.connection)
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
@@ -63,16 +107,20 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(query=query, span_name_prefix="postgres", get_encoding=self._dbapi_query_encoding)
+            )
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(query=query, span_name_prefix="postgres", get_encoding=self._dbapi_query_encoding)
+            )
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 
@@ -87,36 +135,28 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 class AIOTracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
-    def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
+    def __init__(
+        self,
+        conn: Any,
+        pin: Optional[Pin] = None,
+        cursor_cls: type[AIOTracedCursor] = AIOTracedCursor,
+        db_tags: Optional[dict[str, str]] = None,
+    ) -> None:
         super().__init__(conn)
-        vendor = dbapi._get_vendor(conn)
-        name = schematize_service_name(vendor)
-        db_pin = pin or Pin(service=name)
+        db_pin = pin or Pin(tags=db_tags)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
 
-    # unfortunately we also need to patch this method as otherwise "self"
-    # ends up being the aiopg connection object
-    if AIOPG_VERSION >= (0, 16, 0):
+    async def __aenter__(self) -> Any:
+        result = await self.__wrapped__.__aenter__()
+        return self if result is self.__wrapped__ else result
 
-        def cursor(self, *args, **kwargs):
-            # Only one cursor per connection is allowed, as per DB API spec
-            self.close_cursor()
-            self._last_usage = self._loop.time()
+    def cursor(self, *args: Any, **kwargs: Any) -> Any:
+        return _wrap_context_manager(self.__wrapped__.cursor(*args, **kwargs), self._trace_cursor)
 
-            coro = self._cursor(*args, **kwargs)
-            return _ContextManager(coro)
-
-    else:
-
-        def cursor(self, *args, **kwargs):
-            coro = self._cursor(*args, **kwargs)
-            return _ContextManager(coro)
-
-    async def _cursor(self, *args, **kwargs):
-        cursor = await self.__wrapped__._cursor(*args, **kwargs)
+    def _trace_cursor(self, cursor: Any) -> Any:
         pin = Pin.get_from(self)
         if not pin:
             return cursor

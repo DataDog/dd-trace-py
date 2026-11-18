@@ -1,0 +1,146 @@
+[
+  {
+    "description": "older allocation continues",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-01T12:00:00.000001Z" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 1, "reason": "SPLIT" }
+    }
+  },
+  {
+    "description": "equal activation is excluded",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-01T12:00:00Z" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "description": "newer allocation is excluded",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-01T11:59:59.999999Z" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "description": "equal instant with negative offset",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-01T08:00:00-04:00" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "description": "equal instant with positive offset",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-01T14:00:00+02:00" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "description": "future cutoff is not an evaluation schedule",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2099-01-01T00:00:00Z" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 1, "reason": "SPLIT" }
+    }
+  },
+  {
+    "description": "skip newer targeted allocation and continue older randomization",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "country": "US", "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": 3, "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 1, "reason": "SPLIT" }
+    }
+  },
+  {
+    "description": "targeted allocation remains eligible before cutoff",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "country": "US", "dd_experimentation_opt_out_at": "2026-10-21T12:00:00Z" },
+    "result": { "value": 3, "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 3, "reason": "TARGETING_MATCH" }
+    }
+  },
+  {
+    "description": "skip both allocations",
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "country": "US", "dd_experimentation_opt_out_at": "2026-10-01T12:00:00Z" },
+    "result": { "value": 3, "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "description": "fractional activation equals cutoff",
+    "flag": "special-characters", "variationType": "JSON", "defaultValue": {}, "targetingKey": "ben",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00.123Z" },
+    "result": { "value": { "a": "піклуватися", "b": "любов" }, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": { "a": "kümmert", "b": "schön" }, "reason": "STATIC" }
+    }
+  },
+  {
+    "description": "allocation is one microsecond older",
+    "flag": "special-characters", "variationType": "JSON", "defaultValue": {}, "targetingKey": "ben",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00.123001Z" },
+    "result": { "value": { "a": "піклуватися", "b": "любов" }, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": { "a": "піклуватися", "b": "любов" }, "reason": "SPLIT" }
+    }
+  },
+  {
+    "description": "allocation is one microsecond newer",
+    "flag": "special-characters", "variationType": "JSON", "defaultValue": {}, "targetingKey": "ben",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00.122999Z" },
+    "result": { "value": { "a": "піклуватися", "b": "любов" }, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": { "a": "kümmert", "b": "schön" }, "reason": "STATIC" }
+    }
+  },
+  {
+    "description": "missing activation is not treated as older",
+    "flag": "kill-switch", "variationType": "BOOLEAN", "defaultValue": false, "targetingKey": "alice",
+    "attributes": { "country": "US", "dd_experimentation_opt_out_at": "2099-01-01T00:00:00Z" },
+    "result": { "value": true, "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": false, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "description": "null activation is not treated as older",
+    "flag": "numeric_flag", "variationType": "NUMERIC", "defaultValue": 0, "targetingKey": "alice",
+    "attributes": { "dd_experimentation_opt_out_at": "2099-01-01T00:00:00Z" },
+    "result": { "value": 3.1415926, "reason": "STATIC" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "description": "activation is not startAt or document createdAt",
+    "flag": "start-and-end-date-test", "variationType": "STRING", "defaultValue": "default", "targetingKey": "subject",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": "current", "reason": "DEFAULT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": "default", "reason": "DEFAULT" }
+    }
+  },
+  {
+    "description": "old activation does not override endAt or startAt",
+    "flag": "start-and-end-date-test", "variationType": "STRING", "defaultValue": "default", "targetingKey": "subject",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-21T12:00:00Z" },
+    "result": { "value": "current", "reason": "DEFAULT" },
+    "capabilities": {
+      "experimentationOptOutFutureExperimentsOnly": { "value": "current", "reason": "DEFAULT" }
+    }
+  }
+]

@@ -221,7 +221,7 @@ def get_datastreams_context(message: dict[str, Any]) -> Optional[dict[str, Any]]
         - message.messageAttributes._datadog.stringValue (SQS -> lambda)
     """
     context_json = None
-    message_body = message
+    message_body: Any = message
     message_attributes = message.get("MessageAttributes") or message.get("messageAttributes")
 
     # Fall back to the body for SNS -> SQS notifications, which carry their attributes there.
@@ -232,6 +232,9 @@ def get_datastreams_context(message: dict[str, Any]) -> Optional[dict[str, Any]]
                 message_body = json.loads(body)
         except (ValueError, TypeError):
             log.debug("Unable to parse message body as JSON, treat as non-json")
+        if not isinstance(message_body, dict):
+            log.debug("DataStreams skipped message with non-object JSON body: %r", message)
+            return None
         message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
 
     if not message_attributes or "_datadog" not in message_attributes:
@@ -294,10 +297,12 @@ def record_data_streams_path_for_kinesis_stream(
     payload_size = calculate_kinesis_payload_size(record)
     if (p := processor()) is not None:
         ctx = DsmPathwayCodec.decode(context_json, p)
+        # The arrival time is only a fallback start for records that carry no upstream DSM context.
+        start_override = None if ctx.hash else time_estimate
         ctx.set_checkpoint(
             ["direction:in", "topic:" + stream, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
+            edge_start_sec_override=start_override,
+            pathway_start_sec_override=start_override,
             payload_size=payload_size,
         )
 

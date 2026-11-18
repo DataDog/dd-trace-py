@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import TYPE_CHECKING
 from typing import Optional
-
-from ddtrace.llmobs.types import Message
 
 from ._constants import ATTR_MODEL_NAME
 
@@ -85,7 +82,7 @@ def extract_request_data(req_state: RequestState, engine_core_output: EngineCore
         prompt=prompt_text,
         input_tokens=req_state.prompt_len or 0,
         lora_name=req_state.lora_name,
-        num_cached_tokens=engine_core_output.num_cached_tokens,
+        num_cached_tokens=get_num_cached_tokens(req_state, engine_core_output),
         temperature=req_state.temperature,
         top_p=req_state.top_p,
         n=req_state.n,
@@ -108,6 +105,31 @@ def extract_request_data(req_state: RequestState, engine_core_output: EngineCore
             data.output_text = req_state.detokenizer.output_text
 
     return data
+
+
+def get_num_cached_tokens(req_state: RequestState, engine_core_output: EngineCoreOutput) -> int:
+    """Extract the number of prefix-cached prompt tokens.
+
+    vLLM < 0.20 sets num_cached_tokens on every EngineCoreOutput. vLLM >= 0.20 sets it in
+    prefill_stats on the prefill step output only, and then copies it to req_state.
+    The prefill step can also be the final step (pooling, single-token generation), so read
+    prefill_stats first, because req_state is not updated yet at capture time.
+    With disaggregated prefill, vLLM >= 0.31 overrides the count with remote_prefill_cached_tokens,
+    the cache hits on the remote prefill worker. vLLM sets it when it creates the request state.
+    """
+    num_cached_tokens = getattr(engine_core_output, "num_cached_tokens", None)
+    if num_cached_tokens is not None:
+        return int(num_cached_tokens)
+
+    remote_prefill_cached_tokens = getattr(req_state, "remote_prefill_cached_tokens", None)
+    if remote_prefill_cached_tokens is not None:
+        return int(remote_prefill_cached_tokens)
+
+    prefill_stats = getattr(engine_core_output, "prefill_stats", None)
+    if prefill_stats is not None:
+        return int(prefill_stats.num_cached_tokens)
+
+    return int(getattr(req_state, "num_cached_tokens", 0) or 0)
 
 
 def get_model_name(instance) -> Optional[str]:
@@ -146,90 +168,3 @@ def extract_latency_metrics(stats: Optional[RequestStateStats]) -> Optional[Late
         metrics.time_in_model_inference = float(last_token - scheduled)
 
     return metrics
-
-
-# Role patterns: (quick_check_marker, regex_pattern)
-# Quick check avoids running all regexes - we first check if marker exists in prompt
-_ROLE_PATTERNS = [
-    # Llama 3: <|start_header_id|>role<|end_header_id|>
-    ("<|start_header_id|>", re.compile(r"<\|start_header_id\|>(system|user|assistant)<\|end_header_id\|>")),
-    # Llama 4: <|header_start|>role<|header_end|>
-    ("<|header_start|>", re.compile(r"<\|header_start\|>(system|user|assistant)<\|header_end\|>")),
-    # Granite: <|start_of_role|>role<|end_of_role|> (includes document/documents roles)
-    ("<|start_of_role|>", re.compile(r"<\|start_of_role\|>(system|user|assistant|documents?)<\|end_of_role\|>")),
-    # Gemma: <start_of_turn>role (uses "model" for assistant)
-    ("<start_of_turn>", re.compile(r"<start_of_turn>(system|user|model)")),
-    # MiniMax: <beginning_of_sentence>role
-    ("<beginning_of_sentence>", re.compile(r"<beginning_of_sentence>(system|user|ai)")),
-    # ChatML/Qwen/Hermes: <|im_start|>role
-    ("<|im_start|>", re.compile(r"<\|im_start\|>(system|user|assistant)")),
-    # DeepSeek VL2: <|User|>: / <|Assistant|>: (normal | with colon)
-    ("<|User|>:", re.compile(r"<\|(User|Assistant)\|>:")),
-    # Phi: <|system|> / <|user|> / <|assistant|>
-    ("<|system|>", re.compile(r"<\|(system|user|assistant)\|>")),
-    ("<|user|>", re.compile(r"<\|(system|user|assistant)\|>")),
-    # DeepSeek V3 (fullwidth ｜ - U+FF5C, not the same as |): <｜User｜>
-    ("<｜", re.compile(r"<｜(User|Assistant)｜>")),
-    # TeleFLM: <_role>
-    ("<_user>", re.compile(r"<_(system|user|bot)>")),
-    ("<_system>", re.compile(r"<_(system|user|bot)>")),
-    # Inkbot: <#role#>
-    ("<#user#>", re.compile(r"<#(system|user|bot)#>")),
-    ("<#system#>", re.compile(r"<#(system|user|bot)#>")),
-    # Alpaca: ### Instruction: / ### Response:
-    ("### Instruction", re.compile(r"### (Instruction|Response|Input):")),
-    # Falcon: Role: prefix (capitalized)
-    ("User:", re.compile(r"^(System|User|Assistant|Falcon): ?", re.MULTILINE)),
-]
-
-
-# End-of-turn markers to strip (case-sensitive)
-_END_MARKERS = re.compile(
-    r"<\|im_end\|>|<\|eot_id\|>|<\|end\|>|<\|eot\|>|<\|eom\|>|"
-    r"<\|end_of_text\|>|<end_of_turn>|<end_of_sentence>|<\|eos\|>|"
-    r"<｜end▁of▁sentence｜>",
-)
-
-# Roles that represent the "assistant" in various templates
-_ASSISTANT_ROLES = ("assistant", "model", "ai", "bot", "response", "falcon")
-
-
-def parse_prompt_to_messages(prompt: Optional[str]) -> list[Message]:
-    """Parse a formatted prompt into structured messages."""
-    if not prompt:
-        return []
-
-    # Quick check: find first matching marker, then use its pattern
-    for marker, pattern in _ROLE_PATTERNS:
-        if marker in prompt:
-            messages = _parse_with_pattern(prompt, pattern)
-            if messages:
-                return messages
-
-    # No recognized format - return raw prompt as single message
-    return [Message(role="", content=prompt)]
-
-
-def _parse_with_pattern(prompt: str, role_pattern) -> list[Message]:
-    """Parse prompt using a specific role pattern."""
-    matches = list(role_pattern.finditer(prompt))
-    if not matches:
-        return []
-
-    messages: list[Message] = []
-    for i, match in enumerate(matches):
-        role_match = match.group(1)
-        if not role_match:
-            continue
-        role = role_match.lower()
-        start = match.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(prompt)
-        content = _END_MARKERS.sub("", prompt[start:end]).lstrip(":").strip()
-
-        # Skip empty trailing assistant-like roles (generation prompt marker)
-        if role in _ASSISTANT_ROLES and not content and i == len(matches) - 1:
-            continue
-
-        messages.append(Message(role=role, content=content))
-
-    return messages

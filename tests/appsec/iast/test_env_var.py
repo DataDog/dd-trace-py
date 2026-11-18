@@ -4,8 +4,8 @@ import threading
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
+from ddtrace.appsec._iast._constants import IAST
 from tests.appsec.iast.conftest import CONFIG_SERVER_PORT
 from tests.utils import _build_env
 

@@ -5,10 +5,12 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.contrib.internal.langchain.constants import CHAIN_INPUTS_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -24,7 +26,6 @@ from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_st
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import set_prompt_tracking_tags
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_llmobs_span_links
@@ -157,6 +158,19 @@ class LangChainIntegration(BaseLLMIntegration):
             setattr(parent_instance, "_datadog_spans", spans)
         except Exception:
             parent_instance.__dict__["_datadog_spans"] = spans
+
+    def _on_request_span_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        self.record_instance(instance, span)
+        # The prompt template is stored on invoke/ainvoke and never cleared, so a stream on the same
+        # model would otherwise be tagged with a prompt from an earlier, unrelated invoke.
+        if operation in ("llm", "chat") and not span.get_tag("langchain.request.stream"):
+            self.llmobs_set_prompt_tag(instance, span)
 
     def _llmobs_set_tags(
         self,
@@ -683,7 +697,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if span.get_tag("langchain.request.stream"):
             inputs = get_argument_value(args, kwargs, 0, "input")
         else:
-            inputs = kwargs
+            inputs = kwargs.get(CHAIN_INPUTS_KEY)
         formatted_inputs = ""
         if inputs is not None:
             formatted_inputs = format_langchain_io(inputs)

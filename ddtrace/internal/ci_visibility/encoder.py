@@ -9,6 +9,8 @@ from typing import Union
 from typing import cast
 from uuid import uuid4
 
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
@@ -66,6 +68,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
     _MAX_PAYLOAD_SIZE = 5 * 1024 * 1024  # 5MB
     _MAX_META_TAG_VALUE_LENGTH = 5000
+    # The most useful part of an error (the failing frame and exception line) is at the end.
+    _TAIL_TRUNCATED_META_KEYS = frozenset({ERROR_STACK, ERROR_MSG})
 
     def __init__(self, *args: Any) -> None:
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
@@ -271,8 +275,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     @staticmethod
     def _truncate_meta_string_values(meta: dict[str, Any]) -> dict[str, Any]:
+        max_length = CIVisibilityEncoderV01._MAX_META_TAG_VALUE_LENGTH
+        tail_keys = CIVisibilityEncoderV01._TAIL_TRUNCATED_META_KEYS
         return {
-            key: value[: CIVisibilityEncoderV01._MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value
+            key: (value[-max_length:] if key in tail_keys else value[:max_length]) if isinstance(value, str) else value
             for key, value in meta.items()
         }
 

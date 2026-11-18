@@ -159,8 +159,6 @@ class PromptManager:
         **attributes: Any,
     ) -> ManagedPrompt:
         """Retrieve a prompt template from the registry or by environment resolution."""
-        if not self._headers.get("DD-API-KEY"):
-            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
         if version is not None and (label is not None or targeting_key is not None or attributes):
             warnings.warn(
                 "get_prompt() received 'version' alongside 'label', 'targeting_key', or other attributes. "

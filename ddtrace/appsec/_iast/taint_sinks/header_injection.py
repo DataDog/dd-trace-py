@@ -57,8 +57,8 @@ is passed to header-setting APIs without proper sanitization.
 
 import typing
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -185,8 +185,9 @@ class HeaderInjection(VulnerabilityBase):
 
 
 def _iast_django_response(wrapped, instance, args, kwargs):
+    # Let Django's validation errors propagate to the caller.
+    wrapped.__func__(instance, *args, **kwargs)
     try:
-        wrapped.__func__(instance, *args, **kwargs)
         if hasattr(instance, "_headers"):
             instance._headers = HeaderInjectionDict(instance._headers)
         elif hasattr(instance, "_store"):

@@ -410,6 +410,8 @@ def _start_ray_cluster(env_vars=None, ddtrace_run=False):
     env = os.environ.copy()
     base_env = {
         "DD_PATCH_MODULES": "ray:true,aiohttp:false,grpc:false,requests:false",
+        # Keep partial ray.job flushes beyond the 30s job timeout so snapshots only see final spans.
+        "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL": "600",
     }
     if env_vars:
         base_env.update(env_vars)
@@ -492,15 +494,13 @@ class TestRayWithoutInit(TracerTestCase):
 
     dashboard_url = None
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.dashboard_url = _start_ray_cluster()
-
-    @classmethod
-    def tearDownClass(cls):
-        _stop_ray_cluster()
-        super().tearDownClass()
+    @pytest.fixture(autouse=True)
+    def ray_cluster(self, snapshot):
+        try:
+            self.dashboard_url = _start_ray_cluster()
+            yield
+        finally:
+            _stop_ray_cluster()
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_task_without_init(self):

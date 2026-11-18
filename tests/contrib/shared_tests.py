@@ -1,4 +1,24 @@
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.internal import core
 from tests.utils import TracerSpanContainer
+
+
+def _test_byte_query_event(cursor, codec, span_name_prefix):
+    """Byte queries are sent with the connection encoding that decodes them."""
+    value = "€" if codec == "cp1252" else "é"
+    query = f"SELECT '{value}'".encode(codec)
+    events = []
+
+    def listener(event):
+        events.append((event.query, event.span_name_prefix, str(event.query, event.get_encoding())))
+
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        cursor.execute(query)
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+    assert cursor.fetchall()[0][0] == value
+    assert events == [(query, span_name_prefix, f"SELECT '{value}'")]
 
 
 # DBM Shared Tests
@@ -86,7 +106,8 @@ def _test_dbm_propagation_comment_with_peer_service_tag(
     db_name = config["db"]
 
     dbm_comment = (
-        f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddprs='{peer_service_name}',ddps='orders-app',"
+        f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddprs='{peer_service_name}',"
+        "ddps='orders-app',"
         "ddpv='v7343437-d7ac743'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)

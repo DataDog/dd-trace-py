@@ -50,7 +50,10 @@ class CoverageCollectingThread(threading.Thread):
 
     def _bootstrap_inner(self):
         """Collect thread-level coverage data in a context and queue it up for the parent process to absorb"""
-        if self._should_cover:
+        # Threads created before _patch_threading() never ran the patched __init__, so they
+        # have no coverage state: collect nothing for them.
+        _should_cover = getattr(self, "_should_cover", False)
+        if _should_cover:
             self._coverage_context = ModuleCodeCollector.CollectInContext()
             self._coverage_context.__enter__()
 
@@ -58,7 +61,7 @@ class CoverageCollectingThread(threading.Thread):
             thread_boostrap_inner(self)
         finally:
             # Ensure coverage data is collected, and context is exited, even if an exception is raised
-            if self._should_cover:
+            if _should_cover:
                 covered_lines = None
                 try:
                     covered_lines = pickle.dumps({"covered": self._coverage_context.get_covered_lines()})
@@ -71,7 +74,7 @@ class CoverageCollectingThread(threading.Thread):
     def join(self, *args, **kwargs):
         """Absorb coverage data from the thread after it's joined"""
         thread_join(self, *args, **kwargs)
-        if self._should_cover:
+        if getattr(self, "_should_cover", False):
             if self._coverage_queue.qsize():
                 try:
                     data = pickle.loads(self._coverage_queue.get())  # nosec: B301 -- we trust this is coverage data

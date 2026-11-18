@@ -17,6 +17,8 @@ Tracing
 .. autoclass:: ddtrace.trace.Span
     :members:
 
+    .. autoattribute:: context
+
 .. autoclass:: ddtrace.trace.Context
     :members:
     :undoc-members:

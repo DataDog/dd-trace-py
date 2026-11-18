@@ -30,8 +30,11 @@ def _derive_tags(c: DDConfig) -> str:
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 
 
+_IDENT_SEPARATORS = str.maketrans("", "", "-_@$.")
+
+
 def normalize_ident(ident: str) -> str:
-    return ident.strip().lower().replace("_", "")
+    return ident.strip().lower().translate(_IDENT_SEPARATORS)
 
 
 def validate_type_patterns(types: set[str]) -> None:

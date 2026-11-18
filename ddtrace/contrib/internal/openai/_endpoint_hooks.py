@@ -6,11 +6,11 @@ from ddtrace.contrib.internal.openai.utils import _is_async_generator
 from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
+from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
 
 
 API_VERSION = "v1"
@@ -261,6 +261,31 @@ class _EmbeddingHook(_EndpointHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="embedding")
+        return resp
+
+
+class _DecisionHook(_EndpointHook):
+    _request_kwarg_params = ("model",)
+    _response_attrs = ("model",)
+    ENDPOINT_NAME = "decisions"
+    HTTP_METHOD_TYPE = "POST"
+    OPERATION_ID = "createDecision"
+
+    def _record_request(self, pin, integration, instance, span, args, kwargs):
+        super()._record_request(pin, integration, instance, span, args, kwargs)
+        # questions and input accept one-shot iterables, which the SDK would exhaust before the response is tagged
+        for key in ("questions", "input"):
+            value = kwargs.get(key)
+            if value is None or isinstance(value, (str, list, tuple)):
+                continue
+            try:
+                kwargs[key] = list(value)
+            except TypeError:
+                pass
+
+    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="decision")
         return resp
 
 

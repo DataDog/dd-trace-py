@@ -51,6 +51,9 @@ if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# Exit status uWSGI's end_me() uses for a worker stopped by SIGINT/SIGTERM. Defined in uwsgi.h and
+# unchanged since uWSGI 0.9.5, so it does not need gating on the uWSGI version.
+UWSGI_END_CODE = 30
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
     b"number of threads must be set"
@@ -103,6 +106,32 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     assert profiler.Profiler._active_instance is p
 
     p.stop(flush=False)  # type: ignore[unreachable]
+
+
+def test_uwsgi_postfork_start_reports_profiler_activated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The uWSGI master skips the telemetry report, so the worker must send it."""
+    from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+
+    def _raise_master(*args, **kwargs):
+        raise profiler.uwsgi.uWSGIMasterProcess()
+
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
+
+    product_changes: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        profiler.telemetry_writer,
+        "product_activated",
+        lambda product, status: product_changes.append((product, status)),
+    )
+
+    p = profiler.Profiler()
+    p.start()
+    assert product_changes == []
+
+    p._start_on_fork()
+    assert product_changes == [(TELEMETRY_APM_PRODUCT.PROFILER, True)]
+
+    p.stop(flush=False)
 
 
 def test_uwsgi_worker_blocks_second_profiler_start(
@@ -241,14 +270,29 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
     proc = uwsgi("--enable-threads", "--py-call-uwsgi-fork-hooks", "--processes", "2")
 
+    worker_pids: list[int] = []
     try:
         worker_pids = _get_worker_pids(proc.stdout, 2)
-        assert len(worker_pids) == 2, "expected 2 workers, saw %r" % worker_pids
+        assert len(worker_pids) == 2, "expected 2 workers, saw %r (uwsgi returncode=%r)" % (
+            worker_pids,
+            proc.poll(),
+        )
         for pid in worker_pids:
             _wait_for_profile_samples(filename, pid, "wall-time")
     finally:
         proc.terminate()
-        proc.wait()
+        exit_code = proc.wait()
+        # Without --master, nothing forwards SIGTERM to the other worker, so it would keep
+        # running (and profiling) for the rest of the test session. Kill it explicitly.
+        for pid in worker_pids:
+            if pid != proc.pid:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    # Without --master, SIGTERM terminates a worker via uWSGI's end_me() handler.
+    assert exit_code == UWSGI_END_CODE
 
 
 def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
@@ -356,12 +400,17 @@ def _wait_for_profile_samples(
                 raise FileNotFoundError(f"No profile files found for {filename_prefix}")
 
             profiles = [pprof_utils.parse_profile(f) for f in files]
-            profile = pprof_utils.merge_profiles(profiles)
         except _retry_exc:
             time.sleep(interval)
             continue
 
-        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
+        samples: list[pprof_pb2.Sample] = []
+        for profile in profiles:
+            try:
+                samples.extend(pprof_utils.get_samples_with_value_type(profile, value_type))
+            except StopIteration:
+                continue
+
         if samples:
             return samples
         time.sleep(interval)
@@ -402,6 +451,52 @@ def test_uwsgi_threads_processes_primary(
     finally:
         # Ensure uwsgi is torn down even on assertion failure so we do not
         # leak master + workers into subsequent tests / CI cleanup.
+        proc.terminate()
+        exit_code = proc.wait()
+
+    assert exit_code == 0
+
+
+@pytest.mark.parametrize("num_workers", [1, 2])
+def test_uwsgi_import_ddtrace_auto_processes_primary_skip_atexit(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, num_workers: int
+) -> None:
+    """Test the profiler started by ddtrace.auto in the master of a non-lazy uwsgi, with one or more workers.
+
+    The master loads ddtrace.auto, then forks the workers without the Python fork hooks. The profiler
+    must be started in the master, so that it registers its postfork callback and chains Profiler.stop
+    into uwsgi.atexit. The test verifies that each worker collects wall-time samples.
+
+    The workers still list the thread states of the master, so on Python 3.12+ enabling sys.monitoring
+    in them could crash. The profiler must not use sys.monitoring in these workers.
+    """
+    filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+
+    app = tmp_path / "app.py"
+    app.write_text("def application(environ, start_response):\n    pass\n")
+    socket_name = str(tmp_path / "uwsgi.sock")
+    cmd = [
+        "uwsgi",
+        "--need-app",
+        "--die-on-term",
+        "--socket",
+        socket_name,
+        "--import=ddtrace.auto",
+        "--wsgi-file",
+        str(app),
+    ]
+    proc = run_uwsgi(cmd)("--enable-threads", "--master", "--processes", str(num_workers), "--skip-atexit")
+
+    try:
+        worker_pids = _get_worker_pids(proc.stdout, num_workers)
+        assert len(worker_pids) == num_workers
+        for pid in worker_pids:
+            _wait_for_profile_samples(filename, pid, "wall-time")
+    finally:
         proc.terminate()
         exit_code = proc.wait()
 
@@ -499,39 +594,11 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
 
     assert res_pid == parent_pid
 
-    # Note on the exit status check:
-    # This test uses --skip-atexit precisely because uwsgi<2.0.30 has a known bug
-    # where Py_Finalize crashes in --lazy-apps mode (unbit/uwsgi#2726). --skip-atexit
-    # makes non-master workers hard-exit via _exit(), but the *first* worker also
-    # acts as the master (getpid() == masterpid), so end_me() still calls exit() ->
-    # atexit handlers -> uwsgi_python_atexit() -> Py_Finalize() for that worker. That
-    # exit() path runs on the master-acting worker regardless of the uwsgi version,
-    # so uwsgi#2726 (fixed in 2.0.30) does not cover it. Native profiler threads
-    # (stack sampler in _stack.so, tokio blocking pool in the shared runtime) are
-    # still running while Py_Finalize's GC tears modules down, which can race and
-    # either segfault (SIGSEGV) or abort (SIGABRT). This race is pre-existing and
-    # orthogonal to what this test verifies (per-worker profile samples), so we
-    # tolerate ONLY those two signals on the master-acting worker, on any uwsgi
-    # version. Any other signaled exit (SIGKILL, SIGBUS, etc.) still fails the
-    # test -- see #19405.
-    _uwsgi_ver = tuple(int(x) for x in version("uwsgi").split("."))
-    _tolerated_signals = {signal.SIGSEGV, signal.SIGABRT}
-    if os.WIFSIGNALED(res_status):
-        term_sig = os.WTERMSIG(res_status)
-        if term_sig in _tolerated_signals:
-            print(
-                "WARNING: uWSGI worker %d exited via signal %d (raw wait status %d, "
-                "uwsgi=%s). This is a known race between native profiler shutdown and "
-                "Py_Finalize on the master-acting worker's exit() path; profile "
-                "samples should still be on disk from the last flush interval."
-                % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
-            )
-        else:
-            raise AssertionError(
-                "uWSGI worker %d crashed with signal %d (raw wait status %d, "
-                "uwsgi=%s). Only SIGSEGV/SIGABRT is a known race."
-                % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
-            )
+    # The first worker also acts as the master, so it still calls exit() despite --skip-atexit,
+    # with the profiler running.
+    assert os.WIFEXITED(res_status) and os.WEXITSTATUS(res_status) == UWSGI_END_CODE, (
+        "uWSGI worker %d did not exit cleanly (raw wait status %d)" % (parent_pid, res_status)
+    )
 
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
@@ -614,3 +681,16 @@ def test_uwsgi_require_skip_atexit_when_lazy_without_master(
 
     for pid in worker_pids:
         os.kill(pid, signal.SIGTERM)
+
+    # In this configuration (uwsgi<2.0.30 without --skip-atexit) a worker can hang while exiting,
+    # spinning at 100% CPU for the rest of the test session. Give the workers time to exit, then
+    # kill whatever is left.
+    try:
+        proc.wait(timeout=5)
+    except TimeoutExpired:
+        pass
+    for pid in worker_pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass

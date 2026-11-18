@@ -1,6 +1,7 @@
 from abc import ABC
 from contextvars import ContextVar
 from functools import lru_cache
+from inspect import CO_ASYNC_GENERATOR
 from inspect import CO_COROUTINE
 from inspect import CO_GENERATOR
 import sys
@@ -22,6 +23,7 @@ from ddtrace.internal.compat import is_supported_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import WrappedFunction
@@ -124,7 +126,7 @@ StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
 _STORAGE_OWNER = "__dd_wrapping_context_owner__"
 # Set in per-call storage when a raise originates from context machinery itself
-# (__return__, or on 3.15+ on_py_start) rather than from the wrapped function
+# (__return__) rather than from the wrapped function
 # body, so the resulting exception does not also trigger __exit__. Consumed by
 # _UniversalWrappingContext._exit (bytecode path, >=3.11) and on_py_unwind
 # (sys.monitoring path, >=3.15).
@@ -220,6 +222,11 @@ def _release_storage_var(name: str, var: StorageVar) -> None:
 # function return value. The wrapped function can be accessed via the
 # __wrapped__ attribute. Context-specific values can be stored and retrieved
 # with the set and get methods.
+#
+# The stored values live only while the wrapped call runs. When the call ends,
+# __return__ or __exit__ empties the storage. Read every value before you call
+# super().__return__ or super().__exit__. Reading or writing the storage after
+# that, for example from a callback or a copied Context, is not supported.
 
 CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
@@ -455,14 +462,17 @@ if is_at_least_py(3, 15):
     # original_code. A plain weakref.WeakKeyDictionary would therefore conflate the
     # clone with the original -- and, via that, conflate closures that share one
     # original code object -- so this uses the identity-keyed mapping instead.
-    _ctx_registry: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+    _ctx_registry: "IdentityWeakKeyDictionary[CodeType, t.Any]" = IdentityWeakKeyDictionary()
     # Keyed by function instance: distinguishes functions that share a code object
     # (e.g. closures re-created in a loop) from one another. Kept off the function's
     # __dict__ (unlike a plain attribute) so functools.wraps does not propagate
     # wrapping metadata and deepcopy of decorated functions does not traverse a
     # context holding unpicklable state (locks, ContextVars). See issue #16443.
     _fn_registry: "weakref.WeakKeyDictionary[FunctionType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
-    _ctx_registry_lock = Lock()
+    # Reentrant because _finalize_monitoring_wrap takes it from a weakref.finalize
+    # callback: a GC pass triggered by any allocation made while the lock is held
+    # (e.g. in wrap()) runs that callback on the same thread.
+    _ctx_registry_lock = RLock()
 
 
 # This is abstract and should not be used directly
@@ -513,13 +523,16 @@ class BaseWrappingContext(ABC):
 
         return self
 
-    def _pop_storage(self) -> dict[str, t.Any]:
+    def _pop_storage(self) -> None:
+        """End the storage of the current call and make the storage of the enclosing call current again."""
         storage = t.cast(t.Optional[WrappingContextStorage], self._storage.get())
         if storage is None:
-            return {}
+            return
         self._storage.set(storage.pop(_STORAGE_PREV))
-        del storage[_STORAGE_OWNER]
-        return storage
+        # Code can copy the current Context during the call, for example when it creates a gRPC channel.
+        # The copy keeps this dict alive after the call ends. Empty the dict, because it holds the frame
+        # of the call, and the frame holds the local variables.
+        storage.clear()
 
     def __return__(self, value: T) -> T:
         self._pop_storage()
@@ -876,19 +889,14 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         # ddtrace registers for these events on a given code object.
         #
         # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
-        # PY_RETURN; _SKIP_EXIT_KEY suppresses the resulting __exit__ call so
-        # it only fires for a real exception from the wrapped function body.
-        # It lives in per-call storage (a ContextVar), not a plain attribute,
-        # because this same instance is shared across concurrent calls.
+        # PY_RETURN. After a failing PY_START it exits the contexts that already
+        # entered and pops this call's storage. After a failing PY_RETURN,
+        # _SKIP_EXIT_KEY suppresses the __exit__ call. It lives in per-call
+        # storage (a ContextVar), not a plain attribute, because this same
+        # instance is shared across concurrent calls.
 
         def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
-            try:
-                self.__enter__()
-            except BaseException:
-                storage = self._storage.get()
-                if storage is not None:
-                    storage[_SKIP_EXIT_KEY] = True
-                raise
+            self.__enter__()
 
         def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
             self.__return__(retval)
@@ -930,6 +938,10 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         def wrap(self) -> None:
             f: FunctionType = self.__wrapped__
             original_code: CodeType = get_function_code(f)
+            if is_obfuscated_code(original_code):
+                raise ObfuscatedCodeError(
+                    f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                )
             with _ctx_registry_lock:
                 if original_code in _ctx_registry:
                     existing: _UniversalWrappingContext = _ctx_registry[original_code]
@@ -1237,12 +1249,17 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             i += len(return_code)
                     i += 1
 
-                # Search for the GEN_START instruction, which needs to stay on top.
+                # Search for the GEN_START instruction, which needs to stay on top. It takes the
+                # first line of the function: bytecode would otherwise fold the head below, which
+                # is on that line, into the line-less range of GEN_START.
                 i = 0
-                if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE)):
+                if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)):
                     for i, instr in enumerate(bc, 1):
                         if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                            instr.lineno = code.co_firstlineno
                             break
+                    else:
+                        i = 0
 
                 *bc[i:i], except_label = CONTEXT_HEAD.bind(
                     {"context": _CONTEXT_PLACEHOLDER}, lineno=code.co_firstlineno
@@ -1277,6 +1294,12 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             break
 
                     bc[i : i + len(CONTEXT_HEAD) - 1] = []
+
+                    gen_start = bc[i - 1] if i else None
+                    if isinstance(gen_start, bytecode.Instr) and gen_start.name == "GEN_START":
+                        first = next((instr for instr in bc[i:] if isinstance(instr, bytecode.Instr)), None)
+                        if first is None or first.lineno != gen_start.lineno:
+                            gen_start.lineno = None
 
                     # Remove all the return handlers
                     i = 0

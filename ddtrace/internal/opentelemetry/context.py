@@ -1,11 +1,10 @@
 from typing import Any
 from typing import cast
 
-from ddtrace._trace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context as DDContext
 from ddtrace.internal.native._native import SpanData as DDSpanData
-from ddtrace.trace import tracer as ddtracer
 
 
 log = get_logger(__name__)
@@ -106,4 +105,4 @@ class DDRuntimeContext:
         Get the ddtrace context provider from the global Datadog tracer.
         This can reterive a default, gevent, or asyncio context provider.
         """
-        return ddtracer.context_provider
+        return core.root.get_item("tracer").context_provider

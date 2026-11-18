@@ -1,10 +1,12 @@
 import base64
+import contextlib
 import datetime
 import io
 import json
 import sys
 import unittest
 from unittest import mock
+import uuid
 import zipfile
 
 import botocore.exceptions
@@ -48,6 +50,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
+from tests.utils import snapshot
 
 
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
@@ -121,6 +124,27 @@ class BotocoreTest(TracerTestCase):
         """Override to filter out urllib3 spans that are captured alongside botocore spans."""
         spans = super().get_spans()
         return [s for s in spans if s.name != "urllib3.request"]
+
+    @contextlib.contextmanager
+    def _unique_lambda_function(self, lamb):
+        """Create a uniquely named Lambda function and delete it on exit."""
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
+        lamb.create_function(
+            FunctionName=function_name,
+            Runtime="python3.8",
+            Role="test-iam-role",
+            Handler="lambda_function.lambda_handler",
+            Code={
+                "ZipFile": get_zip_lambda(),
+            },
+            Publish=True,
+            Timeout=30,
+            MemorySize=128,
+        )
+        try:
+            yield function_name
+        finally:
+            lamb.delete_function(FunctionName=function_name)
 
     @mock_ec2
     @mock_s3
@@ -1434,23 +1458,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1468,23 +1480,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1498,23 +1498,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "mysvc"
@@ -1528,23 +1516,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1558,23 +1534,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1588,23 +1552,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
@@ -1926,6 +1878,38 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="false"))
     def test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AWS_SDK_KINESIS_ENABLED="false",
+            DD_TRACE_AWS_SDK_EVENTBRIDGE_ENABLED="0",
+            DD_TRACE_AWS_SDK_SQS_ENABLED="true",
+        )
+    )
+    def test_service_enabled_env_override(self):
+        assert config.botocore.disabled_services == {"kinesis", "events"}
+
+    @mock_sqs
+    def test_disabled_service_creates_no_span_and_no_injection(self):
+        with self.override_config("botocore", dict(propagation_enabled=True, disabled_services={"sqs"})):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageAttributeNames=["_datadog"], WaitTimeSeconds=2
+            )
+            assert not [s for s in self.get_spans() if s.get_tag("aws.operation") in ("SendMessage", "ReceiveMessage")]
+            assert "MessageAttributes" not in response["Messages"][0]
+
+    @mock_sqs
+    def test_disabled_service_removes_before_sign_handler_and_skips_internal_spans(self):
+        with self.override_config("botocore", dict(instrument_internals=True)):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="one")
+            assert self.sqs_client._dd_before_sign_registered is True
+            self.reset()
+
+        with self.override_config("botocore", dict(instrument_internals=True, disabled_services={"sqs"})):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="two")
+            assert self.sqs_client._dd_before_sign_registered is False
+            assert not [s for s in self.get_spans() if s.name == "botocore.parsers.parse"]
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
     def test_propagation_enabled_env_override(self):
@@ -2773,6 +2757,49 @@ class BotocoreTest(TracerTestCase):
         assert json.loads(records[0]["Data"])["_datadog"] == injected_headers
         assert records[1]["Data"] == original_oversized_record
 
+    def _kinesis_update_record_with_headers(self, record):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        injected_headers = {"x-datadog-trace-id": "1" * 32, "x-datadog-parent-id": "2" * 16}
+
+        def inject_headers(_, payload):
+            payload[2]["_datadog"] = dict(injected_headers)
+
+        with mock.patch.object(kinesis_service.core, "dispatch", side_effect=inject_headers):
+            kinesis_service.update_record(mock.Mock(), record, "stream", inject_trace_context=True)
+
+        return injected_headers
+
+    def _kinesis_record_with_injected_size(self, injected_size, partition_key):
+        # Build a record whose serialized data, after header injection, is exactly ``injected_size`` characters.
+        headers = {"x-datadog-trace-id": "1" * 32, "x-datadog-parent-id": "2" * 16}
+        base = len(json.dumps({"json-string": "", "_datadog": headers}))
+        value = "x" * (injected_size - base)
+        return {"Data": json.dumps({"json-string": value}), "PartitionKey": partition_key}
+
+    def test_kinesis_trace_injection_counts_partition_key_bytes(self):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        # The data alone is under the limit in characters; with the multibyte partition key's
+        # UTF-8 bytes added it exceeds 1 MiB, so injection must be skipped (matches dd-trace-js).
+        partition_key = "\u00e9" * 200
+        record = self._kinesis_record_with_injected_size(kinesis_service.MAX_KINESIS_DATA_SIZE - 100, partition_key)
+        original = record["Data"]
+
+        self._kinesis_update_record_with_headers(record)
+
+        assert record["Data"] == original
+
+    def test_kinesis_trace_injection_allows_exactly_max_size(self):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        # Total bytes (data + partition key) equal to the limit are still injected, like dd-trace-js (``>``).
+        record = self._kinesis_record_with_injected_size(kinesis_service.MAX_KINESIS_DATA_SIZE - 4, "1234")
+
+        headers = self._kinesis_update_record_with_headers(record)
+
+        assert json.loads(record["Data"])["_datadog"] == headers
+
     @mock_kinesis
     def test_kinesis_put_records_base64_trace_injection(self):
         # dict -> json string -> bytes
@@ -3132,7 +3159,10 @@ class BotocoreTest(TracerTestCase):
             assert span.service == DEFAULT_SPAN_SERVICE_NAME
             assert span.name == "aws.secretsmanager.request"
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3148,9 +3178,10 @@ class BotocoreTest(TracerTestCase):
                 "nine": {"DataType": "String", "StringValue": "nine"},
                 "ten": {"DataType": "String", "StringValue": "ten"},
             }
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
             spans = self.get_spans()
             assert spans
             assert len(spans) == 1
@@ -3176,7 +3207,10 @@ class BotocoreTest(TracerTestCase):
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs_invalid_config(self):
         # Recreate setUp operations to ensure spans are captured by snapshot test
@@ -3201,9 +3235,10 @@ class BotocoreTest(TracerTestCase):
                 "nine": {"DataType": "String", "StringValue": "nine"},
                 "ten": {"DataType": "String", "StringValue": "ten"},
             }
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
 
             self.sqs_client.receive_message(
                 QueueUrl=self.sqs_test_queue["QueueUrl"],
@@ -3211,7 +3246,10 @@ class BotocoreTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns(self):
@@ -3243,7 +3281,8 @@ class BotocoreTest(TracerTestCase):
                 {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
                 {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
             ]
-            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
             self.get_spans()
 
             # get SNS messages via SQS
@@ -3256,7 +3295,10 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns_valid_config(self):
@@ -3296,7 +3338,8 @@ class BotocoreTest(TracerTestCase):
                 {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
                 {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
             ]
-            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
             self.get_spans()
 
             # get SNS messages via SQS
@@ -3309,7 +3352,10 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3337,7 +3383,10 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_s3
     @pytest.mark.skip(reason="Flaky test")
     def test_aws_payload_tagging_s3_invalid_config(self):
@@ -3355,7 +3404,10 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_dynamodb
     def test_dynamodb_payload_tagging(self):
         with self.override_config(
@@ -3400,7 +3452,10 @@ class BotocoreTest(TracerTestCase):
             assert not span._get_links()
 
     @pytest.mark.skip(reason="broken during period of skipping on main branch")
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3_valid_config(self):
         with self.override_config(
@@ -3416,7 +3471,10 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_events
     @mock_sqs
     def test_aws_payload_tagging_eventbridge(self):
@@ -3458,7 +3516,10 @@ class BotocoreTest(TracerTestCase):
 
             bridge.delete_event_bus(Name="a-test-bus")
 
-    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
+    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_kinesis
     def test_aws_payload_tagging_kinesis(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):

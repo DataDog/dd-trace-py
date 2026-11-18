@@ -14,6 +14,10 @@ mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
 class TestOperatorFormatMapReplacement(BaseReplacement):
+    @pytest.fixture(autouse=True)
+    def set_mapping_factory(self, mapping_factory):
+        self.mapping_factory = mapping_factory
+
     def _assert_format_map_result(
         self,
         taint_escaped_template: str,
@@ -22,7 +26,9 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         escaped_expected_result: str,
     ) -> None:
         template = _to_tainted_string_with_origin(taint_escaped_template)
-        mapping = {key: _to_tainted_string_with_origin(value) for key, value in taint_escaped_mapping.items()}
+        mapping = self.mapping_factory(
+            {key: _to_tainted_string_with_origin(value) for key, value in taint_escaped_mapping.items()}
+        )
 
         assert isinstance(template, str)
         result = mod.do_format_map(template, mapping)
@@ -40,7 +46,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
             assert mod.do_format_map("{key}", None) == "None"
 
     def test_format_map_when_no_tainted_strings_then_no_tainted_result(self) -> None:
-        result = mod.do_format_map("template {key}", {"key": "parameter"})
+        result = mod.do_format_map("template {key}", self.mapping_factory(key="parameter"))
         assert result, "template parameter"
         assert not get_ranges(result)
 

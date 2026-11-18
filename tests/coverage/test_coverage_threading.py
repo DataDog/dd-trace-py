@@ -120,8 +120,7 @@ def test_coverage_context_isolated_across_threads():
     import threading
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
-    from ddtrace.internal.coverage.code import ctx_covered
-    from ddtrace.internal.coverage.code import ctx_covered_files
+    from ddtrace.internal.coverage.code import ctx_collectors
     from ddtrace.internal.coverage.installer import install
 
     cwd = os.getcwd()
@@ -129,11 +128,8 @@ def test_coverage_context_isolated_across_threads():
     thread_entered = threading.Event()
     thread_can_exit = threading.Event()
 
-    with ModuleCodeCollector.CollectInContext():
-        main_lines_stack = ctx_covered.get()
-        main_files_stack = ctx_covered_files.get()
-        main_lines = main_lines_stack[-1]
-        main_files = main_files_stack[-1]
+    with ModuleCodeCollector.CollectInContext() as main_collector:
+        main_stack = ctx_collectors.get()
 
         def worker():
             # The patched _bootstrap_inner enters a coverage context before calling the target.
@@ -150,18 +146,15 @@ def test_coverage_context_isolated_across_threads():
             # On Python 3.14 the target runs in a snapshot context, so inspect the
             # parent's stacks while the patched bootstrap's context is still active.
             assert hasattr(thread, "_coverage_context")
-            assert ctx_covered.get() is main_lines_stack
-            assert ctx_covered_files.get() is main_files_stack
-            assert len(main_lines_stack) == len(main_files_stack) == 1
-            assert main_lines_stack[-1] is main_lines
-            assert main_files_stack[-1] is main_files
+            assert ctx_collectors.get() is main_stack
+            assert len(main_stack) == 1
+            assert main_stack[-1] is main_collector
         finally:
             thread_can_exit.set()
             thread.join(timeout=5)
 
         assert not thread.is_alive(), "Worker did not exit its coverage context"
-        assert main_lines_stack[-1] is main_lines
-        assert main_files_stack[-1] is main_files
+        assert main_stack[-1] is main_collector
 
 
 @pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
