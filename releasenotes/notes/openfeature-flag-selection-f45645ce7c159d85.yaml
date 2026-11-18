@@ -8,5 +8,6 @@ features:
     ``*`` matches any run of characters. Each list accepts at most 31 values of at most 200 UTF-8
     bytes, and the encoded selection must fit in an 8192-byte request URL; otherwise an error is
     logged and every flag is loaded. One selection applies per process, and Remote Config delivery
-    ignores it. To change the selection, call ``openfeature.api.shutdown()`` before setting a new
-    provider.
+    ignores it. LLM Observability prompt evaluation shares that selection: prompt flags outside it are
+    not loaded, and if prompt evaluation starts first, the application's selection is not sent. To
+    change the selection, call ``openfeature.api.shutdown()`` before setting a new provider.

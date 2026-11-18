@@ -155,7 +155,11 @@ class DataDogProvider(AbstractProvider):
     first provider to initialize sets it until every provider has shut down. A
     provider set while another one is still running uses the running one's
     selection, so to change it call openfeature.api.shutdown() before setting
-    the new provider. Remote Config delivery ignores the selection.
+    the new provider. Remote Config delivery ignores the selection. LLM
+    Observability evaluates prompt flags through its own provider, which shares
+    the process selection: prompt flags outside the selection in use are not
+    loaded, and if that provider starts first, this provider's selection is not
+    sent.
     """
 
     def __init__(
