@@ -45,7 +45,7 @@ Implement only the extraction helpers needed by the provider. Register exported 
 Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `SpanLifecycleEvents` (`ddtrace/contrib/_events/span_lifecycle.py`) so product subscribers can add tags and extract LLMObs data.
 
 Key points:
-- Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` and leave `llmobs_integration` unset for subscriber-based integrations
+- Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)`; the registered LLMObs integration tags the span through product subscribers, so contrib does not import LLMObs
 - Pass `request_args=args` when the wrapped call accepts positional arguments that extraction reads; the finishing subscriber forwards them to `llmobs_set_tags()`
 - `_get_base_url()` receives `instance` and `request_kwargs`, so integrations whose base URL is a request argument (LiteLLM's `api_base`) can still detect instrumented proxies
 - Set contrib-owned APM tags through the event's `tags`; pass `None` as the stream handler's integration when contrib has none
@@ -82,10 +82,6 @@ span at an earlier time, set `ctx.event._end_span = False`, dispatch the ended e
 `span.finish(finish_time=...)` (Google ADK's abandoned tool streams).
 
 Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans; keep their creation, extraction, and finishing under one owner.
-
-Existing events carrying `llmobs_integration` are handled directly by `LlmTracingSubscriber`.
-Preserve that contract when extending those integrations; use product subscribers for new
-standard request integrations so contrib does not import LLMObs.
 
 ## LLMObs subscribers and registration
 
@@ -240,9 +236,8 @@ Agent integrations have a critical ordering constraint. `_resolve_parent_agent()
 
 **Contract: any integration that produces `kind="agent"` LLMObs spans must stamp kind at span creation, not at finish.**
 
-Direct spans call `_stamp_llmobs_span_kind_at_start()` through `BaseLLMIntegration.trace()`.
-Events carrying `llmobs_integration` call it through `LlmTracingSubscriber.on_started`;
-subscriber-based integrations must call it in their `SpanLifecycleEvents.SPAN_STARTED` handler. Extraction classes
+Direct spans call `_stamp_llmobs_span_kind_at_start()` through `BaseLLMIntegration.trace()`;
+event-based integrations get it from the shared `SpanLifecycleEvents.SPAN_STARTED` subscriber. Extraction classes
 customize the two hooks below instead of stamping kind at finish time.
 
 ### Hooks to implement for agent spans

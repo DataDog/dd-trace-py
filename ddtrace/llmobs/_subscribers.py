@@ -56,7 +56,7 @@ def integration_for(component: str) -> Optional[BaseLLMIntegration]:
 
 
 class LLMObsLlmSubscriber(SpanLifecycleListener):
-    """Tags the llm.request spans of integrations that leave llmobs_integration unset on their event.
+    """Tags the llm.request spans of every LLM integration, selected by the request's component.
 
     Runs whether or not LLMObs is enabled, so APM spans carry the LLMObs shadow tags either way.
     """
@@ -66,9 +66,6 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
     @classmethod
     def on_starting(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
         event = ctx.event
-        # Integrations that pass their own integration are tagged by the tracing subscriber.
-        if event.llmobs_integration is not None:
-            return
         integration = integration_for(event.component)
         if integration is None:
             return
