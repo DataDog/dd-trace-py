@@ -70,6 +70,20 @@ if [ -z "${COMPOSE_PROJECT_NAME:-}" ]; then
     export COMPOSE_PROJECT_NAME="ddtracepy-${PATH_HASH}"
 fi
 
+TIA_ENV_ARGS=()
+if [[ "${DD_TIA_ENABLED:-0}" == "1" || "${DD_TIA_ENABLED:-0}" == "true" ]]; then
+    # Compose does not inherit arbitrary host variables. Pass names so API keys stay out of command arguments.
+    for variable in \
+        DD_TIA_ENABLED DD_TEST_DEBUG DD_TRACE_DEBUG DD_SITE DD_API_KEY \
+        DD_CIVISIBILITY_ENABLED DD_CIVISIBILITY_AGENTLESS_ENABLED \
+        DD_CIVISIBILITY_GIT_UPLOAD_ENABLED DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED \
+        DD_GIT_REPOSITORY_URL DD_GIT_COMMIT_SHA; do
+        if [ -n "${!variable+x}" ]; then
+            TIA_ENV_ARGS+=(-e "$variable")
+        fi
+    done
+fi
+
 if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
     COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.base.yml")
     COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.podman.yml")
@@ -88,7 +102,7 @@ if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
         "${COMPOSE_COMMAND[@]}" build testrunner
     fi
 
-    RUN_ARGS=("${GIT_MOUNT_ARGS[@]}")
+    RUN_ARGS=("${GIT_MOUNT_ARGS[@]}" "${TIA_ENV_ARGS[@]}")
 
     # The image normally runs as `bits` (uid 1000), but Podman's host user
     # namespace preserves the caller's ownership on the bind-mounted checkout.
@@ -197,6 +211,7 @@ else
     docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
            -e DD_TRACE_AGENT_URL \
            -e DD_TEST_RUNTIME_PROBE \
+           "${TIA_ENV_ARGS[@]}" \
            "${GIT_MOUNT_ARGS[@]}" \
            "${DOCKER_USER_ARGS[@]}" \
            --rm \

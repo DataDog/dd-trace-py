@@ -189,6 +189,28 @@ fresh clone with the same repository URL and pytest invocation and no local
 TIA cache. A lookup returning HTTP 200 followed by deselection demonstrates
 that the backend supplied the map.
 
+To debug dd-trace-py's own suites through the existing test runner, use
+``scripts/ci_visibility/tia_debug.sh``::
+
+    scripts/run-tests --list tests/internal/test_logger.py
+    export DD_API_KEY='<staging API key>'
+    export DD_SITE=datad0g.com
+    scripts/ci_visibility/tia_debug.sh --venv <Python-3.12+-environment-hash> -- --ddtrace -n 0
+
+The wrapper enables TIA, focused Test Optimization debug logging, and agentless
+requests to ``DD_SITE`` (default ``datad0g.com``). Set ``DD_TRACE_DEBUG=1`` for
+broader tracer logging. It forwards runner and pytest arguments unchanged and
+reuses existing environments unless ``-r`` is supplied. ``scripts/ddtest``
+passes the TIA settings and API key into Docker and Podman by variable name,
+so the key does not appear in the printed runner command. Export credentials
+rather than editing tracked files, because tracked edits prevent map publication.
+Repeat the same invocation to check reuse, and inspect the output for ``TIA:``
+and ``TIA artifact`` messages. The wrapper leaves the local map cache in place.
+The internal suite defaults to xdist; ``-n 0`` overrides that default so TIA can
+run. Omit this option for environments without pytest-xdist. Avoid explicit
+``-k``, ``-m``, ``--lf``, ``--ff``, and node-ID selectors when investigating TIA
+selection, because those selectors keep all tests selected by pytest runnable.
+
 Synthetic end-to-end scenario
 -----------------------------
 
