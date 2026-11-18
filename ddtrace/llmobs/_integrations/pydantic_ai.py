@@ -20,13 +20,13 @@ from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import type_name
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import AgentCapability
 from ddtrace.llmobs.types import AgentInstructionResolver
 from ddtrace.llmobs.types import AgentManifest
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -103,13 +103,13 @@ def _collect_dynamic_system_prompts(agent: Any) -> list[Any]:
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         return "agent" if kwargs.get("operation") == "agent" else None
 
-    def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
+    def _stamp_llmobs_span_kind_at_start(self, span: _LLMObsSpan, operation_id: str = "", **kwargs: Any) -> None:
         super()._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
         # Agent and tool spans carry their kind whether or not LLMObs is enabled; _llmobs_set_tags reads it back.
         kind = kwargs.get("operation")
@@ -118,7 +118,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -139,7 +139,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
 
@@ -187,7 +187,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return None
 
     def _llmobs_set_tags_tool(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
         raw_call = (
@@ -241,7 +241,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ),
         )
 
-    def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: _LLMObsSpan, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
         # dict() rather than a cast: the consumer takes a plain mapping, and a TypedDict is not
