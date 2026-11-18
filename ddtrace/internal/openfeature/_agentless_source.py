@@ -372,7 +372,9 @@ class AgentlessConfigurationSource(PeriodicService):
             body = resp.read()
             flag_selection_ignored = None
             if self._flag_selection_sent and resp.status == 200:
-                flag_selection_ignored = resp.getheader(FLAG_SELECTION_IGNORED_HEADER)
+                # getheader() returns only the first value; join repeats as http.client does, so they report unknown.
+                values = resp.headers.get_all(FLAG_SELECTION_IGNORED_HEADER)
+                flag_selection_ignored = ", ".join(values) if values else None
             return _PollResponse(
                 status=resp.status,
                 etag=resp.getheader("ETag"),

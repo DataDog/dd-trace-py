@@ -1,5 +1,6 @@
 """Flag selection: canonicalization, the request URL, the process claim and its diagnostics."""
 
+import http.server
 import json
 import logging
 from pathlib import Path
@@ -476,15 +477,28 @@ class _FakeResponse:
     def __init__(self, status, body=b"", headers=None):
         self.status = status
         self._body = body
-        self._headers = {k.lower(): v for k, v in (headers or {}).items()}
+        # A list value is a header repeated on several lines.
+        self._headers = [
+            (name.lower(), value)
+            for name, values in (headers or {}).items()
+            for value in (values if isinstance(values, list) else [values])
+        ]
         self.read_headers: list = []
 
     def read(self):
         return self._body
 
     def getheader(self, name, default=None):
+        values = self._get_all(name)
+        return values[0] if values else default
+
+    @property
+    def headers(self):
+        return SimpleNamespace(get_all=self._get_all)
+
+    def _get_all(self, name, failobj=None):
         self.read_headers.append(name.lower())
-        return self._headers.get(name.lower(), default)
+        return [value for key, value in self._headers if key == name.lower()] or failobj
 
 
 class _FakeConn:
@@ -538,6 +552,8 @@ def _ignored(caplog):
         ("tag_load_failed", "tag_load_failed"),
         ("tag_load_failed ", "unknown"),
         ("invalid_tag, tag_load_failed", "unknown"),
+        (["too_many_values", "invalid_tag"], "unknown"),
+        (["tag_load_failed", "tag_load_failed"], "unknown"),
         ("Invalid_Tag", "unknown"),
         ("x" * 33, "unknown"),
         ("something_new", "unknown"),
@@ -552,6 +568,47 @@ def test_ignored_header_is_sanitized(poller, caplog, count_metric, header, reaso
     assert [c.args for c in count_metric.call_args_list] == [
         (TELEMETRY_NAMESPACE.TRACERS, "flag_selection.ignored", 1, (("reason", reason),))
     ]
+
+
+@pytest.mark.parametrize(
+    "values,reason",
+    [
+        (["too_many_values", "invalid_tag"], "unknown"),
+        # The native client strips surrounding whitespace before the sanitizer sees the value.
+        (["tag_load_failed \t"], "tag_load_failed"),
+    ],
+)
+def test_ignored_header_through_the_native_client(caplog, count_metric, values, reason):
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = _ufc_body()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            for value in values:
+                self.send_header("DD-Flag-Selection-Ignored", value)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    applied: list = []
+    try:
+        source = AgentlessConfigurationSource(
+            endpoint=f"http://127.0.0.1:{server.server_address[1]}{MANAGED_TARGET}&selected_flag_tags=a",
+            apply_configuration=applied.append,
+            flag_selection_sent=True,
+        )
+        with caplog.at_level(logging.ERROR, logger=SELECTION_LOGGER):
+            source.periodic()
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert len(applied) == 1
+    assert [r.getMessage() for r in _ignored(caplog)] == [IGNORED.format(reason)]
+    assert [c.args[3] for c in count_metric.call_args_list] == [(("reason", reason),)]
 
 
 def test_empty_ignored_header_is_absent(poller, caplog, count_metric):
