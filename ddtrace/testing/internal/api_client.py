@@ -88,6 +88,13 @@ class APIClient:
         if not commits or not all(is_git_sha(commit) for commit in commits):
             return None
         try:
+            telemetry = self.telemetry_api.with_request_metric_names(
+                count="tia_artifact_lookup.request",
+                duration="tia_artifact_lookup.request_seconds",
+                response_bytes="tia_artifact_lookup.response_bytes",
+                error="tia_artifact_lookup.request_errors",
+                request_bytes="tia_artifact_lookup.request_bytes",
+            )
             attributes = metadata.attributes()
             attributes["git_commit_shas"] = commits
             payload = {
@@ -99,6 +106,7 @@ class APIClient:
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/vnd.api+json", "Accept": "application/json"},
                 expected_status_codes=(404,),
+                telemetry=telemetry,
             )
             log.debug(
                 "TIA artifact POST %s/lookup returned HTTP %s",
@@ -126,12 +134,20 @@ class APIClient:
         if not is_git_sha(commit) or not content or len(content) > MAX_ARTIFACT_BYTES:
             return False
         try:
+            telemetry = self.telemetry_api.with_request_metric_names(
+                count="tia_artifact_upload.request",
+                duration="tia_artifact_upload.request_seconds",
+                response_bytes="tia_artifact_upload.response_bytes",
+                error="tia_artifact_upload.request_errors",
+                request_bytes="tia_artifact_upload.request_bytes",
+            )
             result = self.connector.request(
                 "PUT",
                 metadata.upload_path(commit),
                 data=content,
                 headers={"Content-Type": "application/octet-stream"},
                 is_json_response=True,
+                telemetry=telemetry,
             )
             log.debug(
                 "TIA artifact PUT %s returned HTTP %s",

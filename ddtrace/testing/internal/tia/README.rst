@@ -133,6 +133,27 @@ machine-specific filesystem-mtime snapshot. Other Test Optimization requests,
 including fetching session settings and reporting test results, continue to
 use the backend when a local map avoids the TIA lookup request.
 
+Artifact request telemetry
+--------------------------
+
+Both endpoints use the existing Test Optimization request telemetry collector.
+The ``civisibility`` namespace contains ``tia_artifact_lookup`` and
+``tia_artifact_upload`` metric prefixes, each with:
+
+* ``request_seconds``: per-attempt HTTP latency in seconds, including reading
+  the response, excluding retry backoff.
+* ``request_bytes`` and ``response_bytes``: HTTP body sizes in bytes, excluding
+  headers. Compressed responses report their compressed size with the
+  ``rs_compressed:true`` tag; streamed responses without ``Content-Length``
+  use the received body size.
+* ``request`` and ``request_errors``: request attempt and error counts. Error
+  counts carry the existing ``error_type`` tag. Lookup HTTP 404 is a normal
+  miss and does not increment the error count.
+
+Retries produce a sample for each attempt. A local cache hit produces no
+lookup request metrics. Metrics contain no repository or test identifiers,
+artifact contents, or credentials.
+
 Debugging artifact reuse
 ------------------------
 

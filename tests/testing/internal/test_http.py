@@ -37,12 +37,12 @@ from tests.utils import reinitialize_agentless_config
 _TIMEOUT_MS = int(DEFAULT_TIMEOUT_SECONDS * 1000)
 
 
-def _post_call(path: str, body: bytes, headers: dict):
+def _post_call(path: str, body: bytes, headers: dict[str, str]):
     """The call a POST to path makes on the native client."""
     return call(path, headers=list(headers.items()), timeout_ms=_TIMEOUT_MS, body=body)
 
 
-def _headers(headers: dict) -> "Mock":
+def _headers(headers: dict[str, t.Any]) -> t.Callable[[str], t.Optional[str]]:
     """A native response's case-insensitive header lookup, for header.side_effect."""
     lowered = {name.lower(): str(value) for name, value in headers.items()}
     return lambda name: lowered.get(name.lower())
@@ -207,7 +207,7 @@ class TestBackendConnector:
         assert mock_telemetry.record_request.call_args_list == [
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Internal Server Error :("),
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
@@ -254,41 +254,41 @@ class TestBackendConnector:
         assert result.error_description == "500 Internal Server Error"
         assert result.parsed_response is None
         assert result.is_gzip_response is False
-        assert result.response_length == 0
+        assert result.response_length == len(b"Internal Server Error :(")
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Internal Server Error :("),
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Internal Server Error :("),
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Internal Server Error :("),
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Internal Server Error :("),
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Internal Server Error :("),
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
@@ -394,13 +394,13 @@ class TestBackendConnector:
         assert result.error_description == "400 Bad Request"
         assert result.parsed_response is None
         assert result.is_gzip_response is False
-        assert result.response_length == 0
+        assert result.response_length == len(b"No bueno")
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"No bueno"),
                 compressed_response=False,
                 error=ErrorType.CODE_4XX,
                 request_bytes=len(b'{"question": 1}'),
@@ -631,7 +631,7 @@ class TestBackendConnector:
         assert mock_telemetry.record_request.call_args_list == [
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Rate limited"),
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
@@ -680,35 +680,35 @@ class TestBackendConnector:
         assert mock_telemetry.record_request.call_args_list == [
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Rate limited"),
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Rate limited"),
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Rate limited"),
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Rate limited"),
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
             call(
                 seconds=0.0,
-                response_bytes=0,
+                response_bytes=len(b"Rate limited"),
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
@@ -902,7 +902,7 @@ class TestBackendConnector:
         assert body.count(b"--boundary123") == 3  # 2 file separators + 1 end
 
 
-def _set_environ(monkeypatch: pytest.MonkeyPatch, environ: dict) -> None:
+def _set_environ(monkeypatch: pytest.MonkeyPatch, environ: dict[str, str]) -> None:
     """Replace the environment, then re-resolve the settings derived from it.
 
     The agentless settings resolve once at import, so the connector-mode decision would otherwise
@@ -1387,8 +1387,8 @@ class _FakeGevent:
     """
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch, hub_exists: bool = True, in_hub: bool = False) -> None:
-        self.spawned: list = []
-        self.deadlines: list = []
+        self.spawned: list[t.Any] = []
+        self.deadlines: list[t.Any] = []
         self.expire_while_spawning = False
         self.expire_while_waiting = False
         self.foreign_timeout: t.Optional[BaseException] = None
@@ -1444,7 +1444,7 @@ def _ok_client(mock_http_client: Mock) -> Mock:
     mock_response.header.side_effect = _headers({})
     mock_response.body.return_value = b""
     mock_http_client.return_value.post.return_value = mock_response
-    return mock_http_client.return_value
+    return t.cast(Mock, mock_http_client.return_value)
 
 
 class TestGevent:

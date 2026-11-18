@@ -1,5 +1,7 @@
+import gzip
 import json
 from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import patch
 from urllib.parse import parse_qs
 from urllib.parse import urlsplit
@@ -11,6 +13,7 @@ from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendConnector
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.telemetry import ErrorType
+from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
 from ddtrace.testing.internal.tia.artifacts import ARTIFACTS_ENDPOINT
 from ddtrace.testing.internal.tia.artifacts import MAX_ARTIFACT_BYTES
 from ddtrace.testing.internal.tia.artifacts import Artifact
@@ -219,3 +222,77 @@ def test_lookup_miss_uses_debug_logging_and_agentless_api_key():
     logger.warning.assert_not_called()
     logger.debug.assert_called()
     assert dict(http_client.return_value.post.call_args.kwargs["headers"])["dd-api-key"] == "test-key"
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+@pytest.mark.parametrize(
+    "operation,status,retry",
+    [
+        ("lookup", 200, False),
+        ("lookup", 200, True),
+        ("lookup", 404, False),
+        ("upload", 201, False),
+        ("upload", 201, True),
+        ("upload", 403, False),
+    ],
+)
+def test_artifact_request_telemetry_measures_each_attempt(
+    mock_telemetry, metadata, operation, status, retry, compressed
+):
+    mock_telemetry.with_request_metric_names.side_effect = lambda **names: TelemetryAPIRequestMetrics(
+        telemetry_api=mock_telemetry, **names
+    )
+    success_body = CONTENT if operation == "lookup" else b'{"data":{"attributes":{"blob_id":"blob"}}}'
+    bodies = ([b'{"error":"retry"}'] if retry else []) + [success_body]
+    statuses = ([503] if retry else []) + [status]
+    wire_bodies = [gzip.compress(body) if compressed else body for body in bodies]
+    responses = []
+    for response_status, wire_body in zip(statuses, wire_bodies):
+        # Streamed artifact responses need not contain Content-Length.
+        headers = {"x-dd-tia-git-commit-sha": HEAD, "x-dd-tia-source-commit": SOURCE}
+        if compressed:
+            headers["Content-Encoding"] = "gzip"
+        response = Mock(status_code=response_status)
+        response.header.side_effect = lambda name, values=headers: next(
+            (value for key, value in values.items() if key.lower() == name.lower()), None
+        )
+        response.body.return_value = wire_body
+        responses.append(response)
+    with (
+        patch("ddtrace.testing.internal.http.HTTPClient") as native,
+        patch("ddtrace.testing.internal.http.time") as clock,
+    ):
+        clock.perf_counter.side_effect = [1.0, 1.25, 2.0, 2.5] if retry else [1.0, 1.25]
+        connector = BackendConnector("https://api.example.test")
+        setup = Mock()
+        setup.get_connector_for_subdomain.return_value = connector
+        client = APIClient("tests", "ci", {}, ITRSkippingLevel.TEST, {}, setup, mock_telemetry)
+        native_method = native.return_value.post if operation == "lookup" else native.return_value.put
+        native_method.side_effect = responses
+        if operation == "lookup":
+            result = client.lookup_tia_artifact(metadata, [HEAD])
+            assert result == (Artifact(CONTENT, HEAD, SOURCE) if status == 200 else None)
+        else:
+            assert client.store_tia_artifact(metadata, HEAD, CONTENT) is (status == 201)
+
+    prefix = f"tia_artifact_{operation}"
+    requests = native_method.call_args_list
+    assert len(requests) == len(statuses)
+    distributions = mock_telemetry.add_distribution_metric.call_args_list
+    assert [item.args[1] for item in distributions if item.args[0] == f"{prefix}.request_seconds"] == (
+        [0.25, 0.5] if retry else [0.25]
+    )
+    assert [item.args[1] for item in distributions if item.args[0] == f"{prefix}.request_bytes"] == [
+        len(request.kwargs["body"]) for request in requests
+    ]
+    assert [item.args[1:] for item in distributions if item.args[0] == f"{prefix}.response_bytes"] == [
+        (len(body), {"rs_compressed": compressed}) for body in wire_bodies
+    ]
+    counts = mock_telemetry.add_count_metric.call_args_list
+    assert [item for item in counts if item.args[0] == f"{prefix}.request"] == [
+        call(f"{prefix}.request", 1) for _ in statuses
+    ]
+    expected_errors = [call(f"{prefix}.request_errors", 1, {"error_type": ErrorType.CODE_5XX})] if retry else []
+    if status == 403:
+        expected_errors.append(call(f"{prefix}.request_errors", 1, {"error_type": ErrorType.CODE_4XX}))
+    assert [item for item in counts if item.args[0] == f"{prefix}.request_errors"] == expected_errors
