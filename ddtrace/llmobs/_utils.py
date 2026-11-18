@@ -1040,9 +1040,10 @@ class LinkTracker:
         }
         tool_call.tool_kind = tool_kind
         with self._lock:
-            # The call may have been evicted meanwhile and a newer call registered under the same key.
+            # The call may have been evicted meanwhile and a newer call registered under the same key,
+            # possibly with the same tool id (ReAct derives ids from the tool name and input).
             lookup_key = (tool_name, formatted_tool_arg)
-            if self._lookup_tool_id.get(lookup_key) == tool_id:
+            if self._tool_calls.get(tool_id) is tool_call and self._lookup_tool_id.get(lookup_key) == tool_id:
                 self._lookup_tool_id.pop(lookup_key, None)
 
     def on_tool_call_output_used(self, tool_id: str, llm_span: _LLMObsSpan) -> None:
