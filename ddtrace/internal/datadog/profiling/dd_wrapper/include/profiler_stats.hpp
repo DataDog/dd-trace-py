@@ -57,6 +57,14 @@ class ProfilerStats
     // Samples dropped because the cap was reached (cumulative over tracker lifetime)
     std::optional<size_t> heap_tracker_cap_drops;
 
+    // Asyncio diagnostics used to distinguish hook, loop tracking, offset discovery, and task traversal failures.
+    std::optional<bool> asyncio_initialized;
+    // Whether any sampled thread had a tracked asyncio loop during the current profile period.
+    std::optional<bool> asyncio_loop_tracked;
+    std::optional<bool> asyncio_runtime_offsets_discovered;
+    std::optional<size_t> asyncio_interpreter_tasks_head_offset;
+    std::optional<size_t> asyncio_thread_tasks_head_offset;
+
     // Peak number of asyncio tasks seen across sampled threads in any single sampling
     // cycle during the current profile period (see set_asyncio_task_count).
     std::optional<size_t> asyncio_task_count;
@@ -121,6 +129,16 @@ class ProfilerStats
 
     void set_heap_tracker_cap_drops(size_t count);
     std::optional<size_t> get_heap_tracker_cap_drops() const;
+
+    void set_asyncio_initialized(bool initialized);
+    void set_asyncio_loop_tracked(bool tracked);
+    void set_asyncio_runtime_offsets_discovered(bool discovered);
+
+    void set_asyncio_interpreter_tasks_head_offset(size_t offset);
+    std::optional<size_t> get_asyncio_interpreter_tasks_head_offset() const;
+
+    void set_asyncio_thread_tasks_head_offset(size_t offset);
+    std::optional<size_t> get_asyncio_thread_tasks_head_offset() const;
 
     void set_asyncio_task_count(size_t count);
     std::optional<size_t> get_asyncio_task_count() const;

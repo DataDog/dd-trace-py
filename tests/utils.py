@@ -1311,6 +1311,22 @@ class SnapshotTest:
                 return
             time.sleep(min(0.1, max(0, deadline - time.monotonic())))
 
+    def wait_for_spans(self, count: int, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        traces: list[list[dict[str, Any]]] = []
+        while True:
+            remaining = deadline - time.monotonic()
+            span_count = sum(len(trace) for trace in traces)
+            if remaining <= 0:
+                pytest.fail(f"Snapshot {self.name} ({self.token}): expected {count} spans, got {span_count}: {traces}")
+            status, body = self._client._request("GET", self._client._url("/test/session/traces"), timeout=remaining)
+            if status != 200:
+                pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+            traces = json.loads(body)
+            if sum(len(trace) for trace in traces) >= count:
+                return
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+
     def verify(self, ignores: list[str], timeout: float) -> None:
         agent_dir = os.getenv("DD_TEST_AGENT_SNAPSHOT_DIR")
         if agent_dir is None:
@@ -1332,13 +1348,18 @@ def snapshot_context(
     async_mode: bool = True,
     variants: Optional[dict[str, bool]] = None,
     wait_for_num_traces: Optional[int] = None,
+    wait_for_num_spans: Optional[int] = None,
     timeout: float = 5.0,
     subprocess_mode: bool = False,
     compute_stats_enabled: bool = False,
 ) -> Iterator[SnapshotTest]:
     """Capture one tagged attempt; async_mode is retained for compatibility."""
-    if timeout <= 0 or (wait_for_num_traces is not None and wait_for_num_traces < 0):
-        raise ValueError("Snapshot timeout must be positive and trace count must be nonnegative")
+    if (
+        timeout <= 0
+        or (wait_for_num_traces is not None and wait_for_num_traces < 0)
+        or (wait_for_num_spans is not None and wait_for_num_spans < 0)
+    ):
+        raise ValueError("Snapshot timeout must be positive and trace and span counts must be nonnegative")
     if variants:
         applicable_variant_ids = [k for (k, v) in variants.items() if v]
         assert len(applicable_variant_ids) == 1
@@ -1412,6 +1433,8 @@ def snapshot_context(
         if completed:
             if wait_for_num_traces is not None:
                 session.wait_for_traces(wait_for_num_traces, timeout)
+            if wait_for_num_spans is not None:
+                session.wait_for_spans(wait_for_num_spans, timeout)
             session.verify(ignores, timeout)
     finally:
         if original_stats_env is None:
@@ -1461,6 +1484,7 @@ def snapshot(
     async_mode=True,
     token_override=None,
     wait_for_num_traces=None,
+    wait_for_num_spans=None,
     compute_stats_enabled=False,
 ):
     """Performs a snapshot integration test with the testing agent.
@@ -1493,6 +1517,7 @@ def snapshot(
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
+            wait_for_num_spans=wait_for_num_spans,
             compute_stats_enabled=compute_stats_enabled,
         ):
             # Run the test.
@@ -1508,6 +1533,7 @@ def snapshot(
             "variants": variants,
             "async_mode": async_mode,
             "wait_for_num_traces": wait_for_num_traces,
+            "wait_for_num_spans": wait_for_num_spans,
             "compute_stats_enabled": compute_stats_enabled,
         }
         return decorated

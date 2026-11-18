@@ -157,6 +157,7 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
             // default disposition and re-raise to guarantee the process
             // terminates instead of looping forever.
             reset_to_default_and_reraise(signo);
+            errno = saved_errno;
             return;
         }
 
@@ -211,11 +212,12 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
 
         t_unarmed_chain_frame = prev_frame;
         t_unarmed_chain_info = prev_info;
+        errno = saved_errno;
         return;
     }
 
-    errno = saved_errno;
     // Jump back to the armed site. Use 1 so sigsetjmp returns nonzero.
+    errno = saved_errno;
     siglongjmp(t_jmpenv, 1);
 }
 
