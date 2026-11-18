@@ -38,18 +38,6 @@ class taint_sink_deduplication(deduplication):
         return args[2:]
 
 
-def _check_positions_contained(needle, container):
-    needle_start, needle_end = needle
-    container_start, container_end = container
-
-    return (
-        (container_start <= needle_start < container_end)
-        or (container_start < needle_end <= container_end)
-        or (needle_start <= container_start < needle_end)
-        or (needle_start < container_end <= needle_end)
-    )
-
-
 class VulnerabilityBase:
     vulnerability_type = ""
     secure_mark = 0
