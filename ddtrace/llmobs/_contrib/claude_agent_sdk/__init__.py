@@ -22,7 +22,6 @@ class _ClaudeAgentSdkInactiveSpanStartingSubscriber(Subscriber):
     streaming, so anything started meanwhile would parent under them instead of the step.
     """
 
-    auto_register = False
     event_names = (f"{SpanLifecycleEvents.SPAN_STARTING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
@@ -35,7 +34,6 @@ class _ClaudeAgentSdkInactiveSpanStartingSubscriber(Subscriber):
 class _ClaudeAgentSdkInactiveSpanStartedSubscriber(Subscriber):
     """Restore the LLMObs span that was active before an inactive span started."""
 
-    auto_register = False
     event_names = (f"{SpanLifecycleEvents.SPAN_STARTED.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod

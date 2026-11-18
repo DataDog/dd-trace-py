@@ -110,16 +110,11 @@ def stop(join=False):
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
-and resolves every declared name before registering listeners. Bundle-managed
-subscribers must disable class-definition registration so imports do not activate them
-implicitly. Set the `auto_register = False` class attribute to also defer registration
-for subclasses. Context subscribers can instead pass `auto_register=False` in the class
-declaration to defer only that class, preserving automatic registration for its subclasses.
-Any compatibility activation during initialization belongs to the product.
-
-Existing subscribers retain automatic registration until their activation paths
-are migrated. Once all consumers register explicitly, automatic registration and
-the `auto_register` flag can be removed.
+and resolves every declared name before registering listeners. Defining a `Subscriber`
+or `ContextSubscriber` subclass only collects its handlers; it never registers listeners,
+including when the subclass inherits `event_names`. Call the subscriber's `register()`
+method or its owning bundle explicitly to activate it. Any compatibility activation
+during initialization belongs to the product.
 
 Repeated registration uses named-listener deduplication and can restore listeners
 after a reset. Import and callback failures propagate to the caller; registration
@@ -172,10 +167,9 @@ manual instrumentation, including when global tracer creation is deferred. Web r
 and span exception bundles retain their existing activation timing. Listeners remain
 available with `DD_TRACE_ENABLED=false` so existing integrations can finish their spans
 without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
-Concrete product subscribers disable class-definition registration; custom subscriber
-registration defaults are unchanged. Integrations emit events without registering
-tracing listeners themselves. Ray's SDK-dependent bundle remains separate: a tracing-owned
-import hook activates it after `ddtrace.contrib.internal.ray.patch` finishes loading.
+All subscribers require explicit registration. Integrations emit events without
+registering tracing listeners themselves. Ray's SDK-dependent bundle remains separate:
+a tracing-owned import hook activates it after `ddtrace.contrib.internal.ray.patch` finishes loading.
 This also supports manual patching with deferred global tracer initialization, without
 importing Ray during ordinary tracing startup. Repeated tracing startup restores Ray
 listeners once that integration module has loaded. Ray unpatching retains completion
