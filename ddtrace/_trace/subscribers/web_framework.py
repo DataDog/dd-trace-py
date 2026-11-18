@@ -109,6 +109,7 @@ class WebFrameworkRequestSubscriber(WebFrameworkRequestSubscriberBase):
                 response_headers=dict(res_headers) if res_headers is not None else None,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
+                response_only=ctx.get_item("middleware") is not None,
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)

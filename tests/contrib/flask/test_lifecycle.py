@@ -538,3 +538,61 @@ def test_flask_configured_service_survives_completion(service_app: flask.Flask, 
     response_span = next(span for span in spans if span.name == "flask.response")
     assert request_span.service == response_span.service == "configured-flask-service"
     assert response_span.parent_id == request_span.span_id
+
+
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
+def test_manual_flask_with_deferred_tracer_initialization() -> None:
+    import sys
+    from typing import Any
+    from typing import cast
+
+    import ddtrace  # noqa: F401
+
+    assert "ddtrace.trace" not in sys.modules
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    from flask import Flask
+    from flask import Response
+    from flask import request
+    from flask import stream_with_context
+    from werkzeug.test import EnvironBuilder
+
+    from ddtrace import patch
+    from ddtrace.internal.products import manager
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    patch(flask=True)
+    assert manager._products is None
+    app = Flask(__name__)
+
+    @app.route("/stream")
+    def stream():
+        @stream_with_context
+        def body():
+            assert request.path == "/stream"
+            yield b"first"
+            yield b"second"
+
+        return Response(body())
+
+    builder = EnvironBuilder(path="/stream")
+    try:
+        writer = DummyWriter()
+        tracer._span_aggregator.writer = cast(Any, writer)
+        with tracer.trace("caller") as caller:
+            response = app(builder.get_environ(), lambda *args: lambda data: None)
+            assert tracer.current_span() is caller
+            assert list(response) == [b"first", b"second"]
+            response.close()
+            assert tracer.current_span() is caller
+        spans = [span for trace in writer.pop_traces() for span in trace]
+        (root,) = [span for span in spans if span.name == "flask.request"]
+        assert root.parent_id == caller.span_id
+        for name in ("flask.application", "flask.response"):
+            (child,) = [span for span in spans if span.name == name]
+            assert child.parent_id == root.span_id
+        assert all(span.finished for span in spans)
+    finally:
+        tracer.shutdown()
+        builder.close()
+    assert manager._products is None

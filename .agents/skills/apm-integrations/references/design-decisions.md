@@ -67,8 +67,8 @@ subscriber package finishes loading through contrib; product startup activates i
 the product manager.
 Concrete SDK-independent tracing subscribers use explicit registration rather than class-definition registration.
 The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
-including explicitly deferred global tracer creation. Web request, Flask request, and span exception activation timing
-is unchanged. The generic span bundle registers `TracingSubscriber` directly. Its class declaration
+including explicitly deferred global tracer creation. Deferred initialization activates web and Flask request
+bundles after the subscriber package finishes loading; span exception activation still requires product startup. The generic span bundle registers `TracingSubscriber` directly. Its class declaration
 passes `auto_register=False` to defer only the base class; custom subclasses retain automatic
 registration unless they opt out with the existing class attribute.
 Ray retains SDK-dependent activation from its patch module until a separate migration.
@@ -83,7 +83,9 @@ and allow cancellation to complete without requiring a response or tagging it as
 
 Flask and WSGI defer their shared request context through response iteration.
 The iterable reports completion without owning spans; `WebFrameworkResponseEvent`
-lets tracing create the response child. Keep application-return security cleanup
+lets tracing create the response child. Request metadata is applied before public span modifiers;
+deferred WSGI completion applies response-only metadata to preserve overrides and redactions.
+Keep application-return security cleanup
 separate from response completion: AppSec and IAST consume
 `wsgi.application.returned` while the request context remains current. Retain
 Flask's metadata and blocking phase hooks rather than adding a second request owner.

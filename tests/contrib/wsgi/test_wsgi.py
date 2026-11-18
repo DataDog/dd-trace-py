@@ -423,6 +423,172 @@ def test_http_request_header_tracing(tracer, test_spans):
         config.wsgi.http._reset()
 
 
+@pytest.mark.parametrize("otel", [False, True])
+@pytest.mark.parametrize("remove", [False, True])
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close", "stream_error", "close_error", "application_error"])
+def test_request_tag_overrides_survive_completion(
+    tracer: Any, test_spans: Any, otel: bool, remove: bool, terminal: str
+) -> None:
+    roots: list[Span] = []
+    failure = RuntimeError(terminal)
+    keys = (
+        ["http.request.method", "url.path", "url.scheme", "url.query", "server.address", "server.port"]
+        if otel
+        else ["http.method", "http.url", "http.query.string"]
+    ) + ["http.request.headers.x-private"]
+    client_key = "client.address" if otel else "http.client_ip"
+
+    def redact(span: Span, names: list[str]) -> None:
+        for name in names:
+            if remove:
+                span._remove_attribute(name)
+            else:
+                span._set_attribute(name, "redacted")
+
+    def modifier(span: Span, environ: dict[str, Any]) -> None:
+        roots.append(span)
+        for name in keys:
+            assert span._get_attribute(name) is not None, name
+        redact(span, keys)
+        span.resource = "custom-request"
+
+    class Response:
+        def __init__(self) -> None:
+            self.index = 0
+
+        def __iter__(self) -> "Response":
+            return self
+
+        def __next__(self) -> bytes:
+            self.index += 1
+            if self.index == 1:
+                return b"first"
+            if terminal == "stream_error":
+                raise failure
+            if self.index == 2:
+                return b"second"
+            raise StopIteration
+
+        def close(self) -> None:
+            if terminal == "close_error":
+                raise failure
+
+    def app(environ: dict[str, Any], start_response: Callable[..., Any]) -> Response:
+        if terminal == "application_error":
+            raise failure
+        start_response("201 Created", [("X-Final", "response")])
+        # Completion must not recalculate request IP after application redaction.
+        core.current.set_item("http.request.remote_ip", "203.0.113.9")
+        redact(roots[0], [client_key])
+        return Response()
+
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/private/value",
+        "QUERY_STRING": "private=value",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+        "HTTP_X_PRIVATE": "private-header",
+    }
+    with (
+        override_global_config(dict(_otel_trace_semantics_enabled=otel, _retrieve_client_ip=True)),
+        override_http_config("wsgi", dict(trace_query_string=True, trace_headers=["x-private", "x-final"])),
+    ):
+        middleware = DDWSGIMiddleware(app, span_modifier=modifier)
+        if terminal == "application_error":
+            with pytest.raises(RuntimeError) as raised:
+                middleware(environ, lambda *args: None)
+            assert raised.value is failure
+        else:
+            response = middleware(environ, lambda *args: None)
+            expected = None if remove else "redacted"
+            assert all(roots[0]._get_attribute(name) == expected for name in keys + [client_key])
+            assert next(response) == b"first"
+            if terminal == "stream_error":
+                with pytest.raises(RuntimeError) as raised:
+                    next(response)
+                assert raised.value is failure
+            elif terminal == "exhaustion":
+                assert list(response) == [b"second"]
+            if terminal == "close_error":
+                with pytest.raises(RuntimeError) as raised:
+                    response.close()
+                assert raised.value is failure
+            else:
+                response.close()
+        assert len(roots) == 1
+        root = roots[0]
+        assert root.finished and root.resource == "custom-request"
+        expected = None if remove else "redacted"
+        for name in keys:
+            assert root._get_attribute(name) == expected, name
+        if terminal != "application_error":
+            assert root._get_attribute(client_key) == expected
+            status_key = "http.response.status_code" if otel else "http.status_code"
+            assert str(root._get_attribute(status_key)) == "201"
+            assert root.get_tag("http.response.headers.x-final") == "response"
+        assert all(span.finished for span in test_spans.pop())
+
+
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
+def test_manual_wsgi_with_deferred_tracer_initialization() -> None:
+    import sys
+    from typing import Any
+    from typing import cast
+
+    import ddtrace  # noqa: F401
+
+    assert "ddtrace.trace" not in sys.modules
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+    from ddtrace.internal.products import manager
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    assert manager._products is None
+    calls = []
+
+    def write(data: bytes) -> None:
+        pass
+
+    def app(environ, start_response):
+        assert start_response("200 OK", [("Content-Type", "text/plain")]) is write
+        return [b"first", b"second"]
+
+    def start_response(status, headers, exc_info=None):
+        calls.append((status, headers))
+        return write
+
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    writer = DummyWriter()
+    tracer._span_aggregator.writer = cast(Any, writer)
+    try:
+        with tracer.trace("caller") as caller:
+            response = DDWSGIMiddleware(app)(environ, start_response)
+            assert tracer.current_span() is caller
+            assert list(response) == [b"first", b"second"]
+            response.close()
+            assert tracer.current_span() is caller
+        spans = [span for trace in writer.pop_traces() for span in trace]
+        (root,) = [span for span in spans if span.name == "wsgi.request"]
+        assert root.parent_id == caller.span_id
+        for name in ("wsgi.application", "wsgi.response"):
+            (child,) = [span for span in spans if span.name == name]
+            assert child.parent_id == root.span_id
+        assert all(span.finished for span in spans)
+    finally:
+        tracer.shutdown()
+    assert len(calls) == 1
+    assert manager._products is None
+
+
 def test_completion_preserves_legacy_user_agent_lookup(tracer, test_spans) -> None:
     entry_header_modes: list[tuple[bool, bool]] = []
 
