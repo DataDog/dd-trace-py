@@ -61,6 +61,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from ._native import ai_usage  # noqa: F401
+except ImportError:
+    pass
+
 
 # Child processes must reseed the RNG after fork. Without a new seed, they use the
 # RNG state of the parent and generate the same trace and span IDs. Register the
