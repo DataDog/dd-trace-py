@@ -109,14 +109,11 @@ def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environ
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
         env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
-        if _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
-            env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
-        else:
-            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+        # ITR only collects coverage here; test selection is left to TIA (DD_TIA_ENABLED).
+        env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
         if _is_protected_ci_branch():
             env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
-            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
 
 class TestEnvironmentError(RuntimeError):
