@@ -277,7 +277,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
         }
 
     def _llmobs_set_tags_decision(
-        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any], span_kind: Optional[str]
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any],
+        span_kind: Optional[str],
     ) -> None:
         model = kwargs.get("instance")
         request = get_argument_value(args, kwargs, 0, "request", optional=True)
