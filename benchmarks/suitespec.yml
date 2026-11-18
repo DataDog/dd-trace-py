@@ -457,6 +457,17 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  openfeature_resolution:
+    paths:
+      - ddtrace/internal/native/*
+      - ddtrace/internal/openfeature/*
+      - ddtrace/openfeature/*
+      - src/native/*
+      - setup.py
+      - benchmarks/openfeature_resolution/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   openfeature_flagevaluation:
     paths:
       - ddtrace/internal/openfeature/_flageval_pii.py

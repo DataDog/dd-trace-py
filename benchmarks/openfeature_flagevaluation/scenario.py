@@ -6,9 +6,11 @@ The profiles mirror the Go/Ruby OpenFeature EVP benchmark suite:
 * stress/10flags_1000users_250fields
 * scale/2500flags_500users_20fields
 
-The scenario drives ``FlagEvalEVPHook`` and ``FlagEvaluationWriter`` directly so the
-benchmark isolates in-process EVP work: no network, no Remote Config backend, and no
-native flag evaluation cost.
+Queue and aggregation modes drive ``FlagEvalEVPHook`` and ``FlagEvaluationWriter``
+directly. Provider modes include native resolution, prerequisite evaluation telemetry,
+metrics, and exposure decisions. All modes exclude network delivery. The dependent
+configurations cover chains of 0, 1, 5, and 10 prerequisites with prewarmed or cold
+exposure caches. Cold caches reset once per subject cycle, including that amortized cost.
 """
 
 import queue
@@ -105,6 +107,11 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
     observe_full_evaluation_data: bool
     # provider_resolution only: whether every split carries features.
     split_features: bool = False
+    # Provider mode: number of reached prerequisite flags per root.
+    num_dependencies: int = 0
+    # Clear once per subject cycle so every exposure decision is a cache miss.
+    cold_exposures: bool = False
+    warm_exposures: bool = False
 
     def run(self):
         from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
@@ -242,7 +249,21 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         num_users = max(1, self.num_users)
         attrs = {f"attr_{i}": f"value_{i}" for i in range(max(0, self.num_context_fields))}
         flag_keys = [f"flag-{i}" for i in range(num_flags)]
-        process_ffe_configuration(_ufc_configuration(flag_keys, self.split_features, self.observe_full_evaluation_data))
+        config = _ufc_configuration(flag_keys, self.split_features, self.observe_full_evaluation_data)
+        dependency_keys = [f"prerequisite-{i}" for i in range(self.num_dependencies)]
+        if dependency_keys:
+            config["flags"].update(
+                _ufc_configuration(dependency_keys, self.split_features, self.observe_full_evaluation_data)["flags"]
+            )
+            for key, prerequisite_key in zip(dependency_keys[1:] + flag_keys, dependency_keys):
+                config["flags"][key]["allocations"][0]["rules"] = [
+                    {
+                        "conditions": [
+                            {"flagEvaluation": {"key": prerequisite_key}, "operator": "ONE_OF", "value": ["on"]}
+                        ]
+                    }
+                ]
+        assert process_ffe_configuration(config)
 
         # Nothing is sent: exposures go to a discarding writer and evaluation counts to a
         # discarding queue, so the loop measures evaluation work only.
@@ -265,9 +286,22 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
 
         first = provider.resolve_string_details(flag_keys[0], "default", evaluations[0][1])
         assert first.value == "on" and first.error_code is None, first
+        # Older comparison wheels do not integrate prerequisite telemetry. On
+        # supporting wheels, verify the scenario reaches every requested node.
+        from ddtrace.internal.openfeature._native import get_evaluator_capabilities
+
+        if "dependent-flag-variant-key-v1" in get_evaluator_capabilities():
+            assert len(getattr(first.flag_metadata, "_dd_dependency_exposure_metadata", ())) == self.num_dependencies
+        if self.warm_exposures:
+            for flag_key, ctx, hook_context in evaluations:
+                details = provider.resolve_string_details(flag_key, "default", ctx).to_flag_evaluation_details(flag_key)
+                for hook in hooks:
+                    hook.finally_after(hook_context, details, {})
 
         def _(loops):
             for i in range(loops):
+                if self.cold_exposures and i % cycle_count == 0:
+                    provider.clear_exposure_cache()
                 flag_key, ctx, hook_context = evaluations[i % cycle_count]
                 details = provider.resolve_string_details(flag_key, "default", ctx).to_flag_evaluation_details(flag_key)
                 for hook in hooks:

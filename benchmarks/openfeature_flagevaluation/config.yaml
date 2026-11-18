@@ -6,6 +6,9 @@ hook-enqueue-typical: &defaults
   num_context_fields: 10
   observe_full_evaluation_data: true
   mode: hook_enqueue
+  num_dependencies: 0
+  cold_exposures: false
+  warm_exposures: false
 
 hook-enqueue-protected-typical:
   <<: *defaults
@@ -91,4 +94,88 @@ provider-resolution-split-features-stress:
   num_flags: 10
   num_users: 1000
   num_context_fields: 250
+  split_features: true
+
+# Includes prerequisite evaluation enqueueing, metrics, features, and exposure decisions.
+provider-dependent-0-warm:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 1
+  num_users: 100
+  num_dependencies: 0
+  cold_exposures: false
+  warm_exposures: true
+  split_features: true
+
+# Includes prerequisite evaluation enqueueing, metrics, features, and exposure decisions.
+provider-dependent-0-cold:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 1
+  num_users: 100
+  num_dependencies: 0
+  cold_exposures: true
+  split_features: true
+
+# Includes prerequisite evaluation enqueueing, metrics, features, and exposure decisions.
+provider-dependent-1-warm:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 1
+  num_users: 100
+  num_dependencies: 1
+  cold_exposures: false
+  warm_exposures: true
+  split_features: true
+
+# Includes prerequisite evaluation enqueueing, metrics, features, and exposure decisions.
+provider-dependent-1-cold:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 1
+  num_users: 100
+  num_dependencies: 1
+  cold_exposures: true
+  split_features: true
+
+# Includes prerequisite evaluation enqueueing, metrics, features, and exposure decisions.
+provider-dependent-5-warm:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 1
+  num_users: 100
+  num_dependencies: 5
+  cold_exposures: false
+  warm_exposures: true
+  split_features: true
+
+# Includes prerequisite evaluation enqueueing, metrics, features, and exposure decisions.
+provider-dependent-5-cold:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 1
+  num_users: 100
+  num_dependencies: 5
+  cold_exposures: true
+  split_features: true
+
+# Includes prerequisite evaluation enqueueing, metrics, features, and exposure decisions.
+provider-dependent-10-warm:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 1
+  num_users: 100
+  num_dependencies: 10
+  cold_exposures: false
+  warm_exposures: true
+  split_features: true
+
+# Includes prerequisite evaluation enqueueing, metrics, features, and exposure decisions.
+provider-dependent-10-cold:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 1
+  num_users: 100
+  num_dependencies: 10
+  cold_exposures: true
   split_features: true

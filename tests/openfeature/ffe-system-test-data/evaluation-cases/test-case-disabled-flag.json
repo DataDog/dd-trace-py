@@ -1,5 +1,11 @@
 [
   {
+    "_skip": [
+      {
+        "platform": "php",
+        "reason": "PHP reports PARSE_ERROR for disabled flags."
+      }
+    ],
     "attributes": {
       "country": "US",
       "email": "alice@mycompany.com"
@@ -14,6 +20,12 @@
     "variationType": "INTEGER"
   },
   {
+    "_skip": [
+      {
+        "platform": "php",
+        "reason": "PHP reports PARSE_ERROR for disabled flags."
+      }
+    ],
     "attributes": {
       "country": "Canada",
       "email": "bob@example.com"
@@ -28,6 +40,12 @@
     "variationType": "INTEGER"
   },
   {
+    "_skip": [
+      {
+        "platform": "php",
+        "reason": "PHP reports PARSE_ERROR for disabled flags."
+      }
+    ],
     "attributes": {
       "age": 50
     },
