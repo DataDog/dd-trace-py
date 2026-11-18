@@ -132,12 +132,7 @@ def fallback_dispatch(ctx):
             span.set_tag(TAG_MODEL, model)
             # The span was classified from the original request. Classify it again from the answering attempt, so a
             # fallback that leaves an instrumented proxy for a direct provider keeps its LLM span.
-            base_url = (
-                attempt_kwargs.get("base_url")
-                or attempt_kwargs.get("api_base")
-                or event.request_kwargs.get("base_url")
-                or event.request_kwargs.get("api_base")
-            )
+            base_url = attempt_kwargs.get("base_url") or attempt_kwargs.get("api_base")
             span._set_ctx_item(
                 _PROXY_REQUEST,
                 bool(base_url) and str(base_url) in (config._llmobs_instrumented_proxy_urls or set()),
