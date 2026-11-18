@@ -1,16 +1,24 @@
 import sys
 
 import pydantic_ai
+import wrapt
 
 from ddtrace import config
+from ddtrace.contrib.internal.pydantic_ai.utils import TracedDecisionContextManager
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
+
+log = get_logger(__name__)
+
+_DECISION_MODULE = "pydantic_ai.models.decision"
 
 config._add("pydantic_ai", {})
 
@@ -110,6 +118,20 @@ async def traced_tool_run(func, instance, args, kwargs, tool_name):
         span.finish()
 
 
+def traced_decision_model_decide(func, instance, args, kwargs):
+    return TracedDecisionContextManager(func, instance, args, kwargs, pydantic_ai._datadog_integration)
+
+
+def _wrap_decision_module(module) -> None:
+    decision_model = getattr(module, "DecisionModel", None)
+    if decision_model is None or not hasattr(decision_model, "_decide"):
+        log.debug("pydantic_ai DecisionModel._decide not found, decision requests are not traced")
+        return
+    if isinstance(decision_model.__dict__.get("_decide"), wrapt.FunctionWrapper):
+        return
+    wrap(decision_model, "_decide", traced_decision_model_decide)
+
+
 def patch():
     if getattr(pydantic_ai, "_datadog_patch", False):
         return
@@ -126,6 +148,7 @@ def patch():
         wrap(pydantic_ai, "agent.ToolManager.handle_call", traced_tool_manager_call)
     else:
         wrap(pydantic_ai, "tools.Tool.run", traced_tool_call)
+    ModuleWatchdog.register_module_hook(_DECISION_MODULE, _wrap_decision_module)
 
 
 def unpatch():
@@ -144,5 +167,10 @@ def unpatch():
         unwrap(pydantic_ai.agent.ToolManager, "handle_call")
     else:
         unwrap(pydantic_ai.tools.Tool, "run")
+    ModuleWatchdog.unregister_module_hook(_DECISION_MODULE, _wrap_decision_module)
+    decision_module = sys.modules.get(_DECISION_MODULE)
+    decision_model = getattr(decision_module, "DecisionModel", None)
+    if decision_model is not None and isinstance(decision_model.__dict__.get("_decide"), wrapt.FunctionWrapper):
+        unwrap(decision_model, "_decide")
 
     delattr(pydantic_ai, "_datadog_integration")

@@ -510,7 +510,11 @@ suites:
       - '@llmobs'
       - tests/contrib/pydantic_ai/*
       - tests/snapshots/tests.contrib.pydantic_ai.*
+      - tests/cassettes/typesafe/*
+      - tests/cassettes/openai/*
+      - tests/cassettes/genai/*
     snapshot: true
+    services: [testagent]
     matrix:
       command: pytest {cmdargs} tests/contrib/pydantic_ai
       variants:
@@ -526,6 +530,10 @@ suites:
         - name: pydantic_ai
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==1.63.0']
+        - name: pydantic_ai
+          python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai,typesafe,google]~=2.68']
+          command: pytest {cmdargs} tests/contrib/pydantic_ai/test_pydantic_ai_decisions.py tests/contrib/pydantic_ai/test_pydantic_ai_patch.py
   vllm:
     # TODO(py-315): torch has no cp315 wheels yet (2.14.1 ships cp310–cp314t
     # only), and the pinned 'vllm~=0.10.2' row also resolves an onnxruntime

@@ -1,3 +1,5 @@
+import importlib.util
+
 from ddtrace.contrib.internal.pydantic_ai.patch import get_version
 from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
@@ -6,6 +8,13 @@ from tests.contrib.patch import PatchTestCase
 
 
 PYDANTIC_AI_VERSION = parse_version(get_version())
+HAS_DECISION_MODELS = importlib.util.find_spec("pydantic_ai.models.decision") is not None
+
+
+def _decision_model():
+    from pydantic_ai.models.decision import DecisionModel
+
+    return DecisionModel
 
 
 class TestPydanticAIPatch(PatchTestCase.Base):
@@ -24,6 +33,8 @@ class TestPydanticAIPatch(PatchTestCase.Base):
             self.assert_wrapped(pydantic_ai.agent.ToolManager.handle_call)
         else:
             self.assert_wrapped(pydantic_ai.tools.Tool.run)
+        if HAS_DECISION_MODELS:
+            self.assert_wrapped(_decision_model()._decide)
 
     def assert_not_module_patched(self, pydantic_ai):
         self.assert_not_wrapped(pydantic_ai.agent.Agent.iter)
@@ -34,6 +45,8 @@ class TestPydanticAIPatch(PatchTestCase.Base):
             self.assert_not_wrapped(pydantic_ai.agent.ToolManager.handle_call)
         else:
             self.assert_not_wrapped(pydantic_ai.tools.Tool.run)
+        if HAS_DECISION_MODELS:
+            self.assert_not_wrapped(_decision_model()._decide)
 
     def assert_not_module_double_patched(self, pydantic_ai):
         self.assert_not_double_wrapped(pydantic_ai.agent.Agent.iter)
@@ -44,3 +57,5 @@ class TestPydanticAIPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(pydantic_ai.agent.ToolManager.handle_call)
         else:
             self.assert_not_double_wrapped(pydantic_ai.tools.Tool.run)
+        if HAS_DECISION_MODELS:
+            self.assert_not_double_wrapped(_decision_model()._decide)

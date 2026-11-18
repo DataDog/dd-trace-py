@@ -1,4 +1,5 @@
 import sys
+from typing import Any
 
 import wrapt
 
@@ -33,6 +34,57 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
             if exc_type:
                 self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
             self._dd_span.finish()
+
+
+class TracedDecisionContextManager:
+    def __init__(self, func, instance, args, kwargs, integration):
+        self._dd_func = func
+        self._dd_instance = instance
+        self._dd_args = args
+        self._dd_kwargs = kwargs
+        self._dd_integration = integration
+        self._dd_span: Any = None
+        self._dd_cm: Any = None
+        self._dd_response: Any = None
+
+    async def __aenter__(self):
+        integration = self._dd_integration
+        self._dd_span = integration.trace(
+            f"{type(self._dd_instance).__name__}.decide",
+            span_name="pydantic_ai.decision",
+            submit_to_llmobs=True,
+            model=self._dd_instance,
+            kind=integration._decision_span_kind(self._dd_instance),
+        )
+        try:
+            self._dd_cm = self._dd_func(*self._dd_args, **self._dd_kwargs)
+            result = await self._dd_cm.__aenter__()
+        except BaseException:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._finish()
+            raise
+        if isinstance(result, tuple) and result:
+            self._dd_response = result[0]
+        return result
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        try:
+            return await self._dd_cm.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseException:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            if exc_type is not None and not self._dd_span.error:
+                self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
+            self._finish()
+
+    def _finish(self):
+        kwargs = dict(self._dd_kwargs)
+        kwargs["instance"] = self._dd_instance
+        self._dd_integration.llmobs_set_tags(
+            self._dd_span, args=self._dd_args, kwargs=kwargs, response=self._dd_response, operation="decision"
+        )
+        self._dd_span.finish()
 
 
 class TracedPydanticRunStream(wrapt.ObjectProxy):

@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://generativelanguage.googleapis.com/v1beta/decisions",
+    "headers": {
+      "Accept": "*/*",
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Content-Type": "application/json",
+      "User-Agent": "google-genai-sdk/2.34.0 gl-python/3.12.8 pydantic-ai/2.68.0",
+      "x-goog-api-client": "google-genai-sdk/2.34.0 gl-python/3.12.8",
+      "Content-Length": "555"
+    },
+    "body": "{\"model\": \"gemini-decision-1\", \"input\": \"Our dashboards and API calls have been timing out for 20 minutes and we have a demo in an hour.\", \"questions\": {\"q0\": {\"type\": \"noul\", \"instructions\": \"{\\\"field\\\": \\\"urgent\\\", \\\"question\\\": \\\"Does the ticket need a reply within one hour?\\\", \\\"goal\\\": \\\"Triage a support ticket.\\\"}\"}, \"q1\": {\"type\": \"choice\", \"instructions\": \"{\\\"field\\\": \\\"team\\\", \\\"question\\\": \\\"Which team should handle the ticket?\\\", \\\"goal\\\": \\\"Triage a support ticket.\\\"}\", \"criteria\": {\"billing\": null, \"engineering\": null, \"sales\": null}}}}"
+  },
+  "response": {
+    "status": {
+      "code": 400,
+      "message": "Bad Request"
+    },
+    "headers": {
+      "Vary": "Origin, X-Origin, Referer",
+      "Content-Type": "application/json; charset=UTF-8",
+      "Content-Encoding": "gzip",
+      "Date": "Tue, 17 Nov 2026 18:47:35 GMT",
+      "Server": "scaffolding on HTTPServer2",
+      "X-XSS-Protection": "0",
+      "X-Frame-Options": "SAMEORIGIN",
+      "X-Content-Type-Options": "nosniff",
+      "Server-Timing": "gfet4t7; dur=151",
+      "Alt-Svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+      "Transfer-Encoding": "chunked"
+    },
+    "body": "{\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"API key not valid. Please pass a valid API key.\",\n    \"status\": \"INVALID_ARGUMENT\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.ErrorInfo\",\n        \"reason\": \"API_KEY_INVALID\",\n        \"domain\": \"googleapis.com\",\n        \"metadata\": {\n          \"service\": \"generativelanguage.googleapis.com\"\n        }\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.LocalizedMessage\",\n        \"locale\": \"en-US\",\n        \"message\": \"API key not valid. Please pass a valid API key.\"\n      }\n    ]\n  }\n}\n"
+  }
+}

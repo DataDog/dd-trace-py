@@ -1,5 +1,6 @@
 """
 The PydanticAI integration instruments the PydanticAI agent framework library.
+Decision model requests (``DecisionModel``) are also traced.
 
 All traces submitted from the PydanticAI integration are tagged by:
 
