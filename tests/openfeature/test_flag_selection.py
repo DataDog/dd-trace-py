@@ -966,6 +966,43 @@ def test_concurrent_shutdown_releases_the_claim_once(cdn, api_key, monkeypatch):
             provider.shutdown()
 
 
+def test_log_handler_shutting_the_provider_down_during_start_does_not_deadlock(cdn, caplog):
+    provider = _provider({"tags": ["a"]}, timeout=0.2)
+    found = []
+
+    class _ShutsDownOnError(logging.Handler):
+        def emit(self, record):
+            if record.levelno >= logging.ERROR and not found:
+                provider.shutdown()
+                found.append(provider._configuration_source)
+
+    source_logger = logging.getLogger("ddtrace.internal.openfeature._source_selection")
+    handler = _ShutsDownOnError()
+    source_logger.addHandler(handler)
+
+    def initialize():
+        try:
+            provider.initialize(EvaluationContext())
+        except ProviderNotReadyError:
+            pass
+
+    # A daemon thread, so a deadlocked start fails the test instead of hanging the run.
+    starting = threading.Thread(target=initialize, daemon=True)
+    try:
+        with override_global_config({"_dd_api_key": None, "_dd_site": "datadoghq.com", "env": None}):
+            # DEBUG turns the per-call-site rate limiter off, so the missing-key error reaches the handler.
+            with caplog.at_level(logging.DEBUG, logger=source_logger.name):
+                starting.start()
+                starting.join(timeout=5)
+        assert not starting.is_alive()
+        assert found == [None]
+        assert provider._configuration_source is None
+    finally:
+        source_logger.removeHandler(handler)
+        if not starting.is_alive():
+            provider.shutdown()
+
+
 def test_concurrent_starts_start_one_poller(cdn, api_key, monkeypatch):
     import ddtrace.internal.openfeature._source_selection as source_selection
 

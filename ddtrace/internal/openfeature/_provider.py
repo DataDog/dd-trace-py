@@ -223,8 +223,9 @@ class DataDogProvider(AbstractProvider):
         # Agentless configuration-source poller; started in initialize() when
         # agentless is the resolved source and stopped in shutdown(). The lock makes a start one step and
         # gives a teardown one owner; the source, and its claim, stay until that teardown's join succeeds.
+        # Reentrant because a start logs under it, and a log handler may shut the provider down.
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
-        self._configuration_source_lock = forksafe.Lock()
+        self._configuration_source_lock = forksafe.RLock()
         self._stopping_configuration_source = False
 
         # Initialize flag evaluation metrics tracking
