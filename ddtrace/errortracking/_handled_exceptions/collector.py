@@ -89,13 +89,15 @@ class HandledExceptionCollector(Service):
             _uninstall_sys_monitoring_reporting()
 
     @classmethod
-    def capture_exception_event(cls, span: HandledExceptionSpanProtocol, exc: Exception, event: SpanEventData):
+    def capture_exception_event(
+        cls, span: HandledExceptionSpanProtocol, exc: BaseException, event: SpanEventData
+    ) -> None:
         capture_exception_event(span, exc, event)
 
     @classmethod
-    def get_exception_events(cls, span_id: int):
+    def get_exception_events(cls, span_id: int) -> dict[int, tuple[BaseException, SpanEventData]]:
         return get_exception_events(span_id)
 
     @classmethod
-    def clear_exception_events(cls, span_id: int):
+    def clear_exception_events(cls, span_id: int) -> None:
         clear_exception_events(span_id)

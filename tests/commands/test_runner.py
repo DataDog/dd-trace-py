@@ -211,7 +211,7 @@ class DdtraceRunTest(BaseTestCase):
         stdout, stderr = p.communicate()
         assert p.returncode == 0
         assert stdout == b""
-        assert b" 'debug': True" in stderr
+        assert b' "debug": true' in stderr
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Profiling unsupported with 3.13")
@@ -693,3 +693,20 @@ def test_ddtrace_run_sync_sigint():
 
     threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
     time.sleep(10)
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_STARTUP_LOGS": None})
+def test_startup_logs_enabled_by_default():
+    from ddtrace import config
+
+    assert config._startup_logs_enabled is True
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    # Nothing listens there, so the agent check fails right away.
+    env={"DD_TRACE_STARTUP_LOGS": None, "DD_TRACE_AGENT_URL": "http://127.0.0.1:1"},
+    err=lambda s: "DATADOG TRACER DIAGNOSTIC - Agent not reachable" in s,
+)
+def test_startup_diagnostics_logged_by_default():
+    pass
