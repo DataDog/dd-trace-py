@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import logging
 from pathlib import Path
 import platform
 import sys
+from types import ModuleType
 import typing as t
 
 import pytest
@@ -42,7 +44,7 @@ def configuration_hash(config: pytest.Config, root: Path, configurations: dict[s
     """Identify the invocation using repository-relative working and root directories."""
     data = {
         "version": DATA_VERSION,
-        "collector": "dd-coverage",
+        "collector": "dd-coverage-v2",
         "command": list(config.invocation_params.args),
         "addopts": env.get("PYTEST_ADDOPTS", ""),
         "root": config.rootpath.resolve().relative_to(root).as_posix(),
@@ -135,6 +137,7 @@ class TIAPlugin:
         self._preloaded_files = self._loaded_files()
         self._owns_coverage = not is_coverage_installed()
         self._test_deps: dict[str, set[str]] = {}
+        self._shared_roots: set[Path] = set()
         self.monitor = ProcessMonitor()
         self.items: dict[str, str] = {}
         self.selected: set[str] = set()
@@ -144,12 +147,40 @@ class TIAPlugin:
         self.always: set[str] = set()
         self.deselected = 0
         self.recording_failed = False
+        self._dynamic_imports_active = False
+        self._original_import_module = importlib.import_module
+        self._import_module_wrapper: t.Optional[t.Callable[..., ModuleType]] = None
         config.add_cleanup(self.close)
         if self._owns_coverage:
             install_coverage(self.root, file_level_coverage=is_file_level_coverage_enabled())
         if not is_coverage_installed():
             raise ValueError("TIA requires dd-coverage collection")
         self.monitor.activate()
+
+        def import_module(name: str, package: t.Optional[str] = None) -> ModuleType:
+            module = self._original_import_module(name, package)
+            if not self._dynamic_imports_active:
+                return module
+            try:
+                filename = getattr(module, "__file__", None)
+                if isinstance(filename, str) and to_repo_rel(filename, self.root) is not None:
+                    # Cached dynamic imports execute neither module code nor an import bytecode.
+                    path = Path(filename)
+                    if self.monitor.phase == "test" and self.monitor.current_nodeid is not None:
+                        files = coverage_for_files([path]).get_covered_files(self.root)
+                        self._test_deps.setdefault(self.monitor.current_nodeid, set()).update(
+                            file.lstrip("/") for file in files
+                        )
+                    else:
+                        self._shared_roots.add(path)
+            except Exception:
+                self.recording_failed = True
+                log.debug("Could not record a TIA dynamic import", exc_info=True)
+            return module
+
+        self._import_module_wrapper = import_module
+        self._dynamic_imports_active = True
+        importlib.import_module = import_module
 
     def _loaded_files(self) -> set[str]:
         files = set()
@@ -159,7 +190,13 @@ class TIAPlugin:
                 files.add(relative)
         return files
 
+    def _stop_dynamic_imports(self) -> None:
+        self._dynamic_imports_active = False
+        if importlib.import_module is self._import_module_wrapper:
+            importlib.import_module = self._original_import_module
+
     def close(self) -> None:
+        self._stop_dynamic_imports()
         self.monitor.deactivate()
         if self._owns_coverage and is_coverage_installed():
             uninstall_coverage()
@@ -243,6 +280,7 @@ class TIAPlugin:
     @pytest.hookimpl(tryfirst=True)
     @catch_and_log_exceptions()
     def pytest_sessionfinish(self, session: pytest.Session, exitstatus: int) -> None:
+        self._stop_dynamic_imports()
         self.monitor.deactivate()
         if exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self.deselected and not session.items:
             session.exitstatus = pytest.ExitCode.OK
@@ -262,13 +300,16 @@ class TIAPlugin:
         # Previously imported code may not have been instrumented. Preserve all loaded repository files in that case.
         if self._preloaded_files:
             shared.update(self._loaded_files())
-        shared_roots: list[Path] = []
+        # Pytest also uses import_module to load test modules; their roots remain per-test.
+        test_files = set(self.items.values())
+        shared_roots = {path for path in self._shared_roots if to_repo_rel(str(path), self.root) not in test_files}
         for plugin in session.config.pluginmanager.get_plugins():
             filename = getattr(plugin, "__file__", None)
-            if isinstance(filename, str) and Path(filename).name == "conftest.py":
+            if isinstance(filename, str):
                 rel = to_repo_rel(filename, self.root)
                 if rel:
-                    shared_roots.append(Path(filename))
+                    # pytest_plugins strings do not create import edges from conftest files.
+                    shared_roots.add(Path(filename))
         shared.update(path.lstrip("/") for path in coverage_for_files(shared_roots).get_covered_files(self.root))
         if session.config.inipath:
             rel = to_repo_rel(session.config.inipath, self.root)

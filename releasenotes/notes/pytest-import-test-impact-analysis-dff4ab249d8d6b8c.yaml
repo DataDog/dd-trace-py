@@ -1,5 +1,5 @@
 features:
   - |
-    CI visibility: Adds import-based pytest Test Impact Analysis with ``DD_TIA_ENABLED=1``
+    CI visibility: Adds coverage-based pytest Test Impact Analysis with ``DD_TIA_ENABLED=1``
     (disabled by default), using local dependency maps first and fetching remote maps on a
     cache miss to deselect unaffected tests.

@@ -96,7 +96,9 @@ def _make_corpus(root: Path) -> None:
         "shop/stock.py": "def available(): return True\n",
         "shop/currency.py": "UNIT = 'USD'\n",
         "shop/child.py": "def value(): return 42\n",
-        "conftest.py": """
+        "shop/settings.py": "VALUE = 1\n",
+        "conftest.py": "pytest_plugins = ['shop.fixtures']\n",
+        "shop/fixtures.py": """
             import pytest
             @pytest.fixture(scope="session")
             def currency():
@@ -134,6 +136,14 @@ def _make_corpus(root: Path) -> None:
                 subprocess.run([sys.executable, "-c", "from shop.child import value; assert value() == 42"], check=True)
         """,
         "tests/test_smoke.py": "def test_smoke(): assert True\n",
+        "tests/test_static.py": """
+            from shop.settings import VALUE
+            def test_static(): assert VALUE == 1
+        """,
+        "tests/test_dynamic.py": """
+            from importlib import import_module
+            def test_dynamic(): assert import_module("shop.settings").VALUE == 1
+        """,
     }
     for name, content in sources.items():
         path = root / name
@@ -185,6 +195,8 @@ def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None: 
         "tests/test_shipping.py::test_fee",
         "tests/test_threads.py::test_stock",
         "tests/test_smoke.py::test_smoke",
+        "tests/test_static.py::test_static",
+        "tests/test_dynamic.py::test_dynamic",
     }
 
     with MockCIVisibilityServer() as backend:
@@ -257,7 +269,8 @@ def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None: 
         graph = load_graph(baseline["map"], baseline)
         assert graph is not None
         assert graph.always == {process_test}
-        assert {"conftest.py", "shop/currency.py", "pytest.ini"} <= graph.import_deps
+        assert "shop/settings.py" in graph.tests["tests/test_dynamic.py::test_dynamic"]
+        assert {"conftest.py", "shop/fixtures.py", "shop/currency.py", "pytest.ini"} <= graph.import_deps
         assert "shop/stock.py" in graph.tests["tests/test_threads.py::test_stock"]
         run("unchanged", test_project, {process_test})
         assert len(state.lookups) == 1
@@ -286,9 +299,20 @@ def test_tia_ddcoverage_end_to_end(test_project: Path, tmp_path: Path) -> None: 
         assert state.lookups[-1]["matched_commit"] == current
         assert state.lookups[-1]["source_commit"] == first_commit
 
+        settings_tests = {"tests/test_static.py::test_static", "tests/test_dynamic.py::test_dynamic"}
+        (test_project / "shop/settings.py").write_text("VALUE = 2\n")
+        _git_commit(test_project, "Introduce a cached dynamic import regression")
+        run("cached_dynamic_import_regression", test_project, settings_tests | {process_test}, failures=2)
+        (test_project / "shop/settings.py").write_text("VALUE = 1\nVERSION = 2\n")
+        _git_commit(test_project, "Fix the cached dynamic import regression")
+        run("cached_dynamic_import_fixed", test_project, settings_tests | {process_test})
+
+        (test_project / "shop/currency.py").write_text("UNIT = 'EUR'\n")
+        _git_commit(test_project, "Introduce a fixture plugin dependency regression")
+        run("fixture_plugin_regression", test_project, all_tests, failures=3)
         (test_project / "shop/currency.py").write_text("UNIT = 'USD'\nVERSION = 2\n")
-        _git_commit(test_project, "Change a shared fixture dependency")
-        run("global_dependency", test_project, all_tests)
+        _git_commit(test_project, "Fix the shared fixture dependency")
+        run("fixture_plugin_fixed", test_project, all_tests)
         assert len(state.lookups) == 2
         assert backend.count_requests("/api/v2/citestcov") == 0
 

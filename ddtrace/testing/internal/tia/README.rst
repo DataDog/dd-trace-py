@@ -4,10 +4,12 @@ Test Impact Analysis
 ``DD_TIA_ENABLED=1 pytest`` activates coverage-based dependency recording and
 selection through ``ddtrace.testing``. TIA consumes the existing per-test
 ``dd-coverage`` data used by ITR, including executed repository files and the
-collector's transitive import-time dependencies. It does not wrap
-``builtins.__import__`` or ``importlib.import_module``. When ITR coverage is also
-enabled, both features share the same test execution context; TIA alone does
-not enable per-test coverage uploads.
+collector's transitive import-time dependencies. A small
+``importlib.import_module`` wrapper supplies dependency roots for cached dynamic
+imports, which execute neither module code nor import bytecode. These roots
+are expanded by dd-coverage; ``builtins.__import__`` is left unchanged. When ITR
+coverage is also enabled, both features share the same test execution context;
+TIA alone does not enable per-test coverage uploads.
 
 The process-spawn guard, repository path filter, and file selector are adapted
 from `pytest-filemon <https://github.com/gnufede/pytest-filemon>`_ under
@@ -27,8 +29,11 @@ outside the tracked worktree, so caching does not make a clean checkout dirty.
 
 The map covers repository files executed by tests and fixtures, augmented with
 the collector's import-time dependencies. It does not track arbitrary data-file
-reads or code outside the repository. Conftest files and their dependency
-closures conservatively affect every test, including cached fixture dependencies.
+reads or code outside the repository. Repository pytest plugins, including
+conftest files and modules registered through ``pytest_plugins``, and their
+dependency closures conservatively affect every test, including cached fixture
+dependencies. Dynamic imports during collection and fixture setup also supply
+shared roots; pytest's test-module imports remain per-test.
 Repository modules loaded before instrumentation are treated conservatively as
 shared dependencies. A test without observed coverage always runs. Joined
 threads and supported multiprocessing children use dd-coverage's propagation.
@@ -47,9 +52,9 @@ collection-only runs, interrupted sessions, and collection errors are not
 uploaded. The worktree must be clean both before and after execution and HEAD
 must remain unchanged. TIA replaces server-side ITR skipping for its session.
 The recorder identity is part of the configuration hash, so maps produced by
-an older import-hook recorder are not reused. The plugin runs in a single pytest
-process; distributed xdist,
-offline, discovery, and all-flaky-test modes keep their existing behavior.
+an older recorder or an incomplete dependency-recording revision are not
+reused. The plugin runs in a single pytest process; distributed xdist, offline,
+discovery, and all-flaky-test modes keep their existing behavior.
 
 Artifact transport
 ------------------
@@ -124,7 +129,7 @@ Synthetic end-to-end scenario
 -----------------------------
 
 ``tests/testing/internal/pytest/test_pytest_tia_e2e.py`` runs fresh pytest
-processes against a six-case corpus in a real Git repository. It reuses the
+processes against an eight-case corpus in a real Git repository. It reuses the
 Test Optimization HTTP test server and exercises artifact PUT/lookup requests
 over localhost. It does not call a live Datadog backend. Discover the testing
 environment, then select only the scenario::
@@ -132,13 +137,16 @@ environment, then select only the scenario::
     scripts/run-tests --list tests/testing/internal/pytest/test_pytest_tia_e2e.py
     scripts/run-tests --venv <testing-environment-hash> -- -n 0 -k test_tia_ddcoverage_end_to_end
 
-The scenario records six tests initially. An unchanged run selects only the
+The scenario records eight tests initially. An unchanged run selects only the
 subprocess case. A regression in ``shop/cart.py`` selects its two parametrized
 cases and the subprocess case; another unchanged run retains those failed
 cases. Fixing the cart clears their failure state. A fresh checkout restores
 an artifact whose matched commit differs from its source commit and still
-selects the affected cart cases. Changing a shared fixture dependency runs all
-six tests. TIA alone does not send ITR coverage uploads.
+selects the affected cart cases. A cached dynamic import regression selects
+both the static and dynamic consumers, and its fix clears their failures.
+Changing a session fixture dependency registered through ``pytest_plugins``
+runs all eight tests and exposes failures in all three fixture consumers;
+restoring it clears those failures. TIA alone does not send ITR coverage uploads.
 
 Each run writes ``.cache/tia-e2e/run-*/summary.json``, subprocess logs, and two
 map renderings: ``map-current.json`` and ``map-ruby-shaped.json``. The latter

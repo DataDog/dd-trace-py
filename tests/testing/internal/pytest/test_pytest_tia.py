@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import builtins
 import hashlib
+import importlib
 import json
 import subprocess
 import sys
@@ -61,6 +62,7 @@ def _baseline(client, tests, shared=(), failed=(), always=()):
 def test_tia_env_enables_without_ddtrace_flag(pytester, tia_backend):
     client, git = tia_backend
     pytester.makepyfile("def test_one(): pass")
+    original_import_module = importlib.import_module
     result = pytester.inline_run()
     result.assertoutcome(passed=1)
     client.lookup_tia_map.assert_called_once()
@@ -75,6 +77,7 @@ def test_tia_env_enables_without_ddtrace_flag(pytester, tia_backend):
         "test_tia_env_enables_without_ddtrace_flag.py::test_one": {"test_tia_env_enables_without_ddtrace_flag.py"}
     }
     assert not getattr(builtins.__import__, "_filemon_tracking", False)
+    assert importlib.import_module is original_import_module
 
 
 def test_selects_affected_failed_new_and_subprocess_tests(pytester, tia_backend):
@@ -204,10 +207,12 @@ def test_disabled_has_no_tia_requests(pytester, tia_backend, monkeypatch):
 def test_collect_error_restores_hooks(pytester, tia_backend):
     client, _ = tia_backend
     original = builtins.__import__
+    original_import_module = importlib.import_module
     installed = is_coverage_installed()
     pytester.makepyfile("raise RuntimeError('collection failed')")
     assert pytester.inline_run().ret != 0
     assert builtins.__import__ is original
+    assert importlib.import_module is original_import_module
     assert is_coverage_installed() == installed
     client.store_tia_map.assert_not_called()
 

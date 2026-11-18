@@ -70,7 +70,7 @@ class CoverageData:
         for absolute_path in paths:
             relative = _relative_coverage_path(absolute_path, relative_to_str)
             if relative is not None:
-                yield relative
+                yield Path(relative).as_posix()
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         # Canonicalize the workspace: instrumentation records covered paths under

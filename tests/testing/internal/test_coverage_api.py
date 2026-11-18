@@ -1,7 +1,9 @@
 from pathlib import Path
+from pathlib import PureWindowsPath
 from unittest import mock
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.testing.internal.tracer_api.coverage import CoverageData
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 
 
@@ -51,3 +53,17 @@ def test_get_covered_files_from_file_coverage() -> None:
             pass
         assert set(data.get_covered_files(Path("/repo/path"))) == {"/module.py"}
         collect().__enter__().get_covered_lines.assert_not_called()
+
+
+def test_get_covered_files_normalizes_windows_separators() -> None:
+    root = Path("/repo")
+    data = CoverageData()
+    data._covered_file_paths = ["C:\\repo\\tests\\test_example.py"]
+    with (
+        mock.patch(
+            "ddtrace.testing.internal.tracer_api.coverage._relative_coverage_path",
+            return_value="/tests\\test_example.py",
+        ),
+        mock.patch("ddtrace.testing.internal.tracer_api.coverage.Path", PureWindowsPath),
+    ):
+        assert list(data.get_covered_files(root)) == ["/tests/test_example.py"]
