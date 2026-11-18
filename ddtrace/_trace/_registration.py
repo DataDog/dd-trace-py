@@ -78,6 +78,13 @@ def register_subscribers(bundles: tuple[SubscriberBundle, ...] = subscriber_bund
     for bundle in bundles:
         bundle.register()
 
-    # Restore SDK-dependent listeners on repeated product startup as well.
-    if "ddtrace.contrib.internal.ray.patch" in sys.modules:
+    # Restore SDK-dependent listeners only after the patch module finishes loading.
+    # Modules appear in sys.modules before their SDK imports and configuration complete.
+    ray_patch_name = "ddtrace.contrib.internal.ray.patch"
+    ray_patch = sys.modules.get(ray_patch_name)
+    if (
+        ray_patch is not None
+        and not getattr(ray_patch.__spec__, "_initializing", False)
+        and sys.modules.get(ray_patch_name) is ray_patch
+    ):
         RAY_SUBSCRIBERS.register()
