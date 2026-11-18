@@ -129,6 +129,7 @@ suites:
     paths:
       - '@bootstrap'
       - '@ai_guard'
+      - '@openai'
       - tests/aiguard/litellm_guardrail/*
       - tests/aiguard/utils.py
       - tests/aiguard/suitespec.yml

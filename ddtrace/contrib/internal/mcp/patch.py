@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from typing import Optional
 
 import mcp
@@ -9,25 +8,36 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.mcp._constants import CLIENT_SESSION_SERVER_INFO_EVENT
 from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import COMPONENT
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SESSION_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import TELEMETRY_ARGUMENT_EVENT
+from ddtrace.contrib.internal.mcp._constants import TOOLS_LIST_RESPONSE_EVENT
 from ddtrace.contrib.internal.mcp._tool_result import DEFAULT_TOOL_ERROR_MESSAGE
 from ddtrace.contrib.internal.mcp._tool_result import get_tool_error_message
 from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.contrib.internal.mcp.utils import DatadogServerMiddleware
 from ddtrace.contrib.internal.mcp.utils import extract_distributed_headers_from_mcp_request
+from ddtrace.contrib.internal.mcp.utils import finish_request
+from ddtrace.contrib.internal.mcp.utils import request_event
 from ddtrace.contrib.internal.mcp.utils import set_distributed_headers_into_mcp_request
+from ddtrace.contrib.internal.mcp.utils import start_request
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.trace import tracer
 
 
@@ -68,101 +78,88 @@ def traced_send_request(func, instance, args: tuple, kwargs: dict):
 
 
 async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
-    integration: MCPIntegration = mcp._datadog_integration
-
-    span: Span = integration.trace(CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
-
+    ctx = start_request(
+        request_event(CLIENT_TOOL_CALL_OPERATION_NAME, CLIENT_TOOL_CALL_OPERATION_NAME, args=args, kwargs=kwargs)
+    )
+    result = None
+    error = False
     try:
         result = await func(*args, **kwargs)
 
         if is_tool_error(result):
+            span = span_from_context(ctx)
             span.error = 1
             error_message = get_tool_error_message(result)
             if error_message:
                 span.set_tag(ERROR_MSG, error_message)
 
-        integration.llmobs_set_tags(
-            span, args=args, kwargs=kwargs, response=result, operation=CLIENT_TOOL_CALL_OPERATION_NAME
-        )
-
         return result
     except Exception:
-        integration.llmobs_set_tags(
-            span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
-        )
-        span.set_exc_info(*sys.exc_info())
+        error = True
         raise
     finally:
-        span.finish()
+        finish_request(ctx, result, error)
+
+
+async def _traced_client_request(func, instance, args, kwargs, operation):
+    ctx = start_request(
+        request_event("%s.%s" % (instance.__class__.__name__, func.__name__), operation, args=args, kwargs=kwargs)
+    )
+    response = None
+    error = False
+    try:
+        response = await func(*args, **kwargs)
+        return response
+    except BaseException:
+        error = True
+        raise
+    finally:
+        finish_request(ctx, response, error)
 
 
 async def traced_client_session_initialize(func, instance, args: tuple, kwargs: dict):
-    integration: MCPIntegration = mcp._datadog_integration
-
-    with integration.trace("%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
-        response = None
-        try:
-            response = await func(*args, **kwargs)
-            return response
-        finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="initialize")
+    return await _traced_client_request(func, instance, args, kwargs, "initialize")
 
 
 async def traced_client_session_list_tools(func, instance, args: tuple, kwargs: dict):
-    integration: MCPIntegration = mcp._datadog_integration
-
-    with integration.trace("%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
-        response = None
-        try:
-            response = await func(*args, **kwargs)
-            return response
-        finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="list_tools")
+    return await _traced_client_request(func, instance, args, kwargs, "list_tools")
 
 
 async def traced_client_session_aenter(func, instance, args: tuple, kwargs: dict):
-    integration: MCPIntegration = mcp._datadog_integration
-    span = integration.trace(instance.__class__.__name__, submit_to_llmobs=True, type="client_session")
-
-    setattr(instance, "_dd_span", span)
+    ctx = start_request(request_event(instance.__class__.__name__, SESSION_OPERATION_NAME))
+    setattr(instance, "_dd_ctx", ctx)
     try:
         return await func(*args, **kwargs)
     except Exception:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
+        delattr(instance, "_dd_ctx")
+        finish_request(ctx, error=True)
         raise
 
 
 async def traced_client_session_aexit(func, instance, args: tuple, kwargs: dict):
-    integration: MCPIntegration = mcp._datadog_integration
-    span: Optional[Span] = getattr(instance, "_dd_span", None)
+    ctx: Optional[core.ExecutionContext[LlmRequestEvent]] = getattr(instance, "_dd_ctx", None)
+    if ctx is None:
+        return await func(*args, **kwargs)
+    delattr(instance, "_dd_ctx")
 
+    error = False
     try:
         return await func(*args, **kwargs)
     except Exception:
-        if span:
-            span.set_exc_info(*sys.exc_info())
+        error = True
         raise
     finally:
-        if span:
-            integration.llmobs_set_tags(
-                span,
-                args=[],
-                kwargs=dict(
-                    read_stream=_get_attr(instance, "_read_stream", None),
-                    write_stream=_get_attr(instance, "_write_stream", None),
-                ),
-                response=None,
-                operation="session",
-            )
-            span.finish()
+        ctx.event.request_kwargs.update(
+            read_stream=_get_attr(instance, "_read_stream", None),
+            write_stream=_get_attr(instance, "_write_stream", None),
+        )
+        finish_request(ctx, error=error)
 
 
 def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
     from mcp.types import CallToolRequest
     from mcp.types import InitializeRequest
 
-    integration: MCPIntegration = mcp._datadog_integration
     request_wrapper = _get_attr(instance, "request", None)
     request_root = _get_attr(request_wrapper, "root", None)
 
@@ -184,31 +181,36 @@ def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
         SERVER_TOOL_CALL_OPERATION_NAME if isinstance(request_root, CallToolRequest) else SERVER_REQUEST_OPERATION_NAME
     )
 
-    span = integration.trace(
-        operation_name,
-        submit_to_llmobs=True,
-        span_name="mcp.{}".format(_get_attr(request_root, "method", "unknown")),
+    ctx = start_request(
+        request_event(
+            operation_name,
+            operation_name,
+            span_name="mcp.{}".format(_get_attr(request_root, "method", "unknown")),
+        )
     )
+    span = span_from_context(ctx)
+    setattr(instance, "_dd_ctx", ctx)
     setattr(instance, "_dd_span", span)
 
     if isinstance(request_root, CallToolRequest):
-        integration.process_telemetry_argument(span, request_root)
+        core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, request_root))
 
     return func(*args, **kwargs)
 
 
 def traced_request_responder_exit(func, instance, args: tuple, kwargs: dict):
-    span: Optional[Span] = getattr(instance, "_dd_span", None)
-    if span:
+    ctx: Optional[core.ExecutionContext[LlmRequestEvent]] = getattr(instance, "_dd_ctx", None)
+    if ctx:
+        delattr(instance, "_dd_ctx")
         # Check if an exception occurred (__exit__ receives (exc_type, exc_val, exc_tb))
         exc_type = args[0] if len(args) > 0 else None
         exc_val = args[1] if len(args) > 1 else None
         exc_tb = args[2] if len(args) > 2 else None
 
         if exc_type is not None:
-            span.set_exc_info(exc_type, exc_val, exc_tb)
+            span_from_context(ctx).set_exc_info(exc_type, exc_val, exc_tb)
 
-        span.finish()
+        finish_request(ctx)
     return func(*args, **kwargs)
 
 
@@ -218,11 +220,10 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
 
     response_arg = args[0] if args else kwargs.get("response")
     response = getattr(response_arg, "root", response_arg)
-    integration: MCPIntegration = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
     if config.mcp.capture_intent and isinstance(response, ListToolsResult):
-        integration.inject_tools_list_response(response)
+        core.dispatch(TOOLS_LIST_RESPONSE_EVENT, (response,))
 
     try:
         return await func(*args, **kwargs)
@@ -232,13 +233,11 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
                 span.error = 1
                 span.set_tag(ERROR_TYPE, "ToolError")
                 span.set_tag(ERROR_MSG, get_tool_error_message(response) or DEFAULT_TOOL_ERROR_MESSAGE)
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=dict(**kwargs, request_responder=instance),
-                response=None,
-                operation=SERVER_REQUEST_OPERATION_NAME,
-            )
+        ctx: Optional[core.ExecutionContext[LlmRequestEvent]] = getattr(instance, "_dd_ctx", None)
+        if ctx:
+            # LLMObs reads the response from the responder once __exit__ finishes the request.
+            ctx.event.request_args = args
+            ctx.event.request_kwargs = dict(**kwargs, request_responder=instance)
 
 
 def traced_client_session_adopt(func, instance, args: tuple, kwargs: dict):
@@ -248,9 +247,9 @@ def traced_client_session_adopt(func, instance, args: tuple, kwargs: dict):
     placeholder with no server info (unless given prior_discover), so it gets no mcp_server_name.
     """
     result = func(*args, **kwargs)
-    integration: MCPIntegration = mcp._datadog_integration
-    span = getattr(instance, "_dd_span", None) or tracer.current_span()
-    integration.set_client_session_server_info(span, _get_attr(instance, "server_info", None))
+    ctx = getattr(instance, "_dd_ctx", None)
+    span = span_from_context(ctx) if ctx is not None else tracer.current_span()
+    core.dispatch(CLIENT_SESSION_SERVER_INFO_EVENT, (span, _get_attr(instance, "server_info", None)))
     return result
 
 
@@ -284,8 +283,6 @@ def patch():
         log.debug("mcp is importable but is not the MCP SDK, skipping instrumentation")
         return
 
-    mcp._datadog_integration = MCPIntegration(integration_config=config.mcp)
-
     wrap(ClientSession, "__aenter__", traced_client_session_aenter)
     wrap(ClientSession, "__aexit__", traced_client_session_aexit)
     wrap(ClientSession, "call_tool", traced_call_tool)
@@ -298,18 +295,21 @@ def patch():
         wrap(ClientSession, "send_request", traced_send_request)
         wrap(ClientSession, "adopt", traced_client_session_adopt)
         wrap(ServerRunner, "__init__", traced_server_runner_init)
-        return
+    else:
+        from mcp.shared.session import BaseSession
+        from mcp.shared.session import RequestResponder
 
-    from mcp.shared.session import BaseSession
-    from mcp.shared.session import RequestResponder
+        wrap(BaseSession, "send_request", traced_send_request)
+        wrap(RequestResponder, "respond", traced_request_responder_respond)
 
-    wrap(BaseSession, "send_request", traced_send_request)
-    wrap(RequestResponder, "respond", traced_request_responder_respond)
+        # RequestResponder gained the context manager protocol in mcp 1.3.0.
+        if hasattr(RequestResponder, "__enter__") and hasattr(RequestResponder, "__exit__"):
+            wrap(RequestResponder, "__enter__", traced_request_responder_enter)
+            wrap(RequestResponder, "__exit__", traced_request_responder_exit)
 
-    # RequestResponder gained the context manager protocol in mcp 1.3.0.
-    if hasattr(RequestResponder, "__enter__") and hasattr(RequestResponder, "__exit__"):
-        wrap(RequestResponder, "__enter__", traced_request_responder_enter)
-        wrap(RequestResponder, "__exit__", traced_request_responder_exit)
+    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
 
 
 def unpatch():
@@ -317,6 +317,8 @@ def unpatch():
         return
 
     mcp.__datadog_patch = False
+
+    integration_hooks.on_unpatch(COMPONENT)
 
     # Only reachable with __datadog_patch set, which patch() leaves set only
     # when this import succeeded, so it cannot fail here.
@@ -345,5 +347,3 @@ def unpatch():
         if iswrapped(RequestResponder, "__enter__"):
             unwrap(RequestResponder, "__enter__")
             unwrap(RequestResponder, "__exit__")
-
-    delattr(mcp, "_datadog_integration")

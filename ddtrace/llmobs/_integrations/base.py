@@ -119,11 +119,18 @@ class BaseLLMIntegration:
         else:
             _annotate_llmobs_span_data(span, kind=span_kind)
 
-    def _on_request_span_started(self, span: Span, instance: Any = None, operation: str = "") -> None:
+    def _on_request_span_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
         """Run integration-specific setup once a subscriber-owned request span has started.
 
         Called by the shared LLMObs SPAN_STARTED subscriber after base tags and span kind are set,
-        before the wrapped call runs, so child spans can read what is recorded here.
+        whether or not LLMObs is enabled, and before the wrapped call runs, so child spans can read
+        what is recorded here (for example span links).
         """
         pass
 
@@ -245,6 +252,10 @@ class BaseLLMIntegration:
                     span._set_attribute(shadow_key, value)
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+        return None
+
+    def _llmobs_gateway(self, request_kwargs: dict[str, Any]) -> Optional[str]:
+        """Return the kind of LLM gateway that serves the request, or None if no gateway serves it."""
         return None
 
     def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool:
