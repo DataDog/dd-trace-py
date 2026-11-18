@@ -16,8 +16,6 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/api/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_api
           dependencies: [requests]
@@ -33,8 +31,6 @@ suites:
       - testagent
     matrix:
       command: pytest {cmdargs} tests/aiguard/langchain/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_langchain
           python: ['3.9', '3.10', '3.11']
@@ -59,8 +55,6 @@ suites:
       - testagent
     matrix:
       command: pytest {cmdargs} tests/aiguard/openai/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_openai
           python: ['3.9', '3.10', '3.11', '3.12']
@@ -100,8 +94,6 @@ suites:
       - testagent
     matrix:
       command: pytest {cmdargs} tests/aiguard/anthropic/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_anthropic
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
@@ -126,8 +118,6 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/strands_hooks/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: ai_guard_strands
@@ -145,8 +135,6 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       # fastuuid 0.14.0 cannot build on Python 3.15.
       variants:
         - name: ai_guard_litellm_guardrail

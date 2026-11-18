@@ -97,9 +97,10 @@ def _configure_ci_test_optimization_environment(env: dict[str, str], python_hint
     tags = f"test.configuration.env_hash:{environment_hash}"
     env["_CI_DD_TAGS"] = f"{tags},test.configuration.python:{python_hint}" if python_hint else tags
 
-    # Suites opt into test skipping with DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB; skipping is done by TIA.
+    # TIA selects tests in every suite unless the suite opts out of Test Optimization (ITR) or sets DD_TIA_ENABLED.
     if (
-        _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false"))
+        _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
+        and _is_true(env.get("DD_CIVISIBILITY_ITR_ENABLED", "true"))
         and "DD_TIA_ENABLED" not in env
         and python_version is not None
         and python_version >= _TIA_MIN_PYTHON_VERSION
