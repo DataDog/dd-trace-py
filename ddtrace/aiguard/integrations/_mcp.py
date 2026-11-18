@@ -151,9 +151,8 @@ def _whatwg_ipv4(labels: list[str]) -> Optional[str]:
     values: list[int] = numbers  # type: ignore[assignment]
     if any(number > 255 for number in values[:-1]) or values[-1] >= 256 ** (5 - len(values)):
         return None
-    address = values[-1]
-    for index, number in enumerate(values[:-1]):
-        address += number * 256 ** (3 - index)
+    # Leading numbers are single bytes from the top; the last one fills all remaining bytes.
+    address = values[-1] + sum(number << (8 * (3 - index)) for index, number in enumerate(values[:-1]))
     return ".".join(str((address >> shift) & 0xFF) for shift in (24, 16, 8, 0))
 
 
@@ -166,18 +165,18 @@ def _canonical_ipv6(host: str) -> Optional[str]:
     except ValueError:
         return None
     pieces = [int.from_bytes(packed[i : i + 2], "big") for i in range(0, 16, 2)]
+    # The first of the longest runs of zero pieces; a single zero piece is not compressed.
     start, length = -1, 1
-    index = 0
-    while index < 8:
-        if pieces[index] == 0:
-            end = index
-            while end < 8 and pieces[end] == 0:
-                end += 1
-            if end - index > length:
-                start, length = index, end - index
-            index = end
-        else:
-            index += 1
+    run_start: Optional[int] = None
+    # A trailing nonzero sentinel closes a run that reaches the last piece.
+    for index, piece in enumerate([*pieces, 1]):
+        if piece == 0:
+            if run_start is None:
+                run_start = index
+        elif run_start is not None:
+            if index - run_start > length:
+                start, length = run_start, index - run_start
+            run_start = None
     if start < 0:
         return "[" + ":".join(f"{piece:x}" for piece in pieces) + "]"
     head = ":".join(f"{piece:x}" for piece in pieces[:start])
