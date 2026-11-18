@@ -1,0 +1,4 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where managed prompt exposure reporting stops
+    after LLM Observability is disabled and re-enabled with OpenFeature SDK 0.10.

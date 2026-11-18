@@ -197,6 +197,7 @@ class DataDogProvider(AbstractProvider):
         # Agentless configuration-source poller; started in initialize() when
         # agentless is the resolved source and stopped in shutdown().
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
+        self._configuration_source_lock = forksafe.RLock()
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
@@ -433,33 +434,35 @@ class DataDogProvider(AbstractProvider):
 
     def _start_configuration_source(self) -> None:
         """Start the agentless poller when agentless is the resolved source."""
-        if self._configuration_source is not None:
-            return
+        with self._configuration_source_lock:
+            if self._configuration_source is not None:
+                return
 
-        from ddtrace.internal.openfeature._source_selection import create_agentless_source
+            from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
-        source = create_agentless_source(ffe_config, _apply_agentless_configuration)
-        if source is None:
-            return
+            source = create_agentless_source(ffe_config, _apply_agentless_configuration)
+            if source is None:
+                return
 
-        try:
-            source.start()
-        except ServiceStatusError:
-            logger.debug("Agentless configuration source is already running", exc_info=True)
-        self._configuration_source = source
+            try:
+                source.start()
+            except ServiceStatusError:
+                logger.debug("Agentless configuration source is already running", exc_info=True)
+            self._configuration_source = source
 
     def _stop_configuration_source(self) -> None:
         """Stop the agentless poller if it was started."""
-        if self._configuration_source is None:
-            return
+        with self._configuration_source_lock:
+            if self._configuration_source is None:
+                return
 
-        try:
-            self._configuration_source.stop()
-            self._configuration_source.join()
-            logger.debug("Feature Flags: agentless configuration source stopped")
-        except ServiceStatusError:
-            logger.debug("Agentless configuration source is already stopped", exc_info=True)
-        self._configuration_source = None
+            try:
+                self._configuration_source.stop()
+                self._configuration_source.join()
+                logger.debug("Feature Flags: agentless configuration source stopped")
+            except ServiceStatusError:
+                logger.debug("Agentless configuration source is already stopped", exc_info=True)
+            self._configuration_source = None
 
     def resolve_boolean_details(
         self,
@@ -868,7 +871,10 @@ def _apply_agentless_configuration(configuration: "dict[str, typing.Any]") -> No
         raise ValueError("Feature Flagging configuration was rejected by the evaluator")
 
 
-def set_domain_provider(provider: DataDogProvider, domain: str) -> None:
+_DOMAIN_PROVIDER_LOCK = forksafe.RLock()
+
+
+def set_domain_provider(provider_factory: typing.Callable[[], DataDogProvider], domain: str) -> None:
     """Register provider for domain so its first evaluation can use configuration that is already local.
 
     openfeature-sdk 0.10+ runs initialize() on a background thread in set_provider(), so an evaluation
@@ -877,7 +883,22 @@ def set_domain_provider(provider: DataDogProvider, domain: str) -> None:
     for configuration delivery: initialize() is bounded by the provider's own initialization timeout.
     Older SDK versions without set_provider_and_wait() initialize inline in set_provider().
     """
-    register = api.set_provider
-    if _get_ffe_snapshot() is not None:
-        register = getattr(api, "set_provider_and_wait", register)
-    register(provider, domain)
+    with _DOMAIN_PROVIDER_LOCK:
+        register = api.set_provider
+        provider = None
+        wait = getattr(api, "set_provider_and_wait", None)
+        if _get_ffe_snapshot() is not None and wait is not None:
+            register = wait
+            existing = api.get_client(domain).provider
+            # Keep the prompt provider alive across manager recreation. SDK 0.10
+            # otherwise initializes its replacement before shutting down the old
+            # provider, whose shutdown stops their shared exposure writer.
+            if (
+                type(existing) is DataDogProvider
+                and existing._initialization_timeout == 0
+                and existing is not api.get_client().provider
+            ):
+                provider = existing
+        if provider is None:
+            provider = provider_factory()
+        register(provider, domain)

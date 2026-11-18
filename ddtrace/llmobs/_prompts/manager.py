@@ -375,7 +375,7 @@ class PromptManager:
                 from ddtrace.internal.openfeature._provider import set_domain_provider
 
                 # Scoped to our own domain so we don't replace the app's default provider.
-                set_domain_provider(DataDogProvider(initialization_timeout=0), self._FFE_DOMAIN)
+                set_domain_provider(lambda: DataDogProvider(initialization_timeout=0), self._FFE_DOMAIN)
                 self._ffe_provider_set = True
             except Exception:
                 log.debug("Failed to register OpenFeature provider", exc_info=True)
