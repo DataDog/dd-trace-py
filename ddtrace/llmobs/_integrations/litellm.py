@@ -31,6 +31,7 @@ from ddtrace.llmobs._integrations.utils import _capture_inline_image
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_decision
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_metadata
@@ -39,7 +40,6 @@ from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
-from ddtrace.trace import Span
 
 
 MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature", "tags")
@@ -65,12 +65,12 @@ class LiteLLMIntegration(BaseLLMIntegration):
     # Shared with the contrib, which fills it in as litellm resolves providers.
     _model_map = model_map
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the contrib sets the APM model/host tags itself."""
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -101,7 +101,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         self._update_litellm_metadata(span, kwargs, operation)
 
     def _llmobs_set_decision_tags(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any], operation: str
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any], operation: str
     ) -> None:
         model_name, model_provider = self._decision_model(args, kwargs, response)
         span_kind = self._get_span_kind(span, kwargs, model_name, operation)
@@ -166,7 +166,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         metrics.update(get_openrouter_cost_metrics(usage))
         return metrics
 
-    def _update_litellm_metadata(self, span: Span, kwargs: dict[str, Any], operation: str):
+    def _update_litellm_metadata(self, span: _LLMObsSpan, kwargs: dict[str, Any], operation: str):
         metadata = get_llmobs_metadata(span) or {}
         base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
@@ -217,7 +217,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
             )
         return new_model_list
 
-    def _resolve_model_name(self, span: Span, response: Optional[Any], model_name: str, model_provider: str) -> str:
+    def _resolve_model_name(
+        self, span: _LLMObsSpan, response: Optional[Any], model_name: str, model_provider: str
+    ) -> str:
         # Azure requires an arbitrary deployment name as the request model; the canonical model
         # comes from the response. azure_ai is excluded — LiteLLM rewrites its response model to
         # "azure_ai/<deployment>", which would not match the cost catalog.
@@ -248,7 +250,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         )
 
     def _get_span_kind(
-        self, span: Span, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
+        self, span: _LLMObsSpan, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
     ) -> str:
         """
         Workflow span should be submitted to LLMObs if:
@@ -348,7 +350,7 @@ def is_system_one_request(kwargs: dict[str, Any], operation: str) -> bool:
     return "state" in kwargs and kwargs.get("input") is None
 
 
-def _set_system_one_io(span: Span, kwargs: dict[str, Any], response: Optional[Any]) -> None:
+def _set_system_one_io(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
     """Record the System One request body as the input and the response body, without usage, as the output.
 
     Only known request fields are kept, since the other keyword arguments can carry credentials. Inline images become
@@ -396,7 +398,7 @@ def _system_one_media(value: Any, image_parts: list[ImagePart]) -> Any:
     return value
 
 
-def _use_message_content_as_value(span: Span) -> None:
+def _use_message_content_as_value(span: _LLMObsSpan) -> None:
     """On a non-llm span, record the body itself as the value rather than the list of one message carrying it."""
     for value, key in ((get_llmobs_input_value(span), "input_value"), (get_llmobs_output_value(span), "output_value")):
         try:
