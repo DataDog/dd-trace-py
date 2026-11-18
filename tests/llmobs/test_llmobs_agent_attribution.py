@@ -123,29 +123,31 @@ def test_auto_instrumented_agent_parent_attributes_child(
 
 
 def test_event_based_agent_parent_attributes_child(llmobs, llmobs_events):
-    """Same guard for the event-based path: llama_index creates its agent span via the event
-    subscriber (kind stamped in ``on_started``), not ``trace()``.
+    """Same guard for the event-based path: llama_index creates its agent span via the event, and the
+    shared SPAN_STARTED subscriber stamps the kind, not ``trace()``.
     """
     from ddtrace.contrib._events.llm import LlmRequestEvent
     from ddtrace.internal import core
     from ddtrace.internal.span_bus import span_from_context
-    from ddtrace.llmobs._integrations.llama_index import LlamaIndexIntegration
+    from ddtrace.llmobs._contrib import llama_index as llama_index_hooks
 
-    integration = LlamaIndexIntegration(IntegrationConfig(config, "llama_index"))
-    event = LlmRequestEvent(
-        component="llama_index",
-        integration_config=integration.integration_config,
-        resource="my_agent",
-        provider="llama_index",
-        llmobs_integration=integration,
-        submit_to_llmobs=True,
-        operation="agent",
-    )
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        agent_span = span_from_context(ctx)
-        with llmobs.tool(name="my_tool"):
-            pass
-        ctx.dispatch_ended_event()
+    llama_index_hooks.listen()
+    try:
+        event = LlmRequestEvent(
+            component="llama_index",
+            integration_config=IntegrationConfig(config, "llama_index"),
+            resource="my_agent",
+            provider="llama_index",
+            submit_to_llmobs=True,
+            operation="agent",
+        )
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            agent_span = span_from_context(ctx)
+            with llmobs.tool(name="my_tool"):
+                pass
+            ctx.dispatch_ended_event()
+    finally:
+        llama_index_hooks.unlisten()
 
     tool_event = _event_by_name(llmobs_events, "my_tool")
     assert tool_event["meta"]["agent_attribution"]["pagent_span_id"] == str(agent_span.span_id)
