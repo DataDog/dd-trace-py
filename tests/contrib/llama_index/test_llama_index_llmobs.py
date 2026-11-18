@@ -456,7 +456,7 @@ def test_shared_subscribers_isolate_components_and_repatch(monkeypatch):
     from ddtrace import config
     from ddtrace.contrib._events.llm import LlmRequestEvent
     from ddtrace.internal import core
-    from ddtrace.llmobs._contrib import _subscribers
+    from ddtrace.llmobs import _subscribers
 
     monkeypatch.setattr(_subscribers, "_integration_classes", {})
     monkeypatch.setattr(_subscribers, "_integrations", {})

@@ -17,6 +17,7 @@ components:
     - ddtrace/internal/_tagset.py*
     - ddtrace/internal/_utils.*
     - ddtrace/internal/constants.py
+    - ddtrace/internal/container.py
     - ddtrace/internal/encoding.py
     - ddtrace/internal/flare/*
     - ddtrace/internal/pack.h
@@ -27,6 +28,7 @@ components:
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
     - ddtrace/internal/sma.py
+    - ddtrace/internal/span_processor.py
     - ddtrace/internal/tracemethods.py
     - ddtrace/internal/sysdep.h
     - ddtrace/internal/writer/*
@@ -400,6 +402,13 @@ suites:
       - '@tracing'
       - '@flask'
       - '@django'
+      - ddtrace/contrib/_events/span_lifecycle.py
+      - ddtrace/llmobs/_integrations/base.py
+      - ddtrace/llmobs/_contrib/_subscribers.py
+      - ddtrace/llmobs/_llmobs.py
+      - ddtrace/llmobs/_product.py
+      - ddtrace/llmobs/_registration.py
+      - ddtrace/llmobs/_subscribers.py
       - benchmarks/startup/*
       - benchmarks/suitespec.yml
     cpus_per_run: 2
@@ -453,6 +462,12 @@ suites:
       - ddtrace/internal/openfeature/_flageval_pii.py
       - ddtrace/internal/openfeature/_flag_eval_evp_hook.py
       - ddtrace/internal/openfeature/_flagevaluation_writer.py
+      - ddtrace/internal/openfeature/_exposure.py
+      - ddtrace/internal/openfeature/_exposure_decision.py
+      - ddtrace/internal/openfeature/_native.py
+      - ddtrace/internal/openfeature/_provider.py
+      - ddtrace/internal/openfeature/_split_features.py
+      - 'src/native/ffe.rs'
       - benchmarks/openfeature_flagevaluation/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1

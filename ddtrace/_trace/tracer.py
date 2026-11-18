@@ -5,6 +5,7 @@ import inspect
 from inspect import iscoroutinefunction
 from inspect import unwrap
 from itertools import chain
+import json
 import logging
 import os
 from os import getpid
@@ -37,6 +38,7 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
+from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import LOG_ATTR_ENV
@@ -55,7 +57,6 @@ from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.service import ServiceStatusError
@@ -187,6 +188,7 @@ class Tracer:
             partial_flush_enabled=config._partial_flush_enabled,
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
+            tracer_tags=self._tags,
         )
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
@@ -411,13 +413,19 @@ class Tracer:
                     partial_flush_min_spans=self._span_aggregator.partial_flush_min_spans,
                 )
                 info = debug.collect(tracer_debug_info)
+                # Values JSON cannot encode, such as an object set as a configuration value, use their str().
+                info_json = json.dumps(info, default=str)
             except Exception as e:
                 msg = "Failed to collect start-up logs: %s" % e
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
             else:
+                msg = "- DATADOG TRACER CONFIGURATION - %s" % info_json
                 if log.isEnabledFor(logging.INFO):
-                    msg = "- DATADOG TRACER CONFIGURATION - %s" % info
                     self._log_compat(logging.INFO, msg)
+                elif config._startup_logs_enabled and log.manager.disable < logging.INFO:
+                    # DD_TRACE_STARTUP_LOGS asks for the configuration even when the ddtrace logger level,
+                    # which inherits the WARNING default of the root logger, filters out INFO records.
+                    log.handle(log.makeRecord(log.name, logging.INFO, __file__, 0, msg, (), None))
 
                 # Always log errors since we're either in debug_mode or start up logs
                 # are enabled.
@@ -1127,6 +1135,7 @@ class Tracer:
         :param dict tags: dict of tags to set at tracer level
         """
         self._tags.update(tags)
+        self._span_aggregator._set_resource_attributes(self._tags)
 
     def shutdown(self, timeout: Optional[float] = None) -> None:
         """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.

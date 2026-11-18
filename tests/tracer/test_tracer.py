@@ -2127,15 +2127,19 @@ def test_fork_pid():
 @pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_republishes_tracer_metadata_linux():
     import os
+    from unittest.mock import patch
 
     import msgpack
 
     import ddtrace.auto  # noqa
     from ddtrace.internal.runtime import get_runtime_id
+    from ddtrace.trace import tracer
 
-    pid = os.fork()
+    with patch.object(tracer, "_store_metadata", wraps=tracer._store_metadata) as store_metadata:
+        pid = os.fork()
 
     if pid == 0:
+        store_metadata.assert_called_once_with()
         metadata = []
         for fd in os.listdir("/proc/self/fd"):
             path = "/proc/self/fd/" + fd

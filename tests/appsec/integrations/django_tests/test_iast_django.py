@@ -1,6 +1,8 @@
 from urllib.parse import urlencode
 
 from django import VERSION as DJANGO_VERSION
+from django.http import BadHeaderError
+from django.http import HttpResponse
 import pytest
 
 from ddtrace.appsec._constants import STACK_TRACE
@@ -277,7 +279,7 @@ def test_django_untrusted_serialization_yaml(client, iast_span, tracer):
         url="/iast/untrusted/yaml/?input=a: 1",
     )
 
-    vuln_type = "UNTRUSTED_SERIALIZATION"
+    vuln_type = "UNTRUSTED_DESERIALIZATION"
 
     assert response.status_code == 200
 
@@ -308,7 +310,7 @@ def test_django_untrusted_serialization_yaml_load(client, iast_span, tracer):
         url="/iast/untrusted/yaml/load/?input=a: 1",
     )
 
-    vuln_type = "UNTRUSTED_SERIALIZATION"
+    vuln_type = "UNTRUSTED_DESERIALIZATION"
 
     assert response.status_code == 200
 
@@ -355,7 +357,7 @@ def test_django_untrusted_serialization_pickle_smoke(client, iast_span, tracer):
         url="/iast/untrusted/pickle/?input=AQID",
     )
 
-    vuln_type = "UNTRUSTED_SERIALIZATION"
+    vuln_type = "UNTRUSTED_DESERIALIZATION"
 
     assert response.status_code == 200
     loaded = load_iast_report(root_span)
@@ -378,7 +380,7 @@ def test_django_untrusted_serialization_dill_smoke(client, iast_span, tracer):
         url="/iast/untrusted/dill/?input=AQID",
     )
 
-    vuln_type = "UNTRUSTED_SERIALIZATION"
+    vuln_type = "UNTRUSTED_DESERIALIZATION"
 
     assert response.status_code == 200
 
@@ -1130,6 +1132,21 @@ def test_django_command_injection_security_control(client, tracer, security_cont
             assert loaded is not None
         span.reset()
         _testing_unpatch_iast()
+
+
+@pytest.mark.parametrize("newline", ["\r", "\n", "\r\n"])
+def test_django_response_preserves_header_validation_errors(iast_span, newline):
+    value = f"text/plain{newline}X-Injected: true"
+    if DJANGO_VERSION < (3, 2, 0):
+        response_kwargs = {"content_type": value}
+    else:
+        response_kwargs = {"headers": {"Content-Type": value}}
+
+    with pytest.raises(BadHeaderError, match="newlines"):
+        HttpResponse(**response_kwargs)
+
+    response = HttpResponse(content_type="text/plain")
+    assert response["Content-Type"] == "text/plain"
 
 
 def test_django_header_injection_secure(client, iast_span, tracer):

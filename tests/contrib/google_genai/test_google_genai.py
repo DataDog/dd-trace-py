@@ -170,7 +170,7 @@ async def test_google_genai_generate_content_async_stream_error(
     ],
 )
 def test_extract_provider_and_model_name(model_name, expected_provider, expected_model):
-    from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
+    from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
 
     kwargs = {"model": model_name}
     provider, model = extract_provider_and_model_name(kwargs=kwargs)

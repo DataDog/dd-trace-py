@@ -28,7 +28,16 @@ class RemoteConfigSubscriber(PeriodicService):
         name: str,
         enabled_products: Callable[[], list[str]],
     ) -> None:
-        super().__init__(interval=0, autorestart=False)  # interval handled by wait_for_change
+        # Poll at twice the agent poll rate. The wait is the PeriodicThread's own,
+        # so stop() and the before-fork hook interrupt it at once. A blocking wait
+        # inside periodic() would hold up every fork from this process until it
+        # timed out. PeriodicThread truncates the interval to whole milliseconds,
+        # so keep it at 1ms or more to avoid spinning.
+        super().__init__(
+            interval=max(0.001, config._remote_config_poll_interval / 2),
+            no_wait_at_start=True,
+            autorestart=False,
+        )
         self._reader = reader
         self._dispatch = dispatch
         self._name = name
@@ -36,19 +45,15 @@ class RemoteConfigSubscriber(PeriodicService):
         # this to withhold configs for not-yet-enabled products from its diff, so
         # they are re-delivered once the product is enabled (in-product enablement).
         self._enabled_products = enabled_products
-        # Wake at least twice per agent poll interval for periodic() liveness
-        # Note: on linux a futex is used for more timely updates.
-        self._timeout_ms = max(1, int(config._remote_config_poll_interval * 1000 / 2))
 
     def periodic(self):
         try:
-            # Read first so a freshly-forked child observes the inherited snapshot
-            # immediately, then block until the next publish/notify (or timeout).
-            # The records are reconciled against the products they were read for.
+            # The first call runs at start, so a freshly-forked child observes the
+            # inherited snapshot immediately. The records are reconciled against
+            # the products they were read for.
             enabled = self._enabled_products()
             records = self._reader.read(enabled)
             self._dispatch(records, enabled)
-            self._reader.wait_for_change(self._timeout_ms)
         except Exception:
             log.error(
                 "[PID %d | PPID %d] %s error consuming remote config",

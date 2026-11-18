@@ -156,3 +156,58 @@ def path_tarfile_open(origin_string):
         tarfile.open(origin_string)
     except Exception:
         pass
+
+
+def path_kw_open(origin_string):
+    # label path_kw_open
+    with open(file=origin_string):
+        pass
+
+
+def path_kw_os_remove(origin_string):
+    # label path_kw_os_remove
+    os.remove(path=origin_string)
+
+
+def path_kw_os_rename(origin_string):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # label path_kw_os_rename
+        os.rename(src=origin_string, dst=os.path.join(tmp_dir, "test.txt"))
+
+
+def path_kw_os_mkdir(origin_string):
+    # label path_kw_os_mkdir
+    os.mkdir(path=origin_string)
+
+
+def path_kw_os_listdir(origin_string):
+    # label path_kw_os_listdir
+    os.listdir(path=origin_string)
+
+
+def path_kw_shutil_copy(origin_string):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # label path_kw_shutil_copy
+        shutil.copy(src=origin_string, dst=os.path.join(tmp_dir, "copied.txt"))
+
+
+def path_kw_shutil_rmtree(origin_string):
+    # label path_kw_shutil_rmtree
+    shutil.rmtree(path=origin_string)
+
+
+def path_kw_glob_glob(origin_string):
+    # label path_kw_glob_glob
+    glob.glob(pathname=origin_string)
+
+
+def path_kw_tarfile_open(origin_string):
+    # label path_kw_tarfile_open
+    with tarfile.open(name=origin_string):
+        pass
+
+
+def path_kw_zipfile_ZipFile(origin_string):
+    # label path_kw_zipfile_ZipFile
+    with ZipFile(file=origin_string, mode="r"):
+        pass

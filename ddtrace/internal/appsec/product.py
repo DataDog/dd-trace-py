@@ -1,3 +1,4 @@
+from ddtrace.internal.appsec import product_subscribers
 from ddtrace.internal.settings.asm import config
 
 
@@ -41,7 +42,7 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
-    pass
+    product_subscribers.unregister()
 
 
 def _disable_asm() -> None:

@@ -460,15 +460,16 @@ else:
 
         Returns the list of hooks that failed to be ejected.
         """
-        if is_obfuscated_code(f.__code__):
+        code = get_function_code(f)
+        if is_obfuscated_code(code):
             log.warning(
                 "Cannot eject hooks from %r: code object appears to be obfuscated (e.g. by PyArmor)",
-                f.__code__.co_name,
+                code.co_name,
             )
             return list(hooks)
 
         try:
-            abstract_code: Bytecode = Bytecode.from_code(f.__code__)
+            abstract_code: Bytecode = Bytecode.from_code(code)
         except Exception:
             return list(hooks)
 
@@ -484,7 +485,7 @@ else:
                 new_code = abstract_code.to_code()
             except Exception:
                 return list(hooks)
-            f.__code__ = new_code
+            set_function_code(f, new_code)
 
         return failed
 
@@ -495,18 +496,19 @@ else:
         argument. The latter is also used as an identifier for the hook. This should
         be kept in case the hook needs to be removed.
         """
-        if is_obfuscated_code(f.__code__):
+        code = get_function_code(f)
+        if is_obfuscated_code(code):
             log.warning(
                 "Cannot inject hook into %r: code object appears to be obfuscated (e.g. by PyArmor)",
-                f.__code__.co_name,
+                code.co_name,
             )
             return f
 
-        abstract_code: Bytecode = Bytecode.from_code(f.__code__)
+        abstract_code: Bytecode = Bytecode.from_code(code)
 
         _inject_hook(abstract_code, hook, line, arg)
 
-        f.__code__ = abstract_code.to_code()
+        set_function_code(f, abstract_code.to_code())
 
         return f
 
@@ -516,18 +518,19 @@ else:
         The hook is identified by its line number and the argument passed to the
         hook.
         """
-        if is_obfuscated_code(f.__code__):
+        code = get_function_code(f)
+        if is_obfuscated_code(code):
             log.warning(
                 "Cannot eject hook from %r: code object appears to be obfuscated (e.g. by PyArmor)",
-                f.__code__.co_name,
+                code.co_name,
             )
             return f
 
-        abstract_code: Bytecode = Bytecode.from_code(f.__code__)
+        abstract_code: Bytecode = Bytecode.from_code(code)
 
         _eject_hook(abstract_code, hook, line, arg)
 
-        f.__code__ = abstract_code.to_code()
+        set_function_code(f, abstract_code.to_code())
 
         return f
 

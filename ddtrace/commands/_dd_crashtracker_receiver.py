@@ -8,7 +8,7 @@ except ImportError:
         print("Crashtracker receiver not available.")
 
 
-def main():
+def main() -> None:
     crashtracker_receiver()
 
 

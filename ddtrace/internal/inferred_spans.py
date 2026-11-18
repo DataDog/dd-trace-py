@@ -7,6 +7,7 @@ PROXY_SPAN_NAMES = {
     "aws-apigateway": "aws.apigateway",
     "aws-httpapi": "aws.httpapi",
     "azure-apim": "azure.apim",
+    "azure-frontdoor": "azure.frontdoor",
 }
 PUBSUB_PUSH_SPAN_NAME = "gcp.pubsub.receive"
 

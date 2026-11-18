@@ -5,7 +5,7 @@ from copy import deepcopy
 import json
 import re
 from typing import Any
-from typing import Optional  # noqa:F401
+from typing import Optional
 from typing import TypedDict
 from urllib.parse import urlparse
 
@@ -13,12 +13,14 @@ from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
-from ddtrace.aiguard._types import ContentPart  # noqa:F401
+from ddtrace.aiguard._types import MCP
+from ddtrace.aiguard._types import ContentPart
 from ddtrace.aiguard._types import Evaluation
-from ddtrace.aiguard._types import Function  # noqa:F401
-from ddtrace.aiguard._types import ImageURL  # noqa:F401
+from ddtrace.aiguard._types import Function
+from ddtrace.aiguard._types import ImageURL
+from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import Message
-from ddtrace.aiguard._types import ToolCall  # noqa:F401
+from ddtrace.aiguard._types import ToolCall
 from ddtrace.aiguard.middleware import _MIDDLEWARES
 from ddtrace.aiguard.middleware import AIGuardContext
 from ddtrace.aiguard.middleware import AIGuardRequest
@@ -54,7 +56,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.version import __version__
 
 
-__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation"]
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation", "MCP", "MCPServer"]
 
 
 logger = ddlogger.get_logger(__name__)
@@ -88,7 +90,7 @@ _RESERVED_EXTRA_TAGS = frozenset(
         _SPAN_MEASURED_KEY,
     )
 )
-_RESERVED_EXTRA_STRUCT_KEYS = frozenset(("messages", "attack_categories", "sds", "tag_probs"))
+_RESERVED_EXTRA_STRUCT_KEYS = frozenset(("messages", "mcp_servers", "attack_categories", "sds", "tag_probs"))
 # Root span tags that anomaly detection reads under their OTel names when OTel semantics are enabled.
 _OTEL_ANOMALY_SOURCE_TAGS = {
     http.USER_AGENT: otel_http.USER_AGENT_ORIGINAL,
@@ -271,7 +273,7 @@ class AIGuardClient:
                 1,
                 (("type", "messages"),) + call_path_tags,
             )
-        messages = messages[-max_messages_length:]
+        messages = messages[-max_messages_length:] if max_messages_length else []
 
         max_content_size = aiguard_config._ai_guard_max_content_size
         content_truncated = False
@@ -401,6 +403,7 @@ class AIGuardClient:
         source: str = AI_GUARD.SOURCE_SDK,
         integration: str = AI_GUARD.INTEGRATION_NONE,
         tags: Optional[dict[str, Any]] = None,
+        mcp_servers: Optional[list[MCPServer]] = None,
     ) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
@@ -416,18 +419,25 @@ class AIGuardClient:
                 telemetry tag. Only meaningful when source is auto; otherwise reported as none.
             tags: Optional custom tags set on the AI Guard span, e.g. to filter evaluations in
                 queries. Keys under the reserved ai_guard. prefix are ignored.
+            mcp_servers: MCP servers referenced by the mcp.server_id of the tool calls in
+                messages. Sent along with the messages; omitted when empty.
 
         Returns:
             EvaluationResult containing action and reason
 
         Raises:
             AIGuardAbortError: If execution should be aborted and block is set to true
-            AIGuardClientError: If evaluation request fails
+            AIGuardClientError: If evaluation request fails or no global tracer has been initialized
         """
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
 
-        from ddtrace.trace import tracer
+        # The tracer comes from the core registry rather than ddtrace.trace so AI Guard doesn't depend on the
+        # tracing product. The verdict is reported on the ai_guard span, so evaluating without a tracer would
+        # silently drop it.
+        tracer = core.root.get_item("tracer")
+        if tracer is None:
+            raise AIGuardClientError("AI Guard requires the global tracer, but no tracer has been initialized")
 
         # Classifies the error metric when a raise below escapes. Transport and response paths
         # each set their own type, so anything still holding the default failed inside our own
@@ -470,7 +480,10 @@ class AIGuardClient:
                     if not key.startswith(_RESERVED_TAG_PREFIX):
                         span.set_tag(key, value)
             try:
-                payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
+                request_attributes: dict[str, Any] = {"messages": messages, "meta": self._meta}
+                if mcp_servers:
+                    request_attributes["mcp_servers"] = mcp_servers
+                payload = {"data": {"attributes": request_attributes}}
                 span.set_tag(AI_GUARD.TARGET_TAG, target.value)
                 if target is EvaluationTarget.TOOL:
                     # The tool name is best effort: a tool result whose call is not in the
@@ -559,7 +572,12 @@ class AIGuardClient:
                     if redaction_enabled:
                         span.set_tag(AI_GUARD.REDACTED_TAG, "true" if redacted else "false")
 
-                    meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)}
+                    meta_struct: dict[str, Any] = {
+                        "messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)
+                    }
+                    # Resolves the mcp.server_id of the tool calls in messages to the server it names.
+                    if mcp_servers:
+                        meta_struct["mcp_servers"] = deepcopy(mcp_servers)
                     span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
                     if attack_categories:
@@ -702,7 +720,7 @@ class AIGuardClient:
             target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
             conn.request("POST", target, json_body, self._headers)
             resp = conn.getresponse()
-            return Response.from_http_response(resp)  # type: ignore[no-any-return,no-untyped-call]
+            return Response.from_http_response(resp)
         finally:
             conn.close()
 

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes test suite events from the ``pytest`` plugin missing the ``test.module`` and
+    ``test.module_path`` tags, which kept Datadog from recording test suite durations per module.

@@ -69,6 +69,33 @@ def forked_without_fork_hooks() -> bool:
     )
 
 
+def will_fork_without_fork_hooks() -> bool:
+    """Check if this is a uwsgi master that will fork its workers without running the Python fork hooks.
+
+    uwsgi releases the GIL in the master and then forks it with a raw fork() call. A worker forked while
+    another thread of the master holds the GIL waits for it forever, so the master must not have Python
+    threads running at that point.
+    """
+    try:
+        import uwsgi
+    except ImportError:
+        return False
+
+    try:
+        opt = uwsgi.opt
+        forks = uwsgi.numproc > 1 or opt.get("master")
+        in_master = uwsgi.worker_id() == 0
+    except AttributeError:
+        return False
+
+    return bool(
+        forks
+        and in_master
+        and not (opt.get("lazy-apps") or opt.get("lazy"))
+        and not opt.get("py-call-uwsgi-fork-hooks")
+    )
+
+
 def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None) -> None:
     """Check whetever uwsgi is running and what needs to be done.
 

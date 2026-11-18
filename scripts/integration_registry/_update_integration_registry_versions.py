@@ -80,7 +80,7 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[dict[str, dict[
         entries = json.loads(filepath.read_text())
         for entry in entries:
             integration_name = entry.get("integrationName", "").strip().lower()
-            dependency_name = entry.get("dependencyName", "").strip()
+            dependency_name = entry.get("libraryName", "").strip()
             min_version, max_version = _aggregate_version_bounds(entry.get("versions", []))
 
             version_bounds = {

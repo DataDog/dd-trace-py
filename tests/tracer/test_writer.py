@@ -1577,6 +1577,60 @@ def test_native_writer_recreate_after_sync_drop_does_not_wait_for_active_send(mo
         real_exporter.drop()
 
 
+def test_native_writer_shutdown_rechecks_discard_after_waiting_for_exporter_lock(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    real_exporter = writer._exporter
+    shutdown_started = threading.Event()
+    errors = []
+
+    def shutdown():
+        shutdown_started.set()
+        try:
+            writer.shutdown_exporter()
+        except BaseException as error:
+            errors.append(error)
+
+    with _stuck_native_send(writer) as (exporter, send_started, release_send):
+        send_thread = threading.Thread(target=writer.write, args=([Span("in-flight")],))
+        shutdown_thread = threading.Thread(target=shutdown)
+        try:
+            send_thread.start()
+            assert send_started.wait(timeout=5)
+            shutdown_thread.start()
+            assert shutdown_started.wait(timeout=5)
+            writer.drop_buffered_traces()
+            release_send.set()
+            send_thread.join(timeout=5)
+            shutdown_thread.join(timeout=5)
+            assert not send_thread.is_alive()
+            assert not shutdown_thread.is_alive()
+            assert not errors
+            exporter.drop.assert_called_once()
+            exporter.shutdown.assert_not_called()
+        finally:
+            release_send.set()
+            send_thread.join(timeout=5)
+            if shutdown_thread.ident is not None:
+                shutdown_thread.join(timeout=5)
+            real_exporter.shutdown(3_000_000_000)
+
+
+def test_native_writer_refresh_during_final_flush_skips_native_shutdown(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    real_exporter = writer._exporter
+    exporter = writer._exporter = mock.Mock()
+    try:
+        # Refresh can win after on_shutdown() checks its gate, during the final trace flush.
+        with mock.patch.object(writer, "periodic", side_effect=writer.drop_buffered_traces):
+            writer.on_shutdown()
+        exporter.drop.assert_called_once()
+        exporter.shutdown.assert_not_called()
+    finally:
+        real_exporter.shutdown(3_000_000_000)
+
+
 def test_native_writer_discarded_stop_does_not_join_and_on_shutdown_drops_exporter(monkeypatch):
     """recreate() must not wait for a discarded writer's stuck send; its own thread drops the exporter."""
     monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
@@ -2097,7 +2151,7 @@ def test_otlp_metric_tags_configured():
     from unittest import mock
 
     from ddtrace.internal import native
-    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+    from ddtrace.internal.writer.writer import _build_exporter_builder
 
     mock_builder = mock.Mock()
     for method_name in [
@@ -2114,7 +2168,16 @@ def test_otlp_metric_tags_configured():
         getattr(mock_builder, method_name).return_value = mock_builder
 
     with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
-        _build_base_exporter_builder("http://localhost:8126", None, False, False, True)
+        _build_exporter_builder(
+            intake_url="http://localhost:8126",
+            api_version=None,
+            test_session_token=None,
+            compute_stats_enabled=False,
+            stats_opt_out=False,
+            client_side_stats_obfuscation=False,
+            otlp_endpoint=None,
+            otlp_metrics_endpoint="http://localhost:4318/v1/metrics",
+        )
 
     mock_builder.set_tracer_tags.assert_called_once_with(["team:apm", "tier:backend"])
     mock_builder.set_additional_metric_tag_keys.assert_called_once_with(["customer.tier", "region"])
@@ -2131,7 +2194,7 @@ def test_stats_cardinality_limits_configured():
     from unittest import mock
 
     from ddtrace.internal import native
-    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+    from ddtrace.internal.writer.writer import _build_exporter_builder
 
     mock_builder = mock.Mock()
     # The builder is used as a chain, so every setter has to hand back the same mock.
@@ -2148,7 +2211,16 @@ def test_stats_cardinality_limits_configured():
         getattr(mock_builder, method_name).return_value = mock_builder
 
     with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
-        _build_base_exporter_builder("http://localhost:8126", None, True, False)
+        _build_exporter_builder(
+            intake_url="http://localhost:8126",
+            api_version=None,
+            test_session_token=None,
+            compute_stats_enabled=True,
+            stats_opt_out=False,
+            client_side_stats_obfuscation=False,
+            otlp_endpoint=None,
+            otlp_metrics_endpoint=None,
+        )
 
     mock_builder.set_stats_cardinality_limit.assert_called_once_with(
         whole_key_limit=100,
@@ -2381,13 +2453,16 @@ def test_agentless_exporter_uses_the_configured_timeout():
     with override_global_config(dict(_trace_compute_stats=False)):
         with mock.patch.object(writer_module.agent_config, "trace_agent_timeout_seconds", 3.5):
             with mock.patch.object(writer_module.native, "TraceExporterBuilder", _RecordingBuilder):
-                writer_module._build_base_exporter_builder(
-                    "https://public-trace-http-intake.logs.datadoghq.com/v1/input",
-                    None,
-                    False,
-                    False,
-                    False,
-                    "an-api-key",
+                writer_module._build_exporter_builder(
+                    intake_url="https://public-trace-http-intake.logs.datadoghq.com/v1/input",
+                    api_version=None,
+                    test_session_token=None,
+                    compute_stats_enabled=False,
+                    stats_opt_out=False,
+                    client_side_stats_obfuscation=False,
+                    otlp_endpoint=None,
+                    otlp_metrics_endpoint=None,
+                    api_key="an-api-key",
                 )
 
     assert ("set_agentless_timeout", (3500,)) in calls
@@ -2409,13 +2484,30 @@ def test_agent_exporter_sets_the_agent_url_not_the_intake():
             return record
 
     with mock.patch.object(writer_module.native, "TraceExporterBuilder", _RecordingBuilder):
-        writer_module._build_base_exporter_builder("http://localhost:8126", None, False, False, False, None)
+        writer_module._build_exporter_builder(
+            intake_url="http://localhost:8126",
+            api_version=None,
+            test_session_token=None,
+            compute_stats_enabled=False,
+            stats_opt_out=False,
+            client_side_stats_obfuscation=False,
+            otlp_endpoint=None,
+            otlp_metrics_endpoint=None,
+            api_key=None,
+        )
 
     assert ("set_url", ("http://localhost:8126",)) in calls
     assert not [c for c in calls if "agentless" in c[0]]
 
 
-@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "a-test-api-key",
+        # The mock agent doesn't support stats payload
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
 def test_agentless_end_to_end_payload_reaches_the_intake():
     """Full flow: a span written in agentless mode arrives at the intake as JSON.
 
@@ -2594,9 +2686,7 @@ def test_agent_mode_exports_trace_metrics_to_the_agent():
     assert writer._otlp_metrics_endpoint == "http://localhost:4318/v1/metrics"
 
 
-@pytest.mark.subprocess(
-    env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"}
-)
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
 def test_agentless_stats_go_to_the_stats_intake():
     """There is no Agent to forward /v0.6/stats to, so computed stats go straight to the intake."""
     from ddtrace.trace import tracer
@@ -2610,7 +2700,6 @@ def test_agentless_stats_go_to_the_stats_intake():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
         "DD_SITE": "datadoghq.eu",
     }
 )
@@ -2656,7 +2745,6 @@ def test_agentless_leaves_stats_to_the_backend_when_disabled():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
     },
     err=None,  # warns that OTLP trace metrics are skipped
@@ -2677,6 +2765,35 @@ def test_agent_mode_sends_stats_through_the_agent():
     writer = tracer._span_aggregator.writer
     assert writer.agentless is False
     assert writer._agentless_stats_endpoint is None
+
+
+@mock.patch("ddtrace.internal.native.TraceExporterBuilder")
+def test_native_writer_hands_the_agentless_stats_endpoint_to_the_exporter(mock_builder_class):
+    # libdatadog learns the stats intake only from this builder call. Without it, agentless stats go
+    # nowhere and nothing reports the loss.
+    mock_builder = mock.Mock()
+    mock_builder_class.return_value = mock_builder
+    for method_name in [
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_runtime_id",
+        "set_client_computed_top_level",
+        "set_input_format",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    stats_endpoint = "https://trace.agent.datadoghq.com/api/v0.2/stats"
+    NativeWriter(
+        "https://trace.agent.datadoghq.com",
+        api_key="foobarkey",
+        compute_stats_enabled=True,
+        agentless_stats_endpoint=stats_endpoint,
+    )
+
+    mock_builder.set_agentless_stats_endpoint.assert_called_once_with(stats_endpoint)
 
 
 @pytest.mark.subprocess(
