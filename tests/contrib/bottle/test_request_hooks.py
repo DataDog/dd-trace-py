@@ -1,5 +1,7 @@
 """Bottle maps framework metadata into the shared request subscriber."""
 
+from collections.abc import Iterator
+from collections.abc import Mapping
 from unittest.mock import Mock
 
 import bottle
@@ -287,3 +289,39 @@ def test_callback_error_status_does_not_read_thread_local_status(app, test_spans
     assert span.error == 1
     assert_span_http_status_code(span, 500)
     assert span.get_tag("error.message") == str(failure)
+
+
+@pytest.mark.parametrize("raised", [False, True])
+def test_response_header_conversion_failure_preserves_status(app, test_spans, raised):
+    class BrokenHeaders(Mapping[str, str]):
+        def __iter__(self) -> Iterator[str]:
+            return iter(("X-Response",))
+
+        def __len__(self) -> int:
+            return 1
+
+        def __getitem__(self, key: str) -> str:
+            raise RuntimeError("response header conversion failed")
+
+    class CustomResponse(bottle.HTTPResponse):
+        @property
+        def headers(self) -> Mapping[str, str]:
+            return BrokenHeaders()
+
+    @app.route("/response")
+    def handler():
+        result = CustomResponse("body", status=503, headers={"X-Response": "available"})
+        if raised:
+            raise result
+        return result
+
+    response = webtest.TestApp(app).get("/response", expect_errors=True)
+    assert response.status_int == 503
+    assert response.text == "body"
+    assert response.headers["X-Response"] == "available"
+    (span,) = test_spans.pop()
+    assert_span_http_status_code(span, 503)
+    assert span.error == 1
+    assert span.get_tag("http.method") == "GET"
+    assert span.get_tag("http.route") == "/response"
+    assert span.finished

@@ -85,8 +85,8 @@ def _complete_request(event: WebFrameworkRequestEvent, result: Any, error: Optio
             event.response_from_exception = False
         elif isinstance(error, HTTPResponse):
             event.response_status_code = error.status_code
-            event.response_headers = error.headers
             event.response_from_exception = True
+            event.response_headers = error.headers
         else:
             event.response_status_code = 500 if isinstance(error, Exception) else response.status_code
             event.response_headers = response.headers

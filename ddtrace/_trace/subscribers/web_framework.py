@@ -72,6 +72,12 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             set_instrumentation_resource(span, f"{method} {status_code}")
 
         try:
+            response_headers = dict(res_headers) if res_headers is not None else None
+        except Exception:
+            log.debug("%s: error reading response headers", event.integration_config.integration_name, exc_info=True)
+            response_headers = None
+
+        try:
             trace_utils.set_http_meta(
                 span=span,
                 integration_config=event.integration_config,
@@ -81,7 +87,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
                 trace_query_string=event.trace_query_string,
                 status_code=status_code,
                 request_headers=event.request_headers,
-                response_headers=dict(res_headers) if res_headers is not None else None,
+                response_headers=response_headers,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
             )

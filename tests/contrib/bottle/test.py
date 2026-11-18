@@ -837,3 +837,34 @@ def test_otel_semantics_server_abort_4xx_is_not_an_error():
         assert span.get_metric("http.response.status_code") == 404
         assert span.error == 0
         assert span.get_tag("error.type") is None
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_raised_response_header_failure_preserves_status():
+    import bottle
+    import webtest
+
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    class CustomResponse(bottle.HTTPResponse):
+        @property
+        def headers(self) -> dict[str, str]:
+            raise RuntimeError("response headers unavailable")
+
+    app = bottle.Bottle()
+
+    @app.route("/missing")
+    def missing():
+        raise CustomResponse("missing", status=404, headers={"X-Response": "available"})
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        response = webtest.TestApp(app, lint=False).get("/missing", expect_errors=True)
+        assert response.status_int == 404
+        assert response.text == "missing"
+        assert response.headers["X-Response"] == "available"
+        span = spans.get_root_span()
+        assert span.get_metric("http.response.status_code") == 404
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
