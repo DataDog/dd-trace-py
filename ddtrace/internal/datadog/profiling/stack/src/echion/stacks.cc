@@ -53,7 +53,8 @@ unwind_frame(EchionSampler& echion,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
              size_t max_frames_to_add,
-             bool detect_truncation)
+             bool detect_truncation,
+             std::vector<PyObject*>* frame_addrs)
 {
     seen_frames.clear();
     // Having no remaining frame budget does not prove truncation: frame_addr
@@ -82,6 +83,9 @@ unwind_frame(EchionSampler& echion,
         }
 
         seen_frames.insert(current_frame_addr);
+        if (frame_addrs != nullptr) {
+            frame_addrs->push_back(current_frame_addr);
+        }
         bool is_in_gc = current_frame_addr == echion.current_gc_frame();
 
 #if PY_VERSION_HEX >= 0x030b0000
@@ -133,28 +137,17 @@ unwind_frame(EchionSampler& echion,
     return unwind_frame(echion, frame_addr, stack, local_seen_frames, max_frames_to_add, detect_truncation);
 }
 
-Result<PyObject*>
-current_frame_address(PyThreadState* tstate)
-{
-#if PY_VERSION_HEX >= 0x030d0000
-    return reinterpret_cast<PyObject*>(tstate->current_frame);
-#elif PY_VERSION_HEX >= 0x030b0000
-    _PyCFrame cframe;
-    _PyCFrame* cframe_addr = tstate->cframe;
-    if (copy_type(cframe_addr, cframe)) {
-        return ErrorKind::FrameError;
-    }
-
-    return reinterpret_cast<PyObject*>(cframe.current_frame);
-#else // Python < 3.11
-    return reinterpret_cast<PyObject*>(tstate->frame);
-#endif
-}
-
 Result<UnwindResult>
-unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames)
+unwind_python_stack(EchionSampler& echion,
+                    PyThreadState* tstate,
+                    FrameStack& stack,
+                    size_t max_frames,
+                    std::vector<PyObject*>* frame_addrs)
 {
     stack.clear();
+    if (frame_addrs != nullptr) {
+        frame_addrs->clear();
+    }
 #if PY_VERSION_HEX >= 0x030b0000
     if (stack_chunk == nullptr) {
         stack_chunk = new StackChunk();
@@ -166,9 +159,18 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
     }
 #endif
 
-    auto maybe_frame_addr = current_frame_address(tstate);
-    if (!maybe_frame_addr) {
-        return maybe_frame_addr.error();
+#if PY_VERSION_HEX >= 0x030d0000
+    PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->current_frame);
+#elif PY_VERSION_HEX >= 0x030b0000
+    _PyCFrame cframe;
+    _PyCFrame* cframe_addr = tstate->cframe;
+    if (copy_type(cframe_addr, cframe)) {
+        return ErrorKind::FrameError;
     }
-    return unwind_frame(echion, *maybe_frame_addr, stack, echion.seen_frames_scratch(), max_frames, true);
+
+    PyObject* frame_addr = reinterpret_cast<PyObject*>(cframe.current_frame);
+#else // Python < 3.11
+    PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
+#endif
+    return unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames, true, frame_addrs);
 }
