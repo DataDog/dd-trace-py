@@ -1,3 +1,5 @@
+from types import ModuleType
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 
@@ -44,7 +46,7 @@ parse_pg_dsn = _dd_parse_pg_dsn
 
 
 @ModuleWatchdog.after_module_imported("psycopg2")
-def use_psycopg2_parse_dsn(psycopg_module):
+def use_psycopg2_parse_dsn(psycopg_module: ModuleType) -> None:
     """Replaces parse_pg_dsn with the helper function defined in psycopg2"""
     global parse_pg_dsn
 
@@ -58,7 +60,7 @@ def use_psycopg2_parse_dsn(psycopg_module):
 
 
 @ModuleWatchdog.after_module_imported("psycopg")
-def use_psycopg3_parse_dsn(psycopg_module):
+def use_psycopg3_parse_dsn(psycopg_module: ModuleType) -> None:
     """Replaces parse_pg_dsn with the helper function defined in psycopg3"""
     global parse_pg_dsn
 
