@@ -331,16 +331,21 @@ class Git:
     def get_tia_changed_files(self, base_commit: str) -> t.Optional[set[str]]:
         # Disable rename detection so dependencies on either pathname are invalidated.
         changed = self._call_git(["diff", "--name-only", "--no-renames", "-z", base_commit, "--"], strip_output=False)
-        untracked = self._call_git(["ls-files", "--others", "--exclude-standard", "-z"], strip_output=False)
-        if changed.return_code or untracked.return_code:
+        untracked = self.get_tia_untracked_files()
+        if changed.return_code or untracked is None:
             return None
-        return set(filter(None, (changed.stdout + untracked.stdout).split("\0")))
+        return set(filter(None, changed.stdout.split("\0"))) | untracked
+
+    def get_tia_untracked_files(self) -> t.Optional[set[str]]:
+        result = self._call_git(["ls-files", "--others", "--exclude-standard", "-z"], strip_output=False)
+        return set(filter(None, result.stdout.split("\0"))) if result.return_code == 0 else None
 
     def is_tracked(self, path: str) -> bool:
         return self._call_git(["ls-files", "--error-unmatch", "--", path]).return_code == 0
 
     def is_tia_worktree_clean(self) -> bool:
-        result = self._call_git(["status", "--porcelain", "-z", "--untracked-files=normal"])
+        """Check tracked inputs; TIA checks untracked dependency paths separately."""
+        result = self._call_git(["status", "--porcelain", "-z", "--untracked-files=no"])
         return result.return_code == 0 and not result.stdout
 
     def get_filtered_revisions(self, excluded_commits: list[str], included_commits: list[str]) -> list[str]:
@@ -439,6 +444,8 @@ class Git:
         refspec: t.Optional[str] = None,
         parent_only: bool = False,
         required_commit: t.Optional[str] = None,
+        *,
+        full_history: bool = False,
     ) -> _GitSubprocessDetails:
         # If another process (e.g. a parallel xdist worker) has already completed
         # the requested operation, skip the redundant fetch.
@@ -474,9 +481,14 @@ class Git:
                 return _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
 
             remote_name = self.get_remote_name()
+            depth = '--shallow-since="1 month ago"'
+            if full_history:
+                depth = "--unshallow"
+            if parent_only:
+                depth = "--deepen=1"
             command = [
                 "fetch",
-                "--deepen=1" if parent_only else '--shallow-since="1 month ago"',
+                depth,
                 "--update-shallow",
                 "--filter=blob:none",
                 "--recurse-submodules=no",

@@ -21,7 +21,10 @@ Maps are local-first. Before querying ``lookup``, the plugin checks
 ``.testoptimization/tia/<configuration_hash>/<commit>.json`` inside Git's
 metadata directory (normally ``.git``). It searches the 20 most recent local
 commits, newest first, and uses the first compatible map. Missing, unreadable,
-corrupt, and incompatible cache entries fall back to the backend. Valid
+corrupt, and incompatible cache entries fall back to the backend. In a shallow
+checkout, a local miss first attempts to fetch full history and rechecks the
+local cache before querying the backend. A local hit with its source commit
+already available needs no fetch. Valid
 backend responses and newly generated maps are cached using ddtrace's atomic
 JSON writer. A failed remote upload does not discard the local map. Local
 cache failures do not prevent backend lookup or upload. These files live
@@ -43,14 +46,20 @@ and left installed when TIA finishes. Subprocess
 creation makes a test always run; subprocesses created during collection or
 fixture setup make all recorded tests always run. Missing, malformed, or
 incompatible maps and failed Git queries run all tests. Changed files outside
-the recorded dependency set also run all tests, covering new source files and
-configuration which can change import resolution.
+the recorded dependency set do not force a full run. New tests still run, and
+changes to loaded repository pytest plugins (including newly added conftest
+files) or the active pytest configuration affect all tests. Other new files
+that change import resolution without a recorded dependency are not detected.
 
 Only finished tests receive fresh entries. Previously failed tests run again;
-unexecuted tests cannot acquire a fresh baseline. Maps from dirty worktrees,
+unexecuted tests cannot acquire a fresh baseline. Maps from worktrees with tracked changes,
 collection-only runs, interrupted sessions, and collection errors are not
-uploaded. The worktree must be clean both before and after execution and HEAD
-must remain unchanged. TIA replaces server-side ITR skipping for its session.
+published locally or uploaded. Tracked files must be clean both before and
+after execution and HEAD must remain unchanged. Nonignored untracked files
+only block publication when they occur in the recorded dependencies, such as
+an imported module, test file, or pytest configuration. Unrelated generated
+reports such as ``coverage.xml`` do not need to be ignored for maps to be
+published. TIA replaces server-side ITR skipping for its session.
 The recorder identity is part of the configuration hash, so maps produced by
 an older recorder or an incomplete dependency-recording revision are not
 reused. The plugin runs in a single pytest process; distributed xdist, offline,
@@ -94,8 +103,12 @@ wrapped in a JSON:API envelope and is not gzip-compressed.
 the ``ci_app_tia_artifact_lookup`` resource type, a generated request ID,
 metadata in ``data.attributes``, and ``git_commit_shas`` in nearest-first order.
 The plugin sends its 20 most recent
-local commits, without a date cutoff or extra fetch; the transport accepts up
-to 100 commits. HTTP 404 is an ordinary miss and runs all tests when no local
+available commits, without a date cutoff; the transport accepts up
+to 100 commits. Shallow history is fetched using the existing Git fetch lock
+and retries with ``git fetch --unshallow`` on a local cache miss, or when a
+cached map's source commit is unavailable locally. Set
+``DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED=false`` to disable this fetch. A failed
+fetch leaves lookup using the available commit history. HTTP 404 is an ordinary miss and runs all tests when no local
 map was available. HTTP 200 returns the stored UTF-8 JSON bytes with
 ``Content-Type: application/json`` and two headers:
 
@@ -103,8 +116,8 @@ map was available. HTTP 200 returns the stored UTF-8 JSON bytes with
   of the requested SHAs. The local cache indexes the response by this commit.
 * ``x-dd-tia-source-commit`` identifies the commit that produced the database.
   Git diffs always use this source commit, even when it differs from the match
-  or is older than the lookup history. Missing local source history runs all
-  tests.
+  or is older than the lookup history. Source history still missing after the
+  fetch attempt runs all tests.
 
 The dependency document has the following structure::
 
@@ -132,6 +145,39 @@ Git compares against the map's source commit for both local and remote maps, so 
 machine-specific filesystem-mtime snapshot. Other Test Optimization requests,
 including fetching session settings and reporting test results, continue to
 use the backend when a local map avoids the TIA lookup request.
+
+Artifact request telemetry
+--------------------------
+
+Both endpoints use the existing Test Optimization request telemetry collector.
+The ``civisibility`` namespace contains ``tia_artifact_lookup`` and
+``tia_artifact_upload`` metric prefixes, each with:
+
+* ``request_seconds``: per-attempt HTTP latency in seconds, including reading
+  the response, excluding retry backoff.
+* ``request_bytes`` and ``response_bytes``: HTTP body sizes in bytes, excluding
+  headers. Compressed responses report their compressed size with the
+  ``rs_compressed:true`` tag; streamed responses without ``Content-Length``
+  use the received body size.
+* ``request`` and ``request_errors``: request attempt and error counts. Error
+  counts carry the existing ``error_type`` tag. Lookup HTTP 404 is a normal
+  miss and does not increment the error count.
+
+Retries produce a sample for each attempt. A local cache hit produces no
+lookup request metrics. Metrics contain no repository or test identifiers,
+artifact contents, or credentials.
+
+Debugging artifact reuse
+------------------------
+
+``DD_TRACE_DEBUG=1`` logs local map cache hits and misses, successful backend
+restores with their matched and source commits, and the artifact POST/PUT
+response status codes. These messages contain no request headers or artifact
+bodies. A compatible local map avoids the lookup POST; an eligible completed
+session can still upload its map with PUT. To verify remote restoration, use a
+fresh clone with the same repository URL and pytest invocation and no local
+TIA cache. A lookup returning HTTP 200 followed by deselection demonstrates
+that the backend supplied the map.
 
 Synthetic end-to-end scenario
 -----------------------------
@@ -173,3 +219,21 @@ metadata, so the sizes compare complete representations rather than file-index
 encoding alone. This small corpus is not a scaling benchmark. A shared schema
 must also define how previously failed tests stay runnable and how test-array
 indices remain valid when records are reordered or merged.
+
+Staging end-to-end script
+-------------------------
+
+``scripts/ci_visibility/tia_staging_e2e.py`` runs normal
+``DD_SITE=datad0g.com DD_TIA_ENABLED=1 pytest --ddtrace`` sessions against
+staging, using the active Python 3.12+ environment. Install this branch's ddtrace
+and pytest there, and supply ``DD_API_KEY`` in the environment or in the blank
+setting near the top of the script. ``--python`` selects a different Python.
+The script enables agentless mode so the API key is sent directly to staging.
+
+``--prepare-only`` creates the eight-case shop corpus and prints a command for
+running pytest manually. The default run checks initial recording, unchanged
+selection, affected failures and recovery, a fresh clone retrieving its map
+from staging, cached dynamic imports, and shared fixture dependencies. Corpus
+repositories, clones, maps, subprocess logs, and ``summary.json`` remain under
+``.cache/tia-staging/run-*/``. Saved logs redact the API key. Committed copies
+of the script must keep the API-key setting empty.

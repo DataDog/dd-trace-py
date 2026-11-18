@@ -396,12 +396,13 @@ class BackendConnector(threading.local):
         try:
             result.response = response = self._send(method, self.base_path + path, data, full_headers)
             status = response.status_code
-            result.response_length = int(response.header("Content-Length") or "0")
+            response_body = response.body()
+            result.response_length = int(response.header("Content-Length") or len(response_body))
             result.is_gzip_response = response.header("Content-Encoding") == "gzip"
             if result.is_gzip_response:
-                result.response_body = response_body = gzip.decompress(response.body())
+                result.response_body = response_body = gzip.decompress(response_body)
             else:
-                result.response_body = response_body = response.body()
+                result.response_body = response_body
 
             if not (200 <= status <= 299):
                 result.error_description = f"{status} {_reason(status)}"
@@ -480,11 +481,12 @@ class BackendConnector(threading.local):
             )
 
             if telemetry:
+                expected_status = result.response is not None and result.response.status_code in expected_status_codes
                 telemetry.record_request(
                     seconds=result.elapsed_seconds,
                     response_bytes=result.response_length,
                     compressed_response=result.is_gzip_response,
-                    error=result.error_type,
+                    error=None if expected_status else result.error_type,
                     request_bytes=result.request_length,
                 )
 
