@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 import threading
+import time
 from types import SimpleNamespace
 from unittest import mock
 from urllib.parse import parse_qsl
@@ -1258,7 +1259,8 @@ def test_failed_teardown_of_a_cancelled_start_keeps_the_claim_for_the_next_shutd
         starting.join(timeout=5)
         assert len(errors) == 1
         [source] = sources
-        assert provider._configuration_source is source
+        assert provider._configuration_source is None
+        assert provider._retired_configuration_sources == [source]
         other = canonicalize_flag_selection({"tags": ["b"]})
         assert claim_process_selection(other).tags == ("a",)
         _flag_selection.release_process_selection()
@@ -1272,6 +1274,209 @@ def test_failed_teardown_of_a_cancelled_start_keeps_the_claim_for_the_next_shutd
         starting.join(timeout=5)
         provider.shutdown()
         later.shutdown()
+
+
+def test_initialize_after_a_failed_teardown_starts_a_new_poller(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]})
+    later = _provider({"tags": ["b"]})
+    try:
+        provider.initialize(EvaluationContext())
+        retired = provider._configuration_source
+        monkeypatch.setattr(retired, "join", mock.Mock(side_effect=[RuntimeError("join failed"), None]))
+        with pytest.raises(RuntimeError):
+            provider.shutdown()
+
+        # The retired poller does not count as started: initialization starts and stores a new one.
+        provider.initialize(EvaluationContext())
+        assert provider._configuration_source is not None
+        assert provider._configuration_source is not retired
+        assert provider._retired_configuration_sources == [retired]
+
+        provider.shutdown()
+        assert provider._configuration_source is None
+        assert provider._retired_configuration_sources == []
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_failed_teardown_of_a_cancelled_start_keeps_its_claim_beside_a_replacement(cdn, api_key, monkeypatch):
+    import ddtrace.internal.openfeature._source_selection as source_selection
+
+    provider = _provider({"tags": ["a"]})
+    later = _provider({"tags": ["b"]})
+    create = source_selection.create_agentless_source
+    started = threading.Event()
+    resume = threading.Event()
+    sources = []
+
+    def create_with_a_held_start(*args, **kwargs):
+        source = create(*args, **kwargs)
+        sources.append(source)
+        if len(sources) > 1:
+            return source
+        start = source.start
+
+        def held_start():
+            start()
+            started.set()
+            resume.wait(timeout=5)
+
+        def join_after_the_replacement_is_stored(*join_args, **join_kwargs):
+            for _ in range(500):
+                if provider._configuration_source is not None:
+                    break
+                threading.Event().wait(0.01)
+            raise RuntimeError("join failed")
+
+        source.start = held_start
+        source.join = join_after_the_replacement_is_stored
+        return source
+
+    monkeypatch.setattr(source_selection, "create_agentless_source", create_with_a_held_start)
+    outcomes = {}
+
+    def initialize(name):
+        try:
+            provider.initialize(EvaluationContext())
+            outcomes[name] = provider._status
+        except (ProviderNotReadyError, RuntimeError) as error:
+            outcomes[name] = type(error).__name__
+
+    cancelled = threading.Thread(target=initialize, args=("cancelled",))
+    cancelled.start()
+    replacement = None
+    try:
+        assert started.wait(timeout=5)
+        provider.shutdown()
+        replacement = threading.Thread(target=initialize, args=("replacement",))
+        replacement.start()
+        threading.Event().wait(0.1)
+        resume.set()
+        cancelled.join(timeout=5)
+        replacement.join(timeout=5)
+        assert outcomes == {"cancelled": "RuntimeError", "replacement": ProviderStatus.READY}
+        first, second = sources
+        assert provider._configuration_source is second
+        assert provider._retired_configuration_sources == [first]
+
+        monkeypatch.setattr(first, "join", lambda *args, **kwargs: None)
+        provider.shutdown()
+        assert provider._retired_configuration_sources == []
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        resume.set()
+        cancelled.join(timeout=5)
+        if replacement is not None:
+            replacement.join(timeout=5)
+        for source in sources:
+            monkeypatch.setattr(source, "join", lambda *args, **kwargs: None)
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_shutdown_then_initialize_from_a_log_handler_rejects_the_nested_initialize(cdn, api_key, created_sources):
+    # A matching snapshot: no selection and the dropped selection below both load every flag.
+    first = _provider(None)
+    first.initialize(EvaluationContext())
+    first.shutdown()
+    provider = _provider({"tags": "malformed"}, timeout=0.3)
+    later = _provider({"tags": ["b"]})
+    nested = []
+
+    def shut_down_and_initialize_again():
+        provider.shutdown()
+        try:
+            provider.initialize(EvaluationContext())
+            nested.append(provider._status)
+        except ProviderNotReadyError:
+            nested.append("rejected")
+
+    handler = _OnFirstNotSentError(shut_down_and_initialize_again)
+    selection_logger = logging.getLogger(SELECTION_LOGGER)
+    selection_logger.addHandler(handler)
+    try:
+        with pytest.raises(ProviderNotReadyError):
+            provider.initialize(EvaluationContext())
+        assert nested == ["rejected"]
+        assert provider._configuration_source is None
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        selection_logger.removeHandler(handler)
+        provider.shutdown()
+        later.shutdown()
+
+
+def test_shutdown_wakes_a_start_waiting_for_an_in_flight_start(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]})
+    resume = threading.Event()
+    holding = _hold_source_creation(monkeypatch, resume)
+    outcomes = {}
+
+    def initialize(name):
+        try:
+            provider.initialize(EvaluationContext())
+            outcomes[name] = provider._status
+        except ProviderNotReadyError:
+            outcomes[name] = "cancelled"
+
+    first = threading.Thread(target=initialize, args=("first",))
+    first.start()
+    waiting = None
+    try:
+        assert holding.wait(timeout=5)
+        waiting = threading.Thread(target=initialize, args=("waiting",))
+        waiting.start()
+        threading.Event().wait(0.1)
+        provider.shutdown()
+        # The waiting start began before the shutdown, so it ends without waiting for the held start.
+        waiting.join(timeout=2)
+        assert not waiting.is_alive()
+        assert outcomes == {"waiting": "cancelled"}
+    finally:
+        resume.set()
+        first.join(timeout=5)
+        if waiting is not None:
+            waiting.join(timeout=5)
+        provider.shutdown()
+
+
+def test_waiting_start_is_bounded_by_the_initialization_timeout(cdn, api_key):
+    provider = _provider({"tags": "malformed"}, timeout=0.3)
+    delegated = []
+
+    def initialize_on_another_thread_and_wait():
+        def initialize():
+            try:
+                provider.initialize(EvaluationContext())
+                delegated.append(provider._status)
+            except ProviderNotReadyError:
+                delegated.append("timed out")
+
+        thread = threading.Thread(target=initialize)
+        thread.start()
+        thread.join(timeout=5)
+
+    handler = _OnFirstNotSentError(initialize_on_another_thread_and_wait)
+    selection_logger = logging.getLogger(SELECTION_LOGGER)
+    selection_logger.addHandler(handler)
+    try:
+        started_at = time.monotonic()
+        try:
+            provider.initialize(EvaluationContext())
+        except ProviderNotReadyError:
+            # Waiting for the delegated initialization can use up this initialization's own timeout.
+            pass
+        # The delegated initialization waits for the start that waits for it, but only until its deadline.
+        assert time.monotonic() - started_at < 3
+        assert delegated == ["timed out"]
+    finally:
+        selection_logger.removeHandler(handler)
+        provider.shutdown()
 
 
 def test_forked_child_drops_a_start_reservation_from_the_parent():
@@ -1373,10 +1578,11 @@ def test_failed_poller_join_leaves_the_claim_to_the_next_shutdown(cdn, api_key, 
         monkeypatch.setattr(source, "join", join_failing_once)
         with pytest.raises(RuntimeError):
             provider.shutdown()
-        assert provider._configuration_source is source
+        assert provider._configuration_source is None
+        assert provider._retired_configuration_sources == [source]
 
         provider.shutdown()
-        assert provider._configuration_source is None
+        assert provider._retired_configuration_sources == []
         later.initialize(EvaluationContext())
         assert _sent_selection(later._configuration_source) == (["b"], [])
     finally:

@@ -227,11 +227,15 @@ class DataDogProvider(AbstractProvider):
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
         self._configuration_source_lock = forksafe.Lock()
         self._starting_configuration_source = False
+        # The thread of the start in progress, and the shutdown count when it began.
         self._configuration_source_starter: typing.Any = None
-        self._configuration_source_start_done = Event()
+        # Set, and replaced, when a start ends or a shutdown happens, so waiting starts check again.
+        self._configuration_source_changed = Event()
         # Counts shutdowns, so a start or a waiting start can tell that one happened after it began.
         self._configuration_source_shutdowns = 0
         self._stopping_configuration_source = False
+        # Pollers whose teardown failed. Each keeps its claim until a later shutdown finishes it.
+        self._retired_configuration_sources: list[AgentlessConfigurationSource] = []
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
@@ -353,7 +357,8 @@ class DataDogProvider(AbstractProvider):
         # Start the agentless poller when agentless is the resolved source
         # (no-op otherwise). Mirrors dd-trace-js starting the source from the
         # provider lifecycle rather than at tracer init.
-        if not self._start_configuration_source():
+        deadline = time.monotonic() + self._initialization_timeout
+        if not self._start_configuration_source(deadline):
             # A shutdown, for example from a log handler, cancelled this initialization.
             raise ProviderNotReadyError("The Feature Flagging provider was shut down during initialization")
 
@@ -383,7 +388,7 @@ class DataDogProvider(AbstractProvider):
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
         wait_started = time.monotonic()
-        if self._config_received.wait(timeout=self._initialization_timeout):
+        if self._config_received.wait(timeout=max(0.0, deadline - wait_started)):
             self._status = ProviderStatus.READY
             logger.debug(
                 "Feature Flags: provider initialized successfully (configuration received after %.2fs)",
@@ -478,12 +483,13 @@ class DataDogProvider(AbstractProvider):
         self._initialization_timed_out = False
         logger.debug("Feature Flags: provider shut down; see writer shutdown outcomes for delivery or unfinished work")
 
-    def _start_configuration_source(self) -> bool:
+    def _start_configuration_source(self, deadline: float) -> bool:
         """Start the agentless poller when agentless is the resolved source.
 
         Returns False when a shutdown after this call began cancelled it. A start from another thread
-        during an in-flight start waits for it and then checks again; a nested start on the same thread,
-        such as one from a log handler, returns at once. A start during a teardown adds nothing.
+        during an in-flight start waits for it, until ``deadline`` (a ``time.monotonic()`` value), and then
+        checks again; a nested start on the same thread, such as one from a log handler, returns at once.
+        A start during a teardown adds nothing.
         """
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
@@ -498,13 +504,17 @@ class DataDogProvider(AbstractProvider):
                     return True
                 if not self._starting_configuration_source:
                     self._starting_configuration_source = True
-                    self._configuration_source_starter = me
-                    done = self._configuration_source_start_done = Event()
+                    self._configuration_source_starter = (me, shutdowns)
                     break
-                if self._configuration_source_starter is me:
-                    return True
-                in_flight = self._configuration_source_start_done
-            in_flight.wait()
+                starter, starter_shutdowns = self._configuration_source_starter
+                if starter is me:
+                    # It cannot wait for the start it is nested in, which a shutdown since then cancels.
+                    return bool(starter_shutdowns == shutdowns)
+                changed = self._configuration_source_changed
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return True
+            changed.wait(remaining)
 
         source = None
         started = False
@@ -522,7 +532,8 @@ class DataDogProvider(AbstractProvider):
                     logger.debug("Agentless configuration source is already running", exc_info=True)
                 started = True
         except BaseException:
-            self._end_configuration_source_start(done)
+            with self._configuration_source_lock:
+                self._end_configuration_source_start()
             if source is not None:
                 release_process_selection()
             raise
@@ -531,67 +542,79 @@ class DataDogProvider(AbstractProvider):
             cancelled = self._configuration_source_shutdowns != shutdowns
             if source is not None and not cancelled:
                 self._configuration_source = source
-            # In the same step as storing the source, so a shutdown sees either the start or the source.
-            self._starting_configuration_source = False
-            self._configuration_source_starter = None
-        # Wake waiting starts before tearing down: one may be a callback on the poller being joined.
-        done.set()
+            # In the same step as storing the source, so a shutdown sees either the start or the source. This
+            # wakes waiting starts before any teardown below: one may be a callback on the poller being joined.
+            self._end_configuration_source_start()
         if source is None or not cancelled:
             return not cancelled
 
         try:
             if started:
-                try:
-                    source.stop()
-                except ServiceStatusError:
-                    logger.debug("Agentless configuration source is already stopped", exc_info=True)
-                source.join()
+                self._stop_and_join(source)
         except BaseException:
-            # As in an ordinary teardown, keep the source and its claim so the next shutdown retries.
             with self._configuration_source_lock:
-                kept = self._configuration_source is None and not self._starting_configuration_source
-                if kept:
-                    self._configuration_source = source
-            if not kept:
-                release_process_selection()
+                self._retired_configuration_sources.append(source)
             raise
         release_process_selection()
         return False
 
-    def _end_configuration_source_start(self, done: typing.Any) -> None:
-        with self._configuration_source_lock:
-            self._starting_configuration_source = False
-            self._configuration_source_starter = None
-        done.set()
+    def _end_configuration_source_start(self) -> None:
+        """End the start in progress and wake waiting starts. Call with the lifecycle lock held."""
+        self._starting_configuration_source = False
+        self._configuration_source_starter = None
+        self._wake_configuration_source_waiters()
+
+    def _wake_configuration_source_waiters(self) -> None:
+        """Wake starts waiting for a change. Call with the lifecycle lock held."""
+        woken, self._configuration_source_changed = self._configuration_source_changed, Event()
+        woken.set()
+
+    @staticmethod
+    def _stop_and_join(source: "AgentlessConfigurationSource") -> None:
+        try:
+            source.stop()
+        except ServiceStatusError:
+            logger.debug("Agentless configuration source is already stopped", exc_info=True)
+        source.join()
 
     def _stop_configuration_source(self) -> None:
-        """Stop the agentless poller if it was started, or cancel a start in progress.
+        """Stop the agentless poller and any retired one, or cancel a start in progress.
 
-        After a failed join the source stays, and the next shutdown finishes the teardown.
+        A poller whose teardown fails is retired: it keeps its claim, and the next shutdown retries it.
         """
         with self._configuration_source_lock:
             self._configuration_source_shutdowns += 1
-            if self._starting_configuration_source:
+            self._wake_configuration_source_waiters()
+            if self._starting_configuration_source or self._stopping_configuration_source:
                 return
             source = self._configuration_source
-            if source is None or self._stopping_configuration_source:
+            sources = self._retired_configuration_sources + ([source] if source is not None else [])
+            if not sources:
                 return
+            self._retired_configuration_sources = []
             self._stopping_configuration_source = True
 
-        try:
+        failed = []
+        error: typing.Optional[BaseException] = None
+        for each in sources:
             try:
-                source.stop()
-            except ServiceStatusError:
-                logger.debug("Agentless configuration source is already stopped", exc_info=True)
-            source.join()
-        except BaseException:
-            with self._configuration_source_lock:
-                self._stopping_configuration_source = False
-            raise
+                self._stop_and_join(each)
+            except BaseException as e:
+                failed.append(each)
+                if error is None:
+                    error = e
         with self._configuration_source_lock:
-            self._configuration_source = None
+            # The source stays in place until here, so a start during the teardown adds no poller. With only
+            # retired pollers to retry, the slot may hold a source a start stored meanwhile; keep that one.
+            if source is not None:
+                self._configuration_source = None
+            self._retired_configuration_sources.extend(failed)
             self._stopping_configuration_source = False
-        release_process_selection()
+            self._wake_configuration_source_waiters()
+        for _ in range(len(sources) - len(failed)):
+            release_process_selection()
+        if error is not None:
+            raise error
         logger.debug("Feature Flags: agentless configuration source stopped")
 
     def resolve_boolean_details(
