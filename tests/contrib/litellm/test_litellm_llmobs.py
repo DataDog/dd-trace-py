@@ -1566,3 +1566,32 @@ def test_completion_with_fallback_without_openai_span_keeps_llm_span(
         )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert [(s.name, get_llmobs_span_kind(s)) for s in spans if s.span_type == "llm"] == [("litellm.request", "llm")]
+
+
+def test_completion_with_direct_fallback_after_proxy_primary_keeps_llm_span(litellm, litellm_llmobs, test_spans):
+    """A fallback that leaves an instrumented proxy for a direct provider is an LLM span, not a workflow span."""
+    from ddtrace import config
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    proxy_url = "http://localhost:4000"
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="claude-3-haiku-20240307")
+
+    def completion(*args, **kwargs):
+        return traced_completion(inner_completion, None, (), {"model": FALLBACK_MODEL, "messages": FALLBACK_MESSAGES})
+
+    with mock.patch.object(config, "_llmobs_instrumented_proxy_urls", {proxy_url}):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {
+                "model": PRIMARY_MODEL,
+                "messages": FALLBACK_MESSAGES,
+                "api_base": proxy_url,
+                "fallbacks": [{"model": FALLBACK_MODEL}],
+            },
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [(s.name, get_llmobs_span_kind(s)) for s in spans if s.span_type == "llm"] == [("litellm.request", "llm")]
