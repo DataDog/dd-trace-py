@@ -104,8 +104,9 @@ def _not_sent(caplog):
 
 @pytest.fixture
 def count_metric():
-    with mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric") as add_count_metric:
-        yield add_count_metric
+    # Replace only this module's reference: other threads record their own counts on the process-wide writer.
+    with mock.patch.object(_flag_selection, "telemetry_writer") as telemetry_writer:
+        yield telemetry_writer.add_count_metric
 
 
 def _metric_calls(count_metric, name):
@@ -976,7 +977,7 @@ def test_once_per_process_guards_reset_in_a_forked_child():
     claimed = canonicalize_flag_selection({"tags": ["a"]})
     with (
         mock.patch.object(_flag_selection, "log"),
-        mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric"),
+        mock.patch.object(_flag_selection, "telemetry_writer"),
     ):
         claim_process_selection(claimed)
         second = canonicalize_flag_selection({"tags": ["b"]})
@@ -988,7 +989,7 @@ def test_once_per_process_guards_reset_in_a_forked_child():
     if pid == 0:
         with (
             mock.patch.object(_flag_selection, "log") as log,
-            mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric") as add_count_metric,
+            mock.patch.object(_flag_selection, "telemetry_writer") as telemetry_writer,
         ):
             third = canonicalize_flag_selection({"tags": ["c"]})
             inherited = claim_process_selection(third)
@@ -997,7 +998,7 @@ def test_once_per_process_guards_reset_in_a_forked_child():
             warn_remote_config(claimed)
         reset = (
             inherited == claimed
-            and add_count_metric.call_count == 1
+            and telemetry_writer.add_count_metric.call_count == 1
             and log.error.call_count == 1
             and log.warning.call_count == 2
         )
@@ -1013,7 +1014,7 @@ def _child_dropped_counts(flag_selection):
 
     with (
         mock.patch.object(_flag_selection, "log"),
-        mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric"),
+        mock.patch.object(_flag_selection, "telemetry_writer"),
     ):
         _create_source(flag_selection)
 
@@ -1023,11 +1024,12 @@ def _child_dropped_counts(flag_selection):
         os.close(read_fd)
         with (
             mock.patch.object(_flag_selection, "log") as log,
-            mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric") as add_count_metric,
+            mock.patch.object(_flag_selection, "telemetry_writer") as telemetry_writer,
         ):
             _flag_selection.count_inherited_drop()
             _flag_selection.count_inherited_drop()
-        result = {"counts": [list(c.args[1:2]) + [dict(c.args[3])] for c in add_count_metric.call_args_list]}
+        calls = telemetry_writer.add_count_metric.call_args_list
+        result = {"counts": [list(c.args[1:2]) + [dict(c.args[3])] for c in calls]}
         result["logged"] = log.error.call_count + log.warning.call_count
         os.write(write_fd, json.dumps(result).encode())
         os._exit(0)
