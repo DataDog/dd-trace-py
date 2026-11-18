@@ -1351,3 +1351,34 @@ def test_completion_with_openai_fallback_failing_before_sdk_keeps_error_span(lit
     assert [s.name for s in llm_spans] == ["litellm.request"]
     assert get_llmobs_span_kind(llm_spans[0]) == "llm"
     assert llm_spans[0].error == 1
+
+
+@pytest.mark.parametrize(
+    "fallback_kwargs",
+    [
+        {"model": "ollama/gpt-oss:20b"},
+        {"model": "openai/gpt-4o-mini", "mock_response": "fallback answer"},
+    ],
+    ids=["non_openai_provider_named_gpt", "mock_response"],
+)
+def test_completion_with_fallback_without_openai_span_keeps_llm_span(
+    litellm, litellm_llmobs, test_spans, fallback_kwargs
+):
+    """Only fallbacks that really emit an OpenAI span turn the outer span into a workflow span."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="answer")
+
+    def completion(*args, **kwargs):
+        return traced_completion(inner_completion, None, (), {"messages": FALLBACK_MESSAGES, **fallback_kwargs})
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": [fallback_kwargs]},
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [(s.name, get_llmobs_span_kind(s)) for s in spans if s.span_type == "llm"] == [("litellm.request", "llm")]

@@ -85,6 +85,19 @@ def has_fallbacks(kwargs):
     return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
 
 
+def _emits_openai_span(kwargs, model) -> bool:
+    """Determine whether the answering attempt really runs the OpenAI SDK.
+
+    ``has_downstream_openai_span`` is a loose guess, which is fine for the primary call. A fallback span is replaced
+    by a workflow span, so a wrong guess would leave the request with no LLM span.
+    """
+    if not has_downstream_openai_span(kwargs, model) or kwargs.get("mock_response") is not None:
+        return False
+    provider, _, _ = (model or "").lower().partition("/")
+    # Bare model names ("gpt-4o") are OpenAI's own; any other provider prefix routes elsewhere ("ollama/gpt-oss").
+    return provider in ("openai", "azure", "text-completion-openai") or "/" not in (model or "")
+
+
 def _is_cache_hit(response) -> bool:
     return bool((getattr(response, "_hidden_params", None) or {}).get("cache_hit"))
 
@@ -111,7 +124,7 @@ def fallback_dispatch(ctx):
             span = span_from_context(ctx)
             span.set_tag(TAG_MODEL, model)
             if (
-                has_downstream_openai_span(attempt_kwargs, model)
+                _emits_openai_span(attempt_kwargs, model)
                 and event.response is not None
                 and not _is_cache_hit(event.response)
             ):
