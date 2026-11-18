@@ -13,16 +13,16 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_vertexai
 from ddtrace.llmobs._integrations.google_utils import get_system_instructions_vertexai
 from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_vertexai
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Message
-from ddtrace.trace import Span
 
 
 class VertexAIIntegration(BaseLLMIntegration):
     _integration_name = "vertexai"
 
     def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
+        self, span: _LLMObsSpan, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
     ) -> None:
         if provider is not None:
             span._set_attribute("vertexai.request.provider", provider)
@@ -31,7 +31,7 @@ class VertexAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,

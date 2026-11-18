@@ -17,13 +17,13 @@ from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import type_name
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import AgentCapability
 from ddtrace.llmobs.types import AgentInstructionResolver
 from ddtrace.llmobs.types import AgentManifest
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -109,7 +109,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> _LLMObsSpan:
         span = super().trace(operation_id, submit_to_llmobs, **kwargs)
         kind = kwargs.get("kind", None)
         if kind:
@@ -117,7 +117,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             _annotate_llmobs_span_data(span, kind=kind)
         return span
 
-    def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, **kwargs) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, model: Optional[Any] = None, **kwargs) -> None:
         if model:
             model_name, provider = self._get_model_and_provider(model)
             span.set_tag("pydantic_ai.request.model", model_name)
@@ -133,7 +133,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -154,7 +154,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
 
@@ -202,7 +202,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return None
 
     def _llmobs_set_tags_tool(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
         raw_call = (
@@ -256,7 +256,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ),
         )
 
-    def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: _LLMObsSpan, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
         # dict() rather than a cast: the consumer takes a plain mapping, and a TypedDict is not
@@ -564,16 +564,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
             return False
         return callable(candidate) and not isinstance(candidate, type)
 
-    def _register_span(self, span: Span, kind: Any) -> None:
+    def _register_span(self, span: _LLMObsSpan, kind: Any) -> None:
         if kind == "agent":
             self._register_agent(span)
         elif kind == "tool":
             self._register_tool(span)
 
-    def _register_agent(self, span: Span) -> None:
+    def _register_agent(self, span: _LLMObsSpan) -> None:
         self._latest_agent = span.span_id
         self._running_agents[span.span_id] = []
 
-    def _register_tool(self, span: Span) -> None:
+    def _register_tool(self, span: _LLMObsSpan) -> None:
         if self._latest_agent is not None:
             self._running_agents[self._latest_agent].append(span.span_id)

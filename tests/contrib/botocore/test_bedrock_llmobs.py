@@ -1209,16 +1209,15 @@ def test_shadow_tags_invoke_when_llmobs_disabled(tracer):
 
     integration = BedrockIntegration(MagicMock())
 
-    ctx = MagicMock()
-    ctx.get_item.side_effect = lambda key: {
-        "llmobs.proxy_request": None,
-        "llmobs.usage": {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
+    # The request the botocore integration records for products.
+    request = {
+        "usage": {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
         "model_id": "anthropic.claude-v2",
         "model_name": "anthropic.claude-v2",
-    }.get(key)
+    }
 
     with tracer.trace("botocore.command") as span:
-        integration._set_apm_shadow_tags(span, [ctx], {}, response=None, operation="")
+        integration._set_apm_shadow_tags(span, [], request, response=None, operation="InvokeModel")
 
     assert span.get_tag("_dd.llmobs.span_kind") == "llm"
     assert span.get_tag("_dd.llmobs.model_name") == "anthropic.claude-v2"

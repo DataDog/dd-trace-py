@@ -2,6 +2,7 @@ from types import TracebackType
 from typing import Any
 from typing import Optional
 from typing import Protocol
+from typing import Union
 
 from ddtrace.internal.native._native import Context
 
@@ -16,6 +17,8 @@ class _LLMObsSpan(Protocol):
     where an LLMObs span is expected is a type error instead of a silently swallowed exception.
     """
 
+    name: str
+    resource: str
     span_type: Optional[str]
     error: int
     span_id: int
@@ -37,6 +40,10 @@ class _LLMObsSpan(Protocol):
     def finish(self, finish_time: Optional[float] = None) -> None: ...
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None: ...
+
+    def get_tag(self, key: str) -> Optional[str]: ...
+
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
 
     def set_exc_info(
         self,
