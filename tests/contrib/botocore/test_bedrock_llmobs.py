@@ -191,6 +191,26 @@ class TestLLMObsBedrock:
             expected_metrics={"input_tokens": 18, "output_tokens": 51, "total_tokens": 69},
         )
 
+    def test_llmobs_amazon_nova_invoke_stream_token_usage(self, bedrock_client, bedrock_llmobs, test_spans):
+        # Nova streams report 0 tokens in amazon-bedrock-invocationMetrics; the real counts are in metadata.usage
+        body = {
+            "schemaVersion": "messages-v1",
+            "messages": [{"role": "user", "content": [{"text": "Say hello world."}]}],
+            "inferenceConfig": {"maxTokens": 20, "temperature": 0},
+        }
+        with get_request_vcr().use_cassette("amazon_nova_invoke_stream.yaml"):
+            response = bedrock_client.invoke_model_with_response_stream(
+                body=json.dumps(body), modelId="us.amazon.nova-micro-v1:0"
+            )
+            for _ in response.get("body"):
+                pass
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = _get_llmobs_data_metastruct(spans[0])["metrics"]
+        assert metrics["input_tokens"] == 4
+        assert metrics["output_tokens"] == 20
+        assert metrics["total_tokens"] == 24
+
     def test_llmobs_anthropic_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(
             "anthropic",
