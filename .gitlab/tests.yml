@@ -94,6 +94,8 @@ extract_test_artifacts:
       # The native IAST suite compiles repository C++ sources and does not import ddtrace.
       # Other test jobs remove the checkout package so Python imports use the wheel.
       if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" ]]; then
+        # Keep the removal out of git status and diffs, which TIA uses to detect changes since its map.
+        git ls-files -z -- ddtrace | xargs -0 git update-index --skip-worktree --
         rm -r "$CI_PROJECT_DIR/ddtrace"
       fi
     # Keep repository test helpers importable; ddtrace itself resolves from the installed wheel.
