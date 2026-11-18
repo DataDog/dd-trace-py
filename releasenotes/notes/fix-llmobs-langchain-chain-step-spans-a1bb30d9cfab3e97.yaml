@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a memory leak where each LangChain chain invoked without an enclosing
+    LLM Observability span stays in memory, together with its spans, for the life of the process.
+  - |
+    LLM Observability: Fixes an issue where the span links between the steps of a LangChain chain point to a step
+    of another run, or to the chain instead of the previous step. This happens when the same chain object runs
+    concurrently, or when a chain stream inside an LLM Observability span is stopped early.
