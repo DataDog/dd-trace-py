@@ -852,9 +852,13 @@ lib_injection_tests:
   tags: [ "arch:amd64" ]
   image: ${PROFILING_NATIVE_IMAGE}
   timeout: 15m
+  id_tokens:
+    DD_STS_OIDC_TOKEN:
+      aud: dd-sts
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
+    CTEST_JUNIT_DIR: "${CI_PROJECT_DIR}/native-junit"
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
@@ -870,6 +874,14 @@ lib_injection_tests:
     # Disable leak detection for "safety" - Valgrind jobs already cover leak detection.
     - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
+  after_script:
+    # Native test results go to Test Optimization, so failing tests aren't counted as CI infra failures
+    - |
+      if ls native-junit/*.xml >/dev/null 2>&1; then
+        DD_API_KEY=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab" | python3 -c 'import json, sys; print(json.load(sys.stdin)["api_key"])') && export DD_API_KEY
+        curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o /tmp/datadog-ci https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64 && chmod +x /tmp/datadog-ci
+        /tmp/datadog-ci junit upload --service dd-trace-py --env ci native-junit/ || echo "JUnit upload failed (ignored)"
+      fi
 
 # Run on PRs where files in the native Profiling build graph changed.
 # build_standalone.sh compiles Rust (setup.py build_rust) then builds C++ tests
