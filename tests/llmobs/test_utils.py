@@ -1002,3 +1002,26 @@ def test_link_tracker_tool_call_keeps_lookup_of_newer_call_with_same_arguments(t
 
     assert list(tracker._tool_calls) == ["call_new"]
     assert tracker._lookup_tool_id == {("search", args): "call_new"}
+
+
+def test_link_tracker_tool_call_keeps_lookup_of_newer_call_with_reused_tool_id(tracer, monkeypatch):
+    """Same as above, but the newer call reuses the tool id, as ReAct ids derived from the tool name and input do."""
+    monkeypatch.setattr("ddtrace.llmobs._utils._MAX_TRACKED_TOOL_CALLS", 1)
+    tracker = LinkTracker()
+    args = '{"q":"x"}'
+    tracker.on_llm_tool_choice("call_reused", "search", args, _llm_span_context(1))
+
+    original_add_span_link = llmobs_utils.add_span_link
+
+    def add_span_link_then_interleave(*a, **kw):
+        original_add_span_link(*a, **kw)
+        # Another request evicts the call and registers an identical one under the same tool id.
+        tracker.on_llm_tool_choice("call_other", "other", "{}", _llm_span_context(2))
+        tracker.on_llm_tool_choice("call_reused", "search", args, _llm_span_context(3))
+
+    monkeypatch.setattr(llmobs_utils, "add_span_link", add_span_link_then_interleave)
+    with tracer.trace("tool") as tool_span:
+        tracker.on_tool_call("search", args, "function", tool_span)
+
+    assert tracker._tool_calls["call_reused"].llm_span_context == _llm_span_context(3)
+    assert tracker._lookup_tool_id == {("search", args): "call_reused"}
