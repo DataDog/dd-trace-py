@@ -221,7 +221,8 @@ class DataDogProvider(AbstractProvider):
         # dd-trace-js where the same switch gates the provider and its writers.
 
         # Agentless configuration-source poller; started in initialize() when
-        # agentless is the resolved source and stopped in shutdown().
+        # agentless is the resolved source and stopped in shutdown(). The lock makes a start one step and
+        # gives a teardown one owner; the source, and its claim, stay until that teardown's join succeeds.
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
         self._configuration_source_lock = forksafe.Lock()
         self._stopping_configuration_source = False
@@ -470,37 +471,39 @@ class DataDogProvider(AbstractProvider):
         logger.debug("Feature Flags: provider shut down; see writer shutdown outcomes for delivery or unfinished work")
 
     def _start_configuration_source(self) -> None:
-        """Start the agentless poller when agentless is the resolved source."""
-        if self._configuration_source is not None:
-            return
+        """Start the agentless poller when agentless is the resolved source.
 
+        Concurrent starts, and a start during a teardown, find the source in place and add no poller or claim.
+        """
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
-        source = create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
-        if source is None:
-            return
+        with self._configuration_source_lock:
+            if self._configuration_source is not None:
+                return
 
-        # A poller of the released selection may have notified this provider after attach()
-        # registered it. Nothing under the new claim has polled yet, so no notification is lost.
-        if snapshot_from_other_selection():
-            self._config_received.clear()
-            self._status = ProviderStatus.NOT_READY
+            source = create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
+            if source is None:
+                return
 
-        try:
-            source.start()
-        except ServiceStatusError:
-            logger.debug("Agentless configuration source is already running", exc_info=True)
-        except Exception:
-            release_process_selection()
-            raise
-        self._configuration_source = source
+            # A poller of the released selection may have notified this provider after attach()
+            # registered it. Nothing under the new claim has polled yet, so no notification is lost.
+            if snapshot_from_other_selection():
+                self._config_received.clear()
+                self._status = ProviderStatus.NOT_READY
+
+            try:
+                source.start()
+            except ServiceStatusError:
+                logger.debug("Agentless configuration source is already running", exc_info=True)
+            except Exception:
+                release_process_selection()
+                raise
+            self._configuration_source = source
 
     def _stop_configuration_source(self) -> None:
         """Stop the agentless poller if it was started.
 
-        One shutdown at a time tears the poller down, and the source stays in place until the join succeeds:
-        a concurrent initialize() starts no second poller, and after a failed join the next shutdown finishes
-        the teardown and releases the claim once.
+        Stop and join run outside the lock. After a failed join the next shutdown finishes the teardown.
         """
         with self._configuration_source_lock:
             source = self._configuration_source

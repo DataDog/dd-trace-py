@@ -966,6 +966,42 @@ def test_concurrent_shutdown_releases_the_claim_once(cdn, api_key, monkeypatch):
             provider.shutdown()
 
 
+def test_concurrent_starts_start_one_poller(cdn, api_key, monkeypatch):
+    import ddtrace.internal.openfeature._source_selection as source_selection
+
+    provider = _provider({"tags": ["a"]})
+    later = _provider({"tags": ["b"]})
+    create = source_selection.create_agentless_source
+    creating = threading.Event()
+    created = []
+
+    def slow_create(*args, **kwargs):
+        source = create(*args, **kwargs)
+        created.append(source)
+        creating.set()
+        # Leave a concurrent start time to pass an unguarded check before this source is stored.
+        threading.Event().wait(0.2)
+        return source
+
+    monkeypatch.setattr(source_selection, "create_agentless_source", slow_create)
+    first = threading.Thread(target=provider.initialize, args=(EvaluationContext(),))
+    first.start()
+    try:
+        assert creating.wait(timeout=5)
+        provider.initialize(EvaluationContext())
+        first.join(timeout=5)
+        assert len(created) == 1
+        assert provider._configuration_source is created[0]
+
+        provider.shutdown()
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        first.join(timeout=5)
+        provider.shutdown()
+        later.shutdown()
+
+
 def test_start_during_shutdown_does_not_start_a_second_poller(cdn, api_key, monkeypatch):
     provider = _provider({"tags": ["a"]})
     later = _provider({"tags": ["b"]})
@@ -985,7 +1021,7 @@ def test_start_during_shutdown_does_not_start_a_second_poller(cdn, api_key, monk
         stopping = threading.Thread(target=provider.shutdown)
         stopping.start()
         assert joining.wait(timeout=5)
-        provider._start_configuration_source()
+        provider.initialize(EvaluationContext())
         assert provider._configuration_source is source
         resume.set()
         stopping.join(timeout=5)
@@ -1025,6 +1061,36 @@ def test_failed_poller_join_leaves_the_claim_to_the_next_shutdown(cdn, api_key, 
     finally:
         provider.shutdown()
         later.shutdown()
+
+
+def test_child_forked_while_running_keeps_the_claim_until_its_own_shutdown(cdn, api_key):
+    import os
+    import warnings
+
+    provider = _provider({"tags": ["a"]})
+    other = canonicalize_flag_selection({"tags": ["b"]})
+    try:
+        provider.initialize(EvaluationContext())
+        with warnings.catch_warnings():
+            # CPython 3.12+ warns when a multi-threaded process forks.
+            warnings.simplefilter("ignore", DeprecationWarning)
+            pid = os.fork()
+        if pid == 0:
+            try:
+                kept = provider._configuration_source is not None and claim_process_selection(other).tags == ("a",)
+                _flag_selection.release_process_selection()
+                provider.shutdown()
+                released = provider._configuration_source is None and claim_process_selection(other) == other
+                os._exit(0 if kept and released else 1)
+            except BaseException:
+                os._exit(2)
+
+        _, status = os.waitpid(pid, 0)
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+        assert claim_process_selection(other).tags == ("a",)
+        _flag_selection.release_process_selection()
+    finally:
+        provider.shutdown()
 
 
 def test_new_selection_after_release_waits_for_its_own_poll(cdn, api_key, caplog):
