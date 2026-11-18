@@ -336,6 +336,10 @@ class LiteLLMIntegration(BaseLLMIntegration):
         base_url = request_kwargs.get("base_url") or request_kwargs.get("api_base")
         return str(base_url) if base_url else None
 
+    def _llmobs_gateway(self, request_kwargs: dict[str, Any]) -> Optional[str]:
+        # The LiteLLM proxy server sets proxy_server_request on the calls that it makes to litellm.
+        return "litellm" if request_kwargs.get("proxy_server_request") else None
+
 
 def is_system_one_request(kwargs: dict[str, Any], operation: str) -> bool:
     """Whether the caller sent the System One body format: systemone, or the deprecated decisions(state=...)."""

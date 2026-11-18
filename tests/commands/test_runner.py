@@ -210,7 +210,7 @@ class DdtraceRunTest(BaseTestCase):
         stdout, stderr = p.communicate()
         assert p.returncode == 0
         assert stdout == b""
-        assert b" 'debug': True" in stderr
+        assert b' "debug": true' in stderr
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Profiling unsupported with 3.13")

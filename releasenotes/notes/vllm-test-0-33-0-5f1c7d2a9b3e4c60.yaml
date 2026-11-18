@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    vllm: The integration is now tested with vLLM 0.33.0 and on Python 3.12 through 3.14.
+fixes:
+  - |
+    vllm: Fixes distributed trace context not being propagated to ``vllm.request`` spans with vLLM >= 0.33.0
+    when no OTLP traces endpoint is configured, because vLLM then drops ``trace_headers`` in ``AsyncLLM.add_request``.
