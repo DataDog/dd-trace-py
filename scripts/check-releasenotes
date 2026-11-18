@@ -4,6 +4,15 @@ set -e
 echo "GitHub event path: ${GITHUB_EVENT_PATH}"
 echo "JQ: $(which jq)"
 
+# Files under these paths never ship to customers. A PR that only touches them
+# (plus its release note) has no customer-visible change, so the note is noise:
+# release notes are customer-facing (docs/releasenotes.rst) and PRs without
+# customer impact use the `changelog/no-changelog` label instead.
+# DEV: `.github/` and `.gitlab/` are deliberately not listed: CI changes can alter
+#      the published artifacts (wheels, images), which does deserve a note.
+# DEV: `fix` and `feat` PRs are exempt below because they always require a note.
+INTERNAL_ONLY_PATHS='^(tests/|\.riot/|riotfile\.py$|scripts/|benchmarks/|hooks/|\.agents/|\.claude/|\.cursor/|\.llm-validation/|supported_versions\.json$|AGENTS\.md$|CLAUDE\.md$)'
+
 
 # Skip the label check if we do not have a GitHub event path
 if [[ -f "${GITHUB_EVENT_PATH}" ]] && jq -e '.pull_request?.labels[]?.name | select(. == "changelog/no-changelog")' "${GITHUB_EVENT_PATH}";
@@ -41,6 +50,24 @@ echo "Base ref: ${BASE_REF}"
 # Check if they added a new file or renamed a file in releasenotes/notes
 if git diff --name-only --diff-filter=AR "${BASE_REF}" | grep "^releasenotes/notes";
 then
+    # Needs the PR title (from the event payload) to apply the fix/feat exemption.
+    if [[ -f "${GITHUB_EVENT_PATH}" ]];
+    then
+        PR_TITLE="$(jq -r '.pull_request?.title // ""' "${GITHUB_EVENT_PATH}")"
+        OTHER_FILES="$(git diff --name-only "${BASE_REF}" | grep -v "^releasenotes/notes/" || true)"
+        PRODUCT_FILES="$(printf '%s\n' "${OTHER_FILES}" | grep -v -E "${INTERNAL_ONLY_PATHS}" | grep -v "^$" || true)"
+
+        if [[ -n "${OTHER_FILES}" && -z "${PRODUCT_FILES}" && "${PR_TITLE}" != fix* && "${PR_TITLE}" != feat* ]];
+        then
+            echo "This PR only changes files that never reach customers (tests, CI, scripts, ...), but it adds a release note."
+            echo "Release notes are customer-facing, see docs/releasenotes.rst."
+            echo "Remove the release note and add the 'changelog/no-changelog' label instead."
+            echo "If the note is intentional (for example it documents an earlier, already merged fix), keep it and"
+            echo "add the 'changelog/no-changelog' label to skip this check."
+            exit 1
+        fi
+    fi
+
     echo "New release note found, success"
     exit 0
 else
