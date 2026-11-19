@@ -62,8 +62,9 @@ def start() -> None:
 
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register_callback(RemoteConfigProduct.Debug, remoteconfig.ProfilingRCCallback())
-        remoteconfig_poller.enable_product(RemoteConfigProduct.Debug)
+        callback = remoteconfig.ProfilingRCCallback()
+        remoteconfig_poller.register_callback(RemoteConfigProduct.ApmProfiling, callback)
+        remoteconfig_poller.enable_product(RemoteConfigProduct.ApmProfiling)
 
 
 def activated() -> bool:
@@ -84,5 +85,5 @@ def stop(join: bool = False) -> None:
 
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    remoteconfig_poller.unregister_callback(RemoteConfigProduct.Debug)
-    remoteconfig_poller.disable_product(RemoteConfigProduct.Debug)
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.ApmProfiling)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.ApmProfiling)
