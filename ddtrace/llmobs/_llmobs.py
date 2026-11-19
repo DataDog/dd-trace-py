@@ -3914,13 +3914,16 @@ class LLMObs(Service):
             telemetry.record_inject_distributed_headers(error)
 
     @staticmethod
-    def _select_propagated_carrier(context: Context) -> Optional[str]:
+    def _select_propagated_carrier(context: Context) -> tuple[Optional[str], str]:
         """Pick the carrier to read all inbound LLMObs fields from: "baggage", "tags", or None.
 
         Baggage is the primary carrier. A tag parent that differs from the baggage parent means a
         tag-only hop (older dd-trace-py, or an SDK without the baggage carrier) sat in between and
         forwarded stale baggage, so the tags win. Reading every field from one carrier keeps two
         hops' contexts from being spliced together.
+
+        Also returns the decision for telemetry: "baggage", "tags" (no baggage parent),
+        "stale_baggage" (the tags won over a different baggage parent), or "none".
         """
         tag_parent = context._meta.get(PROPAGATED_PARENT_ID_KEY)
         # `restart` severs the inbound trace but keeps baggage; honor the boundary for LLMObs too.
@@ -3928,18 +3931,20 @@ class LLMObs(Service):
             baggage_parent = None
         else:
             baggage_parent = context.get_baggage_item(BAGGAGE_PARENT_ID_KEY)
-        stale_baggage = tag_parent not in (None, ROOT_PARENT_ID) and baggage_parent != tag_parent
-        if stale_baggage or baggage_parent is None:
-            return "tags" if tag_parent is not None else None
-        return "baggage"
+        if baggage_parent is None:
+            return ("tags", "tags") if tag_parent is not None else (None, "none")
+        if tag_parent not in (None, ROOT_PARENT_ID) and baggage_parent != tag_parent:
+            return "tags", "stale_baggage"
+        return "baggage", "baggage"
 
     @classmethod
     def _activate_llmobs_distributed_context(cls, request_headers: dict[str, str], context: Context) -> None:
         error = None
+        carrier_decision = None
         try:
             if cls.enabled is False:
                 return
-            carrier = cls._select_propagated_carrier(context)
+            carrier, carrier_decision = cls._select_propagated_carrier(context)
             if carrier == "baggage":
 
                 def read(propagated_key: str) -> Optional[str]:
@@ -4001,7 +4006,7 @@ class LLMObs(Service):
                     llmobs_context._meta[propagated_key] = value
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
-            telemetry.record_activate_distributed_headers(error)
+            telemetry.record_activate_distributed_headers(error, carrier=carrier_decision)
 
     @classmethod
     def activate_distributed_headers(cls, request_headers: dict[str, str]) -> None:

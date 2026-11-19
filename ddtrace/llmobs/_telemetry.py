@@ -276,8 +276,11 @@ def record_inject_distributed_headers(error: Optional[str]):
     )
 
 
-def record_activate_distributed_headers(error: Optional[str]):
+def record_activate_distributed_headers(error: Optional[str], carrier: Optional[str] = None):
+    """carrier is the inbound carrier decision: baggage, tags, stale_baggage, or none."""
     tags = _base_tags(error)
+    if carrier is not None:
+        tags.append(("carrier", carrier))
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ACTIVATE_HEADERS, value=1, tags=tuple(tags)
     )

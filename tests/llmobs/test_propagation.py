@@ -1558,3 +1558,43 @@ def test_baggage_merge_failure_does_not_escape_inject(llmobs):
         with mock.patch.object(_BaggageHeader, "_extract", side_effect=RuntimeError("changed size")):
             HTTPPropagator.inject(span.context, headers)
     assert "x-datadog-trace-id" in headers
+
+
+@pytest.mark.parametrize(
+    "tag_parent,baggage_parent,expected",
+    [
+        (None, "222222222", "baggage"),
+        ("111111111", "111111111", "baggage"),
+        ("111111111", None, "tags"),
+        ("111111111", "222222222", "stale_baggage"),
+        (None, None, "none"),
+    ],
+)
+def test_activate_records_carrier_decision(llmobs, tag_parent, baggage_parent, expected):
+    ctx = Context(trace_id=123456789, span_id=987654321)
+    if tag_parent is not None:
+        ctx._meta[PROPAGATED_PARENT_ID_KEY] = tag_parent
+    if baggage_parent is not None:
+        ctx.set_baggage_item(BAGGAGE_PARENT_ID_KEY, baggage_parent)
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_activate_distributed_headers") as record:
+        llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    assert record.call_args.kwargs["carrier"] == expected
+
+
+def test_activate_records_no_carrier_under_restart(llmobs):
+    ctx = _extract_baggage_only_context(_HEX_TRACE_ID)
+    with mock.patch.object(config, "_propagation_behavior_extract", "restart"):
+        with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_activate_distributed_headers") as record:
+            llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    assert record.call_args.kwargs["carrier"] == "none"
+
+
+def test_record_activate_distributed_headers_adds_carrier_tag():
+    from ddtrace.llmobs import _telemetry
+
+    with mock.patch.object(_telemetry, "telemetry_writer") as writer:
+        _telemetry.record_activate_distributed_headers(None, carrier="stale_baggage")
+        _telemetry.record_activate_distributed_headers("missing_parent_id")
+    first, second = (c.kwargs["tags"] for c in writer.add_count_metric.call_args_list)
+    assert ("carrier", "stale_baggage") in first
+    assert not [t for t in second if t[0] == "carrier"]
