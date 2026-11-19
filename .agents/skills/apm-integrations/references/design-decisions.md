@@ -83,6 +83,14 @@ request finishes: connection tasks can remain alive across keep-alive requests.
 Do not retain exception objects in deferred callbacks; record errors synchronously
 and allow cancellation to complete without requiring a response or tagging it as an error.
 
+Bottle maps request and response metadata into WebFrameworkRequestEvent and leaves
+propagation, spans, and HTTP error policy to WebFrameworkRequestSubscriber. Raised
+HTTPResponse objects set response_from_exception so the subscriber applies status-based
+OpenTelemetry error semantics without deferring and re-raising the framework exception.
+Set response classification before fallible header collection; header failures must not
+discard a known status or alter its error classification.
+Completion stays at the synchronous route callback boundary, before response iteration.
+
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,

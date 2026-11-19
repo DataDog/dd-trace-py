@@ -2,6 +2,7 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
+from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_method_tag
@@ -55,11 +56,26 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
 
         span: Span = span_from_context(ctx)
 
+        if (
+            event.response_from_exception
+            and status_code is not None
+            and is_otel_non_error_status(status_code)
+            and exc_info[0] is not None
+        ):
+            # Framework HTTP exceptions carry responses; their status determines OTel errors.
+            span._ignore_exception(exc_info[0])
+
         # event.resource can be updated at span finish time
         if event.resource:
             set_instrumentation_resource(span, event.resource)
         elif event.set_resource and status_code is not None:
             set_instrumentation_resource(span, f"{method} {status_code}")
+
+        try:
+            response_headers = dict(res_headers) if res_headers is not None else None
+        except Exception:
+            log.debug("%s: error reading response headers", event.integration_config.integration_name, exc_info=True)
+            response_headers = None
 
         try:
             trace_utils.set_http_meta(
@@ -71,7 +87,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
                 trace_query_string=event.trace_query_string,
                 status_code=status_code,
                 request_headers=event.request_headers,
-                response_headers=dict(res_headers) if res_headers is not None else None,
+                response_headers=response_headers,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
             )
