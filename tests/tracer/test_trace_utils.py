@@ -816,6 +816,20 @@ def test_get_request_header_client_ip_joins_repeated_header_lines(header_lines, 
     assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
 
 
+@pytest.mark.parametrize(
+    "header_lines,expected",
+    [
+        ([("X-Use-This", "8.8.8.8"), ("X-Use-This", "1.1.1.1")], ""),
+        ([("X-Use-This", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
+        ([("x_use_this", "8.8.8.8")], "8.8.8.8"),
+    ],
+)
+def test_get_request_header_client_ip_configured_header_lines(header_lines, expected):
+    headers = wsgiref.headers.Headers(header_lines)
+    with override_global_config(dict(_client_ip_header="X-Use-This")):
+        assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
+
+
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
     with override_global_config(dict(_asm_enabled=False)):
         int_config.myint.http._header_tags = {"enabled": True}
