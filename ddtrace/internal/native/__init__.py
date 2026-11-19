@@ -42,6 +42,7 @@ from ._native import TraceBuffer  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import config  # noqa: F401
+from ._native import fnv1_64  # noqa: F401
 from ._native import generate_128bit_trace_id  # noqa: F401
 from ._native import list_distributions  # noqa: F401
 from ._native import logger  # noqa: F401

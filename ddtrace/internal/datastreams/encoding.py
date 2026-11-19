@@ -1,7 +1,5 @@
 import struct
 
-from ddtrace.internal.utils.fnv import _get_byte
-
 
 MAX_VAR_LEN_64 = 9
 
@@ -32,7 +30,7 @@ def decode_var_uint_64(b: bytes) -> tuple[int, bytes]:
     for i in range(0, MAX_VAR_LEN_64):
         if len(b) <= i:
             raise EOFError()
-        n = _get_byte(b[i])
+        n = b[i]
         if n < 0x80 or i == MAX_VAR_LEN_64 - 1:
             return x | n << s, b[i + 1 :]
         x |= (n & 0x7F) << s
