@@ -33,10 +33,14 @@ Usage:
 from _queue import Empty
 from _queue import SimpleQueue
 from _thread import get_ident
+import atexit
 import collections
 from dataclasses import dataclass
 from dataclasses import field
+from functools import cache
 import logging
+import os
+import sys
 import time
 import traceback
 from typing import Any
@@ -116,9 +120,6 @@ def get_logger(name: str) -> logging.Logger:
         if (level := LOG_LEVEL_TRIE.lookup(name)) is not None:
             logger.setLevel(level)
 
-    if main_hub_logging.enabled:
-        main_hub_logging.wrap(logger)
-
     return logger
 
 
@@ -126,21 +127,40 @@ class _MainHubLogger(logging.Logger):
     """A ddtrace logger that hands the records produced off the main thread to the main gevent hub."""
 
     def isEnabledFor(self, level: int) -> bool:
-        if main_hub_logging.runs_inline():
-            return super().isEnabledFor(level)
-        # Same as the base class, without the logging lock it takes on a cache miss.
         if self.disabled:
             return False
         try:
             return self._cache[level]  # type: ignore[attr-defined]
         except KeyError:
-            return level > self.manager.disable and level >= self.getEffectiveLevel()
+            pass
+        if main_hub_logging.runs_inline():
+            return super().isEnabledFor(level)
+        # Same as the base class, without the logging lock it takes to fill the cache.
+        return level > self.manager.disable and level >= self.getEffectiveLevel()
 
     def handle(self, record: logging.LogRecord) -> None:
-        if main_hub_logging.runs_inline():
+        if main_hub_logging.runs_inline() or not main_hub_logging.put(self, record):
             super().handle(record)
-        else:
-            main_hub_logging.put(self, record)
+
+
+@cache
+def _main_hub_logger_class(cls: type) -> type:
+    return _MainHubLogger if cls is logging.Logger else type(cls.__name__, (_MainHubLogger, cls), {})
+
+
+class _MainHubManager(logging.Manager):
+    def getLogger(self, name: str) -> logging.Logger:
+        logger = super().getLogger(name)
+        _wrap(logger)
+        return logger
+
+
+def _wrap(logger: logging.Logger) -> None:
+    if not isinstance(logger, _MainHubLogger) and (logger.name == "ddtrace" or logger.name.startswith("ddtrace.")):
+        try:
+            logger.__class__ = _main_hub_logger_class(type(logger))  # type: ignore[arg-type]
+        except TypeError:
+            pass  # e.g. a logger class with __slots__, which keeps logging inline
 
 
 class MainHubLogging:
@@ -152,51 +172,71 @@ class MainHubLogging:
     queued instead, and a single greenlet on the main hub handles them in order.
     """
 
-    _records: "SimpleQueue[tuple[logging.Logger, logging.LogRecord]]"
-    _draining: bool
+    # A main hub that doesn't run, e.g. busy with CPU work, makes threads log inline past this many records.
+    max_records = 1000
 
     def __init__(self) -> None:
-        self.enabled = False
-        self._main_thread_ident = get_ident()
-        self._hub: Any = None
-        self._spawn_raw: Optional[Callable[..., Any]] = None
+        self._threading_patched = False
         self.reset()
 
-    def enable(self) -> None:
-        """Wrap the existing and future ddtrace loggers. Called from the main thread."""
-        self.enabled = True
+    def reset(self) -> None:
+        """Log inline in a fork child: the parent emits the records it had queued, and the child might never run a
+        hub, or exit with os._exit. The thread that forked is the main thread of the child.
+        """
+        self._pid = os.getpid()
         self._main_thread_ident = get_ident()
-        for logger in list(logging.root.manager.loggerDict.values()):
-            if isinstance(logger, logging.Logger):
-                self.wrap(logger)
-
-    def wrap(self, logger: logging.Logger) -> None:
-        if type(logger) is logging.Logger and (logger.name == "ddtrace" or logger.name.startswith("ddtrace.")):
-            logger.__class__ = _MainHubLogger
+        self._lock = Lock()
+        self._records: SimpleQueue[tuple[_MainHubLogger, logging.LogRecord]] = SimpleQueue()
+        self._draining = False
+        self._hub: Any = None
+        self._spawn_raw: Optional[Callable[..., Any]] = None
 
     def set_hub(self, hub: Any, spawn_raw: Callable[..., Any]) -> None:
-        """Record the hub created on the main thread, which owns the gevent locks of logging."""
-        if get_ident() == self._main_thread_ident:
-            self._hub = hub
+        """Hand records to the hub created on the main thread, which owns the gevent locks of logging."""
+        if get_ident() != self._main_thread_ident:
+            return
+        with self._lock:
+            # A thread that sees the hub uses spawn_raw.
             self._spawn_raw = spawn_raw
+            self._hub = hub
+        manager = logging.Logger.manager
+        if type(manager) is logging.Manager:
+            manager.__class__ = _MainHubManager
+        for logger in list(manager.loggerDict.values()):
+            if isinstance(logger, logging.Logger):
+                _wrap(logger)
 
     def runs_inline(self) -> bool:
-        # Until the main hub exists, nothing can be waiting for it.
-        return self._hub is None or get_ident() == self._main_thread_ident
+        # Until the main hub exists nothing can wait for it, and without patched threading the locks are native.
+        return self._hub is None or get_ident() == self._main_thread_ident or not self._is_threading_patched()
 
-    def put(self, logger: logging.Logger, record: logging.LogRecord) -> None:
-        self._records.put((logger, record))
+    def _is_threading_patched(self) -> bool:
+        if not self._threading_patched:
+            monkey = sys.modules.get("gevent.monkey")
+            self._threading_patched = monkey is not None and monkey.is_module_patched("threading")
+        return self._threading_patched
+
+    def put(self, logger: _MainHubLogger, record: logging.LogRecord) -> bool:
+        """Queue the record for the main hub. Returns False when the caller should handle it inline."""
+        if os.getpid() != self._pid:
+            return False  # In a fork child before reset: the lock and the hub belong to the parent.
+        _format_args(record)
         with self._lock:
+            hub, spawn_raw = self._hub, self._spawn_raw
+            if hub is None or self._records.qsize() >= self.max_records:
+                return False
+            self._records.put((logger, record))
             if self._draining:
-                return
+                return True
             self._draining = True
         try:
             # Spawning needs the hub's own thread. This only wakes up its loop, and doesn't block.
-            self._hub.loop.run_callback_threadsafe(self._spawn_raw, self._drain)
+            hub.loop.run_callback_threadsafe(spawn_raw, self._drain)
         except Exception:
             # The hub is gone; the records are emitted at exit.
             with self._lock:
                 self._draining = False
+        return True
 
     def flush(self) -> None:
         """Handle the queued records on the current thread."""
@@ -205,34 +245,50 @@ class MainHubLogging:
                 logger, record = self._records.get_nowait()
             except Empty:
                 return
-            logging.Logger.handle(logger, record)
+            try:
+                super(_MainHubLogger, logger).handle(record)
+            except Exception:
+                if logging.raiseExceptions:
+                    traceback.print_exc()
 
     def flush_at_exit(self) -> None:
-        # Nothing will run the hub anymore, so log inline from now on.
-        self._hub = None
+        # Runs after the native threads have joined, so it emits what they logged while stopping.
+        with self._lock:
+            # Nothing will run the hub anymore, so log inline from now on.
+            self._hub = None
         self.flush()
 
     def _drain(self) -> None:
-        while True:
-            try:
+        try:
+            while True:
                 self.flush()
-            except BaseException:
                 with self._lock:
-                    self._draining = False
-                raise
+                    if self._records.empty():
+                        self._draining = False
+                        return
+        except BaseException:
             with self._lock:
-                if self._records.empty():
-                    self._draining = False
-                    return
+                self._draining = False
+            raise
 
-    def reset(self) -> None:
-        # The parent emits the records that were pending when it forked.
-        self._records = SimpleQueue()
-        self._lock = Lock()
-        self._draining = False
+
+def _format_args(record: logging.LogRecord) -> None:
+    """Format the record while its arguments still hold the values they were logged with."""
+    # The rate limiter keys product records on their message, and formats them itself.
+    if hasattr(record, "product") or record.msg in _RATE_LIMITS:
+        return
+    try:
+        if record.args:
+            record.msg, record.args = record.getMessage(), None
+        if record.exc_info:
+            record.exc_text, record.exc_info = logging.Formatter().formatException(record.exc_info), None
+    except Exception:
+        pass  # The handler reports the error
 
 
 main_hub_logging = MainHubLogging()
+# Registered before the native threads module registers the hook that joins them, so that it runs after it.
+atexit.register(main_hub_logging.flush_at_exit)
 
 
 _RATE_LIMITS = {}

@@ -232,6 +232,14 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  ddtrace_logger:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - benchmarks/ddtrace_logger/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   rate_limiter:
     paths:
       - '@bootstrap'

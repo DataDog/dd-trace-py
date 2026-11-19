@@ -534,6 +534,32 @@ Periodic threads are therefore not allowed to synchronize among themselves;
 each thread's lock must be acquired only by that thread and by the fork
 machinery in a well-defined order.
 
+### Logging from ddtrace threads under gevent
+
+Module cloning keeps `logging` shared with the application, so once gevent has
+patched `threading`, the logging lock and the handler locks are gevent locks. A
+native ddtrace thread that waits for one depends on the main thread's hub,
+which can be waiting for that thread, e.g. joining it before a fork.
+`main_hub_logging` in `ddtrace.internal.logger` breaks that cycle:
+
+- Once gevent creates the hub of the main thread, records logged by ddtrace
+  loggers on other threads are queued, and a single greenlet on the main hub
+  handles them in order. Records logged on the main thread, before the hub
+  exists, or without patched `threading` are handled inline, as is a record
+  logged while the queue is full.
+- Records are formatted when queued, so mutable arguments and exceptions are
+  captured as logged.
+- After fork, the child resets it with a `forksafe.register` hook and logs
+  inline, since it might never run a hub, or might exit with `os._exit`. The
+  parent emits the records it had queued. Hooks that run in the child before
+  the reset log inline too.
+- At exit, `flush_at_exit` emits the queued records and switches to inline
+  logging. It is registered with the stdlib `atexit` when the logger module is
+  imported, before the native threads module registers the hook that joins the
+  periodic threads, so it runs after that join and also emits what the threads
+  log while stopping. `ddtrace.internal.atexit` is not used, since it imports
+  the native threads module first.
+
 ### Adding new fork hooks
 
 - Register via `forksafe` — never call `os.register_at_fork()` directly.

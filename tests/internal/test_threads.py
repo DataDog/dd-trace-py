@@ -572,6 +572,8 @@ def test_fork_while_restart_timer_logs_and_greenlet_holds_handler_lock():
 
     Regression test for the startup deadlock of two forks within the restart timer's window.
     """
+    import faulthandler
+
     import gevent.monkey
 
     import ddtrace.auto  # noqa:F401
@@ -582,6 +584,11 @@ def test_fork_while_restart_timer_logs_and_greenlet_holds_handler_lock():
     import os
 
     import gevent
+
+    # Dump the stacks of a deadlock before the subprocess timeout kills it.
+    faulthandler.dump_traceback_later(20, exit=True)
+    # Wait natively: the patched waitpid depends on the hub handling SIGCHLD, which varies the timing under load.
+    waitpid = gevent.monkey.get_original("os", "waitpid")
 
     from ddtrace.internal import threads
 
@@ -599,7 +606,7 @@ def test_fork_while_restart_timer_logs_and_greenlet_holds_handler_lock():
         pid = os.fork()
         if pid == 0:
             os._exit(0)
-        os.waitpid(pid, 0)
+        waitpid(pid, 0)
 
     worker = threads.PeriodicThread(0.01, lambda: None, name="test-worker")
     worker.start()
@@ -625,3 +632,4 @@ def test_fork_while_restart_timer_logs_and_greenlet_holds_handler_lock():
     assert "Restarting thread test-worker after fork" in messages, messages
     worker.stop()
     worker.join()
+    faulthandler.cancel_dump_traceback_later()
