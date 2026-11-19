@@ -35,6 +35,7 @@ components:
     - ddtrace/contrib/internal/typesafe/*
   openai:
     - ddtrace/contrib/internal/openai/*
+    - ddtrace/contrib/_events/openai_realtime.py
   langgraph:
     - ddtrace/contrib/internal/langgraph/*
   crewai:
@@ -142,7 +143,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           # Pinned to the newest 0.2.x release past the 48h lock cooldown so the
           # current SDK line stays covered without latest-tracking (see above).
-          dependencies: ['claude-agent-sdk==0.2.160', pytest-asyncio]
+          dependencies: ['claude-agent-sdk==0.2.182', pytest-asyncio]
   google_adk:
     venvs_per_job: 7
     paths:
@@ -532,8 +533,9 @@ suites:
     # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
     # run on Python 3.15 yet. Add 3.15 to the python lists once those
     # dependencies publish 3.15 wheels.
-    venvs_per_job: 3
-    # Allow time for GPU placement in addition to the 15-minute test target.
+    # Keep the full matrix on two GPU jobs to reduce pressure on runner placement.
+    venvs_per_job: 4
+    # Allow time for GPU placement and for the environments in each shard to run.
     timeout: 50m
     paths:
       - '@bootstrap'

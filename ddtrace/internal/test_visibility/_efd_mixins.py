@@ -72,7 +72,7 @@ class EFDTestMixin:
         status: TestStatus,
         skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[TestExcInfo] = None,
-    ):
+    ) -> None:
         log.debug(
             "Finishing EFD test retry %s for item %s, status: %s, skip_reason: %s, exc_info: %s",
             retry_number,
