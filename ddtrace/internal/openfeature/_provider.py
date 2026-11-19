@@ -391,7 +391,8 @@ class DataDogProvider(AbstractProvider):
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
         wait_started = time.monotonic()
-        if self._config_received.wait(timeout=max(0.0, deadline - wait_started)):
+        # A start that timed out has no poller of its own yet, so an earlier, stale signal does not count.
+        if started and self._config_received.wait(timeout=max(0.0, deadline - wait_started)):
             self._status = ProviderStatus.READY
             logger.debug(
                 "Feature Flags: provider initialized successfully (configuration received after %.2fs)",
@@ -1001,6 +1002,10 @@ def _reset_provider_state_in_child() -> None:
         provider._configuration_source_starter = None
         # A parent thread may have held the event's internal lock at the fork, and no parent waiter survives.
         provider._configuration_source_changed = Event()
+        if provider._configuration_source is None:
+            # A teardown of retired pollers only ran on a parent thread; nothing in the child would end it.
+            provider._stopping_configuration_source = False
+            provider._configuration_source_stopper = None
 
 
 class ExposureLoggingHook(Hook):

@@ -1563,17 +1563,63 @@ def test_forked_child_gets_a_new_lifecycle_event():
     assert not provider._configuration_source_changed.is_set()
 
 
+def test_initialize_that_times_out_ignores_a_stale_readiness_signal(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    joining = threading.Event()
+    resume = threading.Event()
+    stopping = None
+    try:
+        provider.initialize(EvaluationContext())
+        retired = provider._configuration_source
+        joins = [RuntimeError("join failed")]
+
+        def join_failing_then_held(*args, **kwargs):
+            if joins:
+                raise joins.pop()
+            joining.set()
+            resume.wait(timeout=5)
+
+        monkeypatch.setattr(retired, "join", join_failing_then_held)
+        # The failed shutdown raises before it clears the readiness signal of the first initialization.
+        with pytest.raises(RuntimeError):
+            provider.shutdown()
+        assert provider._config_received.is_set()
+
+        stopping = threading.Thread(target=provider.shutdown)
+        stopping.start()
+        assert joining.wait(timeout=5)
+        with pytest.raises(ProviderNotReadyError):
+            provider.initialize(EvaluationContext())
+    finally:
+        resume.set()
+        if stopping is not None:
+            stopping.join(timeout=5)
+        provider.shutdown()
+
+
+def test_forked_child_drops_a_retired_poller_teardown_reservation():
+    import ddtrace.internal.openfeature._provider as provider_module
+
+    provider = _provider(None)
+    provider._stopping_configuration_source = True
+    provider_module._reset_provider_state_in_child()
+    # With no current poller, the reservation was for retired pollers only; the child can start again.
+    assert provider._stopping_configuration_source is False
+
+
 def test_forked_child_drops_a_start_reservation_from_the_parent():
     import ddtrace.internal.openfeature._provider as provider_module
 
     provider = _provider(None)
     provider._starting_configuration_source = True
     provider._stopping_configuration_source = True
+    provider._configuration_source = mock.Mock()
     provider_module._reset_provider_state_in_child()
     assert provider._starting_configuration_source is False
-    # A teardown reservation stays: retrying the parent's join in the child can block.
+    # A teardown of the current poller stays reserved: retrying the parent's join in the child can block.
     assert provider._stopping_configuration_source is True
     provider._stopping_configuration_source = False
+    provider._configuration_source = None
 
 
 def test_concurrent_starts_start_one_poller(cdn, api_key, monkeypatch):
