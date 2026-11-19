@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 from ddtrace.internal.threads import Lock
 
 
 class SchemaSampler:
-    SAMPLE_INTERVAL_MILLIS: int = 30 * 1000
+    SAMPLE_INTERVAL_MILLIS: ClassVar[int] = 30 * 1000
 
     def __init__(self) -> None:
         self.weight: int = 0

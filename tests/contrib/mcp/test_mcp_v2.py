@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -126,7 +127,7 @@ def test_tool_error(mcp_llmobs, test_spans, run_client, mode):
 
 @pytest.mark.parametrize("mode", CLIENT_MODES)
 def test_tool_error_without_llmobs(mcp_setup, test_spans, run_client, mode):
-    assert not mcp_setup._datadog_integration.llmobs_enabled
+    assert not LLMObs.enabled
     result = run_client(mode, lambda client: client.call_tool("failing_tool", {"param": "value"}))
 
     assert result.is_error

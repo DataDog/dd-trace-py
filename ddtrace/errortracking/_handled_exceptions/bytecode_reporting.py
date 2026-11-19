@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import types
 from types import ModuleType
+from typing import Any
 
 from ddtrace.errortracking._handled_exceptions.bytecode_injector import _inject_handled_exception_reporting
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_bytecode_exc_callback
@@ -17,7 +18,7 @@ from ddtrace.internal.settings.errortracking import config
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
 
 
-def _install_bytecode_injection_reporting():
+def _install_bytecode_injection_reporting() -> None:
     InjectionHandledExceptionReportingWatchdog.install()
 
 
@@ -27,15 +28,15 @@ class HandledExceptionReportingInjector:
     _instrumented_obj: set[int] = set()
     _callback: CallbackType
 
-    def __init__(self, configured_modules: list[str], callback: CallbackType | None = None):
+    def __init__(self, configured_modules: list[str], callback: CallbackType | None = None) -> None:
         self._configured_modules = configured_modules
         self._callback = callback or _default_bytecode_exc_callback
 
     @cached(maxsize=256)
-    def _has_file(self, module) -> bool:
+    def _has_file(self, module: ModuleType) -> bool:
         return hasattr(module, "__file__") and module.__file__ is not None
 
-    def instrument_module_conditionally(self, module_name: str):
+    def instrument_module_conditionally(self, module_name: str) -> None:
         if module_name not in sys.modules:
             return
 
@@ -58,7 +59,7 @@ class HandledExceptionReportingInjector:
                     self._instrument_module(module_name)
                     break
 
-    def _instrument_module(self, module_name: str):
+    def _instrument_module(self, module_name: str) -> None:
         if module_name in self._instrumented_modules:
             return
         self._instrumented_modules.add(module_name)
@@ -77,7 +78,7 @@ class HandledExceptionReportingInjector:
                 ):
                     self._instrument_obj(obj)
 
-    def _instrument_obj(self, obj):
+    def _instrument_obj(self, obj: Any) -> None:
         # Prevent infinite recursion
         self._instrumented_obj.add(hash(obj))
 
@@ -117,10 +118,10 @@ def instrument_main() -> None:
 
 
 class InjectionHandledExceptionReportingWatchdog(BaseModuleWatchdog):
-    def after_import(self, module: ModuleType):
+    def after_import(self, module: ModuleType) -> None:
         _injector.instrument_module_conditionally(module.__name__)  # type: ignore
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         global _injector
         _injector = HandledExceptionReportingInjector(config._configured_modules)
