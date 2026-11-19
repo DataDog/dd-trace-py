@@ -292,7 +292,7 @@ def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = Non
     }
 
 
-def extract_git_version(cwd: Optional[str] = None) -> tuple[int, ...]:
+def extract_git_version(cwd: Optional[str] = None) -> tuple[int, int, int]:
     output = _git_subprocess_cmd("--version")
     try:
         version_info = tuple([int(part) for part in output.split()[2].split(".")])
