@@ -1,27 +1,29 @@
 import sys
+from typing import Any
 
 import wrapt
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.botocore.constants import BEDROCK_AGENT_TRACES
+from ddtrace.contrib.internal.botocore.constants import BEDROCK_COMPONENT
+from ddtrace.contrib.internal.botocore.services.bedrock import _end_request
 from ddtrace.contrib.internal.trace_utils import ext_service
-from ddtrace.internal.logger import get_logger
+from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.llmobs._integrations import BedrockIntegration
-
-
-log = get_logger(__name__)
+from ddtrace.internal.span_bus import span_from_context
 
 
 class TracedBotocoreEventStream(wrapt.ObjectProxy):
     """This class wraps the stream response returned by invoke_agent."""
 
-    def __init__(self, wrapped, integration, span, args, kwargs):
+    def __init__(self, wrapped, ctx: core.ExecutionContext[LlmRequestEvent], event: LlmRequestEvent):
         super().__init__(wrapped)
-        self._stream_chunks = []
-        self._dd_integration: BedrockIntegration = integration
-        self._dd_span = span
-        self._args = args
-        self._kwargs = kwargs
+        self._stream_chunks: list[dict[str, Any]] = []
+        self._dd_ctx = ctx
+        self._dd_event = event
+        self._dd_span = span_from_context(ctx)
 
     def __iter__(self):
         try:
@@ -34,15 +36,9 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
         finally:
             if not self._dd_span.finished:
                 traces, chunks = _extract_traces_response_from_chunks(self._stream_chunks)
-                response = _process_streamed_response_chunks(chunks)
-                try:
-                    self._dd_integration.translate_bedrock_traces(traces, self._dd_span)
-                except Exception:
-                    log.error("Error translating Bedrock traces", exc_info=True)
-                self._dd_integration.llmobs_set_tags(
-                    self._dd_span, self._args, self._kwargs, response, operation="agent"
-                )
-                self._dd_span.finish()
+                # Products translate the agent's trace events into child spans when the span finishes.
+                self._dd_span._set_ctx_item(BEDROCK_AGENT_TRACES, traces)
+                _end_request(self._dd_ctx, self._dd_event, _process_streamed_response_chunks(chunks))
 
 
 def _extract_traces_response_from_chunks(chunks):
@@ -70,31 +66,29 @@ def _process_streamed_response_chunks(chunks):
     return resp
 
 
-def handle_bedrock_agent_response(result, integration, span, args, kwargs):
-    completion = result["completion"]
-    result["completion"] = TracedBotocoreEventStream(completion, integration, span, args, kwargs)
-    return result
-
-
 def patched_bedrock_agents_api_call(original_func, instance, args, kwargs, function_vars):
-    integration = function_vars.get("integration")
     agent_id = function_vars.get("params", {}).get("agentId", "")
-    result = None
-    span = integration.trace(
-        schematize_service_name(
+    event = LlmRequestEvent(
+        component=BEDROCK_COMPONENT,
+        integration_config=config.botocore,
+        service=int_service(None, config.botocore),
+        resource=schematize_service_name(
             "{}.{}".format(ext_service(None, int_config=config.botocore), function_vars.get("endpoint_name"))
         ),
         span_name=f"Bedrock Agent {agent_id}",
+        provider=None,
         submit_to_llmobs=True,
-        interface_type="agent",
+        request_args=args,
+        request_kwargs=kwargs,
+        operation="agent",
     )
-    try:
-        result = original_func(*args, **kwargs)
-        result = handle_bedrock_agent_response(result, integration, span, args, kwargs)
-        return result
-    except Exception:
-        # We only finish the span if an exception happens, otherwise we'll finish it in the TracedBotocoreEventStream.
-        integration.llmobs_set_tags(span, args, kwargs, result, operation="agent")
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
-        raise
+    result = None
+    # The span is finished once the caller consumes the completion stream, or here on error.
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            result = original_func(*args, **kwargs)
+            result["completion"] = TracedBotocoreEventStream(result["completion"], ctx, event)
+            return result
+        except Exception:
+            _end_request(ctx, event, result, exc_info=sys.exc_info())
+            raise

@@ -11,7 +11,7 @@ class LibraryCapabilities:
         "test_management_attempt_to_fix": "_dd.library_capabilities.test_management.attempt_to_fix",
     }
 
-    def __init__(self, **capabilities: t.Optional[str]):
+    def __init__(self, **capabilities: t.Optional[str]) -> None:
         self._tags: dict[str, str] = {}
 
         for capability, version in capabilities.items():

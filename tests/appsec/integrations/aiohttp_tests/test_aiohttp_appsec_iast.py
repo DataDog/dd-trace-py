@@ -56,6 +56,7 @@ def aiohttp_sources():
     core.reset_listeners("aiohttp.request.start", _on_aiohttp_request_start)
     for method in ("read", "text", "json", "post"):
         try_unwrap("aiohttp.web_request", f"BaseRequest.{method}")
+    try_unwrap("aiohttp.web_request", "Request.clone")
     iast_aiohttp._sources_patched = False
 
 

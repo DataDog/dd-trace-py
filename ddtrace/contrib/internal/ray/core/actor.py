@@ -191,7 +191,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
 # --------------------------------------------------------------------------- #
 def _inject_tracing_actor_method(method: Callable[..., Any]) -> Any:
     def _traced_method(self: Any, *args: Any, _dd_ray_trace_ctx=None, **kwargs: Any) -> Any:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         if _dd_ray_trace_ctx is None and tracer.current_span() is None:
             return method(self, *args, **kwargs)
@@ -204,7 +204,7 @@ def _inject_tracing_actor_method(method: Callable[..., Any]) -> Any:
 
 def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
     async def _traced_async_method(self: Any, *args: Any, _dd_ray_trace_ctx=None, **kwargs: Any) -> Any:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         if _dd_ray_trace_ctx is None and tracer.current_span() is None:
             return await method(self, *args, **kwargs)
