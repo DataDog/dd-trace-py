@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os.path
 
 # 3rd party
@@ -17,7 +16,7 @@ TMPL_DIR = os.path.join(TEST_DIR, "templates")
 
 class Jinja2Test(TracerTestCase):
     def setUp(self):
-        super(Jinja2Test, self).setUp()
+        super().setUp()
         patch()
         # prevent cache effects when using Template('code...')
         try:
@@ -26,7 +25,7 @@ class Jinja2Test(TracerTestCase):
             jinja2.utils.clear_caches()
 
     def tearDown(self):
-        super(Jinja2Test, self).tearDown()
+        super().tearDown()
         # restore the tracer
         unpatch()
 

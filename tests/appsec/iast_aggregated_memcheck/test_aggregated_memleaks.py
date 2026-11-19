@@ -3,6 +3,8 @@ import pytest
 from tests.utils import override_global_config
 
 
+# Pytest retains each warning, which would measure warning storage as a leak.
+@pytest.mark.filterwarnings("ignore:'count' is passed as positional argument:DeprecationWarning")
 @pytest.mark.asyncio
 async def test_aggregated_leaks():
     with override_global_config(

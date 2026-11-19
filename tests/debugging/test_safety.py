@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import inspect
 
 import pytest
@@ -74,7 +72,7 @@ def test_get_args():
 # ---- Side effects ----
 
 
-class SideEffects(object):
+class SideEffects:
     class SideEffect(Exception):
         pass
 
@@ -97,7 +95,7 @@ def test_get_fields_side_effects():
 
 
 def test_get_fields_slots():
-    class A(object):
+    class A:
         __slots__ = ["a"]
 
         def __init__(self):
@@ -107,7 +105,7 @@ def test_get_fields_slots():
         __slots__ = ["b"]
 
         def __init__(self):
-            super(B, self).__init__()
+            super().__init__()
             self.b = "b"
 
     assert _safety.get_fields(A()) == {"a": "a"}
@@ -116,7 +114,7 @@ def test_get_fields_slots():
 
 def test_safe_dict():
     # Found in the FastAPI test suite
-    class Foo(object):
+    class Foo:
         @property
         def __dict__(self):
             raise NotImplementedError()
@@ -194,3 +192,59 @@ def test_getattr_or_exception_missing_attribute():
     """getattr_or_exception returns AttributeError for missing attributes."""
     result = _safety.getattr_or_exception(object(), "nonexistent")
     assert isinstance(result, AttributeError)
+
+
+# ---- Static type attribute lookup ----
+
+
+def test_safe_get_type_attr_walks_mro():
+    """Inherited class attributes are found, nearest definition first."""
+
+    class A:
+        marker = "a"
+
+    class B(A):
+        pass
+
+    class C(B):
+        marker = "c"
+
+    assert _safety.safe_get_type_attr(B, "marker") == "a"
+    assert _safety.safe_get_type_attr(C, "marker") == "c"
+    assert _safety.safe_get_type_attr(A, "missing", "fallback") == "fallback"
+
+
+def test_safe_get_type_attr_does_not_invoke_descriptors():
+    """A descriptor holding the name is returned, not called."""
+
+    class WithDescriptor:
+        attr = SideEffects()
+
+    result = _safety.safe_get_type_attr(WithDescriptor, "attr")
+    assert isinstance(result, SideEffects)
+
+
+def test_safe_get_type_attr_refuses_hostile_mapping():
+    """A non-builtin __dict__ is skipped rather than indexed.
+
+    safe_get_type_attr is generic, so it may be handed something that only
+    claims to be a class. Indexing a mapping with a Python __getitem__ would
+    run arbitrary code, which is exactly what this module exists to avoid.
+    """
+
+    class HostileMapping:
+        def __getitem__(self, name):
+            raise SideEffects.SideEffect()
+
+    class Impostor:
+        __mro__ = ()
+        __dict__ = HostileMapping()  # pyright: ignore[reportAssignmentType]
+
+    impostor = Impostor()
+    impostor.__mro__ = (impostor,)
+
+    # Sanity check: the mapping really would raise if it were indexed.
+    with pytest.raises(SideEffects.SideEffect):
+        object.__getattribute__(impostor, "__dict__")["anything"]
+
+    assert _safety.safe_get_type_attr(impostor, "anything", "fallback") == "fallback"

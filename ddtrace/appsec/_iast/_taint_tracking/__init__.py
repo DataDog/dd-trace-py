@@ -63,7 +63,7 @@ def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:
 
 
 def copy_ranges_from_strings(str_1: Any, str_2: Any, context_id: Optional[int] = None) -> None:
-    # AIDEV-NOTE: scope the copy to the active request slot to match the scoped
+    # scope the copy to the active request slot to match the scoped
     # get_ranges() read path; otherwise the native multi-slot resolver may write
     # the derived taint into a concurrent request's map and the scoped read misses it.
     if context_id is None:

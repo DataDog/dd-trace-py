@@ -1,6 +1,5 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
-import sys
 from types import FunctionType
 from typing import Any
 from typing import Optional
@@ -14,6 +13,7 @@ from ddtrace.internal.bytecode_injection import eject_hook
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.bytecode_injection import inject_hooks
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.utils.inspection import linenos
 
 
@@ -41,7 +41,7 @@ def injected_hook(
 
     eject_hook(f, hook, line, arg)
 
-    if sys.version_info >= (3, 15):
+    if is_at_least_py(3, 15):
         # The 3.15+ monitoring-based injection path attaches hooks via
         # sys.monitoring rather than rewriting bytecode, so the code object is
         # intentionally left unchanged across inject/eject.
@@ -98,6 +98,48 @@ def test_eject_hook():
     assert result(1, 2) == (2, 1)
 
     hook.assert_not_called()
+
+
+def test_inject_hook_on_function_declaration():
+    hook = mock.Mock()
+    line = injection_target.__code__.co_firstlineno
+
+    inject_hook(injection_target, hook, line, 42)
+    injection_target(1, 2)
+    hook.assert_called_once_with(42)
+
+    eject_hook(injection_target, hook, line, 42)
+    injection_target(1, 2)
+    hook.assert_called_once_with(42)
+
+
+@pytest.mark.skipif(is_at_least_py(3, 15), reason="sys.monitoring emits no LINE event for the RESUME line")
+def test_inject_hook_on_one_line_function():
+    namespace = {}
+    exec("def target(): return 42\n", namespace)
+    target = namespace["target"]
+    hook = mock.Mock()
+    line = target.__code__.co_firstlineno
+
+    inject_hook(target, hook, line, 42)
+    assert target() == 42
+    hook.assert_called_once_with(42)
+
+    eject_hook(target, hook, line, 42)
+    assert target() == 42
+    hook.assert_called_once_with(42)
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 15), reason="the bytecode backend supports one-line functions")
+def test_inject_hook_on_one_line_function_unsupported():
+    # See ddtrace/internal/bytecode_injection/README.md for why this is rejected.
+    namespace = {}
+    exec("def target(): return 42\n", namespace)
+    target = namespace["target"]
+
+    with pytest.raises(InvalidLine):
+        inject_hook(target, mock.Mock(), target.__code__.co_firstlineno, 42)
+    assert target() == 42
 
 
 def test_inject_hooks():
@@ -228,7 +270,7 @@ def test_inject_in_loop():
     assert hook.call_count == n
 
 
-@pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
+@pytest.mark.skipif(is_at_least_py(3, 12), reason="Fails on 3.13")
 def test_inject_in_generator():
     lo = next(iter(linenos(generator_target)))
     hook = mock.Mock()
@@ -308,7 +350,7 @@ def test_for_block():
     with injected_hook(for_loop, hook, arg, line=for_loop.__code__.co_firstlineno + 2):
         for_loop()
 
-    if sys.version_info >= (3, 15):
+    if is_at_least_py(3, 15):
         # The monitoring-based path fires a LINE event every time the loop
         # header line is (re-)entered, i.e. once per iteration, rather than
         # once at loop setup as the bytecode-rewriting path does.
@@ -318,7 +360,10 @@ def test_for_block():
         hook.assert_called_once_with(arg)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="line hook registry is only keyed by code identity on 3.15+")
+@pytest.mark.skipif(
+    not is_at_least_py(3, 15),
+    reason="line hook registry is only keyed by code identity on 3.15+",
+)
 def test_line_hooks_isolated_across_structurally_equal_code_objects():
     """Two distinct code objects that compare equal must not share a line hook registration."""
     src = "def target(x):\n    return x + 1\n"
@@ -343,7 +388,10 @@ def test_line_hooks_isolated_across_structurally_equal_code_objects():
     eject_hook(f_a, hook, lo, 42)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="line hook registry is only keyed by code identity on 3.15+")
+@pytest.mark.skipif(
+    not is_at_least_py(3, 15),
+    reason="line hook registry is only keyed by code identity on 3.15+",
+)
 def test_line_hooks_isolated_across_code_replace_clone():
     """A hook registered against the original code object must not fire for a code.replace() clone."""
 
@@ -363,3 +411,65 @@ def test_line_hooks_isolated_across_code_replace_clone():
     hook.assert_not_called()
 
     eject_hook(target, hook, lo, 42)
+
+
+@pytest.mark.parametrize("bulk", [True, False])
+def test_eject_hook_pending_lazy_wrapping_context(bulk):
+    """Hooks injected into a function with a pending lazy wrapper can be ejected before its first call."""
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    def target(x):
+        y = x + 1
+        return y
+
+    (wc := LazyWrappingContext(target)).wrap()
+
+    hook = mock.Mock()
+    lo = min(linenos(target))
+
+    if bulk:
+        assert inject_hooks(target, [(hook, lo, 42)]) == []
+        assert eject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        inject_hook(target, hook, lo, 42)
+        eject_hook(target, hook, lo, 42)
+
+    # Resolving the lazy wrapper must not resurrect the ejected hook.
+    assert target(1) == 2
+    hook.assert_not_called()
+
+    wc.unwrap()
+
+
+@pytest.mark.parametrize("bulk", [True, False])
+def test_inject_hook_pending_lazy_wrapping_context(bulk):
+    """Hooks injected into a function with a pending lazy wrapper survive its resolution on first call."""
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    def target(x):
+        y = x + 1
+        return y
+
+    (wc := LazyWrappingContext(target)).wrap()
+
+    hook = mock.Mock()
+    lo = min(linenos(target))
+
+    if bulk:
+        assert inject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        inject_hook(target, hook, lo, 42)
+
+    assert target(1) == 2
+    assert target(1) == 2
+    assert hook.call_count == 2
+
+    if bulk:
+        assert eject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        eject_hook(target, hook, lo, 42)
+
+    assert target(1) == 2
+    assert hook.call_count == 2
+
+    wc.unwrap()

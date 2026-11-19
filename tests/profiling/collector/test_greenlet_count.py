@@ -20,7 +20,7 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
     ),
     err=None,
 )
-def test_greenlet_count_present():
+def test_greenlet_count_present() -> None:
     """greenlet_count is present and positive when gevent greenlets are active."""
     from gevent import monkey
 
@@ -38,7 +38,7 @@ def test_greenlet_count_present():
 
     stop = False
 
-    def worker():
+    def worker() -> None:
         while not stop:
             gevent.sleep(0.01)
 

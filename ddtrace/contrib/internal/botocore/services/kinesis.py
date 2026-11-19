@@ -45,8 +45,9 @@ def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context
         if line_break is not None:
             data_json += line_break
 
-        data_size = len(data_json)
-        if data_size >= MAX_KINESIS_DATA_SIZE:
+        # Kinesis limits a record's data blob plus its partition key to 1 MiB, measured in bytes.
+        data_size = len(data_json.encode("utf-8")) + len(str(record.get("PartitionKey") or "").encode("utf-8"))
+        if data_size > MAX_KINESIS_DATA_SIZE:
             log.warning("Data including trace injection (%d) exceeds (%d)", data_size, MAX_KINESIS_DATA_SIZE)
             return
 
@@ -56,7 +57,7 @@ def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context
 def select_records_for_injection(params: list[Any], inject_trace_context: bool) -> list[tuple[Any, bool]]:
     records_to_inject_into = []
     if "Records" in params and params["Records"]:
-        # AIDEV-NOTE: Kinesis PutRecords originally injected trace context into only the
+        # Kinesis PutRecords originally injected trace context into only the
         # first record in the batch (see PR #3178 for the original discussion). We now
         # inject every record because downstream consumers can receive records
         # individually rather than as the original producer batch.
@@ -144,9 +145,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 endpoint_name=endpoint_name,
                 child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 operation=operation,
-                service=schematize_service_name(
-                    "{}.{}".format(ext_service(None, int_config=config.botocore), endpoint_name)
-                ),
+                service=schematize_service_name(f"{ext_service(None, int_config=config.botocore)}.{endpoint_name}"),
                 call_trace=False,
                 span_name=span_name,
                 span_type=SpanTypes.HTTP,

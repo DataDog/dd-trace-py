@@ -66,4 +66,4 @@ class PyODBCTracedConnection(TracedConnection):
     def __init__(self, conn, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             cursor_cls = PyODBCTracedCursor
-        super(PyODBCTracedConnection, self).__init__(conn, cfg=config.pyodbc, cursor_cls=cursor_cls, db_tags=db_tags)
+        super().__init__(conn, cfg=config.pyodbc, cursor_cls=cursor_cls, db_tags=db_tags)

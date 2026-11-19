@@ -116,7 +116,7 @@ def test_worker_failing_job(queue):
     worker.work(burst=True)
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, wait_for_num_traces=4)
 def test_worker_class_job(queue):
     queue.enqueue(JobClass().job_on_class, 2)
     queue.enqueue(JobClass(), 4)
@@ -156,6 +156,13 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
             assert job.result == 2
         finally:
             p.terminate()
+            try:
+                p.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                # A worker that outlives this test keeps consuming queue "q" and steals jobs from every later
+                # test, so their SimpleWorkers find nothing to run (job.result is None, no perform_job span).
+                p.kill()
+                p.wait()
             # Wait for trace to be sent
             time.sleep(0.5)
 

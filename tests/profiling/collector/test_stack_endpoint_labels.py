@@ -8,7 +8,7 @@ import pytest
     },
     err=None,
 )
-def test_stack_restores_parent_span_before_clearing_finished_trace():
+def test_stack_restores_parent_span_before_clearing_finished_trace() -> None:
     import os
     import time
 
@@ -19,16 +19,16 @@ def test_stack_restores_parent_span_before_clearing_finished_trace():
 
     endpoint = "nested-endpoint"
 
-    def parent_work_before_child():
+    def parent_work_before_child() -> None:
         time.sleep(0.3)
 
-    def child_work():
+    def child_work() -> None:
         time.sleep(0.3)
 
-    def parent_work_after_child():
+    def parent_work_after_child() -> None:
         time.sleep(0.3)
 
-    def untraced_work_after_root():
+    def untraced_work_after_root() -> None:
         time.sleep(0.3)
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -87,7 +87,7 @@ def test_stack_restores_parent_span_before_clearing_finished_trace():
     },
     err=None,
 )
-def test_stack_clears_finished_endpoint_on_reused_worker_thread():
+def test_stack_clears_finished_endpoint_on_reused_worker_thread() -> None:
     import concurrent.futures
     import os
     import threading
@@ -101,15 +101,15 @@ def test_stack_clears_finished_endpoint_on_reused_worker_thread():
     endpoint = "worker-endpoint"
     worker_thread_ids = []
 
-    def traced_worker_body():
+    def traced_worker_body() -> None:
         time.sleep(0.3)
 
-    def traced_worker_work():
+    def traced_worker_work() -> None:
         worker_thread_ids.append(threading.get_ident())
         with tracer.trace("worker.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
             traced_worker_body()
 
-    def untraced_worker_work():
+    def untraced_worker_work() -> None:
         worker_thread_ids.append(threading.get_ident())
         time.sleep(0.3)
 
@@ -144,13 +144,14 @@ def test_stack_clears_finished_endpoint_on_reused_worker_thread():
     },
     err=None,
 )
-def test_stack_clears_span_finished_on_another_thread():
+def test_stack_clears_span_finished_on_another_thread() -> None:
     import os
     import threading
     import time
 
     from ddtrace import ext
     from ddtrace.profiling import profiler
+    from ddtrace.trace import Span
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
@@ -158,13 +159,13 @@ def test_stack_clears_span_finished_on_another_thread():
     worker_ready = threading.Event()
     span_finished = threading.Event()
 
-    def worker_before_finish():
+    def worker_before_finish() -> None:
         time.sleep(0.3)
 
-    def worker_after_finish():
+    def worker_after_finish() -> None:
         time.sleep(0.3)
 
-    def worker(span):
+    def worker(span: Span) -> None:
         tracer.context_provider.activate(span)
         worker_before_finish()
         worker_ready.set()
@@ -204,13 +205,14 @@ def test_stack_clears_span_finished_on_another_thread():
     },
     err=None,
 )
-def test_stack_preserves_active_child_when_local_root_finishes_first():
+def test_stack_preserves_active_child_when_local_root_finishes_first() -> None:
     import os
     import threading
     import time
 
     from ddtrace import ext
     from ddtrace.profiling import profiler
+    from ddtrace.trace import Span
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
@@ -218,10 +220,10 @@ def test_stack_preserves_active_child_when_local_root_finishes_first():
     worker_ready = threading.Event()
     root_finished = threading.Event()
 
-    def worker_after_root_finish():
+    def worker_after_root_finish() -> None:
         time.sleep(0.3)
 
-    def worker(child):
+    def worker(child: Span) -> None:
         tracer.context_provider.activate(child)
         worker_ready.set()
         assert root_finished.wait(5)

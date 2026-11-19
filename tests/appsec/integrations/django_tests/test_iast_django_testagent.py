@@ -1,6 +1,6 @@
 import concurrent.futures
+from unittest.mock import ANY
 
-from mock import ANY
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
@@ -84,7 +84,7 @@ def test_iast_cmdi_bodies(body, content_type, server, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
@@ -133,7 +133,7 @@ def test_iast_untrusted_serialization_yaml(server, iast_test_token, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
@@ -237,7 +237,7 @@ def test_iast_vulnerable_request_downstream_django(server, config, iast_test_tok
             spans.append(span)
 
     assert len(spans) >= 8, f"Incorrect number of spans ({len(spans)}):\n{spans}"
-    assert len(spans_with_iast) >= 2, f"Invalid number of spans with IAST ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 2, f"Invalid number of spans with IAST ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) >= 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) >= 1
     for vulnerability in vulnerabilities[0]:
@@ -294,7 +294,7 @@ def test_iast_header_injection(iast_test_token, free_port):
 
         response = django_client.post("/appsec/header-injection/", data="master\r\nInjected-Header: 1234")
 
-        # AIDEV-NOTE: This test verifies IAST *detection* of header injection, not that the injected
+        # This test verifies IAST *detection* of header injection, not that the injected
         # header reaches the wire. The CPython security backport gh-144370 (CVE) makes
         # wsgiref.headers.Headers reject control characters (CR/LF) in response header values, raising
         # ValueError("Control characters not allowed in headers"). Django's `runserver` dev server
@@ -328,7 +328,7 @@ def test_iast_header_injection(iast_test_token, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 

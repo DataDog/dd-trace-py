@@ -1,0 +1,11 @@
+_v: 1
+name: pyodbc
+display_name: PyODBC
+description: Instruments PyODBC database connections to trace SQL queries, transaction commits and rollbacks, and optionally
+  row-fetch operations.
+packages:
+- name: pyodbc
+category:
+- db.client
+systems: []
+creation_date: '2020-10-16'

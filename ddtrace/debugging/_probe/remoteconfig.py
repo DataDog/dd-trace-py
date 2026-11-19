@@ -1,10 +1,10 @@
+from collections.abc import Iterable
 from enum import Enum
 import os
 import time
 import typing as t
 from typing import Any
 from typing import Callable
-from typing import Iterable
 from typing import Optional
 
 from ddtrace import config as tracer_config
@@ -74,7 +74,7 @@ def _filter_by_env_and_version(f: Callable[..., Iterable[Probe]]) -> Callable[..
     return _wrapper
 
 
-class ProbeFactory(object):
+class ProbeFactory:
     __line_class__: Optional[type[LineProbe]] = None
     __function_class__: Optional[type[FunctionProbe]] = None
 
@@ -287,7 +287,9 @@ class DebuggerRCCallback(RCCallback):
         self._status_logger = status_logger
         self._registry = registry
         self._diagnostics_interval = diagnostics_interval
-        self._last_status_emission = 0.0
+        # Probe events emit their own statuses: the first periodic emission is due
+        # after a full interval.
+        self._last_status_emission = time.time()
         self._configs: dict[str, dict[str, Probe]] = {}
 
     def _dispatch_probe_events(self, prev_probes: dict[str, Probe], next_probes: dict[str, Probe]) -> None:

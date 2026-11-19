@@ -51,7 +51,7 @@ def line_callback(*args):
 
 class InjectionWatchdog(BaseModuleWatchdog):
     def __init__(self, *args, **kwargs):
-        super(InjectionWatchdog, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._imported_modules: set[str] = set()
         self._instrumented_modules: set[str] = set()

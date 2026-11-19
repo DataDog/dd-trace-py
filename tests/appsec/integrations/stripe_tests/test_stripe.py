@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 import pytest
 import stripe
 from stripe._version import VERSION
-import vcr
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.ext import SpanTypes
@@ -21,61 +20,39 @@ STRIPE_API_KEY = os.environ.get(
     "fake_stripe_key",
 )
 stripe.api_key = STRIPE_API_KEY
+STRIPE_VCR_BASE_URL = f"{os.environ.get('DD_TRACE_AGENT_URL', 'http://localhost:9126').rstrip('/')}/vcr/stripe"
+stripe.api_base = STRIPE_VCR_BASE_URL
 
 major, minor, _ = VERSION.split(".")
-stripe_client = stripe.StripeClient(STRIPE_API_KEY)
+stripe_client = stripe.StripeClient(STRIPE_API_KEY, base_addresses={"api": STRIPE_VCR_BASE_URL})
 stripe_v1_client = stripe_client.v1 if (major, minor) >= ("12", "5") else stripe_client
 
 
-def _scrub_response(response):
-    payload = json.loads(response["body"]["string"])
-    if "client_secret" in payload:
-        payload["client_secret"] = "redacted"
-    response["body"]["string"] = json.dumps(payload).encode()
-    return response
+@pytest.fixture(scope="session")
+def stripe_coupon():
+    return stripe.Coupon.create(duration="once", percent_off=25)
 
 
 @pytest.fixture(scope="session")
-def stripe_vcr():
-    yield vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes"),
-        match_on=["path"],
-        filter_headers=["authorization"],
-        before_record_response=_scrub_response,
-        # Ignore requests to the agent
-        ignore_localhost=True,
+def stripe_promotion_code(stripe_coupon):
+    return stripe.PromotionCode.create(
+        code="APPSEC_CHRISTMAS_2025", promotion={"type": "coupon", "coupon": stripe_coupon.id}
     )
 
 
 @pytest.fixture(scope="session")
-def stripe_coupon(stripe_vcr):
-    with stripe_vcr.use_cassette("coupon_create.yaml"):
-        return stripe.Coupon.create(duration="once", percent_off=25)
+def stripe_customer():
+    return stripe.Customer.create(email="customer@example.com")
 
 
 @pytest.fixture(scope="session")
-def stripe_promotion_code(stripe_vcr, stripe_coupon):
-    with stripe_vcr.use_cassette("promotion_code_create.yaml"):
-        return stripe.PromotionCode.create(
-            code="APPSEC_CHRISTMAS_2025", promotion={"type": "coupon", "coupon": stripe_coupon.id}
-        )
-
-
-@pytest.fixture(scope="session")
-def stripe_customer(stripe_vcr):
-    with stripe_vcr.use_cassette("customer_create.yaml"):
-        return stripe.Customer.create(email="customer@example.com")
-
-
-@pytest.fixture(scope="session")
-def stripe_payment_method(stripe_vcr, stripe_customer):
-    with stripe_vcr.use_cassette("payment_method_create.yaml"):
-        payment_method = stripe.PaymentMethod.create(
-            type="card",
-            card={"token": "tok_visa"},
-        )
-        stripe.PaymentMethod.attach(payment_method.id, customer=stripe_customer.id)
-        return payment_method
+def stripe_payment_method(stripe_customer):
+    payment_method = stripe.PaymentMethod.create(
+        type="card",
+        card={"token": "tok_visa"},
+    )
+    stripe.PaymentMethod.attach(payment_method.id, customer=stripe_customer.id)
+    return payment_method
 
 
 @pytest.fixture
@@ -96,9 +73,7 @@ def stripe_discount(request, stripe_coupon, stripe_promotion_code):
     ids=["global", "client"],
 )
 def test_stripe_checkout_session_create(
-    request,
     tracer: Tracer,
-    stripe_vcr,
     expand,
     stripe_discount,
     stripe_session_create,
@@ -110,40 +85,37 @@ def test_stripe_checkout_session_create(
     with override_global_config(config):
         tracer._recreate()
         with tracer.trace("request", service="test", span_type=SpanTypes.WEB) as span:
-            expanded = "_expanded" if expand else ""
-            discount_type = [key for key in stripe_discount[0]][0]
-            with stripe_vcr.use_cassette(f"{request.node.originalname}{expanded}_{discount_type}.yaml"):
-                session = stripe_session_create(
-                    {
-                        "expand": expand,
-                        "success_url": "https://example.com/success",
-                        "client_reference_id": "order_123",
-                        "customer_email": "customer@example.com",
-                        "line_items": [
-                            {
-                                "price_data": {
-                                    "currency": "eur",
-                                    "product_data": {
-                                        "name": "Demo Product",
-                                    },
-                                    "unit_amount": 1000,
+            session = stripe_session_create(
+                {
+                    "expand": expand,
+                    "success_url": "https://example.com/success",
+                    "client_reference_id": "order_123",
+                    "customer_email": "customer@example.com",
+                    "line_items": [
+                        {
+                            "price_data": {
+                                "currency": "eur",
+                                "product_data": {
+                                    "name": "Demo Product",
                                 },
-                                "quantity": 2,
+                                "unit_amount": 1000,
+                            },
+                            "quantity": 2,
+                        }
+                    ],
+                    "mode": "payment",
+                    "discounts": stripe_discount,
+                    "shipping_options": [
+                        {
+                            "shipping_rate_data": {
+                                "display_name": "Standard",
+                                "fixed_amount": {"amount": 250, "currency": "eur"},
+                                "type": "fixed_amount",
                             }
-                        ],
-                        "mode": "payment",
-                        "discounts": stripe_discount,
-                        "shipping_options": [
-                            {
-                                "shipping_rate_data": {
-                                    "display_name": "Standard",
-                                    "fixed_amount": {"amount": 250, "currency": "eur"},
-                                    "type": "fixed_amount",
-                                }
-                            }
-                        ],
-                    }
-                )
+                        }
+                    ],
+                }
+            )
 
     expected_tags = {
         "appsec.events.payments.integration": "stripe",
@@ -212,9 +184,7 @@ def test_stripe_checkout_session_create(
     ],
     ids=["setup", "subscription"],
 )
-def test_stripe_checkout_session_ignore_setup(
-    request, tracer: Tracer, stripe_vcr, stripe_session_create, monkeypatch, payload
-):
+def test_stripe_checkout_session_ignore_setup(tracer: Tracer, stripe_session_create, monkeypatch, payload):
     import ddtrace.appsec._contrib.stripe.handlers as handlers
 
     waf_callback = MagicMock(wraps=handlers.call_waf_callback)
@@ -227,8 +197,7 @@ def test_stripe_checkout_session_ignore_setup(
     with override_global_config(config):
         tracer._recreate()
         with tracer.trace("request", service="test", span_type=SpanTypes.WEB):
-            with stripe_vcr.use_cassette(f"{request.node.originalname}_{payload['mode']}.yaml"):
-                _session = stripe_session_create(payload)
+            _session = stripe_session_create(payload)
 
     waf_callback.assert_not_called()
 
@@ -243,9 +212,7 @@ def test_stripe_checkout_session_ignore_setup(
 )
 @pytest.mark.parametrize("expanded", [["payment_method"], []], ids=["expanded", "not_expanded"])
 def test_stripe_payment_intent_create(
-    request,
     tracer: Tracer,
-    stripe_vcr,
     stripe_payment_intent_create,
     stripe_payment_method,
     stripe_customer,
@@ -258,22 +225,19 @@ def test_stripe_payment_intent_create(
     with override_global_config(config):
         tracer._recreate()
         with tracer.trace("request", service="test", span_type=SpanTypes.WEB) as span:
-            expand_param = expanded
-            expanded_suffix = "_expanded" if expand_param else ""
-            with stripe_vcr.use_cassette(f"{request.node.originalname}{expanded_suffix}.yaml"):
-                params = {
-                    "amount": 2000,
-                    "currency": "usd",
-                    "payment_method": stripe_payment_method.id,
-                    "payment_method_types": ["card"],
-                    "receipt_email": "customer@example.com",
-                    "customer": stripe_customer.id,
-                }
+            params = {
+                "amount": 2000,
+                "currency": "usd",
+                "payment_method": stripe_payment_method.id,
+                "payment_method_types": ["card"],
+                "receipt_email": "customer@example.com",
+                "customer": stripe_customer.id,
+            }
 
-                if expand_param:
-                    params["expand"] = expand_param
+            if expanded:
+                params["expand"] = expanded
 
-                session = stripe_payment_intent_create(params)
+            session = stripe_payment_intent_create(params)
 
     expected_tags = {
         "appsec.events.payments.integration": "stripe",

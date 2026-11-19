@@ -16,7 +16,6 @@ exclude_patterns() {
         'dd-trace-py/build/'
         '_taint_tracking/CMakeFiles'
         '_taint_tracking/_deps/'
-        '.riot/'
         '_taint_tracking/_vendor/'
         'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/'
         'ddtrace/profiling/collector/vendor/'
@@ -117,4 +116,3 @@ else
     done < <(enumerate_files | exclude_patterns)
     exit $has_diff
 fi
-

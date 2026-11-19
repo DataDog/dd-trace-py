@@ -6,8 +6,8 @@ Validates that all expected wheels and sdist are present with correct versions.
 Uses the packaging library to properly parse and validate filenames.
 
 Expected artifacts:
-  - 52 wheels: 6 Python versions × 8 base platforms + 4 versions × win_arm64
-    (cp315 is built best-effort and is not required)
+  - 58 wheels: 6 Python versions (cp39-cp314) × 8 base platforms + 4 × win_arm64
+    + 6 Linux/macOS cp315 platforms (Windows cp315 not required yet)
   - 1 sdist: source distribution
 
 Usage:
@@ -16,6 +16,8 @@ Usage:
 Environment:
     PACKAGE_VERSION: Version from pyproject.toml (set by "package version" job)
 """
+
+from __future__ import annotations
 
 import argparse
 import os
@@ -44,9 +46,12 @@ BASE_PLATFORMS = [
 ]
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
-# cp315 is optional: none required; tolerate Linux wheels if they land.
-REQUIRED_PLATFORMS: dict[str, list[str]] = {"cp315": []}
-OPTIONAL_WHEELS: set[tuple[str, str]] = {("cp315", p) for p in BASE_PLATFORMS if "linux" in p}
+# cp315 Linux + macOS wheels are required (both matrices schedule 3.15).
+# Windows 3.15 builds are not scheduled yet.
+REQUIRED_PLATFORMS: dict[str, list[str]] = {
+    "cp315": [p for p in BASE_PLATFORMS if "linux" in p or "macosx" in p],
+}
+OPTIONAL_WHEELS: set[tuple[str, str]] = set()
 
 
 def required_platforms(py_tag: str, platforms: list[str]) -> list[str]:

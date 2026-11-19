@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from collections.abc import Mapping
 import contextlib
 import json
@@ -15,7 +16,6 @@ from urllib import parse
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._iast_context import iast_suppress_context
 from ddtrace.appsec._metrics import UNKNOWN_VERSION
 from ddtrace.appsec._metrics import report_waf_run_error
 from ddtrace.appsec._metrics import report_waf_truncation
@@ -23,16 +23,19 @@ from ddtrace.appsec._metrics import set_waf_request_metrics
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
-from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import Constant_Class
 from ddtrace.internal.core.events import Event
+from ddtrace.internal.inferred_spans import is_inferred_span
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.security._context import _ASM_CONTEXT
+from ddtrace.internal.security._context import get_entry_span as get_entry_span
+from ddtrace.internal.security._taint_sources import iast_suppress_context
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
@@ -75,7 +78,6 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 
-_ASM_CONTEXT: Literal["_asm_env"] = "_asm_env"
 _WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
 _TELEMETRY: Literal["telemetry"] = "telemetry"
 API_SEC_CALLBACK: Optional[Callable[["ASM_Environment"], None]] = None
@@ -99,9 +101,9 @@ class ASM_Environment:
     def __init__(
         self,
         waf_callable: Optional[WafCallable],
-        span: Optional[SpanProtocol] = None,
+        span: Optional[SpanData] = None,
         rc_products: str = "",
-    ):
+    ) -> None:
         self.root = not in_asm_context()
         if self.root:
             core.add_suppress_exception(BlockingException)
@@ -110,20 +112,20 @@ class ASM_Environment:
         if context_span is None:
             logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
             raise TypeError("ASM_Environment requires a span")
-        self.span: SpanProtocol = context_span
-        self.entry_span: SpanProtocol = self.span._service_entry_span
+        self.span: SpanData = context_span
+        self.entry_span: SpanData = self.span._service_entry_span
         if self.span.name.endswith(".request"):
             self.framework = self.span.name[:-8]
         else:
             self.framework = self.span.name
         self.framework = self.framework.lower().replace(" ", "_")
-        self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
+        self.waf_info: Optional[Callable[[], DDWaf_info]] = None
         self.waf_addresses: dict[str, Any] = {}
         self.waf_callable: Optional[WafCallable] = waf_callable
         self.block_callable: Optional[Callable[[], None]] = None
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
-        self.waf_triggers: "list[WafEvent]" = []
+        self.waf_triggers: list[WafEvent] = []
         self.blocked: Optional[Block_config] = None
         self.finalized: bool = False
         self.api_security_reported: int = 0
@@ -164,17 +166,6 @@ def get_blocked() -> Optional[Block_config]:
     return env.blocked or None
 
 
-def get_entry_span() -> Optional[SpanProtocol]:
-    env = _get_asm_context()
-    if env is None:
-        span = span_bus.get_span()
-        if span:
-            return span._service_entry_span
-        else:
-            return span_bus.get_root_span()
-    return env.entry_span
-
-
 KNUTH_FACTOR: int = 11400714819323199488
 UINT64_MAX: int = (1 << 64) - 1
 
@@ -193,12 +184,26 @@ def should_analyze_body_response(env: ASM_Environment) -> bool:
     )
 
 
-# SSRF shares one subcontext across an outgoing request's SSRF_REQ + SSRF_RES calls, which may run
-# in different core contexts (e.g. httpx: request on the inner send context, final response on the
-# outer). A mutable holder is stored on the owning context; both calls resolve it via find_item
-# (which walks up the context tree), and it is released when that scope ends.
+# An outgoing request's SSRF_REQ and SSRF_RES calls share one subcontext, held on the request's core
+# context and resolved through find_item from the contexts underneath it. The layer that opened the
+# nearest holder is recorded next to it, so a transport can tell whether it runs for the client
+# above it or for a separate request started from that client's hooks.
 
 _RASP_SUBCONTEXT = "asm::rasp_subcontext"
+_RASP_SUBCONTEXT_LAYER = "asm::rasp_subcontext_layer"
+
+
+class SsrfLayer:
+    """Names of the instrumented HTTP clients and transports, for open_rasp_subcontext_scope."""
+
+    AIOHTTP = "aiohttp"
+    HTTP_CLIENT = "http.client"
+    HTTPX = "httpx"
+    REQUESTS = "requests"
+    URLLIB = "urllib"
+    URLLIB3 = "urllib3"
+    WEBBROWSER = "webbrowser"
+
 
 _SSRF_RULE_TYPES = frozenset(
     (
@@ -216,20 +221,20 @@ class _RaspSubcontextHolder:
         self.subctx: Optional[Any] = None
 
 
-def open_rasp_subcontext_scope() -> None:
-    """Establish the current core context as the owner of an SSRF subcontext.
+def open_rasp_subcontext_scope(layer: str, *, inherit_from: Collection[str]) -> None:
+    """Set up the SSRF subcontext of the outgoing request handled by the current core context.
 
-    Called by SSRF integrations from the per-outgoing-request core context (``url_open_analysis``,
-    httpx's request context, or urllib3's own ``context_with_data``) so the request's SSRF_REQ and
-    SSRF_RES WAF calls share one subcontext, created lazily on the first RASP call within the scope.
-    Because the holder lives on that per-request context, concurrent outgoing requests (each in its
-    own context) get distinct subcontexts, and dropping the context releases the holder.
-
-    Reentrant: if an enclosing scope already owns a holder (e.g. ``requests`` driving ``urllib3``),
-    this is a no-op and the inner operation shares the outer subcontext.
+    Call it from a per-outgoing-request core context. layer names the instrumented client or
+    transport. The enclosing holder is reused only when the nearest enclosing layer is in
+    inherit_from, i.e. a layer that drives this one for the same request (urllib3 under requests).
+    Any other enclosing layer means the request was started from that layer's hooks or auth flow,
+    and it gets its own subcontext so libddwaf reports its matches independently.
     """
-    if core.find_item(_RASP_SUBCONTEXT) is None:
-        core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
+    inherit = core.find_item(_RASP_SUBCONTEXT_LAYER) in inherit_from
+    core.set_item(_RASP_SUBCONTEXT_LAYER, layer)
+    if inherit and core.find_item(_RASP_SUBCONTEXT) is not None:
+        return
+    core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
 
 
 def get_or_create_rasp_subcontext(ddwaf: Any, ctx: Any, rule_type: Optional[str]) -> Optional[Any]:
@@ -311,8 +316,8 @@ def set_blocked_dict(block: Union[dict[str, Any], Block_config, None]) -> None:
     set_blocked(blocked)
 
 
-def update_span_metrics(span: SpanProtocol, name: str, value: Union[float, int]) -> None:
-    span._set_attribute(name, value + (span.get_metric(name) or 0.0))
+def update_span_metrics(span: SpanData, name: str, value: Union[float, int]) -> None:
+    span._set_attribute(name, value + (span._get_numeric_attribute(name) or 0.0))
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
@@ -326,14 +331,14 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         if asm_config._use_metastruct_for_triggers:
             entry_span._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
         else:
-            entry_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
+            entry_span._set_attribute(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
 
-        parent = entry_span._parent
+        parent: Optional[SpanData] = entry_span._parent
         if parent is not None and is_inferred_span(parent):
             if asm_config._use_metastruct_for_triggers:
                 parent._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
             else:
-                parent.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
+                parent._set_attribute(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
 
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
@@ -402,7 +407,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             except Exception:
                 logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
         if asm_config._rc_client_id is not None:
-            entry_span.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
+            entry_span._set_attribute(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
         waf_adresses = env.waf_addresses
         req_headers = waf_adresses.get(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
         if req_headers:
@@ -417,17 +422,6 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     env.block_callable = None
     env.waf_callable = None
     core.discard_local_item(_ASM_CONTEXT)
-
-
-def set_value(category: str, address: str, value: Any) -> None:
-    env = _get_asm_context()
-    if env is None:
-        extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
-        logger.debug("asm_context::set_value::no_active_context", extra=extra, stack_info=True)
-        return
-    asm_context_attr = getattr(env, category, None)
-    if asm_context_attr is not None:
-        asm_context_attr[address] = value
 
 
 def set_headers_response(headers: Any) -> None:
@@ -455,13 +449,17 @@ def set_body_response(body_response: Any) -> None:
 
 
 def set_waf_address(address: str, value: Any) -> None:
+    env = _get_asm_context()
+    if env is None:
+        extra = {"product": "appsec", "more_info": f"::{address}", "stack_limit": 4}
+        logger.debug("asm_context::set_waf_address::no_active_context", extra=extra, stack_info=True)
+        return
     if address == SPAN_DATA_NAMES.REQUEST_URI_RAW:
         parse_address = parse.urlparse(value)
         no_scheme = parse.ParseResult("", "", *parse_address[2:])
-        waf_value = parse.urlunparse(no_scheme)
-        set_value(_WAF_ADDRESSES, address, waf_value)
+        env.waf_addresses[address] = parse.urlunparse(no_scheme)
     else:
-        set_value(_WAF_ADDRESSES, address, value)
+        env.waf_addresses[address] = value
     if address in (SPAN_DATA_NAMES.REQUEST_HTTP_IP, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE):
         core.set_item(address, value)
 
@@ -652,7 +650,7 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(waf_callable: Optional[WafCallable], span: SpanProtocol, rc_products: str) -> None:
+def start_context(waf_callable: Optional[WafCallable], span: SpanData, rc_products: str) -> None:
     if asm_config._asm_enabled:
         core.set_item(
             _ASM_CONTEXT,
@@ -675,7 +673,7 @@ def start_context(waf_callable: Optional[WafCallable], span: SpanProtocol, rc_pr
         )
 
 
-def end_context(span: SpanProtocol) -> None:
+def end_context(span: SpanData) -> None:
     env = _get_asm_context()
     if env is not None and env.span is span:
         finalize_asm_env(env)
@@ -768,7 +766,7 @@ _COLLECTED_REQUEST_HEADERS = {
 _COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
 
 
-def _set_headers(span: SpanProtocol, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
+def _set_headers(span: SpanData, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
     for k in headers:
         if isinstance(k, tuple):
             key, value = k
@@ -780,7 +778,7 @@ def _set_headers(span: SpanProtocol, headers: Any, kind: str, only_asm_enabled: 
             value = value.decode()
         if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name(kind, key), value)
+            span._set_attribute(_normalize_tag_name(kind, key), value)
 
 
 def asm_listen() -> None:

@@ -1,3 +1,5 @@
+from typing import cast
+
 from ddtrace import config
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig.client import config as rc_config
@@ -35,33 +37,43 @@ def _register_rc_products() -> None:
     remoteconfig_poller.enable_product(RemoteConfigProduct.AgentTask)
 
 
-def post_preload():
+def post_preload() -> None:
     pass
 
 
-def enabled():
-    return config._remote_config_enabled
+def enabled() -> bool:
+    return cast(bool, config._remote_config_enabled)
 
 
-def start():
+def start() -> None:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    remoteconfig_poller.enable()
-    _register_rc_products()
+    # NOTE: The poller can start before the product dependencies that start
+    # after remote-configuration advertise their RC products. It sends nothing
+    # while no product is enabled, and each enablement wakes it up to send a
+    # request once no other product has been enabled for a short while, so the
+    # products enabled on boot are batched instead of waiting for the next poll.
+    try:
+        remoteconfig_poller.enable()
+        _register_rc_products()
+    except Exception:
+        # The product manager marks the product as failed without stopping it.
+        remoteconfig_poller.disable()
+        raise
 
 
-def restart(join=False):
+def restart(join: bool = False) -> None:
     if config._remote_config_enabled:
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.reset_at_fork()
 
 
-def stop(join=False):
+def stop(join: bool = False) -> None:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     remoteconfig_poller.disable(join=join)
 
 
-def skip_exit():
-    return rc_config.skip_shutdown
+def skip_exit() -> bool:
+    return cast(bool, rc_config.skip_shutdown)

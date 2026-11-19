@@ -9,7 +9,7 @@ Instrument aiopg to report a span for each executed Postgres queries::
 
     # This will report a span with the default settings
     async with aiopg.connect(DSN) as db:
-        with (await db.cursor()) as cursor:
+        async with db.cursor() as cursor:
             await cursor.execute("SELECT * FROM users WHERE id = 1")
 
 Configuration

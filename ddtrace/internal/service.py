@@ -19,9 +19,7 @@ class ServiceStatusError(RuntimeError):
         current_status: ServiceStatus,
     ) -> None:
         self.current_status = current_status
-        super(ServiceStatusError, self).__init__(
-            "%s is already in status %s" % (service_cls.__name__, current_status.value)
-        )
+        super().__init__("%s is already in status %s" % (service_cls.__name__, current_status.value))
 
 
 class Service(metaclass=abc.ABCMeta):

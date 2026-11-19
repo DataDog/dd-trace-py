@@ -26,8 +26,8 @@ from unittest import mock
 import ddtrace
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility import api as ext_api
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.test_visibility import api
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 def _make_excinfo():

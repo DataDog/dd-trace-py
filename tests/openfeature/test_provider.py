@@ -2,6 +2,10 @@
 Comprehensive tests for the DataDogProvider following OpenFeature specification.
 """
 
+from datetime import datetime
+import enum
+from unittest import mock
+
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import Reason
@@ -9,6 +13,7 @@ import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
+from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
@@ -148,6 +153,20 @@ class TestStringFlagResolution:
         assert result.variant == "variant-a"
         assert result.error_code is None
 
+    def test_resolve_string_flag_invalid_regex(self, provider, evaluation_context):
+        """Should return PARSE_ERROR when a condition contains an invalid regex."""
+        flag = create_string_flag("invalid-regex-flag", "variant-a", enabled=True)
+        flag["allocations"][0]["rules"] = [
+            {"conditions": [{"attribute": "email", "operator": "MATCHES", "value": "[invalid"}]}
+        ]
+        process_ffe_configuration(create_config(flag))
+
+        result = provider.resolve_string_details("invalid-regex-flag", "default", evaluation_context)
+
+        assert result.value == "default"
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PARSE_ERROR
+
     def test_resolve_string_flag_no_config(self, provider):
         """Should return default value with ERROR reason and PROVIDER_NOT_READY when no config."""
         _set_ffe_config(None)
@@ -184,6 +203,18 @@ class TestIntegerFlagResolution:
         assert result.value == 0
         assert result.reason == Reason.ERROR
         assert result.error_code == ErrorCode.TYPE_MISMATCH
+
+    def test_resolve_integer_flag_variant_type_mismatch(self, provider):
+        """Should return PARSE_ERROR when a variant value violates the declared flag type."""
+        flag = create_integer_flag("invalid-integer-flag", 1, enabled=True)
+        flag["variations"]["var-1"]["value"] = "not-an-integer"
+        process_ffe_configuration(create_config(flag))
+
+        result = provider.resolve_integer_details("invalid-integer-flag", 0)
+
+        assert result.value == 0
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PARSE_ERROR
 
 
 class TestFloatFlagResolution:
@@ -250,6 +281,14 @@ class TestObjectFlagResolution:
         assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
 
+class _Plan(str, enum.Enum):
+    PRO = "pro"
+
+
+class _Tier(enum.IntEnum):
+    GOLD = 3
+
+
 class TestEvaluationContext:
     """Test evaluation context handling."""
 
@@ -270,6 +309,94 @@ class TestEvaluationContext:
         result = provider.resolve_string_details("test-flag", "default")
 
         assert result.value == "no-context"
+
+    def test_unsupported_attribute_values_are_ignored(self, provider):
+        """Nested and other non-scalar attribute values must not fail the whole evaluation."""
+        config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+        context = EvaluationContext(
+            targeting_key="user-123",
+            attributes={"nested": {"a": 1}, "items": ["a"], "tier": "premium"},
+        )
+
+        result = provider.resolve_boolean_details("test-flag", False, context)
+
+        assert result.value is True
+        assert result.error_code is None
+
+    def test_only_scalar_attributes_reach_the_native_evaluator(self):
+        """str, bool, int, float and None attributes are passed through; anything else is dropped."""
+        captured = []
+
+        class _Configuration:
+            def resolve_value(self, flag_key, expected_type, context):
+                captured.append(context)
+
+        attributes = {
+            "name": "a",
+            "enabled": True,
+            "count": 3,
+            "ratio": 0.5,
+            "missing": None,
+            "nested": {"a": 1},
+            "items": [1],
+            "pair": (1, 2),
+            "tags": {"x"},
+            "raw": b"x",
+            "when": datetime(2026, 1, 1),
+        }
+        resolve_flag(_Configuration(), "test-flag", {"targetingKey": "user-123", "attributes": attributes}, None)
+        resolve_flag(
+            _Configuration(), "test-flag", EvaluationContext(targeting_key="user-123", attributes=attributes), None
+        )
+
+        expected = {"name": "a", "enabled": True, "count": 3, "ratio": 0.5, "missing": None}
+        assert captured == [
+            {"targeting_key": "user-123", "attributes": expected},
+            {"targeting_key": "user-123", "attributes": expected},
+        ]
+
+    def test_attributes_are_not_filtered_without_configuration(self, provider):
+        """Without a loaded configuration the evaluation returns early, so attributes are never scanned."""
+        context = EvaluationContext(targeting_key="user-123", attributes={"nested": {"a": 1}, "tier": "premium"})
+
+        with mock.patch("ddtrace.internal.openfeature._provider._native_attributes") as native_attributes:
+            result = provider.resolve_boolean_details("test-flag", False, context)
+
+        native_attributes.assert_not_called()
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ({"a": 1}, "absent"),
+            (["a"], "absent"),
+            (datetime(2026, 1, 1), "absent"),
+            (_Plan.PRO, "present"),
+            (_Tier.GOLD, "present"),
+        ],
+    )
+    def test_dropped_attribute_matches_rules_as_absent(self, provider, value, expected):
+        """A rule on a dropped attribute sees it as absent; str and int subclasses still reach the rule."""
+        flag = create_string_flag("rule-flag", "present")
+        flag["variations"]["absent"] = {"key": "absent", "value": "absent"}
+        flag["allocations"].insert(
+            0,
+            {
+                "key": "allocation-absent",
+                "rules": [{"conditions": [{"attribute": "plan", "operator": "IS_NULL", "value": True}]}],
+                "splits": [{"variationKey": "absent", "shards": []}],
+                "doLog": True,
+            },
+        )
+        process_ffe_configuration(create_config(flag))
+
+        result = provider.resolve_string_details(
+            "rule-flag", "default", EvaluationContext(targeting_key="user-123", attributes={"plan": value})
+        )
+
+        assert result.value == expected
+        assert result.error_code is None
 
 
 class TestReasonMapping:

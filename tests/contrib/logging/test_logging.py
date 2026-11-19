@@ -81,11 +81,11 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None, fmt_sty
 class LoggingTestCase(TracerTestCase):
     def setUp(self):
         patch()
-        super(LoggingTestCase, self).setUp()
+        super().setUp()
 
     def tearDown(self):
         unpatch()
-        super(LoggingTestCase, self).tearDown()
+        super().tearDown()
 
     def test_patch(self):
         """
@@ -127,13 +127,12 @@ class LoggingTestCase(TracerTestCase):
             trace_id = 0
             span_id = 0
             if span:
-                trace_id = span.trace_id if span.trace_id < MAX_UINT_64BITS else "{:032x}".format(span.trace_id)
+                trace_id = span.trace_id if span.trace_id < MAX_UINT_64BITS else f"{span.trace_id:032x}"
                 span_id = span.span_id
 
             assert output.startswith(
-                "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
-                    service, version, env, trace_id, span_id
-                )
+                f"Hello! - dd.service={service} dd.version={version} dd.env={env}"
+                f" dd.trace_id={trace_id} dd.span_id={span_id}"
             )
 
             # without format string
@@ -249,7 +248,7 @@ class LoggingTestCase(TracerTestCase):
                 lines = output.splitlines()
                 assert (
                     "Hello! - dd.service=tests.contrib.logging dd.version= dd.env= "
-                    + "dd.trace_id={:032x} dd.span_id={}".format(span.trace_id, span.span_id)
+                    + f"dd.trace_id={span.trace_id:032x} dd.span_id={span.span_id}"
                     == lines[0]
                 )
 
@@ -301,7 +300,7 @@ class LoggingTestCase(TracerTestCase):
                 assert log == expected
 
                 assert not hasattr(record, "dd")
-                assert getattr(record, LOG_ATTR_TRACE_ID) == "{:032x}".format(span.trace_id)
+                assert getattr(record, LOG_ATTR_TRACE_ID) == f"{span.trace_id:032x}"
                 assert getattr(record, LOG_ATTR_SPAN_ID) == str(span.span_id)
 
 

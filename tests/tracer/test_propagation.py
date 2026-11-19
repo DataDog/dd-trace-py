@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+import builtins
 import json
 import logging
 import os
@@ -9,10 +9,6 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
-from ddtrace.appsec._trace_utils import _asm_manual_keep
-from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import AUTO_REJECT
-from ddtrace.constants import USER_KEEP
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
@@ -27,7 +23,6 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -98,6 +93,38 @@ def test_inject_deep_child_propagates_trace_level_tags(tracer):  # noqa: F811
                 assert "_dd.p.other=value" in tags
 
 
+def test_inject_tracestate_dd_member_within_256_chars(tracer):  # noqa: F811
+    """The injected dd= list-member, including the "dd=" prefix, ";" separators and the
+    "p:" field added at injection, must not exceed 256 characters.
+    """
+    meta = {
+        "_dd.p.llmobs_parent_id": "10707708093473052057",
+        "_dd.p.llmobs_trace_id": "141883241939442010658227520463581072062",
+        "_dd.p.llmobs_ml_app": "datasciencetiger",
+        "_dd.p.llmobs_sid": "11a0eec0-ad0a-4f4d-8ae8-7f358ed1b153",
+        "_dd.p.llmobs_sr": "1",
+        "_dd.p.llmobs_sd": "1",
+        "_dd.p.llmobs_pagent_span_id": "14260131734498464268",
+        "_dd.p.llmobs_pagent_name": "datasciencetiger-orchestrator",
+    }
+    ctx = Context(trace_id=1234, sampling_priority=1, dd_origin="rum", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        dd_members = [m for m in headers[_HTTP_HEADER_TRACESTATE].split(",") if m.startswith("dd=")]
+        assert len(dd_members) == 1
+        dd_member = dd_members[0]
+        assert len(dd_member) <= 256, dd_member
+        assert dd_member.startswith(f"dd=p:{span.span_id:016x};s:1;o:rum;")
+        # Only whole tags are dropped, never truncated
+        for tag in dd_member[len("dd=") :].split(";"):
+            if tag.startswith("t.llmobs_"):
+                key, _, value = tag.partition(":")
+                assert meta[key.replace("t.", "_dd.p.", 1)] == value
+
+
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
@@ -121,7 +148,7 @@ def test_inject_128bit_trace_id_datadog():
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         # Get the hex representation of the 64 most signicant bits
-        trace_id_hob_hex = "{:032x}".format(trace_id)[:16]
+        trace_id_hob_hex = f"{trace_id:032x}"[:16]
         ctx = Context(trace_id=trace_id, meta={"_dd.t.tid": trace_id_hob_hex})
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -131,7 +158,7 @@ def test_inject_128bit_trace_id_datadog():
             assert headers == {
                 "x-datadog-trace-id": str(span._trace_id_64bits),
                 "x-datadog-parent-id": str(span.span_id),
-                "x-datadog-tags": "{}=-0,".format(SAMPLING_DECISION_TRACE_TAG_KEY)
+                "x-datadog-tags": f"{SAMPLING_DECISION_TRACE_TAG_KEY}=-0,"
                 + "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
                 "x-datadog-sampling-priority": "1",
             }
@@ -152,8 +179,8 @@ def test_inject_128bit_trace_id_b3multi():
             assert span.trace_id == trace_id
             headers = {}
             HTTPPropagator.inject(span.context, headers)
-            trace_id_hex = "{:032x}".format(span.trace_id)
-            span_id_hex = "{:016x}".format(span.span_id)
+            trace_id_hex = f"{span.trace_id:032x}"
+            span_id_hex = f"{span.span_id:016x}"
             assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex, "x-b3-sampled": "1"}
 
 
@@ -172,8 +199,8 @@ def test_inject_128bit_trace_id_b3_single_header():
             assert span.trace_id == trace_id
             headers = {}
             HTTPPropagator.inject(span.context, headers)
-            trace_id_hex = "{:032x}".format(span.trace_id)
-            span_id_hex = "{:016x}".format(span.span_id)
+            trace_id_hex = f"{span.trace_id:032x}"
+            span_id_hex = f"{span.span_id:016x}"
             assert headers == {"b3": "%s-%s-1" % (trace_id_hex, span_id_hex)}
 
 
@@ -192,8 +219,8 @@ def test_inject_128bit_trace_id_tracecontext():
             assert span.trace_id == trace_id
             headers = {}
             HTTPPropagator.inject(span.context, headers)
-            trace_id_hex = "{:032x}".format(span.trace_id)
-            span_id_hex = "{:016x}".format(span.span_id)
+            trace_id_hex = f"{span.trace_id:032x}"
+            span_id_hex = f"{span.span_id:016x}"
             assert headers["traceparent"] == "00-%s-%s-01" % (trace_id_hex, span_id_hex)
 
 
@@ -317,392 +344,6 @@ def test_extract(tracer):  # noqa: F811
         assert len(context.get_all_baggage_items()) == 3
 
 
-@pytest.mark.parametrize("sca_enabled", ["true", "false"])
-@pytest.mark.parametrize("appsec_enabled", [True, False])
-@pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
-    tracer,  # noqa: F811
-    sca_enabled,
-    appsec_enabled,
-    iast_enabled,  # noqa: F811
-):
-    if not appsec_enabled and not iast_enabled and sca_enabled == "false":
-        pytest.skip("SCA, AppSec or IAST must be enabled")
-
-    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-        tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
-        try:
-            headers = {
-                "x-datadog-trace-id": "1234",
-                "x-datadog-parent-id": "5678",
-                "x-datadog-sampling-priority": str(USER_KEEP),
-                "x-datadog-origin": "synthetics",
-                "x-datadog-tags": "_dd.p.test=value,any=tag",
-                "ot-baggage-key1": "value1",
-            }
-
-            context = HTTPPropagator.extract(headers)
-
-            tracer.context_provider.activate(context)
-
-            with tracer.trace("local_root_span0") as span:
-                # First span should be kept, as we keep 1 per min
-                assert span.trace_id == 1234
-                assert span.parent_id == 5678
-                # Priority is unset
-                assert span.context.sampling_priority is None
-                assert not span._has_attribute("_sampling_priority_v1")
-                assert span.context.dd_origin == "synthetics"
-                assert "_dd.p.test" in span.context._meta
-                assert "_dd.p.ts" not in span.context._meta
-
-            next_headers = {}
-            HTTPPropagator.inject(span.context, next_headers)
-
-            # Ensure propagation of headers is interrupted
-            assert "x-datadog-origin" not in next_headers
-            assert "x-datadog-tags" not in next_headers
-            assert "x-datadog-trace-id" not in next_headers
-            assert "x-datadog-parent-id" not in next_headers
-            assert "x-datadog-sampling-priority" not in next_headers
-
-            # Span priority was unset, but as we keep 1 per min, it should be kept
-            # Since we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP
-
-        finally:
-            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
-
-
-@pytest.mark.parametrize("sca_enabled", ["true", "false"])
-@pytest.mark.parametrize("appsec_enabled", [True, False])
-@pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
-    tracer,  # noqa: F811
-    sca_enabled,
-    appsec_enabled,
-    iast_enabled,  # noqa: F811
-):
-    if not appsec_enabled and not iast_enabled and sca_enabled == "false":
-        pytest.skip("SCA, AppSec or IAST must be enabled")
-
-    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-        tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
-        try:
-            with tracer.trace("local_root_span0"):
-                # First span should be kept, as we keep 1 per min
-                pass
-
-            headers = {}
-
-            context = HTTPPropagator.extract(headers)
-
-            tracer.context_provider.activate(context)
-
-            with tracer.trace("local_root_span") as span:
-                assert "_dd.p.ts" not in span.context._meta
-
-            next_headers = {}
-            HTTPPropagator.inject(span.context, next_headers)
-
-            # Ensure propagation of headers takes place as expected
-            assert "x-datadog-origin" not in next_headers
-            assert "x-datadog-tags" not in next_headers
-            assert "x-datadog-trace-id" not in next_headers
-            assert "x-datadog-parent-id" not in next_headers
-            assert "x-datadog-sampling-priority" not in next_headers
-
-            # Ensure span is dropped (no appsec event upstream or in this span)
-            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
-        finally:
-            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
-
-
-def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
-    try:
-        with tracer.trace("local_root_span0"):
-            # First span should be kept, as we keep 1 per min
-            pass
-
-        headers = {}
-
-        context = HTTPPropagator.extract(headers)
-
-        tracer.context_provider.activate(context)
-
-        with tracer.trace("local_root_span") as span:
-            _asm_manual_keep(span)
-            assert "_dd.p.ts" in span.context._meta
-
-        next_headers = {}
-        HTTPPropagator.inject(span.context, next_headers)
-
-        # Ensure propagation of headers takes place as expected
-        assert "x-datadog-origin" not in next_headers
-        assert "_dd.p.test=value" not in next_headers["x-datadog-tags"]
-        assert "_dd.p.ts=02" in next_headers["x-datadog-tags"]
-        assert next_headers["x-datadog-trace-id"] != "1234"
-        assert next_headers["x-datadog-parent-id"] != "5678"
-        assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
-
-        # Ensure span is user keep
-        assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
-    finally:
-        tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
-
-
-@pytest.mark.parametrize("sca_enabled", ["true", "false"])
-@pytest.mark.parametrize("appsec_enabled", [True, False])
-@pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
-    tracer,  # noqa: F811
-    sca_enabled,
-    appsec_enabled,
-    iast_enabled,  # noqa: F811
-):
-    if not appsec_enabled and not iast_enabled and sca_enabled == "false":
-        pytest.skip("SCA, AppSec or IAST must be enabled")
-
-    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-        tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
-        try:
-            with tracer.trace("local_root_span0"):
-                # First span should be kept, as we keep 1 per min
-                pass
-
-            headers = {
-                "x-datadog-trace-id": "1234",
-                "x-datadog-parent-id": "5678",
-                "x-datadog-sampling-priority": str(USER_KEEP),
-                "x-datadog-origin": "synthetics",
-                "x-datadog-tags": "_dd.p.test=value,any=tag",
-                "ot-baggage-key1": "value1",
-            }
-
-            context = HTTPPropagator.extract(headers)
-
-            tracer.context_provider.activate(context)
-
-            with tracer.trace("local_root_span") as span:
-                assert span.trace_id == 1234
-                assert span.parent_id == 5678
-                # Priority is unset
-                assert span.context.sampling_priority is None
-                assert not span._has_attribute("_sampling_priority_v1")
-                assert span.context.dd_origin == "synthetics"
-                assert "_dd.p.test" in span.context._meta
-                assert "_dd.p.ts" not in span.context._meta
-
-            next_headers = {}
-            HTTPPropagator.inject(span.context, next_headers)
-
-            # Ensure propagation of headers takes place as expected
-            assert "x-datadog-origin" not in next_headers
-            assert "x-datadog-tags" not in next_headers
-            assert "x-datadog-trace-id" not in next_headers
-            assert "x-datadog-parent-id" not in next_headers
-            assert "x-datadog-sampling-priority" not in next_headers
-
-            # Priority was unset, and trace is not kept, so it should be dropped
-            # As we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
-        finally:
-            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
-
-
-def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
-    tracer,  # noqa: F811
-):
-    tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
-    try:
-        with tracer.trace("local_root_span0"):
-            # First span should be kept, as we keep 1 per min
-            pass
-
-        headers = {
-            "x-datadog-trace-id": "1234",
-            "x-datadog-parent-id": "5678",
-            "x-datadog-sampling-priority": str(AUTO_REJECT),
-            "x-datadog-origin": "synthetics",
-            "x-datadog-tags": "_dd.p.test=value,any=tag",
-            "ot-baggage-key1": "value1",
-        }
-
-        context = HTTPPropagator.extract(headers)
-
-        tracer.context_provider.activate(context)
-
-        with tracer.trace("local_root_span") as span:
-            _asm_manual_keep(span)
-            assert span.trace_id == 1234
-            assert span.parent_id == 5678
-            assert span.context.sampling_priority == USER_KEEP
-            assert span.context.dd_origin == "synthetics"
-            assert "_dd.p.ts" in span.context._meta
-            assert span.context._meta["_dd.p.ts"] == "02"
-            assert "_dd.p.test" in span.context._meta
-
-        next_headers = {}
-        HTTPPropagator.inject(span.context, next_headers)
-
-        # Ensure propagation of headers is not reset and adds appsec tag
-        assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
-        assert next_headers["x-datadog-trace-id"] == "1234"
-        assert "_dd.p.test=value" in next_headers["x-datadog-tags"]
-        assert "_dd.p.ts=02" in next_headers["x-datadog-tags"]
-
-        # Ensure span has force-keep priority now
-        assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
-
-    finally:
-        tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
-
-
-@pytest.mark.parametrize("upstream_priority", ["1", "2"])
-@pytest.mark.parametrize("sca_enabled", ["true", "false"])
-@pytest.mark.parametrize("appsec_enabled", [True, False])
-@pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
-    tracer,  # noqa: F811
-    upstream_priority,
-    sca_enabled,
-    appsec_enabled,
-    iast_enabled,  # noqa: F811
-):
-    if not appsec_enabled and not iast_enabled and sca_enabled == "false":
-        pytest.skip("SCA, AppSec or IAST must be enabled")
-
-    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-        tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
-        try:
-            with tracer.trace("local_root_span0"):
-                # First span should be kept, as we keep 1 per min
-                pass
-
-            headers = {
-                "x-datadog-trace-id": "1234",
-                "x-datadog-parent-id": "5678",
-                "x-datadog-sampling-priority": upstream_priority,
-                "x-datadog-origin": "synthetics",
-                "x-datadog-tags": "_dd.p.ts=02,any=tag",
-                "ot-baggage-key1": "value1",
-            }
-
-            context = HTTPPropagator.extract(headers)
-
-            tracer.context_provider.activate(context)
-
-            with tracer.trace("local_root_span") as span:
-                assert span.trace_id == 1234
-                assert span.parent_id == 5678
-                # Enforced user keep regardless of upstream priority
-                assert span.context.sampling_priority == USER_KEEP
-                assert span.context.dd_origin == "synthetics"
-                assert span.context._meta == {
-                    "_dd.origin": "synthetics",
-                    "_dd.p.ts": "02",
-                }
-                with tracer.trace("child_span") as child_span:
-                    assert child_span.trace_id == 1234
-                    assert child_span.parent_id != 5678
-                    assert child_span.context.sampling_priority == USER_KEEP
-                    assert child_span.context.dd_origin == "synthetics"
-                    assert child_span.context._meta == {
-                        "_dd.origin": "synthetics",
-                        "_dd.p.ts": "02",
-                    }
-
-                next_headers = {}
-                HTTPPropagator.inject(span.context, next_headers)
-                assert next_headers["x-datadog-origin"] == "synthetics"
-                assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
-                assert next_headers["x-datadog-trace-id"] == "1234"
-                # With head sampling decision, only _dd.p.ts should be present (no _dd.p.dm)
-                assert next_headers["x-datadog-tags"] == "_dd.p.ts=02"
-
-            # Ensure span sets user keep regardless of received priority (appsec event upstream)
-            assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
-
-        finally:
-            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
-
-
-@pytest.mark.parametrize("upstream_priority", ["1", "2"])
-@pytest.mark.parametrize("sca_enabled", ["true", "false"])
-@pytest.mark.parametrize("appsec_enabled", [True, False])
-@pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_force_keep(
-    tracer,  # noqa: F811
-    upstream_priority,
-    sca_enabled,
-    appsec_enabled,
-    iast_enabled,  # noqa: F811
-):
-    if not appsec_enabled and not iast_enabled and sca_enabled == "false":
-        pytest.skip("SCA, AppSec or IAST must be enabled")
-
-    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-        tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
-        try:
-            with tracer.trace("local_root_span0"):
-                # First span should be kept, as we keep 1 per min
-                pass
-
-            headers = {
-                "x-datadog-trace-id": "1234",
-                "x-datadog-parent-id": "5678",
-                "x-datadog-sampling-priority": upstream_priority,
-                "x-datadog-origin": "synthetics",
-                "x-datadog-tags": "_dd.p.ts=02,any=tag",
-                "ot-baggage-key1": "value1",
-            }
-
-            context = HTTPPropagator.extract(headers)
-
-            tracer.context_provider.activate(context)
-
-            with tracer.trace("local_root_span") as span:
-                _asm_manual_keep(span)
-                assert span.trace_id == 1234
-                assert span.parent_id == 5678
-                assert span.context.sampling_priority == USER_KEEP  # user keep always
-                assert span.context.dd_origin == "synthetics"
-                assert span.context._meta == {
-                    "_dd.origin": "synthetics",
-                    "_dd.p.dm": "-4",
-                    "_dd.p.ts": "02",
-                }
-                with tracer.trace("child_span") as child_span:
-                    assert child_span.trace_id == 1234
-                    assert child_span.parent_id != 5678
-                    assert child_span.context.sampling_priority == USER_KEEP  # user keep always
-                    assert child_span.context.dd_origin == "synthetics"
-                    assert child_span.context._meta == {
-                        "_dd.origin": "synthetics",
-                        "_dd.p.dm": "-4",
-                        "_dd.p.ts": "02",
-                    }
-
-                next_headers = {}
-                HTTPPropagator.inject(span.context, next_headers)
-                assert next_headers["x-datadog-origin"] == "synthetics"
-                assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)  # user keep always
-                assert next_headers["x-datadog-trace-id"] == "1234"
-                assert next_headers["x-datadog-tags"].startswith("_dd.p.ts=02,")
-
-            # Ensure span set to user keep regardless received priority (appsec event upstream)
-            assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP  # user keep always
-
-        finally:
-            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
-
-
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         headers = {
@@ -731,7 +372,7 @@ def test_extract_128bit_trace_ids_datadog():
     from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
-        trace_id_hex = "{:032x}".format(trace_id)
+        trace_id_hex = f"{trace_id:032x}"
         span_id = 1
         # Get the hex representation of the 64 most signicant bits
         trace_id_64bit = trace_id & 2**64 - 1
@@ -775,7 +416,7 @@ def test_extract_128bit_trace_id_uppercase_tid_is_rejected():
     tracer.context_provider.activate(context)
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == low_64_bits
-        assert span.context._meta.get("_dd.propagation_error") == "malformed_tid {}".format(uppercase_tid)
+        assert span.context._meta.get("_dd.propagation_error") == f"malformed_tid {uppercase_tid}"
         assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
 
 
@@ -787,9 +428,9 @@ def test_extract_128bit_trace_ids_b3multi():
     from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
-        trace_id_hex = "{:032x}".format(trace_id)
+        trace_id_hex = f"{trace_id:032x}"
         span_id = 1
-        span_id_hex = "{:016x}".format(span_id)
+        span_id_hex = f"{span_id:016x}"
         headers = {
             "x-b3-traceid": trace_id_hex,
             "x-b3-spanid": span_id_hex,
@@ -812,9 +453,9 @@ def test_extract_128bit_trace_ids_b3_single_header():
     from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
-        trace_id_hex = "{:032x}".format(trace_id)
+        trace_id_hex = f"{trace_id:032x}"
         span_id = 1
-        span_id_hex = "{:016x}".format(span_id)
+        span_id_hex = f"{span_id:016x}"
         headers = {
             "b3": "%s-%s-1" % (trace_id_hex, span_id_hex),
         }
@@ -836,9 +477,9 @@ def test_extract_128bit_trace_ids_tracecontext():
     from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
-        trace_id_hex = "{:032x}".format(trace_id)
+        trace_id_hex = f"{trace_id:032x}"
         span_id = 1
-        span_id_hex = "{:016x}".format(span_id)
+        span_id_hex = f"{span_id:016x}"
         headers = {
             "traceparent": "00-%s-%s-01" % (trace_id_hex, span_id_hex),
         }
@@ -878,7 +519,7 @@ def test_last_dd_span_id():
     for span in (child1, chunk_root, root, local_root):
         headers = {}
         HTTPPropagator.inject(span.context, headers)
-        assert "p:{:016x}".format(span.span_id) in headers["tracestate"]
+        assert f"p:{span.span_id:016x}" in headers["tracestate"]
     # If a Datadog span is not active, `p` value is set to the last datadog span in the trace
     headers = {}
     HTTPPropagator.inject(non_dd_remote_context, headers)
@@ -1377,7 +1018,7 @@ def test_matching_secondary_tracecontext_preserves_random_trace_flag():
 
 
 def test_matching_secondary_tracecontext_uses_validated_tracestate():
-    raw_tracestate = "ot=rv:not-hex;th:8," + ",".join("vendor{}=value".format(i) for i in range(32))
+    raw_tracestate = "ot=rv:not-hex;th:8," + ",".join(f"vendor{i}=value" for i in range(32))
     headers = {
         **DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
         _HTTP_HEADER_TRACEPARENT: TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
@@ -2659,19 +2300,16 @@ def test_propagation_extract_env(
     name, styles, extract_behavior, headers, expected_context, run_python_code_in_subprocess
 ):
     # Execute the test code in isolation to ensure env variables work as expected
-    code = """
+    code = f"""
 import json
 import pickle
 from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
-context = HTTPPropagator.extract({!r})
-expected_context = Context(**pickle.loads({!r}))
+context = HTTPPropagator.extract({headers!r})
+expected_context = Context(**pickle.loads({pickle.dumps(expected_context)!r}))
 assert context == expected_context, f"Expected {{expected_context}} but got {{context}}"
-    """.format(
-        headers,
-        pickle.dumps(expected_context),
-    )
+    """
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
@@ -2754,38 +2392,42 @@ EXTRACT_OVERRIDE_FIXTURES = [
 
 @pytest.mark.parametrize("name,styles,styles_extract,headers,expected_context", EXTRACT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE(
-    name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess
+    name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess, tmp_path
 ):
     # Execute the test code in isolation to ensure env variables work as expected
-    code = """
+    code = f"""
 import json
+import os
 
 from ddtrace.propagation.http import HTTPPropagator
 
 
-context = HTTPPropagator.extract({!r})
-if context is None:
-    print("null")
-else:
-    print(json.dumps({{
-      "trace_id": context.trace_id,
-      "span_id": context.span_id,
-      "sampling_priority": context.sampling_priority,
-      "dd_origin": context.dd_origin,
-    }}))
-    """.format(headers)
+context = HTTPPropagator.extract({headers!r})
+result = None if context is None else {{
+  "trace_id": context.trace_id,
+  "span_id": context.span_id,
+  "sampling_priority": context.sampling_priority,
+  "dd_origin": context.dd_origin,
+}}
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(result, f)
+    """
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if styles_extract is not None:
         env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = ",".join(styles_extract)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # The result travels by file, so the subprocess is expected to say nothing at all. Anything
+    # here is a foreign write, which used to corrupt the result when it shared stdout.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_context
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_context
 
 
 FULL_CONTEXT_EXTRACT_FIXTURES = [
@@ -3469,30 +3111,36 @@ INJECT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,context,expected_headers", INJECT_FIXTURES)
-def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess):
+def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess, tmp_path):
     # Execute the test code in isolation to ensure env variables work as expected
-    code = """
+    code = f"""
 import json
+import os
 
 from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
-context = Context(**{!r})
+context = Context(**{context!r})
 headers = {{}}
 HTTPPropagator.inject(context, headers)
 
-print(json.dumps(headers))
-    """.format(context)
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(headers, f)
+    """
 
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
+
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # See the note in test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_headers
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_headers
 
     # Setting via ddtrace.config works as expected too
     # DEV: This also helps us get code coverage reporting
@@ -3533,33 +3181,39 @@ INJECT_OVERRIDE_FIXTURES = [
 
 @pytest.mark.parametrize("name,styles,styles_inject,context,expected_headers", INJECT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
-    name, styles, styles_inject, context, expected_headers, run_python_code_in_subprocess
+    name, styles, styles_inject, context, expected_headers, run_python_code_in_subprocess, tmp_path
 ):
     # Execute the test code in isolation to ensure env variables work as expected
-    code = """
+    code = f"""
 import json
+import os
 
 from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
-context = Context(**{!r})
+context = Context(**{context!r})
 headers = {{}}
 HTTPPropagator.inject(context, headers)
 
-print(json.dumps(headers))
-    """.format(context)
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(headers, f)
+    """
 
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if styles_inject is not None:
         env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = ",".join(styles_inject)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
+
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # See the note in test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_headers
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_headers
 
 
 @pytest.mark.parametrize(
@@ -3701,6 +3355,63 @@ def test_baggageheader_maxbytes_extract():
     assert "key3" not in context._baggage
 
 
+@pytest.mark.parametrize("extra_bytes", [0, 1])
+def test_baggageheader_multibyte_boundary_extract(extra_bytes):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    prefix = "first=value,key="
+    available = DD_TRACE_BAGGAGE_MAX_BYTES - len(prefix) + extra_bytes
+    count, padding = divmod(available, len("😀".encode()))
+    value = "😀" * count + "x" * padding
+    context = _BaggageHeader._extract({"baggage": prefix + value})
+    expected = {"first": "value"}
+    if not extra_bytes:
+        expected["key"] = value
+    assert context._baggage == expected
+
+
+@pytest.mark.parametrize("suffix", ["=value", ""])
+def test_baggageheader_partial_member_extract(suffix):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    header = "first=value," + "x" * DD_TRACE_BAGGAGE_MAX_BYTES + suffix
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_TRUNCATED_BYTE_COUNT") as truncated:
+        context = _BaggageHeader._extract({"baggage": header})
+    assert context._baggage == {"first": "value"}
+    truncated.add.assert_called_once_with()
+
+
+@pytest.mark.parametrize("extra_member", ["", ",invalid"])
+def test_baggageheader_duplicate_item_boundary_extract(extra_member):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    header = ",".join(["key=value"] * DD_TRACE_BAGGAGE_MAX_ITEMS) + extra_member
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_TRUNCATED_ITEM_COUNT") as truncated:
+        context = _BaggageHeader._extract({"baggage": header})
+    assert context._baggage == {"key": "value"}
+    assert truncated.add.call_count == bool(extra_member)
+
+
+@pytest.mark.subprocess(err=None)
+def test_baggageheader_extract_working_memory():
+    import tracemalloc
+
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.propagation.http import HTTPPropagator
+
+    HTTPPropagator.extract({"baggage": "key=value"})
+    for suffix in ("key=value,", "x", "😀"):
+        header = {"baggage": "first=value," + suffix * (DD_TRACE_BAGGAGE_MAX_BYTES * 8)}
+        tracemalloc.start()
+        try:
+            context = HTTPPropagator.extract(header)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        assert context.get_baggage_item("first") == "value"
+        assert peak < 32 * DD_TRACE_BAGGAGE_MAX_BYTES
+
+
 @pytest.mark.parametrize(
     "headers,expected_baggage",
     [
@@ -3748,6 +3459,24 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
     assert context._baggage == expected_baggage
 
 
+def test_baggageheader_invalid_unicode_preserves_trace_context():
+    headers = {
+        HTTP_HEADER_TRACE_ID: "123",
+        HTTP_HEADER_PARENT_ID: "456",
+        HTTP_HEADER_SAMPLING_PRIORITY: "2",
+        HTTP_HEADER_ORIGIN: "synthetics",
+        "baggage": "ok=v,\udcff",
+    }
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_MALFORMED") as malformed:
+        context = HTTPPropagator.extract(headers)
+    assert context.trace_id == 123
+    assert context.span_id == 456
+    assert context.sampling_priority == 2
+    assert context.dd_origin == "synthetics"
+    assert context.get_all_baggage_items() == {}
+    malformed.add.assert_called_once_with()
+
+
 @pytest.mark.parametrize(
     "headers",
     [
@@ -3757,6 +3486,17 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
 def test_http_propagator_baggage_extract(headers):
     context = HTTPPropagator.extract(headers)
     assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}
+
+
+def test_baggageheader_partial_member_fastapi(fastapi_client, fastapi_test_spans):  # noqa: F811
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    response = fastapi_client.get(
+        "/", headers={"sleep": "False", "baggage": "first=value," + "x" * DD_TRACE_BAGGAGE_MAX_BYTES + "=other"}
+    )
+    assert response.status_code == 200
+    spans = fastapi_test_spans.pop_traces()
+    assert spans[0][0].context.get_all_baggage_items() == {"first": "value"}
 
 
 def test_baggage_span_tags_default():
@@ -3948,3 +3688,28 @@ def test_datadog_extract_sampling_decision_tag_with_head_sampling():
     assert context_without_priority.dd_origin == "rum"
     # The key assertion: _dd.p.dm should NOT be present during extraction
     assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_without_priority._meta
+
+
+def test_tracestate_does_not_import_under_restricted_builtins():
+    """Regression: _tracestate must not import anything; the helpers are registered at import time."""
+    ctx = Context(
+        trace_id=1,
+        span_id=1,
+        meta={
+            W3C_TRACESTATE_KEY: "dd=s:1",
+            W3C_TRACEPARENT_KEY: "00-00000000000000000000000000000001-0000000000000001-01",
+        },
+    )
+
+    real_import = builtins.__import__
+
+    def _restricted_import(name: str, *args: object, **kwargs: object) -> object:
+        if name.startswith("ddtrace"):
+            raise ImportError(f"sandbox blocked import of {name!r}")
+        return real_import(name, *args, **kwargs)
+
+    with mock.patch.object(builtins, "__import__", side_effect=_restricted_import):
+        ts = ctx._tracestate
+
+    assert isinstance(ts, str)
+    assert "dd=" in ts

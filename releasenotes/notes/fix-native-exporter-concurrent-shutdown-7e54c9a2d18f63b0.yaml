@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where traces can be dropped when flushing while the tracer is shutting down.

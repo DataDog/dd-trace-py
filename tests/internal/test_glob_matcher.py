@@ -13,7 +13,6 @@ from ddtrace.internal.glob_matching import GlobMatcher
         ("test_st?i?g", "test_string", True),
         ("test_str*", "test_string", True),
         ("t?st_str*", "test_string", True),
-        ("t?st_str*", "test_string", True),
         ("?est_string", "test_string", True),
         ("test_strin?", "test_string", True),
         ("test?_string", "test_string", False),  # Test empty string for ?

@@ -1,0 +1,12 @@
+_v: 1
+name: valkey
+display_name: Valkey
+description: Instruments synchronous and asynchronous Valkey client command and pipeline execution across standalone and clustered
+  connections.
+packages:
+- name: valkey
+category:
+- db.client
+systems:
+- valkey
+creation_date: '2025-02-05'

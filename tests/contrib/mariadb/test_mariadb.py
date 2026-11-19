@@ -12,7 +12,7 @@ from tests.utils import override_config
 from tests.utils import snapshot
 
 
-MARIADB_VERSION = mariadb.__version_info__  # type: tuple[int, int, int, str, int]
+MARIADB_VERSION: tuple[int, int, int, str, int] = mariadb.__version_info__
 SNAPSHOT_VARIANTS = {
     "pre_1_1": MARIADB_VERSION < (1, 1, 0),
     "post_1_1": MARIADB_VERSION

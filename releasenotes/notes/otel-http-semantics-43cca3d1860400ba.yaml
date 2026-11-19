@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Adds support for OpenTelemetry HTTP semantic conventions on HTTP server spans when ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``.

@@ -130,6 +130,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
+import time
 
 import ddtrace  # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
@@ -137,11 +138,13 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
+print(get_runtime_id(), flush=True)
 pid = os.fork()
 if pid == 0:
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "fork_child_metric", 1)
     telemetry_writer.periodic(force_flush=True)
     print(get_runtime_id(), flush=True)
+    time.sleep(0.2)
     os._exit(0)
 
 os.waitpid(pid, 0)
@@ -152,7 +155,7 @@ os.waitpid(pid, 0)
     assert status == 0, stderr
     assert stderr == b"", stderr
 
-    child_runtime_id = stdout.strip().decode("utf-8")
+    parent_runtime_id, child_runtime_id = stdout.decode("utf-8").splitlines()
     child_metric_events = [
         event for event in test_agent_session.get_events("generate-metrics") if event["runtime_id"] == child_runtime_id
     ]
@@ -166,6 +169,14 @@ os.waitpid(pid, 0)
     assert len(child_metrics) == 1, child_metrics
     assert child_metrics[0]["type"] == "count"
     assert child_metrics[0]["points"][0][1] == 1
+    parent_closing = [
+        event for event in test_agent_session.get_events("app-closing") if event["runtime_id"] == parent_runtime_id
+    ]
+    assert len(parent_closing) == 1, parent_closing
+    child_closing = [
+        event for event in test_agent_session.get_events("app-closing") if event["runtime_id"] == child_runtime_id
+    ]
+    assert child_closing == []
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires a native fork")
@@ -196,6 +207,14 @@ context = worker.register_metric_context(
     [],
     True,
 )
+
+# A Python-managed fork temporarily disables child restart for this worker. Its parent hook
+# must restore native-fork restart before the libc-only fork below.
+managed_pid = os.fork()
+if managed_pid == 0:
+    os._exit(0)
+_, managed_status = os.waitpid(managed_pid, 0)
+assert os.waitstatus_to_exitcode(managed_status) == 0
 
 libc = ctypes.CDLL(None)
 libc.fork.restype = ctypes.c_int
@@ -261,6 +280,58 @@ for _ in range(64):
 
     assert status == 0, stderr
     assert stderr == b"", stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_rebuild_telemetry_worker_after_fork_fd_close(run_python_code_in_subprocess):
+    """Celery beat closes inherited FDs after Python at-fork hooks return.
+
+    Rebuilding the native telemetry worker must not unpark the inherited Tokio
+    I/O driver, which panics with EBADF once those descriptors are gone.
+    """
+    code = """
+import os
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+assert telemetry_writer._worker is not None
+
+pid = os.fork()
+if pid == 0:
+    keep = {0, 1, 2}
+    try:
+        names = os.listdir("/proc/self/fd")
+    except OSError:
+        names = [str(fd) for fd in range(3, 256)]
+    for name in names:
+        try:
+            fd = int(name)
+        except ValueError:
+            continue
+        if fd in keep:
+            continue
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    with tracer.trace("celery-beat-like"):
+        pass
+    os._exit(0)
+
+_, status = os.waitpid(pid, 0)
+assert os.waitstatus_to_exitcode(status) == 0
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
 
 
 def test_trace_exporter_propagates_telemetry_runtime_restart_errors(run_python_code_in_subprocess):

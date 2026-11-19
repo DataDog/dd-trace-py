@@ -1,0 +1,17 @@
+[
+  {
+    "description": "An invalid configured SemVer comparand in a non-last allocation must reject the whole flag at parse time, even though a valid default allocation follows it in the waterfall. An implementation that skips the invalid allocation and falls through to the default would return \"fallback\" with a STATIC reason instead of an error.",
+    "attributes": {
+      "app_version": "1.2.3"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-invalid-comparand-waterfall-test",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "unknown"
+    },
+    "targetingKey": "waterfall",
+    "variationType": "STRING"
+  }
+]

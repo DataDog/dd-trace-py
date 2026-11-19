@@ -1,6 +1,6 @@
 import itertools
 
-from ddtrace.internal.runtime.container import CGroupInfo
+from ddtrace.internal.container import CGroupInfo
 
 
 def cgroup_line_valid_test_cases():

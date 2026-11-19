@@ -99,7 +99,7 @@ def main():
         # Print the JSON payload (tracer_config_{pid}.json)
         if config_json_path:
             print("\n📝 Flare JSON payload (tracer_config):")
-            with open(config_json_path, "r") as f:
+            with open(config_json_path) as f:
                 try:
                     config_json = json.load(f)
                     print(json.dumps(config_json, indent=4))

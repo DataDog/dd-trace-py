@@ -1,8 +1,7 @@
+from collections.abc import Sequence
 import json
-import typing  # noqa:F401
-from typing import Any  # noqa:F401
+from typing import Any
 from typing import Optional
-from typing import Sequence
 
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
@@ -30,7 +29,7 @@ def _json_dumps_bytes(obj: object) -> bytes:
     return json.dumps(obj).encode("utf-8", errors="backslashreplace")
 
 
-class _EncoderBase(object):
+class _EncoderBase:
     """
     Encoder interface that provides the logic to encode traces and service.
     """
@@ -109,7 +108,7 @@ class JSONEncoder(_EncoderBase):
         return self.encode(normalized_traces)[0]
 
     @staticmethod
-    def _normalize_span(span):
+    def _normalize_span(span: dict[str, Any]) -> dict[str, Any]:
         # Ensure all string attributes are actually strings and not bytes
         # DEV: We are deferring meta/metrics to reduce any performance issues.
         #      Meta/metrics may still contain `bytes` and have encoding issues.
@@ -119,7 +118,7 @@ class JSONEncoder(_EncoderBase):
         return span
 
     @staticmethod
-    def _normalize_str(obj):
+    def _normalize_str(obj: Any) -> Optional[str]:
         if obj is None:
             return obj
 

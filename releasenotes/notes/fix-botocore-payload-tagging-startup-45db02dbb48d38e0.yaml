@@ -1,0 +1,5 @@
+fixes:
+  - |
+    botocore: Fixes increased latency on the first AWS SDK call when cloud request
+    and response payload tagging are disabled, including the first invocation of
+    an AWS Lambda function.
