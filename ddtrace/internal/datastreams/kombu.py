@@ -1,9 +1,14 @@
+from contextvars import ContextVar
+from typing import Any
+from typing import Optional
+
 from ddtrace import config
 from ddtrace.contrib.internal.kombu.utils import HEADER_POS
 from ddtrace.contrib.internal.kombu.utils import PUBLISH_BODY_IDX
 from ddtrace.contrib.internal.kombu.utils import get_exchange_from_args
 from ddtrace.contrib.internal.kombu.utils import get_routing_key_from_args
 from ddtrace.internal import core
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
@@ -11,12 +16,39 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
+_CELERY_EVENTS_EXCHANGE = "celeryev"
+_CELERY_PIDBOX_SUFFIX = ".pidbox"
+
+_checkpointed_upstream: ContextVar[Optional[str]] = ContextVar("dsm_kombu_checkpointed_upstream", default=None)
+
+
+def is_celery_internal_exchange(exchange: Any) -> bool:
+    return isinstance(exchange, str) and (
+        exchange == _CELERY_EVENTS_EXCHANGE or exchange.endswith(_CELERY_PIDBOX_SUFFIX)
+    )
+
+
+def skip_kombu_produce_checkpoint(headers: dict[str, Any]) -> None:
+    _checkpointed_upstream.set(headers.get(PROPAGATION_KEY_BASE_64))
+
+
+def _checkpointed_by_upstream(headers: Any) -> bool:
+    pathway = _checkpointed_upstream.get()
+    if pathway is None:
+        return False
+    _checkpointed_upstream.set(None)
+    return isinstance(headers, dict) and headers.get(PROPAGATION_KEY_BASE_64) == pathway
+
 
 def handle_kombu_produce(args, kwargs, span):
     from . import data_streams_processor as processor
 
+    if _checkpointed_by_upstream(args[HEADER_POS]):
+        return
     routing_key = get_routing_key_from_args(args)
     exchange = get_exchange_from_args(args)
+    if is_celery_internal_exchange(exchange):
+        return
     payload_size = 0
     payload_size += _calculate_byte_size(args[HEADER_POS])
     payload_size += _calculate_byte_size(args[PUBLISH_BODY_IDX])
