@@ -11,6 +11,7 @@ from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.appsec._iast_context import is_iast_request_enabled
@@ -23,6 +24,8 @@ log = get_logger(__name__)
 
 ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
+# Types renamed after release keep hashing with their old name, so existing findings keep their hash.
+_LEGACY_HASH_TYPES = {VULN_UNTRUSTED_SERIALIZATION: "UNTRUSTED_SERIALIZATION"}
 
 # Default truncation length if environment variable is not set
 DEFAULT_EVIDENCE_TRUNCATION_LENGTH = 250
@@ -112,7 +115,8 @@ class Vulnerability:
     hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in env), repr=False)
 
     def __post_init__(self):
-        self.hash = zlib.crc32(repr(self).encode())
+        hash_type = _LEGACY_HASH_TYPES.get(self.type, self.type)
+        self.hash = zlib.crc32(f"Vulnerability(type='{hash_type}', location={self.location})".encode())
 
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
