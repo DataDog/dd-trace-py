@@ -4,7 +4,8 @@ features:
     LLM Observability: LLM Observability traces now stay connected across services that drop the APM
     trace headers. The distributed context is also sent in the W3C ``baggage`` header, which requires
     ``baggage`` in ``DD_TRACE_PROPAGATION_STYLE`` (the default) and uses up to 8 of the 64 baggage
-    items. Upgrade every service in the request path for full coverage.
+    items. In baggage, the parent agent name is truncated to 128 bytes (percent-encoded). Upgrade every
+    service in the request path for full coverage.
 upgrade:
   - |
     LLM Observability: ``LLMObs.activate_distributed_headers()`` no longer raises an exception when the
