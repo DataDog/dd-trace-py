@@ -4,6 +4,9 @@ import gc
 import sys
 import threading
 import time
+from typing import Any
+from typing import Callable
+from typing import Optional
 
 import pytest
 
@@ -11,6 +14,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.runtime import gc_monitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
+from ddtrace.internal.runtime.gc_monitor import PauseListener
 
 
 # Tests that call _on_gc manually while the monitor's gc.callbacks hook is
@@ -227,6 +231,151 @@ def test_callback_does_not_wait_for_the_lock() -> None:
     thread.join(timeout=5)
 
     assert not thread.is_alive()
+
+
+class _LockWithStop:
+    """Monitor lock that runs a stop the way a SIGTERM/SIGINT handler would.
+
+    Python signal handlers run on the main thread between bytecodes, so a profiler
+    stop can land on the thread that holds the monitor lock: right after acquire()
+    returns, or right before release().
+    """
+
+    def __init__(self, lock: Any) -> None:
+        self._lock: Any = lock
+        self.after_acquire: Optional[Callable[[], None]] = None
+        self.before_release: Optional[Callable[[], None]] = None
+
+    def acquire(self, blocking: bool = True) -> bool:
+        acquired: bool = self._lock.acquire(blocking)
+        stop: Optional[Callable[[], None]] = self.after_acquire
+        if acquired and stop is not None:
+            self.after_acquire = None
+            stop()
+        return acquired
+
+    def release(self) -> None:
+        stop: Optional[Callable[[], None]] = self.before_release
+        if stop is not None:
+            self.before_release = None
+            stop()
+        self._lock.release()
+
+
+def _finishes(section: Callable[[], object]) -> bool:
+    # Another thread, so a section that deadlocks fails the test instead of hanging it.
+    thread: threading.Thread = threading.Thread(target=section, daemon=True)
+    thread.start()
+    thread.join(timeout=5)
+    return not thread.is_alive()
+
+
+@contextlib.contextmanager
+def _acquired_monitor_with_listener() -> Iterator[tuple[GCPauseMonitor, PauseListener]]:
+    monitor: GCPauseMonitor = GCPauseMonitor()
+
+    def listener(gen: int, pause_ns: int) -> None:
+        return None
+
+    pause_listener: PauseListener = listener
+    with _automatic_gc_disabled():
+        monitor.acquire()
+        monitor.add_listener(pause_listener)
+        try:
+            yield monitor, pause_listener
+        finally:
+            # A failed test can leave the stop queued; do not leak the hook into later tests.
+            gc_monitor._remove_gc_callback(monitor._gc_hook)
+            if monitor._fork_hook in forksafe._registry:
+                forksafe.unregister(monitor._fork_hook)
+
+
+def _assert_stopped(monitor: GCPauseMonitor, pause_listener: PauseListener) -> None:
+    assert monitor._refcount == 0
+    assert all(cb is not monitor._gc_hook for cb in gc.callbacks)
+    assert monitor._fork_hook not in forksafe._registry
+    assert pause_listener not in monitor._listeners
+
+
+@pytest.mark.parametrize("boundary", ["after_acquire", "before_release"])
+@pytest.mark.parametrize("section", ["_on_gc", "reset", "snapshot_and_reset"])
+def test_signal_stop_on_the_thread_that_holds_the_lock(section: str, boundary: str) -> None:
+    """Stop must not wait for a lock its own thread holds, and must be done when the section returns."""
+    monitor: GCPauseMonitor
+    pause_listener: PauseListener
+    with _acquired_monitor_with_listener() as (monitor, pause_listener):
+
+        def stop() -> None:
+            monitor.remove_listener(pause_listener)
+            monitor.release()
+
+        def run_section() -> None:
+            if section == "_on_gc":
+                monitor._on_gc("stop", {"generation": 0})
+            else:
+                getattr(monitor, section)()
+
+        monitor._on_gc("start", {"generation": 0})
+        lock: _LockWithStop = _LockWithStop(monitor._lock)
+        setattr(lock, boundary, stop)
+        monitor._lock = lock  # type: ignore[assignment]
+
+        assert _finishes(run_section), "stop waited for the lock its own thread holds"
+        _assert_stopped(monitor, pause_listener)
+
+
+def test_signal_stop_inside_reset_is_done_when_reset_returns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stop work queued while reset() holds the lock must not wait for some later collection."""
+    monitor: GCPauseMonitor
+    pause_listener: PauseListener
+    with _acquired_monitor_with_listener() as (monitor, pause_listener):
+        clear_starts: Callable[[], None] = monitor._clear_starts
+        stopped: list[bool] = [False]
+
+        def clear_starts_then_stop() -> None:
+            clear_starts()
+            if not stopped[0]:
+                stopped[0] = True
+                monitor.remove_listener(pause_listener)
+                monitor.release()
+
+        monkeypatch.setattr(monitor, "_clear_starts", clear_starts_then_stop)
+
+        assert _finishes(monitor.reset)
+        assert stopped[0]
+        _assert_stopped(monitor, pause_listener)
+
+
+def test_stop_does_not_wait_for_another_thread_that_holds_the_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The holder applies a stop that another thread queued, when it unlocks."""
+    monitor: GCPauseMonitor
+    pause_listener: PauseListener
+    with _acquired_monitor_with_listener() as (monitor, pause_listener):
+        clear_starts: Callable[[], None] = monitor._clear_starts
+        holding: threading.Event = threading.Event()
+        proceed: threading.Event = threading.Event()
+
+        def clear_starts_and_hold() -> None:
+            clear_starts()
+            if not holding.is_set():
+                holding.set()
+                proceed.wait(timeout=2)
+
+        monkeypatch.setattr(monitor, "_clear_starts", clear_starts_and_hold)
+        holder: threading.Thread = threading.Thread(target=monitor.reset, daemon=True)
+        holder.start()
+        try:
+            assert holding.wait(timeout=5)
+            monitor.remove_listener(pause_listener)
+            monitor.release()
+            assert holder.is_alive() and not proceed.is_set(), "stop waited for the other thread"
+            assert monitor._refcount == 1
+        finally:
+            proceed.set()
+            holder.join(timeout=5)
+
+        assert not holder.is_alive()
+        _assert_stopped(monitor, pause_listener)
 
 
 def test_snapshot_never_splits_a_pause(monkeypatch) -> None:
