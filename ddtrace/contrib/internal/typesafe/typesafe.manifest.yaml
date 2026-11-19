@@ -1,0 +1,10 @@
+_v: 1
+name: typesafe
+display_name: TypeSafe
+description: Instruments synchronous and asynchronous TypeSafe System One decision calls for tracing and LLM Observability.
+packages:
+- name: typesafe-sdk
+category:
+- gen_ai
+systems: []
+creation_date: '2026-10-14'

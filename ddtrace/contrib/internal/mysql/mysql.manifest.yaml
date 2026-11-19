@@ -1,0 +1,12 @@
+_v: 1
+name: mysql
+display_name: MySQL Connector/Python
+description: Instruments synchronous and asynchronous MySQL Connector/Python database queries, stored procedures, transactions,
+  and optional result fetching.
+packages:
+- name: mysql-connector-python
+category:
+- db.client
+systems:
+- mysql
+creation_date: '2016-08-23'

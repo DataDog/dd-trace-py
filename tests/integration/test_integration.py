@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import itertools
 import os
 import sys
@@ -7,6 +6,7 @@ import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
+from tests.integration.utils import skip_if_native_buffer
 from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program
 
@@ -46,7 +46,7 @@ t.join()
 @pytest.mark.skip("FIXME: This test is broken. The uds socket does not exist.")
 @parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "unix:///tmp/ddagent/trace.sock"})
 def test_single_trace_uds():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -60,26 +60,35 @@ def test_single_trace_uds():
 @parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "unix:///tmp/ddagent/nosockethere"})
 def test_uds_wrong_socket_path():
     import os
+    from unittest import mock
 
-    import mock
-
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
+    from tests.integration.utils import log_native_errors_to_a_file
+    from tests.integration.utils import read_native_log
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
+    native_log = log_native_errors_to_a_file()
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
-        t.shutdown()
+        # libdatadog retries a failed send for about 3 seconds. A shorter shutdown ends first, and
+        # the failure is then never reported.
+        t.shutdown(timeout=10)
 
-    calls = [
-        mock.call(
-            "failed to send, dropping %d traces to intake at %s: %s",
-            1,
-            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
-            "Network error: client error (Connect)",
-            extra={"send_to_telemetry": False},
-        )
-    ]
-    log.error.assert_has_calls(calls)
+    if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # libdatadog sends from its own worker and reports the failure through the native logger.
+        assert "native trace buffer export failed" in read_native_log(native_log)
+    else:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
+                "Network error: client error (Connect)",
+                extra={"send_to_telemetry": False},
+            )
+        ]
+        log.error.assert_has_calls(calls)
 
 
 @skip_if_testagent
@@ -93,8 +102,7 @@ def test_uds_wrong_socket_path():
 )
 def test_payload_too_large():
     import os
-
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
     from tests.integration.test_integration import FOUR_KB
@@ -127,7 +135,7 @@ def test_payload_too_large():
 
 @parametrize_with_all_encodings()
 def test_large_payload_is_sent_without_warning_logs():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -143,7 +151,7 @@ def test_large_payload_is_sent_without_warning_logs():
 
 @parametrize_with_all_encodings()
 def test_child_spans_do_not_cause_warning_logs():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -159,9 +167,10 @@ def test_child_spans_do_not_cause_warning_logs():
         log.error.assert_not_called()
 
 
+@skip_if_native_buffer("health metrics are emitted by libdatadog directly, not via writer.dogstatsd")
 @parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
 def test_metrics():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
     from tests.utils import override_global_config
@@ -204,11 +213,12 @@ def test_metrics():
     )
 
 
+@skip_if_native_buffer("health metrics are emitted by libdatadog directly, not via writer.dogstatsd")
 @parametrize_with_all_encodings(
     env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_ENABLED": "false"}
 )
 def test_metrics_partial_flush_disabled():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
     from tests.utils import override_global_config
@@ -243,15 +253,36 @@ def test_metrics_partial_flush_disabled():
     )
 
 
-@parametrize_with_all_encodings(check_logs=False)
+# Creating over two million spans can exceed the default timeout on shared runners.
+@parametrize_with_all_encodings(check_logs=False, timeout=300)
 def test_single_trace_too_large():
-    import mock
+    from unittest import mock
 
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
     assert t._span_aggregator.partial_flush_enabled is True
+
+    class WriteCounter:
+        """Count writes to the native buffer. A Mock would keep every batch alive through call_args_list."""
+
+        def __init__(self, buffer):
+            self._buffer = buffer
+            self.writes = 0
+
+        def write(self, spans, dd_origin=None):
+            self.writes += 1
+            return self._buffer.write(spans, dd_origin)
+
+        def __getattr__(self, name):
+            return getattr(self._buffer, name)
+
+    write_counter = None
+    if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # Partial flush must hand the oversized trace to the buffer in pieces.
+        write_counter = t._span_aggregator.writer._buffer = WriteCounter(t._span_aggregator.writer._buffer)
     with (
         mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None),
         mock.patch("ddtrace.internal.writer.writer.log") as log,
@@ -260,17 +291,27 @@ def test_single_trace_too_large():
             for i in range(1 << 20 + 1):
                 t.trace("operation").finish()
         t._span_aggregator.writer.flush_queue()
-        calls = [
-            mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyStr(),
-            )
-        ]
-        log.warning.assert_has_calls(calls)
+        if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+            # Whether the buffer's background drain keeps pace with the 1M+ finished child spans
+            # is a race: under contention it falls behind and BatchFull warnings fire repeatedly,
+            # otherwise the batch never fills and nothing is logged. Either is a correct outcome;
+            # only a hard error would indicate an actual bug.
+            for call in log.warning.call_args_list:
+                assert call.args[0] == "native trace buffer dropped spans: %s"
+                assert "BatchFull" in call.args[1]
+            assert write_counter.writes > 1, "partial flush never split the trace into chunks"
+        else:
+            calls = [
+                mock.call(
+                    "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                    AnyInt(),
+                    AnyInt(),
+                    AnyInt(),
+                    AnyInt(),
+                    AnyStr(),
+                )
+            ]
+            log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
 
 
@@ -279,7 +320,7 @@ def test_single_trace_too_large():
     env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false", "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(8 << 20)}
 )
 def test_single_trace_too_large_partial_flush_disabled():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
@@ -302,33 +343,42 @@ def test_single_trace_too_large_partial_flush_disabled():
 )
 def test_trace_generates_error_logs_when_trace_agent_url_invalid():
     import os
+    from unittest import mock
 
-    import mock
-
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
+    from tests.integration.utils import log_native_errors_to_a_file
+    from tests.integration.utils import read_native_log
 
+    native_log = log_native_errors_to_a_file()
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("op").finish()
-        t.shutdown()
+        # libdatadog retries a failed send for about 3 seconds. A shorter shutdown ends first, and
+        # the failure is then never reported.
+        t.shutdown(timeout=10)
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
 
-    calls = [
-        mock.call(
-            "failed to send, dropping %d traces to intake at %s: %s",
-            1,
-            "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
-            "Network error: client error (Connect)",
-            extra={"send_to_telemetry": False},
-        )
-    ]
-    log.error.assert_has_calls(calls)
+    if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # libdatadog sends from its own worker and reports the failure through the native logger.
+        assert "native trace buffer export failed" in read_native_log(native_log)
+    else:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
+                "Network error: client error (Connect)",
+                extra={"send_to_telemetry": False},
+            )
+        ]
+        log.error.assert_has_calls(calls)
 
 
 @skip_if_testagent
 @pytest.mark.subprocess(err=None)
 def test_trace_with_invalid_payload_generates_error_log():
-    import mock
+    from unittest import mock
 
     from tests.integration.utils import send_invalid_payload_and_get_logs
 
@@ -349,7 +399,7 @@ def test_trace_with_invalid_payload_generates_error_log():
 @skip_if_testagent
 @pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
 def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
-    import mock
+    from unittest import mock
 
     from tests.integration.utils import send_invalid_payload_and_get_logs
 
@@ -368,6 +418,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     )
 
 
+@skip_if_native_buffer("encoder injection has no equivalent for the native trace buffer, which has no encoder")
 @pytest.mark.subprocess(err=None)
 def test_trace_with_failing_encoder_generates_error_log():
     from tests.integration.utils import BadEncoder
@@ -387,7 +438,7 @@ def test_trace_with_failing_encoder_generates_error_log():
 @skip_if_testagent
 @pytest.mark.subprocess(err=None)
 def test_api_version_downgrade_generates_no_warning_logs():
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.utils.http import Response
     from ddtrace.trace import tracer as t
@@ -404,21 +455,26 @@ def test_api_version_downgrade_generates_no_warning_logs():
 
 def test_application_does_not_deadlock_when_parent_span_closes_before_child(run_python_code_in_subprocess):
     for logs_injection, debug_mode, patch_logging in itertools.product([True, False], repeat=3):
-        close_parent_span_before_child = """
+        close_parent_span_before_child = f"""
 import ddtrace
-ddtrace.patch(logging={})
+ddtrace.patch(logging={str(patch_logging)})
 
 s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
-""".format(str(patch_logging))
+"""
 
         env = os.environ.copy()
         env.update(
             {
                 "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
                 "DD_TRACE_DEBUG": str(debug_mode).lower(),
+                # DD_TRACE_DEBUG=true makes tracer startup synchronously probe the agent's
+                # /info endpoint.
+                # localhost:8125 has nothing listening so the probe fails instantly and
+                # doesn't block the test / consume timeout budget.
+                "DD_TRACE_AGENT_URL": "http://localhost:8125",
             }
         )
 
@@ -435,19 +491,33 @@ s2.finish()
 )
 def test_writer_configured_correctly_from_env():
     import ddtrace
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
 
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
-    assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
+    writer = ddtrace.tracer._span_aggregator.writer
+    if isinstance(writer, NativeTraceBuffer):
+        assert ddtrace.config._trace_writer_buffer_size == 1000
+        assert ddtrace.config._trace_writer_payload_size == 5000
+        assert ddtrace.config._trace_writer_interval_seconds == 5.0
+    else:
+        assert writer._encoder.max_size == 1000
+        assert writer._encoder.max_item_size == 1000
+        assert writer._interval == 5.0
 
 
 @pytest.mark.subprocess
 def test_writer_configured_correctly_from_env_defaults():
     import ddtrace
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
 
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
-    assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
+    writer = ddtrace.tracer._span_aggregator.writer
+    if isinstance(writer, NativeTraceBuffer):
+        assert ddtrace.config._trace_writer_buffer_size == 20 << 20
+        assert ddtrace.config._trace_writer_payload_size == 20 << 20
+        assert ddtrace.config._trace_writer_interval_seconds == 1.0
+    else:
+        assert writer._encoder.max_size == 20 << 20
+        assert writer._encoder.max_item_size == 20 << 20
+        assert writer._interval == 1.0
 
 
 def test_writer_configured_correctly_from_env_under_ddtrace_run(ddtrace_run_python_code_in_subprocess):
@@ -459,10 +529,17 @@ def test_writer_configured_correctly_from_env_under_ddtrace_run(ddtrace_run_pyth
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import ddtrace
+from ddtrace.internal.writer.writer import NativeTraceBuffer
 
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
+writer = ddtrace.tracer._span_aggregator.writer
+if isinstance(writer, NativeTraceBuffer):
+    assert ddtrace.config._trace_writer_buffer_size == 1000
+    assert ddtrace.config._trace_writer_payload_size == 5000
+    assert ddtrace.config._trace_writer_interval_seconds == 5.0
+else:
+    assert writer._encoder.max_size == 1000
+    assert writer._encoder.max_item_size == 1000
+    assert writer._interval == 5.0
 """,
         env=env,
     )
@@ -473,10 +550,17 @@ def test_writer_configured_correctly_from_env_defaults_under_ddtrace_run(ddtrace
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import ddtrace
+from ddtrace.internal.writer.writer import NativeTraceBuffer
 
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
-assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
+writer = ddtrace.tracer._span_aggregator.writer
+if isinstance(writer, NativeTraceBuffer):
+    assert ddtrace.config._trace_writer_buffer_size == 20 << 20
+    assert ddtrace.config._trace_writer_payload_size == 20 << 20
+    assert ddtrace.config._trace_writer_interval_seconds == 1.0
+else:
+    assert writer._encoder.max_size == 20 << 20
+    assert writer._encoder.max_item_size == 20 << 20
+    assert writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)
@@ -484,7 +568,7 @@ assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
 
 @parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"}, out=None)
 def test_partial_flush_log():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 

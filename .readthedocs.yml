@@ -3,10 +3,17 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-    rust: "1.86"
+    rust: "1.91"
   commands:
     - cargo install --force --root /home/docs/.asdf --git https://github.com/DataDog/libdatadog --bin dedup_headers tools
     - git fetch --unshallow || true
     - pip install uv==0.12.5
-    - READTHEDOCS=1 uv run --no-project --python 3.10 --no-python-downloads --with-editable . --with-requirements .uv/build-docs--py310--*.txt scripts/docs/build.sh
+    # Sphinx only imports ddtrace, so build the native extensions without release optimizations, and size build
+    # parallelism from the CPUs this build may use (on Python 3.10, setup.py counts every host CPU). The timeout ends
+    # the build before Read the Docs kills it and discards the log; -v puts the native build output in that log.
+    - >-
+      READTHEDOCS=1 DD_FAST_BUILD=1 CARGO_PROFILE_RELEASE_OPT_LEVEL=0 CARGO_PROFILE_RELEASE_DEBUG=0
+      CMAKE_BUILD_PARALLEL_LEVEL=$(nproc) DD_BUILD_PARALLEL=$(nproc)
+      timeout --kill-after=30 1200
+      uv run -v --no-project --python 3.10 --no-python-downloads --with-editable . --with-requirements .uv/build-docs--py310--*.txt scripts/docs/build.sh
     - mv docs/_build $READTHEDOCS_OUTPUT

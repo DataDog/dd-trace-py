@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import time
 from typing import TYPE_CHECKING
+from typing import Generator
 import uuid
 
 import pytest
@@ -25,11 +26,12 @@ from tests.profiling.collector import pprof_utils
 
 
 if TYPE_CHECKING:
+    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
     from tests.profiling.collector.pprof_pb2 import Sample  # pyright: ignore[reportMissingModuleSource]
 
 
 @pytest.fixture(autouse=True)
-def patch_futures():
+def patch_futures() -> Generator[None, None, None]:
     futures_patch()
     try:
         yield
@@ -68,7 +70,7 @@ def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, 
     assert calls == [(456, 789, "web")]
 
 
-def _get_threadpool_samples(profile) -> list[Sample]:
+def _get_threadpool_samples(profile: pprof_pb2.Profile) -> list[Sample]:
     """
     Return all samples from ThreadPoolExecutor worker threads.
     """

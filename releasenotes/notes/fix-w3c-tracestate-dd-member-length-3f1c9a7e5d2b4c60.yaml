@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the ``dd=`` list-member of the W3C ``tracestate`` header could exceed
+    256 characters, causing proxies that enforce the W3C limit to drop the whole ``tracestate`` header.

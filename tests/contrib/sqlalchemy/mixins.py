@@ -23,7 +23,7 @@ class Player(Base):
     name = Column(String(20))
 
 
-class SQLAlchemyTestBase(object):
+class SQLAlchemyTestBase:
     VENDOR = None
     SQL_DB = None
     SERVICE = None
@@ -51,7 +51,7 @@ class SQLAlchemyTestBase(object):
         return
 
     def setUp(self):
-        super(SQLAlchemyTestBase, self).setUp()
+        super().setUp()
 
         # create an engine with the given arguments
         self.engine = self.create_engine(self.ENGINE_ARGS)
@@ -70,7 +70,7 @@ class SQLAlchemyTestBase(object):
         self.session.close()
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
-        super(SQLAlchemyTestBase, self).tearDown()
+        super().tearDown()
 
 
 class SQLAlchemyTestMixin(SQLAlchemyTestBase):
@@ -106,7 +106,7 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
         assert len(traces[0]) == 1
         span = traces[0][0]
         # span fields
-        assert span.name == "{}.query".format(self.VENDOR)
+        assert span.name == f"{self.VENDOR}.query"
         assert span.service == self.SERVICE
         assert "INSERT INTO players" in span.resource
         assert span.get_tag("sql.db") == self.SQL_DB
@@ -129,7 +129,7 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
         assert len(traces[0]) == 1
         span = traces[0][0]
         # span fields
-        assert span.name == "{}.query".format(self.VENDOR)
+        assert span.name == f"{self.VENDOR}.query"
         assert span.service == self.SERVICE
         assert (
             "SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name"
@@ -155,7 +155,7 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
         assert len(traces[0]) == 1
         span = traces[0][0]
         # span fields
-        assert span.name == "{}.query".format(self.VENDOR)
+        assert span.name == f"{self.VENDOR}.query"
         assert span.service == self.SERVICE
         assert span.resource == "SELECT * FROM players"
         assert span.get_tag("sql.db") == self.SQL_DB

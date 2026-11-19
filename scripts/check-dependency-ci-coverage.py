@@ -5,7 +5,7 @@
 # dependencies = [
 #     "packaging>=23.1,<24",
 #     "requests>=2.28,<3",
-#     "riot>=0.19.0",
+#     "ruamel.yaml>=0.17.21",
 #     "setuptools<82",
 # ]
 # ///
@@ -13,7 +13,7 @@
 Validate that CI tests cover all major versions declared in pyproject.toml.
 
 This script checks that for each dependency in pyproject.toml that is explicitly
-tested in CI configuration files (riotfile.py, GitLab CI, GitHub Actions), the test
+tested in suitespec or CI configuration files, the test
 entries cover all major versions within the declared range.
 
 For example, if pyproject.toml declares `wrapt>=1,<3` and CI has test entries for
@@ -29,6 +29,8 @@ Version resolution:
 Errors:
 - CI only uses 'latest' AND latest is outside declared range (testing wrong version)
 - CI has explicit bounds but doesn't cover all required majors
+- 'latest' did not resolve and explicit bounds do not cover all required majors
+  (not reported as missing majors)
 
 Warnings:
 - CI only uses 'latest' but latest is within declared range (works but fragile)
@@ -37,7 +39,7 @@ Warnings:
 - 'latest' is outside declared bounds (intentional early detection, but should use explicit bounds)
 
 Silencing:
-- Add '# ci-deps: allow' at the end of a line in riotfile.py or CI files to silence errors/warnings
+- Add '# ci-deps: allow' at the end of a line in CI files to silence errors/warnings
 - Silenced items are summarized at the end of the output
 """
 
@@ -47,6 +49,8 @@ from functools import lru_cache
 from pathlib import Path
 import re
 import sys
+import time
+from typing import Any
 
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -95,21 +99,35 @@ class SilencedItem:
     location: Location
 
 
+PYPI_ATTEMPTS = 5
+
+
 @lru_cache(maxsize=100)
 def get_pypi_latest_version(package: str) -> Version | None:
-    """Query PyPI for the latest version of a package."""
-    try:
-        url = f"https://pypi.org/pypi/{package}/json"
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            return Version(data["info"]["version"])
-    except Exception:
-        pass
-    return None
+    """Query PyPI for the latest version of a package
+
+    Returns None if PyPI does not know the package.
+    Transient PyPI errors are retried, and a lookup that keeps failing aborts the run.
+    """
+    url = f"https://pypi.org/pypi/{package}/json"
+    last_error: Exception | None = None
+    for attempt in range(PYPI_ATTEMPTS):
+        if attempt:
+            time.sleep(2**attempt)
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return Version(response.json()["info"]["version"])
+        except Exception as e:
+            last_error = e
+    raise SystemExit(
+        f"❌ Could not query PyPI for the latest {package} version after {PYPI_ATTEMPTS} attempts: {last_error}"
+    )
 
 
-def load_pyproject() -> tuple[dict, str]:
+def load_pyproject() -> tuple[dict[str, Any], str]:
     """Load and parse pyproject.toml from the current directory."""
     pyproject_path = Path("pyproject.toml")
     if not pyproject_path.exists():
@@ -196,6 +214,13 @@ def parse_dependency(dep_line: str) -> tuple[str, str]:
         return dep_line.strip(), ""
 
 
+def _version_matches_spec(version_text: str, spec_set: SpecifierSet) -> bool:
+    try:
+        return Version(version_text) in spec_set
+    except Exception:
+        return False
+
+
 def get_major_versions_from_specifier(spec_string: str) -> set[int]:
     """
     Calculate which major versions are allowed by a specifier.
@@ -227,12 +252,9 @@ def get_major_versions_from_specifier(spec_string: str) -> set[int]:
         # We test x.0.0, x.99.99 to cover the range
         test_versions = [f"{major}.0.0", f"{major}.99.99"]
         for test_ver in test_versions:
-            try:
-                if Version(test_ver) in spec_set:
-                    majors.add(major)
-                    break
-            except Exception:
-                pass
+            if _version_matches_spec(test_ver, spec_set):
+                majors.add(major)
+                break
 
     return majors
 
@@ -261,14 +283,14 @@ class PyprojectDep:
     location: Location
 
 
-def extract_pyproject_dependencies(data: dict, content: str) -> dict[str, PyprojectDep]:
+def extract_pyproject_dependencies(data: dict[str, Any], content: str) -> dict[str, PyprojectDep]:
     """
     Extract all dependencies and their required major versions from pyproject.toml.
 
     Returns:
         Dict mapping package name to PyprojectDep with majors and location
     """
-    deps = {}
+    deps: dict[str, PyprojectDep] = {}
 
     # Check project.dependencies
     if "project" in data and "dependencies" in data["project"]:
@@ -325,7 +347,7 @@ def analyze_version_spec(spec: str) -> tuple[set[int], bool]:
         - For 'latest': (empty set, True)
         - For explicit specs: (set of majors, False)
 
-    Note: When pip/riot resolves a specifier, it installs ONE version (typically the latest
+    Note: When uv resolves a specifier, it installs ONE version (typically the latest
     satisfying the constraint), not all versions. So:
     - "<2.0.0" installs the latest 1.x, testing major 1 (not 0 and 1)
     - ">=1,<3" installs the latest satisfying this (e.g., 2.x if available), testing one major
@@ -377,12 +399,9 @@ def analyze_version_spec(spec: str) -> tuple[set[int], bool]:
     for major in range(11):
         test_versions = [f"{major}.0.0", f"{major}.50.0", f"{major}.99.99"]
         for test_ver in test_versions:
-            try:
-                if Version(test_ver) in spec_set:
-                    satisfying_majors.add(major)
-                    break
-            except Exception:
-                pass
+            if _version_matches_spec(test_ver, spec_set):
+                satisfying_majors.add(major)
+                break
 
     if not satisfying_majors:
         return set(), False
@@ -392,70 +411,36 @@ def analyze_version_spec(spec: str) -> tuple[set[int], bool]:
     return {max(satisfying_majors)}, False
 
 
-def extract_riotfile_tested_versions() -> dict[str, DepInfo]:
-    """
-    Extract which major versions are tested for packages in riotfile.py.
-
-    Returns:
-        Dict mapping package name to DepInfo
-    """
-    # Add project root to path to import riotfile
+def extract_suitespec_tested_versions() -> dict[str, DepInfo]:
+    """Extract tested dependency versions from concrete suitespec environments."""
     project_root = Path(__file__).parent.parent.resolve()
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-    from riot import latest
-
-    import riotfile
+    from tests.suitespec import get_test_environments
 
     tested: dict[str, DepInfo] = {}
-
-    def add_latest_major(pkg: str, info: DepInfo) -> None:
-        """Resolve 'latest' to actual major version from PyPI and record it."""
-        info.has_latest = True
-        latest_version = get_pypi_latest_version(pkg)
-        if latest_version:
-            info.latest_major = latest_version.major
-
-    def process_version_spec(pkg_name: str, version_spec):
-        """Process a single version spec for a package."""
-        loc = Location("riotfile.py", 0)  # Line number not available with direct import
-
-        if pkg_name not in tested:
-            tested[pkg_name] = DepInfo()
-
-        tested[pkg_name].locations.append(loc)
-
-        # Empty string or riot.latest means 'latest' in riot
-        if not version_spec or version_spec == latest:
-            add_latest_major(pkg_name, tested[pkg_name])
-        else:
-            majors, is_latest = analyze_version_spec(version_spec)
-            if is_latest:
-                add_latest_major(pkg_name, tested[pkg_name])
-            else:
-                tested[pkg_name].majors = tested[pkg_name].majors.union(majors)
-
-    def traverse_venv(venv):
-        """Recursively traverse the Venv tree and collect package information."""
-        # Process packages at this level
-        if hasattr(venv, "pkgs") and venv.pkgs:
-            for pkg_name, version_spec in venv.pkgs.items():
-                # version_spec can be a string or a list of strings
-                if isinstance(version_spec, list):
-                    # Process each spec in the list
-                    for spec in version_spec:
-                        process_version_spec(pkg_name, spec)
+    location = Location("tests/**/suitespec.yml", 0)
+    for environments in get_test_environments(nightly=False).values():
+        for environment in environments:
+            for dependency in environment.direct_dependencies:
+                requirement: Requirement | None
+                try:
+                    requirement = Requirement(dependency)
+                except Exception:
+                    requirement = None
+                if requirement is None:
+                    continue
+                package = requirement.name.lower()
+                info = tested.setdefault(package, DepInfo())
+                info.locations.append(location)
+                majors, is_latest = analyze_version_spec(str(requirement.specifier))
+                if is_latest:
+                    info.has_latest = True
+                    if latest_version := get_pypi_latest_version(package):
+                        info.latest_major = latest_version.major
                 else:
-                    process_version_spec(pkg_name, version_spec)
-
-        # Recursively traverse child venvs
-        if hasattr(venv, "venvs") and venv.venvs:
-            for child_venv in venv.venvs:
-                traverse_venv(child_venv)
-
-    # Start traversal from the root venv
-    traverse_venv(riotfile.venv)
+                    info.majors.update(majors)
 
     return tested
 
@@ -584,7 +569,7 @@ def check_coverage(
     warnings = []
     silenced = []
 
-    def add_issue(level: str, pkg: str, reason: str, ci_info: DepInfo):
+    def add_issue(level: str, pkg: str, reason: str, ci_info: DepInfo) -> None:
         """Add an issue to errors/warnings or silenced if allowed."""
         if ci_info.allowed_locations:
             for loc in ci_info.allowed_locations:
@@ -611,6 +596,19 @@ def check_coverage(
             has_latest = ci_info.has_latest
             ci_locs = format_locations(ci_info.locations)
 
+            # Unresolved latest (unknown package) is not missing coverage: the
+            # majors a bare spec would cover are unknown.
+            explicit_covers_required: bool = required_majors <= explicit_majors
+            if has_latest and ci_info.latest_major is None and not explicit_covers_required:
+                reason: str = (
+                    f"{pkg_name}: could not resolve latest version from PyPI. "
+                    f"Cannot determine the latest major.\n"
+                    f"    pyproject.toml: {pyproject_loc}\n"
+                    f"    CI: {ci_locs}"
+                )
+                add_issue("error", pkg_name, reason, ci_info)
+                continue
+
             # Check if only using 'latest' with no explicit bounds
             if has_latest and not explicit_majors:
                 suggested_bounds = ", ".join(f'">={m},<{m + 1}"' for m in sorted(required_majors))
@@ -627,27 +625,15 @@ def check_coverage(
                     )
                     add_issue("warning", pkg_name, reason, ci_info)
                 else:
-                    # Latest is outside declared range or couldn't be resolved - error
-                    if latest_major is None:
-                        # PyPI query failed - could be network issue, package not found, etc.
-                        reason = (
-                            f"{pkg_name}: CI only uses 'latest' but could not resolve latest version from PyPI "
-                            f"(network error or package not found). "
-                            f"Replace 'latest' with {suggested_bounds} to explicitly cover "
-                            f"the declared range {sorted(required_majors)}.\n"
-                            f"    pyproject.toml: {pyproject_loc}\n"
-                            f"    CI: {ci_locs}"
-                        )
-                    else:
-                        # Latest is outside declared range
-                        reason = (
-                            f"{pkg_name}: CI only uses 'latest' with no explicit version bounds, "
-                            f"but latest ({latest_major}) is outside declared range {sorted(required_majors)}. "
-                            f"Replace 'latest' with {suggested_bounds} to explicitly cover "
-                            f"the declared range.\n"
-                            f"    pyproject.toml: {pyproject_loc}\n"
-                            f"    CI: {ci_locs}"
-                        )
+                    # Latest resolved, but it is outside the declared range.
+                    reason = (
+                        f"{pkg_name}: CI only uses 'latest' with no explicit version bounds, "
+                        f"but latest ({latest_major}) is outside declared range {sorted(required_majors)}. "
+                        f"Replace 'latest' with {suggested_bounds} to explicitly cover "
+                        f"the declared range.\n"
+                        f"    pyproject.toml: {pyproject_loc}\n"
+                        f"    CI: {ci_locs}"
+                    )
                     add_issue("error", pkg_name, reason, ci_info)
             elif all_tested_majors:
                 # Check coverage using all tested majors (including latest)
@@ -706,15 +692,14 @@ def main() -> int:
     pyproject_data, pyproject_content = load_pyproject()
     pyproject_deps = extract_pyproject_dependencies(pyproject_data, pyproject_content)
 
-    # Load riotfile.py by importing it directly
-    riotfile_tested = extract_riotfile_tested_versions()
+    suitespec_tested = extract_suitespec_tested_versions()
 
     # Load GitLab and GitHub CI files
     ci_files = load_all_ci_files()
     ci_tested_list = [extract_ci_file_tested_versions(content, filename) for filename, content in ci_files]
 
     # Merge all CI sources
-    all_tested = merge_tested_versions(riotfile_tested, *ci_tested_list)
+    all_tested = merge_tested_versions(suitespec_tested, *ci_tested_list)
 
     # Check coverage
     errors, warnings, silenced = check_coverage(pyproject_deps, all_tested)

@@ -53,14 +53,14 @@ class TestGeventTracer(TracerTestCase):
         """Before each test case, configure gevent patching with serialized tracer setup"""
         # Acquire lock for entire test lifecycle (setUp → test → tearDown)
         TestGeventTracer._gevent_test_lock.acquire()
-        super(TestGeventTracer, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
         """After each test case, clean up gevent patching with serialized tracer teardown"""
         try:
             unpatch()
-            super(TestGeventTracer, self).tearDown()
+            super().tearDown()
         finally:
             # Always release lock to prevent deadlocks
             TestGeventTracer._gevent_test_lock.release()
@@ -338,16 +338,7 @@ class TestGeventTracer(TracerTestCase):
         assert "Traceback (most recent call last)" in span.get_tag("error.stack")
 
     def _assert_spawn_multiple_greenlets(self, spans):
-        """A helper to assert the parenting of a trace when greenlets are
-        spawned within another greenlet.
-
-        This is meant to help maintain compatibility between the Datadog and
-        OpenTracing tracer implementations.
-
-        Note that for gevent there is differing behaviour between the context
-        management so the traces are not identical in form. However, the
-        parenting of the spans must remain the same.
-        """
+        """Assert parenting when greenlets are spawned within another greenlet."""
         assert len(spans) == 3
 
         parent = None
@@ -392,8 +383,6 @@ class TestGeventTracer(TracerTestCase):
                 span.set_tag("worker_id", "1")
                 gevent.sleep(0.01)
 
-        # note that replacing the `tracer.trace` call here with the
-        # OpenTracing equivalent will cause the checks to fail
         def green_2():
             with self.tracer.trace("greenlet.worker2") as span:
                 span.set_tag("worker_id", "2")

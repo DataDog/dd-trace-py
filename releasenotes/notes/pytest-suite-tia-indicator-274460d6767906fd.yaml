@@ -1,0 +1,6 @@
+features:
+  - |
+    CI visibility: Reports whether Test Impact Analysis skipped tests in a suite
+    so affected durations can be excluded from comparisons. This is available
+    for serial runs of the current pytest integration, without requiring code
+    coverage collection.

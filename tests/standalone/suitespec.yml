@@ -1,0 +1,17 @@
+---
+suites:
+  standalone:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@settings'
+      - '@ai_guard'
+      - '@appsec'
+      - '@llmobs'
+      - tests/standalone/*
+      - tests/aiguard/utils.py
+    matrix:
+      command: pytest {cmdargs} tests/standalone/
+      variants:
+        - name: standalone

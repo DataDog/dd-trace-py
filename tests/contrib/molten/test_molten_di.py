@@ -79,12 +79,12 @@ class TestMoltenDI(TracerTestCase):
     """Ensures Molten dependency injection is properly instrumented."""
 
     def setUp(self):
-        super(TestMoltenDI, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
         unpatch()
-        super(TestMoltenDI, self).tearDown()
+        super().tearDown()
 
     def test_di_can_inject_dependencies(self):
         # Given that I have a DI instance

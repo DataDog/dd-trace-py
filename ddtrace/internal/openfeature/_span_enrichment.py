@@ -30,9 +30,7 @@ Lifecycle (mirrors the Node SpanEnrichmentHook):
 """
 
 import base64
-import hashlib
 import json
-import threading
 import typing
 from weakref import WeakKeyDictionary
 
@@ -40,6 +38,8 @@ from openfeature.hook import Hook
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._flageval_pii import targeting_key_digest
+from ddtrace.internal.threads import Lock
 
 
 log = get_logger(__name__)
@@ -85,8 +85,13 @@ def encode_delta_varint(serial_ids: typing.AbstractSet[int]) -> str:
 
 
 def hash_targeting_key(targeting_key: str) -> str:
-    """SHA256 lowercase hex digest of a targeting key (FROZEN contract)."""
-    return hashlib.sha256(targeting_key.encode("utf-8")).hexdigest()
+    """SHA256 lowercase hex digest of a targeting key (FROZEN contract).
+
+    Delegates to the shared digest body so this bare tag value and the
+    sha256_-prefixed flagevaluation wire value cannot drift apart. The bare
+    digest, with no prefix, is what the Node contract freezes here.
+    """
+    return targeting_key_digest(targeting_key)
 
 
 class SpanEnrichmentState:
@@ -112,7 +117,7 @@ class SpanEnrichmentState:
         self._serial_ids: set[int] = set()
         self._subjects: dict[str, set[int]] = {}
         self._defaults: dict[str, str] = {}
-        self._lock = threading.Lock()
+        self._lock = Lock()
 
     def add_serial_id(self, serial_id: int) -> None:
         with self._lock:
@@ -259,12 +264,12 @@ class SpanEnrichmentHook(Hook):
 
     def __init__(self) -> None:
         # Keyed by span: state is GC'd with the span (zero idle leak, DG-005).
-        self._span_states: "WeakKeyDictionary[typing.Any, SpanEnrichmentState]" = WeakKeyDictionary()
+        self._span_states: WeakKeyDictionary[typing.Any, SpanEnrichmentState] = WeakKeyDictionary()
         # Guards _span_states get/create/pop so concurrent evaluations and the
         # root-span-finish callback never race on the dict (a WeakKeyDictionary
         # is not thread-safe, and free-threaded CPython drops the GIL atomicity
         # that masks this under the default build).
-        self._states_lock = threading.Lock()
+        self._states_lock = Lock()
         # A PER-INSTANCE subscription name. The native event hub keys listeners
         # by name and REPLACES a same-name registration (event_hub.rs `on`), so
         # a shared name would let a second live provider/domain stomp this
@@ -296,9 +301,14 @@ class SpanEnrichmentHook(Hook):
                 self._subscribed = True
 
     def _get_root_span(self) -> typing.Optional[typing.Any]:
-        """O(1) local-root lookup -- mirrors Node's ``trace.started[0]``."""
-        from ddtrace.trace import tracer
+        """O(1) local-root lookup -- mirrors Node's ``trace.started[0]``.
 
+        The tracer comes from the core registry rather than ddtrace.trace so OpenFeature doesn't depend on the
+        tracing product; with no tracer registered there is no root span to enrich.
+        """
+        tracer = core.root.get_item("tracer")
+        if tracer is None:
+            return None
         return tracer.current_root_span()
 
     def _get_or_create_state(self, span: typing.Any) -> SpanEnrichmentState:

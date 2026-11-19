@@ -3,9 +3,11 @@ from enum import IntEnum
 import json
 from multiprocessing import Process
 from multiprocessing import Value
+from multiprocessing.sharedctypes import Synchronized
 import os
 import time
-from typing import Optional  # noqa:F401
+from typing import Optional
+from typing import Union
 from urllib.parse import urljoin
 
 from ddtrace.ext import ci
@@ -26,7 +28,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.trace import Tracer  # noqa: F401
+from ddtrace.trace import Tracer
 
 from .. import telemetry
 from ..evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -76,7 +78,7 @@ FINISHED_METADATA_UPLOAD_STATUSES = [
 ]
 
 
-class CIVisibilityGitClientSerializerV1(object):
+class CIVisibilityGitClientSerializerV1:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
@@ -85,7 +87,7 @@ class CIVisibilityGitClientSerializerV1(object):
             {"meta": {"repository_url": repo_url}, "data": [{"id": sha, "type": "commit"} for sha in latest_commits]}
         )
 
-    def search_commits_decode(self, payload: str) -> list[str]:
+    def search_commits_decode(self, payload: Union[str, bytes]) -> list[str]:
         res: list[str] = []
         try:
             if isinstance(payload, bytes):
@@ -131,7 +133,7 @@ class CIVisibilityGitClientSerializerV1(object):
         return "multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), CRLF.join(body)
 
 
-class CIVisibilityGitClient(object):
+class CIVisibilityGitClient:
     def __init__(
         self,
         api_key: str,
@@ -181,10 +183,10 @@ class CIVisibilityGitClient(object):
         else:
             log.debug("git metadata upload worker already started: %s", self._worker)
 
-    def metadata_upload_finished(self):
+    def metadata_upload_finished(self) -> bool:
         return self._metadata_upload_status.value in FINISHED_METADATA_UPLOAD_STATUSES
 
-    def _wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
+    def _wait_for_metadata_upload(self, timeout: float = DEFAULT_METADATA_UPLOAD_TIMEOUT) -> None:
         log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
         if self._worker is None:
             log.debug("No git metadata upload worker started")
@@ -216,14 +218,14 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _run_protocol(
         cls,
-        serializer,  # CIVisibilityGitClientSerializerV1
-        requests_mode,  # int
-        base_url,  # str
-        _metadata_upload_status,  # METADATA_UPLOAD_STATUS
-        _tags=None,  # Optional[dict[str, str]]
-        _response=None,  # Optional[Response]
-        cwd=None,  # Optional[str]
-        log_level=0,  # int
+        serializer: CIVisibilityGitClientSerializerV1,
+        requests_mode: int,
+        base_url: str,
+        _metadata_upload_status: "Synchronized[int]",
+        _tags: Optional[dict[str, str]] = None,
+        _response: Optional[Response] = None,
+        cwd: Optional[str] = None,
+        log_level: int = 0,
     ) -> None:
         log.setLevel(log_level)
         _metadata_upload_status.value = METADATA_UPLOAD_STATUS.IN_PROCESS
@@ -362,10 +364,10 @@ class CIVisibilityGitClient(object):
         endpoint: str,
         payload: str,
         serializer: CIVisibilityGitClientSerializerV1,
-        headers: Optional[dict] = None,
+        headers: Optional[dict[str, str]] = None,
         timeout: int = DEFAULT_TIMEOUT,
     ) -> Response:
-        url = "{}/repository{}".format(base_url, endpoint)
+        url = f"{base_url}/repository{endpoint}"
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
         }
@@ -455,18 +457,16 @@ class CIVisibilityGitClient(object):
             packfiles_uploaded_bytes,
         )
 
-        return response.status == 204
+        return bool(response.status == 204)
 
     @classmethod
-    def _is_shallow_repository(cls, cwd=None):
-        # type () -> bool
+    def _is_shallow_repository(cls, cwd: Optional[str] = None) -> bool:
         is_shallow_repository, duration, returncode = _is_shallow_repository_with_details(cwd=cwd)
         record_git_command(GIT_TELEMETRY_COMMANDS.CHECK_SHALLOW, duration, returncode if returncode != 0 else None)
         return is_shallow_repository
 
     @classmethod
-    def _unshallow_repository(cls, cwd=None):
-        # type () -> None
+    def _unshallow_repository(cls, cwd: Optional[str] = None) -> None:
         with StopWatch() as stopwatch:
             error_exit_code = None
             try:
@@ -501,16 +501,14 @@ class CIVisibilityGitClient(object):
                 record_git_command(GIT_TELEMETRY_COMMANDS.UNSHALLOW, duration, error_exit_code)
 
     @classmethod
-    def _unshallow_repository_to_local_head(cls, remote, cwd=None):
-        # type (str, Optional[str) -> None
+    def _unshallow_repository_to_local_head(cls, remote: str, cwd: Optional[str] = None) -> None:
         head = extract_commit_sha(cwd=cwd)
         log.debug("Unshallowing to local head %s", head)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=head)
         log.debug("Unshallowing to local head successful")
 
     @classmethod
-    def _unshallow_repository_to_upstream(cls, remote, cwd=None):
-        # type (str, Optional[str) -> None
+    def _unshallow_repository_to_upstream(cls, remote: str, cwd: Optional[str] = None) -> None:
         upstream = _extract_upstream_sha(cwd=cwd)
         log.debug("Unshallowing to upstream %s", upstream)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=upstream)

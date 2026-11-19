@@ -22,9 +22,8 @@ DEFAULT_HEADERS = {
 pytestmark = pytest.mark.skipif(HTTPX_VERSION < (0, 11), reason="httpx<=0.10 Client is asynchronous")
 
 
-def get_url(path):
-    # type: (str) -> str
-    return "http://{}:{}{}".format(HOST, PORT, path)
+def get_url(path: str) -> str:
+    return f"http://{HOST}:{PORT}{path}"
 
 
 @pytest.fixture(autouse=True)

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where agent attribution was propagated to downstream services
+    from spans that had no agent ancestor. #19531

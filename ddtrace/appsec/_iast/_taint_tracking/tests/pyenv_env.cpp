@@ -1,5 +1,6 @@
-#include <gtest/gtest.h>
 #include <pybind11/embed.h>
+
+#include <gtest/gtest.h>
 
 // Global GoogleTest environment to manage a single embedded Python
 // interpreter lifecycle for the entire native test process. This avoids repeated

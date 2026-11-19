@@ -1,16 +1,15 @@
-from typing import Text
 from typing import Union
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
-from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
-from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._constants import TELEMETRY_INFORMATION_VERBOSITY
+from ddtrace.appsec._iast._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.security._deduplications import deduplication
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
@@ -45,7 +44,7 @@ def metric_verbosity(lvl):
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 @deduplication
-def _set_iast_error_metric(msg: Text, exc: Union[BaseException, tuple, None] = None) -> None:
+def _set_iast_error_metric(msg: str, exc: Union[BaseException, tuple, None] = None) -> None:
     """This was originally implemented to analyze which services were triggering this issue, and we used that insight
     to refactor how IAST creates and destroys context. However, after that refactor, this information no longer
     provides value and only adds noise. So now, those telemetry metrics are only emitted if IAST is in debug mode
@@ -110,7 +109,7 @@ def _set_metric_iast_request_tainted():
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.IAST, "request.tainted", total_objects_tainted)
 
 
-def _metric_key_as_snake_case(key):
+def _metric_key_as_snake_case(key: Union[str, OriginType]) -> str:
     if isinstance(key, OriginType):
         key = origin_to_str(key)
     key = key.replace(".", "_")

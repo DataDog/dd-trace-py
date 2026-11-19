@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where per-integration HTTP settings, such as
+    ``config.<integration>.http.trace_headers()``, were ignored when set before the integration was enabled.

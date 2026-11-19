@@ -28,3 +28,6 @@ source .venv/bin/activate
 echo "Running tests on $PLATFORM with Python $PYTHON_VERSION"
 python -m pytest "$CI_PROJECT_DIR/tests/internal/service_name/test_extra_services_names.py" -v -s
 python -m pytest "$CI_PROJECT_DIR/tests/appsec/architectures/test_appsec_loading_modules.py" -v -s
+if [[ "$PLATFORM" == "macOS" ]]; then
+  python -m pytest "$CI_PROJECT_DIR/tests/internal/test_native_fork.py" -v -s
+fi

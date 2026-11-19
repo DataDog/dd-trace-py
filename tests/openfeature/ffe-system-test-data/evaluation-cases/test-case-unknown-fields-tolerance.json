@@ -1,0 +1,16 @@
+[
+  {
+    "description": "The flag and surrounding UFC config include unknown object fields that SDKs must ignore while evaluating the known schema fields.",
+    "attributes": {
+      "country": "US"
+    },
+    "defaultValue": "default",
+    "flag": "unknown-fields-tolerance-flag",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "on"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  }
+]

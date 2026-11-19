@@ -25,7 +25,7 @@ async def home(request):
 
 async def name(request):
     name = request.match_info.get("name", "Anonymous")
-    return web.Response(text="Hello {}".format(name))
+    return web.Response(text=f"Hello {name}")
 
 
 async def response_headers(request):

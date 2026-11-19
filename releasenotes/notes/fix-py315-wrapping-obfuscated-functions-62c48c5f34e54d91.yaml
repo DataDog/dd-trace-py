@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where wrapping an obfuscated function (for example
+    PyArmor) on Python 3.15 proceeds into instrumentation setup instead of
+    failing cleanly. Those functions still cannot be instrumented.

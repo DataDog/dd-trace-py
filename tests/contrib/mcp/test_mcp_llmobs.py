@@ -4,8 +4,7 @@ from importlib.metadata import version
 import json
 import os
 from textwrap import dedent
-
-import mock
+from unittest import mock
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -117,6 +116,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
             "mcp_method": "tools/call",
             "mcp_tool": "calculator",
             "mcp_tool_kind": "server",
+            "mcp_client_name": "mcp",
+            "mcp_client_version": "0.1.0",
         },
         name="calculator",
         parent_id=mock.ANY,
@@ -160,6 +161,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
             "mcp_method": "initialize",
             "client_name": "mcp",
             "client_version": "mcp_0.1.0",
+            "mcp_client_name": "mcp",
+            "mcp_client_version": "0.1.0",
         },
         name="mcp.initialize",
     )
@@ -258,8 +261,14 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
             "mcp_method": "tools/call",
             "mcp_tool": "failing_tool",
             "mcp_tool_kind": "server",
+            "mcp_client_name": "mcp",
+            "mcp_client_version": "0.1.0",
         },
-        error={"type": "ToolError", "message": "tool resulted in an error", "stack": ""},
+        error={
+            "type": "ToolError",
+            "message": "Error executing tool failing_tool: Tool execution failed",
+            "stack": "",
+        },
         name="failing_tool",
         parent_id=mock.ANY,
     )
@@ -286,6 +295,9 @@ def test_server_initialization_span_created(mcp_setup, mcp_llmobs, test_spans, m
             "mcp_method": "initialize",
             "client_name": "test-client",
             "client_version": "test-client_1.2.3",
+            "mcp_client_name": "test-client",
+            "mcp_client_title": "Test Client",
+            "mcp_client_version": "1.2.3",
         },
     )
 
@@ -298,6 +310,48 @@ def test_server_initialization_span_created(mcp_setup, mcp_llmobs, test_spans, m
     assert "protocolVersion" in output_data
     assert "capabilities" in output_data
     assert "serverInfo" in output_data
+
+
+def test_server_tool_call_tagged_with_client_info(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+    from mcp.shared.memory import create_connected_server_and_client_session
+    from mcp.types import Implementation
+
+    async def run():
+        client_info = Implementation(name="test-client", title="Test Client", version="1.2.3")
+        async with create_connected_server_and_client_session(
+            mcp_server._mcp_server, client_info=client_info
+        ) as client:
+            await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+
+    asyncio.run(run())
+
+    all_spans = [span for trace in test_spans.pop_traces() for span in trace]
+    server_span = next(span for span in all_spans if span.resource == "server_tool_call")
+    tags = get_llmobs_tags(server_span)
+    assert tags["mcp_client_name"] == "test-client"
+    assert tags["mcp_client_title"] == "Test Client"
+    assert tags["mcp_client_version"] == "1.2.3"
+
+
+def test_client_info_tags_are_truncated():
+    from mcp.types import Implementation
+
+    from ddtrace.llmobs._integrations.mcp import MAX_CLIENT_INFO_TAG_LENGTH
+    from ddtrace.llmobs._integrations.mcp import get_client_info_tags
+
+    tags = get_client_info_tags(Implementation(name="n" * 10_000, title="t" * 10_000, version="1.2.3"))
+    assert tags["mcp_client_name"] == "n" * MAX_CLIENT_INFO_TAG_LENGTH
+    assert tags["mcp_client_title"] == "t" * MAX_CLIENT_INFO_TAG_LENGTH
+    assert tags["mcp_client_version"] == "1.2.3"
+
+
+def test_client_info_tags_empty_without_client_info():
+    """mcp 1.x stateless HTTP sessions have no client_params, and tool calls do not carry clientInfo."""
+    from ddtrace.llmobs._integrations.mcp import get_client_info
+    from ddtrace.llmobs._integrations.mcp import get_client_info_tags
+
+    session = mock.Mock(client_params=None)
+    assert get_client_info_tags(get_client_info({"name": "calculator", "arguments": {}}, session)) == {}
 
 
 def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
@@ -315,10 +369,8 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
             """
         import asyncio
         import logging
-        import warnings
 
         logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.WARNING)
-        warnings.filterwarnings("ignore", message="OpenTelemetry configuration.*not supported by Datadog")
 
         from ddtrace.llmobs import LLMObs
         LLMObs.enable()
@@ -467,38 +519,25 @@ def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, m
     assert "telemetry" not in schema.get("properties", {}), f"telemetry should not be in properties: {schema}"
 
 
-def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
-    """Regression: llmobs_set_tags must run AFTER await func(), not before.
+def test_respond_records_request_after_respond(mcp_setup):
+    """Regression: LLMObs tagging must not run before await func().
 
-    Before the fix, llmobs_set_tags ran synchronously before ``await func(*args, **kwargs)``.
-    This widened the race window in which the MCP session's ``_receive_loop`` could exit and
-    close ``_write_stream``, causing ``anyio.ClosedResourceError`` instead of a clean
-    cancellation (see TASK_MCP_CLOSED_RESOURCE_ERROR.md).
-
-    The fix wraps ``await func(...)`` in a try/finally so that llmobs_set_tags is called
-    AFTER the response is sent.  This test verifies:
-    1. ``func`` (i.e. ``respond``) is called before ``llmobs_set_tags``.
-    2. ``llmobs_set_tags`` still runs even when ``func`` raises ``ClosedResourceError``.
+    Tagging before ``await func(*args, **kwargs)`` widened the race window in which the MCP session's
+    ``_receive_loop`` could exit and close ``_write_stream``, causing ``anyio.ClosedResourceError``
+    instead of a clean cancellation. respond() only records the request on the event once func has
+    returned or raised, and the request is tagged when the responder's __exit__ finishes it.
     """
     import anyio
 
     from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
 
-    call_order = []
+    mock_instance = mock.MagicMock()
+    mock_instance._dd_ctx.event.request_kwargs = {}
+    recorded_before_func = []
 
     async def mock_func_raises_closed_resource(*args, **kwargs):
-        call_order.append("func")
+        recorded_before_func.append(dict(mock_instance._dd_ctx.event.request_kwargs))
         raise anyio.ClosedResourceError()
-
-    mock_instance = mock.MagicMock()
-    mock_instance._dd_span = mock.MagicMock()
-
-    original_llmobs_set_tags = mcp_setup._datadog_integration.llmobs_set_tags
-
-    def tracking_llmobs_set_tags(*args, **kwargs):
-        call_order.append("llmobs_set_tags")
-
-    mcp_setup._datadog_integration.llmobs_set_tags = tracking_llmobs_set_tags
 
     async def run():
         try:
@@ -509,8 +548,6 @@ def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
             pass
 
     asyncio.run(run())
-    mcp_setup._datadog_integration.llmobs_set_tags = original_llmobs_set_tags
 
-    assert call_order == ["func", "llmobs_set_tags"], (
-        f"llmobs_set_tags must run after func (in finally block), not before it. Actual call order: {call_order}"
-    )
+    assert recorded_before_func == [{}]
+    assert mock_instance._dd_ctx.event.request_kwargs == {"request_responder": mock_instance}

@@ -35,7 +35,7 @@ AGENTLESS_ENDPOINT = "api/v2/citestcycle"
 AGENTLESS_COVERAGE_ENDPOINT = "api/v2/citestcov"
 AGENTLESS_API_KEY_HEADER_NAME = "dd-api-key"
 AGENTLESS_APP_KEY_HEADER_NAME = "dd-application-key"
-EVP_PROXY_COVERAGE_ENDPOINT = "{}/{}".format(EVP_PROXY_AGENT_BASE_PATH, AGENTLESS_COVERAGE_ENDPOINT)
+EVP_PROXY_COVERAGE_ENDPOINT = f"{EVP_PROXY_AGENT_BASE_PATH}/{AGENTLESS_COVERAGE_ENDPOINT}"
 AGENTLESS_BASE_URL = "https://citestcycle-intake"
 AGENTLESS_COVERAGE_BASE_URL = "https://citestcov-intake"
 # Coverage report uploads use a different subdomain

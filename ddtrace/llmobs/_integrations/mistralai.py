@@ -1,16 +1,16 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.span import Span
+from ddtrace.contrib.internal.mistralai._utils import extract_provider
+from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -46,17 +46,12 @@ EMBED_METADATA_PARAMS = [
 class MistralAIIntegration(BaseLLMIntegration):
     _integration_name = "mistralai"
 
-    def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
-    ) -> None:
-        if provider is not None:
-            span._set_attribute("mistralai.request.provider", provider)
-        if model is not None:
-            span._set_attribute("mistralai.request.model", model)
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -78,7 +73,7 @@ class MistralAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_from_llm(span, args, kwargs, response)
 
     def _llmobs_set_tags_from_llm(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         tools = _extract_tools(kwargs.get("tools"))
         _annotate_llmobs_span_data(
@@ -91,7 +86,7 @@ class MistralAIIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_from_embedding(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         _annotate_llmobs_span_data(
             span,
@@ -212,7 +207,7 @@ def _extract_embedding_output_value(response: Optional[Any]) -> str:
     data = _get_attr(response, "data", []) or []
     if data:
         embedding = _get_attr(data[0], "embedding", []) or []
-        return "[{} embedding(s) returned with size {}]".format(len(data), len(embedding))
+        return f"[{len(data)} embedding(s) returned with size {len(embedding)}]"
     return ""
 
 

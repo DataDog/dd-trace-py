@@ -38,12 +38,14 @@ The suite schema is as follows:
   suite_name:
     skip: # Skip the suite, even when needed
     env: # Environment variables to pass to the runner
-    parallelism: # The parallel degree of the job
+    venvs_per_job: # Number of dependency environments assigned to each generated job
     retry: # The number of retries for the job
     timeout: # The timeout for the job
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
     services: # The services to start before running the suite, defined in .gitlab/services.yml
+    no_proxy: # Add the suite's external test domains to NO_PROXY and no_proxy
+    matrix: # Shared configuration and named dependency variants
 ```
 
 For example
@@ -53,7 +55,7 @@ suites:
   profile:
     env:
       DD_TRACE_AGENT_URL: ''
-    parallelism: 20
+    venvs_per_job: 1
     retry: 2
     pattern: profile
     paths:
@@ -69,3 +71,52 @@ Components do not need to be declared within the same `suitespec.yml` file. They
 can be declared in any file within the `/tests` sub-tree. The CI configuration
 generator will aggregate all the components and suites to build the full test
 suite specification and resolve the components after that.
+
+### Discovered dependencies
+
+A suite's `paths` only need the code it tests, plus the dependencies that
+imports cannot reveal. A reference to a component declared in the same
+`suitespec.yml` is shorthand for that component's patterns, and is replaced by
+them when the file is loaded. The suite's explicit patterns that point into
+`ddtrace/` then pull in the components that the matching sources import
+directly. For example, the debugger suite references `@debugging`, whose
+sources import the tracer, core and remote configuration code, so changes
+there trigger the suite without being listed.
+
+Discovery goes one hop only: the components it adds are not expanded further,
+and neither are references to components declared in other `suitespec.yml`
+files, such as `@bootstrap`. Those are taken as they are.
+
+An imported file belongs to the component with the most specific matching
+pattern (an exact path beats a glob, a longer prefix beats a shorter one).
+Discovery counts imports inside functions, but not imports under
+`TYPE_CHECKING`. It also counts imports in Cython files, and names that a
+package resolves lazily through a module-level `__getattr__` and a
+name-to-module dict.
+
+Declare these in `paths` explicitly, because imports cannot reveal them:
+
+- `@bootstrap`, which tests enter through `ddtrace-run` and `sitecustomize`;
+- integration components, which `ddtrace/_monkey.py` imports by name;
+- code loaded dynamically, such as product plugins and the Data Streams
+  integrations;
+- dependencies of a component declared in another `suitespec.yml`.
+
+Discovery only adds patterns: the declared ones always apply.
+
+For suites using the `postgres` service, set `POSTGRES_IMAGE` in the suite's `env`
+to select a different CI PostgreSQL image. The shared default is PostgreSQL 12;
+Django selects PostgreSQL 16 to meet its database version requirements.
+
+For standard test suites, `venvs_per_job` is the target number of dependency
+environments per generated job. The job count is the environment count divided by
+this value and rounded up, with a limit of 25 jobs per suite. Lower values increase
+parallelism. By default, `venvs_per_job` is the suite's total environment count, so
+omitting it runs the suite as one job. Do not set `parallelism` directly.
+
+Suites using `ddtest: true` shard each dependency environment with `ddtest_nodes`
+instead. They must not set `venvs_per_job`.
+
+Set `no_proxy: true` only for suites whose VCR-backed or network-behavior tests need to bypass the
+CI proxy. The generated job preserves existing `NO_PROXY` and `no_proxy` values and appends the
+standard test-domain exclusions.

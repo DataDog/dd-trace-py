@@ -457,7 +457,7 @@ def test_normalize_route_flask_dm_assembly_via_handler():
     span = MagicMock()
     # Simulate sub-app: url_rule.rule = "/<int:id>", script_root = "/asm"
     # => FLASK_RESOURCE_FULL = "GET /asm/<int:id>"
-    span.get_tag.side_effect = lambda t: "GET /asm/<int:id>" if t == FLASK_RESOURCE_FULL else None
+    span._get_str_attribute.side_effect = lambda t: "GET /asm/<int:id>" if t == FLASK_RESOURCE_FULL else None
     span._set_attribute = MagicMock()
 
     asm_ctx = MagicMock()

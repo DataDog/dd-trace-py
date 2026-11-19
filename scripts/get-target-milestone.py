@@ -42,7 +42,7 @@ def get_base_branch():
         return os.environ.get("BASE_BRANCH", "origin/1.x")
 
     event = {}
-    with open(os.environ["GITHUB_EVENT_PATH"], "r") as fp:
+    with open(os.environ["GITHUB_EVENT_PATH"]) as fp:
         event = json.load(fp)
 
     assert event, "Could not parse GitHub event from {}".format(os.environ["GITHUB_EVENT_PATH"])
@@ -145,14 +145,14 @@ def get_next_minor_version(branch):
     """
     match = DEV_BRANCH_PATTERN.match(branch)
     if not match:
-        raise Exception("Cannot get next minor from branch {!r}".format(branch))
+        raise Exception(f"Cannot get next minor from branch {branch!r}")
 
     release_line = int(match.group(2))
     release_versions = get_versions(major=release_line)
     if release_versions:
         most_recent = release_versions[0]
-        return "v{}.{}.0".format(most_recent.major, most_recent.minor + 1)
-    return "v{}.0.0".format(release_line)
+        return f"v{most_recent.major}.{most_recent.minor + 1}.0"
+    return f"v{release_line}.0.0"
 
 
 def get_next_patch_version(branch):
@@ -177,19 +177,19 @@ def get_next_patch_version(branch):
     """
     match = RELEASE_BRANCH_PATTERN.match(branch)
     if not match:
-        raise Exception("Cannot get next patch from branch {!r}".format(branch))
+        raise Exception(f"Cannot get next patch from branch {branch!r}")
 
     release = packaging.version.Version(match.group(2))
     release_versions = get_versions(major=release.major, minor=release.minor)
     if not release_versions:
-        return "v{}.{}.0".format(release.major, release.minor)
+        return f"v{release.major}.{release.minor}.0"
 
     most_recent = release_versions[0]
 
     # If the most recent is a dev/prerelease then use that micro version, otherwise latest + 1
     if most_recent.is_devrelease or most_recent.is_prerelease:
-        return "v{}.{}.{}".format(most_recent.major, most_recent.minor, most_recent.micro)
-    return "v{}.{}.{}".format(most_recent.major, most_recent.minor, most_recent.micro + 1)
+        return f"v{most_recent.major}.{most_recent.minor}.{most_recent.micro}"
+    return f"v{most_recent.major}.{most_recent.minor}.{most_recent.micro + 1}"
 
 
 def get_versions(major, minor=None):
@@ -267,9 +267,9 @@ def main():
     base_branch = get_base_branch()
 
     if is_dev_branch(base_branch):
-        print("::set-output name=milestone::{}".format(get_next_minor_version(base_branch)))
+        print(f"::set-output name=milestone::{get_next_minor_version(base_branch)}")
     elif is_release_branch(base_branch):
-        print("::set-output name=milestone::{}".format(get_next_patch_version(base_branch)))
+        print(f"::set-output name=milestone::{get_next_patch_version(base_branch)}")
 
 
 if __name__ == "__main__":
