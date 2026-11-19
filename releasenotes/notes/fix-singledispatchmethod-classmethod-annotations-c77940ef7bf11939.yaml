@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes an ``AttributeError`` that prevented the Symbol
+    Database from loading on Python versions earlier than 3.9.8.

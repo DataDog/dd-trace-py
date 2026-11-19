@@ -4,11 +4,11 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.contrib.internal.trace_utils import int_service
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.utils.service import int_service
+from ddtrace.internal.utils.service import set_service_and_source
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -31,10 +31,11 @@ from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integration_api import annotate
 from ddtrace.llmobs._integration_api import is_enabled
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_tracked_prompt
-from ddtrace.trace import Span
+from ddtrace.llmobs._utils import set_gen_ai_apm_tags
 from ddtrace.trace import tracer
 
 
@@ -53,22 +54,22 @@ class BaseLLMIntegration:
         return is_enabled()
 
     @abc.abstractmethod
-    def _set_base_span_tags(self, span: Span, **kwargs) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs) -> None:
         """Set default LLM span attributes when possible."""
         pass
 
-    def _annotate_integration_tag(self, span: Span) -> None:
+    def _annotate_integration_tag(self, span: _LLMObsSpan) -> None:
         if not self.llmobs_enabled:
             return
         _annotate_llmobs_span_data(span, tags={LLMOBS_STRUCT.INTEGRATION: self._integration_name})
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> _LLMObsSpan:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
         Eventually those should also be internal service spans once peer.service is implemented.
         """
-        span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
+        span_name = kwargs.get("span_name", None) or f"{self._integration_name}.request"
         span_type = SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None
         parent_context = kwargs.get("parent_context") or tracer.context_provider.active()
 
@@ -92,13 +93,15 @@ class BaseLLMIntegration:
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
+        if submit_to_llmobs:
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.llmobs_enabled else 0)
         self._set_base_span_tags(span, **kwargs)
         self._annotate_integration_tag(span)
         if span_type == SpanTypes.LLM:
             self._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
         return span
 
-    def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
+    def _stamp_llmobs_span_kind_at_start(self, span: _LLMObsSpan, operation_id: str = "", **kwargs: Any) -> None:
         """Stamp span kind (and agent name when available) into the span's LLMObs meta_struct at creation.
 
         Called automatically by ``BaseLLMIntegration.trace()`` and ``LlmTracingSubscriber.on_started``.
@@ -116,7 +119,22 @@ class BaseLLMIntegration:
         else:
             _annotate_llmobs_span_data(span, kind=span_kind)
 
-    def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+    def _on_request_span_started(
+        self,
+        span: _LLMObsSpan,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Run integration-specific setup once a subscriber-owned request span has started.
+
+        Called by the shared LLMObs SPAN_STARTED subscriber after base tags and span kind are set,
+        whether or not LLMObs is enabled, and before the wrapped call runs, so child spans can read
+        what is recorded here (for example span links).
+        """
+        pass
+
+    def _llmobs_agent_name_at_start(self, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         """Return the LLMObs name to stamp alongside the agent kind at start, or None to defer to finish.
 
         Integrations that have the agent name available at trace()-call time should override this.
@@ -124,7 +142,7 @@ class BaseLLMIntegration:
         """
         return None
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         """Return the LLMObs span kind to stamp at creation, or None to skip start-time stamping.
 
         Override in integrations that signal agent spans via a kwarg other than ``kind``
@@ -136,7 +154,7 @@ class BaseLLMIntegration:
 
     def llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -170,7 +188,7 @@ class BaseLLMIntegration:
     @abc.abstractmethod
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -180,7 +198,7 @@ class BaseLLMIntegration:
 
     def _set_apm_shadow_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -195,7 +213,7 @@ class BaseLLMIntegration:
 
     def _apply_shadow_metrics(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         metrics: Optional[dict],
         span_kind: str,
         model_name: Optional[str] = None,
@@ -208,6 +226,19 @@ class BaseLLMIntegration:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
         if model_provider:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
+        # Only when LLMObs is off; otherwise _prepare_llmobs_span_data emits these at span finish
+        # with better values. set_gen_ai_apm_tags also marks the span as artificially tagged, so
+        # the backend can tell these apart from user-set gen_ai.* tags and skip creating a
+        # duplicate LLMObs span for it.
+        if not self.llmobs_enabled:
+            llmobs_data = {
+                LLMOBS_STRUCT.META: {
+                    LLMOBS_STRUCT.MODEL_NAME: model_name,
+                    LLMOBS_STRUCT.MODEL_PROVIDER: model_provider,
+                },
+                LLMOBS_STRUCT.METRICS: metrics,
+            }
+            set_gen_ai_apm_tags(span, llmobs_data, span_kind)
         if span_kind in ("llm", "embedding") and metrics:
             for llmobs_key, shadow_key in (
                 (INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY),
@@ -221,6 +252,10 @@ class BaseLLMIntegration:
                     span._set_attribute(shadow_key, value)
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+        return None
+
+    def _llmobs_gateway(self, request_kwargs: dict[str, Any]) -> Optional[str]:
+        """Return the kind of LLM gateway that serves the request, or None if no gateway serves it."""
         return None
 
     def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool:

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where forked child processes hang and never exit, causing memory
+    usage to grow and the parent process to stall, when several threads fork at the same time
+    (for example, ``multiprocessing.Process`` started from a thread pool).

@@ -40,7 +40,7 @@ class V2LogWriter(PeriodicService):
     """
 
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        super(V2LogWriter, self).__init__(interval=interval)
+        super().__init__(interval=interval)
         self._lock = RLock()
         self._buffer: list[V2LogEvent] = []
         # match the API limit
@@ -57,7 +57,7 @@ class V2LogWriter(PeriodicService):
         logger.debug("started log writer to %r", self._url)
 
     def start(self, *args, **kwargs):
-        super(V2LogWriter, self).start()
+        super().start()
         atexit.register(self.on_shutdown)
 
     def enqueue(self, log: V2LogEvent) -> None:

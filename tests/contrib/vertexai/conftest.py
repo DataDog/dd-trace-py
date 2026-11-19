@@ -1,5 +1,6 @@
-import mock
-from mock import PropertyMock
+from unittest import mock
+from unittest.mock import PropertyMock
+
 import pytest
 
 from ddtrace.contrib.internal.vertexai.patch import patch
@@ -62,6 +63,10 @@ def vertexai(ddtrace_global_config, ddtrace_config_vertexai, mock_client, mock_a
             patch()
             import vertexai
             from vertexai.generative_models import GenerativeModel
+
+            # GenerativeModel resolves a project at construction time; set one so the
+            # tests do not depend on ambient Google Cloud credentials or configuration.
+            vertexai.init(project="test-project", location="us-central1")
 
             with (
                 mock.patch.object(

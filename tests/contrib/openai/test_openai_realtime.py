@@ -13,7 +13,8 @@ from types import SimpleNamespace
 import pytest
 
 from ddtrace.contrib.internal.openai import _realtime
-from ddtrace.contrib.internal.openai._realtime import _RealtimeState
+from ddtrace.llmobs._integrations import openai_realtime
+from ddtrace.llmobs._integrations.openai_realtime import _RealtimeState
 from ddtrace.llmobs._integrations.utils import g711_to_pcm16
 from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 
@@ -605,6 +606,89 @@ def test_realtime_state_usage_total_tokens_fallback():
     assert integration.responses[0]["metrics"] == {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}
 
 
+@pytest.mark.parametrize("value", [0, 2, None, -1, True, False, 1.5, "2"])
+def test_realtime_usage_named_counts(value):
+    details = {
+        "input_token_details": {
+            "text_tokens": value,
+            "image_tokens": value,
+            "cached_tokens_details": {"text_tokens": value, "image_tokens": value},
+        },
+        "output_token_details": {"text_tokens": value},
+    }
+    expected = {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}
+    if type(value) is int and value >= 0:
+        expected.update(
+            {
+                key: value
+                for key in (
+                    "input_text_tokens",
+                    "input_image_tokens",
+                    "output_text_tokens",
+                    "cache_text_read_tokens",
+                    "cache_image_read_tokens",
+                )
+            }
+        )
+    assert openai_realtime._usage_metrics({"input_tokens": 4, "output_tokens": 6, **details}) == expected
+
+
+@pytest.mark.parametrize(
+    "details, expected",
+    [
+        ({}, {}),
+        ({"input_token_details": None, "output_token_details": None}, {}),
+        (
+            {"input_token_details": {"audio_tokens": 4, "cached_tokens": 3}},
+            {"input_audio_tokens": 4, "cache_read_input_tokens": 3},
+        ),
+        (
+            {
+                "input_token_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0,
+                    "cached_tokens_details": {"audio_tokens": 0},
+                },
+                "output_token_details": {"audio_tokens": 0},
+            },
+            {
+                "input_audio_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "output_audio_tokens": 0,
+            },
+        ),
+        (
+            {
+                "input_token_details": {
+                    "audio_tokens": -1,
+                    "cached_tokens": True,
+                    "cached_tokens_details": {"audio_tokens": "3"},
+                },
+                "output_token_details": {"audio_tokens": 1.5},
+            },
+            {},
+        ),
+    ],
+)
+def test_realtime_usage_preserves_missing_and_zero_audio_counts(details, expected):
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(id="r1", status="completed", usage={"input_tokens": 4, "output_tokens": 6, **details}),
+        )
+    )
+    assert integration.responses[0]["metrics"] == {
+        "input_tokens": 4,
+        "output_tokens": 6,
+        "total_tokens": 10,
+        **expected,
+    }
+
+
 # ---- speech-window timing (server VAD, continuously streaming client) ----
 
 # One mic block: 10 ms of PCM16 mono @ 24 kHz (48 bytes/ms).
@@ -722,7 +806,7 @@ def _assert_ns(actual, expected, tolerance_ns=1_000):
     seconds>)` - and a float64 can only resolve ~256 ns at unix-epoch magnitudes. That rounding is
     immaterial next to audio timings measured in milliseconds, so don't assert on it.
     """
-    assert abs(actual - expected) <= tolerance_ns, "{} != {} (within {} ns)".format(actual, expected, tolerance_ns)
+    assert abs(actual - expected) <= tolerance_ns, f"{actual} != {expected} (within {tolerance_ns} ns)"
 
 
 def test_realtime_state_user_speech_anchored_on_vad_onset(monkeypatch):
@@ -733,7 +817,7 @@ def test_realtime_state_user_speech_anchored_on_vad_onset(monkeypatch):
     lead-in is trimmed off the captured audio too, so the clip covers the window the span reports.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -764,7 +848,7 @@ def test_realtime_state_consecutive_turns_do_not_overlap(monkeypatch):
     user speech spanned the whole of turn N's agent response.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -790,7 +874,7 @@ def test_realtime_state_consecutive_turns_do_not_overlap(monkeypatch):
     speech = sorted([w for w in windows if w[0] != "realtime audio turn"], key=lambda w: w[1])
     assert [name for name, _, _ in speech] == ["user speech", "agent speech", "user speech", "agent speech"]
     for (_, _, prev_end), (name, start, _) in zip(speech, speech[1:]):
-        assert start >= prev_end, "{} starts before the previous window ended".format(name)
+        assert start >= prev_end, f"{name} starts before the previous window ended"
     # The turn roots (whole perceived turns) don't overlap either.
     turns = [w for w in windows if w[0] == "realtime audio turn"]
     assert turns[1][1] >= turns[0][2]
@@ -804,7 +888,7 @@ def test_realtime_state_barge_in_windows_still_overlap(monkeypatch):
     hear the agent over their own speech and the reported overlap is the true one.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -833,7 +917,7 @@ def test_realtime_state_segment_keeps_the_format_its_audio_arrived_under(monkeyp
     overstate the agent-speech window six-fold.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -871,7 +955,7 @@ def test_realtime_state_truncation_caps_agent_speech_to_what_was_heard(monkeypat
     before, which is why the first interruption of a connection is still reported untruncated.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -912,7 +996,7 @@ def test_realtime_state_held_turn_submitted_when_playback_ends(monkeypatch):
     without waiting for the next turn or for close - and with its audio intact.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -942,7 +1026,7 @@ def test_realtime_state_no_hold_for_clients_that_never_truncate(monkeypatch):
     response.done as before - it pays none of the holding cost.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -964,8 +1048,8 @@ def test_realtime_state_park_deadline_is_capped(monkeypatch):
     does it early, so capping the wait costs almost no real truncations.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
-    monkeypatch.setattr(_realtime, "_PARK_MAX_NS", 2 * 1_000_000_000)  # 2 s, vs a 30 s response
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime, "_PARK_MAX_NS", 2 * 1_000_000_000)  # 2 s, vs a 30 s response
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -995,7 +1079,7 @@ def test_realtime_state_user_speech_falls_back_to_first_append_without_vad(monke
     user talks, so the first buffered chunk is the onset and nothing is trimmed.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -1037,10 +1121,10 @@ def test_realtime_state_long_lead_in_does_not_discard_the_users_speech(monkeypat
     surfaces nothing but an `[audio]` marker.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     # 300 ms of lead-in is 14400 bytes at 48 B/ms, so a 12000-byte cap trips before the onset while
     # still leaving room for the 200 ms of speech (9600 bytes) that follows.
-    monkeypatch.setattr(_realtime, "_AUDIO_ACCUM_MAX_BYTES", 12_000)
+    monkeypatch.setattr(openai_realtime, "_AUDIO_ACCUM_MAX_BYTES", 12_000)
     integration, state = _new_state()
     state.on_server_event(_session_created())
     mic = _Mic(state, clock)
@@ -1071,7 +1155,7 @@ def test_realtime_decoded_b64_len_is_exact(raw_len):
     timeline and lands the cut on an odd byte, splitting a sample.
     """
     raw = b"\x01\x02" * (raw_len // 2) + b"\x03" * (raw_len % 2)
-    assert _realtime._decoded_b64_len(_b64(raw)) == raw_len
+    assert openai_realtime._decoded_b64_len(_b64(raw)) == raw_len
 
 
 def test_realtime_state_trim_leading_keeps_the_byte_cap_consistent():
@@ -1080,13 +1164,13 @@ def test_realtime_state_trim_leading_keeps_the_byte_cap_consistent():
     The trim drops whole chunks, so a cap tracked by subtraction drifts from the surviving chunks
     whenever `append` has already freed them.
     """
-    accumulator = _realtime._AudioAccumulator()
+    accumulator = openai_realtime._AudioAccumulator()
     for _ in range(10):
         accumulator.append(_b64(b"\x01\x02" * 240))  # 480 bytes each
     accumulator.trim_leading(480 * 3)
 
     assert len(accumulator.chunks) == 7
-    assert accumulator._bytes == sum(_realtime._decoded_b64_len(c) for c in accumulator.chunks)
+    assert accumulator._bytes == sum(openai_realtime._decoded_b64_len(c) for c in accumulator.chunks)
     assert not accumulator.oversize
 
 
@@ -1099,7 +1183,7 @@ def test_realtime_state_input_buffer_clock_survives_a_late_session_format(monkey
     that followed rather than just the first.
     """
     clock = _Clock()
-    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(openai_realtime.time, "time_ns", clock)
     integration, state = _new_state()
     mic = _Mic(state, clock)
 
@@ -1197,7 +1281,19 @@ def _server_messages():
                     "id": "resp_1",
                     "model": "gpt-realtime-2025",
                     "status": "completed",
-                    "usage": {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+                    "usage": {
+                        "input_tokens": 5000,
+                        "output_tokens": 1300,
+                        "total_tokens": 6300,
+                        "input_token_details": {
+                            "text_tokens": 200,
+                            "audio_tokens": 4800,
+                            "cached_tokens": 4000,
+                            "image_tokens": 0,
+                            "cached_tokens_details": {"text_tokens": 100, "audio_tokens": 3900, "image_tokens": 0},
+                        },
+                        "output_token_details": {"text_tokens": 100, "audio_tokens": 1200},
+                    },
                 },
             }
         ),
@@ -1207,7 +1303,7 @@ def _server_messages():
 def _by_operation(spans):
     """Spans keyed by operation (resource); a turn emits at most one span per phase."""
     by_operation = {s.resource: s for s in spans}
-    assert len(by_operation) == len(spans), "unexpected duplicate phase spans: {}".format([s.resource for s in spans])
+    assert len(by_operation) == len(spans), f"unexpected duplicate phase spans: {[s.resource for s in spans]}"
     return by_operation
 
 
@@ -1256,7 +1352,20 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
             }
         ],
         output_messages=[{"role": "assistant", "content": "It's noon."}],
-        metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+        metrics={
+            "input_tokens": 5000,
+            "output_tokens": 1300,
+            "total_tokens": 6300,
+            "input_audio_tokens": 4800,
+            "output_audio_tokens": 1200,
+            "cache_read_input_tokens": 4000,
+            "cache_audio_read_tokens": 3900,
+            "input_text_tokens": 200,
+            "input_image_tokens": 0,
+            "output_text_tokens": 100,
+            "cache_text_read_tokens": 100,
+            "cache_image_read_tokens": 0,
+        },
         # session config rides on each turn span as metadata now.
         metadata={"voice": "alloy", "output_audio_format": "audio/pcm", "input_audio_format": "audio/pcm"},
     )
@@ -1419,7 +1528,20 @@ async def test_realtime_async_integration_spans(openai, openai_llmobs, test_span
         parent_id=str(spans["createRealtimeTurn"].span_id),
         model_name="gpt-realtime-2025",
         output_messages=[{"role": "assistant", "content": "It's noon."}],
-        metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+        metrics={
+            "input_tokens": 5000,
+            "output_tokens": 1300,
+            "total_tokens": 6300,
+            "input_audio_tokens": 4800,
+            "output_audio_tokens": 1200,
+            "cache_read_input_tokens": 4000,
+            "cache_audio_read_tokens": 3900,
+            "input_text_tokens": 200,
+            "input_image_tokens": 0,
+            "output_text_tokens": 100,
+            "cache_text_read_tokens": 100,
+            "cache_image_read_tokens": 0,
+        },
     )
     assert data.get("session_id")
 

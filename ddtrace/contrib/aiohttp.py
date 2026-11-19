@@ -36,13 +36,6 @@ Configuration
 
    Default: ``False``
 
-.. py:data:: ddtrace.config.aiohttp['disable_stream_timing_for_mem_leak']
-
-   Whether or not to to address a potential memory leak in the aiohttp integration.
-   When set to ``True``, this flag may cause streamed response span timing to be inaccurate.
-
-   Default: ``False``
-
 
 Server
 ******
@@ -63,6 +56,13 @@ the provided ``trace_app`` function must be used::
     # trace your application handlers
     trace_app(app, service='async-api')
     web.run_app(app, port=8000)
+
+Request spans cover handler execution and response sending for ordinary and streaming
+HTTP responses, including when middleware runs handlers in child tasks. Protocol upgrades,
+including WebSockets, complete at the HTTP handshake
+so the request span does not include the lifetime of the upgraded connection. The existing
+``disable_stream_timing_for_mem_leak`` integration option still
+completes spans when response headers are prepared.
 
 Integration settings are attached to your application under the ``datadog_trace``
 namespace. You can read or update them as follows::
@@ -86,6 +86,19 @@ to the ``request`` object, so that it can be used in the application code::
         # do something with the tracing Context
 
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.aiohttp['disable_stream_timing_for_mem_leak']
+
+   Whether or not to address a potential memory leak in the aiohttp integration.
+   When set to ``True``, this flag may cause streamed response span timing to be inaccurate.
+
+   This option can also be set with the ``DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK``
+   environment variable.
+
+   Default: ``False``
 
 """
 

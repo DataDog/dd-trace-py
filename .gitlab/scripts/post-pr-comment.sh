@@ -15,6 +15,13 @@ MESSAGE_FILE="$2"
 # Bail out silently if there is nothing to say.
 [ -s "$MESSAGE_FILE" ] || exit 0
 
+# main, release branches/tags and merge queue pipelines (temporary merge commits) have no open PR
+# to comment on. CI_COMMIT_REF_NAME is the branch or tag name (CI_COMMIT_BRANCH is empty for tags).
+if [[ "${CI_COMMIT_REF_NAME:-}" =~ ^(main$|[0-9]+\.[0-9]+$|v[0-9]+\.[0-9]+\.[0-9]+|mq-working-branch-|gh-readonly-queue/) ]]; then
+  echo "No PR for ref ${CI_COMMIT_REF_NAME}: skipping PR comment."
+  exit 0
+fi
+
 AUTHANYWHERE_DIR="$(mktemp -d)"
 trap 'rm -rf "$AUTHANYWHERE_DIR"' EXIT
 PAYLOAD_FILE="$AUTHANYWHERE_DIR/payload.json"
@@ -45,7 +52,7 @@ jq --null-input \
 wget -nv -P "$AUTHANYWHERE_DIR" binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
 chmod +x "$AUTHANYWHERE_DIR/authanywhere-linux-amd64"
 
-curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
+curl -fsS --retry 5 --retry-delay 2 --retry-connrefused 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
   -H "$("$AUTHANYWHERE_DIR/authanywhere-linux-amd64")" \
   -H 'Content-Type: application/json' \
   -X PATCH \

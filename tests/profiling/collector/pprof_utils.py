@@ -1,11 +1,12 @@
+from collections.abc import Sequence
 import ctypes
 from enum import Enum
 import glob
 import os
 import re
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -28,7 +29,7 @@ def _protobuf_version() -> tuple[int, int, int]:
 
 
 if TYPE_CHECKING:
-    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
+    from tests.profiling.collector import pprof_pb2 as pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 else:
     # Load the appropriate pprof_pb2 module
     _pb_version = _protobuf_version()
@@ -88,7 +89,7 @@ class EventBaseClass:
         class_name: Optional[str] = None,
         task_id: Optional[int] = None,
         task_name: Optional[str] = None,
-    ):
+    ) -> None:
         self.span_id = reinterpret_int_as_int64(clamp_to_uint64(span_id)) if span_id else None
         self.local_root_span_id = (
             reinterpret_int_as_int64(clamp_to_uint64(local_root_span_id)) if local_root_span_id else None
@@ -108,8 +109,8 @@ class StackEvent(EventBaseClass):
         locations: Optional[Sequence[StackLocation]] = None,
         exception_type: Optional[str] = None,
         exception_message: Optional[str] = None,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         self.locations = locations
         self.exception_type = exception_type
@@ -126,9 +127,9 @@ class LockEvent(EventBaseClass):
         filename: str,
         linenos: LineNo,
         lock_name: Union[str, None] = None,
-        *args,
-        **kwargs,
-    ):
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         self.event_type = event_type
         self.caller_name = caller_name
         self.filename = filename
@@ -138,13 +139,13 @@ class LockEvent(EventBaseClass):
 
 
 class LockAcquireEvent(LockEvent):
-    def __init__(self, *args, **kwargs):
-        super().__init__(event_type=LockEventType.ACQUIRE, *args, **kwargs)
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(event_type=LockEventType.ACQUIRE, *args, **kwargs)  # type: ignore[misc]
 
 
 class LockReleaseEvent(LockEvent):
-    def __init__(self, *args, **kwargs):
-        super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)  # type: ignore[misc]
 
 
 def merge_profiles(profiles: list[pprof_pb2.Profile]) -> pprof_pb2.Profile:
@@ -397,7 +398,7 @@ def assert_lock_events_of_type(
     profile: pprof_pb2.Profile,
     expected_events: Sequence[LockEvent],
     event_type: LockEventType,
-):
+) -> None:
     samples = get_samples_with_value_type(
         profile, "lock-acquire" if event_type == LockEventType.ACQUIRE else "lock-release"
     )
@@ -443,7 +444,9 @@ def assert_lock_events(
         raise e
 
 
-def assert_str_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[str]):
+def assert_str_label(
+    string_table: Sequence[str], sample: pprof_pb2.Sample, key: str, expected_value: Optional[str]
+) -> None:
     if not expected_value:
         return
 
@@ -456,7 +459,9 @@ def assert_str_label(string_table: Sequence[str], sample, key: str, expected_val
     )
 
 
-def assert_num_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[int]):
+def assert_num_label(
+    string_table: Sequence[str], sample: pprof_pb2.Sample, key: str, expected_value: Optional[int]
+) -> None:
     if not expected_value:
         return
 
@@ -465,7 +470,7 @@ def assert_num_label(string_table: Sequence[str], sample, key: str, expected_val
     assert label.num == expected_value, f"Expected {expected_value} got {label.num} for label {key}"
 
 
-def assert_base_event(string_table: Sequence[str], sample: pprof_pb2.Sample, expected_event: EventBaseClass):
+def assert_base_event(string_table: Sequence[str], sample: pprof_pb2.Sample, expected_event: EventBaseClass) -> None:
     assert_num_label(string_table, sample, "span id", expected_event.span_id)
     assert_num_label(string_table, sample, "local root span id", expected_event.local_root_span_id)
     assert_str_label(string_table, sample, "trace type", expected_event.trace_type)
@@ -477,21 +482,17 @@ def assert_base_event(string_table: Sequence[str], sample: pprof_pb2.Sample, exp
     assert_str_label(string_table, sample, "task name", expected_event.task_name)
 
 
-def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: LockEvent):
+def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: LockEvent) -> None:
     # Check that the sample has label "lock name" with value
     # filename:self.lock_linenos.create:lock_name
     lock_name_label = get_label_with_key(profile.string_table, sample, "lock name")
     assert lock_name_label is not None, "Lock name label not found in sample"
     if expected_event.lock_name is None:
-        expected_lock_name = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
+        expected_lock_name = f"{expected_event.filename}:{expected_event.linenos.create}"
     else:
-        expected_lock_name = "{}:{}:{}".format(
-            expected_event.filename, expected_event.linenos.create, expected_event.lock_name
-        )
+        expected_lock_name = f"{expected_event.filename}:{expected_event.linenos.create}:{expected_event.lock_name}"
     actual_lock_name = profile.string_table[lock_name_label.str]
-    assert actual_lock_name == expected_lock_name, "Expected lock name {} got {}".format(
-        expected_lock_name, actual_lock_name
-    )
+    assert actual_lock_name == expected_lock_name, f"Expected lock name {expected_lock_name} got {actual_lock_name}"
     # location_id[0] is the 'leaf' location
     location_id = sample.location_id[0]
     location = get_location_with_id(profile, location_id)
@@ -499,16 +500,16 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     line = location.line[0]
     # We expect the function name to be the caller's name
     function = get_function_with_id(profile, line.function_id)
-    assert profile.string_table[function.name] == expected_event.caller_name, "Expected caller {} got {}".format(
-        expected_event.caller_name, profile.string_table[function.name]
+    assert profile.string_table[function.name] == expected_event.caller_name, (
+        f"Expected caller {expected_event.caller_name} got {profile.string_table[function.name]}"
     )
     if expected_event.event_type == LockEventType.ACQUIRE:
-        assert line.line == expected_event.linenos.acquire, "Expected line {} got {}".format(
-            expected_event.linenos.acquire, line.line
+        assert line.line == expected_event.linenos.acquire, (
+            f"Expected line {expected_event.linenos.acquire} got {line.line}"
         )
     elif expected_event.event_type == LockEventType.RELEASE:
-        assert line.line == expected_event.linenos.release, "Expected line {} got {}".format(
-            expected_event.linenos.release, line.line
+        assert line.line == expected_event.linenos.release, (
+            f"Expected line {expected_event.linenos.release} got {line.line}"
         )
 
     assert_base_event(profile.string_table, sample, expected_event)
@@ -614,6 +615,8 @@ def assert_profile_has_sample(
             error_description += ", thread name " + expected_sample.thread_name
 
         if print_samples_on_failure:
+            # Keep the actionable failure ahead of the dump so CI truncation retains it.
+            print(error_description)
             print_all_samples(profile)
 
     assert found, error_description

@@ -1,11 +1,10 @@
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 from ddtrace.internal.utils.cache import cached
 
 
 @cached()
-def get_wsgi_header(header):
-    # type: (str) -> str
+def get_wsgi_header(header: str) -> str:
     """Returns a WSGI compliant HTTP header.
     See https://www.python.org/dev/peps/pep-3333/#environ-variables for
     information from the spec.
@@ -14,8 +13,7 @@ def get_wsgi_header(header):
 
 
 @cached()
-def from_wsgi_header(header):
-    # type: (str) -> Optional[str]
+def from_wsgi_header(header: str) -> Optional[str]:
     """Convert a WSGI compliant HTTP header into the original header.
     See https://www.python.org/dev/peps/pep-3333/#environ-variables for
     information from the spec.

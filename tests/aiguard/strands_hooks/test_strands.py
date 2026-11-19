@@ -758,6 +758,36 @@ class TestInvocationLifecycle:
         ai_guard_strands_hook._on_after_invocation_base(after_invocation_event(invocation_state=invocation_state))
         assert is_aiguard_context_active() is False
 
+    def test_after_invocation_from_another_task_releases_claim(self, ai_guard_strands_hook):
+        """The real hooks, with after-invocation running in a task that predates the claim.
+
+        That task's Context never saw the claim; releasing by the handle kept on
+        invocation_state must still clear it where later provider calls run.
+        """
+        import asyncio
+
+        async def _scenario():
+            invocation_state = {}
+            release = asyncio.Event()
+
+            async def _finalizer():
+                await release.wait()
+                ai_guard_strands_hook._on_after_invocation_base(
+                    after_invocation_event(invocation_state=invocation_state)
+                )
+
+            finalizer = asyncio.create_task(_finalizer())
+            await asyncio.sleep(0)  # let the finalizer copy the Context before the claim
+
+            ai_guard_strands_hook._on_before_invocation_base(before_invocation_event(invocation_state=invocation_state))
+            assert is_aiguard_context_active() is True
+
+            release.set()
+            await finalizer
+            return is_aiguard_context_active()
+
+        assert asyncio.run(_scenario()) is False
+
 
 class TestRegisterHooks:
     def test_registers_all_callbacks(self, ai_guard_strands_hook):

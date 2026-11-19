@@ -1,0 +1,80 @@
+id: threading-module-import
+snapshots:
+  ? |
+    def f():
+        from threading import local
+  : labels:
+    - source: from threading import local
+      style: primary
+      start: 13
+      end: 40
+    - source: threading
+      style: secondary
+      start: 18
+      end: 27
+  ? |
+    def f():
+        import threading
+  : labels:
+    - source: import threading
+      style: primary
+      start: 13
+      end: 29
+    - source: threading
+      style: secondary
+      start: 20
+      end: 29
+  from threading import Thread:
+    labels:
+    - source: from threading import Thread
+      style: primary
+      start: 0
+      end: 28
+    - source: threading
+      style: secondary
+      start: 5
+      end: 14
+  from threading import current_thread, main_thread:
+    labels:
+    - source: from threading import current_thread, main_thread
+      style: primary
+      start: 0
+      end: 49
+    - source: threading
+      style: secondary
+      start: 5
+      end: 14
+  import os, threading:
+    labels:
+    - source: import os, threading
+      style: primary
+      start: 0
+      end: 20
+    - source: threading
+      style: secondary
+      start: 11
+      end: 20
+  import threading:
+    labels:
+    - source: import threading
+      style: primary
+      start: 0
+      end: 16
+    - source: threading
+      style: secondary
+      start: 7
+      end: 16
+  import threading as _threading:
+    labels:
+    - source: import threading as _threading
+      style: primary
+      start: 0
+      end: 30
+    - source: threading
+      style: secondary
+      start: 7
+      end: 16
+    - source: threading as _threading
+      style: secondary
+      start: 7
+      end: 30

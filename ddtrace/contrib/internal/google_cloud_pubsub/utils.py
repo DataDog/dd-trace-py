@@ -1,5 +1,8 @@
 """Utilities for Google Cloud Pub/Sub instrumentation."""
 
+import re
+from typing import Optional
+
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -52,3 +55,26 @@ def parse_resource_path(path: object) -> tuple[str, str]:
     project_id = parts[1] if len(parts) >= 2 else ""
     resource_id = parts[3] if len(parts) >= 4 else path
     return project_id, resource_id
+
+
+# Full resource paths of the called topic and subscription. Each path carries its own project,
+# which may differ between a subscription and its topic.
+PUBSUB_TOPIC_NAME = "gcp.pubsub.topic.name"
+PUBSUB_SUBSCRIPTION_NAME = "gcp.pubsub.subscription.name"
+
+_TOPIC_PATH_RE = re.compile(r"projects/[^/]+/topics/[^/]+")
+_SUBSCRIPTION_PATH_RE = re.compile(r"projects/[^/]+/subscriptions/[^/]+")
+
+
+def topic_path(path: object) -> Optional[str]:
+    """Return path if it is a full topic path (projects/<project>/topics/<topic>), else None."""
+    if isinstance(path, str) and _TOPIC_PATH_RE.fullmatch(path):
+        return path
+    return None
+
+
+def subscription_path(path: object) -> Optional[str]:
+    """Return path if it is a full subscription path (projects/<project>/subscriptions/<name>), else None."""
+    if isinstance(path, str) and _SUBSCRIPTION_PATH_RE.fullmatch(path):
+        return path
+    return None

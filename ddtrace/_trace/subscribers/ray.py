@@ -55,13 +55,14 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 
-class RayJobStartSubscriber(TracingSubscriber):
+class RayJobStartSubscriber(TracingSubscriber[RayJobEvent]):
     """Subscriber for ray.job context"""
 
+    auto_register = False
     event_names = (RayEvents.RAY_JOB.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[RayJobEvent]) -> None:
         event: RayJobEvent = ctx.event
         submission_id = event.submission_id
 
@@ -89,7 +90,7 @@ class RayJobStartSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[RayJobEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: RayJobEvent = ctx.event
@@ -107,13 +108,14 @@ class RayJobStartSubscriber(TracingSubscriber):
         stop_long_running_job(event.submission_id, event.ended_job_info)
 
 
-class RayExecutionSubscriber(TracingSubscriber):
+class RayExecutionSubscriber(TracingSubscriber[RayExecutionEvent]):
     """Subscriber for ray.execute context"""
 
+    auto_register = False
     event_names = (RayEvents.RAY_EXECUTE.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[RayExecutionEvent]) -> None:
         span = span_from_context(ctx)
         _set_dist_ai_metrics(span)
         _set_runtime_context_attributes(span)
@@ -145,7 +147,7 @@ class RayExecutionSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[RayExecutionEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         span = span_from_context(ctx)
@@ -157,13 +159,14 @@ class RayExecutionSubscriber(TracingSubscriber):
         stop_long_running_span(span)
 
 
-class RayCoreAPITracingSubscriber(TracingSubscriber):
+class RayCoreAPITracingSubscriber(TracingSubscriber[RayCoreAPIEvent]):
     """Subscriber for core API calls (ray.get/wait/put)."""
 
+    auto_register = False
     event_names = (RayEvents.RAY_CORE_API.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[RayCoreAPIEvent]) -> None:
         event: RayCoreAPIEvent = ctx.event
         span = span_from_context(ctx)
 
@@ -176,7 +179,7 @@ class RayCoreAPITracingSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[RayCoreAPIEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: RayCoreAPIEvent = ctx.event
@@ -193,13 +196,14 @@ class RayCoreAPITracingSubscriber(TracingSubscriber):
             span.finish()
 
 
-class RaySubmissionSubscriber(TracingSubscriber):
+class RaySubmissionSubscriber(TracingSubscriber[RaySubmissionEvent]):
     """Subscriber for task and actor method submission tracing."""
 
+    auto_register = False
     event_names = (RayEvents.RAY_SUBMIT.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[RaySubmissionEvent]) -> None:
         event: RaySubmissionEvent = ctx.event
         span = span_from_context(ctx)
 
@@ -247,7 +251,7 @@ class RaySubmissionSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[RaySubmissionEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: RaySubmissionEvent = ctx.event
@@ -260,6 +264,7 @@ class RaySubmissionSubscriber(TracingSubscriber):
 class RayContextInjectionSubscriber(Subscriber):
     """Prepare context for task/actor submission before submitting to Ray."""
 
+    auto_register = False
     event_names = (RayEvents.RAY_CONTEXT_INJECTION.value,)
 
     @classmethod

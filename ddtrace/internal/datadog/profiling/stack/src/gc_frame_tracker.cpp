@@ -108,8 +108,10 @@ get_gc_callbacks()
 GCFrameTracker&
 GCFrameTracker::get()
 {
-    static GCFrameTracker tracker;
-    return tracker;
+    // uWSGI may call exit without running the atexit hooks that stop the sampler.
+    // Making this a raw pointer prevents crashes at exit.
+    static GCFrameTracker* const tracker = new GCFrameTracker();
+    return *tracker;
 }
 
 #if PY_VERSION_HEX < 0x030f0000

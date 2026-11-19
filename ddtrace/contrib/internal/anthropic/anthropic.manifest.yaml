@@ -1,0 +1,14 @@
+_v: 1
+name: anthropic
+display_name: Anthropic
+description: Instruments synchronous and asynchronous Anthropic message generation, including standard and beta APIs, streamed
+  responses, model inputs, outputs, and token usage.
+packages:
+- name: anthropic
+category:
+- gen_ai
+systems:
+- anthropic
+- aws.bedrock
+- gcp.vertex_ai
+creation_date: '2024-06-04'

@@ -5,23 +5,13 @@ import aiokafka
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
-from ddtrace.ext import kafka as kafkax
+from ddtrace.contrib._events.kafka import KafkaConsumeEvent
+from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.ext.kafka import CONSUME
-from ddtrace.ext.kafka import GROUP_ID
-from ddtrace.ext.kafka import HOST_LIST
 from ddtrace.ext.kafka import PRODUCE
-from ddtrace.ext.kafka import SERVICE
-from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
-from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
@@ -31,7 +21,6 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.propagation.http import HTTPPropagator
 
 
 if parse_version(aiokafka.__version__) < (0, 13, 0):
@@ -58,27 +47,6 @@ def get_version() -> str:
 
 def _supported_versions() -> dict[str, str]:
     return {"aiokafka": ">=0.9.0"}
-
-
-def common_aiokafka_tags(topic, bootstrap_servers):
-    return {
-        COMPONENT: config.aiokafka.integration_name,
-        TOPIC: topic,
-        MESSAGING_DESTINATION_NAME: topic,
-        MESSAGING_SYSTEM: SERVICE,
-        HOST_LIST: bootstrap_servers,
-    }
-
-
-def common_consume_aiokafka_tags(topic, bootstrap_servers, group_id):
-    tags = common_aiokafka_tags(topic, bootstrap_servers)
-    tags.update(
-        {
-            SPAN_KIND: SpanKind.CONSUMER,
-            GROUP_ID: group_id,
-        }
-    )
-    return tags
 
 
 async def _get_cluster_id(client, topic):
@@ -128,36 +96,60 @@ def parse_send(instance, args, kwargs):
     return topic, value, headers, partition, key, servers
 
 
+def _dispatch_send_result(ctx, exc_info=(None, None, None), record_metadata=None):
+    core.dispatch("aiokafka.send.completed", (ctx, exc_info, record_metadata))
+    ctx.dispatch_ended_event(*exc_info)
+
+
 async def traced_send(func, instance, args, kwargs):
     topic, value, headers, partition, key, bootstrap_servers = parse_send(instance, args, kwargs)
     cluster_id = await _get_cluster_id(instance.client, topic)
+    tracing_headers = {}
 
-    with core.context_with_data(
-        "aiokafka.send",
-        span_name=schematize_messaging_operation(PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.WORKER,
-        service=trace_utils.ext_service(None, config.aiokafka),
-        tags=common_aiokafka_tags(topic, bootstrap_servers),
+    event = KafkaProducerEvent(
+        messaging_operation=PRODUCE,
+        provider="kafka",
+        topic=topic,
+        bootstrap_servers=bootstrap_servers,
+        distributed_headers=tracing_headers,
+        component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
-    ) as ctx:
+        service=trace_utils.ext_service(None, config.aiokafka),
+        cluster_id=cluster_id,
+        tombstone=value is None,
+        message_key=(key.decode("utf-8", errors="replace") if isinstance(key, (bytes, bytearray)) else key)
+        if key
+        else "None",
+        partition=partition,
+    )
+
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id and span_from_context(ctx) is not None:
-            span_from_context(ctx)._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+
+        for header_key, header_value in tracing_headers.items():
+            headers.append((header_key, header_value.encode("utf-8")))
+
         core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
 
         try:
             result = await func(*args, **kwargs)
-        except BaseException as e:
-            core.dispatch("aiokafka.send.completed", (ctx, (type(e), e, e.__traceback__), None))
-            raise e
+        except BaseException as error:
+            _dispatch_send_result(ctx, (type(error), error, error.__traceback__))
+            raise
 
         def sent_callback(future):
             try:
-                result = future.result()
-                core.dispatch("aiokafka.send.completed", (ctx, (None, None, None), result))
-            except Exception as e:
-                core.dispatch("aiokafka.send.completed", (ctx, (type(e), e, e.__traceback__), None))
+                record_metadata = future.result()
+                result_partition = getattr(record_metadata, "partition", None)
+                result_offset = getattr(record_metadata, "offset", None)
+                if isinstance(result_partition, int):
+                    event.partition = result_partition
+                if isinstance(result_offset, int):
+                    event.message_offset = result_offset
+                _dispatch_send_result(ctx, record_metadata=record_metadata)
+            except Exception as error:
+                _dispatch_send_result(ctx, (type(error), error, error.__traceback__))
 
         result.add_done_callback(sent_callback)
         return result
@@ -169,20 +161,12 @@ async def traced_getone(func, instance, args, kwargs):
     start_ns = time_ns()
     err = None
     message = None
-    parent_ctx = None
 
     group_id = instance._group_id
     bootstrap_servers = instance._client._bootstrap_servers
 
     try:
         message = await func(*args, **kwargs)
-        if config.aiokafka.distributed_tracing_enabled and message.headers:
-            dd_headers = {
-                key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
-                for key, val in message.headers
-                if val is not None
-            }
-            parent_ctx = HTTPPropagator.extract(dd_headers)
     except Exception as e:
         err = e
 
@@ -196,19 +180,43 @@ async def traced_getone(func, instance, args, kwargs):
         client = instance._client
         cluster_id = getattr(client, "_dd_cluster_id", "") if client is not None else ""
 
-    with core.context_with_data(
-        "aiokafka.getone",
-        call_trace=False,
-        span_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
-        span_type=SpanTypes.WORKER,
-        service=trace_utils.ext_service(None, config.aiokafka),
-        distributed_context=parent_ctx,
-        tags=common_consume_aiokafka_tags(topic, bootstrap_servers, group_id),
+    # Parent via extracted context without activating it, so a surrounding local
+    # span stays active after getone returns.
+    event = KafkaConsumeEvent(
+        messaging_operation=CONSUME,
+        provider="kafka",
+        direction=SpanDirection.INBOUND,
+        topic=topic,
+        bootstrap_servers=bootstrap_servers,
+        group_id=group_id,
+        message_headers=[dict(message.headers)] if message is not None and message.headers else [],
+        use_active_context=False,
+        activate=False,
+        component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
-    ) as ctx:
+        service=trace_utils.ext_service(None, config.aiokafka),
+        error=err,
+    )
+
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
+        span.start_ns = start_ns
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id and span_from_context(ctx) is not None:
-            span_from_context(ctx)._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+        event.cluster_id = cluster_id
+        event.received_message = message is not None
+
+        if message is not None:
+            message_key = message.key
+            if isinstance(message_key, (bytes, bytearray)):
+                message_key = message_key.decode("utf-8", errors="replace") if message_key else None
+            event.tombstone = message.value is None
+            if isinstance(message_key, str):
+                event.message_key = message_key
+            if message.partition is not None:
+                event.partition = message.partition
+            if message.offset is not None:
+                event.message_offset = message.offset
+
         core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
 
     if err is not None:
@@ -220,15 +228,22 @@ async def traced_getmany(func, instance, args, kwargs):
     group_id = instance._group_id
     bootstrap_servers = instance._client._bootstrap_servers
 
-    with core.context_with_data(
-        "aiokafka.getmany",
-        call_trace=False,
-        span_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
-        span_type=SpanTypes.WORKER,
-        service=trace_utils.ext_service(None, config.aiokafka),
-        tags=common_consume_aiokafka_tags(None, bootstrap_servers, group_id),
+    event = KafkaConsumeEvent(
+        messaging_operation=CONSUME,
+        provider="kafka",
+        direction=SpanDirection.INBOUND,
+        topic=None,
+        propagation_as_span_links=True,
+        bootstrap_servers=bootstrap_servers,
+        group_id=group_id,
+        use_active_context=False,
+        activate=False,
+        component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
-    ) as ctx:
+        service=trace_utils.ext_service(None, config.aiokafka),
+    )
+
+    with core.context_with_event(event) as ctx:
         messages = await func(*args, **kwargs)
 
         topic = None
@@ -239,8 +254,20 @@ async def traced_getmany(func, instance, args, kwargs):
                     break
         cluster_id = await _get_cluster_id(instance._client, topic)
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id and span_from_context(ctx) is not None:
-            span_from_context(ctx)._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+        event.cluster_id = cluster_id
+        event.received_message = messages is not None
+
+        if messages:
+            topics_partitions: dict[str, list[int]] = {}
+            for topic_partition in messages:
+                partitions = topics_partitions.setdefault(topic_partition.topic, [])
+                partitions.append(topic_partition.partition)
+            event.topics_partitions = topics_partitions
+
+            for records in messages.values():
+                for record in records:
+                    if record.headers:
+                        event.message_headers.append(dict(record.headers))
 
         core.dispatch("aiokafka.getmany.message", (instance, ctx, messages))
 

@@ -1,4 +1,4 @@
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.attrdict import AttrDict
@@ -41,7 +41,7 @@ class IntegrationConfig(AttrDict):
         :param args:
         :param kwargs:
         """
-        super(IntegrationConfig, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # Set internal properties for this `IntegrationConfig`
         # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties

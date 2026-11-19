@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
@@ -19,6 +20,8 @@ def iast_create_context():
         dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
     ):
         initialize_native_state()
+        # Listeners for the SQL integrations' patch events must exist before those integrations are patched.
+        load_iast()
         sqlalchemy_patch()
         psycopg_patch()
         sqli_sqlite_patch()

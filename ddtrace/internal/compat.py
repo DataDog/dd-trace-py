@@ -1,29 +1,70 @@
+from functools import singledispatchmethod
 import ipaddress
 import sys
 from types import TracebackType
 from typing import Any
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Optional
+from typing import Union
 
 import wrapt
 
 
 __all__ = [
     "maybe_stringify",
+    "MAX_PY",
+    "NEXT_MAX_PY",
     "NEXT_PY_UNSUPPORTED_MSG",
-    "NEXT_PY_VERSION",
-    "NEXT_PY_VERSION_INFO",
     "PYTHON_VERSION_INFO",
+    "is_at_least_py",
+    "is_at_most_py",
+    "is_supported_python_version",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info
 
-# First CPython version that wrapping / bytecode injection do not support yet.
-NEXT_PY_VERSION: str = "3.16"
-_next_py_parts = NEXT_PY_VERSION.split(".")[:2]
-NEXT_PY_VERSION_INFO: tuple[int, int] = (int(_next_py_parts[0]), int(_next_py_parts[1]))
-NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Python %s and later)" % NEXT_PY_VERSION
+# Last officially supported CPython. Matches requires-python <3.16.
+MAX_PY: tuple[int, int] = (3, 15)
+
+# Next CPython: packaging exclusive ceiling and wrap-live inclusive ceiling.
+# wrap() / lazy are live through NEXT_MAX_PY (`is_supported_python_version()`); 3.17 dies.
+NEXT_MAX_PY: tuple[int, int] = (3, 16)
+
+NEXT_PY_UNSUPPORTED_MSG: str = (
+    f"This version of CPython is not supported yet: {sys.version_info[0]}.{sys.version_info[1]}"
+)
+
+
+def is_at_least_py(major: int, minor: int, version: Optional[tuple[int, ...]] = None) -> bool:
+    """True if version is at or past (major, minor).
+
+    Feature gates pass literals (`is_at_least_py(3, 15)`), not NEXT_MAX_PY.
+    """
+    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
+    return resolved[:2] >= (major, minor)
+
+
+def is_at_most_py(major: int, minor: int, version: Optional[tuple[int, ...]] = None) -> bool:
+    """True if version is at or below (major, minor) inclusive.
+
+    Exclusive `< (3, 13)` is `is_at_most_py(3, 12)`, not `is_at_most_py(3, 13)`.
+    Official packaging support is `is_at_most_py(*MAX_PY)`. The rolling runtime
+    ceiling is `is_supported_python_version()`. Feature gates stay
+    `is_at_least_py(3, 15)` literals, not these constants.
+    """
+    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
+    return resolved[:2] <= (major, minor)
+
+
+def is_supported_python_version(version: Optional[tuple[int, ...]] = None) -> bool:
+    """True if version is within the rolling runtime compatibility ceiling.
+
+    Encapsulates ``PYTHON_VERSION_INFO[:2] <= NEXT_MAX_PY``. This is the
+    inclusive runtime ceiling (wrap/lazy live through the next CPython under
+    development), not the packaging/official support range represented by
+    ``MAX_PY`` / ``requires-python``.
+    """
+    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
+    return resolved[:2] <= NEXT_MAX_PY
 
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
@@ -87,23 +128,17 @@ def ip_is_global(ip: str) -> bool:
 
 # This fix was implemented in 3.9.8
 # https://github.com/python/cpython/issues/83860
-if PYTHON_VERSION_INFO >= (3, 9, 8):
-    from functools import singledispatchmethod
-else:
-    from functools import singledispatchmethod
-
-    def _register(self, cls, method=None):
-        if hasattr(cls, "__func__"):
-            setattr(cls, "__annotations__", cls.__func__.__annotations__)
-        return self.dispatcher.register(cls, func=method)
-
-    singledispatchmethod.register = _register  # type: ignore[method-assign]
+def _singledispatchmethod_register(self: Any, cls: Any, method: Any = None) -> Any:
+    # Like CPython >= 3.9.8: only classmethod/staticmethod instances get
+    # annotations from __func__. hasattr catches the types too (member_descriptor)
+    # and blew up Symbol Database's @register(classmethod) on Python < 3.9.8.
+    if isinstance(cls, (staticmethod, classmethod)):
+        cls.__annotations__ = getattr(cls.__func__, "__annotations__", {})
+    return self.dispatcher.register(cls, func=method)
 
 
-def get_mp_context():
-    import multiprocessing
-
-    return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")
+if PYTHON_VERSION_INFO < (3, 9, 8):
+    singledispatchmethod.register = _singledispatchmethod_register  # type: ignore[method-assign]
 
 
 def __getattr__(name: str) -> Any:

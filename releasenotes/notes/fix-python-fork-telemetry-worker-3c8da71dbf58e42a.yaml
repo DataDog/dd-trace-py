@@ -1,0 +1,4 @@
+fixes:
+  - |
+    internal: Fixes an issue where Python-forked child processes can emit incorrect telemetry
+    lifecycle events or block while cleaning up an inherited telemetry worker.

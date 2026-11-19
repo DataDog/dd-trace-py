@@ -1,7 +1,9 @@
 import os
 import re
+from typing import Optional
+from typing import Union
 
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_error
@@ -14,12 +16,24 @@ from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 
 
+STACKTRACE_MARKERS = (
+    "Traceback (most recent call last):",
+    "Traceback <em>(most recent call last)",
+    '<div class="traceback">',
+)
+_STACKTRACE_MARKERS_BYTES = tuple(marker.encode() for marker in STACKTRACE_MARKERS)
+
+
+def has_stacktrace_marker(body: Union[bytes, bytearray]) -> bool:
+    return any(marker in body for marker in _STACKTRACE_MARKERS_BYTES)
+
+
 class StacktraceLeak(VulnerabilityBase):
     vulnerability_type = VULN_STACKTRACE_LEAK
     skip_location = True
 
 
-def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
+def asm_report_stacktrace_leak_from_django_debug_page(exc_name: str, module: object) -> None:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, StacktraceLeak.vulnerability_type)
     _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
     evidence = "Module: %s\nException: %s" % (module, exc_name)
@@ -30,37 +44,33 @@ def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
 # `werkzeug.DebugTraceback.render_debugger_html` runs outside of `iast_request_context`. Because of this, when
 # this function is called, we store the result to report it in the next request when there's context and the
 # span hasn't been sent yet.
-REPORT_STACKTRACE_LATER = None
+REPORT_STACKTRACE_LATER: Optional[str] = None
 
 
-def check_and_report_stacktrace_leak():
+def check_and_report_stacktrace_leak() -> None:
     report = get_report_stacktrace_later()
     if report:
         StacktraceLeak.report(evidence_value=report)
         set_report_stacktrace_later(None)
 
 
-def set_report_stacktrace_later(evidence):
+def set_report_stacktrace_later(evidence: Optional[str]) -> None:
     global REPORT_STACKTRACE_LATER
     REPORT_STACKTRACE_LATER = evidence
 
 
-def get_report_stacktrace_later():
+def get_report_stacktrace_later() -> Optional[str]:
     return REPORT_STACKTRACE_LATER
 
 
-def iast_check_stacktrace_leak(content: str) -> None:
+def iast_check_stacktrace_leak(content: str) -> bool:
     if not content:
-        return
+        return False
 
     try:
         # Quick check to avoid the slower operations if on stacktrace
-        if (
-            "Traceback (most recent call last):" not in content
-            and "Traceback <em>(most recent call last)" not in content
-            and '<div class="traceback">' not in content
-        ):
-            return
+        if not any(marker in content for marker in STACKTRACE_MARKERS):
+            return False
 
         text = HTML_TAGS_REMOVE.sub("", content)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -91,7 +101,7 @@ def iast_check_stacktrace_leak(content: str) -> None:
                 continue
 
         if not file_lines and not exception_line:
-            return
+            return False
 
         module_path = None
         if file_lines:
@@ -122,8 +132,8 @@ def iast_check_stacktrace_leak(content: str) -> None:
         _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
         evidence = "Module: %s\nException: %s" % (module_name.strip(), exception_line.strip())
         if is_iast_request_enabled():
-            StacktraceLeak.report(evidence_value=evidence)
-        else:
-            set_report_stacktrace_later(evidence)
+            return StacktraceLeak.report(evidence_value=evidence)
+        set_report_stacktrace_later(evidence)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in iast_check_stacktrace_leak", e)
+        iast_error("propagation::sink_point::Error in iast_check_stacktrace_leak", exc=e)
+    return False

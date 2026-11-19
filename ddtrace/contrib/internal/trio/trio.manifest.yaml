@@ -1,0 +1,11 @@
+_v: 1
+name: trio
+display_name: Trio
+description: Instruments Trio task scheduler steps and to_thread/from_thread worker boundaries to publish the active trace
+  context for native consumers.
+packages:
+- name: trio
+category:
+- task.execution
+systems: []
+creation_date: '2026-09-23'

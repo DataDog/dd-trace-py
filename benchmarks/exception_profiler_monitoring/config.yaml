@@ -1,0 +1,35 @@
+# Production-shaped exception profiler workloads. The baseline and candidate
+# both use ExceptionCollector and its Cython _on_exception callback; they differ
+# only in how sys.monitoring RAISE delivery reaches that callback.
+
+handled-interval-100:
+  workload: "handled"
+  sampling_interval: 100
+
+handled-interval-1:
+  workload: "handled"
+  sampling_interval: 1
+
+stop-iteration-interval-100:
+  workload: "stop_iteration"
+  sampling_interval: 100
+
+stop-iteration-interval-1:
+  workload: "stop_iteration"
+  sampling_interval: 1
+
+explicit-reraise-interval-100:
+  workload: "explicit_reraise"
+  sampling_interval: 100
+
+explicit-reraise-interval-1:
+  workload: "explicit_reraise"
+  sampling_interval: 1
+
+bare-reraise-interval-100:
+  workload: "bare_reraise"
+  sampling_interval: 100
+
+bare-reraise-interval-1:
+  workload: "bare_reraise"
+  sampling_interval: 1

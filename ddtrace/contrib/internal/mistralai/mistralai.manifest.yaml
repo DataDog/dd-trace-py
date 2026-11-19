@@ -1,0 +1,12 @@
+_v: 1
+name: mistralai
+display_name: Mistral AI
+description: Instruments synchronous and asynchronous Mistral AI chat completions, streamed responses, and embedding generation
+  for tracing and LLM Observability.
+packages:
+- name: mistralai
+category:
+- gen_ai
+systems:
+- mistral_ai
+creation_date: '2026-06-29'

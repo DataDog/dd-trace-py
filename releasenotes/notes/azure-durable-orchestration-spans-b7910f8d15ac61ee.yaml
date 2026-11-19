@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    azure_durable_functions: Adds tracing for orchestration function invocations and,
+    when Durable Functions distributed tracing V2 is enabled, connects durable
+    orchestration and activity spans to the originating trace without requiring
+    OpenTelemetry configuration.

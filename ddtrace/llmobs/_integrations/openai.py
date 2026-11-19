@@ -1,10 +1,15 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.openai._constants import BASE_URL
+from ddtrace.contrib.internal.openai._constants import provider_name
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
@@ -16,59 +21,54 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
+from ddtrace.llmobs._integrations.utils import get_openai_server_tool_usage_metrics
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_decision
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
-OPENAI_LLM_OPERATIONS = ("completion", "chat", "response")
+OPENAI_LLM_OPERATIONS = ("completion", "chat", "response", "decision")
+DECISION_PROVIDER_TAG = "decision_provider"
+OPENAI_DECISION_PROVIDER = "openai"
 
 
 class OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
 
-    def __init__(self, integration_config, openai):
-        # FIXME: this currently does not consider if the tracer is configured to
-        # use a different hostname. eg. tracer.configure(host="new-hostname")
-        # Ideally the metrics client should live on the tracer or some other core
-        # object that is strongly linked with configuration.
-        super().__init__(integration_config)
-        self._openai = openai
-        self._client = None
-
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
-        traced_operations = (
-            "createCompletion",
-            "createChatCompletion",
-            "createEmbedding",
-            "createResponse",
-            "parseChatCompletion",
-            "parseResponse",
-            "createRealtimeResponse",
-        )
-        if operation_id in traced_operations:
-            submit_to_llmobs = True
-        log.debug("Creating LLM span for openai operation: %s", operation_id)
-        return super().trace(operation_id, submit_to_llmobs, **kwargs)
-
-    def _set_base_span_tags(self, span: Span, **kwargs) -> None:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> _LLMObsSpan:
+        """Start a span that LLMObs creates itself, such as a Realtime turn's, with the OpenAI integration's
+        APM tags. The openai integration sets them on the spans of the requests it traces.
+        """
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
         span._set_attribute(COMPONENT, self.integration_config.integration_name)
+        span._set_attribute("openai.request.provider", provider_name(self._base_url(span) or ""))
+        return span
 
-        client = "OpenAI"
-        if self._is_provider(span, "azure"):
-            client = "AzureOpenAI"
-        elif self._is_provider(span, "deepseek"):
-            client = "Deepseek"
-        span._set_attribute("openai.request.provider", client)
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs) -> None:
+        """Nothing to do: the openai integration sets the OpenAI APM tags."""
+
+    def llmobs_set_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        # The openai integration also traces file, model, image and audio requests, which carry no LLMObs
+        # data or APM shadow tags.
+        if not operation:
+            return
+        super().llmobs_set_tags(span, args, kwargs, response=response, operation=operation)
 
     def _get_model_provider(self, span) -> str:
         if self._is_provider(span, "azure"):
@@ -79,25 +79,29 @@ class OpenAIIntegration(BaseLLMIntegration):
             return "deepseek"
         return UNKNOWN_MODEL_PROVIDER
 
+    @staticmethod
+    def _base_url(span: Optional[_LLMObsSpan]) -> Optional[str]:
+        if span is None:
+            return None
+        # The openai integration records the base URL of each request it traces; spans this integration
+        # starts itself record their client's in REQUEST_BASE_URL.
+        base_url = span._get_ctx_item(BASE_URL) or span._get_ctx_item(REQUEST_BASE_URL)
+        return str(base_url) if base_url else None
+
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
-        base_url = None
-        if span is not None:
-            base_url = span._get_ctx_item(REQUEST_BASE_URL)
+        base_url = self._base_url(span)
         if not base_url:
-            base_url = getattr(self._client, "_base_url", None)
-        base_url = str(base_url) if base_url else None
-        if not base_url or not isinstance(base_url, str):
             return False
         return provider.lower() in base_url.lower()
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "completion", "chat", "embedding", "response"
+        operation: str = "",  # oneof "completion", "chat", "embedding", "response", "decision"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = (
@@ -113,7 +117,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         provider = span.get_tag("openai.request.provider") or "OpenAI"
-        span_name = "{}.{}".format(provider, span.resource) if span.resource else None
+        span_name = f"{provider}.{span.resource}" if span.resource else None
         # Set kind before helpers so that input/output messages are routed correctly
         _annotate_llmobs_span_data(
             span,
@@ -122,6 +126,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_name=model_name,
             model_provider=model_provider,
             metrics=metrics,
+            tags={DECISION_PROVIDER_TAG: OPENAI_DECISION_PROVIDER} if operation == "decision" else None,
         )
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
@@ -131,11 +136,13 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         elif operation == "response":
             openai_set_meta_tags_from_response(span, kwargs, response, self)
+        elif operation == "decision":
+            openai_set_meta_tags_from_decision(span, kwargs, response)
         elif operation == "tool":
             self._llmobs_set_tags_from_tool(span, kwargs, response)
 
     @staticmethod
-    def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: dict[str, Any], resp: Any) -> None:
+    def _llmobs_set_meta_tags_from_embedding(span: _LLMObsSpan, kwargs: dict[str, Any], resp: Any) -> None:
         """Extract prompt tags from an embedding and set them as temporary "_ml_obs.meta.*" tags."""
         encoding_format = kwargs.get("encoding_format") or "float"
         metadata = {"encoding_format": encoding_format}
@@ -153,19 +160,19 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
-            output_value = "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
+            output_value = f"[{len(resp.data)} embedding(s) returned with size {embedding_dim}]"
         else:
-            output_value = "[{} embedding(s) returned]".format(len(resp.data))
+            output_value = f"[{len(resp.data)} embedding(s) returned]"
         _annotate_llmobs_span_data(span, output_value=output_value)
 
     @staticmethod
-    def _llmobs_set_tags_from_tool(span: Span, kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_from_tool(span: _LLMObsSpan, kwargs: dict[str, Any], response: Any) -> None:
         """Extract tool name, arguments, and output from the request and response to be submitted to LLMObs."""
         tool_id = kwargs.get("tool_id", "unknown_tool_id")
         tool_name = kwargs.get("name", "unknown_tool")
         tool_arguments = kwargs.get("arguments")
 
-        span_name = "MCP Client Tool Call: {}".format(tool_name)
+        span_name = f"MCP Client Tool Call: {tool_name}"
         span.name = span_name
 
         _annotate_llmobs_span_data(
@@ -179,14 +186,14 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_from_realtime_response(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         model_name: Optional[str],
         input_messages: list[Any],
         output_messages: list[Any],
         metadata: Optional[dict[str, Any]],
         metrics: Optional[dict[str, Any]],
         session_id: Optional[str] = None,
-        parent_span: Optional[Span] = None,
+        parent_span: Optional[_LLMObsSpan] = None,
     ) -> None:
         """Tag a per-turn Realtime llm span (the model's generation work) built by the state machine.
 
@@ -205,7 +212,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
         _annotate_llmobs_span_data(
             span,
-            name="{}.{}".format(provider, span.resource) if span.resource else None,
+            name=f"{provider}.{span.resource}" if span.resource else None,
             kind="llm",
             model_name=model_name or "unknown_model",
             model_provider=model_provider,
@@ -226,10 +233,10 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_from_realtime_workflow(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         name: str,
         session_id: Optional[str] = None,
-        parent_span: Optional[Span] = None,
+        parent_span: Optional[_LLMObsSpan] = None,
         input_value: Any = None,
         output_value: Any = None,
         metadata: Optional[dict[str, Any]] = None,
@@ -280,7 +287,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _extract_llmobs_metrics_tags(
-        span: Span, resp: Any, span_kind: str, kwargs: dict[str, Any]
+        span: _LLMObsSpan, resp: Any, span_kind: str, kwargs: dict[str, Any]
     ) -> Optional[dict[str, Any]]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         if span_kind == "workflow":
@@ -317,6 +324,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             cache_write_tokens = _get_attr(prompt_tokens_details, "cache_write_tokens", None)
             if cache_write_tokens is not None:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+            cache_write_tokens_details = _get_attr(prompt_tokens_details, "cache_write_tokens_details", None)
+            if cache_write_tokens_details:
+                ttl_30m_tokens = _get_attr(cache_write_tokens_details, "ttl_30m_tokens", None)
+                if ttl_30m_tokens is not None:
+                    metrics[CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY] = ttl_30m_tokens
+                ttl_12h_tokens = _get_attr(cache_write_tokens_details, "ttl_12h_tokens", None)
+                if ttl_12h_tokens is not None:
+                    metrics[CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY] = ttl_12h_tokens
             # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
             reasoning_output_tokens_details = _get_attr(token_usage, "completion_tokens_details", {}) or _get_attr(
                 token_usage, "output_tokens_details", {}
@@ -325,8 +340,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             if reasoning_output_tokens is not None:
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
             metrics.update(get_openrouter_cost_metrics(token_usage))
+            metrics.update(get_openai_server_tool_usage_metrics(resp))
             return metrics
-        elif kwargs.get("stream") and resp is not None:
+        elif kwargs.get("stream") and isinstance(resp, list):
+            # `_compute_completion_tokens` expects the chat/completion shape: a list of message
+            # dicts. A Responses API `resp` is a single pydantic object, and iterating one yields
+            # (field, value) tuples, so estimating from it raises and loses every tag on the span.
+            # A completed Responses stream never reaches here (it carries `usage`); a truncated one
+            # does, which is why this only surfaces when a stream ends early.
             prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))
             completion_tokens = _compute_completion_tokens(resp)
             total_tokens = prompt_tokens + completion_tokens
