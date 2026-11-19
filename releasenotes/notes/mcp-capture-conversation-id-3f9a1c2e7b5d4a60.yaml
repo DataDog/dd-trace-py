@@ -1,7 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds ``DD_MCP_CAPTURE_CONVERSATION_ID`` to group MCP server tool calls into sessions.
-    When enabled, the first tool call of a conversation gets a generated conversation ID, and its result asks the agent
-    to send that ID back in the ``telemetry.conversation_id`` argument on later calls. The ID is set as the
-    ``session_id`` of each MCP server tool span. Tool calls that already have a session ID are not changed.

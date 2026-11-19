@@ -24,10 +24,10 @@ def _on_tools_list_response(response: Any) -> None:
         integration.inject_tools_list_response(response)
 
 
-def _on_telemetry_argument(span: Any, request: Any) -> None:
+def _on_telemetry_argument(span: Any, request: Any, transport_session_id: Optional[str]) -> None:
     integration = _integration()
     if integration is not None:
-        integration.process_telemetry_argument(span, request)
+        integration.process_telemetry_argument(span, request, transport_session_id)
 
 
 def _on_tool_result(span: Any, result: Any) -> None:

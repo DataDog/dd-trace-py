@@ -573,7 +573,7 @@ def test_conversation_id_capture(mcp_setup, mcp_llmobs, test_spans, mcp_server):
             )
             return tools, first, second, conversation_id
 
-    with override_config("mcp", dict(capture_conversation_id=True)):
+    with override_config("mcp", dict(capture_session=True)):
         tools, first, second, conversation_id = asyncio.run(run_test())
 
     schema = next(t for t in tools.tools if t.name == "calculator").inputSchema

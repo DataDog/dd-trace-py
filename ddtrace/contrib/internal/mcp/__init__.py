@@ -29,11 +29,13 @@ Configuration
    variable.
    Default: ``True``
 
-.. py:data:: ddtrace.config.mcp["capture_conversation_id"]
-   Whether to group MCP server tool calls into LLM Observability sessions. Requires LLM Observability.
+.. py:data:: ddtrace.config.mcp["capture_session"]
+   Whether to group MCP server tool calls into LLM Observability sessions when MCP has no session of its own,
+   such as over stdio or with the stateless protocol. Requires LLM Observability.
    When enabled, each tool input schema gets an optional ``telemetry.conversation_id`` argument. A tool call
    without it gets a generated ID, and its result gets an extra text block that asks the agent to send the ID
-   on later calls. The ID is set as the ``session_id`` of the server tool span, unless the span already has one.
-   Alternatively, set this option with the ``DD_MCP_CAPTURE_CONVERSATION_ID`` environment variable.
+   on later calls. The ID is set as the ``session_id`` of the server tool span.
+   Requests with an ``mcp-session-id`` header, and spans that already have a ``session_id``, are not changed.
+   Alternatively, set this option with the ``DD_MCP_CAPTURE_SESSION`` environment variable.
    Default: ``False``
 """  # noqa: E501

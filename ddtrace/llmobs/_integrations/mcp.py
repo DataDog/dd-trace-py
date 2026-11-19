@@ -5,6 +5,7 @@ from typing import get_args
 from ddtrace import config
 from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
+from ddtrace.contrib.internal.mcp._constants import MCP_SESSION_ID_HEADER
 from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
@@ -27,7 +28,6 @@ log = get_logger(__name__)
 
 MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
 
-MCP_SESSION_ID_HEADER = "mcp-session-id"
 MCP_RESERVED_META_KEY_PREFIX = "io.modelcontextprotocol/"
 # Client identity is self-reported and repeated on every tool call span in a session
 MAX_CLIENT_INFO_TAG_LENGTH = 256
@@ -53,7 +53,7 @@ def dd_trace_input_schema() -> dict[str, Any]:
     if config.mcp.capture_intent:
         properties[INTENT_KEY] = {"type": "string", "description": INTENT_PROMPT}
         required.append(INTENT_KEY)
-    if config.mcp.capture_conversation_id:
+    if config.mcp.capture_session:
         properties[CONVERSATION_ID_KEY] = {"type": "string", "description": CONVERSATION_ID_PROMPT}
     return {"type": "object", "properties": properties, "required": required}
 
@@ -243,7 +243,9 @@ class MCPIntegration(BaseLLMIntegration):
 
         _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
-    def process_telemetry_argument(self, span: _LLMObsSpan, request: Any) -> None:
+    def process_telemetry_argument(
+        self, span: _LLMObsSpan, request: Any, transport_session_id: Optional[str] = None
+    ) -> None:
         """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
         """
@@ -261,7 +263,8 @@ class MCPIntegration(BaseLLMIntegration):
             # The argument is removed before recording the input and calling the tool
             del arguments[TELEMETRY_KEY]
 
-        if config.mcp.capture_conversation_id and not get_llmobs_session_id(span):
+        # Only when MCP has no session of its own, e.g. stdio or the stateless protocol
+        if config.mcp.capture_session and not transport_session_id and not get_llmobs_session_id(span):
             conversation_id = _get_attr(telemetry, CONVERSATION_ID_KEY, None) if telemetry else None
             if not isinstance(conversation_id, str) or not conversation_id:
                 conversation_id = uuid4().replace("-", "")

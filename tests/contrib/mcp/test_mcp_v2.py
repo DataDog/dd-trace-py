@@ -247,7 +247,7 @@ def test_conversation_id_capture(mcp_llmobs, test_spans, run_client, mode):
         )
         return tools, first, second, conversation_id
 
-    with override_config("mcp", dict(capture_intent=True, capture_conversation_id=True)):
+    with override_config("mcp", dict(capture_intent=True, capture_session=True)):
         tools, first, second, conversation_id = run_client(mode, run)
 
     telemetry_schema = next(t for t in tools.tools if t.name == "calculator").input_schema["properties"]["telemetry"]
@@ -273,9 +273,25 @@ def test_conversation_id_capture_disabled_by_default(mcp_llmobs, test_spans, run
 
 
 def test_conversation_id_capture_without_arguments(mcp_llmobs, test_spans, run_client):
-    with override_config("mcp", dict(capture_conversation_id=True)):
+    with override_config("mcp", dict(capture_session=True)):
         result = run_client("auto", lambda client: client.call_tool("calculator"))
 
     conversation_id = get_llmobs_session_id(_only(_pop_spans(test_spans), "server_tool_call"))
     assert conversation_id
     assert conversation_id in result.content[-1].text
+
+
+@pytest.mark.parametrize("transport_session_id", [None, "transport-session"])
+def test_conversation_id_capture_skipped_with_transport_session(mcp_llmobs, transport_session_id):
+    from ddtrace.llmobs._contrib._subscribers import get_integration
+
+    integration = get_integration("mcp")
+    request = {"params": {"arguments": {}}}
+    with override_config("mcp", dict(capture_session=True)), LLMObs.tool(name="calculator") as span:
+        integration.process_telemetry_argument(span, request, transport_session_id)
+        session_id = get_llmobs_session_id(span)
+
+    if transport_session_id:
+        assert session_id is None
+    else:
+        assert len(session_id) == 32

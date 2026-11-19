@@ -2648,7 +2648,7 @@
         "default": "false"
       }
     ],
-    "DD_MCP_CAPTURE_CONVERSATION_ID": [
+    "DD_MCP_CAPTURE_SESSION": [
       {
         "implementation": "A",
         "type": "boolean",
