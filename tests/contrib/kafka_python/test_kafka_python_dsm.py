@@ -150,3 +150,44 @@ def test_auto_commit_offsets_tracked(dsm_processor):
 
     key = ConsumerPartitionKey(GROUP_ID, topic, 0, cluster_id)
     assert max_commit_offset(dsm_processor, key) == records[-1].offset + 1
+
+
+def test_async_commit_tracked_after_success(dsm_processor):
+    topic = create_topic("async_commit")
+    _produce(topic, count=2)
+
+    consumer = make_consumer(topic)
+    try:
+        records = iterate_records(consumer, 2)
+        cluster_id = _cluster_id(consumer._client.cluster)
+        key = ConsumerPartitionKey(GROUP_ID, topic, 0, cluster_id)
+        done = []
+        consumer.commit_async(callback=lambda offsets, response: done.append(response))
+        for _ in range(50):
+            if done:
+                break
+            consumer.poll(timeout_ms=100)
+    finally:
+        consumer.close(autocommit=False)
+
+    assert done and not isinstance(done[0], Exception)
+    assert max_commit_offset(dsm_processor, key) == records[-1].offset + 1
+
+
+def test_produce_checkpoint_without_header_support(dsm_processor):
+    from kafka import KafkaProducer
+
+    from .utils import BOOTSTRAP_SERVERS
+
+    topic = create_topic("old_api_version")
+    producer = KafkaProducer(bootstrap_servers=BOOTSTRAP_SERVERS, api_version=(0, 10, 2))
+    try:
+        cluster_id = _cluster_id(producer._metadata)
+        producer.send(topic, value=PAYLOAD).get(timeout=30)
+    finally:
+        producer.close()
+
+    producer_tags = _edge_tags("out", topic, cluster_id)
+    ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
+    producer_hash = ctx._compute_hash(producer_tags, 0)
+    assert (",".join(producer_tags), producer_hash, 0) in pathway_stats_merged(dsm_processor)

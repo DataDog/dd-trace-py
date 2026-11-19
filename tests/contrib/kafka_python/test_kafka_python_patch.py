@@ -16,18 +16,18 @@ class TestKafkaPythonPatch(PatchTestCase.Base):
         self.assert_wrapped(kafka.KafkaConsumer.__next__)
         self.assert_wrapped(kafka.KafkaConsumer.poll)
         self.assert_wrapped(kafka.coordinator.consumer.ConsumerCoordinator.commit_offsets_sync)
-        self.assert_wrapped(kafka.coordinator.consumer.ConsumerCoordinator.commit_offsets_async)
+        self.assert_wrapped(kafka.coordinator.consumer.ConsumerCoordinator._do_commit_offsets_async)
 
     def assert_not_module_patched(self, kafka):
         self.assert_not_wrapped(kafka.KafkaProducer.send)
         self.assert_not_wrapped(kafka.KafkaConsumer.__next__)
         self.assert_not_wrapped(kafka.KafkaConsumer.poll)
         self.assert_not_wrapped(kafka.coordinator.consumer.ConsumerCoordinator.commit_offsets_sync)
-        self.assert_not_wrapped(kafka.coordinator.consumer.ConsumerCoordinator.commit_offsets_async)
+        self.assert_not_wrapped(kafka.coordinator.consumer.ConsumerCoordinator._do_commit_offsets_async)
 
     def assert_not_module_double_patched(self, kafka):
         self.assert_not_double_wrapped(kafka.KafkaProducer.send)
         self.assert_not_double_wrapped(kafka.KafkaConsumer.__next__)
         self.assert_not_double_wrapped(kafka.KafkaConsumer.poll)
         self.assert_not_double_wrapped(kafka.coordinator.consumer.ConsumerCoordinator.commit_offsets_sync)
-        self.assert_not_double_wrapped(kafka.coordinator.consumer.ConsumerCoordinator.commit_offsets_async)
+        self.assert_not_double_wrapped(kafka.coordinator.consumer.ConsumerCoordinator._do_commit_offsets_async)

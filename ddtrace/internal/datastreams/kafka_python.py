@@ -80,7 +80,9 @@ def dsm_kafka_python_message_consume(instance: Any, span_ctx: core.ExecutionCont
     payload_size = _calculate_byte_size(record.value) + _calculate_byte_size(record.key) + _calculate_byte_size(headers)
 
     ctx = DsmPathwayCodec.decode(headers, dsm_processor)
-    edge_tags = ["direction:in", f"group:{group}", f"topic:{record.topic}", "type:kafka"]
+    edge_tags = ["direction:in", f"topic:{record.topic}", "type:kafka"]
+    if group:
+        edge_tags.append(f"group:{group}")
     if cluster_id:
         edge_tags.append(f"kafka_cluster_id:{cluster_id}")
     ctx.set_checkpoint(edge_tags, payload_size=payload_size, span=span_from_context(span_ctx))
