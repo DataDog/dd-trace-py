@@ -1,3 +1,4 @@
+import molten
 import wrapt
 
 from ddtrace import config
@@ -13,8 +14,13 @@ from ddtrace.internal.utils.importlib import func_name
 MOLTEN_REQUEST_CONTEXT_KEY = "molten.request.context"
 
 
+def _is_tracing_active() -> bool:
+    # Wrapped app attributes outlive unpatch(), so the wrappers must stop tracing once molten is unpatched.
+    return getattr(molten, "_datadog_patch", False) and is_tracing_enabled()
+
+
 def trace_wrapped(resource, wrapped, *args, **kwargs):
-    if not is_tracing_enabled():
+    if not _is_tracing_active():
         return wrapped(*args, **kwargs)
 
     with core.context_with_event(
@@ -68,7 +74,7 @@ class WrapperRouter(wrapt.ObjectProxy):
         func = self.__wrapped__.match
         route_and_params = func(*args, **kwargs)
 
-        if not is_tracing_enabled():
+        if not _is_tracing_active():
             return route_and_params
 
         if route_and_params is not None:
