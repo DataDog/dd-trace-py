@@ -288,9 +288,8 @@ class MCPIntegration(BaseLLMIntegration):
         try:
             pending = self._pending_conversation_ids.get(connection) if connection is not None else None
             if pending and now - pending[1] < PENDING_CONVERSATION_ID_SECONDS:
-                conversation_id = pending[0]
-            else:
-                conversation_id = uuid4().replace("-", "")
+                return pending[0]
+            conversation_id = uuid4().replace("-", "")
             if connection is not None:
                 self._pending_conversation_ids[connection] = (conversation_id, now)
             return conversation_id

@@ -325,3 +325,21 @@ def test_conversation_id_capture_strips_empty_telemetry(mcp_llmobs, test_spans, 
     server_span = _only(_pop_spans(test_spans), "server_tool_call")
     assert "telemetry" not in json.loads(get_llmobs_input_value(server_span))["params"]["arguments"]
     assert get_llmobs_session_id(server_span)
+
+
+def test_pending_conversation_id_keeps_creation_time(mcp_llmobs):
+    from ddtrace.llmobs._contrib._subscribers import get_integration
+
+    class Connection:
+        pass
+
+    integration = get_integration("mcp")
+    connection = Connection()
+    with override_config("mcp", dict(capture_session=True)):
+        first = integration._new_conversation_id(connection)
+        conversation_id, created = integration._pending_conversation_ids[connection]
+        integration._pending_conversation_ids[connection] = (conversation_id, created - 1.5)
+        assert integration._new_conversation_id(connection) == first
+        assert integration._pending_conversation_ids[connection][1] == created - 1.5
+        integration._pending_conversation_ids[connection] = (conversation_id, created - 2.5)
+        assert integration._new_conversation_id(connection) != first
