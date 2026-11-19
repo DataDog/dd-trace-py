@@ -36,8 +36,7 @@ class DatabaseOperationEvent(Event):
 
     component: str = event_field()
     integration_config: IntegrationConfig = event_field()
-    database_operation: InitVar[str] = event_field()
-    operation_name: str = event_field(default="")
+    operation_name: str = event_field()
     service: Optional[str] = event_field(default=None)
     resource: Any = event_field(default=None)
     measured: bool = event_field(default=True)
@@ -56,8 +55,7 @@ class DatabaseOperationEvent(Event):
     connection_tags_updated: bool = event_field(default=False)
     _connection_tag_names: set[str] = event_field(default_factory=set)
 
-    def __post_init__(self, database_operation: str, connection_tags: Optional[Mapping[str, Any]]) -> None:
-        self.operation_name = database_operation
+    def __post_init__(self, connection_tags: Optional[Mapping[str, Any]]) -> None:
         tags = self.tags
         self.tags = {}
         self.set_connection_tags(connection_tags or {})

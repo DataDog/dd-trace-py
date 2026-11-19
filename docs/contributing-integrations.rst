@@ -121,7 +121,10 @@ exclusions for fetches, stored procedures, and prepared statements.
 Publish result metadata in the driver's ``finally`` block, before the operation
 context exits. Preserve ``_set_post_execute_tags(span)`` when extending DB-API
 cursors: existing subclasses use this hook, and it runs after driver success or
-failure, but not when security checks prevent execution. Preserve each driver's
+failure, but not when security checks prevent execution. The shared
+``_trace_method_context()`` owns this lifecycle for both synchronous and
+asynchronous DB-API cursors; their ``_trace_method()`` implementations only check
+enablement and invoke or await the driver. Preserve each driver's
 service attribution, measured flags, span types, and metadata ordering when
 adopting the shared event.
 

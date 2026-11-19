@@ -2,7 +2,9 @@
 Generic dbapi tracing code.
 """
 
+from collections.abc import Iterator
 from collections.abc import Mapping
+from contextlib import contextmanager
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -103,31 +105,36 @@ class TracedCursor(wrapt.ObjectProxy):
         *args: Any,
         **kwargs: Any,
     ) -> Any:
-        """
-        Internal function to trace the call to the underlying cursor method
-        :param method: The callable to be wrapped
-        :param name: The name of the resulting span.
-        :param resource: The sql query. Sql queries are obfuscated on the agent side.
-        :param extra_tags: A dict of tags to store into the span's meta
-        :param dbm_propagator: _DBM_Propagator, prepends dbm comments to sql statements
-        :param args: The args that will be passed as positional args to the wrapped method
-        :param kwargs: The args that will be passed as kwargs to the wrapped method
-        :return: The result of the wrapped method invocation
-        """
         if not is_tracing_enabled():
             return method(*args, **kwargs)
-        measured = name == self._self_datadog_name
+        with self._trace_method_context(method, name, resource, extra_tags, dbm_propagator, args, kwargs) as (
+            args,
+            kwargs,
+        ):
+            return method(*args, **kwargs)
 
+    @contextmanager
+    def _trace_method_context(
+        self,
+        method: Callable[..., Any],
+        name: str,
+        resource: Any,
+        extra_tags: dict[str, Any],
+        dbm_propagator: Any,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Iterator[tuple[tuple[Any, ...], dict[str, Any]]]:
+        """Share query checks, DBM injection, and completion around sync and async driver calls."""
         with core.context_with_event(
             DatabaseOperationEvent(
                 component=self._self_config.integration_name,
                 integration_config=self._self_config,
-                database_operation=name,
+                operation_name=name,
                 service=ext_service(None, self._self_config),
                 resource=resource,
-                measured=measured,
+                measured=name == self._self_datadog_name,
                 connection_tags=self._self_db_tags,
-                tags=dict(extra_tags),
+                tags=extra_tags,
             )
         ) as ctx:
             # No reason to tag the query since it is set as the resource by the agent. See:
@@ -143,7 +150,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 args, kwargs = injection.args, injection.kwargs
 
             try:
-                return method(*args, **kwargs)
+                yield args, kwargs
             finally:
                 # Try to fetch custom properties that were passed by the specific Database implementation
                 self._set_post_execute_tags(span_from_context(ctx))
@@ -345,20 +352,21 @@ class TracedConnection(wrapt.ObjectProxy):
         if not is_tracing_enabled():
             return method(*args, **kwargs)
 
-        with core.context_with_event(
-            DatabaseOperationEvent(
-                component=self._self_config.integration_name,
-                integration_config=self._self_config,
-                database_operation=name,
-                service=ext_service(None, self._self_config),
-                measured=False,
-                metadata_before_tags=True,
-                span_type=None,
-                connection_tags=self._self_db_tags,
-                tags=dict(extra_tags),
-            )
-        ):
+        with core.context_with_event(self._trace_event(name, extra_tags)):
             return method(*args, **kwargs)
+
+    def _trace_event(self, name: str, extra_tags: dict[str, Any]) -> DatabaseOperationEvent:
+        return DatabaseOperationEvent(
+            component=self._self_config.integration_name,
+            integration_config=self._self_config,
+            operation_name=name,
+            service=ext_service(None, self._self_config),
+            measured=False,
+            metadata_before_tags=True,
+            span_type=None,
+            connection_tags=self._self_db_tags,
+            tags=extra_tags,
+        )
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)

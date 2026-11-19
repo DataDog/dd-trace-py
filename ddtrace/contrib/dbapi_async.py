@@ -3,18 +3,14 @@ from typing import Any
 from typing import Callable
 
 from ddtrace import config
-from ddtrace.contrib._events.dbapi import DatabaseDbmInjectionEvent
-from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 
 from .dbapi import TracedConnection
 from .dbapi import TracedCursor
-from .internal.trace_utils import ext_service
 from .internal.trace_utils import is_tracing_enabled
 from .internal.trace_utils import iswrapped
 
@@ -54,51 +50,13 @@ class TracedAsyncCursor(TracedCursor):
         *args: Any,
         **kwargs: Any,
     ) -> Any:
-        """
-        Internal function to trace the call to the underlying cursor method
-        :param method: The callable to be wrapped
-        :param name: The name of the resulting span.
-        :param resource: The sql query. Sql queries are obfuscated on the agent side.
-        :param extra_tags: A dict of tags to store into the span's meta
-        :param dbm_propagator: _DBM_Propagator, prepends dbm comments to sql statements
-        :param args: The args that will be passed as positional args to the wrapped method
-        :param kwargs: The args that will be passed as kwargs to the wrapped method
-        :return: The result of the wrapped method invocation
-        """
         if not is_tracing_enabled():
             return await method(*args, **kwargs)
-        measured = name == self._self_datadog_name
-
-        with core.context_with_event(
-            DatabaseOperationEvent(
-                component=self._self_config.integration_name,
-                integration_config=self._self_config,
-                database_operation=name,
-                service=ext_service(None, self._self_config),
-                resource=resource,
-                measured=measured,
-                connection_tags=self._self_db_tags,
-                tags=dict(extra_tags),
-            )
-        ) as ctx:
-            # No reason to tag the query since it is set as the resource by the agent. See:
-            # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-
-            # Security and IAST validations
-            core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
-
-            # dispatch DBM
-            if dbm_propagator:
-                # this check is necessary to prevent fetch methods from trying to add dbm propagation
-                injection = DatabaseDbmInjectionEvent(context=ctx, args=args, kwargs=kwargs)
-                core.dispatch_event(injection)
-                args, kwargs = injection.args, injection.kwargs
-
-            try:
-                return await method(*args, **kwargs)
-            finally:
-                # Try to fetch custom properties that were passed by the specific Database implementation
-                self._set_post_execute_tags(span_from_context(ctx))
+        with self._trace_method_context(method, name, resource, extra_tags, dbm_propagator, args, kwargs) as (
+            args,
+            kwargs,
+        ):
+            return await method(*args, **kwargs)
 
     async def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
@@ -267,19 +225,7 @@ class TracedAsyncConnection(TracedConnection):
         if not is_tracing_enabled():
             return await method(*args, **kwargs)
 
-        with core.context_with_event(
-            DatabaseOperationEvent(
-                component=self._self_config.integration_name,
-                integration_config=self._self_config,
-                database_operation=name,
-                service=ext_service(None, self._self_config),
-                measured=False,
-                metadata_before_tags=True,
-                span_type=None,
-                connection_tags=self._self_db_tags,
-                tags=dict(extra_tags),
-            )
-        ):
+        with core.context_with_event(self._trace_event(name, extra_tags)):
             return await method(*args, **kwargs)
 
     async def commit(self, *args, **kwargs):

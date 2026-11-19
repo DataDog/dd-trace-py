@@ -80,7 +80,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         event = DatabaseOperationEvent(
             component=config.aiomysql.integration_name,
             integration_config=config.aiomysql,
-            database_operation=self._self_datadog_name,
+            operation_name=self._self_datadog_name,
             resource=resource,
             service=trace_utils.ext_service(None, config.aiomysql),
             service_from_config=True,

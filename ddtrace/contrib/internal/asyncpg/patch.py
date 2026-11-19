@@ -107,7 +107,7 @@ async def _traced_connect(
     event = DatabaseOperationEvent(
         component=config.asyncpg.integration_name,
         integration_config=config.asyncpg,
-        database_operation="postgres.connect",
+        operation_name="postgres.connect",
         service=ext_service(pin, config.asyncpg),
         service_from_config=True,
         metadata_before_tags=True,
@@ -140,7 +140,7 @@ async def _traced_query(
     event = DatabaseOperationEvent(
         component=config.asyncpg.integration_name,
         integration_config=config.asyncpg,
-        database_operation=schematize_database_operation("postgres.query", database_provider="postgresql"),
+        operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         service=ext_service(pin, config.asyncpg),
         service_from_config=True,
         metadata_before_tags=True,
