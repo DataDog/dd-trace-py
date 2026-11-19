@@ -512,6 +512,17 @@ the parent.
 > must use their own timeouts — an unbounded block will prevent `fork()` from
 > returning until the operation completes, which can hang pre-fork servers.
 
+**Boot gate**
+
+Sitecustomize holds `threads.boot_gate` closed (`boot_gate.held()`) while
+preload and module cloning run, so that threads started meanwhile wait on it
+before running their target, and opens it once `cleanup_loaded_modules()`
+has finished, before the `post_preload` hooks and any user code run, as those
+may wait on ddtrace threads. Only the hold, and exit, open the gate. Joining a
+held thread, including the joins before a fork, releases that thread alone, and
+a restarted thread waits on the gate again; released periodic threads skip
+their target, while one-shot threads run it once.
+
 **Phase 2 — after fork**
 
 Both the parent and the child call `_after_fork()` on every thread. In the

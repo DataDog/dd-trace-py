@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Profiling: A bug where the experimental remote configuration feature was listening to
+    more configurations types than expected was fixed.
