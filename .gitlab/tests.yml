@@ -81,9 +81,21 @@ extract_test_artifacts:
       esac
     - !reference [.testrunner, before_script]
     - |
+      # A staging API key provided from "Run pipeline" sends Test Optimization data agentless to staging
+      # instead of through the node agent, which reports to production.
+      if [[ -n "${_CI_DD_STAGING_API_KEY:-}" && "${_CI_DD_STAGING_API_KEY}" != '$_CI_DD_STAGING_API_KEY' ]]; then
+        export _CI_DD_API_KEY="${_CI_DD_STAGING_API_KEY}"
+        export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+        export _CI_DD_SITE=datad0g.com
+        unset _CI_DD_AGENT_URL
+      fi
+      unset _CI_DD_STAGING_API_KEY
+    - |
       # The native IAST suite compiles repository C++ sources and does not import ddtrace.
       # Other test jobs remove the checkout package so Python imports use the wheel.
       if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" ]]; then
+        # Keep the removal out of git status and diffs, which TIA uses to detect changes since its map.
+        git ls-files -z -- ddtrace | xargs -0 git update-index --skip-worktree --
         rm -r "$CI_PROJECT_DIR/ddtrace"
       fi
     # Keep repository test helpers importable; ddtrace itself resolves from the installed wheel.

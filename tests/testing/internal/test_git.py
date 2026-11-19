@@ -2,6 +2,7 @@
 
 import contextlib
 from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import patch
 
 import pytest
@@ -406,7 +407,8 @@ class TestGitUnshallow:
     """Tests for git unshallow logic."""
 
     @pytest.mark.parametrize("return_code", [0, 1])
-    def test_git_unshallow_repository(self, return_code: int) -> None:
+    @pytest.mark.parametrize("full_history", [False, True])
+    def test_git_unshallow_repository(self, return_code: int, full_history: bool) -> None:
         with (
             patch(
                 "ddtrace.testing.internal.git.Git._call_git",
@@ -416,7 +418,7 @@ class TestGitUnshallow:
             patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
             patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
         ):
-            result = Git().unshallow_repository("some-sha")
+            result = Git().unshallow_repository("some-sha", full_history=full_history)
 
         assert result.return_code == return_code
 
@@ -424,7 +426,7 @@ class TestGitUnshallow:
         git_command = call_git_mock.call_args[0][0]
         assert git_command == [
             "fetch",
-            '--shallow-since="1 month ago"',
+            "--unshallow" if full_history else '--shallow-since="1 month ago"',
             "--update-shallow",
             "--filter=blob:none",
             "--recurse-submodules=no",
@@ -1209,3 +1211,45 @@ class TestGitShallowBoundary:
 
         with patch.object(git, "_git_output", return_value=""):
             assert git.get_shallow_boundary() is None
+
+
+class TestGitTIA:
+    def test_clean_worktree_ignores_untracked_outputs(self):
+        with patch.object(Git, "_call_git", return_value=Mock(return_code=0, stdout="")) as call_git:
+            assert Git().is_tia_worktree_clean()
+            call_git.assert_called_once_with(["status", "--porcelain", "-z", "--untracked-files=no"])
+
+    def test_tracked_edits_are_not_clean(self):
+        with patch.object(Git, "_call_git", return_value=Mock(return_code=0, stdout=" M source.py\0")):
+            assert not Git().is_tia_worktree_clean()
+
+    def test_recent_history_has_no_date_cutoff(self):
+        commits = [f"{index:040x}" for index in range(20)]
+        with patch.object(Git, "_call_git") as call_git:
+            call_git.return_value = Mock(return_code=0, stdout="\n".join(commits))
+            assert Git().get_tia_commits() == commits
+            call_git.assert_called_once_with(["rev-list", "--max-count=20", "HEAD"])
+
+    def test_diff_includes_both_rename_paths_and_untracked_paths(self):
+        with patch.object(Git, "_call_git") as call_git:
+            call_git.side_effect = [
+                Mock(return_code=0, stdout="old.py\0new.py\0 leading space.py\0line\nbreak.py\0"),
+                Mock(return_code=0, stdout="untracked.py\0"),
+            ]
+            assert Git().get_tia_changed_files("a" * 40) == {
+                "old.py",
+                "new.py",
+                " leading space.py",
+                "line\nbreak.py",
+                "untracked.py",
+            }
+            assert call_git.call_args_list[0] == call(
+                ["diff", "--name-only", "--no-renames", "-z", "a" * 40, "--"], strip_output=False
+            )
+
+    def test_diff_failure_is_unknown(self):
+        with patch.object(Git, "_call_git", return_value=Mock(return_code=128, stdout="")):
+            assert Git().get_tia_changed_files("a" * 40) is None
+            assert Git().get_tia_commits() == []
+            assert Git().get_tia_untracked_files() is None
+            assert not Git().is_tia_worktree_clean()

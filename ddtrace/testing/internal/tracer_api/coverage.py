@@ -31,9 +31,11 @@ log = logging.getLogger(__name__)
 log = logging.getLogger(__name__)
 
 
-def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
+def install_coverage(
+    workspace_path: Path, file_level_coverage: bool = False, extra_include_paths: t.Sequence[Path] = ()
+) -> None:
     ddtrace.internal.coverage.installer.install(
-        include_paths=[workspace_path],
+        include_paths=[workspace_path, *extra_include_paths],
         collect_import_time_coverage=True,
         file_level_coverage=file_level_coverage,
     )
@@ -44,12 +46,25 @@ def uninstall_coverage() -> None:
     ModuleCodeCollector.uninstall()
 
 
+def is_coverage_installed() -> bool:
+    return ModuleCodeCollector.is_installed()
+
+
 @functools.lru_cache(maxsize=65536)
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
     relative = relative_path(Path(absolute_path), Path(relative_to))
     if relative is None:
         return None  # covered file does not belong to current repo
     return f"/{relative}"
+
+
+@functools.lru_cache(maxsize=65536)
+def _aliased_coverage_path(absolute_path: str, aliases: tuple[tuple[str, str], ...]) -> t.Optional[str]:
+    for source, prefix in aliases:
+        relative = relative_path(Path(absolute_path), Path(source))
+        if relative:
+            return f"/{prefix}/{relative}"
+    return None
 
 
 _FILE_LEVEL_BITMAP = bytes(CoverageLines.from_list([0]).to_bytes())
@@ -59,6 +74,22 @@ class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
         self._covered_file_paths: t.Optional[t.Iterable[str]] = None
+
+    def get_covered_files(self, relative_to: Path, aliases: t.Sequence[tuple[Path, str]] = ()) -> t.Iterable[str]:
+        """Covered files relative to relative_to.
+
+        Each alias maps a directory to the path, relative to relative_to, that its files come from. Aliases take
+        precedence because the directory may sit inside relative_to, like a virtualenv inside the repository.
+        """
+        relative_to_str = resolved_path(str(relative_to))
+        alias_keys = tuple((resolved_path(str(source)), prefix) for source, prefix in aliases)
+        paths = self._covered_file_paths if self._covered_file_paths is not None else self._covered_lines or {}
+        for absolute_path in paths:
+            relative = _aliased_coverage_path(absolute_path, alias_keys) if alias_keys else None
+            if relative is None:
+                relative = _relative_coverage_path(absolute_path, relative_to_str)
+            if relative is not None:
+                yield Path(relative).as_posix()
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         # Canonicalize the workspace: instrumentation records covered paths under
@@ -95,6 +126,16 @@ def coverage_collection(
             coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()
         else:
             coverage_data._covered_lines = coverage_collector.get_covered_lines()
+
+
+def coverage_for_files(files: t.Iterable[Path]) -> CoverageData:
+    """Expand file roots through the collector's recorded import-time dependencies."""
+    with ModuleCodeCollector.CollectInContext() as collector:
+        for path in files:
+            collector.anchor_file(resolved_path(str(path)))
+    data = CoverageData()
+    data._covered_file_paths = collector.get_covered_file_paths()
+    return data
 
 
 def install_coverage_percentage():

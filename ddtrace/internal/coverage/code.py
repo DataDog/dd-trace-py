@@ -33,6 +33,7 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.utils.inspection import resolved_code_origin
+from ddtrace.internal.utils.paths import deepest_containing_root
 from ddtrace.internal.utils.paths import is_contained
 from ddtrace.internal.utils.paths import relative_path
 
@@ -599,11 +600,18 @@ class ModuleCodeCollector(ModuleWatchdog):
             self._invalidate_import_metadata()
 
     def _is_instrumentable_path(self, code_path: Path) -> bool:
-        if _is_site_packages_path(code_path):
+        hit = deepest_containing_root(code_path, self._include_paths)
+        if hit is None:
             return False
-        if not any(is_contained(code_path, include_path) for include_path in self._include_paths):
+        include_path = hit[0]
+        # An include path inside site-packages or an excluded tree opts that subtree in explicitly, e.g. an
+        # installed package traced back to its source. Exclusions nested inside the include path still apply.
+        if _is_site_packages_path(code_path) and not _is_site_packages_path(include_path):
             return False
-        if any(is_contained(code_path, exclude_path) for exclude_path in self._exclude_paths):
+        if any(
+            is_contained(code_path, exclude_path) and not is_contained(include_path, exclude_path)
+            for exclude_path in self._exclude_paths
+        ):
             return False
         return True
 
