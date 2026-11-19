@@ -29,10 +29,9 @@ def _broker_type(app: Any, side_url_setting: str) -> Optional[str]:
     url = conf.get(side_url_setting) or conf.get("broker_url")
     if isinstance(url, (list, tuple)):
         url = url[0] if url else None
-    if url:
-        scheme = str(url).split("://", 1)[0]
-    else:
-        scheme = conf.get("broker_transport") or "amqp"
+    scheme: Any = str(url).split("://", 1)[0] if url else conf.get("broker_transport") or "amqp"
+    if not isinstance(scheme, str):
+        return None
     return _BROKER_TYPES.get(scheme.split("+", 1)[0].lower())
 
 

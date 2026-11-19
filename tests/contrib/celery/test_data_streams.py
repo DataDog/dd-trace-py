@@ -66,6 +66,23 @@ def test_no_checkpoints_without_data_streams():
     assert data_streams_processor() is None
 
 
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_kombu_sets_no_checkpoints_on_celery_internal_exchanges():
+    from unittest import mock
+
+    from ddtrace.internal.datastreams import data_streams_processor
+    from ddtrace.internal.datastreams.kombu import handle_kombu_consume
+    from ddtrace.internal.datastreams.kombu import handle_kombu_produce
+
+    for exchange in ("celeryev", "celery.pidbox", "reply.celery.pidbox"):
+        publish_args = [b"{}", 0, "application/json", "utf-8", {}, {}, "", False, False, exchange]
+        handle_kombu_produce(publish_args, {}, None)
+        message = mock.Mock(delivery_info={"exchange": exchange, "routing_key": ""}, headers={}, body=b"{}")
+        handle_kombu_consume(mock.Mock(queues=[]), message, None)
+
+    assert not data_streams_processor()._buckets
+
+
 def test_celery_internal_exchanges_are_skipped_by_kombu():
     from ddtrace.internal.datastreams.kombu import is_celery_internal_exchange
 
@@ -91,10 +108,13 @@ def test_celery_internal_exchanges_are_skipped_by_kombu():
         ({"broker_url": None}, "rabbitmq"),
         ({"broker_url": None, "broker_transport": "redis"}, "redis"),
         ({"broker_url": "amqp://a//", "broker_write_url": "redis://b:6379/0"}, "redis"),
+        ({"broker_url": None, "broker_transport": object()}, None),
     ],
 )
-def test_broker_type(conf, expected):
+def test_broker_type(conf, expected, monkeypatch):
     from celery import Celery
+
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
 
     from ddtrace.internal.datastreams.celery import _broker_type
 

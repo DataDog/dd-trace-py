@@ -62,4 +62,6 @@ def assert_linked_edge(broker_type):
     assert [c[0] for c in outs] == [f"direction:out,{expected_tags}"], pathway_stats()
     assert [c[0] for c in ins] == [f"direction:in,{expected_tags}"], pathway_stats()
     assert ins[0][2] == outs[0][1], pathway_stats()
+    for key in (outs[0], ins[0]):
+        assert pathway_stats()[key].full_pathway_latency.count == 1, pathway_stats()
     assert all(c[0] == f"direction:out,{expected_tags}" for c in checkpoints("out")), pathway_stats()

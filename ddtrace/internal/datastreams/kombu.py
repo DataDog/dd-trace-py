@@ -34,10 +34,7 @@ def skip_kombu_produce_checkpoint(headers: dict[str, Any]) -> None:
 
 def _checkpointed_by_upstream(headers: Any) -> bool:
     pathway = _checkpointed_upstream.get()
-    if pathway is None:
-        return False
-    _checkpointed_upstream.set(None)
-    return isinstance(headers, dict) and headers.get(PROPAGATION_KEY_BASE_64) == pathway
+    return pathway is not None and isinstance(headers, dict) and headers.get(PROPAGATION_KEY_BASE_64) == pathway
 
 
 def handle_kombu_produce(args, kwargs, span):
@@ -77,6 +74,8 @@ def handle_kombu_produce(args, kwargs, span):
 def handle_kombu_consume(instance, message, span):
     from . import data_streams_processor as processor
 
+    if is_celery_internal_exchange((message.delivery_info or {}).get("exchange")):
+        return
     payload_size = 0
     payload_size += _calculate_byte_size(message.body)
     payload_size += _calculate_byte_size(message.headers)
