@@ -8,8 +8,8 @@ SDK_EXPORTER_INSTALLED = os.getenv("SDK_EXPORTER_INSTALLED", "").lower() in ("tr
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
 
 requires_exporter = pytest.mark.skipif(
-    not SDK_EXPORTER_INSTALLED or OTEL_VERSION < (1, 15, 0),
-    reason="OpenTelemetry exporters and API version 1.15 or higher are required",
+    not SDK_EXPORTER_INSTALLED or OTEL_VERSION < (1, 16, 0),
+    reason="OpenTelemetry exporters and API version 1.16 or higher are required",
 )
 requires_no_exporter = pytest.mark.skipif(SDK_EXPORTER_INSTALLED, reason="The OpenTelemetry exporters are installed")
 
@@ -109,12 +109,72 @@ def test_runtime_metrics_disable_stops_otlp_export():
     assert {"cpython.gc.collections", "process.cpu.time"} <= metric_names(requests)
 
 
+@requires_exporter
+@pytest.mark.subprocess(ddtrace_run=True, env=OTLP_RUNTIME_METRICS_ENV)
+def test_runtime_metrics_counters_stay_monotonic_across_fork():
+    import os
+    import time
+
+    from opentelemetry.metrics import get_meter_provider
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+
+    from ddtrace.runtime import RuntimeMetrics
+    from tests.opentelemetry.utils import _capture_http_requests
+
+    # Use CPU in the parent, so that a child restarting its CPU time from zero would report a negative delta.
+    deadline = time.monotonic() + 0.5
+    while time.monotonic() < deadline:
+        pass
+    with _capture_http_requests(14321, ExportMetricsServiceRequest):
+        assert get_meter_provider().force_flush()
+
+    pid = os.fork()
+    if pid == 0:
+        exit_code = 1
+        try:
+            with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
+                flushed = get_meter_provider().force_flush()
+            values = [
+                getattr(data_point, data_point.WhichOneof("value"))
+                for request in requests
+                for resource_metrics in request.resource_metrics
+                for scope_metrics in resource_metrics.scope_metrics
+                for metric in scope_metrics.metrics
+                if metric.name in ("process.cpu.time", "process.context_switches")
+                for data_point in metric.sum.data_points
+            ]
+            exit_code = 0 if flushed and values and all(value >= 0 for value in values) else 1
+        finally:
+            os._exit(exit_code)
+
+    _, status = os.waitpid(pid, 0)
+    RuntimeMetrics.disable()
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report monotonic counters"
+
+
+# The DogStatsD client also logs the packets it drops when nothing listens on the DogStatsD port.
+@requires_exporter
+@pytest.mark.subprocess(
+    env=OTLP_RUNTIME_METRICS_ENV,
+    err=lambda err: "Runtime metrics are sent to DogStatsD: use ddtrace-run or import ddtrace.auto to export them over "
+    "OTLP.\n" in err,
+)
+def test_runtime_metrics_enabled_without_the_bootstrap_are_sent_to_dogstatsd():
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.runtime import RuntimeMetrics
+
+    RuntimeMetrics.enable()
+    assert RuntimeWorker._instance is not None, (
+        "Without the bootstrap, nothing sets up the OpenTelemetry meter provider"
+    )
+
+
 # The DogStatsD client also logs the packets it drops when nothing listens on the DogStatsD port.
 @requires_no_exporter
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=OTLP_RUNTIME_METRICS_ENV,
-    err=lambda err: "Runtime metrics are sent to DogStatsD: install opentelemetry-exporter-otlp 1.15.0 or higher to "
+    err=lambda err: "Runtime metrics are sent to DogStatsD: install opentelemetry-exporter-otlp 1.16.0 or higher to "
     "export them over OTLP.\n" in err,
 )
 def test_runtime_metrics_fall_back_to_dogstatsd_without_otel_sdk():

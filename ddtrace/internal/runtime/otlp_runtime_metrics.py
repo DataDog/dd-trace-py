@@ -18,6 +18,7 @@ from opentelemetry.metrics import Meter
 from opentelemetry.metrics import Observation
 from opentelemetry.metrics import get_meter
 
+from .. import forksafe
 from ..logger import get_logger
 from .metric_collectors import _ProcessMetrics
 
@@ -32,6 +33,22 @@ _NS_TO_SEC = 1e-9
 # callbacks report nothing while the runtime metrics are disabled.
 _enabled = False
 _instruments_created = False
+
+# The OpenTelemetry SDK computes the deltas of the observable counters from the last values that they reported, which a
+# forked child inherits from its parent, while the CPU time and context switches of the child restart from zero. So that
+# these counters stay monotonic, the child reports them on top of the last values that its parent reported.
+_last_reported: dict[str, float] = {}
+_fork_offsets: dict[str, float] = {}
+
+
+def _continue_counters_after_fork() -> None:
+    _fork_offsets.update(_last_reported)
+
+
+def _monotonic(counter: str, value: float) -> float:
+    reported = _fork_offsets.get(counter, 0) + value
+    _last_reported[counter] = reported
+    return reported
 
 
 def start() -> None:
@@ -79,6 +96,8 @@ def _create_instruments(meter: Meter) -> None:
     except Exception:
         log.debug("Process metrics are not available on this platform", exc_info=True)
         return
+
+    forksafe.register(_continue_counters_after_fork)
 
     meter.create_observable_counter(
         "process.cpu.time",
@@ -129,8 +148,8 @@ def _observe_cpu_time(_options: CallbackOptions) -> list[Observation]:
         return []
     metrics = _process_metrics()
     return [
-        Observation(metrics.cpu_time_user_ns * _NS_TO_SEC, {"cpu.mode": "user"}),
-        Observation(metrics.cpu_time_sys_ns * _NS_TO_SEC, {"cpu.mode": "system"}),
+        Observation(_monotonic("cpu.user", metrics.cpu_time_user_ns * _NS_TO_SEC), {"cpu.mode": "user"}),
+        Observation(_monotonic("cpu.system", metrics.cpu_time_sys_ns * _NS_TO_SEC), {"cpu.mode": "system"}),
     ]
 
 
@@ -152,7 +171,7 @@ def _observe_context_switches(_options: CallbackOptions) -> list[Observation]:
     metrics = _process_metrics()
     # A negative count means that the platform cannot report this type of context switch.
     return [
-        Observation(count, {"process.context_switch.type": switch_type})
+        Observation(_monotonic(f"context_switches.{switch_type}", count), {"process.context_switch.type": switch_type})
         for switch_type, count in (
             ("voluntary", metrics.ctx_switches_voluntary),
             ("involuntary", metrics.ctx_switches_involuntary),

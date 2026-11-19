@@ -94,7 +94,7 @@ For supported configurations, see `OpenTelemetry Metrics Configuration <https://
 
 When runtime metrics are also enabled with ``DD_RUNTIME_METRICS_ENABLED=true``, they are exported over OTLP instead of
 DogStatsD, under their OpenTelemetry semantic convention names (``cpython.gc.*`` and ``process.*``), once the
-application imports ``opentelemetry``.
+application imports ``opentelemetry``. This requires ``opentelemetry-exporter-otlp`` 1.16.0 or higher.
 
 Usage example::
 

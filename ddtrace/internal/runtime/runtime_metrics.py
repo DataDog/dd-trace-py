@@ -97,8 +97,13 @@ class RuntimeMetrics(RuntimeCollectorsIterable[tuple[str, MetricValue]]):
     ]
 
 
-# The OpenTelemetry SDK and OTLP exporters that ddtrace supports to export the OpenTelemetry metrics.
-_OTEL_METRICS_MINIMUM_VERSION = (1, 15, 0)
+# The ddtrace bootstrap (ddtrace-run or ddtrace.auto) sets up the OpenTelemetry meter provider that exports the
+# runtime metrics, once the application imports OpenTelemetry.
+_BOOTSTRAP_MODULE = "ddtrace.bootstrap.preload"
+# opentelemetry-sdk 1.16.0 is the first version whose _init_metrics() accepts the resource of that meter provider, which
+# requires an OTLP exporter 1.15.0 or higher.
+_OTEL_SDK_MINIMUM_VERSION = (1, 16, 0)
+_OTLP_EXPORTER_MINIMUM_VERSION = (1, 15, 0)
 _OTLP_METRICS_EXPORTERS = {
     "grpc": "opentelemetry-exporter-otlp-proto-grpc",
     "http/protobuf": "opentelemetry-exporter-otlp-proto-http",
@@ -107,22 +112,33 @@ _OTLP_RUNTIME_METRICS_MODULE = "ddtrace.internal.runtime.otlp_runtime_metrics"
 
 
 def _can_export_otlp_runtime_metrics() -> bool:
-    """Whether the OpenTelemetry SDK and the OTLP exporter of the configured protocol are installed.
+    """Whether ddtrace sets up an OpenTelemetry meter provider that can export the runtime metrics over OTLP.
 
-    This reads the installed distributions instead of importing OpenTelemetry, which ddtrace only sets up once the
+    This requires the ddtrace bootstrap, and the OpenTelemetry SDK and the OTLP exporter of the configured protocol. It
+    reads the installed distributions instead of importing OpenTelemetry, which ddtrace only sets up once the
     application imports it.
     """
+    if _BOOTSTRAP_MODULE not in sys.modules:
+        log.warning(
+            "Runtime metrics are sent to DogStatsD: use ddtrace-run or import ddtrace.auto to export them over OTLP."
+        )
+        return False
+
     from ddtrace.internal.packages import get_version_for_package
     from ddtrace.internal.settings._opentelemetry import otel_config
     from ddtrace.internal.utils.version import parse_version
 
-    for distribution in ("opentelemetry-sdk", _OTLP_METRICS_EXPORTERS.get(otel_config.exporter.METRICS_PROTOCOL)):
+    exporter = _OTLP_METRICS_EXPORTERS.get(otel_config.exporter.METRICS_PROTOCOL)
+    for distribution, minimum_version in (
+        ("opentelemetry-sdk", _OTEL_SDK_MINIMUM_VERSION),
+        (exporter, _OTLP_EXPORTER_MINIMUM_VERSION),
+    ):
         version = get_version_for_package(distribution) if distribution else ""
-        if not version or parse_version(version) < _OTEL_METRICS_MINIMUM_VERSION:
+        if not version or parse_version(version) < minimum_version:
             log.warning(
                 "Runtime metrics are sent to DogStatsD: install opentelemetry-exporter-otlp %s or higher to export "
                 "them over OTLP.",
-                ".".join(str(x) for x in _OTEL_METRICS_MINIMUM_VERSION),
+                ".".join(str(x) for x in _OTEL_SDK_MINIMUM_VERSION),
             )
             return False
     return True
@@ -229,8 +245,9 @@ class RuntimeWorker(periodic.PeriodicService):
                 runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url)
                 runtime_worker.start()
                 cls._instance = runtime_worker
-
-            atexit.register(cls.disable)
+                # Over OTLP, the OpenTelemetry SDK collects the runtime metrics a last time when it shuts down at exit:
+                # disabling them at exit could happen first and drop them.
+                atexit.register(cls.disable)
 
             cls.enabled = True
             core.root.set_item(RUNTIME_METRICS_ENABLED_KEY, True)
