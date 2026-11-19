@@ -1580,10 +1580,10 @@ def test_initialize_that_times_out_ignores_a_stale_readiness_signal(cdn, api_key
             resume.wait(timeout=5)
 
         monkeypatch.setattr(retired, "join", join_failing_then_held)
-        # The failed shutdown raises before it clears the readiness signal of the first initialization.
+        # The failed shutdown raises, but it has already dropped the first initialization's readiness signal.
         with pytest.raises(RuntimeError):
             provider.shutdown()
-        assert provider._config_received.is_set()
+        assert not provider._config_received.is_set()
 
         stopping = threading.Thread(target=provider.shutdown)
         stopping.start()
@@ -1605,6 +1605,44 @@ def test_forked_child_drops_a_retired_poller_teardown_reservation():
     provider_module._reset_provider_state_in_child()
     # With no current poller, the reservation was for retired pollers only; the child can start again.
     assert provider._stopping_configuration_source is False
+
+
+def test_initialize_that_times_out_accepts_configuration_from_the_in_flight_start(cdn, api_key, monkeypatch):
+    import ddtrace.internal.openfeature._source_selection as source_selection
+
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    create = source_selection.create_agentless_source
+    delivered = threading.Event()
+    resume = threading.Event()
+
+    def create_with_a_held_store(*args, **kwargs):
+        source = create(*args, **kwargs)
+        start = source.start
+
+        def start_then_hold():
+            start()
+            # The poller delivers the configuration before the starting thread stores it.
+            for _ in range(500):
+                if provider._config_received.is_set():
+                    break
+                threading.Event().wait(0.01)
+            delivered.set()
+            resume.wait(timeout=5)
+
+        source.start = start_then_hold
+        return source
+
+    monkeypatch.setattr(source_selection, "create_agentless_source", create_with_a_held_store)
+    starting = threading.Thread(target=lambda: _initialize_quietly(provider))
+    starting.start()
+    try:
+        assert delivered.wait(timeout=5)
+        provider.initialize(EvaluationContext())
+        assert provider._status == ProviderStatus.READY
+    finally:
+        resume.set()
+        starting.join(timeout=5)
+        provider.shutdown()
 
 
 def test_forked_child_drops_a_start_reservation_from_the_parent():

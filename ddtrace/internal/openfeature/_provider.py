@@ -391,8 +391,7 @@ class DataDogProvider(AbstractProvider):
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
         wait_started = time.monotonic()
-        # A start that timed out has no poller of its own yet, so an earlier, stale signal does not count.
-        if started and self._config_received.wait(timeout=max(0.0, deadline - wait_started)):
+        if self._config_received.wait(timeout=max(0.0, deadline - wait_started)):
             self._status = ProviderStatus.READY
             logger.debug(
                 "Feature Flags: provider initialized successfully (configuration received after %.2fs)",
@@ -434,6 +433,12 @@ class DataDogProvider(AbstractProvider):
             return
 
         logger.debug("Feature Flags: shutting down provider")
+
+        # Detach and drop readiness before the poller's teardown, which can raise: a signal left set would
+        # otherwise make a later initialize() report READY on configuration from before this shutdown.
+        _unregister_provider(self)
+        self._status = ProviderStatus.NOT_READY
+        self._config_received.clear()
 
         # Stop the agentless poller if it was started.
         self._stop_configuration_source()
