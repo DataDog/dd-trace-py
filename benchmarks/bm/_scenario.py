@@ -1,7 +1,8 @@
 import abc
 import cProfile
 import dataclasses
-import os
+import gc
+from pathlib import Path
 import time
 import typing
 
@@ -19,7 +20,7 @@ def _register(scenario_cls: type["Scenario"]) -> None:
     def add_cmdline_args(cmd, args):
         for _field in dataclasses.fields(scenario_cls):
             if hasattr(args, _field.name):
-                cmd.extend(("--{}".format(_field.name), str(getattr(args, _field.name))))
+                cmd.extend((f"--{_field.name}", str(getattr(args, _field.name))))
 
     runner = pyperf.Runner(add_cmdline_args=add_cmdline_args)
     cmd = runner.argparser
@@ -28,7 +29,7 @@ def _register(scenario_cls: type["Scenario"]) -> None:
         if _field.name == "cprofile_loops":
             continue
 
-        cmd.add_argument("--{}".format(_field.name), type=_field.type if _field.type is not bool else str_to_bool)
+        cmd.add_argument(f"--{_field.name}", type=_field.type if _field.type is not bool else str_to_bool)
 
     parsed_args = runner.parse_args()
 
@@ -42,13 +43,21 @@ def _register(scenario_cls: type["Scenario"]) -> None:
 
     # If requests, generate a cProfile pstats file
     if scenario._cprofile_loops and parsed_args.append:
-        pstats_output = os.path.join(os.path.dirname(parsed_args.append), "{}.pstats".format(scenario.scenario_name))
+        pstats_output = str(Path(parsed_args.append).parent / f"{scenario.scenario_name}.pstats")
 
-        with cProfile.Profile() as pr:
-            try:
-                scenario._pyperf(scenario._cprofile_loops)
-            finally:
-                pr.dump_stats(pstats_output)
+        pr = cProfile.Profile()
+        try:
+            if type(scenario)._pyperf is Scenario._pyperf:
+                scenario._timed_run(scenario._cprofile_loops, profiler=pr)
+            else:
+                # A scenario that overrides _pyperf has no separate timed region to profile
+                pr.enable()
+                try:
+                    scenario._pyperf(scenario._cprofile_loops)
+                finally:
+                    pr.disable()
+        finally:
+            pr.dump_stats(pstats_output)
 
     runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
 
@@ -66,7 +75,7 @@ class Scenario:
 
     @property
     def scenario_name(self):
-        return "{}-{}".format(self.__class__.__name__.lower(), self.name)
+        return f"{self.__class__.__name__.lower()}-{self.name}"
 
     @property
     def _cprofile_loops(self) -> int:
@@ -87,11 +96,27 @@ class Scenario:
         pass
 
     def _pyperf(self, loops: int) -> float:
+        return self._timed_run(loops)
+
+    def _timed_run(self, loops: int, profiler: typing.Optional[cProfile.Profile] = None) -> float:
         rungen = self.run()
         run = next(rungen)
-        t0 = time.perf_counter()
-        run(loops)
-        dt = time.perf_counter() - t0
+        # Move the import-time and setup heap out of the collector's reach. Otherwise each full
+        # collection inside the timed region rescans it, and the number of full collections per
+        # value varies, which makes allocation-heavy scenarios noisy.
+        gc.collect()
+        gc.freeze()
+        try:
+            # Profile only the timed region, so setup and the collection above don't dominate the pstats
+            if profiler is not None:
+                profiler.enable()
+            t0 = time.perf_counter()
+            run(loops)
+            dt = time.perf_counter() - t0
+        finally:
+            if profiler is not None:
+                profiler.disable()
+            gc.unfreeze()
         try:
             # perform any teardown
             next(rungen)

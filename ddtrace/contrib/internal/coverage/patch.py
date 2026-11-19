@@ -1,8 +1,10 @@
 from typing import Any
 from typing import Optional
+from typing import Union
 
 import wrapt
 
+from ddtrace.contrib.internal.coverage.lcov import report_lcov
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -94,7 +96,7 @@ def generate_coverage_report(format_type: str = "text", cov: Optional[Any] = Non
 
     try:
         if format_type == "lcov":
-            pct_covered = cov.lcov_report(**kwargs)
+            pct_covered = report_lcov(cov, **kwargs)
         else:  # Default to text report
             pct_covered = cov.report(**kwargs)
 
@@ -122,7 +124,7 @@ def start_coverage(
     include: Any = None,
     config_file: Any = True,
     auto_data: bool = False,
-    data_suffix: Optional[str] = None,
+    data_suffix: Optional[Union[bool, str]] = None,
     **kwargs: Any,
 ) -> Optional[Any]:
     """
@@ -325,6 +327,11 @@ def clear_coverage_instance() -> None:
 
 def is_coverage_running() -> bool:
     return get_coverage_instance() is not None
+
+
+def owns_coverage_instance() -> bool:
+    """Whether the cached coverage instance was started (and is owned) by ddtrace."""
+    return _owns_coverage_instance
 
 
 def generate_lcov_report(cov: Optional[Any] = None, **kwargs: Any) -> Optional[float]:

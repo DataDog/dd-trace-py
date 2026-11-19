@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 import pickle
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 import pytest
 
@@ -58,10 +57,10 @@ def test_traceparent_basic():
         assert version_hex == "00"
 
         assert len(traceid_hex) == 32
-        assert traceid_hex == "{:032x}".format(context.trace_id)
+        assert traceid_hex == f"{context.trace_id:032x}"
 
         assert len(spanid_hex) == 16
-        assert spanid_hex == "{:016x}".format(context.span_id)
+        assert spanid_hex == f"{context.span_id:016x}"
 
         assert len(sampled_hex) == 2
         assert sampled_hex == sampled_expected
@@ -114,8 +113,7 @@ def test_traceparent_basic():
         ),
     ],
 )
-def test_context_serializable(context):
-    # type: (Context) -> None
+def test_context_serializable(context: Context) -> None:
     state = pickle.dumps(context)
     restored = pickle.loads(state)
     assert context == restored
@@ -193,7 +191,7 @@ def test_traceparent_preserves_inherited_random_trace_id_flag(sampling_priority,
         meta={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03"},
     )
 
-    assert context._traceparent == ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-{}".format(expected_flags))
+    assert context._traceparent == (f"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-{expected_flags}")
 
 
 @pytest.mark.parametrize(
@@ -289,8 +287,7 @@ def test_traceparent_preserves_inherited_random_trace_id_flag(sampling_priority,
         "no_span_id_or_tp",
     ],
 )
-def test_traceparent(context, expected_traceparent):
-    # type: (Context,str) -> None
+def test_traceparent(context: Context, expected_traceparent: str) -> None:
     assert context._traceparent == expected_traceparent
 
 
@@ -423,8 +420,7 @@ def test_traceparent(context, expected_traceparent):
         "test_origin_specific_replacement",
     ],
 )
-def test_tracestate(context, expected_tracestate):
-    # type: (Context,str) -> None
+def test_tracestate(context: Context, expected_tracestate: str) -> None:
     assert context._tracestate == expected_tracestate
 
 
@@ -440,13 +436,11 @@ def test_tracestate(context, expected_tracestate):
         (Context(dd_origin="§¢À"), None),
     ],
 )
-def test_dd_origin_character_set(ctx, expected_dd_origin):
-    # type: (Context,Optional[str]) -> None
+def test_dd_origin_character_set(ctx: Context, expected_dd_origin: Optional[str]) -> None:
     assert ctx.dd_origin == expected_dd_origin
 
 
-def test_is_remote():
-    # type: () -> None
+def test_is_remote() -> None:
     """Ensure that the is_remote flag is set to False on all local spans"""
     # Context._is_remote should be True by default
     ctx = Context(trace_id=123, span_id=321)

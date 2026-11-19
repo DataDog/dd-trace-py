@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    openfeature: adds safe direct Event Platform intake fallback for exposure and
+    flag-evaluation events when the agentless provider cannot use the local Agent's
+    EVP proxy route. Direct requests use API-key authentication and preserve
+    at-most-once delivery for ambiguous local failures.

@@ -17,7 +17,7 @@ _DD_PIN_NAME = "_datadog_pin"
 _DD_PIN_PROXY_NAME = "_self_" + _DD_PIN_NAME
 
 
-class Pin(object):
+class Pin:
     """Pin (a.k.a Patch INfo) is a small class which is used to
     set tracing metadata on a particular traced connection.
     This is useful if you wanted to, say, trace two different
@@ -47,16 +47,17 @@ class Pin(object):
         self._initialized = True
 
     @property
-    def service(self) -> str:
+    def service(self) -> Optional[str]:
         """Backward compatibility: accessing to `pin.service` returns the underlying
         configuration value.
         """
-        return self._config["service_name"]
+        service: Optional[str] = self._config["service_name"]
+        return service
 
     def __setattr__(self, name: str, value: Any) -> None:
         if getattr(self, "_initialized", False) and name != "_target":
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
-        super(Pin, self).__setattr__(name, value)
+        super().__setattr__(name, value)
 
     def __repr__(self) -> str:
         return "Pin(service=%s, tags=%s)" % (self.service, self.tags)
@@ -95,7 +96,8 @@ class Pin(object):
         :returns: :class:`ddtrace.trace.Pin` associated with the object, or None if none was found
         """
         if hasattr(obj, "__getddpin__"):
-            return obj.__getddpin__()
+            ddpin: Optional[Pin] = obj.__getddpin__()
+            return ddpin
 
         pin_name = _DD_PIN_PROXY_NAME if is_wrapted(obj) else _DD_PIN_NAME
         pin = getattr(obj, pin_name, None)
@@ -132,7 +134,7 @@ class Pin(object):
         pin.onto(obj)
 
     def enabled(self) -> bool:
-        return ddtrace.tracer.enabled or standalone_config.apm_opt_out
+        return bool(ddtrace.tracer.enabled or standalone_config.apm_opt_out)
 
     def onto(self, obj: Any, send: bool = True) -> None:
         """Patch this pin onto the given object. If send is true, it will also
@@ -141,7 +143,8 @@ class Pin(object):
         # Actually patch it on the object.
         try:
             if hasattr(obj, "__setddpin__"):
-                return obj.__setddpin__(self)
+                obj.__setddpin__(self)
+                return
 
             pin_name = _DD_PIN_PROXY_NAME if is_wrapted(obj) else _DD_PIN_NAME
 

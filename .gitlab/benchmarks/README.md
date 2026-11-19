@@ -55,8 +55,8 @@ within 7% of a threshold notifies Slack without failing the job.
   On `main` and on release branches or tags it picks the latest non-rc tag; on a pull request
   branch it picks the merge base with the base branch.
 * `build-baseline.sh` — obtains the baseline wheel: from PyPI when the baseline is a released
-  tag, otherwise from the `dd-trace-py-builds` S3 bucket by commit SHA, and only failing that
-  builds it from source.
+  tag that is already published there, otherwise from the `dd-trace-py-builds` S3 bucket by
+  commit SHA, and only failing that builds it from source.
 * `combine-results.sh` — merges the per-config `results.*.json` files a scenario produces
   into one `results.json`, keeping a single copy of the shared metadata.
 
@@ -79,9 +79,14 @@ via `include:project:`. Both pipelines currently override the template's image w
 `benchmarking-platform-tools-ubuntu` tag; the override is temporary and marked as such in the
 YAML.
 
-**Competitor benchmarks.** The root `.gitlab-ci.yml` triggers
+**`apm-sdks-benchmarks` framework.** The root `.gitlab-ci.yml` triggers
 [DataDog/apm-reliability/apm-sdks-benchmarks](https://gitlab.ddbuild.io/DataDog/apm-reliability/apm-sdks-benchmarks)
 separately from anything in this directory. Its scenarios and thresholds are maintained there.
+
+The `apm-sdks-benchmarks` job runs automatically on release tags, release branches, `main`, and
+`performance/flaky-benchmarks-monitoring`. Everywhere else, nightly builds included, it stays
+manual: `apm-sdks-benchmarks` already runs its own nightly schedule in that project's own CI,
+independent of dd-trace-py's pipeline.
 
 **Generation.** `scripts/gen_gitlab_config.py` produces `microbenchmarks-gen.yml` and the
 filtered SLO file. Neither is committed; both are `tests-gen` artifacts.
@@ -101,7 +106,7 @@ For microbenchmarks, on every pipeline:
 2. **`microbenchmarks`** (root pipeline) triggers `microbenchmarks-gen.yml` as a child
    pipeline, after `tests-gen` and the `build linux` job that produces the candidate wheel.
 3. **`baseline:detect`** then **`baseline:build`** resolve and build the wheel to compare
-   against, while **`candidate`** picks the `cp39` wheel out of the parent pipeline's
+   against, while **`candidate`** picks the `cp312` wheel out of the parent pipeline's
    artifacts. Both are cached, `baseline:build` on the baseline commit SHA.
 4. **`microbenchmarks`** (child pipeline) runs each matrix entry's scenarios against both wheels,
    then `analyze-results.sh` and an S3 upload.
@@ -129,7 +134,7 @@ hardware is large enough to swamp the regressions these gates exist to catch.
 |-------|-------|-----|
 | Microbenchmarks | `MICROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py` from the `486234852809` ECR registry | Built from the `dd-trace-py` branch of `benchmarking-platform` and carries the `bp-runner` tooling plus the Python versions the scenarios need. |
 | Microbenchmark wheel builds | `PACKAGE_IMAGE` — `pypa/manylinux2014_x86_64` | `baseline:build` and `candidate` only need a manylinux toolchain, so they use the same image as the release wheel builds instead of the heavier benchmarking image. |
-| Baseline detection | `GITHUB_CLI_IMAGE` — `dd-octo-sts-ci-base` | `baseline:detect` needs `gh` and `dd-octo-sts` to mint a GitHub token, and nothing else. |
+| Baseline detection | `GITHUB_CLI_IMAGE` — `dd-octo-sts-ci-base` | `baseline:detect` needs `dd-octo-sts` to mint a GitHub token, and nothing else. |
 | Macrobenchmarks | `MACROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py-macrobenchmarks` | Separate image because it bundles the Flask and Django applications under test and their load-generation harness. |
 | SLO gates | `benchmarking-platform-tools-ubuntu`, pinned by tag | Supplied by the `benchmarking-platform-tools` template; both pipelines pin a tag as a temporary override. |
 | Serverless | `SLS_CI_IMAGE` — `ci/serverless-tools` | The suite runs entirely in `DataDog/serverless-tools`; this repo only triggers it. |

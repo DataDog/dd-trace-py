@@ -35,9 +35,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 import asyncio
+from collections.abc import Mapping
 import inspect
 from typing import Any
-from typing import Mapping
 from typing import Union
 
 

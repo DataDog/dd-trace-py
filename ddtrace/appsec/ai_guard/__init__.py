@@ -27,6 +27,8 @@ _PUBLIC = frozenset(
         "Evaluation",
         "Function",
         "ImageURL",
+        "MCP",
+        "MCPServer",
         "Message",
         "Options",
         "ToolCall",

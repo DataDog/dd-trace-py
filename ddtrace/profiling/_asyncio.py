@@ -1,8 +1,8 @@
-# -*- encoding: utf-8 -*-
 from __future__ import annotations
 
 from functools import partial
 import sys
+from types import CodeType
 from types import ModuleType
 import typing
 
@@ -11,15 +11,107 @@ if typing.TYPE_CHECKING:
     import asyncio
     import asyncio as aio
 
+    from ddtrace.internal import monitoring as _monitoring
+
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
 
 
+if sys.version_info >= (3, 15):
+    from ddtrace.internal import monitoring as _monitoring
+
+
+log = get_logger(__name__)
+
 ASYNCIO_IMPORTED: bool = False
+
+# The _asyncio module once it has finished executing.
+_C_ASYNCIO: typing.Optional[ModuleType] = None
+# True once the asyncio hook has initialized native asyncio support, so the _asyncio hook knows to call it again.
+_NATIVE_ASYNCIO_INIT: bool = False
+# The thread registering the _asyncio hook, while it does. Registration calls the hook at once if _asyncio is in
+# sys.modules, possibly while another thread is still executing it.
+_C_ASYNCIO_HOOK_REGISTRATION_THREAD: typing.Optional[int] = None
+# False until native code finds the task lists or gets a finished _asyncio. While false, setting an event loop retries.
+_PASSED_C_ASYNCIO: bool = False
+_LOGGED_NO_TASK_LISTS: bool = False
+
+
+_ASYNCIO_MONITORING_MIN: tuple[int, int] = (3, 15)
+_monitoring_tool_id: typing.Optional[int] = None
+_py_return_handlers: dict[int, typing.Callable[[object], None]] = {}
+
+
+class _AsyncioReturnHookDispatch:
+    """PY_RETURN dispatch for the asyncio task-creation hooks.
+
+    Kept outside the version gate so it can be instantiated and exercised on
+    interpreters below 3.15; _AsyncioMonitoringHandler adds the 3.15-only
+    MonitoringEventHandler base.
+    """
+
+    def __init__(self) -> None:
+        self.handlers: dict[int, typing.Callable[[object], None]] = _py_return_handlers
+
+    def on_py_return(self, code: CodeType, instruction_offset: int, return_value: object) -> None:
+        handler: typing.Optional[typing.Callable[[object], None]] = self.handlers.get(id(code))
+        if handler is not None:
+            handler(return_value)
+
+
+if sys.version_info >= _ASYNCIO_MONITORING_MIN:
+
+    class _AsyncioMonitoringHandler(_AsyncioReturnHookDispatch, _monitoring.MonitoringEventHandler):
+        pass
+
+    _monitoring_handler: typing.Optional[_AsyncioMonitoringHandler] = None
+
+
+def _do_register_return_hook(
+    monitoring_handler: _AsyncioReturnHookDispatch,
+    func: typing.Callable[..., typing.Any],
+    handler: typing.Callable[[object], None],
+) -> bool:
+    """Point monitoring_handler at handler for the code object of func.
+
+    Split out of _register_return_hook, which owns the version gate, so the
+    registration and unwinding paths stay testable below 3.15.
+    """
+    global _monitoring_tool_id
+
+    event_handler: typing.Any = typing.cast(typing.Any, monitoring_handler)
+    code: typing.Optional[CodeType] = None
+    try:
+        code = func.__code__
+        monitoring_handler.handlers[id(code)] = handler
+        _monitoring.register(code, event_handler)
+        _monitoring_tool_id = _monitoring.get_tool_id()
+        return True
+    except Exception:
+        if code is not None:
+            monitoring_handler.handlers.pop(id(code), None)
+            try:
+                _monitoring.unregister(code, event_handler)
+            except Exception:  # nosec B110 — unwinding an already-failed registration
+                pass
+        return False  # best-effort monitoring; fall back to wrap()
+
+
+def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[object], None]) -> bool:
+    if sys.version_info >= _ASYNCIO_MONITORING_MIN:
+        global _monitoring_handler
+
+        if _monitoring_handler is None:
+            _monitoring_handler = _AsyncioMonitoringHandler()
+
+        return _do_register_return_hook(_monitoring_handler, func, handler)
+
+    return False
 
 
 def current_task() -> typing.Optional[asyncio.Task[typing.Any]]:
@@ -34,7 +126,25 @@ def _task_get_name(task: asyncio.Task[typing.Any]) -> str:
     return "Task-%d" % id(task)
 
 
+def _is_initializing(module: ModuleType) -> bool:
+    return bool(getattr(getattr(module, "__spec__", None), "_initializing", False))
+
+
+def _completed_c_asyncio() -> typing.Optional[ModuleType]:
+    """Return _asyncio once importlib reports it as imported, else None."""
+    global _C_ASYNCIO
+
+    if _C_ASYNCIO is None:
+        module = sys.modules.get("_asyncio")
+        if isinstance(module, ModuleType) and not _is_initializing(module):
+            _C_ASYNCIO = module
+    return _C_ASYNCIO
+
+
 def _call_init_asyncio(asyncio: ModuleType) -> None:
+    global _LOGGED_NO_TASK_LISTS
+    global _PASSED_C_ASYNCIO
+
     from asyncio import tasks as asyncio_tasks
 
     if sys.hexversion >= 0x030C0000:
@@ -44,7 +154,27 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
         scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
         eager_tasks = None
 
-    stack.init_asyncio(scheduled_tasks, eager_tasks)
+    asyncio_c = _completed_c_asyncio()
+    pending: typing.Optional[ModuleType] = None
+    if asyncio_c is None:
+        module = sys.modules.get("_asyncio")
+        if isinstance(module, ModuleType):
+            # Native discovery is safe on a module still executing; see asyncio_discovery.h.
+            pending = module
+    found = stack.init_asyncio(scheduled_tasks, eager_tasks, asyncio_c or pending)
+    if found or asyncio_c is not None:
+        _PASSED_C_ASYNCIO = True
+    if found or _LOGGED_NO_TASK_LISTS:
+        return
+
+    if pending is not None:
+        # The module may not have finished executing yet, for example because it imported asyncio from its own init.
+        # Our _asyncio hook tries again when the import finishes, if ModuleWatchdog still calls it. Otherwise, setting
+        # an event loop does.
+        return
+
+    _LOGGED_NO_TASK_LISTS = True
+    log.debug("Could not locate the native asyncio task lists; suspended asyncio tasks will not be profiled")
 
 
 def link_existing_loop_to_current_thread() -> None:
@@ -73,6 +203,7 @@ def link_existing_loop_to_current_thread() -> None:
 @ModuleWatchdog.after_module_imported("asyncio")
 def _(asyncio: ModuleType) -> None:
     global ASYNCIO_IMPORTED
+    global _NATIVE_ASYNCIO_INIT
 
     ASYNCIO_IMPORTED = True
 
@@ -90,7 +221,7 @@ def _(asyncio: ModuleType) -> None:
     globals()["get_running_loop"] = _get_running_loop
     globals()["_task_get_name"] = lambda task: task.get_name()
 
-    init_stack: bool = config.stack.enabled and stack.is_available
+    init_stack: bool = (config.install or config.stack.enabled) and stack.is_available
 
     # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy
     # Try both names for compatibility
@@ -113,6 +244,8 @@ def _(asyncio: ModuleType) -> None:
             loop: typing.Optional[aio.AbstractEventLoop] = get_argument_value(args, kwargs, 1, "loop")
             if init_stack:
                 stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                if not _PASSED_C_ASYNCIO and _completed_c_asyncio() is not None:
+                    _call_init_asyncio(asyncio)
             return f(*args, **kwargs)
 
     if init_stack:
@@ -156,7 +289,12 @@ def _(asyncio: ModuleType) -> None:
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
             loop = typing.cast("typing.Optional[aio.AbstractEventLoop]", kwargs.get("loop"))
-            parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+            # current_task raises when no loop is running. Callers may iterate
+            # as_completed from synchronous code and drive each result with
+            # run_until_complete.
+            parent: typing.Optional[aio.Task[typing.Any]] = None
+            if globals()["get_running_loop"]() is not None:
+                parent = globals()["current_task"]()
 
             if parent is not None:
                 fs = typing.cast("typing.Iterable[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 0, "fs"))
@@ -187,7 +325,10 @@ def _(asyncio: ModuleType) -> None:
             awaitable = typing.cast("aio.Future[typing.Any]", get_argument_value(args, kwargs, 0, "arg"))
             future: aio.Future[typing.Any] = asyncio.ensure_future(awaitable, loop=loop)
 
-            parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+            # Same guard as as_completed: shield is valid outside a running loop.
+            parent: typing.Optional[aio.Task[typing.Any]] = None
+            if globals()["get_running_loop"]() is not None:
+                parent = globals()["current_task"]()
             if parent is not None:
                 stack.link_tasks(parent, future)
 
@@ -201,49 +342,86 @@ def _(asyncio: ModuleType) -> None:
 
             return f(*args, **kwargs)
 
-        # Wrap asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+)
-        if sys.hexversion >= 0x030B0000:  # Python 3.11+
+        # Hook asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+).
+        # 3.15+ prefers PY_RETURN; below that _register_return_hook returns False and we wrap().
+        if sys.hexversion >= 0x030B0000:
             taskgroups_module: typing.Optional[ModuleType] = sys.modules.get("asyncio.taskgroups")
             if taskgroups_module is not None:
                 taskgroup_class: typing.Optional[type[typing.Any]] = getattr(taskgroups_module, "TaskGroup", None)
                 if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
 
-                    @partial(wrap, taskgroup_class.create_task)
-                    def _(
-                        f: typing.Callable[..., aio.Task[typing.Any]],
-                        args: tuple[typing.Any, ...],
-                        kwargs: dict[str, typing.Any],
-                    ) -> aio.Task[typing.Any]:
-                        result: aio.Task[typing.Any] = f(*args, **kwargs)
-
+                    def _on_taskgroup_create_task_return(return_value: object) -> None:
+                        task: typing.Optional[aio.Task[typing.Any]] = typing.cast(
+                            "typing.Optional[aio.Task[typing.Any]]", return_value
+                        )
                         parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
-                        if parent is not None and result is not None:
-                            # Link parent task to the task created by TaskGroup
-                            stack.link_tasks(parent, result)
+                        if parent is not None and task is not None:
+                            stack.link_tasks(parent, task)
 
-                        return result
+                    if not _register_return_hook(taskgroup_class.create_task, _on_taskgroup_create_task_return):
+
+                        @partial(wrap, taskgroup_class.create_task)
+                        def _(
+                            f: typing.Callable[..., aio.Task[typing.Any]],
+                            args: tuple[typing.Any, ...],
+                            kwargs: dict[str, typing.Any],
+                        ) -> aio.Task[typing.Any]:
+                            result: aio.Task[typing.Any] = f(*args, **kwargs)
+                            parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+                            if parent is not None and result is not None:
+                                stack.link_tasks(parent, result)
+                            return result
 
         # Note: asyncio.timeout and asyncio.timeout_at don't create child tasks.
         # They are context managers that schedule a callback to cancel the current task
         # if it times out. The timeout._task is the same as the current task, so there's
         # no parent-child relationship to link. The timeout mechanism is handled by the
         # event loop's timeout handler, not by creating new tasks.
-        @partial(wrap, sys.modules["asyncio"].tasks.create_task)
-        def _(
-            f: typing.Callable[..., aio.Task[typing.Any]],
-            args: tuple[typing.Any, ...],
-            kwargs: dict[str, typing.Any],
-        ) -> aio.Task[typing.Any]:
-            # kwargs will typically contain context (Python 3.11+ only) and eager_start (Python 3.14+ only)
-            task: aio.Task[typing.Any] = f(*args, **kwargs)
+        def _on_create_task_return(return_value: object) -> None:
+            task: aio.Task[typing.Any] = typing.cast("aio.Task[typing.Any]", return_value)
             parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
-
             if parent is not None:
                 stack.weak_link_tasks(parent, task)
 
-            return task
+        if not _register_return_hook(sys.modules["asyncio"].tasks.create_task, _on_create_task_return):
 
+            @partial(wrap, sys.modules["asyncio"].tasks.create_task)
+            def _(
+                f: typing.Callable[..., aio.Task[typing.Any]],
+                args: tuple[typing.Any, ...],
+                kwargs: dict[str, typing.Any],
+            ) -> aio.Task[typing.Any]:
+                task: aio.Task[typing.Any] = f(*args, **kwargs)
+                parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+                if parent is not None:
+                    stack.weak_link_tasks(parent, task)
+                return task
+
+        _NATIVE_ASYNCIO_INIT = True
         _call_init_asyncio(asyncio)
+
+
+def _on_c_asyncio_imported(asyncio_c: typing.Optional[ModuleType]) -> None:
+    global _C_ASYNCIO
+
+    # A None entry in sys.modules marks _asyncio as unavailable.
+    if not isinstance(asyncio_c, ModuleType):
+        return
+    # At registration, a module still initializing may still be executing, possibly on another thread, so it is passed
+    # to native code but not cached in _C_ASYNCIO.
+    if not (_C_ASYNCIO_HOOK_REGISTRATION_THREAD == ddtrace_threading.get_ident() and _is_initializing(asyncio_c)):
+        _C_ASYNCIO = asyncio_c
+    if _NATIVE_ASYNCIO_INIT:
+        # If _asyncio was imported first, the nested asyncio hook ran before its AsyncioDebug pointer was set.
+        # Retry now.
+        _call_init_asyncio(sys.modules["asyncio"])
+
+
+_C_ASYNCIO_HOOK_REGISTRATION_THREAD = ddtrace_threading.get_ident()
+try:
+    ModuleWatchdog.register_module_hook("_asyncio", _on_c_asyncio_imported)
+finally:
+    _C_ASYNCIO_HOOK_REGISTRATION_THREAD = None
 
 
 @ModuleWatchdog.after_module_imported("uvloop")
@@ -263,7 +441,7 @@ def _(uvloop: ModuleType) -> None:
 
     import asyncio
 
-    init_stack: bool = config.stack.enabled and stack.is_available
+    init_stack: bool = (config.install or config.stack.enabled) and stack.is_available
 
     # Wrap uvloop.new_event_loop to track loops when they're created
     new_event_loop_func: typing.Optional[typing.Callable[[], asyncio.AbstractEventLoop]] = getattr(

@@ -16,7 +16,7 @@ from tests.utils import override_global_config
 
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
-        super(TestTracedCursor, self).setUp()
+        super().setUp()
         load_iast()
         with override_global_config(
             dict(

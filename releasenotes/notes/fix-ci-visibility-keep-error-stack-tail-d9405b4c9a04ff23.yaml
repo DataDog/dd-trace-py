@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI visibility: Fixes an issue where long test error stack traces and messages were cut off at the end,
+    hiding the failing frame and exception message. When ``error.stack`` or ``error.message`` exceed 5000
+    characters, the last 5000 characters are now kept.

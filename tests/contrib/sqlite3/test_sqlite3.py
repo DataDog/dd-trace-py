@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 
 
@@ -8,7 +10,7 @@ except ImportError:
 
 import sqlite3
 import time
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -26,12 +28,11 @@ from tests.utils import assert_is_not_measured
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Generator  # noqa:F401
+    from collections.abc import Generator
 
 
 @pytest.fixture
-def patched_conn():
-    # type: () -> Generator[sqlite3.Cursor, None, None]
+def patched_conn() -> Generator[sqlite3.Connection, None, None]:
     patch()
     conn = sqlite3.connect(":memory:")
     yield conn
@@ -40,12 +41,12 @@ def patched_conn():
 
 class TestSQLite(TracerTestCase):
     def setUp(self):
-        super(TestSQLite, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
         unpatch()
-        super(TestSQLite, self).tearDown()
+        super().tearDown()
 
     def test_service_info(self):
         backup_tracer = ddtrace.tracer

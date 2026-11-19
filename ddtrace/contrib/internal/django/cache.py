@@ -49,7 +49,7 @@ def traced_cache(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, An
 
     instance = args[0]
 
-    cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
+    cache_backend = f"{instance.__module__}.{instance.__class__.__name__}"
     tags = {COMPONENT: config_django.integration_name, "django.cache.backend": cache_backend}
     if len(args) > 1:
         keys = utils.quantize_key_values(args[1])

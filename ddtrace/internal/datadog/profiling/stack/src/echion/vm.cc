@@ -107,6 +107,7 @@ init_safe_copy()
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
         fast_copy_active = true;
+        fast_copy_desired = true;
         safe_memcpy_initialized = true;
     } else {
         // std::cerr might not have been fully initialized at this point.
@@ -134,6 +135,7 @@ init_safe_copy()
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
         fast_copy_active = true;
+        fast_copy_desired = true;
         safe_memcpy_initialized = true;
         return;
     }
@@ -152,6 +154,11 @@ set_fast_copy_enabled(bool enabled)
         if (safe_memcpy_initialized) {
             safe_copy = safe_memcpy_wrapper;
             fast_copy_active = true;
+#if defined PL_LINUX
+            // A prior disable with no process_vm_readv sets failed_safe_copy; clear it
+            // once a usable copy method is restored so start() can recover.
+            failed_safe_copy = false;
+#endif
             return true;
         }
         fprintf(stderr,
@@ -166,6 +173,7 @@ set_fast_copy_enabled(bool enabled)
     if (process_vm_readv_available) {
         safe_copy = process_vm_readv;
         fast_copy_active = false;
+        failed_safe_copy = false;
         return true;
     }
     fprintf(stderr,
@@ -226,6 +234,28 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
         g_copy_memory_error_count.fetch_add(1, std::memory_order_relaxed);
     }
     return ret;
+}
+
+bool
+read_own_memory(uintptr_t address, void* buffer, size_t size)
+{
+    if (address == 0 || size == 0) {
+        return false;
+    }
+
+#if defined PL_LINUX
+    struct iovec local = { buffer, size };
+    struct iovec remote = { reinterpret_cast<void*>(address), size }; // NOLINT(performance-no-int-to-ptr)
+    return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
+#elif defined PL_DARWIN
+    mach_vm_size_t copied = 0;
+    return mach_vm_read_overwrite(
+             mach_task_self(), address, size, reinterpret_cast<mach_vm_address_t>(buffer), &copied) == KERN_SUCCESS &&
+           copied == size;
+#else
+    (void)buffer;
+    return false;
+#endif
 }
 
 void

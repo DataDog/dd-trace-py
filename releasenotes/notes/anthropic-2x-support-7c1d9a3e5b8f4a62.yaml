@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    anthropic: Adds tracing and LLM Observability support for ``anthropic`` 1.x and 2.x.

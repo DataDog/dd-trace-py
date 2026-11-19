@@ -98,7 +98,7 @@ def trace_tween_factory(handler, registry):
                     event: WebFrameworkRequestEvent = ctx.event
                     # set request tags
                     if request.matched_route:
-                        event.resource = "{} {}".format(request.method, request.matched_route.name)
+                        event.resource = f"{request.method} {request.matched_route.name}"
                         event.request_route = request.matched_route.pattern
                         span_from_context(ctx)._set_attribute("pyramid.route.name", request.matched_route.name)
                     # set response tags

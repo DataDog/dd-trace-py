@@ -1,12 +1,13 @@
 import abc
+from collections.abc import Iterable
+from collections.abc import Iterator
+from collections.abc import Mapping
 import contextvars
 from enum import Enum
 import sys
 from typing import Any
-from typing import Iterable
-from typing import Iterator
+from typing import Callable
 from typing import Literal
-from typing import Mapping
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -75,10 +76,10 @@ class PyConfigurator:
         ...
 
 class StacktraceCollection:
-    Disabled: "StacktraceCollection"
-    WithoutSymbols: "StacktraceCollection"
-    EnabledWithInprocessSymbols: "StacktraceCollection"
-    EnabledWithSymbolsInReceiver: "StacktraceCollection"
+    Disabled: StacktraceCollection
+    WithoutSymbols: StacktraceCollection
+    EnabledWithInprocessSymbols: StacktraceCollection
+    EnabledWithSymbolsInReceiver: StacktraceCollection
 
 class CrashtrackerConfiguration:
     def __init__(
@@ -94,6 +95,7 @@ class CrashtrackerConfiguration:
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
         api_key: Optional[str] = None,
+        collect_otel_thread_contexts: bool = False,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -110,9 +112,9 @@ class CrashtrackerMetadata:
     def __init__(self, library_name: str, library_version: str, family: str, tags: dict[str, str]): ...
 
 class CrashtrackerStatus:
-    NotInitialized: "CrashtrackerStatus"
-    Initialized: "CrashtrackerStatus"
-    FailedToInitialize: "CrashtrackerStatus"
+    NotInitialized: CrashtrackerStatus
+    Initialized: CrashtrackerStatus
+    FailedToInitialize: CrashtrackerStatus
 
 def crashtracker_init(
     config: CrashtrackerConfiguration,
@@ -184,23 +186,14 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context_from_span(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
-        """
-        Update the OTel thread context from the active span and its local root span.
-        :param span: The active span.
-        :param local_root: The root span of the local trace chunk.
-        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
-        """
-        ...
-    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
-        """Update the OTel thread context from an active trace Context.
+    def sync_otel_thread_context(ctx: Optional[Union[Context, SpanData]]) -> None:
+        """Publish IDs and sampling flags from the active span or Context.
 
-        Invalid Context identifiers detach the current thread context. The local root span ID is
-        published as zero because a Context does not retain local root span identity.
+        Spans use their local root's sampling priority and span ID. A bare Context
+        publishes zero for the local root span ID. None, unsupported values, invalid
+        Context IDs, and sampling lookup failures detach the current thread context.
+        Lookup failures also propagate to the caller.
         """
-        ...
-    def detach_otel_thread_context() -> None:
-        """Detach the OTel thread context from the current thread."""
         ...
 
 class SharedRuntime:
@@ -221,6 +214,12 @@ class SharedRuntime:
         ...
     def defer_after_fork_child(self) -> None:
         """Prevent lazy runtime restart while Python child hooks run."""
+        ...
+    def before_python_fork(self) -> None:
+        """Mark a Python-managed fork so native preparation does not pause workers."""
+        ...
+    def after_python_fork_parent(self) -> None:
+        """Clear the Python-managed fork mark in the parent."""
         ...
     def allow_after_fork_child(self) -> None:
         """Allow lazy runtime restart after Python child hooks finish."""
@@ -296,7 +295,7 @@ class TelemetryWorker:
         install_id: Optional[str] = ...,
         install_type: Optional[str] = ...,
         install_time: Optional[str] = ...,
-    ) -> "TelemetryWorker":
+    ) -> TelemetryWorker:
         """Build and spawn the worker on ``runtime``.
 
         :param endpoint_url: BASE url. Agent: e.g. ``"http://host:8126"`` (the
@@ -334,7 +333,7 @@ class TelemetryWorker:
         """Force a data flush. Does not emit any lifecycle event. Non-blocking."""
         ...
     def add_configuration(
-        self, name: str, value: Optional[str], origin: "ConfigurationOrigin", config_id: Optional[str], seq_id: int
+        self, name: str, value: Optional[str], origin: ConfigurationOrigin, config_id: Optional[str], seq_id: int
     ) -> None:
         """Queue a configuration change.
 
@@ -370,7 +369,7 @@ class TelemetryWorker:
         """
         ...
     def add_log(
-        self, identifier: int, message: str, level: "LogLevel", stack_trace: Optional[str], tags: Optional[str]
+        self, identifier: int, message: str, level: LogLevel, stack_trace: Optional[str], tags: Optional[str]
     ) -> None:
         """Queue a (pre-formatted, pre-deduped) log.
 
@@ -381,12 +380,12 @@ class TelemetryWorker:
         ...
     def register_metric_context(
         self,
-        namespace: "MetricNamespace",
+        namespace: MetricNamespace,
         name: str,
-        metric_type: "MetricType",
+        metric_type: MetricType,
         tags: list[str],
         common: bool,
-    ) -> "MetricContext":
+    ) -> MetricContext:
         """Register a metric context and return an opaque handle for :meth:`add_point`.
 
         Call ONCE per unique ``(namespace, name, type, tags)`` — the caller caches the
@@ -399,14 +398,14 @@ class TelemetryWorker:
         :param tags: a list of ``"key:value"`` strings.
         """
         ...
-    def add_point(self, context: "MetricContext", value: float) -> None:
+    def add_point(self, context: MetricContext, value: float) -> None:
         """Add ``value`` to a context returned by :meth:`register_metric_context`.
 
         For contexts registered *with* tags. Use :meth:`add_point_with_tags` for untagged
         contexts whose tags vary per point.
         """
         ...
-    def add_point_with_tags(self, context: "MetricContext", value: float, tags: list[str]) -> None:
+    def add_point_with_tags(self, context: MetricContext, value: float, tags: list[str]) -> None:
         """Add ``value`` to an untagged context with ``tags`` (``"k:v"`` strings) on the point."""
         ...
     def add_product_change(self, product: str, enabled: bool, version: Optional[str]) -> None:
@@ -439,9 +438,9 @@ class TelemetryWorker:
 class DebuggerTrackType:
     """Which debugger track a payload belongs to. (decides the endpoint)"""
 
-    Diagnostics: "DebuggerTrackType"
-    Snapshots: "DebuggerTrackType"
-    Logs: "DebuggerTrackType"
+    Diagnostics: DebuggerTrackType
+    Snapshots: DebuggerTrackType
+    Logs: DebuggerTrackType
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -486,7 +485,7 @@ class DebuggerSender:
         tags: str = ...,
         timeout_ms: int = ...,
         test_session_token: Optional[str] = ...,
-    ) -> "DebuggerSender":
+    ) -> DebuggerSender:
         """Build a sender on ``runtime``.
 
         :param url: the trace agent URL (``http``, ``https`` or
@@ -547,7 +546,7 @@ class SymDBSender:
         tags: str = ...,
         timeout_ms: int = ...,
         test_session_token: Optional[str] = ...,
-    ) -> "SymDBSender":
+    ) -> SymDBSender:
         """Build a sender on ``runtime``.
 
         ``url`` / ``site`` / ``api_key`` select the agent or the intake exactly as
@@ -576,7 +575,7 @@ class TraceExporter:
     TraceExporter is a class responsible for exporting traces to the Agent.
     """
 
-    def set_telemetry_handle(self, worker: Optional["TelemetryWorker"] = None) -> None:
+    def set_telemetry_handle(self, worker: Optional[TelemetryWorker] = None) -> None:
         """
         Report the exporter's ``trace_api.*`` health metrics through an existing
         instrumentation-telemetry worker instead of a dedicated one.
@@ -593,6 +592,9 @@ class TraceExporter:
         Send a trace payload to the Agent.
         :param data: The msgpack encoded trace payload to send.
         """
+        ...
+    def set_otlp_resource_attributes(self, attributes: dict[str, str]) -> None:
+        """Replace the resource attributes used by subsequent OTLP trace exports."""
         ...
     def shutdown(self, timeout_ns: int) -> None:
         """
@@ -663,6 +665,13 @@ class TraceExporterBuilder:
         """
         Set the git commit sha of the TraceExporter.
         :param git_commit_sha: The git commit SHA of the current code version.
+        """
+        ...
+    def set_runtime_id(self, runtime_id: str) -> TraceExporterBuilder:
+        """
+        Set the runtime id of the TraceExporter.
+        :param runtime_id: The runtime UUID of the current process. A fresh UUID is generated
+            if unset.
         """
         ...
     def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:
@@ -746,6 +755,26 @@ class TraceExporterBuilder:
         """Set span tag keys included in computed stats."""
         ...
 
+    def set_stats_cardinality_limit(
+        self,
+        whole_key_limit: int,
+        resource_limit: int,
+        http_endpoint_limit: int,
+        peer_tags_limit: int,
+        additional_tags_limit: int,
+    ) -> TraceExporterBuilder:
+        """
+        Override the cardinality limits used by stats computation. Aggregation keys beyond a limit
+        are collapsed into a sentinel value. Requires stats computation to be enabled via
+        enable_stats.
+        :param whole_key_limit: Maximum number of distinct aggregation keys per time bucket.
+        :param resource_limit: Maximum number of distinct resource names.
+        :param http_endpoint_limit: Maximum number of distinct HTTP endpoints.
+        :param peer_tags_limit: Maximum number of distinct peer tag combinations.
+        :param additional_tags_limit: Maximum number of distinct additional tag combinations.
+        """
+        ...
+
     def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
         """
         Obfuscate client side stats buckets in the client instead of in the agent.
@@ -754,13 +783,11 @@ class TraceExporterBuilder:
     def enable_telemetry(
         self,
         heartbeat_ms: int,
-        runtime_id: str,
         debug_enabled: bool,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
-        :param runtime_id: The runtime id to use for telemetry.
         :param debug_enabled: Whether to enable debug logging for telemetry.
         """
         ...
@@ -801,24 +828,24 @@ class TraceExporterBuilder:
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
+        Set the OTLP endpoint for trace export.
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
-        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        :param url: The full URL of the OTLP endpoint.
         """
         ...
     def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
         """
-        Select the OTLP export protocol: "http/json" or "http/protobuf".
-        Any other value raises ValueError.
-        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
+        Select the OTLP export protocol: "grpc", "http/json", or "http/protobuf".
+        Any other value raises ValueError. gRPC supports plaintext endpoints only.
+        :param protocol: The OTLP protocol.
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
         """
-        Set additional HTTP headers for OTLP trace export requests.
-        :param headers: A list of (key, value) header pairs.
+        Set additional metadata for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs. gRPC metadata keys must be lowercase.
         """
         ...
     def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
@@ -869,6 +896,61 @@ class TraceExporterBuilder:
         Returns a string representation of the exporter.
         Should only be used for debugging.
         """
+        ...
+
+class TraceBuffer:
+    """Buffer finished trace chunks and export them from a libdatadog worker."""
+
+    def __init__(
+        self,
+        builder: TraceExporterBuilder,
+        shared_runtime: SharedRuntime,
+        max_buffered_bytes: Optional[int] = None,
+        flush_threshold_bytes: Optional[int] = None,
+        max_flush_interval_ns: Optional[int] = None,
+        synchronous_export: bool = False,
+        synchronous_export_timeout_ns: Optional[int] = None,
+    ) -> None:
+        """Consume builder and start the export worker. None keeps the libdatadog default."""
+        ...
+    def write(self, spans: Iterable[SpanData], dd_origin: Optional[str] = None) -> Optional[str]:
+        """Add one trace chunk. Return None if the buffer took every span, or else the reason.
+
+        This method never raises, because Span.finish() calls it inside application code.
+        """
+        ...
+    def force_flush(self) -> None:
+        """Tell the worker to export the buffered chunks, and do not wait."""
+        ...
+    def flush(self, timeout_ns: int) -> None:
+        """Export the buffered chunks and wait up to timeout_ns. A timeout_ns of 0 does not wait."""
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """Export the buffered chunks, then stop the worker and the exporter within about timeout_ns.
+
+        Call this method before you discard the buffer. If you do not, the exporter workers run
+        until the runtime shuts down. The exporter shutdown gets 20% of timeout_ns, between 0.5 and
+        2 seconds and never more than timeout_ns.
+        """
+        ...
+    def discard(self, timeout_ns: int) -> None:
+        """Stop the worker within about timeout_ns and drop the queued chunks without exporting them.
+
+        Unlike shutdown, this neither flushes the buffer nor sends the final client-side stats. The
+        exporter workers stay registered on the runtime until it shuts down.
+        """
+        ...
+    def set_otlp_resource_attributes(self, attributes: dict[str, str]) -> None:
+        """Replace the custom resource attributes of subsequent OTLP trace exports.
+
+        Does nothing after shutdown or discard.
+        """
+        ...
+    def set_telemetry_handle(self, worker: Optional[TelemetryWorker] = None) -> None:
+        """Send the exporter health metrics through worker. None stops the metrics."""
+        ...
+    def take_agent_response(self) -> Optional[str]:
+        """Return and clear the body of the most recent changed agent response."""
         ...
 
 class AgentResponse:
@@ -986,9 +1068,10 @@ class SerializationError(Exception):
     ...
 
 class ffe:
-    """
-    Native Feature Flags and Experimentation module.
-    """
+    """Native Feature Flags and Experimentation module."""
+
+    @staticmethod
+    def get_evaluator_capabilities() -> list[str]: ...
 
     class FlagType(Enum):
         String = ...
@@ -1036,6 +1119,8 @@ class ffe:
         def do_log(self) -> bool: ...
         @property
         def serial_id(self) -> Optional[int]: ...
+        @property
+        def features(self) -> Optional[tuple[tuple[str, Union[str, float, bool], tuple[str, ...]], ...]]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
@@ -1113,6 +1198,14 @@ class Context:
     def _publish_sampling_decision(
         self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
     ) -> None: ...
+    @staticmethod
+    def _register_tracestate_helpers(
+        w3c_get_dd_list_member: Callable[..., str],
+        w3c_build_tracestate_members: Callable[..., list[str]],
+        normalize_otel_tracestate: Callable[[dict[str, str]], None],
+        materialize_otel_sampling_decision: Callable[[dict[str, str], Optional[int], bool, float, bool], None],
+        tracestate_max_bytes: int,
+    ) -> None: ...
 
 class SpanData:
     name: str
@@ -1130,7 +1223,8 @@ class SpanData:
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
-    _parent_context: Optional[Any]  # parent Context, or None
+    _parent_context: Optional[Context]  # parent Context, or None
+    context: Context  # this span's trace context, built lazily on first read
 
     def __new__(
         cls: type[_SpanDataT],
@@ -1142,20 +1236,38 @@ class SpanData:
         span_id: Optional[int] = None,
         parent_id: Optional[int] = None,
         start: Optional[float] = None,
-        context: Optional[Any] = None,  # placeholder for Span.__init__
+        context: Optional[Context] = None,  # parent Context, or None for a root span
         on_finish: Optional[Any] = None,  # placeholder for Span.__init__
         span_api: Optional[str] = None,
         links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
     ) -> _SpanDataT: ...
+    def _context_for_child(self) -> Context: ...
+    def _set_sampling_decision_maker(self, sampling_mechanism: int) -> str: ...
+    def _override_sampling_decision(
+        self, decision: Optional[Union[int, float]], sampling_mechanism: int = 4
+    ) -> None: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
     @property
     def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
+    @property
+    def _local_root(self: _SpanDataT) -> _SpanDataT: ...
+    @_local_root.setter
+    def _local_root(self, value: SpanData) -> None: ...
+    @_local_root.deleter
+    def _local_root(self) -> None: ...
+    @property
+    def _service_entry_span(self: _SpanDataT) -> _SpanDataT: ...
+    @_service_entry_span.setter
+    def _service_entry_span(self, value: SpanData) -> None: ...
+    @_service_entry_span.deleter
+    def _service_entry_span(self) -> None: ...
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _has_meta_structs(self) -> bool: ...
     def _get_meta_structs(self) -> dict[str, Any]: ...
+    def _inherit_from_parent(self, parent: SpanData) -> None: ...
     def _set_link(
         self,
         trace_id: int,
@@ -1170,8 +1282,8 @@ class SpanData:
         attributes: Optional[Mapping[str, _AttributeValueType]] = None,
         time_unix_nano: Optional[int] = None,
     ) -> None: ...
-    def _get_links(self) -> list["SpanLink"]: ...
-    def _get_events(self) -> list["SpanEvent"]: ...
+    def _get_links(self) -> list[SpanLink]: ...
+    def _get_events(self) -> list[SpanEvent]: ...
     def _has_links(self) -> bool: ...
     def _has_events(self) -> bool: ...
 
@@ -1231,9 +1343,9 @@ class SpanLink:
 class ResultType:
     value: int
     name: str
-    RESULT_OK: "ResultType"
-    RESULT_EXCEPTION: "ResultType"
-    RESULT_UNDEFINED: "ResultType"
+    RESULT_OK: ResultType
+    RESULT_EXCEPTION: ResultType
+    RESULT_UNDEFINED: ResultType
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
@@ -1266,6 +1378,7 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def uuid4() -> str: ...
 def process_metrics() -> tuple[int, int, int, int, int, int]:
     """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
 
@@ -1277,6 +1390,46 @@ def process_metrics() -> tuple[int, int, int, int, int, int]:
 
 def total_memory_bytes() -> int:
     """Return total physical RAM plus swap, in bytes."""
+    ...
+
+def list_distributions(entry: str) -> list[tuple[str, str]]:
+    """List the metadata directories under one sys.path entry, a directory or a zip archive.
+
+    Only the entry is listed; no metadata is read.
+
+    :return: ``(normalized_name, directory)`` pairs in ``importlib.metadata`` lookup order, with
+        names normalized as ``importlib.metadata`` does, using underscores as separators.
+    :raises RuntimeError: If the listing fails unexpectedly; never ``PanicException``.
+    """
+    ...
+
+def read_distribution(entry: str, directory: str) -> Optional[tuple[Optional[str], Optional[str]]]:
+    """Read the name and version of one metadata directory returned by ``list_distributions``.
+
+    :return: ``(name, version)``, either of which is ``None`` when missing, as with
+        ``importlib.metadata``; or ``None`` if the distribution is gone.
+    :raises ValueError: If the metadata cannot be read or decoded.
+    :raises RuntimeError: If the read fails unexpectedly; never ``PanicException``.
+    """
+    ...
+
+def scan_distributions(
+    entry: str,
+    module_suffixes: list[str],
+    release_gil: bool = False,
+) -> tuple[list[tuple[str, Optional[str], list[str], list[str]]], list[tuple[str, str]]]:
+    """Scan one sys.path entry, a directory or a zip archive, for installed distributions.
+
+    :param module_suffixes: ``importlib.machinery.all_suffixes()``, longest first.
+    :param release_gil: Release the GIL during the scan; only for threads that cannot outlive
+        interpreter shutdown.
+    :return: ``(dists, errors)``, where each dist is ``(name, version, keys, top_level)``:
+        ``version`` is ``None`` when missing, ``keys`` are the import roots it ships and
+        ``top_level`` the names ``packages_distributions`` maps to it. Each error is
+        ``(metadata_path, message)`` for a file that could not be decoded. Entries that
+        cannot be listed have no distributions.
+    :raises RuntimeError: If the scan fails unexpectedly; never ``PanicException``.
+    """
     ...
 
 class config:
@@ -1304,20 +1457,22 @@ class config:
 # -----------------------------------------------------------------------------
 
 class MetricNamespace:
-    tracers: "MetricNamespace"
-    profilers: "MetricNamespace"
-    rum: "MetricNamespace"
-    appsec: "MetricNamespace"
-    ide_plugins: "MetricNamespace"
-    live_debugger: "MetricNamespace"
-    iast: "MetricNamespace"
-    general: "MetricNamespace"
-    telemetry: "MetricNamespace"
-    apm: "MetricNamespace"
-    sidecar: "MetricNamespace"
-    civisibility: "MetricNamespace"
-    mlobs: "MetricNamespace"
-    ddtraceapi: "MetricNamespace"
+    tracers: MetricNamespace
+    profilers: MetricNamespace
+    rum: MetricNamespace
+    appsec: MetricNamespace
+    ide_plugins: MetricNamespace
+    live_debugger: MetricNamespace
+    iast: MetricNamespace
+    general: MetricNamespace
+    telemetry: MetricNamespace
+    apm: MetricNamespace
+    sidecar: MetricNamespace
+    civisibility: MetricNamespace
+    mlobs: MetricNamespace
+    ddtraceapi: MetricNamespace
+    ai_guard: MetricNamespace
+    debugger: MetricNamespace
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1325,10 +1480,10 @@ class MetricNamespace:
     def __repr__(self) -> str: ...
 
 class MetricType:
-    gauge: "MetricType"
-    count: "MetricType"
-    rate: "MetricType"
-    distribution: "MetricType"
+    gauge: MetricType
+    count: MetricType
+    rate: MetricType
+    distribution: MetricType
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1345,16 +1500,16 @@ class MetricContext:
     ...
 
 class ConfigurationOrigin:
-    env_var: "ConfigurationOrigin"
-    otel_env_var: "ConfigurationOrigin"
-    code: "ConfigurationOrigin"
-    dd_config: "ConfigurationOrigin"
-    remote_config: "ConfigurationOrigin"
-    default: "ConfigurationOrigin"
-    local_stable_config: "ConfigurationOrigin"
-    fleet_stable_config: "ConfigurationOrigin"
-    calculated: "ConfigurationOrigin"
-    unknown: "ConfigurationOrigin"
+    env_var: ConfigurationOrigin
+    otel_env_var: ConfigurationOrigin
+    code: ConfigurationOrigin
+    dd_config: ConfigurationOrigin
+    remote_config: ConfigurationOrigin
+    default: ConfigurationOrigin
+    local_stable_config: ConfigurationOrigin
+    fleet_stable_config: ConfigurationOrigin
+    calculated: ConfigurationOrigin
+    unknown: ConfigurationOrigin
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1362,9 +1517,9 @@ class ConfigurationOrigin:
     def __repr__(self) -> str: ...
 
 class LogLevel:
-    ERROR: "LogLevel"
-    WARN: "LogLevel"
-    DEBUG: "LogLevel"
+    ERROR: LogLevel
+    WARN: LogLevel
+    DEBUG: LogLevel
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1378,16 +1533,19 @@ class RemoteConfigProduct:
     name (e.g. ``"ASM_FEATURES"``); ``int()`` yields the discriminant.
     """
 
-    AgentConfig: "RemoteConfigProduct"
-    AgentTask: "RemoteConfigProduct"
-    ApmTracing: "RemoteConfigProduct"
-    Asm: "RemoteConfigProduct"
-    AsmData: "RemoteConfigProduct"
-    AsmDd: "RemoteConfigProduct"
-    AsmFeatures: "RemoteConfigProduct"
-    FfeFlags: "RemoteConfigProduct"
-    LiveDebugging: "RemoteConfigProduct"
-    LiveDebuggingSymbolDb: "RemoteConfigProduct"
+    AgentConfig: RemoteConfigProduct
+    AgentTask: RemoteConfigProduct
+    ApmTracing: RemoteConfigProduct
+    Asm: RemoteConfigProduct
+    AsmData: RemoteConfigProduct
+    AsmDd: RemoteConfigProduct
+    AsmFeatures: RemoteConfigProduct
+    FfeFlags: RemoteConfigProduct
+    LiveDebugging: RemoteConfigProduct
+    LiveDebuggingSymbolDb: RemoteConfigProduct
+    Debug: RemoteConfigProduct
+    ApmProfiling: RemoteConfigProduct
+
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1399,54 +1557,54 @@ class RemoteConfigCapabilities:
     capability; ``int()`` yields the bit position the client encodes.
     """
 
-    AsmActivation: "RemoteConfigCapabilities"
-    AsmIpBlocking: "RemoteConfigCapabilities"
-    AsmDdRules: "RemoteConfigCapabilities"
-    AsmExclusions: "RemoteConfigCapabilities"
-    AsmRequestBlocking: "RemoteConfigCapabilities"
-    AsmResponseBlocking: "RemoteConfigCapabilities"
-    AsmUserBlocking: "RemoteConfigCapabilities"
-    AsmCustomRules: "RemoteConfigCapabilities"
-    AsmCustomBlockingResponse: "RemoteConfigCapabilities"
-    AsmTrustedIps: "RemoteConfigCapabilities"
-    AsmApiSecuritySampleRate: "RemoteConfigCapabilities"
-    ApmTracingSampleRate: "RemoteConfigCapabilities"
-    ApmTracingLogsInjection: "RemoteConfigCapabilities"
-    ApmTracingHttpHeaderTags: "RemoteConfigCapabilities"
-    ApmTracingCustomTags: "RemoteConfigCapabilities"
-    AsmProcessorOverrides: "RemoteConfigCapabilities"
-    AsmCustomDataScanners: "RemoteConfigCapabilities"
-    AsmExclusionData: "RemoteConfigCapabilities"
-    ApmTracingEnabled: "RemoteConfigCapabilities"
-    ApmTracingDataStreamsEnabled: "RemoteConfigCapabilities"
-    AsmRaspSqli: "RemoteConfigCapabilities"
-    AsmRaspLfi: "RemoteConfigCapabilities"
-    AsmRaspSsrf: "RemoteConfigCapabilities"
-    AsmRaspShi: "RemoteConfigCapabilities"
-    AsmRaspXxe: "RemoteConfigCapabilities"
-    AsmRaspRce: "RemoteConfigCapabilities"
-    AsmRaspNosqli: "RemoteConfigCapabilities"
-    AsmRaspXss: "RemoteConfigCapabilities"
-    ApmTracingSampleRules: "RemoteConfigCapabilities"
-    CsmActivation: "RemoteConfigCapabilities"
-    AsmAutoUserInstrumMode: "RemoteConfigCapabilities"
-    AsmEndpointFingerprint: "RemoteConfigCapabilities"
-    AsmSessionFingerprint: "RemoteConfigCapabilities"
-    AsmNetworkFingerprint: "RemoteConfigCapabilities"
-    AsmHeaderFingerprint: "RemoteConfigCapabilities"
-    AsmTruncationRules: "RemoteConfigCapabilities"
-    AsmRaspCmdi: "RemoteConfigCapabilities"
-    ApmTracingEnableDynamicInstrumentation: "RemoteConfigCapabilities"
-    ApmTracingEnableExceptionReplay: "RemoteConfigCapabilities"
-    ApmTracingEnableCodeOrigin: "RemoteConfigCapabilities"
-    ApmTracingEnableLiveDebugging: "RemoteConfigCapabilities"
-    AsmDdMulticonfig: "RemoteConfigCapabilities"
-    AsmTraceTaggingRules: "RemoteConfigCapabilities"
-    AsmExtendedDataCollection: "RemoteConfigCapabilities"
-    ApmTracingMulticonfig: "RemoteConfigCapabilities"
-    FfeFlagConfigurationRules: "RemoteConfigCapabilities"
-    DdDataStreamsTransactionExtractors: "RemoteConfigCapabilities"
-    LlmObsActivation: "RemoteConfigCapabilities"
+    AsmActivation: RemoteConfigCapabilities
+    AsmIpBlocking: RemoteConfigCapabilities
+    AsmDdRules: RemoteConfigCapabilities
+    AsmExclusions: RemoteConfigCapabilities
+    AsmRequestBlocking: RemoteConfigCapabilities
+    AsmResponseBlocking: RemoteConfigCapabilities
+    AsmUserBlocking: RemoteConfigCapabilities
+    AsmCustomRules: RemoteConfigCapabilities
+    AsmCustomBlockingResponse: RemoteConfigCapabilities
+    AsmTrustedIps: RemoteConfigCapabilities
+    AsmApiSecuritySampleRate: RemoteConfigCapabilities
+    ApmTracingSampleRate: RemoteConfigCapabilities
+    ApmTracingLogsInjection: RemoteConfigCapabilities
+    ApmTracingHttpHeaderTags: RemoteConfigCapabilities
+    ApmTracingCustomTags: RemoteConfigCapabilities
+    AsmProcessorOverrides: RemoteConfigCapabilities
+    AsmCustomDataScanners: RemoteConfigCapabilities
+    AsmExclusionData: RemoteConfigCapabilities
+    ApmTracingEnabled: RemoteConfigCapabilities
+    ApmTracingDataStreamsEnabled: RemoteConfigCapabilities
+    AsmRaspSqli: RemoteConfigCapabilities
+    AsmRaspLfi: RemoteConfigCapabilities
+    AsmRaspSsrf: RemoteConfigCapabilities
+    AsmRaspShi: RemoteConfigCapabilities
+    AsmRaspXxe: RemoteConfigCapabilities
+    AsmRaspRce: RemoteConfigCapabilities
+    AsmRaspNosqli: RemoteConfigCapabilities
+    AsmRaspXss: RemoteConfigCapabilities
+    ApmTracingSampleRules: RemoteConfigCapabilities
+    CsmActivation: RemoteConfigCapabilities
+    AsmAutoUserInstrumMode: RemoteConfigCapabilities
+    AsmEndpointFingerprint: RemoteConfigCapabilities
+    AsmSessionFingerprint: RemoteConfigCapabilities
+    AsmNetworkFingerprint: RemoteConfigCapabilities
+    AsmHeaderFingerprint: RemoteConfigCapabilities
+    AsmTruncationRules: RemoteConfigCapabilities
+    AsmRaspCmdi: RemoteConfigCapabilities
+    ApmTracingEnableDynamicInstrumentation: RemoteConfigCapabilities
+    ApmTracingEnableExceptionReplay: RemoteConfigCapabilities
+    ApmTracingEnableCodeOrigin: RemoteConfigCapabilities
+    ApmTracingEnableLiveDebugging: RemoteConfigCapabilities
+    AsmDdMulticonfig: RemoteConfigCapabilities
+    AsmTraceTaggingRules: RemoteConfigCapabilities
+    AsmExtendedDataCollection: RemoteConfigCapabilities
+    ApmTracingMulticonfig: RemoteConfigCapabilities
+    FfeFlagConfigurationRules: RemoteConfigCapabilities
+    DdDataStreamsTransactionExtractors: RemoteConfigCapabilities
+    LlmObsActivation: RemoteConfigCapabilities
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1488,8 +1646,11 @@ class RemoteConfigReader:
         polls.
         """
         ...
-    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+    def read(self, enabled_products: list[str]) -> Optional[list[RemoteConfigChange]]:
         """Return the changes since the last read (removals first).
+
+        None means no consistent snapshot could be read (e.g. the origin was
+        compacting the shared memory); the next read retries from the same state.
 
         ``enabled_products`` are the wire names the caller currently subscribes
         to; configs for other products are withheld so they are re-emitted once
@@ -1533,7 +1694,7 @@ class RemoteConfigClient:
         hostname: Optional[str] = None,
         config_root: Optional[str] = None,
         director_root: Optional[str] = None,
-    ) -> "RemoteConfigClient": ...
+    ) -> RemoteConfigClient: ...
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""
         ...
@@ -1544,8 +1705,20 @@ class RemoteConfigClient:
     ) -> None:
         """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
         ...
+    def fetch(
+        self, products: list[RemoteConfigProduct], extra_services: list[str]
+    ) -> Optional[list[RemoteConfigChange]]:
+        """Perform a single fetch against the agent and return the per-poll changes.
+
+        None means the agent replied that nothing changed.
+        """
+        ...
     def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
-        """Perform a single fetch against the agent and return the per-poll changes."""
+        """Like fetch, but returns no changes rather than None when nothing changed.
+
+        Kept for the callers that expect a list, such as test harnesses outside
+        this repository.
+        """
         ...
     def set_config_state(self, path: str, error: Optional[str] = None) -> None:
         """Acknowledge (``error=None``) or report an error for an applied config."""

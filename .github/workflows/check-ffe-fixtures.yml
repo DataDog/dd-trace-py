@@ -1,0 +1,30 @@
+name: Check FFE fixtures
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/check-ffe-fixtures.yml"
+      - "scripts/update-ffe-fixtures.py"
+      - "tests/internal/test_update_ffe_fixtures.py"
+      - "tests/openfeature/ffe-system-test-data/**"
+  merge_group:
+  push:
+    branches:
+      - mq-working-branch-*
+
+permissions:
+  contents: read
+
+jobs:
+  check-ffe-fixtures:
+    name: Check canonical FFE fixture snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Verify the recorded fixture snapshot
+        run: python scripts/update-ffe-fixtures.py --check

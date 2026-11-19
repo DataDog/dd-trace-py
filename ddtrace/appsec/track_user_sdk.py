@@ -7,8 +7,6 @@ Implementation can change in the future, but the interface will remain compatibl
 """
 
 import typing as t
-from typing import TYPE_CHECKING
-from typing import cast
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants
@@ -19,10 +17,6 @@ from ddtrace.appsec._constants import WAF_ACTIONS as _WAF_ACTIONS
 import ddtrace.appsec.trace_utils  # noqa: F401
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.internal._exceptions import BlockingException
-
-
-if TYPE_CHECKING:
-    from ddtrace.internal.native._native import SpanData
 
 
 def track_login_success(
@@ -98,7 +92,7 @@ def track_user(
         span._set_attribute(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     if login:
         span._set_attribute(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
-    meta = metadata or {}
+    meta = metadata.copy() if metadata else {}
     usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
     usr_scope = meta.pop("scope", None) or meta.pop("usr.scope", None)
@@ -111,7 +105,7 @@ def track_user(
         scope=usr_scope if isinstance(usr_scope, str) else None,
         role=usr_role if isinstance(usr_role, str) else None,
         session_id=session_id,
-        span=cast("SpanData", span),
+        span=span,
         may_block=_auto,
         mode=_constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK,
     )
@@ -150,7 +144,7 @@ def track_user_id(
         return
     if user_id:
         span._set_attribute(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
-    meta = metadata or {}
+    meta = metadata.copy() if metadata else {}
     usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
     usr_scope = meta.pop("scope", None) or meta.pop("usr.scope", None)
@@ -163,7 +157,7 @@ def track_user_id(
         scope=usr_scope if isinstance(usr_scope, str) else None,
         role=usr_role if isinstance(usr_role, str) else None,
         session_id=session_id,
-        span=cast("SpanData", span),
+        span=span,
         may_block=_auto,
         mode=_constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK,
     )

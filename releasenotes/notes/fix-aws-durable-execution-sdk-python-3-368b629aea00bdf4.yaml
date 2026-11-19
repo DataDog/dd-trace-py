@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    aws_durable_execution_sdk_python: Fixes tracing with ``aws-durable-execution-sdk-python`` 3.x, where
+    workflow spans were missing the ``aws.durable.replayed`` tag, trace context was not saved across
+    suspend and resume, and ``map`` and ``parallel`` spans could report a branch's operation id.

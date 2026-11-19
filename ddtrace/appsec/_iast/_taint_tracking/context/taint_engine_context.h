@@ -1,24 +1,25 @@
-// TaintEngineContext: ContextVar-indexed array of taint maps
+// TaintEngineContext: request-identified array of taint maps
 //
 // Design overview
-// - Python layer stores a ContextVar (IAST_CONTEXT) holding a small integer
-//   context_id that indexes into this native-managed array. Each slot holds a
-//   shared_ptr<TaintedObjectMapType> (a taint map) for a single request/task.
-// - This design isolates contexts across threads and asyncio tasks while
-//   keeping lookups fast (index-based) and offering a fallback search across
-//   all active maps when only a PyObject is available.
+// - IAST_CONTEXT holds an opaque integer identifying one request. Its low bits
+//   select a storage slot; its generation prevents copied execution contexts
+//   from accessing another request after that slot is reused.
+// - Map lookups return owning shared_ptr copies. Retirement detaches a map;
+//   calls already using it finish against that map, never its replacement.
+// - All access requires the GIL. Copy a map before calling Python, which can
+//   reenter IAST and retire its slot even while the current call is running.
 // - The array capacity is bounded and configurable via env var
 //   DD_IAST_MAX_CONCURRENT_REQUESTS, and clamped to a safe range.
 //
 // Key operations
-// - start_request_context(): returns a free slot index, installing a fresh
-//   taint map in that position. Callers typically store this index in
+// - start_request_context(): returns a fresh request identifier, installing a
+//   taint map in a free slot. Callers typically store this identifier in
 //   IAST_CONTEXT at request start.
 // - get_tainted_object_map_by_ctx_id(id): fast-path retrieval for the map in a given
-//   slot; returns nullptr if the slot is empty.
+//   slot; returns nullptr if the request has ended.
 // - get_tainted_object_map(PyObject*): scans active maps to locate the one containing
 //   the tainted object when no context_id is known (slow path / interop).
-// - finish_request_context(id): clears and frees a specific slot.
+// - finish_request_context(id): retires that request and frees its slot.
 // - clear_all_request_context_slots(): clears all slots.
 // - capacity(): returns the number of slots provisioned.
 //
@@ -33,8 +34,8 @@
 #include <pybind11/stl.h>
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -46,11 +47,14 @@ namespace py = pybind11;
 class TaintEngineContext
 {
   private:
-    // Fixed capacity array of context maps
-    std::vector<TaintedObjectMapTypePtr> request_context_slots;
-    // Protects request_context_slots against concurrent start/finish/clear calls.
-    // Marked mutable so const diagnostic methods can also acquire it.
-    mutable std::mutex slots_mutex_;
+    static constexpr size_t SLOT_BITS = 10;
+    static constexpr size_t SLOT_MASK = (size_t{ 1 } << SLOT_BITS) - 1;
+    struct RequestContextSlot
+    {
+        std::uint64_t id = 0;
+        TaintedObjectMapTypePtr map;
+    };
+    std::vector<RequestContextSlot> request_context_slots;
     // Parse and clamp capacity from environment
     static size_t assign_request_context_slots_size();
 
@@ -64,9 +68,9 @@ class TaintEngineContext
     static void set_shutting_down(bool v);
     static bool is_shutting_down() { return shutting_down.load(std::memory_order_acquire); }
 
-    // Fast-path: get the taint map for a known context_id (slot index).
-    // Returns nullptr if the slot is empty or out of lifecycle.
-    TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(size_t ctx_id);
+    // Fast-path: validate a request identifier and acquire its map.
+    // Returns nullptr for expired identifiers or outside the native lifecycle.
+    TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(std::uint64_t ctx_id);
 
     // Slow-path: find and return the taint map that contains the given
     // tainted object across all active slots. Returns nullptr if not found or
@@ -97,8 +101,8 @@ class TaintEngineContext
     // for now for performance and broader matching.
     TaintedObjectMapTypePtr get_tainted_object_map_from_ranges(const TaintRangeRefs& ranges);
 
-    // Clear a specific map if present; leaves the slot free for reuse.
-    void finish_request_context(size_t ctx_id);
+    // Detach a matching map; in-flight calls retain it until their last reference ends.
+    void finish_request_context(std::uint64_t ctx_id);
 
     // Clear all maps and free all slots.
     void clear_all_request_context_slots();
@@ -111,19 +115,18 @@ class TaintEngineContext
     // active map; nullptr otherwise.
     TaintedObjectPtr get_tainted_object_from_request_context_slot(PyObject* tainted_object);
 
-    // Create a context map for the current request. Returns the index (slot)
-    // of the created map when successful, or std::nullopt if all slots are
-    // occupied (capacity saturated).
-    std::optional<size_t> start_request_context();
+    // Create a context map and return its opaque request identifier, or
+    // std::nullopt if capacity or identifier space is exhausted.
+    std::optional<std::uint64_t> start_request_context();
 
     // Introspection helpers
     size_t debug_context_array_size() const { return request_context_slots.size(); }
 
-    int debug_num_tainted_objects(size_t ctx_id);
+    int debug_num_tainted_objects(std::uint64_t ctx_id);
 
-    string debug_taint_map(size_t ctx_id);
+    string debug_taint_map(std::uint64_t ctx_id);
 
-    // Return the number of free slots (i.e., nullptr entries) in the
+    // Return the number of free slots (those with no attached map) in the
     // request_context_slots array. Intended for tests and diagnostics to
     // validate concurrency behavior under stress.
     size_t debug_context_array_free_slots_number() const;

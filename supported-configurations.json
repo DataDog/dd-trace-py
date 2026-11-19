@@ -201,6 +201,13 @@
         "default": "16"
       }
     ],
+    "DD_AI_GUARD_MCP_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_OPENAI_ENABLED": [
       {
         "implementation": "A",
@@ -552,6 +559,16 @@
         ]
       }
     ],
+    "DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_AWS_TAG_NO_PARAMS": [
       {
         "implementation": "A",
@@ -891,6 +908,20 @@
         "implementation": "B",
         "type": "boolean",
         "default": null
+      }
+    ],
+    "DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_CIVISIBILITY_GIT_UPLOAD_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_CIVISIBILITY_ITR_ENABLED": [
@@ -1603,6 +1634,16 @@
         ]
       }
     ],
+    "DD_ELEVENLABS_SERVICE": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_ELEVENLABS_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_ENTITY_ID": [
       {
         "implementation": "A",
@@ -1761,11 +1802,14 @@
         "default": "true"
       }
     ],
-    "DD_FFE_INTAKE_ENABLED": [
+    "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "aliases": [
+          "DD_FFE_INTAKE_ENABLED"
+        ]
       }
     ],
     "DD_FFE_INTAKE_HEARTBEAT_INTERVAL": [
@@ -2519,6 +2563,13 @@
         "default": "1.0"
       }
     ],
+    "DD_LLMOBS_SAMPLING_RULES": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_LOGBOOK_SERVICE": [
       {
         "implementation": "A",
@@ -3117,6 +3168,13 @@
         ]
       }
     ],
+    "DD_PROXY_HTTPS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_PSYCOPG_SERVICE": [
       {
         "implementation": "A",
@@ -3520,13 +3578,6 @@
         "implementation": "C",
         "type": "string",
         "default": "datadoghq.com"
-      }
-    ],
-    "DD_SNAPSHOT_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": null
       }
     ],
     "DD_SNOWFLAKE_SERVICE": [
@@ -4011,6 +4062,104 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_AWS_SDK_BEDROCKRUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_CLOUDWATCHLOGS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_DYNAMODB_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_EVENTBRIDGE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_KINESIS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_LAMBDA_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_REDSHIFT_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_S3_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SFN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SNS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_SQS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_STATES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_SDK_STEPFUNCTIONS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AZURE_COSMOS_ENABLED": [
       {
         "implementation": "A",
@@ -4221,6 +4370,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_ELEVENLABS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_ENABLED": [
       {
         "implementation": "B",
@@ -4425,6 +4581,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "400-499"
       }
     ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
@@ -5083,9 +5246,9 @@
     ],
     "DD_TRACE_STARTUP_LOGS": [
       {
-        "implementation": "D",
+        "implementation": "C",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_TRACE_STATS_ADDITIONAL_TAGS": [
@@ -5096,6 +5259,20 @@
         "experimental": true
       }
     ],
+    "DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "100"
+      }
+    ],
+    "DD_TRACE_STATS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "D",
+        "type": "int",
+        "default": "7000"
+      }
+    ],
     "DD_TRACE_STATS_COMPUTATION_ENABLED": [
       {
         "implementation": "C",
@@ -5104,6 +5281,27 @@
         "aliases": [
           "DD_TRACE_COMPUTE_STATS"
         ]
+      }
+    ],
+    "DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "512"
+      }
+    ],
+    "DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "512"
+      }
+    ],
+    "DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "1024"
       }
     ],
     "DD_TRACE_STRUCTLOG_ENABLED": [
@@ -5132,6 +5330,20 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_TRIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_TYPESAFE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_UNITTEST_ENABLED": [
@@ -5251,6 +5463,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_TYPESAFE_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_TYPESAFE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_UNITTEST_OPERATION_NAME": [
@@ -5498,9 +5720,9 @@
     ],
     "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": [
       {
-        "implementation": "C",
+        "implementation": "D",
         "type": "string",
-        "default": "grpc"
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT": [
@@ -5562,9 +5784,9 @@
     ],
     "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "string",
-        "default": null
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": [
@@ -5583,9 +5805,9 @@
     ],
     "OTEL_EXPORTER_OTLP_PROTOCOL": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_TIMEOUT": [
@@ -5791,6 +6013,14 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_APPSEC_SCA_CVE_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
         "internal": true
       }
     ],
@@ -6010,14 +6240,6 @@
         "internal": true
       }
     ],
-    "_DD_IAST_USE_ROOT_SPAN": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
     "_DD_LLMOBS_EVALUATOR_INTERVAL": [
       {
         "implementation": "A",
@@ -6095,6 +6317,14 @@
         "implementation": "A",
         "type": "string",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "true",
         "internal": true
       }
     ],
@@ -6279,6 +6509,14 @@
         "implementation": "A",
         "type": "int",
         "default": "10000",
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_NATIVE_BUFFER_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],

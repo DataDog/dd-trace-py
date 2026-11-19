@@ -1,22 +1,26 @@
+from __future__ import annotations
+
 import base64
 import contextlib
 from contextlib import contextmanager
 import http.client as httplib
-from http.client import RemoteDisconnected
 import importlib.metadata as importlib_metadata
 import inspect
 import json
+import logging
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
 from typing import Any
+from typing import Iterator
 from typing import Optional
 from typing import TypedDict
 from typing import cast
 from urllib import parse
-import urllib.parse
+from uuid import uuid4
 
 import pytest
 import wrapt
@@ -26,33 +30,36 @@ from ddtrace import config as dd_config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal import packages as _packages_module
 from ddtrace.internal import process_tags
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.packages import Distribution
-from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
-from tests._ddtest_env_helpers import strip_ddtest_leaked_env
 from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_process
 
 
 NO_CHILDREN = object()
@@ -74,6 +81,7 @@ _LLMOBS_SHADOW_IGNORES = [
     "meta._dd.llmobs.span_kind",
     "meta._dd.llmobs.model_name",
     "meta._dd.llmobs.model_provider",
+    "meta._dd.llmobs.artificial_gen_ai_tags",
     "meta._dd.p.llmobs_trace_id",
     "meta._dd.p.llmobs_parent_id",
     "meta._dd.p.llmobs_ml_app",
@@ -192,7 +200,9 @@ def override_global_config(values: dict[str, Any]):
         "_raise",
         "_trace_compute_stats",
         "_trace_resource_renaming_always_simplified_endpoint",
+        "_otel_trace_semantics_enabled",
         "_obfuscation_query_string_pattern",
+        "_query_string_obfuscation_preserve_delimiter",
         "_global_query_string_obfuscation_disabled",
         "_trace_agentless_enabled",
         "_agentless_enabled",
@@ -219,6 +229,7 @@ def override_global_config(values: dict[str, Any]):
         "_dd_app_key",
         "_llmobs_enabled",
         "_llmobs_sample_rate",
+        "_llmobs_sampling_rules",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
         "_llmobs_instrumented_proxy_urls",
@@ -249,6 +260,11 @@ def override_global_config(values: dict[str, Any]):
     for key, value in values.items():
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
+    if "_obfuscation_query_string_pattern" in values and "_query_string_obfuscation_preserve_delimiter" not in values:
+        pattern = values["_obfuscation_query_string_pattern"]
+        ddtrace.config._query_string_obfuscation_preserve_delimiter = (
+            pattern is not None and pattern.pattern == DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode("ascii")
+        )
     # rebuild asm config from env vars and global config
     for key, value in values.items():
         if key in asm_config_keys:
@@ -264,16 +280,15 @@ def override_global_config(values: dict[str, Any]):
 
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
-    if asm_config._asm_enabled:
-        from ddtrace.appsec._listeners import disable_appsec
+    from ddtrace.appsec._listeners import disable_appsec
+
+    # disable_appsec() clears _asm_enabled, so read it first.
+    asm_enabled = asm_config._asm_enabled
+    disable_appsec()
+    if asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        disable_appsec()
         load_appsec()
-    else:
-        from ddtrace.appsec._listeners import disable_appsec
-
-        disable_appsec()
 
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
@@ -358,6 +373,16 @@ def scoped_tracer(use_dummy_writer=True):
     """Provides a test-scoped global tracer with no configuration leaks."""
     try:
         if use_dummy_writer:
+            # Retire the old stats worker so it cannot flush into a later snapshot session.
+            writer = ddtrace.tracer._span_aggregator.writer
+            try:
+                writer.flush_queue()
+                writer.stop()
+            except ServiceStatusError:
+                # Native exporters exist even when the writer's periodic thread never started.
+                shutdown_exporter = getattr(writer, "shutdown_exporter", None)
+                if shutdown_exporter is not None:
+                    shutdown_exporter()
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
         yield ddtrace.tracer
     finally:
@@ -440,7 +465,7 @@ class BaseTestCase(SubprocessTestCase):
     assert_is_not_measured = staticmethod(assert_is_not_measured)
 
 
-class TestSpanContainer(object):
+class TestSpanContainer:
     """
     Helper class for a container of Spans.
 
@@ -482,7 +507,7 @@ class TestSpanContainer(object):
         """subclass required property"""
         raise NotImplementedError
 
-    def get_root_span(self) -> "TestSpanNode":
+    def get_root_span(self) -> TestSpanNode:
         """
         Helper to get the root span from the list of spans in this container
 
@@ -509,11 +534,11 @@ class TestSpanContainer(object):
     def assert_trace_count(self, count):
         """Assert the number of unique trace ids this container has"""
         trace_count = len(self.get_root_spans())
-        assert trace_count == count, "Trace count {0} != {1}".format(trace_count, count)
+        assert trace_count == count, f"Trace count {trace_count} != {count}"
 
     def assert_span_count(self, count):
         """Assert this container has the expected number of spans"""
-        assert len(self.spans) == count, "Span count {0} != {1}".format(len(self.spans), count)
+        assert len(self.spans) == count, f"Span count {len(self.spans)} != {count}"
 
     def assert_has_spans(self):
         """Assert this container has spans"""
@@ -521,7 +546,7 @@ class TestSpanContainer(object):
 
     def assert_has_no_spans(self):
         """Assert this container does not have any spans"""
-        assert len(self.spans) == 0, "Span count {0}".format(len(self.spans))
+        assert len(self.spans) == 0, f"Span count {len(self.spans)}"
 
     def filter_spans(self, *args, **kwargs):
         """
@@ -558,9 +583,7 @@ class TestSpanContainer(object):
         :rtype: :class:`tests.TestSpan`
         """
         span = next(self.filter_spans(*args, **kwargs), None)
-        assert span is not None, "No span found for filter {0!r} {1!r}, have {2} spans".format(
-            args, kwargs, len(self.spans)
-        )
+        assert span is not None, f"No span found for filter {args!r} {kwargs!r}, have {len(self.spans)} spans"
         return span
 
 
@@ -574,12 +597,12 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Before each test case, configure the global tracer with a DummyWriter"""
         self.scoped_tracer = scoped_tracer()
         self.tracer = self.scoped_tracer.__enter__()
-        super(TracerTestCase, self).setUp()
+        super().setUp()
 
     def tearDown(self):
         """After each test case, reset the tracer state"""
         try:
-            super(TracerTestCase, self).tearDown()
+            super().tearDown()
         finally:
             self.scoped_tracer.__exit__(None, None, None)
             self.reset()
@@ -697,14 +720,17 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
-    ) -> "DummyWriter":
-        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
+    ) -> DummyWriter:
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._inner_writer._api_version
+        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled, api_version=api_version)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         self._inner_writer.flush_queue(raise_exc)
 
-    def set_test_session_token(self, token: Optional[str]) -> None:
-        self._inner_writer.set_test_session_token(token)
+    def set_test_session_token(self, token: Optional[str], compute_stats_enabled: Optional[bool] = None) -> None:
+        self._inner_writer.set_test_session_token(token, compute_stats_enabled=compute_stats_enabled)
 
     def stop(self, timeout: Optional[float] = None) -> None:
         self._inner_writer.stop(timeout=timeout)
@@ -901,10 +927,8 @@ class TestSpan(Span):
             elif name == "metrics":
                 self.assert_metrics(value)
             else:
-                assert hasattr(self, name), "{0!r} does not have property {1!r}".format(self, name)
-                assert getattr(self, name) == value, "{0!r} property {1}: {2!r} != {3!r}".format(
-                    self, name, getattr(self, name), value
-                )
+                assert hasattr(self, name), f"{self!r} does not have property {name!r}"
+                assert getattr(self, name) == value, f"{self!r} property {name}: {getattr(self, name)!r} != {value!r}"
 
     def assert_meta(self, meta, exact=False):
         """
@@ -925,10 +949,8 @@ class TestSpan(Span):
             assert self.get_tags() == meta
         else:
             for key, value in meta.items():
-                assert self._has_attribute(key), "{0} meta does not have property {1!r}".format(self, key)
-                assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self.get_tag(key), value
-                )
+                assert self._has_attribute(key), f"{self} meta does not have property {key!r}"
+                assert self.get_tag(key) == value, f"{self} meta property {key!r}: {self.get_tag(key)!r} != {value!r}"
 
     def assert_metrics(self, metrics, exact=False):
         """
@@ -949,14 +971,14 @@ class TestSpan(Span):
             assert self._get_numeric_attributes() == metrics
         else:
             for key, value in metrics.items():
-                assert self._has_attribute(key), "{0} metrics does not have property {1!r}".format(self, key)
-                assert self._get_numeric_attribute(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self._get_numeric_attribute(key), value
+                assert self._has_attribute(key), f"{self} metrics does not have property {key!r}"
+                assert self._get_numeric_attribute(key) == value, (
+                    f"{self} metrics property {key!r}: {self._get_numeric_attribute(key)!r} != {value!r}"
                 )
 
     def assert_span_event_count(self, count):
         """Assert this span has the expected number of span_events"""
-        assert len(self._get_events()) == count, "Span event count {0} != {1}".format(len(self._get_events()), count)
+        assert len(self._get_events()) == count, f"Span event count {len(self._get_events())} != {count}"
 
     def assert_span_event_attributes(self, event_idx, attrs):
         """
@@ -972,9 +994,9 @@ class TestSpan(Span):
         """
         span_event_attrs = self._get_events()[event_idx].attributes
         for name, value in attrs.items():
-            assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
-            assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(
-                span_event_attrs, name, span_event_attrs[name], value
+            assert name in span_event_attrs, f"{span_event_attrs!r} does not have property {name!r}"
+            assert span_event_attrs[name] == value, (
+                f"{span_event_attrs!r} property {name}: {span_event_attrs[name]!r} != {value!r}"
             )
 
 
@@ -988,7 +1010,7 @@ class TracerSpanContainer(TestSpanContainer):
         if not isinstance(tracer._span_aggregator.writer, DummyWriter):
             raise ValueError("Tracer must have a DummyWriter")
         self.tracer = tracer
-        super(TracerSpanContainer, self).__init__()
+        super().__init__()
 
     @property
     def writer(self):
@@ -1038,7 +1060,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
     """
 
     def __init__(self, root, children=None):
-        super(TestSpanNode, self).__init__(root)
+        super().__init__(root)
         object.__setattr__(self, "_children", children or [])
 
     def get_spans(self):
@@ -1138,16 +1160,16 @@ def get_root_span(
     for span in spans:
         if span.parent_id is None:
             if root is not None:
-                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
+                raise AssertionError(f"Multiple root spans found {root!r} {span!r}")
             root = span
 
-    assert root, "No root span found in {0!r}".format(spans)
+    assert root, f"No root span found in {spans!r}"
 
     return _build_tree(spans, root)
 
 
 def assert_dict_issuperset(a, b):
-    assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)
+    assert set(a.items()).issuperset(set(b.items())), f"{a} is not a superset of {b}"
 
 
 @contextmanager
@@ -1173,36 +1195,47 @@ class TestAgentRequest(TypedDict):
 
 
 class TestAgentClient:
-    def __init__(self, base_url: str, token: Optional[str] = None):
+    def __init__(self, base_url: str, token: Optional[str] = None) -> None:
         self._base_url = base_url
         self._token = token
 
-    def _url(self, path: str) -> str:
-        if self._token:
-            path = f"{path}?test_session_token={self._token}"
-        return urllib.parse.urljoin(self._base_url, path)
+    def _url(self, path: str, **params: Any) -> str:
+        parsed = parse.urlsplit(path)
+        query = dict(parse.parse_qsl(parsed.query))
+        query.update(params)
+        if self._token is not None:
+            query["test_session_token"] = self._token
+        return parse.urlunsplit(("", "", parsed.path, parse.urlencode(query), ""))
 
-    def create_connection(self):
+    def create_connection(self, timeout: float = 5.0) -> httplib.HTTPConnection:
         parsed = parse.urlparse(self._base_url)
         assert parsed.hostname is not None
-        return httplib.HTTPConnection(parsed.hostname, parsed.port)
+        connection = httplib.HTTPSConnection if parsed.scheme == "https" else httplib.HTTPConnection
+        return connection(parsed.hostname, parsed.port, timeout=timeout)
 
-    def _request(self, method: str, url: str) -> tuple[int, bytes]:
-        conn = self.create_connection()
-        MAX_RETRY = 9
-        exp_time = 1.618034
-        for try_nb in range(MAX_RETRY):
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        timeout: float = 5.0,
+        retry: bool = True,
+    ) -> tuple[int, bytes]:
+        deadline = time.monotonic() + timeout
+        for attempt in range(3 if retry else 1):
+            conn = self.create_connection(timeout=max(0.001, deadline - time.monotonic()))
             try:
                 conn.request(method, url)
-                r = conn.getresponse()
-                return r.status, r.read()
-            except BaseException:
-                if try_nb == MAX_RETRY - 1:
-                    pytest.xfail("Failed to connect to test agent")
-                time.sleep(pow(exp_time, try_nb))
+                response = conn.getresponse()
+                return response.status, response.read()
+            except (OSError, httplib.HTTPException) as exc:
+                remaining = deadline - time.monotonic()
+                if not retry or attempt == 2 or remaining <= 0:
+                    raise RuntimeError(f"Test agent request failed: {method} {url} at {self._base_url}") from exc
+                time.sleep(min(0.1 * 2**attempt, remaining))
             finally:
                 conn.close()
-        return 0, b""
+        raise AssertionError("Unreachable")
 
     def requests(self) -> list[TestAgentRequest]:
         status, resp = self._request("GET", self._url("/test/session/requests"))
@@ -1240,167 +1273,219 @@ class TestAgentClient:
         return reqs
 
     def clear(self) -> None:
-        status, body = self._request("GET", self._url("/test/session/clear"))
-        assert status == 200, (
-            "Failed to clear test session traces:\n"
-            f"url: {self._url('/test/session/clear')}\n"
-            f"status: {status}\n"
-            f"body: {body.decode('utf-8')}"
-        )
+        status, body = self._request("GET", self._url("/test/session/clear"), retry=False)
+        if status != 200:
+            raise RuntimeError(f"Failed to clear test session {self._token}: {status} {body!r}")
 
 
 class SnapshotTest:
-    token: str
-    _client: TestAgentClient
-
-    def __init__(self, token: str):
-        base_url = ddtrace.tracer.agent_trace_url
+    def __init__(self, token: str, *, name: Optional[str] = None, base_url: Optional[str] = None) -> None:
+        self.token = token
+        self.name = name or token
+        self.verify_on_exit = True
+        base_url = base_url or ddtrace.tracer.agent_trace_url
         assert base_url is not None, "agent_trace_url must be set for SnapshotTest"
         self._client = TestAgentClient(base_url=base_url, token=token)
 
     def requests(self) -> list[TestAgentRequest]:
         return self._client.requests()
 
-    def clear(self):
-        """Clear any traces sent that were sent for this snapshot."""
+    def clear(self) -> None:
+        """Clear this attempt's captured requests."""
         self._client.clear()
+
+    def wait_for_traces(self, count: int, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        traces: list[list[dict[str, Any]]] = []
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                pytest.fail(
+                    f"Snapshot {self.name} ({self.token}): expected {count} traces, got {len(traces)}: {traces}"
+                )
+            status, body = self._client._request("GET", self._client._url("/test/session/traces"), timeout=remaining)
+            if status != 200:
+                pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+            traces = json.loads(body)
+            if len(traces) >= count:
+                return
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+
+    def wait_for_spans(self, count: int, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        traces: list[list[dict[str, Any]]] = []
+        while True:
+            remaining = deadline - time.monotonic()
+            span_count = sum(len(trace) for trace in traces)
+            if remaining <= 0:
+                pytest.fail(f"Snapshot {self.name} ({self.token}): expected {count} spans, got {span_count}: {traces}")
+            status, body = self._client._request("GET", self._client._url("/test/session/traces"), timeout=remaining)
+            if status != 200:
+                pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+            traces = json.loads(body)
+            if sum(len(trace) for trace in traces) >= count:
+                return
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+
+    def verify(self, ignores: list[str], timeout: float) -> None:
+        agent_dir = os.getenv("DD_TEST_AGENT_SNAPSHOT_DIR")
+        if agent_dir is None:
+            project_dir = os.getenv("CI_PROJECT_DIR")
+            agent_dir = f"{project_dir}/tests/snapshots" if project_dir else "/snapshots"
+        url = self._client._url("/test/session/snapshot", ignores=",".join(ignores), file=f"{agent_dir}/{self.name}")
+        status, body = self._client._request("GET", url, timeout=timeout, retry=False)
+        if status != 200:
+            pytest.fail(
+                f"Snapshot {self.name} ({self.token}):\n{body.decode('utf-8', errors='replace')}", pytrace=False
+            )
 
 
 @contextmanager
 def snapshot_context(
-    token,
-    agent_sample_rate_by_service=None,
-    ignores=None,
-    async_mode=True,
-    variants=None,
-    wait_for_num_traces=None,
-):
-    # Use variant that applies to update test token. One must apply. If none
-    # apply, the test should have been marked as skipped.
+    token: str,
+    agent_sample_rate_by_service: Optional[dict[str, float]] = None,
+    ignores: Optional[list[str]] = None,
+    async_mode: bool = True,
+    variants: Optional[dict[str, bool]] = None,
+    wait_for_num_traces: Optional[int] = None,
+    wait_for_num_spans: Optional[int] = None,
+    timeout: float = 5.0,
+    subprocess_mode: bool = False,
+    compute_stats_enabled: bool = False,
+) -> Iterator[SnapshotTest]:
+    """Capture one tagged attempt; async_mode is retained for compatibility."""
+    if (
+        timeout <= 0
+        or (wait_for_num_traces is not None and wait_for_num_traces < 0)
+        or (wait_for_num_spans is not None and wait_for_num_spans < 0)
+    ):
+        raise ValueError("Snapshot timeout must be positive and trace and span counts must be nonnegative")
     if variants:
         applicable_variant_ids = [k for (k, v) in variants.items() if v]
         assert len(applicable_variant_ids) == 1
         variant_id = applicable_variant_ids[0]
-        token = "{}_{}".format(token, variant_id) if variant_id else token
+        token = f"{token}_{variant_id}" if variant_id else token
 
     ignores = list(ignores or [])
     if not token.startswith("tests.internal.test_process_tags."):
         ignores.append("meta._dd.tags.process")
-    # LLMObs APM shadow tags (`_dd.llmobs.*`) are derived from the response and
-    # vary by cassette/SDK version. Their wiring is covered by dedicated unit
-    # tests in tests/llmobs and tests/contrib/<integration>/test_*_llmobs.py,
-    # so we ignore them globally in snapshot comparisons.
     ignores.extend(_LLMOBS_SHADOW_IGNORES)
     tracer = ddtrace.tracer
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, (AgentWriterInterface, HTTPWriter)), "Snapshot tests require an HTTP trace writer"
+    session = SnapshotTest(uuid4().hex, name=token, base_url=writer.intake_url)
+    client = session._client
+    old_headers = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    header = "X-Datadog-Test-Session-Token"
+    old_token = (
+        getattr(writer, "_test_session_token", None)
+        if isinstance(writer, AgentWriterInterface)
+        else writer._headers.get(header)
+    )
 
-    parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
-    conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+    def flush(*, before_start: bool = False) -> None:
+        if before_start or not subprocess_mode:
+            writer_now = tracer._span_aggregator.writer
+            if not isinstance(writer_now, (AgentWriterInterface, HTTPWriter)):
+                pytest.fail("Snapshot tests require an HTTP trace writer")
+            cast("AgentWriterInterface | HTTPWriter", writer_now).flush_queue(raise_exc=True)
+
+    flush(before_start=True)
+    original_compute_stats_enabled = dd_config._trace_compute_stats
+    original_stats_env = os.environ.get("DD_TRACE_STATS_COMPUTATION_ENABLED")
+    completed = False
+    session_started = False
     try:
-        # clear queue in case traces have been generated before test case is
-        # itself run
-        try:
-            tracer._span_aggregator.writer.flush_queue()
-        except Exception as e:
-            pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
-
-        if async_mode:
-            # Patch the tracer writer to include the test token header for all requests.
-            if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                tracer._span_aggregator.writer.set_test_session_token(token)
+        headers = parse_tags_str(old_headers or "")
+        headers[header] = session.token
+        os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(f"{k}:{v}" for k, v in headers.items())
+        dd_config._trace_compute_stats = compute_stats_enabled
+        # Subprocesses must use the same stats setting as the snapshot writer.
+        os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = str(compute_stats_enabled).lower()
+        if not subprocess_mode:
+            if isinstance(writer, AgentWriterInterface):
+                writer.set_test_session_token(session.token, compute_stats_enabled=compute_stats_enabled)
             else:
-                tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
-
-            # Also add a header to the environment for subprocesses test cases that might use snapshotting.
-            existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
-            existing_headers.update({"X-Datadog-Test-Session-Token": token})
-            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
-                ["%s:%s" % (k, v) for k, v in existing_headers.items()]
-            )
+                writer._headers[header] = session.token
+        # Retiring the previous exporter can flush a final stats bucket. Do it before
+        # opening the new session so trace-only snapshots cannot capture that payload.
+        url = client._url(
+            "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
+        )
+        # Parallel snapshot workers can briefly backlog the shared test agent while
+        # opening their isolated sessions. Give session setup three normal request
+        # windows without extending snapshot verification or cleanup deadlines.
+        status, body = client._request("GET", url, timeout=timeout * 3, retry=False)
+        if status != 200:
+            pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+        session_started = True
         try:
-            query = urllib.parse.urlencode(
-                {
-                    "test_session_token": token,
-                    "agent_sample_rate_by_service": json.dumps(agent_sample_rate_by_service or {}),
-                }
-            )
-            conn.request("GET", "/test/session/start?" + query)
-        except Exception as e:
-            pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
-        else:
-            r = None
-            attempt_start = time.time()
-            while r is None and time.time() - attempt_start < 60:
-                try:
-                    r = conn.getresponse()
-                except RemoteDisconnected:
-                    time.sleep(1)
-            if r is None:
-                pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)
-            elif r.status != 200:
-                # The test agent returns nice error messages we can forward to the user.
-                pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
-        try:
-            yield SnapshotTest(
-                token=token,
-            )
+            yield session
+            completed = session.verify_on_exit
         finally:
-            # Force a flush so all traces are submitted.
-            tracer._span_aggregator.writer.flush_queue()
-            if async_mode:
-                if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                    tracer._span_aggregator.writer.set_test_session_token(None)
-                else:
-                    del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
-                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
-
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-
-        # Wait for the traces to be available
-        if wait_for_num_traces is not None:
-            traces = []
-            for _ in range(50):
+            if completed:
+                flush()
+            else:
                 try:
-                    conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
-                    r = conn.getresponse()
-                    if r.status == 200:
-                        traces = json.loads(r.read())
-                        if len(traces) >= wait_for_num_traces:
-                            break
-                except Exception:
-                    pass
-                time.sleep(0.1)
-            else:
-                pytest.fail(
-                    "Expected %r trace(s), got %r:\n%s" % (wait_for_num_traces, len(traces), traces), pytrace=False
-                )
-
-        # Query for the results of the test.
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
-        r = conn.getresponse()
-        result = r.read().decode("utf-8", errors="ignore")
-        if r.status != 200:
-            lowered = result.lower()
-            if "received unmatched traces" not in lowered:
-                pytest.fail(result, pytrace=False)
-            # we don't know why the test agent occasionally receives a different number of traces than it expects
-            # during snapshot tests, but that does sometimes in an unpredictable manner
-            # it seems to have to do with using the same test agent across many tests - maybe the test agent
-            # occasionally mixes up traces between sessions. regardless of why they happen, we have been treating
-            # these test failures as unactionable in the vast majority of cases and thus ignore them here to reduce
-            # the toil involved in getting CI to green. revisit this approach once we understand why
-            # "received unmatched traces" can sometimes happen
-            else:
-                pytest.xfail(result)
+                    flush()
+                except Exception as exc:
+                    logging.getLogger(__name__).warning("Snapshot %s cleanup flush failed: %s", token, exc)
+        if completed:
+            if wait_for_num_traces is not None:
+                session.wait_for_traces(wait_for_num_traces, timeout)
+            if wait_for_num_spans is not None:
+                session.wait_for_spans(wait_for_num_spans, timeout)
+            session.verify(ignores, timeout)
     finally:
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
-        conn.getresponse()
-        conn.close()
+        if original_stats_env is None:
+            os.environ.pop("DD_TRACE_STATS_COMPUTATION_ENABLED", None)
+        else:
+            os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = original_stats_env
+        dd_config._trace_compute_stats = original_compute_stats_enabled
+        failed = sys.exc_info()[0] is not None or not session.verify_on_exit
+        try:
+            if session_started:
+                session.clear()
+        except Exception:
+            if not failed:
+                failed = True
+                raise
+            logging.getLogger(__name__).warning("Snapshot %s cleanup failed", token, exc_info=True)
+        finally:
+            if old_headers is None:
+                os.environ.pop("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", None)
+            else:
+                os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = old_headers
+            if not subprocess_mode:
+                writer_now = tracer._span_aggregator.writer
+                try:
+                    if isinstance(writer_now, AgentWriterInterface):
+                        if getattr(writer_now, "_test_session_token", None) == session.token:
+                            writer_now.set_test_session_token(
+                                old_token, compute_stats_enabled=original_compute_stats_enabled
+                            )
+                    elif isinstance(writer_now, HTTPWriter) and writer_now._headers.get(header) == session.token:
+                        if old_token is None:
+                            writer_now._headers.pop(header, None)
+                        else:
+                            writer_now._headers[header] = old_token
+                except Exception:
+                    if not failed:
+                        raise
+                    logging.getLogger(__name__).warning(
+                        "Snapshot %s could not restore the writer token", token, exc_info=True
+                    )
 
 
 def snapshot(
-    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
+    ignores=None,
+    include_tracer=False,
+    variants=None,
+    async_mode=True,
+    token_override=None,
+    wait_for_num_traces=None,
+    wait_for_num_spans=None,
+    compute_stats_enabled=False,
 ):
     """Performs a snapshot integration test with the testing agent.
 
@@ -1415,16 +1500,11 @@ def snapshot(
 
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
-        if len(args) > 1:
-            self = args[0]
-            clsname = self.__class__.__name__
-        else:
-            clsname = ""
+        clsname = instance.__class__.__name__ if instance is not None else ""
 
         module = inspect.getmodule(wrapped)
 
-        # Use the fully qualified function name as a unique test token to
-        # identify the snapshot.
+        # Use the module, class, and method name for the baseline filename.
         token = (
             "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, wrapped.__name__)
             if token_override is None
@@ -1437,63 +1517,72 @@ def snapshot(
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
+            wait_for_num_spans=wait_for_num_spans,
+            compute_stats_enabled=compute_stats_enabled,
         ):
             # Run the test.
             if include_tracer:
                 kwargs["tracer"] = ddtrace.tracer
             return wrapped(*args, **kwargs)
 
-    return wrapper
+    def decorate(func):
+        decorated = wrapper(func)
+        decorated._snapshot_options = {
+            "token": token_override,
+            "ignores": ignores,
+            "variants": variants,
+            "async_mode": async_mode,
+            "wait_for_num_traces": wait_for_num_traces,
+            "wait_for_num_spans": wait_for_num_spans,
+            "compute_stats_enabled": compute_stats_enabled,
+        }
+        return decorated
+
+    return decorate
 
 
-class AnyStr(object):
+class AnyStr:
     def __eq__(self, other):
         return isinstance(other, str)
 
 
-class AnyInt(object):
+class AnyInt:
     def __eq__(self, other):
         return isinstance(other, int)
 
 
-class AnyExc(object):
+class AnyExc:
     def __eq__(self, other):
         return isinstance(other, Exception)
 
 
-class AnyFloat(object):
+class AnyFloat:
     def __eq__(self, other):
         return isinstance(other, float)
 
 
-# ddtest sets PYTEST_ADDOPTS="--ddtrace" globally for pytest workers. It leaks
-# into test-spawned subprocesses, enabling CI Visibility which logs to stderr
-# (breaking tests that assert err == b"") and computes stats (breaking
-# snapshot tests). All ddtest-specific env stripping is encapsulated in
-# _ddtest_env_helpers so it can be removed cleanly if ddtest support is
-# dropped.
+def terminate_process_group(proc: subprocess.Popen[bytes], timeout: float = 3.0) -> None:
+    """Stop a server started with start_new_session=True and its children, then reap the server."""
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        pass
+    finally:
+        # The parent may exit before a child that ignores SIGTERM.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.communicate(timeout=timeout)
 
 
 def call_program(*args, **kwargs):
-    timeout = kwargs.pop("timeout", None)
-    if "env" in kwargs:
-        # Remove all keys with the value None from env, None is used to unset an environment variable
-        env = kwargs.pop("env")
-        cleaned_env = {env: val for env, val in env.items() if val is not None}
-    else:
-        # No explicit env: subprocess would inherit os.environ directly.
-        cleaned_env = dict(os.environ)
-    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches normal
-    # riot CI, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
-    kwargs["env"] = strip_ddtest_leaked_env(cleaned_env)
-    close_fds = sys.platform != "win32"
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    try:
-        stdout, stderr = subp.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        subp.terminate()
-        stdout, stderr = subp.communicate(timeout=timeout)
-    return stdout, stderr, subp.returncode, subp.pid
+    # TODO(mabdinur): remove and replace with python_process for Python code or run_process for other commands.
+    return run_process(*args, **kwargs)
 
 
 def request_token(request: pytest.FixtureRequest) -> str:
@@ -1630,16 +1719,12 @@ def override_third_party_packages(packages: list[str]):
     except AttributeError:
         original_callonce = None
 
-    try:
-        original_mapping = _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore
-    except AttributeError:
-        original_mapping = None
+    # filename_to_package looks the mapping up through the module at call time.
+    original_mapping = _packages_module._package_for_root_module_mapping
+    mapping = {p: Distribution(p, "0.0.0") for p in packages}
 
     _third_party_packages.__wrapped__.__callonce_result__ = (packages, None)  # type: ignore[attr-defined]
-    _package_for_root_module_mapping.__wrapped__.__callonce_result__ = (  # type: ignore[attr-defined]
-        {p: Distribution(p, "0.0.0") for p in packages},
-        None,
-    )
+    _packages_module._package_for_root_module_mapping = lambda: mapping
     filename_to_package.cache_clear()
     is_third_party.cache_clear()
 
@@ -1651,10 +1736,7 @@ def override_third_party_packages(packages: list[str]):
         else:
             del _third_party_packages.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 
-        if original_mapping is not None:
-            _package_for_root_module_mapping.__wrapped__.__callonce_result__ = original_mapping  # type: ignore
-        else:
-            del _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
+        _packages_module._package_for_root_module_mapping = original_mapping
 
         filename_to_package.cache_clear()
         is_third_party.cache_clear()

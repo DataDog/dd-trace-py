@@ -120,7 +120,7 @@ def test_public_methods_accessible(lock_class: type[object], collector_class: ty
     original: object = lock_class()
     original_methods: set[str] = get_public_methods(original)
 
-    with collector_class(capture_pct=100):  # type: ignore[call-arg, attr-defined]
+    with collector_class(module=threading, capture_pct=100):  # type: ignore[call-arg, attr-defined]
         wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
         wrapped: _ProfiledLock = wrapped_class()
         missing: set[str] = {m for m in original_methods if not is_accessible(wrapped, m)}
@@ -138,7 +138,7 @@ def test_dunders_accessible(lock_class: type[object], collector_class: type[obje
     original: object = lock_class()
     original_dunders: set[str] = get_dunders(original)
 
-    with collector_class(capture_pct=100):  # type: ignore[call-arg, attr-defined]
+    with collector_class(module=threading, capture_pct=100):  # type: ignore[call-arg, attr-defined]
         wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
         wrapped: _ProfiledLock = wrapped_class()
         wrapped_dunders: set[str] = get_dunders(wrapped)
@@ -164,7 +164,7 @@ def test_reflection_detects_broken_delegation() -> None:
     a delegation bug.
     """
     # Create a real profiled lock
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         profiled_lock: _ProfiledLock = threading.Lock()  # type: ignore[assignment]
 
     assert isinstance(profiled_lock, _ProfiledLock), "Should be a profiled lock"

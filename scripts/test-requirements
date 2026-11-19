@@ -40,11 +40,18 @@ def _select_named_environments(
     if not requested:
         return tuple(environments)
 
+    # A name selects environments by variant name or by integration, so a package like pytest
+    # (tested by the testing and pytest:flaky variants) locks all of them.
     names = set(requested)
-    unknown = sorted(names - {environment.name for environment in environments})
+    known = {environment.name for environment in environments} | {
+        environment.integration_name for environment in environments
+    }
+    unknown = sorted(names - known)
     if unknown:
-        raise LockError(f"unknown test environment name(s): {', '.join(unknown)}")
-    return tuple(environment for environment in environments if environment.name in names)
+        raise LockError(f"unknown test environment or integration name(s): {', '.join(unknown)}")
+    return tuple(
+        environment for environment in environments if {environment.name, environment.integration_name} & names
+    )
 
 
 def _require_lock_platform(command: str) -> None:
@@ -54,8 +61,9 @@ def _require_lock_platform(command: str) -> None:
     detected = f"{platform.system() or sys.platform} {platform.machine() or 'unknown'}"
     raise LockError(
         f"test locks can only be generated on Linux x86-64; detected {detected}.\n"
-        f"Run scripts/ddtest scripts/test-requirements {command} [name] on a Linux x86-64 host, "
-        "or use the Linux x86-64 testrunner image used by CI."
+        "Run with the CI container architecture:\n"
+        f"  DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/ddtest scripts/test-requirements {command} [name]\n"
+        "or use a Linux x86-64 host."
     )
 
 
@@ -65,14 +73,14 @@ def compile_environment(
     exclude_newer: str,
     upgrade: bool,
 ) -> str:
-    if not environment.riot_lock_dependencies:
-        raise LockError(f"environment has no dependencies: {environment.lock_hash}")
+    if not environment.direct_dependencies:
+        raise LockError(f"environment has no dependencies: {environment.hash}")
 
-    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.lock_hash}-") as temporary:
+    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.hash}-") as temporary:
         temporary_path = Path(temporary)
         requirements = temporary_path / "requirements.in"
         output = temporary_path / "requirements.txt"
-        requirements.write_text("\n".join(sorted(environment.riot_lock_dependencies, key=str.casefold)) + "\n")
+        requirements.write_text("\n".join(sorted(environment.direct_dependencies, key=str.casefold)) + "\n")
         existing_lock = PROJECT_ROOT / environment.lockfile
         if existing_lock.is_file():
             output.write_text(existing_lock.read_text())
@@ -103,7 +111,7 @@ def compile_environment(
         except subprocess.CalledProcessError as error:
             details = (error.stderr or error.stdout or "").strip()
             suffix = f"\n{details}" if details else ""
-            raise LockError(f"failed to lock {environment.name}/{environment.lock_hash}{suffix}") from error
+            raise LockError(f"failed to lock {environment.name}/{environment.hash}{suffix}") from error
         return output.read_text()
 
 
@@ -126,9 +134,9 @@ def _unique_lock_environments(environments: Sequence[TestEnvironment]) -> dict[P
     unique: dict[Path, TestEnvironment] = {}
     for environment in environments:
         existing = unique.setdefault(environment.lockfile, environment)
-        if (existing.python, existing.riot_lock_dependencies) != (
+        if (existing.python, existing.direct_dependencies) != (
             environment.python,
-            environment.riot_lock_dependencies,
+            environment.direct_dependencies,
         ):
             raise LockError(f"incompatible test environments share {environment.lockfile}")
     return unique
@@ -208,7 +216,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
-    lock_parser.add_argument("names", nargs="*", help="Exact test environment names; defaults to all.")
+    lock_parser.add_argument(
+        "names",
+        nargs="*",
+        help="Test environment or integration names (an integration selects all its variants); defaults to all.",
+    )
     lock_parser.add_argument("--upgrade", action="store_true", help="Upgrade dependencies in selected locks.")
     args = parser.parse_args(argv)
 

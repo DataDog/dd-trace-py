@@ -1,0 +1,12 @@
+_v: 1
+name: aiomysql
+display_name: aiomysql
+description: Instruments asynchronous aiomysql cursor query execution against MySQL databases, capturing SQL statements, row
+  counts, and connection metadata.
+packages:
+- name: aiomysql
+category:
+- db.client
+systems:
+- mysql
+creation_date: '2022-04-22'

@@ -22,6 +22,13 @@ class LLMObsExportMode(str, Enum):
 
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
+LLMOBS_SAMPLING = "_llmobs.sampling"
+# Routing context captured at span start. Stamped on the span because a span may finish in a
+# different execution context than the one it started in, at which point the contextvar is gone.
+CACHED_LLMOBS_ROUTING_CTX_KEY = "_llmobs.routing"
+# LLMObs trace ID of a routed span. Its meta_struct is removed when the span finishes, so this keeps
+# the ID that the tenant intake received available to export_span().
+CACHED_LLMOBS_TRACE_ID_CTX_KEY = "_llmobs.trace_id"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -80,6 +87,12 @@ BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
+CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY = "ephemeral_30m_input_tokens"
+CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY = "ephemeral_12h_input_tokens"
+
+# Server-side tool calls billed per call by the provider, on top of token costs.
+WEB_SEARCH_COUNT_METRIC_KEY = "web_search_count"
+STORAGE_SEARCH_COUNT_METRIC_KEY = "storage_search_count"
 
 # Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
 # token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).
@@ -96,6 +109,7 @@ LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
 LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
+LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY = "_dd.llmobs.artificial_gen_ai_tags"
 
 GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
 GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
@@ -122,9 +136,9 @@ SPAN_ENDPOINT = "/api/v2/llmobs"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
 EXP_SUBDOMAIN_NAME = "api"
-AGENTLESS_SPAN_BASE_URL = "https://{}".format(SPAN_SUBDOMAIN_NAME)
-AGENTLESS_EVAL_BASE_URL = "https://{}".format(EVAL_SUBDOMAIN_NAME)
-AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
+AGENTLESS_SPAN_BASE_URL = f"https://{SPAN_SUBDOMAIN_NAME}"
+AGENTLESS_EVAL_BASE_URL = f"https://{EVAL_SUBDOMAIN_NAME}"
+AGENTLESS_EXP_BASE_URL = f"https://{EXP_SUBDOMAIN_NAME}"
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
@@ -150,10 +164,16 @@ PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
-# Agent tracking tag. Set on agent spans only, at span finish.
+# Agent tracking tag set at span finish.
 AGENT_VERSION_TAG_KEY = "agent_version"
 # Holds the version an annotation supplied, until the span kind is known at finish.
-AGENT_ANNOTATION = "_ml_obs.agent_annotation"
+AGENT_VERSION = "_ml_obs.agent_annotation"
+# Holds the version of the nearest agent ancestor, resolved at activation. Also carried on the
+# in-process context handed to asyncio tasks and threads. It is never propagated across services.
+PARENT_AGENT_VERSION = "_ml_obs.parent_agent_version"
+# Holds the manifest the annotations declared, for the same reason. Each annotation is validated
+# and shallow-merged into it as it runs.
+AGENT_MANIFEST = "_ml_obs.agent_declaration_annotation"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
@@ -167,11 +187,13 @@ DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH = "on_openai_agent_span_finish"
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"
 
-LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
-
 PROXY_REQUEST = "llmobs.proxy_request"
 
 REQUEST_BASE_URL = "llmobs.request_base_url"
+
+# Kind of the LLM gateway that serves a request, such as "litellm". LLMObs sets it on the core
+# context of the request. Each LLMObs span that starts in that context keeps a copy.
+GATEWAY = "llmobs.gateway"
 
 # experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
@@ -249,6 +271,7 @@ class LLMOBS_STRUCT:
     MESSAGES: Final = "messages"
     DOCUMENTS: Final = "documents"
     AGENT_MANIFEST: Final = "agent_manifest"
+    GATEWAY: Final = "gateway"
     SPAN: Final = "span"
     KIND: Final = "kind"
     MODEL_NAME: Final = "model_name"
@@ -260,7 +283,9 @@ class LLMOBS_STRUCT:
 SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "anthropic": "anthropic",
     "bedrock": "botocore",
+    "aws_sdk_bedrock_runtime": "aws_sdk_bedrock_runtime",
     "openai": "openai",
+    "elevenlabs": "elevenlabs",
     "langchain": "langchain",
     "google_adk": "google_adk",
     "google_genai": "google_genai",
@@ -273,6 +298,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "mistralai": "mistralai",
     "pydantic_ai": "pydantic_ai",
     "claude_agent_sdk": "claude_agent_sdk",
+    "typesafe": "typesafe",
 }
 
 # Deprecated constants kept for backwards compatibility with downstream consumers of ddtrace internals.

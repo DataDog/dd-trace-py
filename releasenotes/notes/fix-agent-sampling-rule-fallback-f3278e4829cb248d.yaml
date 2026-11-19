@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where traces that do not match any ``DD_TRACE_SAMPLING_RULES`` rule and have no
+    service-specific Agent rate are sampled at 100% instead of using the default rate provided by the Datadog Agent.

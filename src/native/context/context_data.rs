@@ -1,11 +1,10 @@
 use std::sync::OnceLock;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use pyo3::prelude::FromPyObjectOwned;
 use pyo3::{
-    exceptions::PyValueError,
+    exceptions::{PyRuntimeError, PyValueError},
     types::{PyAny, PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyTuple},
-    Bound, FromPyObject, IntoPyObject, Py, PyErr, PyResult, Python,
+    Bound, IntoPyObject, Py, PyResult, Python,
 };
 
 const ORIGIN_KEY: &str = "_dd.origin";
@@ -27,84 +26,26 @@ type ContextState<'py> = (
     Option<f64>,
 );
 
-static W3C_GET_DD_LIST_MEMBER: OnceLock<Py<PyAny>> = OnceLock::new();
-static W3C_BUILD_TRACESTATE_MEMBERS: OnceLock<Py<PyAny>> = OnceLock::new();
-static NORMALIZE_OTEL_TRACESTATE: OnceLock<Py<PyAny>> = OnceLock::new();
-static MATERIALIZE_OTEL_SAMPLING_DECISION: OnceLock<Py<PyAny>> = OnceLock::new();
-static TRACESTATE_MAX_BYTES_CACHE: OnceLock<usize> = OnceLock::new();
-
-fn cached_fn<'py>(
-    py: Python<'py>,
-    cache: &OnceLock<Py<PyAny>>,
-    module: &str,
-    name: &str,
-) -> PyResult<Bound<'py, PyAny>> {
-    if let Some(v) = cache.get() {
-        return Ok(v.bind(py).clone());
-    }
-    let f = py.import(module)?.getattr(name)?;
-    let _ = cache.set(f.clone().unbind());
-    Ok(f)
+/// Python helpers used to build and normalize tracestate. Python owns them (and the
+/// tracestate size limit) and hands them over through `Context._register_tracestate_helpers`,
+/// so this crate never imports ddtrace modules itself.
+struct TracestateHelpers {
+    w3c_get_dd_list_member: Py<PyAny>,
+    w3c_build_tracestate_members: Py<PyAny>,
+    normalize_otel_tracestate: Py<PyAny>,
+    materialize_otel_sampling_decision: Py<PyAny>,
+    tracestate_max_bytes: usize,
 }
 
-fn cached_const<T>(py: Python<'_>, cache: &OnceLock<T>, module: &str, name: &str) -> PyResult<T>
-where
-    T: Copy + for<'py> FromPyObjectOwned<'py>,
-    for<'a, 'py> PyErr: From<<T as FromPyObject<'a, 'py>>::Error>,
-{
-    if let Some(value) = cache.get() {
-        return Ok(*value);
-    }
-    let value = py.import(module)?.getattr(name)?.extract()?;
-    let _ = cache.set(value);
-    Ok(value)
-}
+static TRACESTATE_HELPERS: OnceLock<TracestateHelpers> = OnceLock::new();
 
-fn w3c_get_dd_list_member_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
-    cached_fn(
-        py,
-        &W3C_GET_DD_LIST_MEMBER,
-        "ddtrace.internal.utils.http",
-        "w3c_get_dd_list_member",
-    )
-}
-
-fn w3c_build_tracestate_members_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
-    cached_fn(
-        py,
-        &W3C_BUILD_TRACESTATE_MEMBERS,
-        "ddtrace.internal.utils.http",
-        "w3c_build_tracestate_members",
-    )
-}
-
-fn normalize_otel_tracestate_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
-    cached_fn(
-        py,
-        &NORMALIZE_OTEL_TRACESTATE,
-        "ddtrace.internal.opentelemetry.sampling",
-        "normalize_otel_tracestate",
-    )
-}
-
-fn materialize_otel_sampling_decision_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
-    cached_fn(
-        py,
-        &MATERIALIZE_OTEL_SAMPLING_DECISION,
-        "ddtrace.internal.opentelemetry.sampling",
-        "materialize_otel_sampling_decision",
-    )
-}
-
-fn dd_trace_tracestate_max_bytes(py: Python<'_>) -> PyResult<usize> {
-    // Python owns the propagation limits. Resolve this lazily to avoid
-    // making ddtrace.internal.constants import the native extension during startup.
-    cached_const::<usize>(
-        py,
-        &TRACESTATE_MAX_BYTES_CACHE,
-        "ddtrace.internal.constants",
-        "DD_TRACE_TRACESTATE_MAX_BYTES",
-    )
+fn tracestate_helpers() -> PyResult<&'static TracestateHelpers> {
+    TRACESTATE_HELPERS.get().ok_or_else(|| {
+        PyRuntimeError::new_err(
+            "tracestate helpers are not registered: \
+             Context._register_tracestate_helpers() must be called before building a tracestate",
+        )
+    })
 }
 
 #[inline]
@@ -243,17 +184,20 @@ impl Context {
             (this.trace_id, sampled, this.get_meta(py))
         };
         let probabilistic_decision = sample_rate >= 0.0;
-        materialize_otel_sampling_decision_fn(py)?.call1((
-            meta,
-            trace_id,
-            sampled,
-            if probabilistic_decision {
-                sample_rate
-            } else {
-                0.0
-            },
-            probabilistic_decision,
-        ))?;
+        tracestate_helpers()?
+            .materialize_otel_sampling_decision
+            .bind(py)
+            .call1((
+                meta,
+                trace_id,
+                sampled,
+                if probabilistic_decision {
+                    sample_rate
+                } else {
+                    0.0
+                },
+                probabilistic_decision,
+            ))?;
         Self::set_otel_sampling_state(slf, None);
         Ok(())
     }
@@ -261,7 +205,11 @@ impl Context {
     fn build_tracestate(slf: &Bound<'_, Self>, parent_id: Option<u128>) -> PyResult<Vec<String>> {
         Self::materialize_otel_sampling_decision(slf)?;
         let py = slf.py();
-        let mut dd_list_member: String = w3c_get_dd_list_member_fn(py)?.call1((slf,))?.extract()?;
+        let mut dd_list_member: String = tracestate_helpers()?
+            .w3c_get_dd_list_member
+            .bind(py)
+            .call1((slf,))?
+            .extract()?;
         if let Some(parent_id) = parent_id {
             let parent_member = format!("p:{:016x}", parent_id);
             dd_list_member = if dd_list_member.is_empty() {
@@ -294,14 +242,73 @@ impl Context {
                 return Ok(vec![raw_tracestate]);
             }
             let dd_member = format!("dd={}", dd_list_member);
-            if dd_member.len() + raw_tracestate.len() < dd_trace_tracestate_max_bytes(py)? {
+            if dd_member.len() + raw_tracestate.len() < tracestate_helpers()?.tracestate_max_bytes {
                 return Ok(vec![dd_member, raw_tracestate]);
             }
             return Ok(vec![dd_member]);
         }
-        w3c_build_tracestate_members_fn(py)?
+        tracestate_helpers()?
+            .w3c_build_tracestate_members
+            .bind(py)
             .call1((raw_tracestate, dd_list_member))?
             .extract()
+    }
+
+    /// Native-typed sibling of the `copy` pymethod, used by `SpanData::get_context` to
+    /// build a child context without a Python round-trip for `trace_id`/`span_id`.
+    pub(crate) fn copy_native<'py>(
+        slf: &Bound<'py, Self>,
+        trace_id: Option<u128>,
+        span_id: Option<u128>,
+    ) -> PyResult<Py<Self>> {
+        let py = slf.py();
+
+        let mut this = slf.try_borrow_mut()?;
+        let meta = this.get_meta(py).unbind();
+        let metrics = this.get_metrics(py).unbind();
+        let baggage = Some(this.get_baggage(py).unbind());
+        let otel_sampling_state_owner = Some(match &this.otel_sampling_state_owner {
+            Some(owner) => owner.clone_ref(py),
+            None => slf.clone().unbind(),
+        });
+        drop(this);
+        let span_links = Some(PyList::empty(py).unbind());
+
+        Py::new(
+            py,
+            Self {
+                trace_id,
+                span_id,
+                meta,
+                metrics,
+                baggage,
+                span_links,
+                is_remote: false,
+                reactivate: false,
+                otel_sampling_state_data: None,
+                otel_sampling_state_owner,
+            },
+        )
+    }
+
+    /// Fresh trace-level state for a root span's `Context`, built natively (no Python
+    /// round-trip) so `SpanData::get_context` can construct it directly.
+    pub(crate) fn new_root(py: Python<'_>, trace_id: u128, span_id: u128) -> PyResult<Py<Self>> {
+        Py::new(
+            py,
+            Self {
+                trace_id: Some(trace_id),
+                span_id: Some(span_id),
+                meta: PyDict::new(py).unbind(),
+                metrics: PyDict::new(py).unbind(),
+                baggage: Some(PyDict::new(py).unbind()),
+                span_links: Some(PyList::empty(py).unbind()),
+                is_remote: false,
+                reactivate: false,
+                otel_sampling_state_data: None,
+                otel_sampling_state_owner: None,
+            },
+        )
     }
 }
 
@@ -351,7 +358,10 @@ impl Context {
             metrics_dict.bind(py).set_item(SAMPLING_PRIORITY_KEY, sp)?;
         }
         if meta_dict.bind(py).contains(W3C_TRACESTATE_KEY)? {
-            normalize_otel_tracestate_fn(py)?.call1((meta_dict.bind(py),))?;
+            tracestate_helpers()?
+                .normalize_otel_tracestate
+                .bind(py)
+                .call1((meta_dict.bind(py),))?;
         }
         Ok(Self {
             trace_id: extract_trace_id(trace_id),
@@ -415,7 +425,7 @@ impl Context {
 
     #[getter(_meta)]
     #[inline(always)]
-    fn get_meta<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
+    pub(crate) fn get_meta<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
         self.meta.bind(py).clone()
     }
 
@@ -468,7 +478,7 @@ impl Context {
     }
 
     #[getter]
-    fn get_sampling_priority<'py>(
+    pub(crate) fn get_sampling_priority<'py>(
         &mut self,
         py: Python<'py>,
     ) -> PyResult<Option<Bound<'py, PyAny>>> {
@@ -594,7 +604,30 @@ impl Context {
             .collect())
     }
 
-    fn _publish_sampling_decision(
+    /// Register the Python helpers that build_tracestate relies on.
+    ///
+    /// Python calls this once at import time, which also keeps the native code from
+    /// importing anything later (Temporal sandbox, etc. may block imports). The first
+    /// registration wins; later calls are ignored. Building a tracestate before any
+    /// registration raises RuntimeError.
+    #[staticmethod]
+    fn _register_tracestate_helpers(
+        w3c_get_dd_list_member: Py<PyAny>,
+        w3c_build_tracestate_members: Py<PyAny>,
+        normalize_otel_tracestate: Py<PyAny>,
+        materialize_otel_sampling_decision: Py<PyAny>,
+        tracestate_max_bytes: usize,
+    ) {
+        let _ = TRACESTATE_HELPERS.set(TracestateHelpers {
+            w3c_get_dd_list_member,
+            w3c_build_tracestate_members,
+            normalize_otel_tracestate,
+            materialize_otel_sampling_decision,
+            tracestate_max_bytes,
+        });
+    }
+
+    pub(crate) fn _publish_sampling_decision(
         slf: &Bound<'_, Self>,
         sampling_priority: Option<&Bound<'_, PyAny>>,
         sample_rate: f64,
@@ -658,32 +691,12 @@ impl Context {
         trace_id: &Bound<'py, PyAny>,
         span_id: &Bound<'py, PyAny>,
     ) -> PyResult<Py<PyAny>> {
-        let py = slf.py();
-        let (meta, metrics, baggage, otel_sampling_state_owner);
-        {
-            let mut this = slf.borrow_mut();
-            meta = this.get_meta(py);
-            metrics = this.get_metrics(py);
-            baggage = this.get_baggage(py);
-            otel_sampling_state_owner = this
-                .otel_sampling_state_owner
-                .as_ref()
-                .map(|owner| owner.clone_ref(py))
-                .or_else(|| Some(slf.clone().unbind()));
-        }
-        let new_ctx = Self {
-            trace_id: extract_trace_id(Some(trace_id)),
-            span_id: extract_span_id(Some(span_id)),
-            meta: meta.unbind(),
-            metrics: metrics.unbind(),
-            baggage: Some(baggage.unbind()),
-            span_links: Some(PyList::empty(py).unbind()),
-            is_remote: false,
-            reactivate: false,
-            otel_sampling_state_data: None,
-            otel_sampling_state_owner,
-        };
-        Ok(Py::new(py, new_ctx)?.into_any())
+        Ok(Self::copy_native(
+            slf,
+            extract_trace_id(Some(trace_id)),
+            extract_span_id(Some(span_id)),
+        )?
+        .into_any())
     }
 
     fn _with_baggage_item<'py>(

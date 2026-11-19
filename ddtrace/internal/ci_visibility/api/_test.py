@@ -1,11 +1,11 @@
 from pathlib import Path
 from time import time_ns
+from typing import Any
 from typing import ContextManager
 from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -35,14 +35,17 @@ from ddtrace.internal.ci_visibility.constants import TEST_RETRY_REASON
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+
+
+BENCHMARK_INFO = BENCHMARK_TAG_MAP["duration_info"]
 
 
 log = get_logger(__name__)
@@ -108,7 +111,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         # Some parameters can be overwritten:
         self._overwritten_suite_name: Optional[str] = None
 
-        self._main_tracer_context: Optional[ContextManager] = None
+        self._main_tracer_context: Optional[ContextManager[Any]] = None
 
     def _start_span(self, context: Optional[Context] = None) -> None:
         super()._start_span(context)
@@ -128,8 +131,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
         module_name = self.parent.parent.name if self.parent is not None and self.parent.parent is not None else "none"
-        return "{}(name={}, suite={}, module={}, parameters={}, status={})".format(
-            self.__class__.__name__, self.name, suite_name, module_name, self._parameters, self._status
+        return (
+            f"{self.__class__.__name__}(name={self.name}, suite={suite_name},"
+            f" module={module_name}, parameters={self._parameters}, status={self._status})"
         )
 
     def _get_hierarchy_tags(self) -> dict[str, str]:
@@ -185,13 +189,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self._exc_info is not None:
             self._span.set_exc_info(self._exc_info.exc_type, self._exc_info.exc_value, self._exc_info.exc_traceback)
 
-    def _telemetry_record_event_created(self):
+    def _telemetry_record_event_created(self) -> None:
         record_event_created_test(
             test_framework=self._session_settings.test_framework_metric_name,
             is_benchmark=self._is_benchmark,
         )
 
-    def _telemetry_record_event_finished(self):
+    def _telemetry_record_event_finished(self) -> None:
         record_event_finished_test(
             test_framework=self._session_settings.test_framework_metric_name,
             is_benchmark=self._is_benchmark,
@@ -320,27 +324,27 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         self._parameters = parameters
         self.set_tag(test.PARAMETERS, self._parameters)
 
-    def is_new(self):
+    def is_new(self) -> bool:
         # NOTE: this is a hack because tests with parameters cannot currently be counted as new (due to EFD design
         # decisions)
         return self._is_new and (self._parameters is None)
 
-    def is_quarantined(self):
+    def is_quarantined(self) -> bool:
         return self._session_settings.test_management_settings.enabled and (
             self._is_quarantined or self.get_tag(TEST_IS_QUARANTINED)
         )
 
-    def is_disabled(self):
+    def is_disabled(self) -> bool:
         return self._session_settings.test_management_settings.enabled and (
             self._is_disabled or self.get_tag(TEST_IS_DISABLED)
         )
 
-    def is_attempt_to_fix(self):
+    def is_attempt_to_fix(self) -> bool:
         return self._session_settings.test_management_settings.enabled and (
             self._is_attempt_to_fix or self.get_tag(TEST_IS_ATTEMPT_TO_FIX)
         )
 
-    def has_failed_all_retries(self):
+    def has_failed_all_retries(self) -> bool:
         return bool(self.get_tag(TEST_HAS_FAILED_ALL_RETRIES))
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
@@ -386,12 +390,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         duration_s = (time_ns() - self._span.start_ns) / 1e9
         return duration_s > 300
 
-    def efd_should_retry(self):
+    def efd_should_retry(self) -> bool:
         efd_settings = self._session_settings.efd_settings
         if not efd_settings.enabled:
             return False
 
-        if self.get_session().efd_is_faulty_session():
+        # Without a session, faulty-session detection cannot run, so do not retry.
+        session = self.get_session()
+        if session is None or session.efd_is_faulty_session():
             return False
 
         if self._efd_abort_reason is not None:
@@ -401,12 +407,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             return False
 
         # Check if prepare_for_finish() has been called (sets _finish_time)
-        if not self.is_prepared_for_finish():
+        finish_time = self._finish_time
+        if finish_time is None:
             log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
             return False
 
+        span = self._span
+        if span is None:
+            raise ValueError("Test span has not started")
         # Calculate duration from start time and finish time
-        duration_s = (self._finish_time - (self._span.start_ns / 1e9)) if self._span.start_ns else 0
+        duration_s = (finish_time - (span.start_ns / 1e9)) if span.start_ns else 0
 
         num_retries = len(self._efd_retries)
 
@@ -424,7 +434,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def efd_has_retries(self) -> bool:
         return len(self._efd_retries) > 0
 
-    def efd_add_retry(self, start_immediately=False) -> Optional[int]:
+    def efd_add_retry(self, start_immediately: bool = False) -> Optional[int]:
         if not self.efd_should_retry():
             log.debug("Early Flake Detection: efd_add_retry called but test should not retry")
             return None
@@ -498,7 +508,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _atr_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
         return self._atr_retries[retry_number - 1]
 
-    def _atr_make_retry_test(self):
+    def _atr_make_retry_test(self) -> "TestVisibilityTest":
         retry_test = self.__class__(
             self.name,
             self._session_settings,
@@ -515,11 +525,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def atr_has_retries(self) -> bool:
         return len(self._atr_retries) > 0
 
-    def atr_should_retry(self):
+    def atr_should_retry(self) -> bool:
         if not self._session_settings.atr_settings.enabled:
             return False
 
-        if self.get_session().atr_max_retries_reached():
+        # Without a session, the session-wide retry budget cannot be checked, so do not retry.
+        session = self.get_session()
+        if session is None or session.atr_max_retries_reached():
             return False
 
         # Check if prepare_for_finish() has been called (sets _finish_time)
@@ -533,7 +545,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         return len(self._atr_retries) < self._session_settings.atr_settings.max_retries
 
-    def atr_add_retry(self, start_immediately=False) -> Optional[int]:
+    def atr_add_retry(self, start_immediately: bool = False) -> Optional[int]:
         if not self.atr_should_retry():
             log.debug("Auto Test Retries: atr_add_retry called but test should not retry")
             return None
@@ -549,7 +561,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         return len(self._atr_retries)
 
-    def atr_start_retry(self, retry_number: int):
+    def atr_start_retry(self, retry_number: int) -> None:
         self._atr_get_retry_test(retry_number).start()
 
     def atr_finish_retry(
@@ -558,7 +570,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         status: TestStatus,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
-    ):
+    ) -> None:
         retry_test = self._atr_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.atr_settings.max_retries:
@@ -595,7 +607,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _attempt_to_fix_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
         return self._attempt_to_fix_retries[retry_number - 1]
 
-    def _attempt_to_fix_make_retry_test(self):
+    def _attempt_to_fix_make_retry_test(self) -> "TestVisibilityTest":
         retry_test = self.__class__(
             self.name,
             self._session_settings,
@@ -612,7 +624,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def attempt_to_fix_has_retries(self) -> bool:
         return len(self._attempt_to_fix_retries) > 0
 
-    def attempt_to_fix_should_retry(self):
+    def attempt_to_fix_should_retry(self) -> bool:
         if not self._session_settings.test_management_settings.enabled:
             return False
 
@@ -625,7 +637,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             len(self._attempt_to_fix_retries) < self._session_settings.test_management_settings.attempt_to_fix_retries
         )
 
-    def attempt_to_fix_add_retry(self, start_immediately=False) -> Optional[int]:
+    def attempt_to_fix_add_retry(self, start_immediately: bool = False) -> Optional[int]:
         if not self.attempt_to_fix_should_retry():
             log.debug("Attempt To Fix: attempt_to_fix_add_retry called but test should not retry")
             return None
@@ -638,7 +650,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         return len(self._attempt_to_fix_retries)
 
-    def attempt_to_fix_start_retry(self, retry_number: int):
+    def attempt_to_fix_start_retry(self, retry_number: int) -> None:
         self._attempt_to_fix_get_retry_test(retry_number).start()
 
     def attempt_to_fix_finish_retry(
@@ -647,7 +659,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         status: TestStatus,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
-    ):
+    ) -> None:
         retry_test = self._attempt_to_fix_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.test_management_settings.attempt_to_fix_retries:
@@ -689,12 +701,12 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     #
     # Selenium / RUM functionality
     #
-    def _is_rum(self):
+    def _is_rum(self) -> bool:
         if self._span is None:
             return False
         return self._span.get_tag("test.is_rum_active") == "true"
 
-    def _get_browser_driver(self):
+    def _get_browser_driver(self) -> Optional[str]:
         if self._span is None:
             return None
         return self._span.get_tag("test.browser.driver")
@@ -702,7 +714,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     #
     # Benchmark test functionality
     #
-    def set_benchmark_data(self, duration_data: Optional[BenchmarkDurationData], is_benchmark: bool = True):
+    def set_benchmark_data(self, duration_data: Optional[BenchmarkDurationData], is_benchmark: bool = True) -> None:
         self._benchmark_duration_data = duration_data
         self._is_benchmark = is_benchmark
 
@@ -714,7 +726,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 if value is not None:
                     self.set_tag(attr, value)
 
-    def set_final_status(self, final_status: TestStatus):
+    def set_final_status(self, final_status: TestStatus) -> None:
         """Set the final_status tag on the test span.
 
         If this test has retries, the tag is set on the last retry span.

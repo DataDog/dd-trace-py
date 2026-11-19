@@ -5,46 +5,49 @@
 # dependencies = [
 #     "packaging>=23.1,<24",
 #     "pyyaml>=6,<7",
-#     "riot>=0.22.0",
+#     "ruamel.yaml>=0.17.21",
 # ]
 # ///
 import argparse
 import ast
 from collections import defaultdict
 from dataclasses import dataclass
+import importlib.util
 import json
 from pathlib import Path
 import re
 import sys
-from typing import Any
 
+from packaging.requirements import InvalidRequirement
+from packaging.requirements import Requirement
 from packaging.version import Version
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(PROJECT_ROOT))
 
+from mappings import DEPENDENCY_TO_INTEGRATION_MAPPING  # noqa: E402
+from mappings import EXCLUDED_FROM_TESTING  # noqa: E402
 from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: E402
 
-import riotfile  # noqa: E402
+from tests.suitespec import TestEnvironment  # noqa: E402
+from tests.suitespec import get_test_environments  # noqa: E402
 
 
-CONTRIB_INTERNAL_ROOT = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
-DDTRACE_MONKEY_PATH = PROJECT_ROOT / "ddtrace" / "_monkey.py"
+def get_ddtrace_package_path() -> Path:
+    spec = importlib.util.find_spec("ddtrace")
+    if spec is None or spec.submodule_search_locations is None:
+        raise RuntimeError("ddtrace is not installed")
+    return Path(next(iter(spec.submodule_search_locations)))
+
+
+DDTRACE_PACKAGE_ROOT = get_ddtrace_package_path()
+CONTRIB_INTERNAL_ROOT = DDTRACE_PACKAGE_ROOT / "contrib" / "internal"
+DDTRACE_MONKEY_PATH = DDTRACE_PACKAGE_ROOT / "_monkey.py"
 SUPPORTED_VERSIONS_PATH = PROJECT_ROOT / "supported_versions.json"
 
-REQUIREMENTS_DIR = PROJECT_ROOT / ".riot" / "requirements"
-# Allows to get the version of a depency in a riot requirement files when it is formatted
-# like anyio==4.9.0
 REQUIREMENT_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==([^;\s]+)")
 PYTHON_VERSION_RE = re.compile(r"^\d+\.\d+$")
-LATEST = ""
-
-
-@dataclass(frozen=True)
-class RiotVenv:
-    name: str
-    python_version: str
 
 
 @dataclass(frozen=True)
@@ -118,6 +121,16 @@ def _normalize_dependency_name(name: str) -> str:
     return re.sub(r"[-.]", "_", name.lower())
 
 
+# Distributions whose module name (the key used by ``_supported_versions``) does
+# not match the distribution name, even by prefix.
+DISTRIBUTION_TO_MODULE = {
+    "azure-functions-durable": "azure.durable_functions",
+    "flask-caching": "flask_cache",  # flask_cache reads its version from flask_caching
+    "google-cloud-aiplatform": "vertexai",
+    "opensearch-py": "opensearchpy",
+}
+
+
 def resolve_supported_range(
     dependency_name: str,
     declared_ranges: dict[str, str] | None,
@@ -126,19 +139,19 @@ def resolve_supported_range(
     """Resolve the supported range for a dependency from an integration's declaration.
 
     ``_supported_versions`` is keyed by import/module name, which does not always match
-    the distribution name used as ``dependencyName`` (e.g. ``psycopg2`` vs
+    the distribution name used as ``libraryName`` (e.g. ``psycopg2`` vs
     ``psycopg2-binary``, or a stdlib module vs its ``stdlib.*`` entry). We match by
     normalized name, then by longest shared-prefix match (which pairs distribution
     variants like ``psycopg2-binary`` with ``psycopg2`` without matching unrelated
-    substrings). As a last resort, when the integration has a single dependency and
-    declares a single range, that range is used even if the names differ (covers stdlib
-    modules).
+    substrings). ``DISTRIBUTION_TO_MODULE`` covers names that do not match at all. As a
+    last resort, when the integration has a single dependency and declares a single
+    range, that range is used even if the names differ (covers stdlib modules).
     """
     if not declared_ranges:
         return None
 
     normalized = {_normalize_dependency_name(key): range_ for key, range_ in declared_ranges.items()}
-    dependency_norm = _normalize_dependency_name(dependency_name)
+    dependency_norm = _normalize_dependency_name(DISTRIBUTION_TO_MODULE.get(dependency_name, dependency_name))
 
     if dependency_norm in normalized:
         return normalized[dependency_norm]
@@ -195,19 +208,6 @@ def get_patch_modules() -> dict[str, bool]:
 PATCH_MODULES = get_patch_modules()
 
 
-def get_riot_hash_to_venvs() -> dict[str, RiotVenv]:
-    """Map each generated riot requirements hash to its riot venv metadata."""
-    riot_venvs = {}
-    for instance in riotfile.venv.instances():
-        if not instance.name:
-            continue
-        riot_venvs[instance.short_hash] = RiotVenv(
-            name=instance.name.lower(),
-            python_version=instance.py._hint,
-        )
-    return riot_venvs
-
-
 def parse_locked_versions(requirements_path: Path) -> dict[str, str]:
     """Parse a generated requirements file into dependency names and locked versions."""
     locked_versions = {}
@@ -220,32 +220,52 @@ def parse_locked_versions(requirements_path: Path) -> dict[str, str]:
 
 
 def is_concrete_python_version(python_version: str) -> bool:
-    """Return whether a riot Python hint identifies one concrete major.minor runtime."""
+    """Return whether a Python value identifies one concrete major.minor runtime."""
     return PYTHON_VERSION_RE.match(python_version) is not None
+
+
+def get_environment_integration_names(
+    environment: TestEnvironment,
+    environment_integration_names: set[str],
+    known_integration_names: set[str],
+) -> set[str]:
+    """Return integrations exercised by an environment's direct dependencies."""
+    integration_names = {environment.integration_name}
+    for dependency in environment.direct_dependencies:
+        try:
+            requirement = Requirement(dependency)
+        except InvalidRequirement:
+            continue
+        integration_name = DEPENDENCY_TO_INTEGRATION_MAPPING.get(requirement.name.lower())
+        if (
+            integration_name
+            and integration_name not in environment_integration_names
+            and integration_name in known_integration_names
+            and integration_name not in EXCLUDED_FROM_TESTING
+        ):
+            integration_names.add(integration_name)
+    return integration_names
 
 
 def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
     """Collect tested dependency versions by integration and Python version."""
     tested_versions: dict[str, dict[str, set[TestedVersion]]] = defaultdict(lambda: defaultdict(set))
-    riot_hash_to_venvs = get_riot_hash_to_venvs()
-
-    for requirements_path in sorted(REQUIREMENTS_DIR.glob("*.txt")):
-        riot_hash = requirements_path.stem
-        riot_venv = riot_hash_to_venvs.get(riot_hash, None)
-
-        if not riot_venv:
+    environments = tuple(
+        environment
+        for suite_environments in get_test_environments(nightly=False).values()
+        for environment in suite_environments
+    )
+    environment_integration_names = {environment.integration_name for environment in environments}
+    known_integration_names = set(get_integration_names())
+    for environment in environments:
+        if not is_concrete_python_version(environment.python):
             continue
-
-        if not is_concrete_python_version(riot_venv.python_version):
-            continue
-
-        integration_name = riot_venv.name.split(":", 1)[0]
-
-        dependency_names = get_dependency_names(integration_name)
-        found_dependency_version = False
-
-        if dependency_names:
-            locked_versions = parse_locked_versions(requirements_path)
+        locked_versions = parse_locked_versions(PROJECT_ROOT / environment.lockfile)
+        for integration_name in get_environment_integration_names(
+            environment, environment_integration_names, known_integration_names
+        ):
+            dependency_names = get_dependency_names(integration_name)
+            found_dependency_version = False
             for dependency in dependency_names:
                 version = locked_versions.get(dependency.lower())
                 if version:
@@ -253,18 +273,17 @@ def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
                     tested_versions[integration_name][dependency].add(
                         TestedVersion(
                             version=version,
-                            python_version=riot_venv.python_version,
+                            python_version=environment.python,
                         )
                     )
 
-        if is_stdlib_package(integration_name) and not found_dependency_version:
-            tested_versions[integration_name][f"stdlib.{integration_name}"].add(
-                TestedVersion(
-                    version="",
-                    python_version=riot_venv.python_version,
+            if is_stdlib_package(integration_name) and not found_dependency_version:
+                tested_versions[integration_name][f"stdlib.{integration_name}"].add(
+                    TestedVersion(
+                        version="",
+                        python_version=environment.python,
+                    )
                 )
-            )
-            continue
 
     return tested_versions
 
@@ -279,42 +298,37 @@ def _python_sort_key(python_version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in python_version.split("."))
 
 
-def _venv_sets_latest_for_package(venv: Any, suite_name: str) -> bool:
-    packages = get_dependency_names(suite_name) or [suite_name]
-    venv_packages = {package.lower(): version for package, version in venv.pkgs.items()}
-
-    for package in packages:
-        if package.lower() in venv_packages and LATEST in venv_packages[package.lower()]:
+def _environment_sets_latest_for_package(environment: TestEnvironment, integration_name: str) -> bool:
+    packages = {package.lower() for package in get_dependency_names(integration_name) or [integration_name]}
+    for dependency in environment.direct_dependencies:
+        try:
+            requirement = Requirement(dependency)
+        except InvalidRequirement:
+            continue
+        if requirement.name.lower() in packages and not requirement.specifier:
             return True
-    return any(_venv_sets_latest_for_package(child_venv, suite_name) for child_venv in venv.venvs)
+    return False
 
 
 def get_pinned_integrations(integration_names: set[str]) -> set[str]:
-    """Return integrations that do not have any riot venv setting the dependency to latest."""
+    """Return integrations that do not have an environment testing the latest dependency."""
     pinned_integrations = set()
     integrations_setting_latest = set()
-
-    def recurse_venvs(venvs: list[Any], inherited_name: str | None = None) -> None:
-        for venv in venvs:
-            venv_name = (venv.name or inherited_name or "").lower()
-            integration_name = venv_name.split(":", 1)[0]
-
+    for suite_environments in get_test_environments(nightly=False).values():
+        for environment in suite_environments:
+            integration_name = environment.integration_name
             if integration_name in integration_names:
-                if _venv_sets_latest_for_package(venv, integration_name):
+                if _environment_sets_latest_for_package(environment, integration_name):
                     integrations_setting_latest.add(integration_name)
                     pinned_integrations.discard(integration_name)
                 elif integration_name not in integrations_setting_latest:
                     pinned_integrations.add(integration_name)
-
-            recurse_venvs(venv.venvs, venv_name)
-
-    recurse_venvs(riotfile.venv.venvs)
     return pinned_integrations
 
 
 def build_versions(
     tested_versions: set[TestedVersion],
-    supported_range: str | None,
+    supported_range: str,
 ) -> list[dict[str, object]]:
     """Group runtimes that tested the same set of package versions.
 
@@ -332,13 +346,13 @@ def build_versions(
 
     entries: list[dict[str, object]] = []
     for tested_sorted, python_versions in runtimes_by_tested.items():
-        entry: dict[str, object] = {
-            "testedRuntimes": {"python": sorted(python_versions, key=_python_sort_key)},
-        }
-        if supported_range is not None:
-            entry["supportedRange"] = supported_range
-        entry["tested"] = list(tested_sorted)
-        entries.append(entry)
+        entries.append(
+            {
+                "testedRuntimes": {"python": sorted(python_versions, key=_python_sort_key)},
+                "supportedRange": supported_range,
+                "tested": list(tested_sorted),
+            }
+        )
 
     entries.sort(key=lambda entry: _python_sort_key(entry["testedRuntimes"]["python"][0]))
     return entries
@@ -350,6 +364,7 @@ def build_supported_versions_entries(
 ):
     """Build the JSON payload for supported_versions.json."""
     entries = []
+    missing_ranges = []
     integration_names = set(get_integration_names())
     pinned_integrations = get_pinned_integrations(integration_names)
 
@@ -365,9 +380,15 @@ def build_supported_versions_entries(
 
         for dependency_name, tested_versions in sorted(tested_versions_by_dependency.items()):
             supported_range = resolve_supported_range(dependency_name, declared_ranges, is_sole_dependency)
+            if supported_range is None:
+                # Integrations without a patch module (e.g. gunicorn, which is only a
+                # documentation note) instrument nothing, so they have no range.
+                if (CONTRIB_INTERNAL_ROOT / integration_name / "patch.py").is_file():
+                    missing_ranges.append(f"{dependency_name} ({integration_name})")
+                continue
 
             entry: dict[str, object] = {
-                "dependencyName": dependency_name,
+                "libraryName": dependency_name,
                 "integrationName": integration_name,
                 "autoInstrumented": is_auto_instrumented_package(integration_name),
                 "versions": build_versions(tested_versions, supported_range),
@@ -382,11 +403,19 @@ def build_supported_versions_entries(
 
             entries.append(entry)
 
-    return sorted(entries, key=lambda entry: (entry["integrationName"], entry["dependencyName"]))
+    if missing_ranges:
+        raise SystemExit(
+            "ERROR: no supported range found for these tested dependencies. Add their module "
+            "to the integration's _supported_versions() (or to DISTRIBUTION_TO_MODULE when the "
+            "module name differs from the distribution name):\n"
+            + "\n".join(f"  - {missing}" for missing in missing_ranges)
+        )
+
+    return sorted(entries, key=lambda entry: (entry["integrationName"], entry["libraryName"]))
 
 
 def main() -> None:
-    """Generate supported_versions.json from riot requirement lock files."""
+    """Generate supported_versions.json from test environment lock files."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--main",

@@ -62,6 +62,27 @@ def test_start_native_monitoring_success() -> None:
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+def test_start_skipped_in_uwsgi_worker_without_fork_hooks(caplog: pytest.LogCaptureFixture) -> None:
+    """start() does not enable sys.monitoring in a uWSGI worker forked without the Python fork hooks."""
+    import logging
+
+    from ddtrace.internal.datadog.profiling import native_call_monitor
+
+    native_call_monitor._started = False
+
+    with (
+        mock.patch("ddtrace.internal.uwsgi.forked_without_fork_hooks", return_value=True),
+        mock.patch("ddtrace.internal.datadog.profiling.stack._stack.start_native_monitoring") as start_monitoring,
+        caplog.at_level(logging.WARNING, logger="ddtrace.internal.datadog.profiling.native_call_monitor"),
+    ):
+        native_call_monitor.start()
+
+    start_monitoring.assert_not_called()
+    assert native_call_monitor._started is False
+    assert "Native frame attribution is disabled in this uWSGI worker" in caplog.text
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
 @pytest.mark.subprocess()
 def test_native_call_registry_is_bounded_for_dynamic_code() -> None:
     import json
@@ -164,7 +185,7 @@ def test_native_frames_preserved_after_fork() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -254,7 +275,7 @@ def test_native_frames_detection_hashlib() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -316,7 +337,7 @@ def test_native_frames_detection_hashlib_kwarg() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -381,7 +402,7 @@ def test_native_frames_detection_numpy_flat() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -445,7 +466,7 @@ def test_native_frames_detection_numpy_nested() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -503,7 +524,7 @@ def test_native_frames_detection_zlib() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -559,7 +580,7 @@ def test_native_frames_detection_sorted_builtin() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -615,7 +636,7 @@ def test_native_frames_detection_list_sort_method() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -673,7 +694,7 @@ def test_native_frames_detection_regex_method() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -731,7 +752,7 @@ def test_native_frames_detection_expression_arg() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -790,7 +811,7 @@ def test_native_frames_detection_nested_c_calls() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -850,7 +871,7 @@ def test_native_frames_detection_call_kw() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -907,7 +928,7 @@ def test_native_frames_detection_many_args() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -963,7 +984,7 @@ def test_native_frames_detection_method_two_args() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1020,7 +1041,7 @@ def test_native_frames_detection_method_on_literal() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1078,7 +1099,7 @@ def test_native_frames_detection_sequential_calls() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())

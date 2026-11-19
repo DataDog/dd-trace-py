@@ -7,10 +7,12 @@ respective ``_openai`` / ``_anthropic`` modules.
 
 from collections.abc import Mapping
 from typing import Any
+from typing import Optional
 
 from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._api_client import Evaluation
+from ddtrace.aiguard._api_client import MCPServer
 from ddtrace.aiguard._api_client import Message
 from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._constants import AI_GUARD
@@ -49,7 +51,12 @@ def wrap_abort_error(cause: AIGuardAbortError, compound_cls: type[AIGuardAbortEr
     return wrapped
 
 
-def evaluate_auto(client: AIGuardClient, messages: list[Message], integration: str) -> Evaluation:
+def evaluate_auto(
+    client: AIGuardClient,
+    messages: list[Message],
+    integration: str,
+    mcp_servers: Optional[list[MCPServer]] = None,
+) -> Evaluation:
     """Evaluate messages on behalf of an auto-instrumented AI package.
 
     Every provider listener shares one policy -- block per DD_AI_GUARD_BLOCK, report the call
@@ -60,4 +67,5 @@ def evaluate_auto(client: AIGuardClient, messages: list[Message], integration: s
         Options(block=aiguard_config._ai_guard_block),
         source=AI_GUARD.SOURCE_AUTO,
         integration=integration,
+        mcp_servers=mcp_servers,
     )

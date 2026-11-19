@@ -1,0 +1,92 @@
+interactions:
+- request:
+    body: '{"model":"gpt-6-luna","input":"I was charged twice for my subscription
+      this month.","questions":[{"type":"choice","name":"department","instructions":"Which
+      team should handle this request?","choices":[{"value":"billing"},{"value":"technical"},{"value":"sales"}]},{"type":"score","name":"severity","instructions":"How
+      severe is the issue?","levels":[{"label":"Minor"},{"label":"Workaround available"},{"label":"Blocking"}]},{"type":"predicate","name":"needs_refund","instructions":"Is
+      the customer asking for a refund?"},{"type":"predicate","name":"legal_threat","instructions":"Is
+      the customer threatening legal action?"}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '623'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 3.26.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 3.26.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.8
+    method: POST
+    uri: https://api.openai.com/v1/decisions
+  response:
+    body:
+      string: '{"error":{"message":"A valid API key is required.","type":"invalid_request_error","param":null,"code":null}}'
+    headers:
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - x-request-id,retry-after,server-timing-total
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a47eda0b3882d961-BOS
+      connection:
+      - keep-alive
+      content-length:
+      - '108'
+      content-type:
+      - application/json
+      date:
+      - Fri, 09 Oct 2026 16:44:44 GMT
+      openai-processing-ms:
+      - '0'
+      server:
+      - cloudflare
+      server-timing-total:
+      - '0.127'
+      set-cookie:
+      - __cf_bm=SXRBcL4Zdz2YRiJoPgchAkzE7gdKgVoSBo_YnXzaVdw-1791564284.672758-1.0.1.1-UARHTm9RNhaGM5vI3pu2RrBQ.NqIimIP1U8eIYYef6Bj.DnA6xVYdsG.GcgEZx5142R.gULA.wnBZhngaCyTxgtQP7jfNjUzdyR4llVtTaPe6G97Ss5yxt7.gphKjxM0;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Fri,
+        09 Oct 2026 17:14:44 GMT
+      - _cfuvid=TSC.xPz88JY.d0GfcM.BYw_AKPnlpCbhpobUBvWkjsQ-1791564284.672758-1.0.1.1-bmPuzsuwJ_q6a22tSloGnVkND.NGgCQLdWDrxrvJcgw;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - origin, access-control-request-method, access-control-request-headers
+      x-content-type-options:
+      - nosniff
+      x-openai-proxy-wasm:
+      - v0.1
+      x-request-id:
+      - req_c8e00514cbc54ff886b2afcfff2b565a
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

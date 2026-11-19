@@ -1,0 +1,13 @@
+_v: 1
+name: dogpile_cache
+display_name: dogpile.cache
+description: Instruments dogpile.cache single- and multi-key cache lookups and population, recording backend, hit, and expiration
+  details.
+packages:
+- name: dogpile-cache
+- name: dogpile.cache
+- name: dogpile_cache
+category:
+- db.client
+systems: []
+creation_date: '2019-12-04'
