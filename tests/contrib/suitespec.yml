@@ -258,7 +258,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, 'aiobotocore~=2.0.0']
         - name: aiobotocore
-          dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, aiobotocore]
+          dependencies: [pytest-asyncio, 'async_generator~=1.10', pytest-randomly, aiobotocore]
   aiohttp:
     venvs_per_job: 8
     pattern: ^aiohttp$
@@ -860,7 +860,7 @@ suites:
       variants:
         - name: celery
           python: ['3.9']
-          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery~=5.2.0', 'redis~=3.5']
+          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery~=5.2.0', 'kombu~=5.2.0', 'redis~=3.5']
         - name: celery
           python: ['3.9']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery[redis]']
@@ -2631,10 +2631,10 @@ suites:
           dependencies: ['pytest<=8', pytest-randomly, 'tornado~=6.2']
         - name: tornado
           python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-randomly, 'tornado==6.2']
+          dependencies: ['pytest<=8', pytest-randomly, 'tornado==6.2']
         - name: tornado
           python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-randomly, 'tornado==6.3.1']
+          dependencies: ['pytest<=8', pytest-randomly, 'tornado==6.3.1']
         - name: tornado
           python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, tornado]

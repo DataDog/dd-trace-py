@@ -9,10 +9,10 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -21,20 +21,20 @@ log = get_logger(__name__)
 class LlamaIndexIntegration(BaseLLMIntegration):
     _integration_name = "llama_index"
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the contrib sets the APM model/provider tags itself.
 
         LlamaIndex has no per-request base_url to record, so unlike other integrations
         there is no LLMObs-only span state to set at start.
         """
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         # Event-based: on_started calls this with operation=event.operation (no trace() path).
         return "agent" if kwargs.get("operation") == "agent" else None
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -68,7 +68,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_query_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -88,7 +88,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_agent_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -104,7 +104,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tool_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -119,7 +119,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_embedding_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -156,7 +156,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_retrieval_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -190,7 +190,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_llm_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:

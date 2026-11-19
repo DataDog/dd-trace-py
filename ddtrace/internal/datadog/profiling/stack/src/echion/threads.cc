@@ -44,6 +44,10 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
 
     const size_t max_frames = echion.stack_max_frames();
     python_stack_unwind_result = UnwindResult::Unknown();
+    // Mark before unwinding so a failed stack copy is not reported as a missing tracked loop.
+    if (asyncio_loop) {
+        echion.mark_asyncio_loop_tracked();
+    }
     auto frame_unwind_result = unwind_python_stack(echion, tstate, python_stack, max_frames);
     if (!frame_unwind_result) {
         return frame_unwind_result.error();

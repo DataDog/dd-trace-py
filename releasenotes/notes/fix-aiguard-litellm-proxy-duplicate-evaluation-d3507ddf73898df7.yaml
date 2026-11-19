@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    AI Guard: The LiteLLM proxy guardrail now evaluates text completions, and it evaluates streamed answers
+    after the last chunk. With DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED set to true, it holds a streamed
+    answer until AI Guard evaluates it, and it can block the answer.
+fixes:
+  - |
+    AI Guard: Fixes an issue where AI Guard evaluates chat and text completion prompts two times when the
+    LiteLLM proxy guardrail uses pre_call and post_call modes.

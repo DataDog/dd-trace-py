@@ -145,7 +145,7 @@ _BINDINGS = {
 
 @pytest.mark.parametrize("position", [0, 1])
 @pytest.mark.parametrize("binding,mixed", [(binding, False) for binding in _BINDINGS] + [("function", True)])
-def test_validator_with_positions_marks_only_configured_parameters(binding, mixed, position, iast_context_defaults):
+def test_validator_with_positions_marks_only_configured_parameters(binding, mixed, position):
     """With parameter positions, only arguments bound to those positions are marked, however they are passed."""
     command, flag = (
         taint_pyobject(
