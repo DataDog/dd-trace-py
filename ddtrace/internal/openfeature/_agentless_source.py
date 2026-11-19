@@ -302,6 +302,14 @@ class AgentlessConfigurationSource(PeriodicService):
         self._cancel_in_flight_request()
         super()._stop_service(*args, **kwargs)
 
+    def discard_in_child(self) -> None:
+        """Keep the poller from restarting in a forked child that does not own it.
+
+        Stopping it there instead would half-close a socket the parent still uses.
+        """
+        if self._worker is not None:
+            self._worker.__autorestart__ = False
+
     def _cancel_in_flight_request(self) -> None:
         """Unblock a poll waiting on the network so shutdown does not wait for it.
 

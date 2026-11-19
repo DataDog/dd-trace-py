@@ -203,6 +203,16 @@ def release_process_selection() -> None:
             _dropped_reason = None
 
 
+def recount_process_selection_in_child(count: int) -> None:
+    """Set the claim's reference count, in a forked child, to the pollers that still hold it there."""
+    global _claimed, _claim_count, _dropped_reason
+    with _lock:
+        _claim_count = count
+        if count == 0:
+            _claimed = NO_SELECTION
+            _dropped_reason = None
+
+
 def snapshot_from_other_selection() -> bool:
     """Whether the shared snapshot has other flags than the selection claimed now would load.
 
