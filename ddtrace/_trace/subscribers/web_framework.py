@@ -89,6 +89,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             log.debug("%s: error reading response headers", event.integration_config.integration_name, exc_info=True)
             response_headers = None
 
+        request_tagged = event.tag_request_on_start
         try:
             trace_utils.set_http_meta(
                 span=span,
@@ -98,11 +99,11 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
                 query=event.query,
                 trace_query_string=event.trace_query_string,
                 status_code=status_code,
-                request_headers=event.request_headers,
+                request_headers=None if request_tagged else event.request_headers,
                 response_headers=response_headers,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
-                peer_ip=event.peer_ip,
+                peer_ip=None if request_tagged else event.peer_ip,
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)

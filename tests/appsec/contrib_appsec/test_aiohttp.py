@@ -241,6 +241,23 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
         path = path.replace("{param_int}", "123").replace("{port}", "123")
         return re.sub(r"\{[a-z_]+\}", "abczx", path)
 
+    @pytest.mark.parametrize(
+        ("forwarded_for", "client_ip", "status"),
+        [
+            ((rules._IP.BLOCKED, rules._IP.DEFAULT), rules._IP.BLOCKED, 403),
+            ((rules._IP.DEFAULT, rules._IP.BLOCKED), rules._IP.DEFAULT, 200),
+        ],
+    )
+    def test_repeated_forwarded_for_lines_resolve_to_the_first_public_ip(
+        self, interface, get_entry_span_tag, forwarded_for, client_ip, status
+    ):
+        headers = [("X-Forwarded-For", ip) for ip in forwarded_for]
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers=headers)
+            assert self.status(response) == status
+            assert get_entry_span_tag(http.CLIENT_IP) == client_ip
+
     def test_large_streamed_upload(self, interface):
         body, content_type = _multipart_body({"upload": b"x" * (2 * 1024**2)})
         with override_global_config(dict(_asm_enabled=True)):

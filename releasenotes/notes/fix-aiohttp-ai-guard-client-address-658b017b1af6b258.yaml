@@ -6,3 +6,6 @@ fixes:
   - |
     aiohttp: Fixes an issue where request spans were missing ``network.client.ip`` when client IP
     collection is enabled with ``DD_TRACE_CLIENT_IP_ENABLED`` and App and API Protection is disabled.
+  - |
+    tracing: Fixes the client IP reported for aiohttp and Sanic requests that repeat an IP header such
+    as ``X-Forwarded-For``. All the header lines are now read in order, instead of only the last one.

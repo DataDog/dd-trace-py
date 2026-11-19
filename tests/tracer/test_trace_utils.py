@@ -1,5 +1,6 @@
 from ipaddress import ip_network
 from unittest import mock
+import wsgiref.headers
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -800,6 +801,19 @@ def test_get_request_header_ip(header_env_var, headers_dict, expected, span):
 def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, expected):
     ip = _get_request_header_client_ip(headers_dict, peer_ip, True)
     assert ip == expected
+
+
+@pytest.mark.parametrize(
+    "header_lines,expected",
+    [
+        ([("X-Forwarded-For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
+        ([("X-Forwarded-For", "1.1.1.1"), ("x-forwarded-for", "10.0.0.1, 8.8.8.8")], "1.1.1.1"),
+        ([("X-Forwarded-For", "10.0.0.1"), ("X-Real-Ip", "4.4.4.4"), ("X-Forwarded-For", "10.0.0.2")], "10.0.0.1"),
+    ],
+)
+def test_get_request_header_client_ip_joins_repeated_header_lines(header_lines, expected):
+    headers = wsgiref.headers.Headers(header_lines)
+    assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):

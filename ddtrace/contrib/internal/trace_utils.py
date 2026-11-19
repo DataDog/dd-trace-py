@@ -89,6 +89,7 @@ IP_PATTERNS = (
     "cf-connecting-ip",
     "cf-connecting-ipv6",
 )
+_IP_HEADERS = frozenset(IP_PATTERNS)
 
 
 # The request-start event is published for WSGI and ASGI applications only: the
@@ -233,10 +234,14 @@ def _get_request_header_client_ip(
 
     else:
         if headers_are_case_sensitive:
-            new_headers = {k.lower().replace("_", "-"): v for k, v in headers.items()}
+            ip_headers: dict[str, str] = {}
+            for k, v in headers.items():
+                key = k.lower().replace("_", "-")
+                if key in _IP_HEADERS:
+                    ip_headers[key] = f"{ip_headers[key]}, {v}" if key in ip_headers else v
             for ip_header in IP_PATTERNS:
-                if ip_header in new_headers:
-                    ip_header_value = new_headers[ip_header]
+                if ip_header in ip_headers:
+                    ip_header_value = ip_headers[ip_header]
                     break
         else:
             for ip_header in IP_PATTERNS:
