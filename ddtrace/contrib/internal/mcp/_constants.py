@@ -12,8 +12,8 @@ SESSION_OPERATION_NAME = "session"
 # Dispatched with (response,) before a server returns a tools list, when DD_MCP_CAPTURE_INTENT is enabled, so
 # LLMObs can add its intent argument to each tool's input schema.
 TOOLS_LIST_RESPONSE_EVENT = "mcp.tools_list_response"
-# Dispatched with (span, request, transport_session_id) before a server tool call runs, so LLMObs can record and
-# remove the telemetry argument. The request's arguments are modified in place.
+# Dispatched with (span, request, transport_session_id, connection) before a server tool call runs, so LLMObs can
+# record and remove the telemetry argument. The request's arguments are modified in place.
 TELEMETRY_ARGUMENT_EVENT = "mcp.telemetry_argument"
 # Dispatched with (span, server_info) when a stateless mcp>=2 client session adopts its server's identity.
 CLIENT_SESSION_SERVER_INFO_EVENT = "mcp.client_session.server_info"

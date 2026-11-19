@@ -198,7 +198,8 @@ def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
     if isinstance(request_root, CallToolRequest):
         request_context = _get_attr(_get_attr(instance, "message_metadata", None), "request_context", None)
         transport_session_id = get_transport_session_id(_get_attr(request_context, "headers", None))
-        core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, request_root, transport_session_id))
+        connection = _get_attr(instance, "_session", None)
+        core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, request_root, transport_session_id, connection))
 
     return func(*args, **kwargs)
 

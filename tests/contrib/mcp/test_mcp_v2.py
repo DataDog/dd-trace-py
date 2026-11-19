@@ -295,3 +295,22 @@ def test_conversation_id_capture_skipped_with_transport_session(mcp_llmobs, tran
         assert session_id is None
     else:
         assert len(session_id) == 32
+
+
+def test_conversation_id_reused_for_parallel_first_calls(mcp_llmobs):
+    from ddtrace.llmobs._contrib._subscribers import get_integration
+
+    class Connection:
+        pass
+
+    integration = get_integration("mcp")
+    first, other = Connection(), Connection()
+    session_ids = []
+    with override_config("mcp", dict(capture_session=True)):
+        for connection in (first, first, other):
+            with LLMObs.tool(name="calculator") as span:
+                integration.process_telemetry_argument(span, {"params": {"arguments": {}}}, None, connection)
+                session_ids.append(get_llmobs_session_id(span))
+
+    assert session_ids[0] == session_ids[1]
+    assert session_ids[2] != session_ids[0]

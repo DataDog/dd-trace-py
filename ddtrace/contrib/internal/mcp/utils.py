@@ -232,10 +232,11 @@ def strip_telemetry_argument(span: Span, ctx: Any) -> Any:
     params = ctx.params or {}
     arguments = params.get("arguments")
     transport_session_id = get_transport_session_id(_get_attr(ctx.request, "headers", None))
+    connection = getattr(ctx, "session", None)
     if not isinstance(arguments, dict) or TELEMETRY_KEY not in arguments:
         if config.mcp.capture_session:
-            core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}, transport_session_id))
+            core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}, transport_session_id, connection))
         return ctx
     params = {**params, "arguments": dict(arguments)}
-    core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}, transport_session_id))
+    core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}, transport_session_id, connection))
     return dataclasses.replace(ctx, params=params)

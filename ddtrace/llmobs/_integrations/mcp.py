@@ -1,6 +1,8 @@
+import time
 from typing import Any
 from typing import Optional
 from typing import get_args
+import weakref
 
 from ddtrace import config
 from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
@@ -40,11 +42,17 @@ INTENT_PROMPT = """Briefly describe the wider context task, and why this tool wa
 
 
 CONVERSATION_ID_KEY = "conversation_id"
-CONVERSATION_ID_PROMPT = "The conversation_id from an earlier result of this server. Omit it if you have none."
+CONVERSATION_ID_PROMPT = (
+    "Required on every call after your first call to this server: the conversation_id from an earlier result of this "
+    "server. Omit it only on your first call."
+)
 CONVERSATION_ID_INSTRUCTION = (
-    'Pass telemetry.conversation_id="{}" in all later tool calls to this server in this conversation.'
+    'Your conversation_id for this server is "{0}". Add "telemetry": {{"conversation_id": "{0}"}} to the arguments '
+    "of every later tool call to this server, including calls you make in parallel."
 )
 NEW_CONVERSATION_ID = "_dd.mcp.new_conversation_id"
+# Parallel first calls of a conversation arrive together, before the agent has seen any ID
+PENDING_CONVERSATION_ID_SECONDS = 2.0
 
 
 def dd_trace_input_schema() -> dict[str, Any]:
@@ -92,6 +100,7 @@ def get_client_info_tags(client_info: Any) -> dict[str, str]:
 
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
+    _pending_conversation_ids: "weakref.WeakKeyDictionary[Any, tuple[str, float]]" = weakref.WeakKeyDictionary()
 
     def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: MCP spans carry no provider or model tags."""
@@ -244,7 +253,7 @@ class MCPIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
     def process_telemetry_argument(
-        self, span: _LLMObsSpan, request: Any, transport_session_id: Optional[str] = None
+        self, span: _LLMObsSpan, request: Any, transport_session_id: Optional[str] = None, connection: Any = None
     ) -> None:
         """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
@@ -266,10 +275,35 @@ class MCPIntegration(BaseLLMIntegration):
         # Only when MCP has no session of its own, e.g. stdio or the stateless protocol
         if config.mcp.capture_session and not transport_session_id and not get_llmobs_session_id(span):
             conversation_id = _get_attr(telemetry, CONVERSATION_ID_KEY, None) if telemetry else None
-            if not isinstance(conversation_id, str) or not conversation_id:
-                conversation_id = uuid4().replace("-", "")
+            if isinstance(conversation_id, str) and conversation_id:
+                self._clear_pending_conversation_id(connection, conversation_id)
+            else:
+                conversation_id = self._new_conversation_id(connection)
                 span._set_ctx_item(NEW_CONVERSATION_ID, conversation_id)
             _annotate_llmobs_span_data(span, session_id=conversation_id)
+
+    def _new_conversation_id(self, connection: Any) -> str:
+        """Reuse the ID generated for a call on the same connection that the agent has not sent back yet."""
+        now = time.monotonic()
+        try:
+            pending = self._pending_conversation_ids.get(connection) if connection is not None else None
+            if pending and now - pending[1] < PENDING_CONVERSATION_ID_SECONDS:
+                conversation_id = pending[0]
+            else:
+                conversation_id = uuid4().replace("-", "")
+            if connection is not None:
+                self._pending_conversation_ids[connection] = (conversation_id, now)
+            return conversation_id
+        except TypeError:
+            return uuid4().replace("-", "")
+
+    def _clear_pending_conversation_id(self, connection: Any, conversation_id: str) -> None:
+        try:
+            pending = self._pending_conversation_ids.get(connection) if connection is not None else None
+            if pending and pending[0] == conversation_id:
+                del self._pending_conversation_ids[connection]
+        except TypeError:
+            pass
 
     def inject_tool_result(self, span: _LLMObsSpan, result: Any) -> None:
         """Tell the agent to send the newly generated conversation ID on later tool calls."""
