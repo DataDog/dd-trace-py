@@ -48,7 +48,7 @@ class EchionSampler
         PyObject* parent;
         uintptr_t loop;
         bool missing = false;
-        bool untracked = false;
+        bool loop_missing = false;
     };
     using TaskLinkMap = std::unordered_map<PyObject*, TaskLink>;
 
@@ -176,26 +176,15 @@ class EchionSampler
         }
     }
 
-    static void prune_untracked_links(TaskLinkMap& links, const std::unordered_set<uintptr_t>& tracked_loops)
+    static void prune_inactive_loop_links(TaskLinkMap& links, const std::unordered_set<uintptr_t>& live_loops)
     {
         for (auto it = links.begin(); it != links.end();) {
             auto& link = it->second;
-            const bool untracked = !tracked_loops.contains(link.loop);
-            if (untracked && link.untracked) {
+            const bool loop_missing = !live_loops.contains(link.loop);
+            if (loop_missing && link.loop_missing) {
                 it = links.erase(it);
             } else {
-                link.untracked = untracked;
-                ++it;
-            }
-        }
-    }
-
-    static void clear_links(TaskLinkMap& links, uintptr_t loop)
-    {
-        for (auto it = links.begin(); it != links.end();) {
-            if (it->second.loop == loop) {
-                it = links.erase(it);
-            } else {
+                link.loop_missing = loop_missing;
                 ++it;
             }
         }
@@ -227,42 +216,13 @@ class EchionSampler
         prune_links(weak_task_link_map_, loop, live_task_origins);
     }
 
-    // A link can be created before its loop is tracked. Give it two cycles to be registered, but don't let
-    // links for loops that will never be sampled grow without bound. Snapshot misses are counted separately.
-    void prune_untracked_task_links()
+    // Count two consecutive cycles without a live thread tracking this loop, independently of task snapshot
+    // misses. This also expires links if set_event_loop(None) leaves a running loop untracked for two cycles.
+    void prune_inactive_loop_task_links(const std::unordered_set<uintptr_t>& live_loops)
     {
-        std::lock_guard<std::mutex> thread_guard(thread_info_map_lock_);
-        std::lock_guard<std::mutex> link_guard(task_link_map_lock_);
-        if (task_link_map_.empty() && weak_task_link_map_.empty()) {
-            return;
-        }
-        std::unordered_set<uintptr_t> tracked_loops;
-        for (const auto& [id, thread] : thread_info_map_) {
-            if (thread->asyncio_loop != 0) {
-                tracked_loops.insert(thread->asyncio_loop);
-            }
-        }
-        prune_untracked_links(task_link_map_, tracked_loops);
-        prune_untracked_links(weak_task_link_map_, tracked_loops);
-    }
-
-    // The caller must hold thread_info_map_lock_. Once the last thread drops a loop, there may never
-    // be another snapshot of that loop, so clear its links now.
-    void set_asyncio_loop(ThreadInfo& thread, uintptr_t loop)
-    {
-        const auto previous_loop = thread.asyncio_loop;
-        thread.asyncio_loop = loop;
-        if (previous_loop == 0 || previous_loop == loop) {
-            return;
-        }
-        if (std::any_of(thread_info_map_.begin(), thread_info_map_.end(), [previous_loop](const auto& entry) {
-                return entry.second->asyncio_loop == previous_loop;
-            })) {
-            return;
-        }
         std::lock_guard<std::mutex> guard(task_link_map_lock_);
-        clear_links(task_link_map_, previous_loop);
-        clear_links(weak_task_link_map_, previous_loop);
+        prune_inactive_loop_links(task_link_map_, live_loops);
+        prune_inactive_loop_links(weak_task_link_map_, live_loops);
     }
 
     std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }

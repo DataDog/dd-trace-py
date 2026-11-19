@@ -358,8 +358,9 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+    auto* tstate = PyThreadState_Get();
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().track_asyncio_loop(thread_id, loop);
+    Sampler::get().track_asyncio_loop(thread_id, loop, *tstate);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -412,6 +413,21 @@ stack_asyncio_task_lists(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
                          static_cast<Py_ssize_t>(interpreter_head),
                          static_cast<Py_ssize_t>(thread_head),
                          interpreter_head != 0 && thread_head != 0 ? "runtime-table" : "none");
+}
+
+// Test hook: number of strong and weak task links retained by the sampler.
+static PyObject*
+stack_task_link_counts(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    auto& echion = Sampler::get().get_echion();
+    size_t strong;
+    size_t weak;
+    {
+        const std::lock_guard<std::mutex> guard(echion.task_link_map_lock());
+        strong = echion.task_link_map().size();
+        weak = echion.weak_task_link_map().size();
+    }
+    return Py_BuildValue("(KK)", static_cast<unsigned long long>(strong), static_cast<unsigned long long>(weak));
 }
 
 static PyObject*
@@ -1255,6 +1271,7 @@ static PyMethodDef stack_methods[] = {
       stack_asyncio_task_lists,
       METH_NOARGS,
       "Return the published asyncio task-list head offsets and their source (test hook)" },
+    { "_task_link_counts", stack_task_link_counts, METH_NOARGS, "Return the strong and weak task link counts" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support

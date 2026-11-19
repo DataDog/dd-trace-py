@@ -213,3 +213,118 @@ def test_asyncio_task_link_uses_get_loop_for_future_subclass() -> None:
         asyncio.run(main())
     finally:
         p.stop()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_task_link_after_retrack",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    parametrize={"LINK_KIND": ["strong", "weak"]},
+    err=None,
+)
+def test_asyncio_task_link_survives_temporary_untracking() -> None:
+    import asyncio
+    import os
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector.test_asyncio_task_link_loop import assert_latest_child_has_parent
+
+    assert stack.is_available, stack.failure_msg
+
+    async def child() -> None:
+        loop = asyncio.get_running_loop()
+        # No cycle can observe the gap. Only eager cleanup could detach the child here.
+        assert stack.pause_sampling()
+        try:
+            asyncio.set_event_loop(None)
+            asyncio.set_event_loop(loop)
+        finally:
+            stack.resume_sampling()
+        await asyncio.sleep(1)
+
+    async def parent() -> None:
+        loop = asyncio.get_running_loop()
+        if os.environ["LINK_KIND"] == "strong":
+            task = loop.create_task(child(), name="linked-child")
+            await asyncio.gather(task)
+        else:
+            task = asyncio.create_task(child(), name="linked-child")
+            await asyncio.sleep(1.5)
+            await task
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        asyncio.run(parent())
+    finally:
+        p.stop()
+
+    assert_latest_child_has_parent(os.environ["DD_PROFILING_OUTPUT_PPROF"], "MainThread")
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_task_link_dead_dummy_thread",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_asyncio_task_links_expire_after_dummy_thread_exits() -> None:
+    import _thread
+    import asyncio
+    import sys
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+
+    assert stack.is_available, stack.failure_msg
+    finished = threading.Event()
+    errors = []
+
+    async def child() -> None:
+        await asyncio.sleep(0)
+
+    async def parent() -> None:
+        await asyncio.gather(*(asyncio.create_task(child()) for _ in range(16)))
+
+    def run_loop() -> None:
+        try:
+            threading.current_thread()  # Register the DummyThread, which does not run Thread._bootstrap_inner.
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(parent())
+            finally:
+                loop.close()
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            finished.set()
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        assert stack.pause_sampling()
+        try:
+            thread_id = _thread.start_new_thread(run_loop, ())
+            assert finished.wait(timeout=10)
+            assert not errors, errors
+            deadline = time.monotonic() + 5
+            while thread_id in sys._current_frames() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert thread_id not in sys._current_frames()
+            assert all(_stack._task_link_counts())
+        finally:
+            stack.resume_sampling()
+
+        deadline = time.monotonic() + 5
+        while (counts := _stack._task_link_counts()) != (0, 0) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert counts == (0, 0), counts
+    finally:
+        p.stop()

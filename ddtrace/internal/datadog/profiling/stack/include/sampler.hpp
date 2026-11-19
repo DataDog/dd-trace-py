@@ -160,7 +160,7 @@ class Sampler
     void register_fork_cleanup();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
-    void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
+    void track_asyncio_loop(uintptr_t thread_id, PyObject* loop, const PyThreadState& tstate);
     void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
     bool is_active() const { return sampler_active_.load(std::memory_order_acquire); }
     void link_tasks(PyObject* parent, PyObject* child, uintptr_t loop, bool weak) noexcept;

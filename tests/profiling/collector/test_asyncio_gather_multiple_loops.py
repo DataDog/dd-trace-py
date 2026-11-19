@@ -20,7 +20,7 @@ def test_asyncio_gather_multiple_loops() -> None:
     from tests.profiling.collector.test_utils import async_run
 
     assert stack.is_available, stack.failure_msg
-    ready = threading.Barrier(2)
+    ready = threading.Barrier(3)
 
     async def child() -> None:
         await asyncio.sleep(2)
@@ -35,7 +35,7 @@ def test_asyncio_gather_multiple_loops() -> None:
 
     p = profiler.Profiler()
     p.start()
-    threads = [threading.Thread(target=run_loop, name=f"loop-{i}") for i in range(2)]
+    threads = [threading.Thread(target=run_loop, name=f"loop-{i}") for i in range(3)]
     try:
         for thread in threads:
             thread.start()
