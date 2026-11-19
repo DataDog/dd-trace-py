@@ -19,6 +19,7 @@ required_module_to_integration = {
     "kombu": "kombu",
     "aiokafka": "aiokafka",
     "google.cloud.pubsub_v1": "google_cloud_pubsub",
+    "pika": "pika",
 }
 _processor: Optional[DataStreamsProcessor] = None
 
