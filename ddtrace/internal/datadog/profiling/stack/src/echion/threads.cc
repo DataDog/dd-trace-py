@@ -287,7 +287,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
         FrameStack task_frames;
         size_t on_cpu_task_depth = 0;
-        bool has_on_cpu_task = false;
+        std::optional<size_t> on_cpu_task_start;
 
         // Safety: prevent infinite loops from cycles in task chain maps.
         size_t task_chain_depth = 0;
@@ -313,7 +313,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                     }
                 }
                 if (task.is_on_cpu) {
-                    has_on_cpu_task = true;
+                    on_cpu_task_start = first_added;
                     on_cpu_task_depth = cached.depth;
                 }
             }
@@ -372,19 +372,16 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                           task_frames.end());
 
         // Task frames receive the reporting budget first. If capacity remains,
-        // fill it with physical context. For an on-CPU task, split that context
-        // around the coroutine frames replaced by task_frames:
-        //
-        //   synchronous leaf frames, logical task frames, event-loop roots
-        //
-        // Synchronous leaf frames have priority over event-loop roots.
-        if (task_truncated || (has_on_cpu_task && !asyncio_boundary_index)) {
+        // fill it with physical context. Synchronous leaf frames go just before
+        // the running task's frames, after any suspended descendants. They have
+        // priority over event-loop roots.
+        if (task_truncated || (on_cpu_task_start && !asyncio_boundary_index)) {
             stack_info->stack = std::move(task_frames);
         } else {
             auto& stack = stack_info->stack;
             size_t locations = task_locations;
 
-            if (has_on_cpu_task && asyncio_boundary_index) {
+            if (on_cpu_task_start && asyncio_boundary_index) {
                 const size_t leaf_depth =
                   *asyncio_boundary_index > on_cpu_task_depth ? *asyncio_boundary_index - on_cpu_task_depth : 0;
                 const size_t leaf_available = std::min(leaf_depth, python_stack.size());
@@ -410,6 +407,9 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                     runtime_truncated = runtime_available > runtime_to_keep;
                 }
 
+                const auto on_cpu_begin =
+                  task_frames.begin() + static_cast<FrameStack::difference_type>(*on_cpu_task_start);
+                stack.insert(stack.end(), task_frames.begin(), on_cpu_begin);
                 stack.insert(stack.end(),
                              python_stack.begin(),
                              python_stack.begin() + static_cast<FrameStack::difference_type>(leaf_to_keep));
@@ -417,7 +417,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                     stack_info->truncation_index = stack.size();
                     stack_info->truncated_frames = leaf_depth - leaf_to_keep;
                 }
-                stack.insert(stack.end(), task_frames.begin(), task_frames.end());
+                stack.insert(stack.end(), on_cpu_begin, task_frames.end());
                 const auto runtime_begin =
                   python_stack.begin() + static_cast<FrameStack::difference_type>(runtime_start);
                 stack.insert(stack.end(),
