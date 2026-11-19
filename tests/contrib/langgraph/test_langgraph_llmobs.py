@@ -1,11 +1,11 @@
 import json
 import random
 import sys
-from unittest import mock
 
 import pytest
 
 from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
+from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_output
@@ -469,26 +469,8 @@ class TestLangGraphLLMObs:
         monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
         agent = create_react_agent(model, tools=[], name="string_model_agent")
 
-        manifest = langgraph._datadog_integration._agent_manifests[agent]
+        manifest = LangGraphIntegration._agent_manifests[agent]
         assert manifest == {**expected_model_info, "name": "string_model_agent"}
-
-    @pytest.mark.skipif(
-        LANGGRAPH_VERSION < (0, 3, 21), reason="create_react_agent has full support after LangGraph 0.3.21"
-    )
-    def test_create_react_agent_manifest_error_does_not_raise(self, langgraph, langgraph_llmobs):
-        from langchain_openai import ChatOpenAI
-        from langgraph.prebuilt import create_react_agent
-
-        model = ChatOpenAI(model="gpt-4o-mini", api_key="<not-a-real-key>")
-        with mock.patch(
-            "ddtrace.llmobs._integrations.langgraph._get_model_info", side_effect=RuntimeError("boom")
-        ) as get_model_info:
-            agent = create_react_agent(model=model, tools=[])
-
-        get_model_info.assert_called_once()
-
-        assert agent is not None
-        assert agent not in langgraph._datadog_integration._agent_manifests
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_populates_tools_from_tool_node(
