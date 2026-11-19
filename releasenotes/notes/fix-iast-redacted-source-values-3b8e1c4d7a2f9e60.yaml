@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes an issue where vulnerability reports with both redacted and
+    non-redacted sources could omit the values of non-redacted sources or keep the values of
+    redacted sources, depending on the order of the sources in the evidence.

@@ -16,6 +16,7 @@
 
     "ddtrace.appsec": "product:aap",
     "ddtrace.internal.appsec": "product:aap",
+    "ddtrace.internal.sca": "product:aap",
 
     "ddtrace.appsec._iast": "product:iast",
     "ddtrace.appsec.iast": "product:iast",
