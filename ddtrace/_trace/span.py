@@ -65,6 +65,8 @@ class Span(SpanData):
         # Internal attributes
         "_ignored_exceptions",
         "_on_finish_callbacks",
+        # Owned by SpanAggregator: +token while buffered and open, -token once its finish was counted, 0 otherwise.
+        "_agg_state",
         "__weakref__",
     ]
 
@@ -113,6 +115,7 @@ class Span(SpanData):
         self._parent: Optional[Span] = None
         self._ignored_exceptions: Optional[list[type[BaseException]]] = None
         self._store: Optional[dict[str, Any]] = None
+        self._agg_state: int = 0
 
     def _update_tags_from_context(self) -> None:
         ctx = self.context

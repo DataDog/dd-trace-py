@@ -93,16 +93,11 @@ class RaySpanManager:
         with aggregator._lock:
             if span.trace_id in aggregator._traces:
                 trace = aggregator._traces[span.trace_id]
-                finished_spans = []
-                remaining_spans = []
-
-                for s in trace.spans:
-                    if s.finished and s.span_id != span.span_id:
-                        finished_spans.append(s)
-                    else:
-                        remaining_spans.append(s)
-                trace.spans[:] = remaining_spans
-                trace.num_finished -= len(finished_spans)
+                if span._agg_state != trace.token:
+                    # The job span already finished (or was never buffered in this trace): normal aggregation
+                    # flushes it, so do not emit a partial copy of it.
+                    return
+                finished_spans = trace.remove_finished()
 
         spans_to_write = [partial_span] + finished_spans
         try:

@@ -1,6 +1,7 @@
 import abc
 from collections import defaultdict
 from itertools import chain
+from itertools import count
 import logging
 from typing import Optional
 from typing import Union
@@ -244,20 +245,27 @@ class TraceTagsProcessor(TraceProcessor):
         return trace
 
 
+_TRACE_TOKENS = count(1)
+
+
 class _Trace:
-    __slots__ = ("spans", "num_finished", "discarded")
+    __slots__ = ("spans", "num_finished", "discarded", "token")
 
     def __init__(self, spans: Optional[list[Span]] = None, num_finished: int = 0):
         self.spans: list[Span] = spans if spans is not None else []
         self.num_finished: int = num_finished
         self.discarded: bool = False
+        # Unique per _Trace. Span._agg_state is +token while the span is buffered here and open, and -token once
+        # SpanAggregator.on_span_finish has counted it. A span's duration_ns is set before its finish callbacks
+        # run, so another thread can see it as finished too early; only a negative state is authoritative.
+        # Finishes of spans that were never buffered in this trace, or that were already counted, are no-ops.
+        self.token: int = next(_TRACE_TOKENS)
 
     def remove_finished(self) -> list[Span]:
-        # perf: Avoid Span.finished which is a computed property and has function call overhead
-        #       so check Span.duration_ns manually.
-        finished = [s for s in self.spans if s.duration_ns is not None]
+        # perf: a plain int attribute read per span, no hashing and no Span.finished property call.
+        finished = [s for s in self.spans if s._agg_state < 0]
         if finished:
-            self.spans[:] = [s for s in self.spans if s.duration_ns is None]
+            self.spans[:] = [s for s in self.spans if s._agg_state > 0]
             self.num_finished = 0
         return finished
 
@@ -436,6 +444,7 @@ class SpanAggregator(SpanProcessor):
                     return
             trace = self._traces[trace_id]
             trace.spans.append(span)
+            span._agg_state = trace.token
         integration_name = span._get_str_attribute(COMPONENT) or span._span_api
         recorder = _SPANS_CREATED_RECORDERS.get(integration_name)
         if recorder is None:
@@ -468,6 +477,11 @@ class SpanAggregator(SpanProcessor):
                 and span._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY) != identity_generation
             ):
                 return
+            if span._agg_state != trace.token:
+                # Never buffered in this trace (for example, started before the buffer was reset after a fork)
+                # or already counted, so it cannot complete or partially flush the trace.
+                return
+            span._agg_state = -trace.token
             trace.num_finished += 1
             num_buffered = len(trace.spans)
             is_trace_complete = trace.num_finished >= num_buffered
