@@ -71,7 +71,9 @@ including explicitly deferred global tracer creation. Web request and span excep
 is unchanged. The generic span bundle registers `TracingSubscriber` directly. Its class declaration
 passes `auto_register=False` to defer only the base class; custom subclasses retain automatic
 registration unless they opt out with the existing class attribute.
-Ray retains SDK-dependent activation from its patch module until a separate migration.
+Ray's SDK-dependent bundle is activated by a tracing-owned import hook after its integration patch
+module finishes loading. Ordinary tracing startup does not import Ray. Repeated product startup
+restores Ray listeners after that module has loaded; the integration does not activate them itself.
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 
@@ -80,6 +82,14 @@ may never prepare a response. Store the callback handle and remove it when the
 request finishes: connection tasks can remain alive across keep-alive requests.
 Do not retain exception objects in deferred callbacks; record errors synchronously
 and allow cancellation to complete without requiring a response or tagging it as an error.
+
+Bottle maps request and response metadata into WebFrameworkRequestEvent and leaves
+propagation, spans, and HTTP error policy to WebFrameworkRequestSubscriber. Raised
+HTTPResponse objects set response_from_exception so the subscriber applies status-based
+OpenTelemetry error semantics without deferring and re-raising the framework exception.
+Set response classification before fallible header collection; header failures must not
+discard a known status or alter its error classification.
+Completion stays at the synchronous route callback boundary, before response iteration.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

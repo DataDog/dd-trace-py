@@ -46,7 +46,7 @@ def daphne_client(django_asgi, additional_env=None):
     cmd = [
         "python",
         "-m",
-        "ddtrace.commands.ddtrace_run",
+        "ddtrace_commands.ddtrace_run",
         "daphne",
         "-p",
         str(SERVER_PORT),
