@@ -199,6 +199,83 @@ variables:
   after_script:
     - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
 
+"macos amd64 extension cache A/B":
+  extends: .build_base
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "juanjo/macos-ext-cache-ab"'
+      allow_failure: true
+  needs: []
+  cache: []
+  timeout: 45m
+  variables:
+    ARCH_TAG: "amd64"
+    SYSTEM_VERSION_COMPAT: "0"
+    MACOSX_DEPLOYMENT_TARGET: "14.7"
+    UV_PYTHON: "3.12"
+    DD_USE_SCCACHE: "0"
+  artifacts:
+    when: always
+    paths:
+      - debugwheelhouse/cache-ab-*.log
+  script: |
+    set -euo pipefail
+    unset RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER
+    repo="${CI_PROJECT_DIR}"
+    output="${repo}/debugwheelhouse"
+    trial="$(mktemp -d)"
+    cleanup() {
+      for mode in seed cold warm; do
+        if [[ -f "${trial}/${mode}/.git" ]]; then
+          for log in "${trial}/${mode}"/debugwheelhouse/build_*.log; do
+            if [[ -f "${log}" ]]; then
+              cp "${log}" "${output}/cache-ab-${mode}-${log##*/}" || true
+            fi
+          done
+          git -C "${repo}" worktree remove --force "${trial}/${mode}" || true
+        fi
+      done
+      rm -f "${trial}/ext-cache.tgz"
+      rmdir "${trial}" || true
+    }
+    trap cleanup EXIT
+    mkdir -p "${output}"
+
+    run_wheel() {
+      local mode="$1" policy="$2"
+      (
+        cd "${trial}/${mode}"
+        export CI_PROJECT_DIR="$PWD"
+        export EXT_CACHE_POLICY="${policy}"
+        export _DD_DEBUG_EXT=1
+        export _DD_DEBUG_EXT_FILE="${output}/cache-ab-${mode}-timings.log"
+        echo "=== cache A/B: ${mode} ==="
+        SECONDS=0
+        source .gitlab/scripts/build-wheel-helpers.sh
+        setup
+        restore_ext_cache
+        build_wheel
+        save_ext_cache
+        repair_wheel
+        finalize
+        test_wheel
+        echo "cache A/B ${mode}: ${SECONDS}s (setup, restore, build and smoke test)"
+      ) 2>&1 | tee "${output}/cache-ab-${mode}.log"
+    }
+
+    for mode in seed cold warm; do
+      git -C "${repo}" worktree add --detach "${trial}/${mode}" "${CI_COMMIT_SHA}"
+    done
+    run_wheel seed pull-push
+    test -d "${trial}/seed/.ext_cache"
+    cp -pR "${trial}/seed/.download_cache" "${trial}/cold/"
+    cp -pR "${trial}/seed/.download_cache" "${trial}/warm/"
+    cp -pR "${trial}/seed/.ext_cache" "${trial}/warm/"
+    tar -czf "${trial}/ext-cache.tgz" -C "${trial}/seed" .ext_cache
+    echo "Compiled extension cache gzip archive bytes: $(wc -c < "${trial}/ext-cache.tgz")"
+    run_wheel cold pull
+    run_wheel warm pull
+
 "build macos arm64":
   extends: .build_macos_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
