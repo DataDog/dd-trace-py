@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    kafka: Fixes an issue where consumer spans were missing the ``messaging.kafka.bootstrap.servers``
+    tag, and where consumer spans were missing ``kafka.cluster_id`` when a producer in the same process
+    listed the same brokers in a different order or with different spacing.
