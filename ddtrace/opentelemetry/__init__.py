@@ -92,6 +92,10 @@ You must install an OTLP exporter (minimum supported version: ``v1.15.0``)::
 
 For supported configurations, see `OpenTelemetry Metrics Configuration <https://docs.datadoghq.com/tracing/trace_collection/library_config/>`_.
 
+When runtime metrics are also enabled with ``DD_RUNTIME_METRICS_ENABLED=true``, they are exported over OTLP instead of
+DogStatsD, under their OpenTelemetry semantic convention names (``cpython.gc.*`` and ``process.*``), once the
+application imports ``opentelemetry``.
+
 Usage example::
 
     import os
