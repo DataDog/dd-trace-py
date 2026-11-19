@@ -3887,6 +3887,13 @@
         "default": "false"
       }
     ],
+    "DD_TIA_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_TRACE_AGENT_HOST": [
       {
         "implementation": "A",

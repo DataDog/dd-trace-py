@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import json
 import logging
+from pathlib import Path
 import re
 import typing as t
 
@@ -110,4 +112,14 @@ def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
         return json.dumps(parameters, sort_keys=True)
     except TypeError:
         log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
+        return None
+
+
+@lru_cache(maxsize=4096)
+def _test_file(item: pytest.Item) -> t.Optional[Path]:
+    """The test's own file path, or None for mocked/abstract items."""
+    try:
+        path = Path(item.path) if hasattr(item, "path") else Path(item.fspath)
+        return path if path.is_file() else None
+    except (TypeError, ValueError, OSError):
         return None

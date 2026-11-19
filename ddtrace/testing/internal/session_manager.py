@@ -7,7 +7,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import tempfile
 import time
 import typing as t
 
@@ -59,6 +58,7 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import Codeowners
+from ddtrace.testing.internal.utils import _write_json_atomic
 from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.writer import PayloadFileCoverageWriter
 from ddtrace.testing.internal.writer import PayloadFileTestOptWriter
@@ -101,23 +101,6 @@ _UPLOAD_LOCK_RETRY_INTERVAL_SECONDS = 0.5
 # because an identical shallow boundary still bounds the locally present
 # history.
 _UNSHALLOW_DONE_FILENAME = "dd-trace-py.unshallow-done"
-
-
-def _write_json_atomic(path: Path, payload: dict[str, t.Any]) -> None:
-    """Publish JSON using a private temporary file on the destination filesystem."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp: t.Optional[Path] = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=path.parent, prefix=path.name + ".", suffix=".tmp", delete=False
-        ) as output:
-            tmp = Path(output.name)
-            json.dump(payload, output)
-        # Close before replacing so publication also works on Windows.
-        tmp.replace(path)
-    finally:
-        if tmp is not None:
-            tmp.unlink(missing_ok=True)
 
 
 def _parse_line_number(value: str) -> t.Optional[int]:

@@ -38,6 +38,7 @@ from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
+from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
 from ddtrace.testing.internal.logging import setup_logging
@@ -55,10 +56,13 @@ from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_met
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
+from ddtrace.testing.internal.pytest.utils import _test_file
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.xdist import XdistManifest
 from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import is_xdist_enabled_from_args
+from ddtrace.testing.internal.pytest.xdist import is_xdist_worker_process
 from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
@@ -114,6 +118,7 @@ if t.TYPE_CHECKING:
 
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
+SKIPPED_BY_TIA_REASON = "Skipped by Datadog Test Impact Analysis"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 try:
@@ -283,16 +288,6 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
             return 0, 0
 
 
-@lru_cache(maxsize=4096)
-def _test_file(item: pytest.Item) -> t.Optional[Path]:
-    """The test's own file path, or None for mocked/abstract items."""
-    try:
-        path = Path(item.path) if hasattr(item, "path") else Path(item.fspath)
-        return path if path.is_file() else None
-    except (TypeError, ValueError, OSError):
-        return None
-
-
 @contextlib.contextmanager
 def _maybe_collect_coverage(
     coverage_enabled: bool, test_file: t.Optional[Path] = None
@@ -300,7 +295,7 @@ def _maybe_collect_coverage(
     """Yield a per-test coverage collector, or a no-op when coverage is disabled.
 
     Entering coverage_collection() is only meaningful when the ModuleCodeCollector is
-    installed, which setup_coverage_collection() gates on the same coverage_enabled flag.
+    installed by ITR's setup_coverage_collection() or by the TIA coverage consumer.
     Entering it regardless left the interpreter misreporting its own state for the
     duration of every test: CollectInContext sets the ctx_coverage_enabled ContextVar,
     which makes ModuleCodeCollector.coverage_enabled() answer True even though no
@@ -393,6 +388,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._store_passing_reports = asbool(env.get(_STORE_PASSING_REPORTS_ENV, "false"))
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
+        self._tia_coverage_callback: t.Optional[t.Callable[[pytest.Item, CoverageData], None]] = None
+        self._tia_deselected_items: list[pytest.Item] = []
         self.is_xdist_worker = False
         # Whether this worker hands the coverage report upload over to the xdist
         # controller, which produces a single combined report for the session.
@@ -659,8 +656,11 @@ class TestOptPlugin(TestOptPluginProtocol):
         NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
         tests that pytest has selection for run (eg: with the use of -k as an argument).
         """
+        collected_items = session.items
+        if self._tia_deselected_items:
+            collected_items = [*collected_items, *self._tia_deselected_items]
         exclusions_published = True
-        for item in session.items:
+        for item in collected_items:
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
             if self.xdist_atr_crash_state_path is not None and item.get_closest_marker("dd_no_auto_retry") is not None:
@@ -683,12 +683,67 @@ class TestOptPlugin(TestOptPluginProtocol):
             except OSError:
                 log.debug("Unable to acknowledge test retry exclusions to the controller", exc_info=True)
 
-        async_flush_events = _get_async_flush_events(len(session.items))
+        async_flush_events = _get_async_flush_events(len(collected_items))
         self.manager.writer.set_async_flush_events(async_flush_events)
         self.manager.coverage_writer.set_async_flush_events(async_flush_events)
 
         self.manager.finish_collection()
         self._emit_itr_ignored_suite_events(session)
+        if not session.config.option.collectonly:
+            self._emit_tia_skipped_test_events(session, self._tia_deselected_items)
+
+    def _emit_tia_skipped_test_events(self, session: pytest.Session, items: list[pytest.Item]) -> None:
+        """Report TIA savings without sending deselected tests through the pytest execution protocol."""
+        if not items:
+            return
+        running_suites = {item_to_test_ref(item).suite for item in session.items}
+        running_modules = {suite.module.name for suite in running_suites}
+        skipped_suites: dict[SuiteRef, TestSuite] = {}
+        skipped_modules: dict[str, TestModule] = {}
+        for item in items:
+            test_ref = item_to_test_ref(item)
+            module, suite, test = self._discover_test(item, test_ref)
+            if not module.is_started():
+                module.start()
+                TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+            if not suite.is_started():
+                suite.start()
+                TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+            skipped_suites[test_ref.suite] = suite
+            skipped_modules[test_ref.suite.module.name] = module
+            test.start()
+            test.mark_skipped_by_itr()
+            test.set_status(TestStatus.SKIP)
+            test_run = test.make_test_run()
+            test_run.start()
+            TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
+            with trace_context(False) as context:
+                test_run.set_context(context)
+            test_run.set_status(TestStatus.SKIP)
+            test_run.tags[TestTag.SKIP_REASON] = SKIPPED_BY_TIA_REASON
+            test_run.set_final_status(TestStatus.SKIP)
+            test_run.finish()
+            TelemetryAPI.get().record_test_finished(
+                test_framework=TEST_FRAMEWORK,
+                test_run=test_run,
+                ci_provider_name=self.manager.env_tags.get(CITag.PROVIDER_NAME),
+                is_auto_injected=self.manager.is_auto_injected,
+            )
+            test.finish()
+            self.manager.writer.put_item(test_run)
+
+        # Mixed suites and modules are finished by the normal execution wrapper.
+        for ref, suite in skipped_suites.items():
+            if ref not in running_suites:
+                self.manager._set_suite_source_location(suite)
+                suite.finish()
+                self.manager.writer.put_item(suite)
+                TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+        for name, module in skipped_modules.items():
+            if name not in running_modules:
+                module.finish()
+                self.manager.writer.put_item(module)
+                TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     def _emit_itr_ignored_suite_events(self, session: pytest.Session) -> None:
         """Emit test_suite_end (status=skip) events for suites skipped wholesale by pytest_ignore_collect.
@@ -852,11 +907,16 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
-            coverage_enabled = self.manager.settings.coverage_enabled
+            coverage_enabled = self.manager.settings.coverage_enabled or self._tia_coverage_callback is not None
             with _maybe_collect_coverage(
                 coverage_enabled, test_file=_test_file(item) if coverage_enabled else None
             ) as coverage_data:
                 yield
+
+        if self._tia_coverage_callback is not None:
+            self._tia_coverage_callback(item, coverage_data)
+            if not self.manager.settings.coverage_enabled:
+                coverage_data = CoverageData()
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -1505,11 +1565,17 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
             with _maybe_collect_coverage(
-                self.manager.settings.coverage_enabled, test_file=_test_file(item)
+                self.manager.settings.coverage_enabled or self._tia_coverage_callback is not None,
+                test_file=_test_file(item),
             ) as coverage_data:
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)
                 item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+
+        if self._tia_coverage_callback is not None:
+            self._tia_coverage_callback(item, coverage_data)
+            if not self.manager.settings.coverage_enabled:
+                coverage_data = CoverageData()
 
         test.finish()
 
@@ -1731,7 +1797,7 @@ def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
     if _is_option_true("no-ddtrace", early_config, args):
         return False
 
-    return _is_option_true("ddtrace", early_config, args)
+    return _is_option_true("ddtrace", early_config, args) or asbool(env.get("DD_TIA_ENABLED", "false"))
 
 
 def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -> bool:
@@ -1776,6 +1842,41 @@ def pytest_load_initial_conftests(
     _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))
 
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
+
+    if asbool(env.get("DD_TIA_ENABLED", "false")):
+        offline = get_offline_mode()
+        if (
+            is_xdist_worker_process()
+            or is_xdist_enabled_from_args(args)
+            or offline.manifest_enabled
+            or offline.payload_files_enabled
+            or session_manager.atf_all_flaky_tests
+        ):
+            log.debug("TIA is unavailable for distributed, offline, or all-flaky test sessions")
+        else:
+            # Keep TIA setup off the default plugin startup path.
+            from ddtrace.testing.internal.pytest._tia import TIAPlugin
+
+            try:
+                tia = TIAPlugin(
+                    early_config,
+                    session_manager._build_api_client(),
+                    session_manager.platform_tags,
+                    test_command=session_manager.session.test_command,
+                    repository_url=session_manager.env_tags.get(GitTag.REPOSITORY_URL),
+                )
+                early_config.pluginmanager.register(tia, "ddtrace-tia")
+                # A map must describe tests which actually ran, independently of server-side ITR decisions.
+                session_manager.settings.skipping_enabled = False
+                # Reuse ITR savings reporting while keeping TIA's selection independent of backend settings.
+                session_manager.session.set_itr_attributes(
+                    itr_enabled=True,
+                    skipping_enabled=True,
+                    skipping_level=ITRSkippingLevel.TEST,
+                )
+                session_manager.session.itr_correlation_id = None
+            except Exception:
+                log.debug("Could not initialize TIA; running all tests", exc_info=True)
 
     # NOTE: Coverage collection decision tree:
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
@@ -1921,6 +2022,9 @@ def pytest_configure(config: pytest.Config) -> None:
     try:
         plugin = plugin_class(session_manager=session_manager)
         plugin.xdist_manifest = _stash_get(config, XDIST_MANIFEST_STASH_KEY, None)
+        if tia := config.pluginmanager.get_plugin("ddtrace-tia"):
+            plugin._tia_coverage_callback = tia.record_coverage
+            plugin._tia_deselected_items = tia.deselected_items
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return
