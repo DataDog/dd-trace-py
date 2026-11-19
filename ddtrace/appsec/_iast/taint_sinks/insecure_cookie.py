@@ -109,6 +109,7 @@ def patch():
     iast_funcs.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)
     iast_funcs.wrap_function("flask", "Response.set_cookie", _iast_response_cookies)
     iast_funcs.wrap_function("starlette.responses", "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("aiohttp.web_response", "StreamResponse.set_cookie", _iast_response_cookies)
 
     iast_funcs.patch()
 
@@ -119,7 +120,7 @@ def patch():
 
 def _iast_response_cookies(wrapped, instance, args, kwargs):
     try:
-        cookie_key = args[0] if args else kwargs.get("key")
+        cookie_key = args[0] if args else kwargs.get("key", kwargs.get("name"))
         cookie_value = args[1] if len(args) > 1 else kwargs.get("value")
 
         if cookie_value and cookie_key:
@@ -134,5 +135,5 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
                     cookie_key, kwargs.get("secure") is not True, kwargs.get("httponly") is not True, report_samesite
                 )
     except Exception as e:
-        iast_error("propagation::sink_point::Error in _iast_response_cookies", e)
+        iast_error("propagation::sink_point::Error in _iast_response_cookies", exc=e)
     return wrapped(*args, **kwargs)

@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 
 from ddtrace.contrib.internal.trace_utils import iswrapped
@@ -47,3 +49,24 @@ def test_patch_wraps_async_llm_add_request():
     finally:
         unpatch()
     assert not iswrapped(AsyncLLM, "add_request")
+
+
+@pytest.mark.parametrize("version,injected", [("0.32.0", True), ("0.33.0", False)])
+def test_add_request_trace_headers_injection_by_version(version, injected):
+    """vLLM >= 0.33 drops add_request trace_headers (and warns), so the wrapper must not inject there."""
+    import asyncio
+
+    from ddtrace.contrib.internal.vllm import patch as vllm_patch
+
+    seen = {}
+
+    async def func(*args, **kwargs):
+        seen.update(kwargs)
+
+    with (
+        mock.patch.object(vllm_patch.vllm, "__version__", version),
+        mock.patch.object(vllm_patch, "inject_trace_context", return_value={"x-datadog-trace-id": "1"}),
+    ):
+        asyncio.run(vllm_patch.traced_async_llm_add_request(func, None, (), {}))
+
+    assert ("trace_headers" in seen) is injected

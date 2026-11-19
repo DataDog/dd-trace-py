@@ -6,18 +6,22 @@ from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
 from tests.contrib.litellm.utils import consume_stream_iter
 from tests.contrib.litellm.utils import consume_stream_next
 from tests.contrib.litellm.utils import expected_router_settings
+from tests.contrib.litellm.utils import gateway_request_kwargs
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
@@ -26,6 +30,29 @@ from tests.utils import override_global_config
 
 
 LITELLM_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"}
+
+
+def _gateway(span):
+    metadata_dd = (get_llmobs_metadata(span) or {}).get("_dd")
+    return metadata_dd.get("gateway") if isinstance(metadata_dd, dict) else None
+
+
+def _assert_gateway_is_not_a_tag(span):
+    """No tag key names the gateway. A tag value can contain the word, for example in a host name."""
+    assert not [key for key in span.get_tags() if "gateway" in key]
+    assert not [key for key in (get_llmobs_tags(span) or {}) if "gateway" in key]
+    event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
+    assert event is not None
+    assert not [tag for tag in event["tags"] if "gateway" in tag.split(":", 1)[0]]
+
+
+def _assert_gateway_marker(test_spans, use_router, expected):
+    """Only the llm span carries the marker. The router span is a workflow span."""
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert sorted(get_llmobs_span_kind(s) for s in spans) == (["llm", "workflow"] if use_router else ["llm"])
+    for span in spans:
+        assert _gateway(span) == (expected if get_llmobs_span_kind(span) == "llm" else None)
+        _assert_gateway_is_not_a_tag(span)
 
 
 @pytest.mark.parametrize(
@@ -275,6 +302,8 @@ class TestLLMObsLiteLLM:
             },
             tags=LITELLM_TAGS,
         )
+        # A client of the proxy is not inside the proxy.
+        assert _gateway(spans[0]) is None
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_base_url_set(
@@ -475,6 +504,55 @@ class TestLLMObsLiteLLM:
             },
             tags=LITELLM_TAGS,
         )
+
+    @pytest.mark.parametrize("proxied", [True, False])
+    @pytest.mark.parametrize("use_router", [False, True])
+    @pytest.mark.parametrize("operation", ["completion", "text_completion"])
+    def test_gateway_marker(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, operation, use_router, proxied
+    ):
+        """The LiteLLM proxy server gives proxy_server_request to litellm. Only then is the llm span marked."""
+        is_completion = operation == "text_completion"
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            resp = getattr(router if use_router else litellm, operation)(
+                **gateway_request_kwargs(operation, proxied, stream, n)
+            )
+            if stream:
+                consume_stream_iter(resp, n, is_completion=is_completion)
+
+        _assert_gateway_marker(test_spans, use_router, expected="litellm" if proxied else None)
+
+    @pytest.mark.parametrize("proxied", [True, False])
+    @pytest.mark.parametrize("use_router", [False, True])
+    @pytest.mark.parametrize("operation", ["acompletion", "atext_completion"])
+    async def test_gateway_marker_async(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, operation, use_router, proxied
+    ):
+        is_completion = operation == "atext_completion"
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            resp = await getattr(router if use_router else litellm, operation)(
+                **gateway_request_kwargs(operation, proxied, stream, n)
+            )
+            if stream:
+                await async_consume_stream_aiter(resp, n, is_completion=is_completion)
+
+        _assert_gateway_marker(test_spans, use_router, expected="litellm" if proxied else None)
+
+    @pytest.mark.parametrize("use_router", [False, True])
+    async def test_gateway_marker_does_not_leak_to_the_next_call(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, use_router
+    ):
+        """In one task, a proxied call comes before a plain call. Only the llm span of the first call is marked."""
+        for proxied in (True, False):
+            with request_vcr.use_cassette(get_cassette_name(stream, n)):
+                resp = await (router if use_router else litellm).acompletion(
+                    **gateway_request_kwargs("acompletion", proxied, stream, n)
+                )
+                if stream:
+                    await async_consume_stream_aiter(resp, n)
+
+        spans = sorted((s for trace in test_spans.pop_traces() for s in trace), key=lambda s: s.start_ns)
+        assert [_gateway(s) for s in spans if get_llmobs_span_kind(s) == "llm"] == ["litellm", None]
 
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
@@ -770,6 +848,97 @@ def test_has_downstream_openai_span_use_litellm_proxy_env_var(monkeypatch):
     kwargs = {"stream": False}
     with mock.patch(_OPENAI_ENABLED, return_value=True):
         assert has_downstream_openai_span(kwargs, "gpt-4o") is False
+
+
+def test_gateway_marker_keeps_cost_tags(litellm, request_vcr, litellm_llmobs, test_spans):
+    """The marker is merged into meta.metadata._dd, and the cost tags stay there."""
+    with litellm_llmobs.annotation_context(tags={"team": "ml-platform"}, cost_tags=["team"]):
+        with request_vcr.use_cassette(get_cassette_name(False, 1)):
+            litellm.completion(**gateway_request_kwargs("completion", proxied=True, stream=False, n=1))
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert get_llmobs_metadata(spans[0])["_dd"] == {"cost_tags": ["team"], "gateway": "litellm"}
+
+
+@pytest.mark.subprocess(
+    parametrize={
+        "_TEST_LITELLM_OPERATION": [
+            "completion",
+            "acompletion",
+            "text_completion",
+            "router.completion",
+            "router.acompletion",
+            "router.atext_completion",
+        ]
+    },
+    env={"OPENAI_API_KEY": "<not-a-real-key>", "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"},
+    err=None,
+)
+def test_gateway_marker_on_downstream_openai_llm_span():
+    """The OpenAI integration emits the llm span of a non-streamed OpenAI call that litellm makes.
+
+    A new process patches litellm and openai before they are imported, so each run is deterministic.
+    """
+    import asyncio
+    import inspect
+    import os
+    from unittest import mock
+
+    import pytest
+
+    from ddtrace import patch
+
+    patch(litellm=True, openai=True)
+
+    import litellm
+    import litellm.llms.openai.openai as litellm_openai
+
+    import ddtrace
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._utils import get_llmobs_metadata
+    from ddtrace.llmobs._utils import get_llmobs_span_kind
+    from tests.contrib.litellm.utils import gateway_request_kwargs
+    from tests.contrib.litellm.utils import get_cassette_name
+    from tests.contrib.litellm.utils import get_request_vcr
+    from tests.contrib.litellm.utils import model_list
+    from tests.utils import DummyWriter
+
+    if "chat.completions.with_raw_response.create" not in inspect.getsource(litellm_openai):
+        pytest.skip("This litellm version does not call the OpenAI SDK create method, so no OpenAI span exists")
+
+    operation = os.environ["_TEST_LITELLM_OPERATION"]
+    method = operation.split(".")[-1]
+    use_router = operation.startswith("router.")
+    ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=False)
+    LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=False)
+    LLMObs._instance._llmobs_span_writer.stop()
+    LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+
+    client = litellm.Router(model_list=model_list) if use_router else litellm
+    # A chat model also sends a text completion to /chat/completions, so the cassette matches.
+    with get_request_vcr().use_cassette(get_cassette_name(False, 1)):
+        response = getattr(client, method)(**gateway_request_kwargs(method, proxied=True))
+        if asyncio.iscoroutine(response):
+            asyncio.run(response)
+
+    spans = ddtrace.tracer._span_aggregator.writer.pop()
+    summary = [(s.name, s.resource, s.span_type, get_llmobs_span_kind(s)) for s in spans]
+    assert len(spans) == (3 if use_router else 2), summary
+    openai_span = next(s for s in spans if s.name == "openai.request")
+    litellm_span = next(s for s in spans if s.resource == method)
+    # The litellm span is not an LLMObs span here, so the OpenAI span is the only llm span.
+    assert litellm_span.span_type is None, summary
+    assert openai_span.parent_id == litellm_span.span_id, summary
+    assert openai_span.span_type == "llm", summary
+    assert get_llmobs_span_kind(openai_span) == "llm", summary
+    assert get_llmobs_metadata(openai_span)["_dd"] == {"gateway": "litellm"}, summary
+    for span in spans:
+        assert not [key for key in span.get_tags() if "gateway" in key], summary
+    if use_router:
+        router_span = next(s for s in spans if s.resource == operation)
+        assert get_llmobs_span_kind(router_span) == "workflow", summary
+        assert "_dd" not in (get_llmobs_metadata(router_span) or {}), summary
 
 
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):

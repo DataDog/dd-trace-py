@@ -76,7 +76,10 @@ ddtrace/aiguard/
     ├── _anthropic.py       # Anthropic Messages API converters + listeners
     ├── _anthropic_streaming.py # Anthropic stream reconstruction
     ├── _anthropic_errors.py    # Anthropic-compatible abort error class
-    └── _langchain.py       # LangChain agent/chatmodel/llm listeners
+    ├── _langchain.py       # LangChain agent/chatmodel/llm listeners
+    ├── _mcp.py             # MCP server IDs and entries, OpenAI MCP approval decision cache,
+    │                       #   MCP SDK client transport capture
+    └── _openai_agents.py   # openai-agents MCP server tool listeners
 ```
 
 Keep the public SDK's `__getattr__` exports lazy: settings import AI Guard constants during
@@ -95,17 +98,21 @@ missing credentials. Direct `AIGuardClient` construction takes both credentials 
 see `_api_client.py` for the signatures.
 
 MCP support lives in `ddtrace/aiguard/integrations/_mcp.py` (server IDs, `mcp_servers` entries,
-the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners,
-gated by `DD_AI_GUARD_MCP_ENABLED`. Keep these invariants when changing it:
+the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners and
+the openai-agents MCP server listeners, gated by `DD_AI_GUARD_MCP_ENABLED`. Keep these invariants when changing it:
 - Requests carry a request-level `mcp_servers` list; each MCP tool call carries only
   `mcp.server_id`, which must match an entry in the same request. Ordinary tools carry no `mcp`.
 - The server ID is `mcp_` + the first 16 hex characters of SHA-256 of the first applicable key
   (`url|<origin>`, `connector|<id>`, `stdio|<command>|<args>`, `name|<label>`). Other tracers
   compute the same ID, so do not change the keys, their order or the URL normalization.
-- URLs are reduced to their origin with `ddtrace.internal.utils.http.url_origin`: never send
-  userinfo, path, query or fragment, nor tool `headers` or `authorization`.
+- URLs are reduced to their origin with `mcp_url_origin` (built on `ddtrace.internal.utils.http.url_origin`):
+  never send userinfo, path, query or fragment, nor tool `headers` or `authorization`. The host follows the
+  WHATWG URL Standard, so that every tracer computes the same ID: it is percent-decoded, IP literals get their canonical form (`http://2130706433` gives `http://127.0.0.1`), and an
+  IDN host (non-ASCII, or an `xn--` label) has no url, so the next key applies. The vectors in
+  `tests/aiguard/api/test_mcp_url_origin.py` are shared with the other tracers.
 - Resolve tools per request through `server_id` and `function.name`; never keep a
   process-wide map indexed only by tool name.
+- stdio servers send only `command` plus `safe_stdio_args`: never other arguments or the environment.
 - New MCP code inside the listeners fails open (debug log) and only lets `AIGuardAbortError`
   propagate.
 
@@ -227,23 +234,41 @@ logged at debug and ignored.
 
 ### 5. Double-scan avoidance (`_context.py`)
 
-A framework integration (LangChain, Strands) and a provider integration
-(OpenAI, Anthropic) can both fire for the same call. To avoid scanning twice,
-the framework claims the AI Guard context for its whole model call, and
-provider listeners short-circuit when `is_aiguard_context_active()` returns
-`True`. The framework evaluates both the request and the response itself:
+A framework integration (LangChain, Strands, the LiteLLM proxy guardrail) and a
+provider integration (OpenAI, Anthropic) can both fire for the same call. To
+avoid scanning twice, the framework claims the AI Guard context for its whole
+model call, and provider listeners short-circuit when `is_aiguard_context_active()`
+returns `True`. The framework evaluates both the request and the response itself:
 
 | Framework path | Claim held from / to |
 |----------------|----------------------|
 | LangChain `generate` / `agenerate` | `.before` to `.finally` |
 | LangChain `stream` / `astream` | iteration start to stream end (`.stream.started` / `.stream.finally`) |
 | Strands invocation | before-invocation to after-invocation |
+| LiteLLM proxy guardrail (chat and text completions, `pre_call` and `post_call` modes) | pre-call check to the end of the request (post-call hook, end of the model stream, or failure hook) |
 
 A claim is a shared object released by the handle `set_aiguard_context_active`
 returns, so a release from another asyncio task is seen by the claiming task.
 Strands keeps the handle on `invocation_state`; a LangChain generate keeps it on
 its `_CallScope`, and a stream on the per-stream state the contrib passes to
 both stream events.
+
+The LiteLLM guardrail keeps the handle in a ContextVar of the request task. It claims only when
+the data has `proxy_server_request`, the request is a chat or text completion, and the `post_call`
+mode applies. AI Guard must also complete the prompt evaluation: after an AI Guard error, the
+provider listeners evaluate the prompt again. The proxy awaits the pre-call hook in the request task,
+and copies that context into the model call. The SDK `guardrails` argument runs the hook in the caller
+task, and a `during_call` hook runs beside the model call: they do not claim. For other request
+types, and with only the `pre_call` mode, the guardrail does not claim, so the provider listeners
+keep their evaluations.
+
+In `post_call` mode, `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` controls a streamed chat or text
+answer. When it is on, the guardrail holds the answer, evaluates it, and can block it before the
+first chunk. When it is off, the chunks go out live, and the guardrail evaluates the full answer after
+the last chunk without blocking. Other streams pass through live. Some LiteLLM versions run the
+post-call success hook on the full stream, in a task that they start during a read of the model stream.
+The streaming hook sets a ContextVar around each read of the model stream, and the success hook skips
+while it is set. Do not use a key in the request metadata for this: the client controls that dict.
 
 With `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` on, LangChain itself buffers
 `stream()` / `astream()`: every chunk is read, the response is evaluated, and

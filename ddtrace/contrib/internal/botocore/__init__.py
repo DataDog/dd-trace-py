@@ -42,6 +42,18 @@ Configuration
    Default: ``True``
 
 
+.. py:data:: ``DD_TRACE_AWS_SDK_<SERVICE>_ENABLED``
+
+   Set to ``false`` to skip instrumenting calls to an AWS service: no span is created and no
+   trace context is injected. The same variables are supported by dd-trace-js. Supported
+   services: ``BEDROCKRUNTIME``, ``CLOUDWATCHLOGS``, ``DYNAMODB``, ``EVENTBRIDGE``, ``KINESIS``,
+   ``LAMBDA``, ``REDSHIFT``, ``S3``, ``SNS``, ``SQS`` and ``STATES`` (also ``STEPFUNCTIONS``, ``SFN``).
+
+   Example: ``DD_TRACE_AWS_SDK_KINESIS_ENABLED=false``
+
+   Default: ``true``
+
+
 .. py:data:: ddtrace.config.botocore['invoke_with_legacy_context']
 
     This preserves legacy behavior when tracing directly invoked Python and Node Lambda

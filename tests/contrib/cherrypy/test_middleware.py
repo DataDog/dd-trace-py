@@ -17,7 +17,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 from ddtrace.ext import http
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.contrib.utils import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config

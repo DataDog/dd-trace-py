@@ -18,6 +18,7 @@ import ddtrace.aiguard._initialization as ai_guard_mod
 from ddtrace.aiguard.integrations._openai_chat import _convert_openai_messages
 from ddtrace.aiguard.integrations._openai_chat import _convert_openai_response
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
+from ddtrace.aiguard.integrations._openai_chat_streaming import reconstruct_openai_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -369,6 +370,25 @@ class TestConvertOpenAIResponse:
         assert len(result[0]["tool_calls"]) == 1
         tc = result[0]["tool_calls"][0]
         assert tc["id"].startswith("fc_")
+        assert tc["function"]["name"] == "get_weather"
+        assert tc["function"]["arguments"] == '{"city": "NYC"}'
+
+    def test_streamed_legacy_function_call(self):
+        """A legacy function_call rebuilt from stream chunks keeps its name and its full arguments."""
+
+        def chunk(**function_call):
+            delta = SimpleNamespace(content=None, function_call=SimpleNamespace(**function_call), tool_calls=None)
+            return SimpleNamespace(choices=[SimpleNamespace(index=0, delta=delta)])
+
+        chunks = [
+            chunk(name="get_weather", arguments=""),
+            chunk(name=None, arguments='{"city": '),
+            chunk(name=None, arguments='"NYC"}'),
+        ]
+
+        result = _convert_openai_response(reconstruct_openai_chat(chunks))
+
+        tc = result[0]["tool_calls"][0]
         assert tc["function"]["name"] == "get_weather"
         assert tc["function"]["arguments"] == '{"city": "NYC"}'
 

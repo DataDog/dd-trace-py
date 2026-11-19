@@ -36,7 +36,7 @@ class InternalTestBase(ext_api.TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def stash_set(item_id, key: str, value: object):
+    def stash_set(item_id: ext_api.TestVisibilityItemId, key: str, value: object) -> None:
         log.debug("Stashing value %s for key %s in item %s", value, key, item_id)
 
         require_ci_visibility_service().get_item_by_id(item_id).stash_set(key, value)
@@ -50,7 +50,7 @@ class InternalTestBase(ext_api.TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def stash_delete(item_id: ext_api.TestVisibilityItemId, key: str):
+    def stash_delete(item_id: ext_api.TestVisibilityItemId, key: str) -> None:
         log.debug("Deleting stashed value for key %s in item %s", key, item_id)
 
         require_ci_visibility_service().get_item_by_id(item_id).stash_delete(key)
@@ -170,7 +170,7 @@ class InternalTest(
         skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[ext_api.TestExcInfo] = None,
         override_finish_time: t.Optional[float] = None,
-    ):
+    ) -> None:
         log.debug("Finishing test with status: %s, skip_reason: %s", status, skip_reason)
         require_ci_visibility_service().get_test_by_id(item_id).finish_test(
             status=status, skip_reason=skip_reason, exc_info=exc_info, override_finish_time=override_finish_time
@@ -229,7 +229,7 @@ class InternalTest(
         suite_name: t.Optional[str] = None,
         parameters: t.Optional[str] = None,
         codeowners: t.Optional[list[str]] = None,
-    ):
+    ) -> None:
         log.debug("Overwriting attributes for test %s", item_id)
 
         require_ci_visibility_service().get_test_by_id(item_id).overwrite_attributes(

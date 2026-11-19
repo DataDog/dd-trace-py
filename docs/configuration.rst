@@ -859,6 +859,12 @@ AI Guard
        received before the first one is delivered) and increases peak memory usage proportional
        to the response size.
 
+       The option also applies to the Datadog AI Guard guardrail of the LiteLLM proxy in the post_call
+       mode. When the option is True, the guardrail holds a streamed chat or text answer until AI Guard
+       evaluates it, and it can block the answer. When the option is False, the guardrail sends the
+       chunks as they arrive, and evaluates the full answer after the last chunk without blocking.
+       When the option is False, the end of the stream waits for the AI Guard evaluation.
+
    DD_AI_GUARD_BLOCK:
      type: Boolean
      default: True
@@ -922,6 +928,13 @@ AI Guard
        Credentials, headers, and the user information, path, query string and fragment of the server
        URL are never sent. This setting does not change blocking, which still follows the evaluation
        verdict and DD_AI_GUARD_BLOCK.
+
+       Tools of MCP servers configured in the OpenAI Agents SDK (MCPServerStdio, MCPServerSse,
+       MCPServerStreamableHttp) are evaluated before each call reaches the server, whether the
+       agent runs the tool or the application calls ``server.call_tool`` directly; a blocking
+       verdict raises ``AIGuardAbortError`` and the call is not sent. For stdio servers only the
+       command and the package or module it launches are sent, never other arguments or the
+       environment.
 
        MCP approval requests are evaluated before your application can approve them. Streamed
        responses of requests whose MCP tools can ask for approval are buffered until that
@@ -1342,9 +1355,12 @@ Agent
 
    DD_TAGS:
      description: |
-         Set global tags to be attached to every span. Value must be either comma and/or space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3`` or ``key1:value1, key2:value2, key3``.
+         Set global tags to be attached to every span. Value must be either comma and/or
+         space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3``
+         or ``key1:value1, key2:value2, key3``. If a tag value is not supplied the value will
+         be an empty string.
 
-         If a tag value is not supplied the value will be an empty string.
+         OTLP export sends shared tags as resource attributes to reduce payload size.
 
      version_added:
        v0.38.0: Comma separated support added
@@ -1448,8 +1464,15 @@ Logs
 
    DD_TRACE_STARTUP_LOGS:
      type: Boolean
-     default: False
-     description: Enable or disable start up diagnostic logging.
+     default: True
+     description: |
+         Enable or disable start up diagnostic logging. When enabled, the tracer logs its configuration as a
+         ``DATADOG TRACER CONFIGURATION`` JSON object at the ``INFO`` level, even when the `ddtrace` logger level is
+         higher. The object includes the effective OpenTelemetry settings, keyed by the environment variables that
+         set them, with OTLP header values redacted. The diagnostics check that the agent is reachable, which takes
+         up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
+     version_added:
+       v4.18.0: The default changed from ``False`` to ``True``.
 
 Sampling
 --------

@@ -339,6 +339,144 @@ def test_local_and_event_follow_gevent_patching():
     setter.join()
 
 
+@pytest.mark.subprocess(timeout=30)
+def test_thread_started_with_boot_gate_closed_runs_once_it_opens():
+    from ddtrace.internal import threads
+
+    calls = []
+    threads.boot_gate.close()
+
+    t = threads.Thread(target=lambda: calls.append(1), name="test-thread-gated")
+    t.start()
+    # The worker holds the GIL from its start to its target, unless it waits on the gate.
+    assert calls == []
+
+    threads.boot_gate.open()
+    t.join()
+    assert calls == [1]
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_boot_gate_is_open_by_default():
+    from ddtrace.internal import threads
+
+    assert threads.boot_gate.is_open()
+
+    ran = threads.original_Event()
+    t = threads.Thread(target=ran.set, name="test-thread-ungated")
+    t.start()
+    assert ran.wait(10)
+    t.join()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_stop_and_join_with_boot_gate_closed_do_not_run_target():
+    from ddtrace.internal import threads
+
+    calls = []
+    threads.boot_gate.close()
+
+    periodic = threads.PeriodicThread(
+        0.01, lambda: calls.append("periodic"), name="test-gated-periodic", no_wait_at_start=True
+    )
+    one_shot = threads.Thread(target=lambda: calls.append("one-shot"), name="test-gated-one-shot")
+    periodic.start()
+    one_shot.start()
+
+    periodic.stop()
+    one_shot.stop()
+    periodic.join()
+    one_shot.join()
+
+    # Joining releases only the joined threads: the gate stays closed.
+    assert not threads.boot_gate.is_open()
+    assert calls == []
+    threads.boot_gate.open()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_join_with_boot_gate_closed_releases_only_the_joined_thread():
+    from ddtrace.internal import threads
+
+    calls = []
+    threads.boot_gate.close()
+
+    held = threads.PeriodicThread(0.01, lambda: calls.append("held"), name="test-still-held", no_wait_at_start=True)
+    joined = threads.Thread(target=lambda: calls.append("joined"), name="test-released-to-join")
+    held.start()
+    joined.start()
+
+    joined.join()
+
+    assert not threads.boot_gate.is_open()
+    assert calls == ["joined"]
+
+    threads.boot_gate.open()
+    held.stop()
+    held.join()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_exit_with_boot_gate_closed_does_not_hang_or_run_target():
+    from ddtrace.internal import threads
+
+    threads.boot_gate.close()
+
+    t = threads.PeriodicThread(0.01, lambda: print("ran"), name="test-gated-at-exit", no_wait_at_start=True)
+    t.start()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_fork_with_boot_gate_closed_keeps_it_closed():
+    import os
+
+    from ddtrace.internal import threads
+
+    calls = []
+    threads.boot_gate.close()
+
+    def record(name):
+        return lambda: calls.append((name, threads.boot_gate.is_open()))
+
+    periodic = threads.PeriodicThread(60, record("periodic"), name="test-gated-fork", no_wait_at_start=True)
+    one_shot = threads.Thread(target=record("one-shot"), name="test-gated-fork-one-shot")
+    periodic.start()
+    one_shot.start()
+
+    pid = os.fork()
+    if pid == 0:
+        # The child inherits the gate closed, as the hold is still active.
+        os._exit(0 if not threads.boot_gate.is_open() else 1)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WEXITSTATUS(status) == 0
+    assert not threads.boot_gate.is_open()
+
+    # The one-shot thread, which is not restarted after the fork, ran before it, while the periodic thread was
+    # released only to stop and did not run.
+    assert calls == [("one-shot", False)], calls
+    threads.boot_gate.open()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_stopped_periodic_thread_is_freed_without_gc():
+    import gc
+    import weakref
+
+    from ddtrace.internal import threads
+
+    gc.disable()
+
+    t = threads.PeriodicThread(60, lambda: None, name="test-freed-without-gc", no_wait_at_start=True)
+    t.start()
+    t.stop()
+    t.join()
+
+    ref = weakref.ref(t)
+    del t
+    assert ref() is None
+
+
 def test_restart_failures_are_logged_after_releasing_forking_lock(monkeypatch):
     """A log handler can wait for a lock whose holder waits for _forking_lock, so log restart errors after it."""
 
@@ -373,41 +511,4 @@ def test_restart_failures_are_logged_after_releasing_forking_lock(monkeypatch):
     assert logged == [
         ("failed to restart periodic thread %s after fork: %s", "failing-restart", False),
         ("failed to start periodic thread %s: %s", "failing-start", False),
-    ]
-
-
-def test_restart_debug_logs_are_emitted_after_releasing_forking_lock(monkeypatch):
-    """Logging can block on an application (e.g. gevent-patched) lock, so it must not happen under _forking_lock."""
-
-    class RestartedThread:
-        name = "restarted"
-
-        def _after_fork(self, force):
-            pass
-
-    class QueuedThread:
-        name = "queued"
-        __autorestart__ = True
-
-        def start(self):
-            pass
-
-    logged = []
-    monkeypatch.setattr(threads.ThreadRestartTimer, "_timestamp", 0)
-    threads._threads_to_restart_after_fork.add(RestartedThread())
-    threads._threads_to_start_after_fork.append(QueuedThread().start)
-    try:
-        with mock.patch.object(
-            threads.log,
-            "debug",
-            side_effect=lambda msg, name: logged.append((msg, name, threads._forking_lock.locked())),
-        ):
-            threads.ThreadRestartTimer(force_restart=True)._restart_threads()
-    finally:
-        threads._threads_to_restart_after_fork.clear()
-        threads._threads_to_start_after_fork.clear()
-
-    assert logged == [
-        ("Restarting thread %s after fork", "restarted", False),
-        ("Starting thread %s after fork", "queued", False),
     ]

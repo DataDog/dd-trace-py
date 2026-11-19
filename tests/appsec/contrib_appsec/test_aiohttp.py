@@ -216,9 +216,30 @@ async def _aiohttp_hands_attack(request: web.Request, body: bytes) -> bool:
 
 
 class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
-    @pytest.mark.skip(reason="API endpoint discovery is not supported for aiohttp")
-    def test_api_endpoint_discovery(self, interface, find_resource):
-        pass
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "/",
+        "/asm/{param_int}/{param_str}",
+        "/asm/",
+        "/new_service/{service_name}",
+        "/login/",
+        "/login_sdk/",
+        "/rasp/{endpoint}/",
+    }
+    ENDPOINT_DISCOVERY_UNREQUESTED_PATHS = {
+        "/aiohttp_client/{case}/{port}",
+        "/block_request/",
+        "/error/",
+        "/multipart/",
+        "/set_user/",
+        "/stream_rasp/",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        import re
+
+        path = path.replace("{param_int}", "123").replace("{port}", "123")
+        return re.sub(r"\{[a-z_]+\}", "abczx", path)
 
     def test_large_streamed_upload(self, interface):
         body, content_type = _multipart_body({"upload": b"x" * (2 * 1024**2)})

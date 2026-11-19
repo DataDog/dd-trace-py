@@ -46,8 +46,8 @@ class RegistrableSubscriber(Protocol):
 class SubscriberBundle:
     """Subscribers exported by one lazily imported product module.
 
-    Subscriber classes must disable auto_register so importing the module does not
-    activate listeners before explicit registration. Named listener registration
+    Subscriber classes must disable class-definition registration so importing the module
+    does not activate listeners before explicit registration. Named listener registration
     supplies idempotency; bundles deliberately do not cache registration state.
     """
 
@@ -164,6 +164,9 @@ class ContextSubscriber(Generic[EventType]):
     - ``context.started.{event_name}`` when the context begins
     - ``context.ended.{event_name}`` when the context ends
 
+    Pass auto_register=False in the class declaration to defer registration of that
+    class without changing the automatic registration default for its subclasses.
+
     Example:
         @dataclass
         class MyContextEvent(ContextEvent):
@@ -193,7 +196,7 @@ class ContextSubscriber(Generic[EventType]):
     _started_handlers: tuple = ()
     _ended_handlers: tuple = ()
 
-    def __init_subclass__(cls, **kwargs: Any) -> None:
+    def __init_subclass__(cls, *, auto_register: bool = True, **kwargs: Any) -> None:
         """Automatically register listeners at subclass definition.
         Handlers are registered from Base class to Children classes to allow
         behavior composition (a child class benefit from the parent class hook)
@@ -222,7 +225,7 @@ class ContextSubscriber(Generic[EventType]):
             log.debug("Subscriber class %s does not define 'event_names' and will not be registered. ", cls.__name__)
             return
 
-        if cls.auto_register:
+        if auto_register and cls.auto_register:
             cls.register()
 
     @classmethod

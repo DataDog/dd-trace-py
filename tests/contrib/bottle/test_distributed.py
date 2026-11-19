@@ -4,7 +4,7 @@ import webtest
 import ddtrace
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.bottle import TracePlugin
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.contrib.utils import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 
@@ -21,8 +21,16 @@ class TraceBottleDistributedTest(TracerTestCase):
         super().setUp()
         # provide a Bottle app
         self.app = bottle.Bottle()
+        self._had_distributed_tracing = "distributed_tracing" in ddtrace.config.bottle
+        self._original_distributed_tracing = ddtrace.config.bottle.get("distributed_tracing")
 
     def tearDown(self):
+        # This setting is process-global, so leaving it flipped changes how later tests
+        # extract distributed headers.
+        if self._had_distributed_tracing:
+            ddtrace.config.bottle["distributed_tracing"] = self._original_distributed_tracing
+        else:
+            ddtrace.config.bottle.pop("distributed_tracing", None)
         super().tearDown()
 
     def _trace_app(self, tracer=None):
