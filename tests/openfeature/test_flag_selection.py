@@ -1645,6 +1645,33 @@ def test_initialize_that_times_out_accepts_configuration_from_the_in_flight_star
         provider.shutdown()
 
 
+def test_initialize_that_times_out_ignores_a_notification_from_another_selection(cdn, api_key, monkeypatch):
+    from ddtrace.internal.openfeature._config import _register_provider
+
+    cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
+    first = _provider({"tags": ["a"]})
+    first.initialize(EvaluationContext())
+    provider = _provider({"tags": ["b"]}, timeout=0.3)
+    # Selection A's poller notifies the B provider once it is registered, then A shuts down.
+    _register_provider(provider)
+    first._configuration_source._apply_configuration(json.loads(_flag_body("selected-a"))["data"]["attributes"])
+    assert provider._config_received.is_set()
+    first.shutdown()
+
+    resume = threading.Event()
+    holding = _hold_source_creation(monkeypatch, resume)
+    starting = threading.Thread(target=lambda: _initialize_quietly(provider))
+    starting.start()
+    try:
+        assert holding.wait(timeout=5)
+        with pytest.raises(ProviderNotReadyError):
+            provider.initialize(EvaluationContext())
+    finally:
+        resume.set()
+        starting.join(timeout=5)
+        provider.shutdown()
+
+
 def test_forked_child_drops_a_start_reservation_from_the_parent():
     import ddtrace.internal.openfeature._provider as provider_module
 

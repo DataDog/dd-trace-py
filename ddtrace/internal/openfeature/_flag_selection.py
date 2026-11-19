@@ -214,6 +214,13 @@ def snapshot_from_other_selection() -> bool:
         return _claim_count > 0 and _loaded is not None and _loaded != claimed
 
 
+def snapshot_from_claimed_selection() -> bool:
+    """Whether a selection is claimed now and the shared snapshot has the flags it loads."""
+    with _lock:
+        claimed = NO_SELECTION if _dropped_reason is not None else _claimed
+        return _claim_count > 0 and _loaded is not None and _loaded == claimed
+
+
 def recording_loaded_selection(
     apply_configuration: typing.Callable[[typing.Any], None],
     selection: FlagSelection,

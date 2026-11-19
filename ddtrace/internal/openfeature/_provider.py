@@ -52,6 +52,7 @@ from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flag_selection import FlagSelectionValues
 from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
 from ddtrace.internal.openfeature._flag_selection import release_process_selection
+from ddtrace.internal.openfeature._flag_selection import snapshot_from_claimed_selection
 from ddtrace.internal.openfeature._flag_selection import snapshot_from_other_selection
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
@@ -391,7 +392,11 @@ class DataDogProvider(AbstractProvider):
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
         wait_started = time.monotonic()
-        if self._config_received.wait(timeout=max(0.0, deadline - wait_started)):
+        # After a start that timed out, the signal may come from another selection's poller that notified this
+        # provider before the in-flight start claimed; it counts only if the snapshot is the claimed selection's.
+        if self._config_received.wait(timeout=max(0.0, deadline - wait_started)) and (
+            started or snapshot_from_claimed_selection()
+        ):
             self._status = ProviderStatus.READY
             logger.debug(
                 "Feature Flags: provider initialized successfully (configuration received after %.2fs)",
