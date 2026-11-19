@@ -804,45 +804,33 @@ def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, e
 
 
 @pytest.mark.parametrize(
-    "header_lines,expected",
+    "configured_header,header_lines,expected",
     [
-        ([("X-Forwarded-For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
-        ([("X-Forwarded-For", "1.1.1.1"), ("x-forwarded-for", "10.0.0.1, 8.8.8.8")], "1.1.1.1"),
-        ([("X-Forwarded-For", "10.0.0.1"), ("X-Real-Ip", "4.4.4.4"), ("X-Forwarded-For", "10.0.0.2")], "10.0.0.1"),
+        (None, [("X-Forwarded-For", "1.1.1.1"), ("x-forwarded-for", "10.0.0.1, 8.8.8.8")], "1.1.1.1"),
+        (
+            None,
+            [("X-Forwarded-For", "10.0.0.1"), ("X-Real-Ip", "4.4.4.4"), ("X-Forwarded-For", "10.0.0.2")],
+            "10.0.0.1",
+        ),
+        (
+            None,
+            [("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1"), ("x-forwarded-for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        (
+            None,
+            [("X_Forwarded_For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1"), ("x_forwarded_for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        ("X-Use-This", [("X-Use-This", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X-Use-This", "4.4.4.4")], "4.4.4.4"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X_Use_This", "1.1.1.1")], ""),
     ],
 )
-def test_get_request_header_client_ip_joins_repeated_header_lines(header_lines, expected):
+def test_get_request_header_client_ip_repeated_and_respelled_header_lines(configured_header, header_lines, expected):
     headers = wsgiref.headers.Headers(header_lines)
-    assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
-
-
-@pytest.mark.parametrize(
-    "header_lines,expected",
-    [
-        ([("X_Forwarded_For", "1.1.1.1"), ("X-Forwarded-For", "8.8.8.8")], "8.8.8.8"),
-        ([("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1")], "1.1.1.1"),
-        ([("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1"), ("x-forwarded-for", "4.4.4.4")], "1.1.1.1"),
-        ([("X_Forwarded_For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1"), ("x_forwarded_for", "4.4.4.4")], "1.1.1.1"),
-    ],
-)
-def test_get_request_header_client_ip_keeps_header_spellings_apart(header_lines, expected):
-    headers = wsgiref.headers.Headers(header_lines)
-    assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
-
-
-@pytest.mark.parametrize(
-    "header_lines,expected",
-    [
-        ([("X-Use-This", "8.8.8.8"), ("X-Use-This", "1.1.1.1")], ""),
-        ([("X-Use-This", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
-        ([("x_use_this", "8.8.8.8")], "8.8.8.8"),
-        ([("x_use_this", "8.8.8.8"), ("X-Use-This", "4.4.4.4")], "4.4.4.4"),
-        ([("x_use_this", "8.8.8.8"), ("X_Use_This", "1.1.1.1")], ""),
-    ],
-)
-def test_get_request_header_client_ip_configured_header_lines(header_lines, expected):
-    headers = wsgiref.headers.Headers(header_lines)
-    with override_global_config(dict(_client_ip_header="X-Use-This")):
+    with override_global_config(dict(_client_ip_header=configured_header)):
         assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
 
 
