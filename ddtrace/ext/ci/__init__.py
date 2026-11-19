@@ -89,7 +89,7 @@ def _filter_sensitive_info(url: Optional[str]) -> Optional[str]:
     return _RE_URL.sub("\\1", url) if url is not None else None
 
 
-def _get_runtime_and_os_metadata():
+def _get_runtime_and_os_metadata() -> dict[str, str]:
     """Extract configuration facet tags for OS and Python runtime."""
     return {
         OS_ARCHITECTURE: platform.machine(),
