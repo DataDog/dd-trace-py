@@ -1,3 +1,4 @@
+import asyncio
 import os
 from unittest import mock
 
@@ -423,3 +424,48 @@ class AioMySQLTestCase(AsyncioTestCase):
             wrapped_instance=cursor.__wrapped__,
             peer_service_name="peer_service_name",
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method_name", ["execute", "executemany"])
+@pytest.mark.parametrize("failure_type", [None, ValueError, asyncio.CancelledError])
+async def test_result_metadata_and_parent_restored(tracer, test_spans, method_name, failure_type):
+    result = object()
+    failure = failure_type("driver execution failed") if failure_type else None
+    cursor = mock.AsyncMock(rowcount=0, rownumber=0)
+    traced = AIOTracedCursor(cursor, db_tags={"db.system": "mysql", "db.name": "orders"})
+    execution_context = core.current
+
+    async def execute(*args, **kwargs):
+        assert tracer.current_span().name == "mysql.query"
+        # Metadata is populated by the driver even when execution raises.
+        cursor.rowcount = 7
+        cursor.rownumber = 2
+        if failure is not None:
+            raise failure
+        return result
+
+    method = getattr(cursor, method_name)
+    method.side_effect = execute
+    with tracer.trace("parent") as parent:
+        if failure_type:
+            with pytest.raises(failure_type) as caught:
+                await getattr(traced, method_name)("SELECT 1")
+            assert caught.value is failure
+        else:
+            assert await getattr(traced, method_name)("SELECT 1") is result
+        assert tracer.current_span() is parent
+        assert core.current is execution_context
+
+    assert len(test_spans.spans) == 2
+    span = test_spans.spans[1]
+    assert span.finished
+    assert span.parent_id == parent.span_id
+    assert span.resource == "SELECT 1"
+    assert span.error == int(failure_type is not None)
+    assert span.get_tag("db.system") == "mysql"
+    assert span.get_tag("db.name") == "orders"
+    assert span.get_metric("db.row_count") == 7
+    assert span.get_metric("db.rownumber") == 2
+    if failure_type:
+        assert span.get_tag("error.message") == str(failure)

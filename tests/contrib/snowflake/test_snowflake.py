@@ -104,7 +104,7 @@ def test_snowflake_fetchone(client):
 
 
 @req_mock.activate
-def test_snowflake_execute_accepts_command_keyword(client):
+def test_snowflake_execute_accepts_command_keyword(client, test_spans):
     add_snowflake_query_response(
         rowtype=["TEXT"],
         rows=[("4.30.2",)],
@@ -113,6 +113,13 @@ def test_snowflake_execute_accepts_command_keyword(client):
         res = cur.execute(command="select current_version();")
         assert res == cur
         assert cur.fetchone() == ("4.30.2",)
+
+    assert len(test_spans.spans) == 1
+    span = test_spans.spans[0]
+    assert span.finished
+    assert span.resource == "select current_version();"
+    assert span.get_metric("db.row_count") == 1
+    assert span.get_tag("sfqid") == "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
 
 
 @snapshot()

@@ -6,6 +6,7 @@ from unittest import mock
 import asyncpg
 import pytest
 
+from ddtrace import config
 from ddtrace.contrib.internal.asyncpg.patch import _PROTOCOL_METHODS
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
@@ -15,6 +16,8 @@ from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
+from tests.utils import assert_is_not_measured
+from tests.utils import override_dbm_config
 
 
 @pytest.fixture(autouse=True)
@@ -577,3 +580,60 @@ class AsyncPgTestCase(AsyncioTestCase):
             assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("custom_connection_class", [False, True])
+async def test_connect_captures_metadata_before_finishing(tracer, test_spans, custom_connection_class):
+    kwargs = {"connection_class": asyncpg.Connection} if custom_connection_class else {}
+    with tracer.trace("parent") as parent:
+        conn = await asyncpg.connect(
+            host=POSTGRES_CONFIG["host"],
+            port=POSTGRES_CONFIG["port"],
+            user=POSTGRES_CONFIG["user"],
+            password=POSTGRES_CONFIG["password"],
+            database=POSTGRES_CONFIG["dbname"],
+            **kwargs,
+        )
+        try:
+            assert tracer.current_span() is parent
+        finally:
+            await conn.close()
+
+    assert len(test_spans.spans) == 2
+    span = test_spans.spans[1]
+    assert span.name == "postgres.connect"
+    assert span.finished
+    assert span.parent_id == parent.span_id
+    assert span.span_type == "sql"
+    assert span.get_tag("component") == "asyncpg"
+    assert span.get_tag("db.system") == "postgresql"
+    assert span.get_tag("db.name") == POSTGRES_CONFIG["dbname"]
+    assert span.get_tag("db.user") == POSTGRES_CONFIG["user"]
+    assert span.get_tag("out.host") == POSTGRES_CONFIG["host"]
+    assert span.get_tag("server.address") == POSTGRES_CONFIG["host"]
+    assert span.get_metric("network.destination.port") == POSTGRES_CONFIG["port"]
+    assert_is_not_measured(span)
+
+
+@pytest.mark.asyncio
+async def test_dbm_skips_prepared_executemany_and_preserves_query_resource(tracer, test_spans, patched_conn):
+    query = "SELECT $1::int"
+    statement = await patched_conn.prepare(query)
+    test_spans.reset()
+    propagator = config.asyncpg._dbm_propagator
+    with override_dbm_config({"propagation_mode": "full"}):
+        with mock.patch.object(propagator, "inject", wraps=propagator.inject) as inject:
+            assert await statement.executemany([(1,), (2,)]) is None
+            inject.assert_not_called()
+            assert await patched_conn.execute("SELECT 1") == "SELECT 1"
+            inject.assert_called_once()
+
+    spans = test_spans.spans
+    assert len(spans) == 2
+    prepared_span, query_span = spans
+    assert prepared_span.resource == query
+    assert prepared_span.get_tag("_dd.dbm_trace_injected") is None
+    assert query_span.resource == "SELECT 1"
+    assert query_span.get_tag("_dd.dbm_trace_injected") == "true"
+    assert all(span.finished and span.error == 0 for span in spans)
