@@ -28,10 +28,29 @@ log = get_logger(__name__)
 def _headers_byte_size(headers: Any, exclude: Optional[str] = None) -> int:
     """Size of headers given as a dict or as confluent-kafka's list of (key, value) pairs."""
     entries = headers.items() if isinstance(headers, dict) else headers
+    total = 0
     try:
-        return sum(_calculate_byte_size(key) + _calculate_byte_size(value) for key, value in entries if key != exclude)
+        for key, value in entries:
+            if key == exclude:
+                continue
+            # Exact str/bytes are the common case: size them inline, others go through the generic helper.
+            key_type = type(key)
+            if key_type is str:
+                total += len(key.encode("utf-8", errors="replace"))
+            elif key_type is bytes:
+                total += len(key)
+            else:
+                total += _calculate_byte_size(key)
+            value_type = type(value)
+            if value_type is bytes:
+                total += len(value)
+            elif value_type is str:
+                total += len(value.encode("utf-8", errors="replace"))
+            else:
+                total += _calculate_byte_size(value)
     except (TypeError, ValueError):
         return 0
+    return total
 
 
 def _with_pathway_header(headers: Any, ctx: Any) -> list[tuple[Any, Any]]:

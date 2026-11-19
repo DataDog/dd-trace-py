@@ -327,8 +327,11 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
         ({"tag": b"a"}, 4),
         ([("tag",)], 0),
         (None, 0),
+        ([("é", "ü"), (b"k", None), ("n", 5)], 2 + 2 + 1 + 1),
+        ([("a", {"b": b"cd"})], 1 + 1 + 2),
+        ([("a", b"b"), ("bad",), ("c", b"d")], 0),
     ],
-    ids=["repeated-keys", "dict", "malformed", "none"],
+    ids=["repeated-keys", "dict", "malformed", "none", "mixed-types", "nested-dict", "malformed-after-valid"],
 )
 def test_headers_byte_size(headers, expected):
     assert _headers_byte_size(headers) == expected
