@@ -104,7 +104,7 @@ ddtrace/internal/_unpatched.py      @DataDog/apm-python-guild
 ddtrace/__init__.py                 @DataDog/apm-python-guild
 ddtrace/py.typed                    @DataDog/apm-python-guild
 ddtrace/internal/compat.py          @DataDog/apm-python-guild  @DataDog/apm-core-python
-ddtrace/internal/endpoints.py       @DataDog/apm-python-guild  @DataDog/asm-python
+ddtrace/internal/endpoints.py       @DataDog/apm-python-guild  @DataDog/k9-appsec-python
 ddtrace/internal/settings/_config.py          @DataDog/apm-python-guild  @DataDog/apm-sdk-capabilities
 ddtrace/vendor/                     @DataDog/apm-python-guild  @DataDog/apm-core-python
 ddtrace/version.py                  @DataDog/apm-python-guild  @DataDog/apm-core-python
@@ -185,41 +185,41 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 
 # ASM
 # Config and benchmarks
-.cursor/rules/appsec.mdc            @DataDog/asm-python
-.cursor/rules/iast.mdc              @DataDog/asm-python
-.cursor/rules/ai-guard.mdc          @DataDog/asm-python
-.gitlab/templates/appsec            @DataDog/asm-python
-.gitlab/tests/appsec.yml            @DataDog/asm-python
-benchmarks/appsec*                  @DataDog/asm-python
-benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
-benchmarks/bm/iast_fixtures*        @DataDog/asm-python
-benchmarks/bm/iast_utils*           @DataDog/asm-python
+.cursor/rules/appsec.mdc            @DataDog/k9-appsec-python
+.cursor/rules/iast.mdc              @DataDog/k9-appsec-python
+.cursor/rules/ai-guard.mdc          @DataDog/k9-appsec-python
+.gitlab/templates/appsec            @DataDog/k9-appsec-python
+.gitlab/tests/appsec.yml            @DataDog/k9-appsec-python
+benchmarks/appsec*                  @DataDog/k9-appsec-python
+benchmarks/base/aspects_benchmarks_generate.py @DataDog/k9-appsec-python
+benchmarks/bm/iast_fixtures*        @DataDog/k9-appsec-python
+benchmarks/bm/iast_utils*           @DataDog/k9-appsec-python
 # ddtrace files
-ddtrace/aiguard/                    @DataDog/asm-python
-ddtrace/appsec/                     @DataDog/asm-python
-ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
-ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
-ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/asm-python
-ddtrace/contrib/internal/urllib              @DataDog/asm-python
-ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
-ddtrace/internal/_exceptions.py     @DataDog/asm-python
-ddtrace/internal/_libddwaf_platform.py @DataDog/apm-core-python @DataDog/asm-python
-ddtrace/internal/appsec/            @DataDog/asm-python
-ddtrace/internal/iast/              @DataDog/asm-python
-ddtrace/internal/sca/               @DataDog/asm-python
-ddtrace/internal/security/          @DataDog/asm-python
-ddtrace/internal/settings/aiguard.py         @DataDog/asm-python
-ddtrace/internal/settings/appsec_telemetry.py    @DataDog/asm-python
-ddtrace/internal/settings/asm.py             @DataDog/asm-python
+ddtrace/aiguard/                    @DataDog/k9-appsec-python
+ddtrace/appsec/                     @DataDog/k9-appsec-python
+ddtrace/contrib/internal/flask_login/        @DataDog/k9-appsec-python
+ddtrace/contrib/internal/subprocess/         @DataDog/k9-appsec-python
+ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/k9-appsec-python
+ddtrace/contrib/internal/urllib              @DataDog/k9-appsec-python
+ddtrace/contrib/internal/webbrowser          @DataDog/k9-appsec-python
+ddtrace/internal/_exceptions.py     @DataDog/k9-appsec-python
+ddtrace/internal/_libddwaf_platform.py @DataDog/apm-core-python @DataDog/k9-appsec-python
+ddtrace/internal/appsec/            @DataDog/k9-appsec-python
+ddtrace/internal/iast/              @DataDog/k9-appsec-python
+ddtrace/internal/sca/               @DataDog/k9-appsec-python
+ddtrace/internal/security/          @DataDog/k9-appsec-python
+ddtrace/internal/settings/aiguard.py         @DataDog/k9-appsec-python
+ddtrace/internal/settings/appsec_telemetry.py    @DataDog/k9-appsec-python
+ddtrace/internal/settings/asm.py             @DataDog/k9-appsec-python
 # tests files
-tests/aiguard/                      @DataDog/asm-python
-tests/appsec/                       @DataDog/asm-python
-tests/contrib/subprocess            @DataDog/asm-python
-tests/contrib/trio                  @DataDog/apm-core-python @DataDog/asm-python
-tests/internal/test_libddwaf_platform.py @DataDog/apm-core-python @DataDog/asm-python
-tests/snapshots/tests*appsec*.json  @DataDog/asm-python
+tests/aiguard/                      @DataDog/k9-appsec-python
+tests/appsec/                       @DataDog/k9-appsec-python
+tests/contrib/subprocess            @DataDog/k9-appsec-python
+tests/contrib/trio                  @DataDog/apm-core-python @DataDog/k9-appsec-python
+tests/internal/test_libddwaf_platform.py @DataDog/apm-core-python @DataDog/k9-appsec-python
+tests/snapshots/tests*appsec*.json  @DataDog/k9-appsec-python
 # scripts
-scripts/iast/*                      @DataDog/asm-python
+scripts/iast/*                      @DataDog/k9-appsec-python
 
 
 # Profiling
@@ -242,7 +242,7 @@ tests/commands/ddtrace_run_profiling.py           @DataDog/apm-python-guild @Dat
 docs/debug_symbols.rst                            @DataDog/apm-python-guild @DataDog/profiling-python
 
 # Native build tooling (abseil dependency, shared by ASM + Profiling native code)
-/cmake/                                            @DataDog/asm-python @DataDog/profiling-python
+/cmake/                                            @DataDog/k9-appsec-python @DataDog/profiling-python
 
 
 # Crashtracker
@@ -260,7 +260,7 @@ src/native/crashtracker*                     @DataDog/profiling-python @DataDog/
 ddtrace/llmobs/                                               @DataDog/ml-observability
 ddtrace/contrib/internal/aws_sdk_bedrock_runtime/              @DataDog/ml-observability
 tests/contrib/aws_sdk_bedrock_runtime/                        @DataDog/ml-observability
-ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
+ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/k9-appsec-python
 ddtrace/contrib/internal/langchain                            @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock.py         @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock_agents.py  @DataDog/ml-observability
@@ -284,7 +284,7 @@ ddtrace/contrib/internal/vllm                                 @DataDog/ml-observ
 ddtrace/contrib/internal/claude_agent_sdk                     @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/cassettes                                               @DataDog/ml-observability
-tests/cassettes/stripe/                                       @DataDog/asm-python
+tests/cassettes/stripe/                                       @DataDog/k9-appsec-python
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py                        @DataDog/ml-observability
@@ -353,7 +353,7 @@ ddtrace/_trace/span.py                             @DataDog/apm-sdk-capabilities
 ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities @DataDog/apm-python-guild @DataDog/apm-idm-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities
-ddtrace/internal/opentelemetry/thread_context.py   @DataDog/apm-sdk-capabilities @DataDog/asm-python @DataDog/profiling-python
+ddtrace/internal/opentelemetry/thread_context.py   @DataDog/apm-sdk-capabilities @DataDog/k9-appsec-python @DataDog/profiling-python
 ddtrace/propagation/                               @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/_opentelemetry.py        @DataDog/apm-sdk-capabilities
 
@@ -377,7 +377,7 @@ tests/test_sampling.py                             @DataDog/apm-sdk-capabilities
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities
 tests/opentelemetry/                               @DataDog/apm-sdk-capabilities
 tests/tracer/                                      @DataDog/apm-sdk-capabilities
-tests/tracer/test_otel_thread_context.py            @DataDog/apm-sdk-capabilities @DataDog/apm-core-python @DataDog/asm-python
+tests/tracer/test_otel_thread_context.py            @DataDog/apm-sdk-capabilities @DataDog/apm-core-python @DataDog/k9-appsec-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 tests/tracer/test_ci_utils.py                      @DataDog/ci-app-libraries
@@ -410,7 +410,7 @@ tests/snapshots/tests.contrib.azure_eventhubs.*           @DataDog/apm-serverles
 tests/snapshots/tests.contrib.azure_servicebus.*          @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
 
 # Serverless (mixed)
-tests/internal/test_serverless.py                         @DataDog/apm-serverless @DataDog/asm-python @DataDog/serverless-aws @DataDog/serverless-azure-and-gcp
+tests/internal/test_serverless.py                         @DataDog/apm-serverless @DataDog/k9-appsec-python @DataDog/serverless-aws @DataDog/serverless-azure-and-gcp
 
 # Data Streams Monitoring
 ddtrace/data_streams.py                                   @DataDog/data-streams-monitoring
@@ -419,8 +419,8 @@ tests/datastreams                                         @DataDog/data-streams-
 tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-monitoring
 
 # ASM (order matters)
-tests/**/*appsec*                       @DataDog/asm-python
-tests/**/*iast*                         @DataDog/asm-python
+tests/**/*appsec*                       @DataDog/k9-appsec-python
+tests/**/*iast*                         @DataDog/k9-appsec-python
 
 # Cross-product interaction tests (order matters)
 # tests/standalone/ covers products that interact rather than one product, so no single
@@ -454,7 +454,7 @@ scripts/integration_registry/registry.yaml      @DataDog/apm-idm-python @DataDog
 # default above). scripts/lint slo-ownership checks this stays consistent.
 .gitlab/benchmarks/slos/apm-core-python.yml              @DataDog/apm-core-python
 .gitlab/benchmarks/slos/apm-sdk-capabilities.yml @DataDog/apm-sdk-capabilities
-.gitlab/benchmarks/slos/asm-python.yml                  @DataDog/asm-python
+.gitlab/benchmarks/slos/k9-appsec-python.yml                  @DataDog/k9-appsec-python
 .gitlab/benchmarks/slos/apm-python.yml                   @DataDog/apm-python
 .gitlab/benchmarks/slos/apm-idm-python.yml               @DataDog/apm-idm-python
 .gitlab/benchmarks/slos/profiling-python.yml             @DataDog/profiling-python
