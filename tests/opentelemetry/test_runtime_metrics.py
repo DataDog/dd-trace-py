@@ -110,10 +110,15 @@ def test_runtime_metrics_disable_stops_otlp_export():
 
 
 @requires_exporter
-@pytest.mark.subprocess(ddtrace_run=True, env=OTLP_RUNTIME_METRICS_ENV)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=OTLP_RUNTIME_METRICS_ENV,
+    parametrize={"OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": ["delta", "cumulative"]},
+)
 def test_runtime_metrics_counters_stay_monotonic_across_fork():
     import os
     import time
+    import warnings
 
     from opentelemetry.metrics import get_meter_provider
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
@@ -121,29 +126,43 @@ def test_runtime_metrics_counters_stay_monotonic_across_fork():
     from ddtrace.runtime import RuntimeMetrics
     from tests.opentelemetry.utils import _capture_http_requests
 
+    def values(requests, name):
+        return [
+            getattr(data_point, data_point.WhichOneof("value"))
+            for request in requests
+            for resource_metrics in request.resource_metrics
+            for scope_metrics in resource_metrics.scope_metrics
+            for metric in scope_metrics.metrics
+            if metric.name == name
+            for data_point in metric.sum.data_points
+        ]
+
     # Use CPU in the parent, so that a child restarting its CPU time from zero would report a negative delta.
     deadline = time.monotonic() + 0.5
     while time.monotonic() < deadline:
         pass
-    with _capture_http_requests(14321, ExportMetricsServiceRequest):
+    with _capture_http_requests(14321, ExportMetricsServiceRequest) as parent_requests:
         assert get_meter_provider().force_flush()
+    parent_cpu_time = sum(values(parent_requests, "process.cpu.time"))
 
-    pid = os.fork()
+    with warnings.catch_warnings():
+        # Python 3.12+ warns when a multi-threaded process forks.
+        warnings.simplefilter("ignore", DeprecationWarning)
+        pid = os.fork()
     if pid == 0:
         exit_code = 1
         try:
             with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
                 flushed = get_meter_provider().force_flush()
-            values = [
-                getattr(data_point, data_point.WhichOneof("value"))
-                for request in requests
-                for resource_metrics in request.resource_metrics
-                for scope_metrics in resource_metrics.scope_metrics
-                for metric in scope_metrics.metrics
-                if metric.name in ("process.cpu.time", "process.context_switches")
-                for data_point in metric.sum.data_points
-            ]
-            exit_code = 0 if flushed and values and all(value >= 0 for value in values) else 1
+            cpu_time = values(requests, "process.cpu.time")
+            counters = cpu_time + values(requests, "process.context_switches")
+            if os.environ["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] == "delta":
+                # The deltas are computed from the last values that the parent reported.
+                valid = all(value >= 0 for value in counters)
+            else:
+                # The child reports its own totals, without those of its parent.
+                valid = sum(cpu_time) < parent_cpu_time
+            exit_code = 0 if flushed and counters and valid else 1
         finally:
             os._exit(exit_code)
 

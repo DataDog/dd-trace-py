@@ -20,6 +20,7 @@ from opentelemetry.metrics import get_meter
 
 from .. import forksafe
 from ..logger import get_logger
+from ..settings._opentelemetry import otel_config
 from .metric_collectors import _ProcessMetrics
 
 
@@ -34,9 +35,10 @@ _NS_TO_SEC = 1e-9
 _enabled = False
 _instruments_created = False
 
-# The OpenTelemetry SDK computes the deltas of the observable counters from the last values that they reported, which a
-# forked child inherits from its parent, while the CPU time and context switches of the child restart from zero. So that
-# these counters stay monotonic, the child reports them on top of the last values that its parent reported.
+# With the delta temporality, the OpenTelemetry SDK computes the deltas of the observable counters from the last values
+# that they reported, which a forked child inherits from its parent, while the CPU time and context switches of the
+# child restart from zero. So that these counters stay monotonic, the child reports them on top of the last values that
+# its parent reported. With the other temporalities, the observable counters export the totals of the process.
 _last_reported: dict[str, float] = {}
 _fork_offsets: dict[str, float] = {}
 
@@ -97,7 +99,8 @@ def _create_instruments(meter: Meter) -> None:
         log.debug("Process metrics are not available on this platform", exc_info=True)
         return
 
-    forksafe.register(_continue_counters_after_fork)
+    if otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE.lower() == "delta":
+        forksafe.register(_continue_counters_after_fork)
 
     meter.create_observable_counter(
         "process.cpu.time",
