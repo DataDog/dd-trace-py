@@ -103,7 +103,7 @@ _OTLP_METRICS_EXPORTERS = {
     "grpc": "opentelemetry-exporter-otlp-proto-grpc",
     "http/protobuf": "opentelemetry-exporter-otlp-proto-http",
 }
-_OTLP_RUNTIME_METRICS_MODULE = "ddtrace.internal.opentelemetry.runtime_metrics"
+_OTLP_RUNTIME_METRICS_MODULE = "ddtrace.internal.runtime.otlp_runtime_metrics"
 
 
 def _can_export_otlp_runtime_metrics() -> bool:
@@ -136,7 +136,7 @@ def _start_otlp_runtime_metrics(_opentelemetry: ModuleType) -> None:
     unload it.
     """
     try:
-        from ddtrace.internal.opentelemetry import runtime_metrics as otlp_runtime_metrics
+        from . import otlp_runtime_metrics
 
         otlp_runtime_metrics.start()
     except Exception:

@@ -83,7 +83,7 @@ def test_runtime_metrics_wait_for_the_application_to_import_opentelemetry():
 
     assert RuntimeWorker.enabled
     assert RuntimeWorker._instance is None, "The DogStatsD runtime metrics worker must not run"
-    assert "ddtrace.internal.opentelemetry.runtime_metrics" not in sys.modules
+    assert "ddtrace.internal.runtime.otlp_runtime_metrics" not in sys.modules
     assert "opentelemetry" not in sys.modules
 
 

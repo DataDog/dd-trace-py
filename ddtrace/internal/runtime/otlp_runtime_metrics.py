@@ -18,8 +18,8 @@ from opentelemetry.metrics import Meter
 from opentelemetry.metrics import Observation
 from opentelemetry.metrics import get_meter
 
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal.runtime.metric_collectors import _ProcessMetrics
+from ..logger import get_logger
+from .metric_collectors import _ProcessMetrics
 
 
 log = get_logger(__name__)
