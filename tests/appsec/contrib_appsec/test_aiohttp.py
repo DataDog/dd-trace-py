@@ -242,16 +242,17 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
         return re.sub(r"\{[a-z_]+\}", "abczx", path)
 
     @pytest.mark.parametrize(
-        ("forwarded_for", "client_ip", "status"),
+        ("headers", "client_ip", "status"),
         [
-            ((rules._IP.BLOCKED, rules._IP.DEFAULT), rules._IP.BLOCKED, 403),
-            ((rules._IP.DEFAULT, rules._IP.BLOCKED), rules._IP.DEFAULT, 200),
+            ([("X-Forwarded-For", rules._IP.BLOCKED), ("X-Forwarded-For", rules._IP.DEFAULT)], rules._IP.BLOCKED, 403),
+            ([("X-Forwarded-For", rules._IP.DEFAULT), ("X-Forwarded-For", rules._IP.BLOCKED)], rules._IP.DEFAULT, 200),
+            ([("X_Forwarded_For", rules._IP.BLOCKED), ("X-Forwarded-For", rules._IP.DEFAULT)], rules._IP.DEFAULT, 200),
+            ([("X-Forwarded-For", rules._IP.DEFAULT), ("X_Forwarded_For", rules._IP.BLOCKED)], rules._IP.BLOCKED, 403),
         ],
     )
     def test_repeated_forwarded_for_lines_resolve_to_the_first_public_ip(
-        self, interface, get_entry_span_tag, forwarded_for, client_ip, status
+        self, interface, get_entry_span_tag, headers, client_ip, status
     ):
-        headers = [("X-Forwarded-For", ip) for ip in forwarded_for]
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
             response = interface.client.get("/", headers=headers)

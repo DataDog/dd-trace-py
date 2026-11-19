@@ -819,9 +819,25 @@ def test_get_request_header_client_ip_joins_repeated_header_lines(header_lines, 
 @pytest.mark.parametrize(
     "header_lines,expected",
     [
+        ([("X_Forwarded_For", "1.1.1.1"), ("X-Forwarded-For", "8.8.8.8")], "8.8.8.8"),
+        ([("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1")], "1.1.1.1"),
+        ([("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1"), ("x-forwarded-for", "4.4.4.4")], "1.1.1.1"),
+        ([("X_Forwarded_For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1"), ("x_forwarded_for", "4.4.4.4")], "1.1.1.1"),
+    ],
+)
+def test_get_request_header_client_ip_keeps_header_spellings_apart(header_lines, expected):
+    headers = wsgiref.headers.Headers(header_lines)
+    assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
+
+
+@pytest.mark.parametrize(
+    "header_lines,expected",
+    [
         ([("X-Use-This", "8.8.8.8"), ("X-Use-This", "1.1.1.1")], ""),
         ([("X-Use-This", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
         ([("x_use_this", "8.8.8.8")], "8.8.8.8"),
+        ([("x_use_this", "8.8.8.8"), ("X-Use-This", "4.4.4.4")], "4.4.4.4"),
+        ([("x_use_this", "8.8.8.8"), ("X_Use_This", "1.1.1.1")], ""),
     ],
 )
 def test_get_request_header_client_ip_configured_header_lines(header_lines, expected):

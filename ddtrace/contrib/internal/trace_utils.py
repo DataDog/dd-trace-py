@@ -200,9 +200,9 @@ def _parse_ip_header(ip_header_value: str) -> str:
 def _join_header_lines(headers: Mapping[str, str], names: frozenset[str]) -> dict[str, str]:
     joined: dict[str, str] = {}
     for key, value in headers.items():
-        name = key.lower().replace("_", "-")
-        if name in names:
-            joined[name] = f"{joined[name]}, {value}" if name in joined else value
+        field = key.lower()
+        if field.replace("_", "-") in names:
+            joined[field] = f"{joined[field]}, {value}" if field in joined else value
     return joined
 
 
@@ -213,7 +213,7 @@ def _get_request_header_client_ip(
         if not headers_are_case_sensitive:
             return headers.get(key)
 
-        return _join_header_lines(headers, frozenset((key,))).get(key)
+        return _get_header_value_case_insensitive(_join_header_lines(headers, frozenset((key,))), key)
 
     if not headers:
         try:
@@ -243,7 +243,7 @@ def _get_request_header_client_ip(
 
     else:
         if headers_are_case_sensitive:
-            ip_headers = _join_header_lines(headers, _IP_HEADERS)
+            ip_headers = {k.replace("_", "-"): v for k, v in _join_header_lines(headers, _IP_HEADERS).items()}
             for ip_header in IP_PATTERNS:
                 if ip_header in ip_headers:
                     ip_header_value = ip_headers[ip_header]
