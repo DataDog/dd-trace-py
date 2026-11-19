@@ -2,11 +2,28 @@ from typing import Optional
 from weakref import ReferenceType
 from weakref import ref
 
+from ddtrace._trace.otel.sampling import materialize_otel_sampling_decision
+from ddtrace._trace.otel.sampling import normalize_otel_tracestate
 from ddtrace.internal import forksafe
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ddtrace.internal.native._native import Context
+from ddtrace.internal.utils.http import w3c_build_tracestate_members
+from ddtrace.internal.utils.http import w3c_get_dd_list_member
 
 
 __all__ = ["Context"]
+
+
+# The native Context builds tracestate with these helpers but does not import them itself.
+# Registering at import time also keeps this working in environments that block later
+# imports (e.g. Temporal sandbox).
+Context._register_tracestate_helpers(
+    w3c_get_dd_list_member,
+    w3c_build_tracestate_members,
+    normalize_otel_tracestate,
+    materialize_otel_sampling_decision,
+    DD_TRACE_TRACESTATE_MAX_BYTES,
+)
 
 
 # Context equality is trace-level equality rather than object identity, so this side table is

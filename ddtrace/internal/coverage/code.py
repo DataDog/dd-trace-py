@@ -417,7 +417,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             self.is_import_coverage = is_import_coverage
             self._test_file = test_file
 
-        def __enter__(self):
+        def __enter__(self) -> "ModuleCodeCollector.CollectInContext":
             # Collector objects compare by identity, so value-based context restores
             # distinguish different collectors even when their coverage data is empty.
             self._covered_lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
@@ -451,7 +451,7 @@ class ModuleCodeCollector(ModuleWatchdog):
 
             return self
 
-        def __exit__(self, *args, **kwargs):
+        def __exit__(self, *args: t.Any, **kwargs: t.Any) -> None:
             # Closing the shared collector expires it in every inherited stack.
             self.closed = True
             stack = ctx_collectors.get()
