@@ -148,15 +148,27 @@ def _main_hub_logger_class(cls: type) -> type:
     return _MainHubLogger if cls is logging.Logger else type(cls.__name__, (_MainHubLogger, cls), {})
 
 
-class _MainHubManager(logging.Manager):
-    def getLogger(self, name: str) -> logging.Logger:
-        logger = super().getLogger(name)
-        _wrap(logger)
-        return logger
+def _is_ddtrace(name: str) -> bool:
+    return name == "ddtrace" or name.startswith("ddtrace.")
+
+
+class _MainHubLoggerClass:
+    """Creates the ddtrace loggers as main hub loggers, as changing the class of a logger makes it slower on 3.12+.
+
+    Set as the logger class of the logging manager, which calls it only to create a logger.
+    """
+
+    def __init__(self, logger_class: Optional[type]) -> None:
+        self.logger_class = logger_class
+
+    def __call__(self, name: str) -> logging.Logger:
+        cls = self.logger_class or logging.getLoggerClass()
+        return (_main_hub_logger_class(cls) if _is_ddtrace(name) else cls)(name)
 
 
 def _wrap(logger: logging.Logger) -> None:
-    if not isinstance(logger, _MainHubLogger) and (logger.name == "ddtrace" or logger.name.startswith("ddtrace.")):
+    """Convert a ddtrace logger created before the logger class was set."""
+    if not isinstance(logger, _MainHubLogger) and _is_ddtrace(logger.name):
         try:
             logger.__class__ = _main_hub_logger_class(type(logger))  # type: ignore[arg-type]
         except TypeError:
@@ -199,10 +211,7 @@ class MainHubLogging:
             # A thread that sees the hub uses spawn_raw.
             self._spawn_raw = spawn_raw
             self._hub = hub
-        manager = logging.Logger.manager
-        if type(manager) is logging.Manager:
-            manager.__class__ = _MainHubManager
-        for logger in list(manager.loggerDict.values()):
+        for logger in list(logging.Logger.manager.loggerDict.values()):
             if isinstance(logger, logging.Logger):
                 _wrap(logger)
 
@@ -287,6 +296,8 @@ def _format_args(record: logging.LogRecord) -> None:
 
 
 main_hub_logging = MainHubLogging()
+if not isinstance(logging.Logger.manager.loggerClass, _MainHubLoggerClass):
+    logging.Logger.manager.loggerClass = _MainHubLoggerClass(logging.Logger.manager.loggerClass)  # type: ignore[assignment]
 # Registered before the native threads module registers the hook that joins them, so that it runs after it.
 # Not ddtrace.internal.atexit: it imports that module, and registering later would flush before the join.
 atexit.register(main_hub_logging.flush_at_exit)

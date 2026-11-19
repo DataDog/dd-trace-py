@@ -111,18 +111,14 @@ def test_records_are_handled_inline_when_threading_is_not_patched():
 
 
 @pytest.mark.subprocess(env=CLONING, err=None, timeout=30)
-def test_loggers_are_unchanged_without_a_gevent_hub():
+def test_records_are_handled_inline_without_a_gevent_hub():
     import logging
     import sys
 
     import ddtrace.auto  # noqa:F401
     from ddtrace.internal import threads
-    from ddtrace.internal.logger import get_logger
 
     assert "gevent.hub" not in sys.modules
-    assert type(logging.Logger.manager) is logging.Manager
-    assert type(threads.log) is logging.Logger
-    assert type(get_logger("ddtrace.test.new")) is logging.Logger
 
     messages = []
 
@@ -818,3 +814,48 @@ def test_hub_of_the_thread_that_forked_is_the_main_hub_of_the_child():
 
     start_new_thread(fork_and_wait, ())
     done.acquire()
+
+
+@pytest.mark.subprocess(env=CLONING, err=None, timeout=30)
+def test_ddtrace_loggers_are_main_hub_loggers_from_creation():
+    """Changing the class of an existing logger makes it slower on Python 3.12+."""
+    import logging
+
+    early = logging.getLogger("ddtrace.test.early")
+    plain = type(early)
+
+    import gevent.monkey
+
+    import ddtrace.auto  # noqa:F401
+
+    gevent.monkey.patch_all()
+
+    import gevent
+
+    from ddtrace.internal.logger import _MainHubLogger
+    from ddtrace.internal.logger import get_logger
+
+    class CustomLogger(logging.Logger):
+        pass
+
+    child = logging.getLogger("ddtrace.test.placeholder.child")  # Its parent is a placeholder until it is created
+    loggers = [get_logger("ddtrace.test.get_logger"), logging.getLogger("ddtrace.test.getLogger"), child]
+    loggers.append(logging.getLogger("ddtrace.test.placeholder"))
+    logging.setLoggerClass(CustomLogger)
+    custom = logging.getLogger("ddtrace.test.custom")
+    logging.setLoggerClass(logging.Logger)
+    loggers.append(custom)
+    classes = [type(logger) for logger in loggers]
+
+    assert all(isinstance(logger, _MainHubLogger) for logger in loggers), classes
+    assert isinstance(custom, CustomLogger)
+    assert type(logging.getLogger("test.other")) is logging.Logger
+    assert child.parent is loggers[3]
+
+    gevent.sleep(0)  # Creates the main hub.
+
+    loggers.append(get_logger("ddtrace.test.after_hub"))
+    classes.append(_MainHubLogger)
+    assert [type(logger) for logger in loggers] == classes
+    # A logger created before ddtrace was imported is converted.
+    assert isinstance(early, _MainHubLogger) and plain is logging.Logger

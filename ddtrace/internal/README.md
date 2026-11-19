@@ -547,6 +547,12 @@ which can be waiting for that thread, e.g. joining it before a fork.
   handles them in order. Records logged on the main thread, before the hub
   exists, or without patched `threading` are handled inline, as is a record
   logged while the queue is full.
+- ddtrace loggers are created as `_MainHubLogger`, also through
+  `logging.getLogger`: the logger module sets the logger class of the logging
+  manager to `_MainHubLoggerClass` when it is imported. Changing the class of
+  an existing logger makes its attribute lookups slower on Python 3.12+, so
+  only the ddtrace loggers created before are converted, when the hub is
+  created.
 - Records are formatted when queued, so mutable arguments and exceptions are
   captured as logged.
 - After fork, the child resets it with a `forksafe.register` hook and logs
