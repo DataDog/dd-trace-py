@@ -1,28 +1,11 @@
----
-name: python-lint
-description: >-
-  Turn a recurring, mechanically detectable code-review theme into one blocking
-  lint or static-analysis check for dd-trace-py, preferring an ast-grep rule in
-  `.sg/rules/`. Use when adding or proposing a lint rule, encoding a review
-  comment as a check, writing an ast-grep rule, extending a `scripts/check_*.py`
-  checker, or when the Thematic Rule Suggestions bot prepares a PR.
-allowed-tools:
-  - Bash
-  - Read
-  - Grep
-  - Glob
-  - Edit
-  - Write
----
-
-# Add a Python lint rule
+# Authoring a lint rule
 
 Grow the blocking lint surface **one check at a time**, in the tool that already owns that
 kind of check. Do not add a new tool, a new CI job, or a bespoke script when an existing
 mechanism can express the rule. Maintainers have rejected "a deluge of hand-rolled scripts
 where proper static analysis / ast-grep exists" (see Lessons below).
 
-Run everything through `scripts/lint` (see the `lint` skill); never invoke ruff or ast-grep
+Run everything through `scripts/lint` (see the parent `lint` skill); never invoke ruff or ast-grep
 directly.
 
 ## 1. Decide whether the theme is a rule at all
@@ -128,7 +111,7 @@ Only when ast-grep and ruff cannot express it (typically needs `git diff` agains
 
 ## 5. Documentation and ownership
 
-- Update `.agents/skills/lint/SKILL.md` if a new `scripts/lint` subcommand is added.
+- Update `.agents/skills/lint/SKILL.md` (the command table) if a new `scripts/lint` subcommand is added.
 - `.agents/` and `.sg/` are owned by `@DataDog/apm-python-guild` via CODEOWNERS; new scripts
   and tests need an owner entry if CODEOWNERS does not already cover the path.
 - Add a release note only if the change affects shipped code. Lint/CI/tooling-only PRs use the
