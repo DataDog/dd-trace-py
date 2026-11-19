@@ -43,7 +43,7 @@ their own selection logic; inspect the diff afterward rather than assuming every
 | Environment-variable registry | `supported-config-check` |
 | Log messages | `error-log-check` |
 | Type annotations | `typing`, `type-comments-check` |
-| ast-grep rules | `sg`, `sg-test` |
+| ast-grep rules | `sg`, `sg-test` (authoring: `python-lint` skill) |
 | Git hooks | `hook-tests` |
 
 After changing annotations, run `typing` and check for new PEP 484 type comments. Use inline
