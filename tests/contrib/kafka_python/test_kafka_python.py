@@ -97,3 +97,21 @@ def test_no_dsm_headers_when_disabled():
     consumer.close(autocommit=False)
 
     assert PROPAGATION_KEY_BASE_64 not in [key for key, _ in record.headers]
+
+
+@pytest.mark.parametrize("trace_empty_poll", [True, False])
+def test_empty_poll_span(test_spans, trace_empty_poll):
+    from ddtrace import config
+
+    topic = create_topic("empty_poll")
+    consumer = make_consumer(topic)
+    original = config.kafka_python.trace_empty_poll_enabled
+    config.kafka_python.trace_empty_poll_enabled = trace_empty_poll
+    try:
+        assert consumer.poll(timeout_ms=100) == {}
+    finally:
+        config.kafka_python.trace_empty_poll_enabled = original
+        consumer.close(autocommit=False)
+
+    spans = _spans_named(test_spans, "kafka.consume")
+    assert len(spans) == (1 if trace_empty_poll else 0)

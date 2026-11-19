@@ -1,5 +1,5 @@
 """
-This integration instruments the ``kafka-python<https://github.com/dpkp/kafka-python>``
+This integration instruments the `kafka-python <https://github.com/dpkp/kafka-python>`_
 library to trace message production and consumption, and to report Data Streams Monitoring
 checkpoints and consumer offsets.
 

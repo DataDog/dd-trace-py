@@ -33,6 +33,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("kafka"),
         distributed_tracing_enabled=asbool(env.get("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        trace_empty_poll_enabled=asbool(env.get("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
     ),
 )
 
@@ -42,7 +43,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"kafka": ">=2.0.0"}
+    return {"kafka": ">=2.0.2"}
 
 
 def _cluster_id(cluster: Any) -> str:
@@ -72,7 +73,9 @@ def _decode_key(key: Any) -> Any:
 
 def _headers_supported(instance: Any) -> bool:
     api_version = getattr(instance, "config", {}).get("api_version")
-    return api_version is None or tuple(api_version) >= (0, 11)
+    if not isinstance(api_version, tuple):
+        return True
+    return api_version >= (0, 11)
 
 
 def traced_send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -105,10 +108,10 @@ def traced_send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], 
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         core.set_item("kafka_cluster_id", cluster_id)
-        if inject:
-            new_headers = list(headers or [])
-            new_headers.extend((k, v.encode("utf-8")) for k, v in tracing_headers.items())
-            core.dispatch("kafka_python.send.start", (topic, value, key, new_headers, ctx))
+        new_headers = list(headers) if inject and headers else []
+        new_headers.extend((k, v.encode("utf-8")) for k, v in tracing_headers.items())
+        core.dispatch("kafka_python.send.start", (topic, value, key, new_headers, ctx))
+        if inject and new_headers:
             args, kwargs = set_argument_value(args, kwargs, 3, "headers", new_headers, override_unset=True)
 
         try:
@@ -196,6 +199,9 @@ def traced_poll(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], 
     except Exception as e:
         err = e
 
+    if err is None and not records and not config.kafka_python.trace_empty_poll_enabled:
+        return records
+
     topics_partitions: dict[str, list[int]] = {}
     message_headers: list[dict[str, Any]] = []
     for tp, batch in (records or {}).items():
@@ -226,15 +232,34 @@ def traced_poll(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], 
     return records
 
 
-def traced_commit_offsets(
+def _track_commit(instance: Any, offsets: Any) -> None:
+    if not offsets:
+        return
+    try:
+        cluster_id = _cluster_id(_consumer_cluster(instance))
+        core.dispatch("kafka_python.commit", (getattr(instance, "group_id", None), offsets, cluster_id))
+    except Exception:
+        log.debug("Unable to track kafka-python committed offsets", exc_info=True)
+
+
+def traced_commit_offsets_sync(
     func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
     result = func(*args, **kwargs)
-    offsets = get_argument_value(args, kwargs, 0, "offsets", optional=True)
-    if offsets:
-        cluster_id = _cluster_id(_consumer_cluster(instance))
-        core.dispatch("kafka_python.commit", (instance.group_id, offsets, cluster_id))
+    _track_commit(instance, get_argument_value(args, kwargs, 0, "offsets", optional=True))
     return result
+
+
+def traced_do_commit_offsets_async(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    future = func(*args, **kwargs)
+    offsets = get_argument_value(args, kwargs, 0, "offsets", optional=True)
+    try:
+        future.add_callback(lambda _: _track_commit(instance, offsets))
+    except Exception:
+        log.debug("Unable to observe kafka-python commit result", exc_info=True)
+    return future
 
 
 def patch() -> None:
@@ -245,8 +270,8 @@ def patch() -> None:
     _w("kafka.producer.kafka", "KafkaProducer.send", traced_send)
     _w("kafka.consumer.group", "KafkaConsumer.__next__", traced_next)
     _w("kafka.consumer.group", "KafkaConsumer.poll", traced_poll)
-    _w("kafka.coordinator.consumer", "ConsumerCoordinator.commit_offsets_sync", traced_commit_offsets)
-    _w("kafka.coordinator.consumer", "ConsumerCoordinator.commit_offsets_async", traced_commit_offsets)
+    _w("kafka.coordinator.consumer", "ConsumerCoordinator.commit_offsets_sync", traced_commit_offsets_sync)
+    _w("kafka.coordinator.consumer", "ConsumerCoordinator._do_commit_offsets_async", traced_do_commit_offsets_async)
 
 
 def unpatch() -> None:
@@ -262,4 +287,4 @@ def unpatch() -> None:
     _u(KafkaConsumer, "__next__")
     _u(KafkaConsumer, "poll")
     _u(ConsumerCoordinator, "commit_offsets_sync")
-    _u(ConsumerCoordinator, "commit_offsets_async")
+    _u(ConsumerCoordinator, "_do_commit_offsets_async")
