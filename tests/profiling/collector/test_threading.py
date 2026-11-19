@@ -925,6 +925,40 @@ def test_update_name_handles_shallow_stack() -> None:
     # but we shouldn't assert a specific value
 
 
+@pytest.mark.subprocess()
+def test_acquire_from_destructor_during_frame_teardown() -> None:
+    """Regression test for #21320: a profiled lock acquired while a C-called frame is torn down.
+
+    When a Python function called from C returns, Python 3.12+ unlinks its frame before clearing
+    its locals, leaving the C entry frame (with uninitialized fields) as the current frame. A lock
+    acquired by a dying local's destructor, with no Python frame in between, must not read it.
+    grpc.aio hits this when an _AioCall is deallocated as a coroutine driven by uvloop returns.
+    """
+    import threading
+    from typing import Any
+    from typing import cast
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_acquire_from_destructor_during_frame_teardown")
+
+    def victim(lock: Any) -> None:
+        # The finalizer calls the Cython lock's acquire from C, with no arguments and no Python frame.
+        node = type("Node", (), {"__del__": staticmethod(lock.acquire)})()  # noqa: F841
+
+    with ThreadingLockCollector(module=threading, capture_pct=100):
+        for _ in range(100):
+            lock = threading.Lock()
+            # map calls victim from C, so node dies after victim's frame is unlinked.
+            list(map(victim, [lock]))
+            assert lock.locked()
+            # The name comes from the nearest complete frame, this function's.
+            assert cast(_ProfiledLock, lock).name == "lock"
+            lock.release()
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
 def test_all_exceptions_suppressed_by_default() -> None:
     """
