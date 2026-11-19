@@ -9,7 +9,6 @@ from ddtrace.internal import feature_flags
 @pytest.fixture(autouse=True)
 def _reset_provider(monkeypatch):
     monkeypatch.setattr(feature_flags, "_implementation", None)
-    monkeypatch.setattr(feature_flags, "_loaded", False)
 
 
 def _make_entry_point(dist_name, module_path, implementation):
@@ -54,6 +53,20 @@ def test_missing_provider_raises():
     with patch("ddtrace.internal.feature_flags.get_entry_points", return_value=[]):
         with pytest.raises(LookupError):
             feature_flags.enable_remote_config()
+
+
+def test_failed_load_is_retried():
+    implementation = MagicMock()
+    ep = _make_entry_point("ddtrace", "ddtrace.internal.openfeature._feature_flags", implementation)
+    ep.load.side_effect = [ImportError("transient"), implementation]
+
+    with patch("ddtrace.internal.feature_flags.get_entry_points", return_value=[ep]):
+        with pytest.raises(LookupError):
+            feature_flags.set_domain_provider("domain")
+        feature_flags.set_domain_provider("domain")
+
+    assert ep.load.call_count == 2
+    implementation.set_domain_provider.assert_called_once_with("domain")
 
 
 def test_openfeature_provider_is_registered():

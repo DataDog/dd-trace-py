@@ -25,14 +25,13 @@ class FeatureFlagProvider(Protocol):
 
 
 _implementation: t.Optional[FeatureFlagProvider] = None
-_loaded = False
 
 
 def _get_implementation() -> FeatureFlagProvider:
-    global _implementation, _loaded
+    global _implementation
 
-    if not _loaded:
-        _loaded = True
+    # Only a successful load is cached, so a failed discovery or import is retried on the next call.
+    if _implementation is None:
         for plugin in get_entry_points(GROUP):
             if not is_trusted(plugin):
                 continue
