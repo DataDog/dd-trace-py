@@ -222,3 +222,54 @@ def test_asyncio_collection_honors_frame_limit() -> None:
         ),
         print_samples_on_failure=True,
     )
+
+
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_off_cpu_sibling"},
+    err=None,
+)
+def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
+    import asyncio
+    import os
+    import time
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    def busy_sync() -> None:
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline:
+            pass
+
+    async def busy(done: asyncio.Event) -> None:
+        busy_sync()
+        done.set()
+
+    async def sleeper(done: asyncio.Event) -> None:
+        await done.wait()
+
+    async def main() -> None:
+        done = asyncio.Event()
+        await asyncio.gather(asyncio.create_task(sleeper(done), name="sleeper"), asyncio.create_task(busy(done)))
+
+    p = profiler.Profiler()
+    p.start()
+    asyncio.run(main())
+    p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    sleeper_stacks = []
+    for sample in pprof_utils.get_samples_with_label_key(profile, "task name"):
+        label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if label is not None and profile.string_table[label.str] == "sleeper":
+            sleeper_stacks.append(
+                [
+                    pprof_utils.get_location_from_id(profile, location_id).function_name
+                    for location_id in sample.location_id
+                ]
+            )
+
+    assert sleeper_stacks
+    leaked = [names for names in sleeper_stacks if {"busy_sync", "busy"}.intersection(names)]
+    assert not leaked, leaked

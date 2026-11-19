@@ -428,20 +428,24 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                     stack_info->truncated_frames = runtime_available - runtime_to_keep;
                 }
             } else {
-                // An off-CPU task is followed by the event-loop thread stack.
-                size_t sync_to_keep = select_frame_prefix(python_stack, 0, python_stack.size(), max_frames, locations);
-                bool sync_truncated = python_stack.size() > sync_to_keep;
+                // Skip frames from any running task that is not part of this task's chain.
+                const size_t runtime_start = asyncio_boundary_index.value_or(0);
+                const size_t runtime_available = python_stack.size() - runtime_start;
+                size_t sync_to_keep =
+                  select_frame_prefix(python_stack, runtime_start, runtime_available, max_frames, locations);
+                const bool sync_truncated = runtime_available > sync_to_keep;
                 if (sync_truncated && locations >= max_frames && sync_to_keep > 0) {
                     sync_to_keep--;
                 }
 
                 stack = std::move(task_frames);
-                stack.insert(stack.end(),
-                             python_stack.begin(),
-                             python_stack.begin() + static_cast<FrameStack::difference_type>(sync_to_keep));
+                const auto runtime_begin =
+                  python_stack.begin() + static_cast<FrameStack::difference_type>(runtime_start);
+                stack.insert(
+                  stack.end(), runtime_begin, runtime_begin + static_cast<FrameStack::difference_type>(sync_to_keep));
                 if (sync_truncated) {
                     stack_info->truncation_index = stack.size();
-                    stack_info->truncated_frames = python_stack.size() - sync_to_keep;
+                    stack_info->truncated_frames = runtime_available - sync_to_keep;
                 }
             }
         }
