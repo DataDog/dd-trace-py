@@ -413,37 +413,53 @@ stack_asyncio_task_lists(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 }
 
 static PyObject*
-stack_link_tasks(PyObject* self, PyObject* args)
+stack_link_tasks_impl(PyObject* args, bool weak)
 {
-    (void)self;
     PyObject *parent, *child;
-
     if (!PyArg_ParseTuple(args, "OO", &parent, &child)) {
         return nullptr;
     }
 
+    auto& sampler = Sampler::get();
+    if (!sampler.is_active()) {
+        Py_RETURN_NONE;
+    }
+
+    // The child's loop need not be the policy loop registered to this thread.
+    PyObject* method = PyUnicode_FromString("get_loop");
+    if (method == nullptr) {
+        PyErr_Clear();
+        Py_RETURN_NONE;
+    }
+    PyObject* loop = PyObject_CallMethodNoArgs(child, method);
+    Py_DECREF(method);
+    if (loop == nullptr) {
+        PyErr_Clear();
+        Py_RETURN_NONE;
+    }
+    if (loop == Py_None) {
+        Py_DECREF(loop);
+        Py_RETURN_NONE;
+    }
+
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().link_tasks(parent, child);
+    sampler.link_tasks(parent, child, reinterpret_cast<uintptr_t>(loop), weak);
     Py_END_ALLOW_THREADS;
 
+    Py_DECREF(loop);
     Py_RETURN_NONE;
 }
 
 static PyObject*
-stack_weak_link_tasks(PyObject* self, PyObject* args)
+stack_link_tasks(PyObject* Py_UNUSED(self), PyObject* args)
 {
-    (void)self;
-    PyObject *parent, *child;
+    return stack_link_tasks_impl(args, false);
+}
 
-    if (!PyArg_ParseTuple(args, "OO", &parent, &child)) {
-        return nullptr;
-    }
-
-    Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().weak_link_tasks(parent, child);
-    Py_END_ALLOW_THREADS;
-
-    Py_RETURN_NONE;
+static PyObject*
+stack_weak_link_tasks(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    return stack_link_tasks_impl(args, true);
 }
 
 static PyObject*

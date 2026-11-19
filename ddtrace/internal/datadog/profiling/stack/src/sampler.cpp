@@ -507,6 +507,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         try {
             capture_samples(wall_time_us);
+            if (echion->asyncio_initialized()) {
+                echion->prune_untracked_task_links();
+            }
 
             // Collect greenlet count before acquiring the profile lock to avoid
             // holding two locks simultaneously (greenlet lock then profile lock).
@@ -1022,38 +1025,23 @@ Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eag
 }
 
 void
-Sampler::link_tasks(PyObject* parent, PyObject* child)
+Sampler::link_tasks(PyObject* parent, PyObject* child, uintptr_t loop, bool weak) noexcept
 {
-    // Only sampling removes the links of the tasks that are done, so the links would accumulate while it is stopped.
-    if (!sampler_active_.load(std::memory_order_acquire)) {
+    // Only sampling removes completed tasks' links, so don't add links after sampling has stopped.
+    if (!is_active()) {
         return;
     }
 
-    // Keep the same lock order as sampling and loop cleanup: thread info, then task links.
-    std::lock_guard<std::mutex> thread_guard(echion->thread_info_map_lock());
-    auto it = echion->thread_info_map().find(PyThread_get_thread_ident());
-    if (it == echion->thread_info_map().end() || it->second->asyncio_loop == 0) {
-        return;
+    try {
+        std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
+        if (weak) {
+            echion->weak_link_task(parent, child, loop);
+        } else {
+            echion->link_task(parent, child, loop);
+        }
+    } catch (const std::exception&) {
+        // Task linking is best effort and must not throw across the Python boundary.
     }
-    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->link_task(parent, child, it->second->asyncio_loop);
-}
-
-void
-Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
-{
-    if (!sampler_active_.load(std::memory_order_acquire)) {
-        return;
-    }
-
-    // Keep the same lock order as sampling and loop cleanup: thread info, then task links.
-    std::lock_guard<std::mutex> thread_guard(echion->thread_info_map_lock());
-    auto it = echion->thread_info_map().find(PyThread_get_thread_ident());
-    if (it == echion->thread_info_map().end() || it->second->asyncio_loop == 0) {
-        return;
-    }
-    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->weak_link_task(parent, child, it->second->asyncio_loop);
 }
 
 void
