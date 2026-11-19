@@ -203,10 +203,20 @@ def release_process_selection() -> None:
             _dropped_reason = None
 
 
-def recount_process_selection_in_child(count: int) -> None:
-    """Set the claim's reference count, in a forked child, to the pollers that still hold it there."""
+def recount_process_selection(count: int, locked: bool = True) -> None:
+    """Set the claim's reference count to the pollers that hold it, in a child forked during a start or teardown.
+
+    Pass ``locked=False`` from the child hooks, which run on one thread before the fork-safe locks are reset.
+    """
+    if locked:
+        with _lock:
+            _set_claim_count(count)
+    else:
+        _set_claim_count(count)
+
+
+def _set_claim_count(count: int) -> None:
     global _claimed, _claim_count, _dropped_reason
-    # Without the lock: the child hooks run on one thread, before the fork-safe locks are reset.
     _claim_count = count
     if count == 0:
         _claimed = NO_SELECTION

@@ -1606,8 +1606,7 @@ def test_forked_child_drops_a_retired_poller_teardown_reservation():
     provider = _provider(None)
     retired = mock.Mock()
     provider._retired_configuration_sources = [retired]
-    provider._stopping_configuration_source = True
-    _parent_operation(provider, teardown=True)
+    _parent_operation(provider, teardown=True, reserved=[retired])
     _run_provider_child_hook()
     assert provider._stopping_configuration_source is False
     assert provider._retired_configuration_sources == []
@@ -1840,13 +1839,19 @@ def test_child_forked_while_running_keeps_the_claim_until_its_own_shutdown(cdn, 
         provider.shutdown()
 
 
-def _parent_operation(provider, teardown, source=None):
+def _parent_operation(provider, teardown, source=None, reserved=(), started=False):
     import ddtrace.internal.openfeature._provider as provider_module
 
     operation = provider_module._LifecycleOperation(teardown)
     # A thread of the parent, which does not survive the fork.
     operation.owner = threading.Thread(target=lambda: None)
     operation.source = source
+    operation.started = started
+    operation.shutdowns = provider._configuration_source_shutdowns
+    operation.reserved = list(reserved)
+    if reserved:
+        provider._stopping_configuration_source = True
+        provider._configuration_source_stopper = operation.owner
     provider._configuration_source_operations.append(operation)
     return operation
 
@@ -1854,7 +1859,7 @@ def _parent_operation(provider, teardown, source=None):
 def test_forked_child_recounts_without_the_inherited_selection_lock():
     provider = _provider(None)
     provider._configuration_source = mock.Mock()
-    _parent_operation(provider, teardown=True)
+    _parent_operation(provider, teardown=True, reserved=[provider._configuration_source])
     claim_process_selection(canonicalize_flag_selection({"tags": ["a"]}))
     # A parent thread held the selection lock at the fork; the recount must not wait for it.
     _flag_selection._lock.acquire()
@@ -1879,20 +1884,52 @@ def test_forked_child_discards_each_overlapping_start_on_its_own():
     assert provider._configuration_source_operations == []
 
 
-def test_forked_child_keeps_only_the_forking_threads_claims():
+def test_forked_child_recounts_once_the_forking_threads_operation_ends():
     import ddtrace.internal.openfeature._provider as provider_module
 
     interrupted = _provider(None)
     interrupted._configuration_source = mock.Mock()
-    _parent_operation(interrupted, teardown=True)
+    _parent_operation(interrupted, teardown=True, reserved=[interrupted._configuration_source])
     forking = _provider(None)
-    forking._configuration_source_operations.append(provider_module._LifecycleOperation(teardown=False))
-    for _ in range(3):
+    for _ in range(2):
         claim_process_selection(canonicalize_flag_selection({"tags": ["a"]}))
+    with provider_module._lifecycle_operation(forking, teardown=False):
+        _run_provider_child_hook()
+        # The forking thread's start carries on in the child, so its claim is not known yet.
+        assert _flag_selection._claim_count == 2
+    assert _flag_selection._claim_count == 0
+
+
+@pytest.mark.parametrize("published", [False, True], ids=["started", "published"])
+def test_forked_child_keeps_a_start_whose_poller_was_running(published):
+    provider = _provider(None)
+    source = mock.Mock()
+    if published:
+        provider._configuration_source = source
+    _parent_operation(provider, teardown=False, source=source, started=True)
     _run_provider_child_hook()
-    # The forking thread's start carries on in the child with its claim; the interrupted teardown's is gone.
+    assert provider._configuration_source is source
+    source.discard_in_child.assert_not_called()
     assert _flag_selection._claim_count == 1
-    forking._configuration_source_operations = []
+    provider._configuration_source = None
+    _flag_selection.release_process_selection()
+
+
+def test_forked_child_leaves_pollers_a_teardown_had_not_reserved():
+    provider = _provider(None)
+    current = mock.Mock()
+    provider._configuration_source = current
+    provider._stopping_configuration_source = True
+    provider._configuration_source_stopper = threading.current_thread()
+    # A second shutdown that had not reserved anything, beside the forking thread's own teardown.
+    _parent_operation(provider, teardown=True)
+    _run_provider_child_hook()
+    assert provider._configuration_source is current
+    current.discard_in_child.assert_not_called()
+    assert provider._stopping_configuration_source is True
+    provider._configuration_source = None
+    provider._stopping_configuration_source = False
+    provider._configuration_source_stopper = None
     _flag_selection.release_process_selection()
 
 
@@ -2003,7 +2040,7 @@ def test_fork_during_a_start_leaves_the_child_a_correct_claim(cdn, api_key, monk
 
     def check():
         if wait_expires:
-            # The start never finished here: none of its pollers runs and its claim is gone.
+            # The start was still inside source.start() or before it: none of its pollers runs and its claim is gone.
             unowned = poller_started and _poller_runs(created[0], 0.4)
             reset = provider._configuration_source is None and not provider._configuration_source_operations
             return reset and not unowned and _child_selection_released(provider)

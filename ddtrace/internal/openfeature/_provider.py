@@ -52,7 +52,7 @@ from ddtrace.internal.openfeature._exposure_decision import complete_exposure_de
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flag_selection import FlagSelectionValues
 from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
-from ddtrace.internal.openfeature._flag_selection import recount_process_selection_in_child
+from ddtrace.internal.openfeature._flag_selection import recount_process_selection
 from ddtrace.internal.openfeature._flag_selection import release_process_selection
 from ddtrace.internal.openfeature._flag_selection import snapshot_from_other_selection
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
@@ -537,6 +537,7 @@ class DataDogProvider(AbstractProvider):
             changed.wait(remaining)
 
         with _lifecycle_operation(self, teardown=False) as operation:
+            operation.shutdowns = shutdowns
             return self._start_reserved_configuration_source(shutdowns, operation)
 
     def _start_reserved_configuration_source(self, shutdowns: int, operation: "_LifecycleOperation") -> bool:
@@ -559,7 +560,7 @@ class DataDogProvider(AbstractProvider):
                     source.start()
                 except ServiceStatusError:
                     logger.debug("Agentless configuration source is already running", exc_info=True)
-                started = True
+                started = operation.started = True
         except BaseException:
             with self._configuration_source_lock:
                 operation.source = None
@@ -616,7 +617,7 @@ class DataDogProvider(AbstractProvider):
 
         A poller whose teardown fails is retired: it keeps its claim, and the next shutdown retries it.
         """
-        with _lifecycle_operation(self, teardown=True):
+        with _lifecycle_operation(self, teardown=True) as operation:
             with self._configuration_source_lock:
                 self._configuration_source_shutdowns += 1
                 self._wake_configuration_source_waiters()
@@ -628,6 +629,7 @@ class DataDogProvider(AbstractProvider):
                     return
                 self._stopping_configuration_source = True
                 self._configuration_source_stopper = current_thread()
+                operation.reserved = sources
 
             failed = []
             error: typing.Optional[BaseException] = None
@@ -654,22 +656,34 @@ class DataDogProvider(AbstractProvider):
             raise error
         logger.debug("Feature Flags: agentless configuration source stopped")
 
-    def _discard_pollers_in_child(self) -> None:
+    def _discard_pollers_in_child(self, teardown: "_LifecycleOperation") -> None:
         """Finish, in a forked child, a teardown a parent thread was running: none of its pollers runs there."""
-        for each in [self._configuration_source, *self._retired_configuration_sources]:
-            if each is not None:
-                each.discard_in_child()
-        self._configuration_source = None
-        self._retired_configuration_sources = []
-        self._stopping_configuration_source = False
-        self._configuration_source_stopper = None
+        for each in teardown.reserved:
+            each.discard_in_child()
+        if self._configuration_source in teardown.reserved:
+            self._configuration_source = None
+        self._retired_configuration_sources = [
+            each for each in self._retired_configuration_sources if each not in teardown.reserved
+        ]
+        if self._configuration_source_stopper is teardown.owner:
+            self._stopping_configuration_source = False
+            self._configuration_source_stopper = None
+
+    def _finish_start_in_child(self, start: "_LifecycleOperation") -> None:
+        """Finish, in a forked child, a start a parent thread was running, as that thread would have."""
+        source = start.source
+        if source is None or source is self._configuration_source:
+            return
+        cancelled = start.shutdowns != self._configuration_source_shutdowns
+        if start.started and not cancelled and self._configuration_source is None:
+            # Its poller restarts in the child like any stored one.
+            self._configuration_source = source
+        else:
+            source.discard_in_child()
 
     def _claims_held(self) -> int:
         pollers = getattr(self, "_retired_configuration_sources", []) + [getattr(self, "_configuration_source", None)]
-        # Only the forking thread's operations are left. A start that has not built its source yet may be inside
-        # create_agentless_source after it claimed; counting it can only keep the inherited selection.
-        starts = [each for each in _operations(self) if not each.teardown]
-        return sum(each is not None for each in pollers) + len(starts)
+        return sum(each is not None for each in pollers)
 
     def resolve_boolean_details(
         self,
@@ -1037,6 +1051,8 @@ _providers_with_exposure_cache: "weakref.WeakSet[DataDogProvider]" = weakref.Wea
 # thread, so only their bookkeeping is left; a fork that stops waiting resets the provider in the child instead.
 _FORK_WAIT_SECONDS = 1.0
 _lifecycle_lock = Lock()
+# Set in a forked child whose forking thread was inside a start or teardown, whose claims the child cannot see yet.
+_recount_when_idle = False
 # Replaced, and set, when a start or teardown ends, so a waiting fork checks again.
 _lifecycle_ended = Event()
 
@@ -1044,13 +1060,18 @@ _lifecycle_ended = Event()
 class _LifecycleOperation:
     """A start or teardown, from before it takes a claim until it has stored its source or released the claim."""
 
-    __slots__ = ("owner", "source", "teardown")
+    __slots__ = ("owner", "teardown", "source", "started", "shutdowns", "reserved")
 
     def __init__(self, teardown: bool) -> None:
         self.owner = current_thread()
         self.teardown = teardown
-        # The source a start built and has neither stored nor released; it holds a claim.
+        # A start: the source it built and has neither stored nor released (it holds a claim), whether that
+        # source's poller was started, and the shutdown count when the start began.
         self.source: typing.Optional[AgentlessConfigurationSource] = None
+        self.started = False
+        self.shutdowns = 0
+        # A teardown: the pollers it reserved.
+        self.reserved: list[AgentlessConfigurationSource] = []
 
 
 @contextmanager
@@ -1062,10 +1083,19 @@ def _lifecycle_operation(provider: DataDogProvider, teardown: bool) -> typing.It
     try:
         yield operation
     finally:
+        global _recount_when_idle
         with _lifecycle_lock:
             provider._configuration_source_operations.remove(operation)
+            if _recount_when_idle and not any(_operations(each) for each in list(_providers_with_exposure_cache)):
+                # The forking thread's last operation in this child has ended: every claim is now on a poller.
+                _recount_when_idle = False
+                recount_process_selection(_claims_held_by_providers())
             ended, _lifecycle_ended = _lifecycle_ended, Event()
         ended.set()
+
+
+def _claims_held_by_providers() -> int:
+    return sum(provider._claims_held() for provider in list(_providers_with_exposure_cache))
 
 
 def _operations(provider: DataDogProvider) -> list[_LifecycleOperation]:
@@ -1102,7 +1132,7 @@ def _reset_provider_state_in_child() -> typing.Iterator[None]:
     It runs before the other child hooks, so the thread module does not restart a discarded poller and the claim's
     fork reset sees the recounted claim.
     """
-    global _lifecycle_lock, _lifecycle_ended
+    global _lifecycle_lock, _lifecycle_ended, _recount_when_idle
     _lifecycle_lock = Lock()
     _lifecycle_ended = Event()
     me = current_thread()
@@ -1123,14 +1153,18 @@ def _reset_provider_state_in_child() -> typing.Iterator[None]:
             if operation.owner is me:
                 continue
             reset = True
-            if operation.source is not None:
-                operation.source.discard_in_child()
             if operation.teardown:
-                provider._discard_pollers_in_child()
+                provider._discard_pollers_in_child(operation)
+            else:
+                provider._finish_start_in_child(operation)
         if len(kept) != len(operations):
             provider._configuration_source_operations = kept
     if reset:
-        recount_process_selection_in_child(sum(provider._claims_held() for provider in providers))
+        if any(_operations(provider) for provider in providers):
+            # The forking thread carries on with its own start or teardown here; recount once it has ended.
+            _recount_when_idle = True
+        else:
+            recount_process_selection(_claims_held_by_providers(), locked=False)
     yield
 
 
