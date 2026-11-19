@@ -1,8 +1,7 @@
 from ddtrace.internal.settings import env
 
 
-def in_ray_job():
-    # type: () -> bool
+def in_ray_job() -> bool:
     """Returns whether we are in a ray environment.
     This is accomplished by checking if the _RAY_SUBMISSION_ID environment variable is defined
     which means a job has been submitted and is traced

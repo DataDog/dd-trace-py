@@ -1,10 +1,5 @@
 import urllib.request
 
-from wrapt import wrap_function_wrapper as _w
-
-from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.internal.settings.asm import config as asm_config
-
 
 def get_version() -> str:
     return ""
@@ -14,22 +9,15 @@ def _supported_versions() -> dict[str, str]:
     return {"urllib": "*"}
 
 
-def patch():
+def patch() -> None:
     """patch the built-in urllib.request methods for tracing"""
     if getattr(urllib.request, "__datadog_patch", False):
         return
-    urllib.request.__datadog_patch = True
-
-    if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_open
-
-        _w("urllib.request", "urlopen", _wrap_open)
+    setattr(urllib.request, "__datadog_patch", True)
 
 
-def unpatch():
+def unpatch() -> None:
     """unpatch any previously patched modules"""
     if not getattr(urllib.request, "__datadog_patch", False):
         return
-    urllib.request.__datadog_patch = False
-
-    _u(urllib.request, "urlopen")
+    setattr(urllib.request, "__datadog_patch", False)

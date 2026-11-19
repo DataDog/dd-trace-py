@@ -32,7 +32,7 @@
 #error "_memalloc frame walking relies on the GIL-held allocator hook and is not yet supported on free-threaded CPython"
 #endif // Py_GIL_DISABLED
 
-// AIDEV-TODO: Revisit direct frame walking and heap-tracker synchronization if memalloc adds Py_GIL_DISABLED support.
+// TODO: Revisit direct frame walking and heap-tracker synchronization if memalloc adds Py_GIL_DISABLED support.
 
 /* Frame access helpers and line table parsing. */
 #include "profiling_helpers/frame_accessors.h"
@@ -59,7 +59,7 @@ memalloc_get_lineno(DataDog::py_frame_t* frame, PyCodeObject* code)
 {
     int lasti = DataDog::get_lasti(frame, code);
 
-#ifdef _PY310_AND_LATER
+#ifdef PY310_AND_LATER
     const unsigned char* table = (const unsigned char*)PyBytes_AS_STRING(code->co_linetable);
     Py_ssize_t len = PyBytes_GET_SIZE(code->co_linetable);
 #else

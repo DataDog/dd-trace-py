@@ -2,6 +2,8 @@
 tags for common git attributes
 """
 
+from collections.abc import Generator  # noqa:F401
+from collections.abc import MutableMapping  # noqa:F401
 import contextlib
 import logging
 import os
@@ -10,8 +12,6 @@ import re
 from shutil import which
 import subprocess
 from tempfile import TemporaryDirectory
-from typing import Generator  # noqa:F401
-from typing import MutableMapping  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
@@ -103,9 +103,12 @@ _RE_TAGS = re.compile(r"^tags/")
 
 log = get_logger(__name__)
 
-_GitSubprocessDetails = NamedTuple(
-    "_GitSubprocessDetails", [("stdout", str), ("stderr", str), ("duration", float), ("returncode", int)]
-)
+
+class _GitSubprocessDetails(NamedTuple):
+    stdout: str
+    stderr: str
+    duration: float
+    returncode: int
 
 
 def normalize_ref(name: Optional[str]) -> Optional[str]:
@@ -223,7 +226,7 @@ def _resolve_git_root(cwd: Optional[str]) -> str:
 
 def _add_safe_directory_override(cmd: list[str], cwd: Optional[str]) -> list[str]:
     root = _resolve_git_root(cwd)
-    return ["-c", "safe.directory={0}".format(root), *cmd]
+    return ["-c", f"safe.directory={root}", *cmd]
 
 
 def _extract_clone_defaultremotename_with_details(cwd: Optional[str]) -> _GitSubprocessDetails:
@@ -289,21 +292,23 @@ def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = Non
     }
 
 
-def extract_git_version(cwd=None):
+def extract_git_version(cwd: Optional[str] = None) -> tuple[int, int, int]:
     output = _git_subprocess_cmd("--version")
     try:
-        version_info = tuple([int(part) for part in output.split()[2].split(".")])
+        parts = [int(part) for part in output.split()[2].split(".")]
     except ValueError:
         log.error("Git version not found, it is not following the desired version format: %s", output)
         return 0, 0, 0
-    return version_info
+    # Callers compare against (major, minor, patch), so pad or trim the version to three parts.
+    major, minor, patch = (parts + [0, 0, 0])[:3]
+    return major, minor, patch
 
 
 def _extract_remote_url_with_details(cwd: Optional[str] = None) -> _GitSubprocessDetails:
     return _git_subprocess_cmd_with_details("config", "--get", "remote.origin.url", cwd=cwd)
 
 
-def extract_remote_url(cwd=None):
+def extract_remote_url(cwd: Optional[str] = None) -> str:
     remote_url, error, _, returncode = _extract_remote_url_with_details(cwd=cwd)
     if returncode == 0:
         return remote_url
@@ -488,7 +493,7 @@ def _build_git_packfiles_with_details(revisions: str, cwd: Optional[str] = None,
         log.debug("tempdir %s and cwd %s are on different filesystems, using cwd", tempdir.name, cwd)
         basepath = cwd
 
-    prefix = "{basepath}/{basename}".format(basepath=basepath, basename=basename)
+    prefix = f"{basepath}/{basename}"
 
     log.debug("Building packfiles in prefix path: %s", prefix)
 

@@ -1,0 +1,366 @@
+interactions:
+- request:
+    body: '{"model":"gpt-4.1","stream":true,"input":"Use web search to find the latest
+      released version of the Python package requests on PyPI, and use file search
+      to find our company''s holiday policy.","tools":[{"type":"web_search"},{"type":"file_search","vector_store_ids":["vs_6ad78e87f86c81919869cc0910d08328"]}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '306'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=TQmckPNly_HC9Hadl_Rk2ULxax8lNy0rWxvpSgqE7IA-1792513139.5562341-1.0.1.1-y4L_yEoqChbfmn2Crjfv2YVWoWwTZ8zOufSyWsFwOiKPZ3J0v73CfYZp2VaWankRSufl1pZjOA3.IAblPdnbd40w11MxWpV_N76J2Q_U1U3qlesdcJ6nmyHcg8mxE81i
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 3.35.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 3.35.1
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.8
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_0d26359a6b6beae2016ad7947a8adc87d2b2845053c5369ffb\",\"object\":\"response\",\"created_at\":1792513146,\"status\":\"in_progress\",\"access_programs\":null,\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":null,\"max_tool_calls\":null,\"model\":\"gpt-4.1-2025-04-14\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":null,\"prompt_cache_retention\":\"in_memory\",\"reasoning\":{\"context\":null,\"effort\":null,\"summary\":null},\"safety_identifier\":null,\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"file_search\",\"filters\":null,\"max_num_results\":20,\"ranking_options\":{\"ranker\":\"auto\",\"score_threshold\":0.0},\"vector_store_ids\":[\"vs_6ad78e87f86c81919869cc0910d08328\"]},{\"type\":\"web_search\",\"return_token_budget\":\"default\",\"search_content_types\":[\"text\"],\"search_context_size\":\"medium\",\"user_location\":{\"type\":\"approximate\",\"city\":null,\"country\":\"US\",\"region\":null,\"timezone\":null}}],\"top_logprobs\":0,\"top_p\":1.0,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}},\"sequence_number\":0}\n\nevent:
+        response.in_progress\ndata: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_0d26359a6b6beae2016ad7947a8adc87d2b2845053c5369ffb\",\"object\":\"response\",\"created_at\":1792513146,\"status\":\"in_progress\",\"access_programs\":null,\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":null,\"max_tool_calls\":null,\"model\":\"gpt-4.1-2025-04-14\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":null,\"prompt_cache_retention\":\"in_memory\",\"reasoning\":{\"context\":null,\"effort\":null,\"summary\":null},\"safety_identifier\":null,\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"file_search\",\"filters\":null,\"max_num_results\":20,\"ranking_options\":{\"ranker\":\"auto\",\"score_threshold\":0.0},\"vector_store_ids\":[\"vs_6ad78e87f86c81919869cc0910d08328\"]},{\"type\":\"web_search\",\"return_token_budget\":\"default\",\"search_content_types\":[\"text\"],\"search_context_size\":\"medium\",\"user_location\":{\"type\":\"approximate\",\"city\":null,\"country\":\"US\",\"region\":null,\"timezone\":null}}],\"top_logprobs\":0,\"top_p\":1.0,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}},\"sequence_number\":1}\n\nevent:
+        response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"ws_0d26359a6b6beae2016ad7947af64087d2b8bcca1bdee5f947\",\"type\":\"web_search_call\",\"status\":\"in_progress\",\"action\":{\"type\":\"search\"}},\"output_index\":0,\"sequence_number\":2}\n\nevent:
+        response.web_search_call.in_progress\ndata: {\"type\":\"response.web_search_call.in_progress\",\"item_id\":\"ws_0d26359a6b6beae2016ad7947af64087d2b8bcca1bdee5f947\",\"output_index\":0,\"sequence_number\":3}\n\nevent:
+        response.web_search_call.searching\ndata: {\"type\":\"response.web_search_call.searching\",\"item_id\":\"ws_0d26359a6b6beae2016ad7947af64087d2b8bcca1bdee5f947\",\"output_index\":0,\"sequence_number\":4}\n\nevent:
+        response.web_search_call.completed\ndata: {\"type\":\"response.web_search_call.completed\",\"item_id\":\"ws_0d26359a6b6beae2016ad7947af64087d2b8bcca1bdee5f947\",\"output_index\":0,\"sequence_number\":5}\n\nevent:
+        response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"ws_0d26359a6b6beae2016ad7947af64087d2b8bcca1bdee5f947\",\"type\":\"web_search_call\",\"status\":\"completed\",\"action\":{\"type\":\"search\",\"queries\":[\"latest
+        released version of Python package requests on PyPI\"],\"query\":\"latest
+        released version of Python package requests on PyPI\"}},\"output_index\":0,\"sequence_number\":6}\n\nevent:
+        response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"type\":\"message\",\"status\":\"in_progress\",\"content\":[],\"role\":\"assistant\"},\"output_index\":1,\"sequence_number\":7}\n\nevent:
+        response.content_part.added\ndata: {\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"output_index\":1,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"\"},\"sequence_number\":8}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"Here\u2019s
+        what I found:\\n\\nLatest Released Version of the Python `requests\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"8dpBBBxYHM6\",\"output_index\":1,\"sequence_number\":9}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"`
+        Package on PyPI:\\n\\n- The most recent stable release of the `\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"keA\",\"output_index\":1,\"sequence_number\":10}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"requests`
+        package on PyPI is version **2.34.2**,\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"\",\"output_index\":1,\"sequence_number\":11}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        which was published on **May 14, 2026** \",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"kRQT5Sq\",\"output_index\":1,\"sequence_number\":12}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"([pypi.org](https://pypi.org/project/requests/?utm_source=openai)\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"INhd6WBYcS1h5WG\",\"output_index\":1,\"sequence_number\":13}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\").\\n-
+        This release supers\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"4zjVieUs\",\"output_index\":1,\"sequence_number\":14}\n\nevent:
+        response.output_text.annotation.added\ndata: {\"type\":\"response.output_text.annotation.added\",\"annotation\":{\"type\":\"url_citation\",\"end_index\":285,\"start_index\":219,\"title\":\"requests
+        \xB7 PyPI\",\"url\":\"https://pypi.org/project/requests/?utm_source=openai\"},\"annotation_index\":0,\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"output_index\":1,\"sequence_number\":15}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"edes
+        version 2.34.1 (released on May 13, \",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"wgpXWOr\",\"output_index\":1,\"sequence_number\":16}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"2026)
+        and 2.34.0 (released on May\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"JfyZ6U4MFz1i555\",\"output_index\":1,\"sequence_number\":17}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        11, 2026) \",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"qDLeM\",\"output_index\":1,\"sequence_number\":18}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"([pypi.org](https://pypi.org/project/requests/2.34.1/?utm_source=openai)\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"TUgurFjf\",\"output_index\":1,\"sequence_number\":19}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\").\\n-
+        Alternative sources, such as release trackers\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"YzGV4S8Q26YULY\",\"output_index\":1,\"sequence_number\":20}\n\nevent:
+        response.output_text.annotation.added\ndata: {\"type\":\"response.output_text.annotation.added\",\"annotation\":{\"type\":\"url_citation\",\"end_index\":466,\"start_index\":393,\"title\":\"requests
+        \xB7 PyPI\",\"url\":\"https://pypi.org/project/requests/2.34.1/?utm_source=openai\"},\"annotation_index\":1,\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"output_index\":1,\"sequence_number\":21}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        and download analytics tools, consistently confirm that **2.34.2**\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"iH6MhEN0sQAPB\",\"output_index\":1,\"sequence_number\":22}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        remains the latest version as of now \",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"irhD16qCfR\",\"output_index\":1,\"sequence_number\":23}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"([releasealert.dev](https://releasealert.dev/pypi/requests?utm_source=openai)).\\n\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"\",\"output_index\":1,\"sequence_number\":24}\n\nevent:
+        response.output_text.annotation.added\ndata: {\"type\":\"response.output_text.annotation.added\",\"annotation\":{\"type\":\"url_citation\",\"end_index\":698,\"start_index\":620,\"title\":\"requests
+        on Python Package Index | Release Alert\",\"url\":\"https://releasealert.dev/pypi/requests?utm_source=openai\"},\"annotation_index\":2,\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"output_index\":1,\"sequence_number\":25}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"\\nSo,
+        to summarize clearly:\\n\\n Latest version: **2.34.2**  \",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"Nqgq0EK\",\"output_index\":1,\"sequence_number\":26}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"\\n
+        Release date: **May 14, 2026**  \\n\\nPlease\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"DXhaXp\",\"output_index\":1,\"sequence_number\":27}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        let me know if you'd like details on its release notes, new features\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"Z6PZnioN2Kz\",\"output_index\":1,\"sequence_number\":28}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\",
+        or migration advice.\\n\\n---\\n\\nRegarding your request to use file search
+        to find\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"ed\",\"output_index\":1,\"sequence_number\":29}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        your company\u2019s holiday policy: I do not currently have access to your
+        company\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"vO\",\"output_index\":1,\"sequence_number\":30}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"\u2019s
+        internal files or documents. To proceed, you\u2019ll need to upload the\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"0df5T9yLVoe\",\"output_index\":1,\"sequence_number\":31}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        relevant file(s)\u2014for example:\\n\\n- Employee handbook\\n- HR policy
+        document\\n-\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"mfSzBT\",\"output_index\":1,\"sequence_number\":32}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        Holiday or PTO policy PDF or Word document\\n\\nOnce you upload the file(s),\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"tS0AM8H\",\"output_index\":1,\"sequence_number\":33}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        I can perform an internal search to extract the holiday policy details you
+        need.\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"OQIlXVDu5byP3ry\",\"output_index\":1,\"sequence_number\":34}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        Let me know when you\u2019re ready, and I\u2019ll be happy to help!\",\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"obfuscation\":\"S0GxSK\",\"output_index\":1,\"sequence_number\":35}\n\nevent:
+        response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"logprobs\":[],\"output_index\":1,\"sequence_number\":36,\"text\":\"Here\u2019s
+        what I found:\\n\\nLatest Released Version of the Python `requests` Package
+        on PyPI:\\n\\n- The most recent stable release of the `requests` package on
+        PyPI is version **2.34.2**, which was published on **May 14, 2026** ([pypi.org](https://pypi.org/project/requests/?utm_source=openai)).\\n-
+        This release supersedes version 2.34.1 (released on May 13, 2026) and 2.34.0
+        (released on May 11, 2026) ([pypi.org](https://pypi.org/project/requests/2.34.1/?utm_source=openai)).\\n-
+        Alternative sources, such as release trackers and download analytics tools,
+        consistently confirm that **2.34.2** remains the latest version as of now
+        ([releasealert.dev](https://releasealert.dev/pypi/requests?utm_source=openai)).\\n\\nSo,
+        to summarize clearly:\\n\\n Latest version: **2.34.2**  \\n Release date:
+        **May 14, 2026**  \\n\\nPlease let me know if you'd like details on its release
+        notes, new features, or migration advice.\\n\\n---\\n\\nRegarding your request
+        to use file search to find your company\u2019s holiday policy: I do not currently
+        have access to your company\u2019s internal files or documents. To proceed,
+        you\u2019ll need to upload the relevant file(s)\u2014for example:\\n\\n- Employee
+        handbook\\n- HR policy document\\n- Holiday or PTO policy PDF or Word document\\n\\nOnce
+        you upload the file(s), I can perform an internal search to extract the holiday
+        policy details you need. Let me know when you\u2019re ready, and I\u2019ll
+        be happy to help!\"}\n\nevent: response.content_part.done\ndata: {\"type\":\"response.content_part.done\",\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"output_index\":1,\"part\":{\"type\":\"output_text\",\"annotations\":[{\"type\":\"url_citation\",\"end_index\":285,\"start_index\":219,\"title\":\"requests
+        \xB7 PyPI\",\"url\":\"https://pypi.org/project/requests/?utm_source=openai\"},{\"type\":\"url_citation\",\"end_index\":466,\"start_index\":393,\"title\":\"requests
+        \xB7 PyPI\",\"url\":\"https://pypi.org/project/requests/2.34.1/?utm_source=openai\"},{\"type\":\"url_citation\",\"end_index\":698,\"start_index\":620,\"title\":\"requests
+        on Python Package Index | Release Alert\",\"url\":\"https://releasealert.dev/pypi/requests?utm_source=openai\"}],\"logprobs\":[],\"text\":\"Here\u2019s
+        what I found:\\n\\nLatest Released Version of the Python `requests` Package
+        on PyPI:\\n\\n- The most recent stable release of the `requests` package on
+        PyPI is version **2.34.2**, which was published on **May 14, 2026** ([pypi.org](https://pypi.org/project/requests/?utm_source=openai)).\\n-
+        This release supersedes version 2.34.1 (released on May 13, 2026) and 2.34.0
+        (released on May 11, 2026) ([pypi.org](https://pypi.org/project/requests/2.34.1/?utm_source=openai)).\\n-
+        Alternative sources, such as release trackers and download analytics tools,
+        consistently confirm that **2.34.2** remains the latest version as of now
+        ([releasealert.dev](https://releasealert.dev/pypi/requests?utm_source=openai)).\\n\\nSo,
+        to summarize clearly:\\n\\n Latest version: **2.34.2**  \\n Release date:
+        **May 14, 2026**  \\n\\nPlease let me know if you'd like details on its release
+        notes, new features, or migration advice.\\n\\n---\\n\\nRegarding your request
+        to use file search to find your company\u2019s holiday policy: I do not currently
+        have access to your company\u2019s internal files or documents. To proceed,
+        you\u2019ll need to upload the relevant file(s)\u2014for example:\\n\\n- Employee
+        handbook\\n- HR policy document\\n- Holiday or PTO policy PDF or Word document\\n\\nOnce
+        you upload the file(s), I can perform an internal search to extract the holiday
+        policy details you need. Let me know when you\u2019re ready, and I\u2019ll
+        be happy to help!\"},\"sequence_number\":37}\n\nevent: response.output_item.done\ndata:
+        {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[{\"type\":\"url_citation\",\"end_index\":285,\"start_index\":219,\"title\":\"requests
+        \xB7 PyPI\",\"url\":\"https://pypi.org/project/requests/?utm_source=openai\"},{\"type\":\"url_citation\",\"end_index\":466,\"start_index\":393,\"title\":\"requests
+        \xB7 PyPI\",\"url\":\"https://pypi.org/project/requests/2.34.1/?utm_source=openai\"},{\"type\":\"url_citation\",\"end_index\":698,\"start_index\":620,\"title\":\"requests
+        on Python Package Index | Release Alert\",\"url\":\"https://releasealert.dev/pypi/requests?utm_source=openai\"}],\"logprobs\":[],\"text\":\"Here\u2019s
+        what I found:\\n\\nLatest Released Version of the Python `requests` Package
+        on PyPI:\\n\\n- The most recent stable release of the `requests` package on
+        PyPI is version **2.34.2**, which was published on **May 14, 2026** ([pypi.org](https://pypi.org/project/requests/?utm_source=openai)).\\n-
+        This release supersedes version 2.34.1 (released on May 13, 2026) and 2.34.0
+        (released on May 11, 2026) ([pypi.org](https://pypi.org/project/requests/2.34.1/?utm_source=openai)).\\n-
+        Alternative sources, such as release trackers and download analytics tools,
+        consistently confirm that **2.34.2** remains the latest version as of now
+        ([releasealert.dev](https://releasealert.dev/pypi/requests?utm_source=openai)).\\n\\nSo,
+        to summarize clearly:\\n\\n Latest version: **2.34.2**  \\n Release date:
+        **May 14, 2026**  \\n\\nPlease let me know if you'd like details on its release
+        notes, new features, or migration advice.\\n\\n---\\n\\nRegarding your request
+        to use file search to find your company\u2019s holiday policy: I do not currently
+        have access to your company\u2019s internal files or documents. To proceed,
+        you\u2019ll need to upload the relevant file(s)\u2014for example:\\n\\n- Employee
+        handbook\\n- HR policy document\\n- Holiday or PTO policy PDF or Word document\\n\\nOnce
+        you upload the file(s), I can perform an internal search to extract the holiday
+        policy details you need. Let me know when you\u2019re ready, and I\u2019ll
+        be happy to help!\"}],\"role\":\"assistant\"},\"output_index\":1,\"sequence_number\":38}\n\nevent:
+        response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"fs_0d26359a6b6beae2016ad7947f23e087d283e9e4e6a07fa0a7\",\"type\":\"file_search_call\",\"status\":\"in_progress\",\"queries\":[],\"results\":null},\"output_index\":2,\"sequence_number\":39}\n\nevent:
+        response.file_search_call.in_progress\ndata: {\"type\":\"response.file_search_call.in_progress\",\"item_id\":\"fs_0d26359a6b6beae2016ad7947f23e087d283e9e4e6a07fa0a7\",\"output_index\":2,\"sequence_number\":40}\n\nevent:
+        response.file_search_call.searching\ndata: {\"type\":\"response.file_search_call.searching\",\"item_id\":\"fs_0d26359a6b6beae2016ad7947f23e087d283e9e4e6a07fa0a7\",\"output_index\":2,\"sequence_number\":41}\n\nevent:
+        response.file_search_call.completed\ndata: {\"type\":\"response.file_search_call.completed\",\"item_id\":\"fs_0d26359a6b6beae2016ad7947f23e087d283e9e4e6a07fa0a7\",\"output_index\":2,\"sequence_number\":42}\n\nevent:
+        response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"fs_0d26359a6b6beae2016ad7947f23e087d283e9e4e6a07fa0a7\",\"type\":\"file_search_call\",\"status\":\"completed\",\"queries\":[\"holiday
+        policy\",\"company holiday policy\",\"paid holidays\",\"paid time off\",\"PTO\"],\"results\":null},\"output_index\":2,\"sequence_number\":43}\n\nevent:
+        response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"type\":\"message\",\"status\":\"in_progress\",\"content\":[],\"role\":\"assistant\"},\"output_index\":3,\"sequence_number\":44}\n\nevent:
+        response.content_part.added\ndata: {\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"output_index\":3,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"\"},\"sequence_number\":45}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"Here\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"xr0q5FKIGjiK\",\"output_index\":3,\"sequence_number\":46}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        are\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"P14UdGg9HCM7\",\"output_index\":3,\"sequence_number\":47}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        the\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"dSsNdGX9iEYs\",\"output_index\":3,\"sequence_number\":48}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        results\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"oWgIWo2s\",\"output_index\":3,\"sequence_number\":49}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        you\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"6ZLNvOPs9WW5\",\"output_index\":3,\"sequence_number\":50}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        requested\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"FdkZqr\",\"output_index\":3,\"sequence_number\":51}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\":\\n\\n\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"W83kVXOdKzKpC\",\"output_index\":3,\"sequence_number\":52}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"-\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"tDdDOKMmhOIbJNz\",\"output_index\":3,\"sequence_number\":53}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        The\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"VNHZju6mDpW7\",\"output_index\":3,\"sequence_number\":54}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        latest\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"chxKy2MoY\",\"output_index\":3,\"sequence_number\":55}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        released\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"Xk4RBjP\",\"output_index\":3,\"sequence_number\":56}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        version\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"gI3u6knN\",\"output_index\":3,\"sequence_number\":57}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        of\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"sDKxH8VyWyMZU\",\"output_index\":3,\"sequence_number\":58}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        the\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"Anl6lnVgB7el\",\"output_index\":3,\"sequence_number\":59}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        Python\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"0bhOI2yZG\",\"output_index\":3,\"sequence_number\":60}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        package\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"tm1LaKpU\",\"output_index\":3,\"sequence_number\":61}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        `\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"vUEFsGLUgCUypJ\",\"output_index\":3,\"sequence_number\":62}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"requests\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"GUdMgvr6\",\"output_index\":3,\"sequence_number\":63}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"`\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"e7vF885AH8f2Y6a\",\"output_index\":3,\"sequence_number\":64}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        on\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"4xk1YOwiczhM8\",\"output_index\":3,\"sequence_number\":65}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        Py\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"BEswdGU66qHll\",\"output_index\":3,\"sequence_number\":66}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"PI\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"DKREJoKeHou1Xc\",\"output_index\":3,\"sequence_number\":67}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        is\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"Z8T5bcyWgG6VV\",\"output_index\":3,\"sequence_number\":68}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        **\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"wqNnnmv3FBpWr\",\"output_index\":3,\"sequence_number\":69}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"2\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"bHFH7K28Qgvkmk9\",\"output_index\":3,\"sequence_number\":70}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\".\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"wnqiO46OOtus6rd\",\"output_index\":3,\"sequence_number\":71}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"34\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"480i7wJ94qVqKK\",\"output_index\":3,\"sequence_number\":72}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\".\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"LPSNchahaH8duJ2\",\"output_index\":3,\"sequence_number\":73}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"2\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"CCXmW7xc5SoVvuy\",\"output_index\":3,\"sequence_number\":74}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"**,\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"ZDHoyTII0ZU9h\",\"output_index\":3,\"sequence_number\":75}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        released\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"Yt5GJ0t\",\"output_index\":3,\"sequence_number\":76}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        on\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"mlWeIbSnnmZFn\",\"output_index\":3,\"sequence_number\":77}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        May\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"K2MKlQkN5dE7\",\"output_index\":3,\"sequence_number\":78}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        \",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"MuCQlHJ4FSeONK6\",\"output_index\":3,\"sequence_number\":79}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"14\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"SY3JJa9QFyX5uf\",\"output_index\":3,\"sequence_number\":80}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\",\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"ET3USrynF1OHctw\",\"output_index\":3,\"sequence_number\":81}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        \",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"8kK74EwSt7ABfP7\",\"output_index\":3,\"sequence_number\":82}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"202\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"sXgi75Ih06ecj\",\"output_index\":3,\"sequence_number\":83}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"6\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"c4s7gdrDd5tssgV\",\"output_index\":3,\"sequence_number\":84}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\".\\n\\n\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"M9VAdrpNuzrLR\",\"output_index\":3,\"sequence_number\":85}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"-\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"F8x9LAxCnpX0Tx2\",\"output_index\":3,\"sequence_number\":86}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        Your\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"EodjT12vbZr\",\"output_index\":3,\"sequence_number\":87}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        company\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"nuBWcz44\",\"output_index\":3,\"sequence_number\":88}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"\u2019s\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"5DvPxgzPX6Da40\",\"output_index\":3,\"sequence_number\":89}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        holiday\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"DCsJiL34\",\"output_index\":3,\"sequence_number\":90}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        policy\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"JyFSB0tGp\",\"output_index\":3,\"sequence_number\":91}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        states\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"UWUr97tN9\",\"output_index\":3,\"sequence_number\":92}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\":\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"TBkfJ88jcgmUbKc\",\"output_index\":3,\"sequence_number\":93}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        **\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"gfRDmCFo9DYFs\",\"output_index\":3,\"sequence_number\":94}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"Employees\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"jiliBx6\",\"output_index\":3,\"sequence_number\":95}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        get\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"IaCL4WiHxFQW\",\"output_index\":3,\"sequence_number\":96}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        unlimited\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"1ikujM\",\"output_index\":3,\"sequence_number\":97}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        paid\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"peZh5dcn92L\",\"output_index\":3,\"sequence_number\":98}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        time\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"Vd1lz1NUbKx\",\"output_index\":3,\"sequence_number\":99}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"
+        off\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"HNERWgOWacuj\",\"output_index\":3,\"sequence_number\":100}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"**\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"Gui8ej8kFd0A1O\",\"output_index\":3,\"sequence_number\":101}\n\nevent:
+        response.output_text.annotation.added\ndata: {\"type\":\"response.output_text.annotation.added\",\"annotation\":{\"type\":\"file_citation\",\"file_id\":\"file-EQPauhTbQ9QaMssu45hnVH\",\"filename\":\"company_holiday_policy.txt\",\"index\":231},\"annotation_index\":0,\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"output_index\":3,\"sequence_number\":102}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\".\",\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"obfuscation\":\"e3XAxBaqm1vIJWZ\",\"output_index\":3,\"sequence_number\":103}\n\nevent:
+        response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"logprobs\":[],\"output_index\":3,\"sequence_number\":104,\"text\":\"Here
+        are the results you requested:\\n\\n- The latest released version of the Python
+        package `requests` on PyPI is **2.34.2**, released on May 14, 2026.\\n\\n-
+        Your company\u2019s holiday policy states: **Employees get unlimited paid
+        time off**.\"}\n\nevent: response.content_part.done\ndata: {\"type\":\"response.content_part.done\",\"content_index\":0,\"item_id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"output_index\":3,\"part\":{\"type\":\"output_text\",\"annotations\":[{\"type\":\"file_citation\",\"file_id\":\"file-EQPauhTbQ9QaMssu45hnVH\",\"filename\":\"company_holiday_policy.txt\",\"index\":231}],\"logprobs\":[],\"text\":\"Here
+        are the results you requested:\\n\\n- The latest released version of the Python
+        package `requests` on PyPI is **2.34.2**, released on May 14, 2026.\\n\\n-
+        Your company\u2019s holiday policy states: **Employees get unlimited paid
+        time off**.\"},\"sequence_number\":105}\n\nevent: response.output_item.done\ndata:
+        {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[{\"type\":\"file_citation\",\"file_id\":\"file-EQPauhTbQ9QaMssu45hnVH\",\"filename\":\"company_holiday_policy.txt\",\"index\":231}],\"logprobs\":[],\"text\":\"Here
+        are the results you requested:\\n\\n- The latest released version of the Python
+        package `requests` on PyPI is **2.34.2**, released on May 14, 2026.\\n\\n-
+        Your company\u2019s holiday policy states: **Employees get unlimited paid
+        time off**.\"}],\"role\":\"assistant\"},\"output_index\":3,\"sequence_number\":106}\n\nevent:
+        response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_0d26359a6b6beae2016ad7947a8adc87d2b2845053c5369ffb\",\"object\":\"response\",\"created_at\":1792513146,\"status\":\"completed\",\"access_programs\":null,\"background\":false,\"completed_at\":1792513152,\"error\":null,\"frequency_penalty\":0.0,\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":null,\"max_tool_calls\":null,\"model\":\"gpt-4.1-2025-04-14\",\"moderation\":null,\"output\":[{\"id\":\"ws_0d26359a6b6beae2016ad7947af64087d2b8bcca1bdee5f947\",\"type\":\"web_search_call\",\"status\":\"completed\",\"action\":{\"type\":\"search\",\"queries\":[\"latest
+        released version of Python package requests on PyPI\"],\"query\":\"latest
+        released version of Python package requests on PyPI\"}},{\"id\":\"msg_0d26359a6b6beae2016ad7947d398887d2b77ba28e36d03274\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[{\"type\":\"url_citation\",\"end_index\":285,\"start_index\":219,\"title\":\"requests
+        \xB7 PyPI\",\"url\":\"https://pypi.org/project/requests/?utm_source=openai\"},{\"type\":\"url_citation\",\"end_index\":466,\"start_index\":393,\"title\":\"requests
+        \xB7 PyPI\",\"url\":\"https://pypi.org/project/requests/2.34.1/?utm_source=openai\"},{\"type\":\"url_citation\",\"end_index\":698,\"start_index\":620,\"title\":\"requests
+        on Python Package Index | Release Alert\",\"url\":\"https://releasealert.dev/pypi/requests?utm_source=openai\"}],\"logprobs\":[],\"text\":\"Here\u2019s
+        what I found:\\n\\nLatest Released Version of the Python `requests` Package
+        on PyPI:\\n\\n- The most recent stable release of the `requests` package on
+        PyPI is version **2.34.2**, which was published on **May 14, 2026** ([pypi.org](https://pypi.org/project/requests/?utm_source=openai)).\\n-
+        This release supersedes version 2.34.1 (released on May 13, 2026) and 2.34.0
+        (released on May 11, 2026) ([pypi.org](https://pypi.org/project/requests/2.34.1/?utm_source=openai)).\\n-
+        Alternative sources, such as release trackers and download analytics tools,
+        consistently confirm that **2.34.2** remains the latest version as of now
+        ([releasealert.dev](https://releasealert.dev/pypi/requests?utm_source=openai)).\\n\\nSo,
+        to summarize clearly:\\n\\n Latest version: **2.34.2**  \\n Release date:
+        **May 14, 2026**  \\n\\nPlease let me know if you'd like details on its release
+        notes, new features, or migration advice.\\n\\n---\\n\\nRegarding your request
+        to use file search to find your company\u2019s holiday policy: I do not currently
+        have access to your company\u2019s internal files or documents. To proceed,
+        you\u2019ll need to upload the relevant file(s)\u2014for example:\\n\\n- Employee
+        handbook\\n- HR policy document\\n- Holiday or PTO policy PDF or Word document\\n\\nOnce
+        you upload the file(s), I can perform an internal search to extract the holiday
+        policy details you need. Let me know when you\u2019re ready, and I\u2019ll
+        be happy to help!\"}],\"role\":\"assistant\"},{\"id\":\"fs_0d26359a6b6beae2016ad7947f23e087d283e9e4e6a07fa0a7\",\"type\":\"file_search_call\",\"status\":\"completed\",\"queries\":[\"holiday
+        policy\",\"company holiday policy\",\"paid holidays\",\"paid time off\",\"PTO\"],\"results\":null},{\"id\":\"msg_0d26359a6b6beae2016ad794805f3c87d2b1e5f88675b28d7d\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[{\"type\":\"file_citation\",\"file_id\":\"file-EQPauhTbQ9QaMssu45hnVH\",\"filename\":\"company_holiday_policy.txt\",\"index\":231}],\"logprobs\":[],\"text\":\"Here
+        are the results you requested:\\n\\n- The latest released version of the Python
+        package `requests` on PyPI is **2.34.2**, released on May 14, 2026.\\n\\n-
+        Your company\u2019s holiday policy states: **Employees get unlimited paid
+        time off**.\"}],\"role\":\"assistant\"}],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":null,\"prompt_cache_retention\":\"in_memory\",\"reasoning\":{\"context\":null,\"effort\":null,\"summary\":null},\"safety_identifier\":null,\"service_tier\":\"default\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":1}},\"tools\":[{\"type\":\"file_search\",\"filters\":null,\"max_num_results\":20,\"ranking_options\":{\"ranker\":\"auto\",\"score_threshold\":0.0},\"vector_store_ids\":[\"vs_6ad78e87f86c81919869cc0910d08328\"]},{\"type\":\"web_search\",\"return_token_budget\":\"default\",\"search_content_types\":[\"text\"],\"search_context_size\":\"medium\",\"user_location\":{\"type\":\"approximate\",\"city\":null,\"country\":\"US\",\"region\":null,\"timezone\":null}}],\"top_logprobs\":0,\"top_p\":1.0,\"truncation\":\"disabled\",\"usage\":{\"input_tokens\":2057,\"input_tokens_details\":{\"cache_write_tokens\":0,\"cached_tokens\":1152},\"output_tokens\":503,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":2560},\"user\":null,\"metadata\":{}},\"sequence_number\":107}\n\n"
+    headers:
+      access-control-expose-headers:
+      - X-Request-ID
+      - CF-Ray
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a4d9579d4bb6efec-YUL
+      connection:
+      - keep-alive
+      content-type:
+      - text/event-stream; charset=utf-8
+      date:
+      - Tue, 20 Oct 2026 16:19:06 GMT
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '224'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29998694'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 2ms
+      x-request-id:
+      - req_15251374d3e54c17aca01fddd01b4a39
+    status:
+      code: 200
+      message: OK
+version: 1

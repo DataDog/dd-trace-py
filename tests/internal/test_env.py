@@ -14,6 +14,10 @@ env_module = sys.modules["ddtrace.internal.settings.env"]
 ENV_LOGGER = env_module.__name__
 
 
+def _visible_environ() -> dict[str, str]:
+    return {key: value for key, value in os.environ.items() if not (key.startswith("OTEL_") and value == "")}
+
+
 @pytest.fixture(autouse=True)
 def reset_warned_keys():
     env_module._warned_keys.clear()
@@ -114,6 +118,38 @@ def test_contains_false_for_unset_key(monkeypatch):
     assert "DD_AGENT_HOST" not in dd_environ
 
 
+def test_empty_otel_value_is_treated_as_unset(monkeypatch):
+    key = "OTEL_SERVICE_NAME"
+    monkeypatch.setenv(key, "")
+
+    assert os.environ[key] == ""
+    assert key not in dd_environ
+    assert dd_environ.get(key) is None
+    assert dd_environ.get(key, "default") == "default"
+    with pytest.raises(KeyError):
+        dd_environ[key]
+
+    visible_environ = _visible_environ()
+    assert len(dd_environ) == len(visible_environ)
+    assert set(dd_environ) == set(visible_environ)
+    assert dd_environ.copy() == visible_environ
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("DD_SERVICE", ""),
+        ("OTEL_SERVICE_NAME", " "),
+    ],
+)
+def test_nonempty_otel_and_empty_non_otel_values_remain_set(monkeypatch, key, value):
+    monkeypatch.setenv(key, value)
+
+    assert key in dd_environ
+    assert dd_environ[key] == value
+    assert key in dd_environ.copy()
+
+
 def test_contains_warns_on_unregistered_key(caplog, monkeypatch):
     monkeypatch.delenv("DD_UNREGISTERED_CONTAINS_TEST", raising=False)
     with caplog.at_level(logging.DEBUG, logger=ENV_LOGGER):
@@ -122,15 +158,16 @@ def test_contains_warns_on_unregistered_key(caplog, monkeypatch):
     assert "DD_UNREGISTERED_CONTAINS_TEST" in caplog.text
 
 
-def test_len_and_iter_match_os_environ():
-    assert len(dd_environ) == len(os.environ)
-    assert set(dd_environ) == set(os.environ)
+def test_len_and_iter_match_visible_environ():
+    visible_environ = _visible_environ()
+    assert len(dd_environ) == len(visible_environ)
+    assert set(dd_environ) == set(visible_environ)
 
 
 def test_copy_returns_plain_dict():
     snapshot = dd_environ.copy()
     assert isinstance(snapshot, dict)
-    assert snapshot == dict(os.environ)
+    assert snapshot == _visible_environ()
 
 
 def _pick_alias_pair() -> tuple[str, str]:

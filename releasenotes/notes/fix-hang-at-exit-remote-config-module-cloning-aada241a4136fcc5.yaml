@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue on Python 3.12 and earlier where a process can hang at exit instead
+    of terminating when ``gevent`` is installed and remote configuration enables Exception Replay
+    or Dynamic Instrumentation while the application is starting.

@@ -7,7 +7,7 @@ import pytest
     ),
     err=None,
 )
-def test_asyncio_run_frames_captured():
+def test_asyncio_run_frames_captured() -> None:
     """
     Regression test for bug where asyncio frames were not captured when using asyncio.run().
 

@@ -12,7 +12,7 @@ class PinTestCase(TestCase):
 
     def setUp(self):
         # define a simple class object
-        class Obj(object):
+        class Obj:
             pass
 
         self.Obj = Obj
@@ -59,7 +59,7 @@ class PinTestCase(TestCase):
 
     def test_cant_pin_with_slots(self):
         # ensure a Pin can't be attached if the __slots__ is defined
-        class Obj(object):
+        class Obj:
             __slots__ = ["value"]
 
         obj = Obj()
@@ -97,7 +97,7 @@ class PinTestCase(TestCase):
 
     def test_override(self):
         # ensure Override works for an instance object
-        class A(object):
+        class A:
             pass
 
         Pin(service="metrics").onto(A)
@@ -110,7 +110,7 @@ class PinTestCase(TestCase):
 
     def test_override_missing(self):
         # ensure overriding an instance doesn't override the Class
-        class A(object):
+        class A:
             pass
 
         a = A()
@@ -149,7 +149,7 @@ class PinTestCase(TestCase):
     def test_pin_does_not_override_global(self):
         # ensure that when a `Pin` is created from a class, the specific
         # instance doesn't override the global one
-        class A(object):
+        class A:
             pass
 
         Pin.override(A, service="metrics")
@@ -169,7 +169,7 @@ class PinTestCase(TestCase):
         # ensure that when a `Pin` is created from a class, the specific
         # instance doesn't override the global one, even if only the
         # `onto()` API has been used
-        class A(object):
+        class A:
             pass
 
         pin = Pin(service="metrics")

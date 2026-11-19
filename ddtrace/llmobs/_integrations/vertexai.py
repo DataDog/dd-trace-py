@@ -1,9 +1,12 @@
+from collections.abc import Iterable
 from typing import Any
-from typing import Iterable
 from typing import Optional
 
+from ddtrace.contrib.internal.vertexai._constants import TAG_MODEL
+from ddtrace.contrib.internal.vertexai._constants import TAG_PROVIDER
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
@@ -12,26 +15,20 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_vertexai
 from ddtrace.llmobs._integrations.google_utils import get_system_instructions_vertexai
 from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_vertexai
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
-from ddtrace.trace import Span
 
 
 class VertexAIIntegration(BaseLLMIntegration):
     _integration_name = "vertexai"
 
-    def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
-    ) -> None:
-        if provider is not None:
-            span._set_attribute("vertexai.request.provider", provider)
-        if model is not None:
-            span._set_attribute("vertexai.request.model", model)
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -59,8 +56,8 @@ class VertexAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind="llm",
-            model_name=span.get_tag("vertexai.request.model") or "",
-            model_provider=span.get_tag("vertexai.request.provider") or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
             metadata=metadata,
             input_messages=input_messages,
             output_messages=output_messages,
@@ -70,8 +67,8 @@ class VertexAIIntegration(BaseLLMIntegration):
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         metrics = self._extract_metrics_from_response(response) if response is not None else {}
-        model_name = span.get_tag("vertexai.request.model")
-        model_provider = span.get_tag("vertexai.request.provider")
+        model_name = span.get_tag(TAG_MODEL)
+        model_provider = span.get_tag(TAG_PROVIDER)
         self._apply_shadow_metrics(
             span,
             metrics,
@@ -88,6 +85,10 @@ class VertexAIIntegration(BaseLLMIntegration):
                 if not token_counts:
                     continue
                 input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+                # total_token_count includes tool-use prompt tokens, so count them as input
+                tool_use_tokens = _get_attr(token_counts, "tool_use_prompt_token_count", 0)
+                if input_tokens is not None or tool_use_tokens is not None:
+                    input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
                 candidates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
                 thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
                 output_tokens = candidates_tokens + thoughts_tokens
@@ -100,6 +101,10 @@ class VertexAIIntegration(BaseLLMIntegration):
                 return
 
             input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+            # total_token_count includes tool-use prompt tokens, so count them as input
+            tool_use_tokens = _get_attr(token_counts, "tool_use_prompt_token_count", 0)
+            if input_tokens is not None or tool_use_tokens is not None:
+                input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
             candidates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
             thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
             output_tokens = candidates_tokens + thoughts_tokens
@@ -133,7 +138,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append(message)
             return messages
         if not isinstance(contents, list):
-            messages.append(Message(content="[Non-text content object: {}]".format(repr(contents))))
+            messages.append(Message(content=f"[Non-text content object: {repr(contents)}]"))
             return messages
         for content in contents:
             if isinstance(content, str):
@@ -176,7 +181,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         role = _get_attr(content, "role", "")
         parts = _get_attr(content, "parts", [])
         if not parts or not isinstance(parts, Iterable):
-            message = Message(content="[Non-text content object: {}]".format(repr(content)))
+            message = Message(content=f"[Non-text content object: {repr(content)}]")
             if role:
                 message["role"] = str(role)
             messages.append(message)

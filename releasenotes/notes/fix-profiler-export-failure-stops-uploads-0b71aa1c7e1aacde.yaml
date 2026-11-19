@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where an unexpected error while uploading a profile stopped
+    the profiler from uploading any further profiles for the lifetime of the process.

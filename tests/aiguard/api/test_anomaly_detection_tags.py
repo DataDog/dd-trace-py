@@ -103,8 +103,9 @@ def test_no_root_span_does_not_raise(mock_execute_request, ai_guard_client, test
         assert ai_guard_span.get_tag(f"ai_guard.{tag_name}") is None
 
 
+@pytest.mark.parametrize("peer_ip", [None, "10.0.0.1"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_client_ip_from_set_http_meta_is_copied(mock_execute_request, tracer, test_spans):
+def test_client_ip_from_set_http_meta_is_copied(mock_execute_request, tracer, test_spans, peer_ip):
     """The client IP stashed by set_http_meta lands on the entry span and is then copied
     onto the ai_guard span with the ai_guard. prefix in a single evaluate() call.
     """
@@ -120,11 +121,12 @@ def test_client_ip_from_set_http_meta_is_copied(mock_execute_request, tracer, te
                 dummy,
                 cfg.myint,
                 request_headers={"x-forwarded-for": "8.8.8.8", "user-agent": "test-agent/1.0"},
+                peer_ip=peer_ip,
             )
             root_span.set_tag("http.useragent", "test-agent/1.0")
             client.evaluate(MESSAGES)
 
     ai_guard_span = _find_ai_guard_span(test_spans)
     assert ai_guard_span.get_tag("ai_guard.http.client_ip") == "8.8.8.8"
-    assert ai_guard_span.get_tag("ai_guard.network.client.ip") == "8.8.8.8"
+    assert ai_guard_span.get_tag("ai_guard.network.client.ip") == peer_ip
     assert ai_guard_span.get_tag("ai_guard.http.useragent") == "test-agent/1.0"

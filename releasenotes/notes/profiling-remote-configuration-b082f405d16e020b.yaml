@@ -1,0 +1,4 @@
+features:
+  - |
+    Profiling: The profiler now has experimental support for remote configuration.
+    Set ``DD_PROFILING_ENABLED=false`` to prevent Remote Configuration from starting the Profiler.

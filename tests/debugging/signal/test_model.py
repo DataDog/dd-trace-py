@@ -5,10 +5,8 @@ from unittest import mock
 
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import dd_compile
-from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
-from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter
 from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
 
@@ -188,61 +186,3 @@ def test_repeated_eval_errors_set_throttle():
     s2._eval_condition({})
     assert s2.state is SignalState.SKIP_COND_ERROR
     assert probe._error_throttled_until > monotonic()
-
-
-# ---------------------------------------------------------------------------
-# SKIP_RATE_GLOBAL vs SKIP_RATE_PROBE
-# ---------------------------------------------------------------------------
-
-
-def _exhausted_limiter():
-    """Return a BudgetRateLimiterWithJitter whose budget is already consumed."""
-    limiter = BudgetRateLimiterWithJitter(limit_rate=1.0, raise_on_exceed=False)
-    limiter.limit()  # consume the single token
-    return limiter
-
-
-def test_do_line_global_limiter_sets_skip_rate_global():
-    """When the global rate limiter is exhausted, do_line sets SKIP_RATE_GLOBAL."""
-    probe = create_snapshot_line_probe(
-        probe_id="test",
-        source_file="test.py",
-        line=1,
-    )
-    global_limiter = _exhausted_limiter()
-    signal = _make_signal(probe)
-    signal.do_line(global_limiter)
-    assert signal.state is SignalState.SKIP_RATE_GLOBAL
-
-
-def test_rate_limit_exceeded_sets_skip_rate_probe():
-    """When the per-probe rate limiter is exhausted, _rate_limit_exceeded sets SKIP_RATE_PROBE."""
-    probe = create_snapshot_line_probe(
-        probe_id="test",
-        source_file="test.py",
-        line=1,
-        rate=DEFAULT_SNAPSHOT_PROBE_RATE,
-    )
-    probe.limiter.limit()  # consume the single token
-
-    signal = _make_signal(probe)
-    exceeded = signal._rate_limit_exceeded()
-    assert exceeded is True
-    assert signal.state is SignalState.SKIP_RATE_PROBE
-
-
-def test_do_line_probe_limiter_sets_skip_rate_probe():
-    """When only the probe limiter is exhausted (global OK), do_line sets SKIP_RATE_PROBE."""
-    probe = create_snapshot_line_probe(
-        probe_id="test",
-        source_file="test.py",
-        line=1,
-        rate=DEFAULT_SNAPSHOT_PROBE_RATE,
-    )
-    probe.limiter.limit()  # exhaust probe budget
-
-    # Fresh global limiter (not exhausted)
-    global_limiter = BudgetRateLimiterWithJitter(limit_rate=1000.0, raise_on_exceed=False)
-    signal = _make_signal(probe)
-    signal.do_line(global_limiter)
-    assert signal.state is SignalState.SKIP_RATE_PROBE

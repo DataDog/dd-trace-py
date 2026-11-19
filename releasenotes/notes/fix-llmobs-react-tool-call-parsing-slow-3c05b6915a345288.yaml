@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where OpenAI and LiteLLM chat calls could block the application
+    for seconds or longer when a chat message contained ``Action:`` followed by long content.

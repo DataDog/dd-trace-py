@@ -2,13 +2,10 @@ import typing as t
 
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.dynamic_instrumentation import config
 from ddtrace.internal.settings.dynamic_instrumentation import normalize_ident
 from ddtrace.internal.utils.cache import cached
 
-
-log = get_logger(__name__)
 
 # The following identifier represent function argument/local variable/object
 # attribute names that should be redacted from the payload.
@@ -143,29 +140,15 @@ class DDRedactedCompiler(DDCompiler):
         return super().__index__(o, i)
 
     @classmethod
-    def __ref__(cls, s: str) -> str:
-        if redact(s):
-            raise DDRedactedExpressionError(f"Access to local {s!r} is not allowed")
+    def __ref__(cls, _locals: t.Mapping[str, t.Any], name: str) -> t.Any:
+        if redact(name):
+            raise DDRedactedExpressionError(f"Access to local {name!r} is not allowed")
 
-        return s
+        return super().__ref__(_locals, name)
 
 
 dd_compile_redacted = DDRedactedCompiler().compile
 
 
-def _redacted_expr(exc: Exception) -> t.Callable[[t.Any], t.Any]:
-    def _(_: t.Any) -> t.Any:
-        raise exc
-
-    return _
-
-
 class DDRedactedExpression(DDExpression):
     __compiler__ = dd_compile_redacted
-
-    @classmethod
-    def on_compiler_error(cls, dsl: str, exc: Exception) -> t.Callable[[t.Any], t.Any]:
-        if isinstance(exc, DDRedactedExpressionError):
-            log.error("Cannot compile expression that references potential PII: %s", dsl, exc_info=True)
-            return _redacted_expr(exc)
-        return super().on_compiler_error(dsl, exc)

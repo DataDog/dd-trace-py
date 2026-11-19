@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pytest
 
 from ddtrace.internal.utils.http import parse_form_params

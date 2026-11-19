@@ -1,3 +1,5 @@
+"""The pytest-benchmark integration traces executions of pytest benchmarks."""
+
 from dataclasses import dataclass
 import typing as t
 

@@ -1,0 +1,12 @@
+_v: 1
+name: pynamodb
+display_name: PynamoDB
+description: Instruments PynamoDB connection API calls that perform database operations against Amazon DynamoDB, including
+  region and table context.
+packages:
+- name: pynamodb
+category:
+- db.client
+systems:
+- aws.dynamodb
+creation_date: '2020-09-15'

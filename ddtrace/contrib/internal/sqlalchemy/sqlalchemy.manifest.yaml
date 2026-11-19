@@ -1,0 +1,11 @@
+_v: 1
+name: sqlalchemy
+display_name: SQLAlchemy
+description: Instruments SQL statement execution through SQLAlchemy engines, tracing query timing, errors, row counts, and
+  database connection metadata.
+packages:
+- name: sqlalchemy
+category:
+- db.client
+systems: []
+creation_date: '2016-08-03'

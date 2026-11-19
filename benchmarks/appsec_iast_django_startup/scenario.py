@@ -30,7 +30,7 @@ def server(scenario):
     # copy over current environ
     env.update(os.environ)
     if scenario.tracer_enabled:
-        cmd = ["python", "-m", "ddtrace.commands.ddtrace_run", "python", "manage.py", "runserver", "--noreload"]
+        cmd = ["python", "-m", "ddtrace_commands.ddtrace_run", "python", "manage.py", "runserver", "--noreload"]
     else:
         cmd = ["python", "manage.py", "runserver", "--noreload"]
     proc = subprocess.Popen(

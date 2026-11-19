@@ -7,13 +7,13 @@ tracing and AppSec integrations.
 """
 
 import asyncio
+from collections.abc import AsyncGenerator
 import json
 import os
 from pathlib import Path
 import sqlite3
 import subprocess
 import sys
-from typing import AsyncGenerator
 from typing import Optional
 
 from fastapi import Depends

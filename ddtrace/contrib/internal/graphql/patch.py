@@ -4,6 +4,7 @@ from io import StringIO
 import re
 import sys
 import traceback
+from typing import Any
 from typing import Optional
 from typing import Union
 
@@ -14,12 +15,12 @@ from graphql.execution import ExecutionResult
 from graphql.language.source import Source
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -82,7 +83,6 @@ def patch():
     if getattr(graphql, "_datadog_patch", False):
         return
     graphql._datadog_patch = True
-    Pin().onto(graphql)
 
     for module_str, func_name, wrapper in _get_patching_candidates():
         _update_patching(wrap, module_str, func_name, wrapper)
@@ -106,12 +106,16 @@ def _get_patching_candidates():
             ("graphql.validation.validation", "validate", _traced_validate),
             ("graphql.execution.executor", "execute", _traced_execute),
         ]
-    return [
+    candidates = [
         ("graphql.graphql", "graphql_impl", _traced_query),
         ("graphql.language.parser", "parse", _traced_parse),
         ("graphql.validation.validate", "validate", _traced_validate),
         ("graphql.execution.execute", "execute", _traced_execute),
     ]
+    if _graphql_version >= (3, 3):
+        # execute_sync no longer delegates to execute in graphql-core 3.3.
+        candidates.append(("graphql.execution.execute", "execute_sync", _traced_execute_sync))
+    return candidates
 
 
 def _update_patching(operation, module_str, func_name, wrapper):
@@ -121,8 +125,7 @@ def _update_patching(operation, module_str, func_name, wrapper):
 
 
 def _traced_parse(func, args, kwargs):
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     source = get_argument_value(args, kwargs, 0, "source")
@@ -133,7 +136,7 @@ def _traced_parse(func, args, kwargs):
         name="graphql.parse",
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_GRAPHQL_SOURCE, source_str)
@@ -141,8 +144,7 @@ def _traced_parse(func, args, kwargs):
 
 
 def _traced_validate(func, args, kwargs):
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     document = get_argument_value(args, kwargs, 1, "ast")
@@ -153,7 +155,7 @@ def _traced_validate(func, args, kwargs):
         name="graphql.validate",
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_GRAPHQL_SOURCE, source_str)
@@ -162,14 +164,19 @@ def _traced_validate(func, args, kwargs):
         return errors
 
 
-def _traced_execute(func, args, kwargs):
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+def _traced_execute_sync(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    return _traced_execute(func, args, kwargs, is_sync=True)
+
+
+def _traced_execute(
+    func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any], is_sync: bool = False
+) -> Any:
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     if config.graphql.resolvers_enabled:
         # patch resolvers
-        args, kwargs = _inject_trace_middleware_to_args(_resolver_middleware, args, kwargs)
+        args, kwargs = _inject_trace_middleware_to_args(_resolver_middleware, args, kwargs, is_sync=is_sync)
 
     # set resource name
     if _graphql_version < (3, 0):
@@ -183,7 +190,7 @@ def _traced_execute(func, args, kwargs):
         resource=source_str or None,
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
@@ -199,8 +206,7 @@ def _traced_execute(func, args, kwargs):
 
 
 def _traced_query(func, args, kwargs):
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     # set resource name
@@ -212,7 +218,7 @@ def _traced_query(func, args, kwargs):
         resource=resource or None,
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate
@@ -232,8 +238,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
     trace middleware which wraps the resolvers of graphql fields.
     Note - graphql middlewares can not be a partial. It must be a class or a function.
     """
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return next_middleware(root, info, **args)
 
     with tracer.trace(
@@ -246,18 +251,30 @@ def _resolver_middleware(next_middleware, root, info, **args):
         return next_middleware(root, info, **args)
 
 
-def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kwargs: dict) -> tuple[tuple, dict]:
+def _get_middleware_index(is_sync: bool) -> int:
+    """Return the positional index of middleware for this GraphQL version."""
+    if _graphql_version >= (3, 3):
+        # execute_sync omits subscribe_field_resolver and enable_early_execution.
+        return 9 if is_sync else 11
+    if _graphql_version >= (3, 2, 10):
+        # max_coercion_errors was inserted before middleware in 3.2.10.
+        return 10
+    if _graphql_version >= (3, 2):
+        return 9
+    return 8
+
+
+def _inject_trace_middleware_to_args(
+    trace_middleware: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any], is_sync: bool = False
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """
     Adds a trace middleware to graphql.execute(..., middleware, ...)
     """
-    middlewares_arg = 8
-    if _graphql_version >= (3, 2):
-        # middleware is the 10th argument graphql.execute(..) version 3.2+
-        middlewares_arg = 9
+    middleware_index = _get_middleware_index(is_sync)
 
     # get middlewares from args or kwargs
     try:
-        middlewares = get_argument_value(args, kwargs, middlewares_arg, "middleware") or []
+        middlewares = get_argument_value(args, kwargs, middleware_index, "middleware") or []
         if isinstance(middlewares, MiddlewareManager):
             # First we must get the middlewares iterable from the MiddlewareManager then append
             # trace_middleware. For the trace_middleware to be called a new MiddlewareManager will
@@ -272,7 +289,7 @@ def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kw
     middlewares = list(middlewares) + [trace_middleware]
 
     # update args and kwargs to contain trace_middleware
-    args, kwargs = set_argument_value(args, kwargs, middlewares_arg, "middleware", middlewares)
+    args, kwargs = set_argument_value(args, kwargs, middleware_index, "middleware", middlewares)
     return args, kwargs
 
 

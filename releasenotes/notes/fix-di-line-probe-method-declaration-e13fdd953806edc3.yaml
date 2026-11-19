@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes an issue where line probes placed on function or
+    method declarations fail to install.

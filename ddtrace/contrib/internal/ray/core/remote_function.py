@@ -1,13 +1,13 @@
 from functools import wraps
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.contrib._events.ray import RayContextInjectionEvent
 from ddtrace.contrib._events.ray import RayExecutionEvent
 from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.trace import tracer
 
 from ..constants import DD_RAY_TRACE_CTX
 from .utils import _extract_tracing_context_from_env

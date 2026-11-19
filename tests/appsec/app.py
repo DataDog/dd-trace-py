@@ -323,7 +323,7 @@ def iast_header_injection_vulnerability():
 def iast_header_injection_vulnerability_secure():
     header = request.args.get("header")
     resp = Response("OK")
-    resp.headers["X-Vulnerable-Header"] = "param={}".format(header)
+    resp.headers["X-Vulnerable-Header"] = f"param={header}"
     return resp
 
 

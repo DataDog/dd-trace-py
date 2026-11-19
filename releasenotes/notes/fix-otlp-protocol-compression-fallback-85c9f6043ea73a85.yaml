@@ -1,0 +1,6 @@
+fixes:
+  - |
+    tracing: Fixes OTLP logs and metrics export failures caused by uppercase protocol
+    names or invalid protocol or compression settings; invalid values now warn and
+    fall back to HTTP/protobuf or no compression.
+    Compression settings also honor local and fleet configuration.

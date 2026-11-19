@@ -1,0 +1,13 @@
+_v: 1
+name: vertexai
+display_name: Vertex AI
+description: Instruments synchronous and asynchronous generative content and chat operations, including streamed responses,
+  made through the Vertex AI Python SDK.
+packages:
+- name: google-cloud-aiplatform
+- name: vertexai
+category:
+- gen_ai
+systems:
+- gcp.vertex_ai
+creation_date: '2024-11-21'

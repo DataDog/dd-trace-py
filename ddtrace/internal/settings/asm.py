@@ -5,16 +5,14 @@ import sys
 from typing import Callable
 from typing import Optional
 
-from ddtrace.appsec._constants import API_SECURITY
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
-from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
-from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import _libddwaf_platform
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_at_most_py
+from ddtrace.internal.security._constants import ENABLED_ORIGIN
+from ddtrace.internal.security._constants import LOGIN_EVENTS_MODE
+from ddtrace.internal.security._constants import WAF_DEFAULTS
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
@@ -48,89 +46,82 @@ def _parse_optional_string(value: str) -> Optional[str]:
 def build_libddwaf_filename() -> str:
     """
     Build the filename of the libddwaf library to load.
-    """
-    _DIRNAME = os.path.dirname(os.path.dirname(__file__))
-    FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
-    ARCHI = machine().lower()
-    # 32-bit-Python on 64-bit-Windows
-    if system() == "Windows" and ARCHI == "amd64":
-        from sys import maxsize
 
-        if maxsize <= (1 << 32):
-            ARCHI = "x86"
-    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
-    ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    return os.path.join(
-        _DIRNAME, "..", "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION
-    )
+    This is the path of the library bundled in the package, or, when the build
+    did not bundle one, the SONAME for the dynamic linker to resolve.
+    """
+    libddwaf_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "appsec", "_ddwaf", "libddwaf")
+    return _libddwaf_platform.resolve_library(libddwaf_dir, system(), machine(), sys.maxsize > (1 << 32))
 
 
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
-    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
-    _asm_agentic_onboarding = DDConfig.var(str, APPSEC.AGENTIC_ONBOARDING, default="")
+    _asm_enabled_origin = ENABLED_ORIGIN.DEFAULT
+    _asm_agentic_onboarding = DDConfig.var(str, "DD_APPSEC_AGENTIC_ONBOARDING", default="")
     _asm_static_rule_file = DDConfig.var(
         Optional[str],
-        APPSEC.RULE_FILE,
+        "DD_APPSEC_RULES",
         default=None,
         parser=_parse_optional_string,
     )
     _asm_processed_span_types = {SpanTypes.WEB}
     _asm_http_span_types = {SpanTypes.WEB}
-    _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
-    _iast_propagation_enabled = DDConfig.var(bool, IAST.ENV_PROPAGATION_ENABLED, default=True, private=True)
-    _iast_sink_points_enabled = DDConfig.var(bool, IAST.ENV_SINK_POINTS_ENABLED, default=True, private=True)
-    _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
-    _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
-    _iast_propagation_debug = DDConfig.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
-    _iast_telemetry_report_lvl = DDConfig.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
-    _iast_truncation_max_value_length = DDConfig.var(
-        int, IAST.ENV_DD_IAST_TRUNCATION_MAX_VALUE_LENGTH, default=IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
+    _iast_enabled = tracer_config._from_endpoint.get(
+        "iast_enabled", DDConfig.var(bool, "DD_IAST_ENABLED", default=False)
     )
+    _iast_propagation_enabled = DDConfig.var(bool, "DD_IAST_PROPAGATION_ENABLED", default=True, private=True)
+    _iast_sink_points_enabled = DDConfig.var(bool, "DD_IAST_SINK_POINTS_ENABLED", default=True, private=True)
+    _iast_request_sampling = DDConfig.var(float, "DD_IAST_REQUEST_SAMPLING", default=30.0)
+    _iast_debug = DDConfig.var(bool, "DD_IAST_DEBUG", default=False, private=True)
+    _iast_propagation_debug = DDConfig.var(bool, "DD_IAST_PROPAGATION_DEBUG", default=False, private=True)
+    _iast_telemetry_report_lvl = DDConfig.var(str, "DD_IAST_TELEMETRY_VERBOSITY", default="INFORMATION")
+    _iast_truncation_max_value_length = DDConfig.var(int, "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH", default=250)
     _use_metastruct_for_triggers = True
     _use_metastruct_for_iast = True
 
     _auto_user_instrumentation_local_mode = DDConfig.var(
         str,
-        APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
+        "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE",
         default=LOGIN_EVENTS_MODE.IDENT,
         parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
     )
     _auto_user_instrumentation_rc_mode: Optional[str] = None
-    _auto_user_instrumentation_enabled = DDConfig.var(bool, APPSEC.AUTO_USER_INSTRUMENTATION_MODE_ENABLED, default=True)
+    _auto_user_instrumentation_enabled = DDConfig.var(
+        bool, "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", default=True
+    )
 
-    _user_model_login_field = DDConfig.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
-    _user_model_email_field = DDConfig.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
-    _user_model_name_field = DDConfig.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
-    _api_security_enabled = DDConfig.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
-    _api_security_sample_delay = DDConfig.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
-    _api_security_parse_response_body = DDConfig.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
+    _user_model_login_field = DDConfig.var(str, "DD_USER_MODEL_LOGIN_FIELD", default="")
+    _user_model_email_field = DDConfig.var(str, "DD_USER_MODEL_EMAIL_FIELD", default="")
+    _user_model_name_field = DDConfig.var(str, "DD_USER_MODEL_NAME_FIELD", default="")
+    _api_security_enabled = DDConfig.var(bool, "DD_API_SECURITY_ENABLED", default=True)
+    _api_security_sample_delay = DDConfig.var(float, "DD_API_SECURITY_SAMPLE_DELAY", default=30.0)
+    _api_security_parse_response_body = DDConfig.var(bool, "DD_API_SECURITY_PARSE_RESPONSE_BODY", default=True)
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
     _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
-    _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
+    _asm_libddwaf_available = _libddwaf_platform.is_loadable(_asm_libddwaf, system())
     _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(
         float,
         "DD_APPSEC_WAF_TIMEOUT",
-        default=DEFAULT.WAF_TIMEOUT,
+        default=WAF_DEFAULTS.TIMEOUT,
         help_type="float",
         help="Timeout in milliseconds for WAF computations",
     )
     _asm_deduplication_enabled = DDConfig.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
     _asm_obfuscation_parameter_key_regexp = DDConfig.var(
-        str, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+        str, "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", default=WAF_DEFAULTS.OBFUSCATION_PARAMETER_KEY_REGEXP
     )
     _asm_obfuscation_parameter_value_regexp = DDConfig.var(
-        str, APPSEC.OBFUSCATION_PARAMETER_VALUE_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
+        str, "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", default=WAF_DEFAULTS.OBFUSCATION_PARAMETER_VALUE_REGEXP
     )
 
-    _iast_redaction_enabled = DDConfig.var(bool, IAST.REDACTION_ENABLED, default=True)
+    _iast_redaction_enabled = DDConfig.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)
     _iast_redaction_name_pattern = DDConfig.var(
         str,
-        IAST.REDACTION_NAME_PATTERN,
+        "DD_IAST_REDACTION_NAME_PATTERN",
         default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
         + r"public_?|access_?|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|"
         + r"consumer_?(?:id|key|secret)|"
@@ -138,7 +129,7 @@ class ASMConfig(DDConfig):
     )
     _iast_redaction_value_pattern = DDConfig.var(
         str,
-        IAST.REDACTION_VALUE_PATTERN,
+        "DD_IAST_REDACTION_VALUE_PATTERN",
         default=r"(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|"
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
@@ -147,39 +138,38 @@ class ASMConfig(DDConfig):
     # but we define it so it can be reported through telemetry, since it’s used from the C files.
     _iast_max_concurrent_requests = DDConfig.var(
         int,
-        IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
+        "DD_IAST_MAX_CONCURRENT_REQUESTS",
         default=2,
     )
     _iast_max_vulnerabilities_per_requests = DDConfig.var(
         int,
-        IAST.DD_IAST_VULNERABILITIES_PER_REQUEST,
+        "DD_IAST_VULNERABILITIES_PER_REQUEST",
         default=2,
     )
-    _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
+    _iast_lazy_taint = DDConfig.var(bool, "_DD_IAST_LAZY_TAINT", default=False)
     _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
     _iast_security_controls = DDConfig.var(str, "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", default="")
-    _iast_use_root_span = DDConfig.var(bool, "_DD_IAST_USE_ROOT_SPAN", default=False)
 
     _iast_is_testing = False
 
     # default will be set to True once the feature is GA. For now it's always False
-    _ep_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
-    _ep_stack_trace_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
+    _ep_enabled = DDConfig.var(bool, "DD_APPSEC_RASP_ENABLED", default=True)
+    _ep_stack_trace_enabled = DDConfig.var(bool, "DD_APPSEC_STACK_TRACE_ENABLED", default=True)
     # for max_stack_traces, 0 == unlimited
     _ep_max_stack_traces = DDConfig.var(
-        int, EXPLOIT_PREVENTION.MAX_STACK_TRACES, default=2, validator=_validate_non_negative_int
+        int, "DD_APPSEC_MAX_STACK_TRACES", default=2, validator=_validate_non_negative_int
     )
     # for max_stack_trace_depth, 0 == unlimited
     _ep_max_stack_trace_depth = DDConfig.var(
-        int, EXPLOIT_PREVENTION.MAX_STACK_TRACE_DEPTH, default=32, validator=_validate_non_negative_int
+        int, "DD_APPSEC_MAX_STACK_TRACE_DEPTH", default=32, validator=_validate_non_negative_int
     )
 
     # percentage of stack trace reported on top, in case depth is larger than max_stack_trace_depth
     _ep_stack_top_percent = DDConfig.var(
-        float, EXPLOIT_PREVENTION.STACK_TOP_PERCENT, default=75.0, validator=_validate_percentage
+        float, "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", default=75.0, validator=_validate_percentage
     )
 
-    _iast_stack_trace_enabled = DDConfig.var(bool, IAST.STACK_TRACE_ENABLED, default=True)
+    _iast_stack_trace_enabled = DDConfig.var(bool, "DD_IAST_STACK_TRACE_ENABLED", default=True)
 
     # Django ATO
     _django_include_user_name = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
@@ -215,7 +205,6 @@ class ASMConfig(DDConfig):
         "_iast_telemetry_report_lvl",
         "_iast_security_controls",
         "_iast_is_testing",
-        "_iast_use_root_span",
         "_iast_truncation_max_value_length",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
@@ -253,7 +242,7 @@ class ASMConfig(DDConfig):
     ]
     _iast_redaction_numeral_pattern = DDConfig.var(
         str,
-        IAST.REDACTION_VALUE_NUMERAL,
+        "DD_IAST_REDACTION_VALUE_NUMERAL",
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
@@ -264,8 +253,10 @@ class ASMConfig(DDConfig):
     # version-gated in setup.py. This bound intentionally leads requires-python in pyproject.toml, so
     # do not "resync" it downwards; 3.15 itself is still untested for IAST, tracked by issue #17843.
     # IAST supported on python 3.6 to 3.15 and never on windows
-    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 16, 0)) and not (
-        sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+    _iast_supported: bool = (
+        is_at_least_py(3, 6)
+        and is_at_most_py(3, 15)
+        and not (sys.platform.startswith("win") or sys.platform.startswith("cygwin"))
     )
 
     _rc_client_id: Optional[str] = None
@@ -301,7 +292,7 @@ class ASMConfig(DDConfig):
     @property
     def asm_enabled_origin(self):
         if APPSEC_ENV in env:
-            return APPSEC.ENABLED_ORIGIN_ENV
+            return ENABLED_ORIGIN.ENV
         return self._asm_enabled_origin
 
     def reset(self):

@@ -1,0 +1,12 @@
+_v: 1
+name: vertica
+display_name: Vertica
+description: Instruments Vertica database queries, bulk copy operations, and cursor result retrieval through the vertica-python
+  client.
+packages:
+- name: vertica-python
+category:
+- db.client
+systems:
+- vertica
+creation_date: '2018-10-11'

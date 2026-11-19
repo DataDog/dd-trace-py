@@ -2,6 +2,7 @@ from functools import wraps
 import logging
 import sys
 import typing as t
+import weakref
 
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.utils import asbool
@@ -10,6 +11,44 @@ from ddtrace.testing.internal.utils import asbool
 testing_logger = logging.getLogger("ddtrace.testing")
 
 F = t.TypeVar("F", bound=t.Callable[..., t.Any])
+
+
+class _DDTraceClosedStreamFilter(logging.Filter):
+    """Skip tracer records only at a stream destination that can no longer accept them."""
+
+    def __init__(self, handler: logging.StreamHandler) -> None:
+        super().__init__()
+        self._handler = weakref.ref(handler)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name != "ddtrace" and not record.name.startswith("ddtrace."):
+            return True
+        handler = self._handler()
+        return handler is None or getattr(handler.stream, "closed", False) is not True
+
+
+def protect_ddtrace_stream_handlers() -> None:
+    """Protect existing plain stream handlers at pytest teardown without changing log routing.
+
+    Filters remain attached for interpreter shutdown and check the current stream on
+    every record, so reusing a handler with an open stream restores normal delivery.
+    Scan again at final cleanup to include handlers installed by other teardown hooks.
+    Handlers created after pytest returns remain the caller's responsibility.
+    """
+    loggers = [logging.getLogger()]
+    loggers.extend(
+        logger
+        for name, logger in logging.Logger.manager.loggerDict.copy().items()
+        if (name == "ddtrace" or name.startswith("ddtrace.")) and isinstance(logger, logging.Logger)
+    )
+    for logger in loggers:
+        for handler in list(logger.handlers):
+            # NOTE: File handlers can reopen their streams, and custom handlers
+            # own their error handling. Only protect the standard StreamHandler.
+            if type(handler) is logging.StreamHandler and not any(
+                isinstance(f, _DDTraceClosedStreamFilter) for f in handler.filters
+            ):
+                handler.addFilter(_DDTraceClosedStreamFilter(handler))
 
 
 class _SafeStreamHandler(logging.StreamHandler):

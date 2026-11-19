@@ -8,12 +8,13 @@ from tempfile import NamedTemporaryFile
 from textwrap import dedent
 import unittest
 
+import pytest
+
 from ddtrace import __version__
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
-from tests.subprocesstest import SubprocessTestCase
-from tests.subprocesstest import run_in_subprocess
+from tests.subprocesstest import check_scenario_outcome
 from tests.utils import call_program
 
 
@@ -35,13 +36,13 @@ class PatchMixin(unittest.TestCase):
         """
         Asserts that the module, given its name is imported.
         """
-        assert self.module_imported(modname), "{} module not imported".format(modname)
+        assert self.module_imported(modname), f"{modname} module not imported"
 
     def assert_not_module_imported(self, modname):
         """
         Asserts that the module, given its name is not imported.
         """
-        assert not self.module_imported(modname), "{} module is imported".format(modname)
+        assert not self.module_imported(modname), f"{modname} module is imported"
 
     def is_wrapped(self, obj):
         return is_wrapted(obj) or _dd_is_wrapped(obj)
@@ -50,13 +51,13 @@ class PatchMixin(unittest.TestCase):
         """
         Helper to assert that a given object is properly wrapped by wrapt.
         """
-        self.assertTrue(self.is_wrapped(obj), "{} is not wrapped".format(obj))
+        self.assertTrue(self.is_wrapped(obj), f"{obj} is not wrapped")
 
     def assert_not_wrapped(self, obj):
         """
         Helper to assert that a given object is not wrapped by wrapt.
         """
-        self.assertFalse(self.is_wrapped(obj), "{} is wrapped".format(obj))
+        self.assertFalse(self.is_wrapped(obj), f"{obj} is wrapped")
 
     def assert_not_double_wrapped(self, obj):
         """
@@ -73,7 +74,7 @@ class PatchMixin(unittest.TestCase):
 
 def raise_if_no_attrs(f):
     """
-    A helper for PatchTestCase test methods that will check if there are any
+    A helper for patch scenario methods that will check if there are any
     modules to use else raise a NotImplementedError.
 
     :param f: method to wrap with a check
@@ -96,7 +97,7 @@ def raise_if_no_attrs(f):
 
 def noop_if_no_unpatch(f):
     """
-    A helper for PatchTestCase test methods that will no-op the test if the
+    A helper for patch scenario methods that will no-op the test if the
     __unpatch_func__ attribute is None
     """
 
@@ -127,15 +128,10 @@ def emit_integration_and_version_to_test_agent(integration_name, version, module
     assert response.status == 200
 
 
-class PatchTestCase(object):
-    """
-    unittest or other test runners will pick up the base test case as a testcase
-    since it inherits from unittest.TestCase unless we wrap it with this empty
-    parent class.
-    """
+class PatchTestCase:
+    """Keep the reusable base out of test collection."""
 
-    @run_in_subprocess
-    class Base(SubprocessTestCase, PatchMixin):
+    class Base(PatchMixin):
         """Provides default test methods to be used for testing common integration patching logic.
         Each test method provides a default implementation which will use the
         provided attributes (described below). If the attributes are not
@@ -233,7 +229,7 @@ class PatchTestCase(object):
             )._supported_versions
             self._supported_versions = _supported_versions
 
-            super(PatchTestCase.Base, self).__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
         def _gen_test_attrs(self, ops):
             """
@@ -276,7 +272,7 @@ class PatchTestCase(object):
             for test_attr in tests:
                 if test_attr in test_ignore:
                     continue
-                assert hasattr(self, test_attr), "{} not found in expected test attrs".format(test_attr)
+                assert hasattr(self, test_attr), f"{test_attr} not found in expected test attrs"
 
         def assert_module_patched(self, module):
             """
@@ -909,3 +905,31 @@ class PatchTestCase(object):
 
                 out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
                 assert "OKK" in out.decode(), "stderr:\n%s" % err.decode()
+
+
+class PatchTestClass(pytest.Collector):
+    """Collect existing patch methods as independent child applications."""
+
+    def __init__(self, *args, obj, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.obj = obj
+        # The child applies xfail; applying it again here can hide a strict XPASS.
+        self.own_markers.extend(mark for mark in getattr(obj, "pytestmark", []) if mark.name != "xfail")
+
+    def collect(self):
+        if not getattr(self.obj, "__test__", True):
+            return
+        for scenario in unittest.TestLoader().getTestCaseNames(self.obj):
+
+            def run(python_process, scenario=scenario):
+                result = python_process(
+                    "from tests.subprocesstest import run_scenario; "
+                    f"run_scenario({self.obj.__module__!r}, {self.obj.__qualname__!r}, {scenario!r})"
+                )
+                check_scenario_outcome(result)
+                result.check_returncode()
+
+            run.pytestmark = [
+                mark for mark in getattr(getattr(self.obj, scenario), "pytestmark", []) if mark.name != "xfail"
+            ]
+            yield pytest.Function.from_parent(self, name=scenario, callobj=run)

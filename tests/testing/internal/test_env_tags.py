@@ -46,7 +46,7 @@ def test_ci_providers(
         elif key == CITag._CI_ENV_VARS:
             assert json.loads(extracted_tags[key]) == json.loads(value)
         else:
-            assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
+            assert extracted_tags[key] == value, f"wrong tags in {name} for {environment}"
 
 
 def test_git_extract_user_info(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
@@ -256,6 +256,45 @@ def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shall
     assert tags[GitTag.COMMIT_HEAD_COMMITTER_DATE] == "2020-01-20T04:37:21-0400"
     assert tags[GitTag.COMMIT_HEAD_MESSAGE] == "initial commit"
     assert tags[GitTag.COMMIT_HEAD_SHA] == head_sha
+
+
+@pytest.mark.parametrize("kill_switch", ["DD_CIVISIBILITY_GIT_UPLOAD_ENABLED", "DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED"])
+def test_extract_git_head_commit_data_skips_deepen_when_git_fetch_disabled(
+    monkeypatch: pytest.MonkeyPatch, git_shallow_repo: tuple[str, str], kill_switch: str
+) -> None:
+    """With either git kill switch off, tag collection must not deepen the clone.
+
+    Covers the SessionManager initialization path: get_env_tags() runs during
+    __init__, before upload_git_data() gets a chance to check the switches — on
+    a shallow PR checkout whose head commit is missing locally, the enrichment
+    would otherwise issue git fetch --deepen=1 despite the opt-out.
+    """
+    git_repo, head_sha = git_shallow_repo
+
+    github_event_path = f"{git_repo}/event.json"
+    with open(github_event_path, "w") as f:
+        json.dump({"pull_request": {"head": {"sha": head_sha}}}, f)
+
+    ci_env = {
+        "GITHUB_SHA": "abcd1234",
+        "GITHUB_EVENT_PATH": github_event_path,
+        kill_switch: "false",
+    }
+
+    monkeypatch.setattr(os, "environ", ci_env)
+    monkeypatch.chdir(git_repo)
+
+    with mock.patch.object(Git, "unshallow_repository") as mock_unshallow:
+        tags = get_env_tags()
+
+    mock_unshallow.assert_not_called()
+    # The head sha still comes from the CI provider, but the enrichment metadata
+    # that would require the missing commit is absent.
+    assert GitTag.COMMIT_HEAD_SHA in tags
+    assert GitTag.COMMIT_HEAD_MESSAGE not in tags
+    assert GitTag.COMMIT_HEAD_AUTHOR_NAME not in tags
+    # The rest of the tags are unaffected.
+    assert tags[GitTag.COMMIT_SHA] == "abcd1234"
 
 
 def test_git_executable_not_found_error(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
