@@ -149,6 +149,41 @@ def test_start_is_ignored_while_unheld() -> None:
         assert snap.total_ns == 0
 
 
+def test_listeners_get_each_pause_after_the_lock_is_released() -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    calls: list[tuple[int, int, bool]] = []
+
+    def failing_listener(generation: int, pause_ns: int) -> None:
+        raise RuntimeError("a listener error must not escape the GC callback")
+
+    def recording_listener(generation: int, pause_ns: int) -> None:
+        lock_free: bool = monitor._lock.acquire(False)
+        if lock_free:
+            monitor._lock.release()
+        calls.append((generation, pause_ns, lock_free))
+
+    with _automatic_gc_disabled():
+        monitor.acquire()
+        try:
+            monitor.add_listener(failing_listener)
+            monitor.add_listener(recording_listener)
+            monitor._on_gc("start", {"generation": 1})
+            monitor._on_gc("stop", {"generation": 1})
+            monitor.remove_listener(recording_listener)
+            monitor._on_gc("start", {"generation": 1})
+            monitor._on_gc("stop", {"generation": 1})
+            snapshot: GCPauseSnapshot = monitor.snapshot_and_reset()
+        finally:
+            monitor.release()
+
+    assert len(calls) == 1
+    generation, pause_ns, lock_free = calls[0]
+    assert generation == 1
+    assert pause_ns >= 0
+    assert lock_free
+    assert snapshot.n_pauses == 2
+
+
 def test_reset_drops_window() -> None:
     monitor: GCPauseMonitor = GCPauseMonitor()
     monitor.acquire()
