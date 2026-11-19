@@ -112,16 +112,21 @@ integration patching and unpatching do not register or remove shared listeners.
 Keep ``DbQueryEvent`` separate from the tracing lifecycle. It notifies security
 subscribers about the original query and its connection encoding before tracing
 enablement is checked. Existing DB-API security checks run inside the operation
-context and before DBM injection. ``DatabaseDbmInjectionEvent`` synchronously
+context and before DBM injection. ``DatabaseQueryPrepareEvent`` synchronously
 exposes mutable driver arguments after the span's service and connection metadata
-are ready. DBM owns its listener and propagation-mode gating; the span resource
+are ready. Adapters advertise query-rewriting support without reading DBM
+configuration or retaining propagators. DBM owns its listener and propagation-mode gating; the span resource
 continues to describe the original query. Preserve each driver's injection
 exclusions for fetches, stored procedures, and prepared statements.
 
 Publish result metadata in the driver's ``finally`` block, before the operation
-context exits. Preserve ``_set_post_execute_tags(span)`` when extending DB-API
-cursors: existing subclasses use this hook, and it runs after driver success or
-failure, but not when security checks prevent execution. The shared
+context exits. New DB-API cursor subclasses extend
+``_get_post_execute_result(context)`` to publish result metadata, including
+integration-specific ``tags``. Result events carry the exact operation context;
+tracing resolves its span without falling back to a parent or creating one.
+Existing ``_set_post_execute_tags(span)`` overrides run through a tracing-owned
+compatibility bridge after driver success or failure, but not when security
+checks prevent execution. The shared
 ``_trace_method_context()`` owns this lifecycle for both synchronous and
 asynchronous DB-API cursors; their ``_trace_method()`` implementations only check
 enablement and invoke or await the driver. Preserve each driver's

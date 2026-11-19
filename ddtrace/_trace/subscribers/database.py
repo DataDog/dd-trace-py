@@ -1,5 +1,7 @@
 from types import TracebackType
+from typing import Any
 from typing import Optional
+from typing import cast
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -10,6 +12,7 @@ from ddtrace.ext import db
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
@@ -70,9 +73,16 @@ class DatabaseTracingSubscriber(ContextSubscriber[DatabaseOperationEvent]):
 
     @classmethod
     def on_result(cls, event: DatabaseResultEvent) -> None:
+        span = find_span_on_context(event.context)
+        if span is None:
+            return
+        if event.legacy_post_execute is not None:
+            event.legacy_post_execute(span)
+            return
         if event.row_count is not None or not event.skip_none_row_count:
-            event.span._set_attribute(db.ROWCOUNT, event.row_count)
+            span._set_attribute(db.ROWCOUNT, event.row_count)
             if event.row_count_as_tag and isinstance(event.row_count, int) and event.row_count >= 0:
-                event.span.set_tag(db.ROWCOUNT, event.row_count)
+                span.set_tag(db.ROWCOUNT, cast(Any, event.row_count))
         if event.row_number is not None:
-            event.span._set_attribute("db.rownumber", event.row_number)
+            span._set_attribute("db.rownumber", event.row_number)
+        span.set_tags(event.tags)

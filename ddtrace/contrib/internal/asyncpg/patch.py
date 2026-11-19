@@ -11,8 +11,8 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib._events.dbapi import DatabaseDbmInjectionEvent
 from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
+from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import iswrapped
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -151,7 +151,7 @@ async def _traced_query(
     with core.context_with_event(event) as ctx:
         # dispatch DBM
         # bind_execute_many uses prepared statements which we want to avoid injection for.
-        injection = DatabaseDbmInjectionEvent(
+        injection = DatabaseQueryPrepareEvent(
             context=ctx, args=args, kwargs=kwargs, supports_query_rewriting=method.__name__ != "bind_execute_many"
         )
         core.dispatch_event(injection)

@@ -752,3 +752,35 @@ async def test_disabled_tracing_calls_driver_without_database_context(tracer, te
     cursor.execute.assert_awaited_once_with("SELECT 1")
     context.assert_not_called()
     assert test_spans.spans == []
+
+
+@pytest.mark.asyncio
+async def test_result_contexts_are_isolated_between_tasks(tracer, test_spans):
+    ready = asyncio.Event()
+    entered = []
+
+    async def run_query(query, row_count):
+        cursor = mock.AsyncMock(rowcount=row_count)
+
+        async def execute(statement):
+            entered.append(statement)
+            if len(entered) == 2:
+                ready.set()
+            await ready.wait()
+            return statement
+
+        cursor.execute.side_effect = execute
+        return await TracedAsyncCursor(cursor).execute(query)
+
+    with tracer.trace("parent") as parent:
+        assert await asyncio.gather(run_query("SELECT 1", 1), run_query("SELECT 2", 2)) == ["SELECT 1", "SELECT 2"]
+        assert tracer.current_span() is parent
+
+    spans = test_spans.spans
+    assert len(spans) == 3
+    results = {span.resource: span for span in spans if span.name == "sql.query"}
+    assert set(results) == {"SELECT 1", "SELECT 2"}
+    for query, row_count in (("SELECT 1", 1), ("SELECT 2", 2)):
+        assert results[query].parent_id == parent.span_id
+        assert results[query].get_metric("db.row_count") == row_count
+        assert results[query].finished

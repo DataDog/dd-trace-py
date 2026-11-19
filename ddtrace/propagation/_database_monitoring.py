@@ -7,13 +7,13 @@ from typing import Union
 
 import ddtrace
 from ddtrace import config as dd_config
-from ddtrace.contrib._events.dbapi import DatabaseDbmInjectionEvent
+from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.internal import core
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import PROPAGATED_HASH
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.peer_service import _ps_config
-from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal import compat
@@ -171,12 +171,13 @@ def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
     return span, args, kwargs
 
 
-def handle_dbm_injection_event(event: DatabaseDbmInjectionEvent) -> None:
+def handle_query_prepare_event(event: DatabaseQueryPrepareEvent) -> None:
     if not event.supports_query_rewriting:
         return
-    _, args, kwargs = handle_dbm_injection(
-        event.context.event.integration_config, span_from_context(event.context), event.args, event.kwargs
-    )
+    span = find_span_on_context(event.context)
+    if span is None:
+        return
+    _, args, kwargs = handle_dbm_injection(event.context.event.integration_config, span, event.args, event.kwargs)
     event.args, event.kwargs = args, kwargs
 
 
@@ -194,14 +195,14 @@ _DBM_STANDARD_EVENTS = {
 
 def listen():
     if dbm_config.propagation_mode in _DBM_INJECTION_MODES:
-        core.on(DatabaseDbmInjectionEvent.event_name, handle_dbm_injection_event)
+        core.on(DatabaseQueryPrepareEvent.event_name, handle_query_prepare_event)
         for event in _DBM_STANDARD_EVENTS:
             core.on(event, handle_dbm_injection, "result")
         core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
 
 
 def unlisten():
-    core.reset_listeners(DatabaseDbmInjectionEvent.event_name, handle_dbm_injection_event)
+    core.reset_listeners(DatabaseQueryPrepareEvent.event_name, handle_query_prepare_event)
     for event in _DBM_STANDARD_EVENTS:
         core.reset_listeners(event, handle_dbm_injection)
     core.reset_listeners("asyncpg.execute", handle_dbm_injection_asyncpg)

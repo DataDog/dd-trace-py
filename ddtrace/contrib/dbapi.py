@@ -14,20 +14,20 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib._events.dbapi import DatabaseDbmInjectionEvent
 from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
+from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.contrib._events.dbapi import DatabaseResultEvent
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import Span
 
+from ..ext import db
 from ..ext import sql
 from .internal.trace_utils import ext_service
 from .internal.trace_utils import is_tracing_enabled
@@ -86,7 +86,6 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_dbapi_span_name_prefix = span_name_prefix
         self._self_last_execute_operation = None
         self._self_config = cast(IntegrationConfig, cfg or config.dbapi2)
-        self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
         self._self_db_tags = dict(db_tags) if db_tags else {}
 
     def __iter__(self):
@@ -101,13 +100,13 @@ class TracedCursor(wrapt.ObjectProxy):
         name: str,
         resource: Any,
         extra_tags: dict[str, Any],
-        dbm_propagator: Any,
+        supports_query_rewriting: bool,
         *args: Any,
         **kwargs: Any,
     ) -> Any:
         if not is_tracing_enabled():
             return method(*args, **kwargs)
-        with self._trace_method_context(method, name, resource, extra_tags, dbm_propagator, args, kwargs) as (
+        with self._trace_method_context(method, name, resource, extra_tags, supports_query_rewriting, args, kwargs) as (
             args,
             kwargs,
         ):
@@ -120,11 +119,11 @@ class TracedCursor(wrapt.ObjectProxy):
         name: str,
         resource: Any,
         extra_tags: dict[str, Any],
-        dbm_propagator: Any,
+        supports_query_rewriting: bool,
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> Iterator[tuple[tuple[Any, ...], dict[str, Any]]]:
-        """Share query checks, DBM injection, and completion around sync and async driver calls."""
+        """Share query preparation and result publication around sync and async driver calls."""
         with core.context_with_event(
             DatabaseOperationEvent(
                 component=self._self_config.integration_name,
@@ -142,18 +141,19 @@ class TracedCursor(wrapt.ObjectProxy):
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
 
-            # dispatch DBM
-            if dbm_propagator:
-                # this check is necessary to prevent fetch methods from trying to add dbm propagation
-                injection = DatabaseDbmInjectionEvent(context=ctx, args=args, kwargs=kwargs)
-                core.dispatch_event(injection)
-                args, kwargs = injection.args, injection.kwargs
+            if supports_query_rewriting and core.has_listeners(DatabaseQueryPrepareEvent.event_name):
+                prepare = DatabaseQueryPrepareEvent(context=ctx, args=args, kwargs=kwargs)
+                core.dispatch_event(prepare)
+                args, kwargs = prepare.args, prepare.kwargs
 
             try:
                 yield args, kwargs
             finally:
-                # Try to fetch custom properties that were passed by the specific Database implementation
-                self._set_post_execute_tags(span_from_context(ctx))
+                if type(self)._set_post_execute_tags is TracedCursor._default_post_execute_tags:
+                    result = self._get_post_execute_result(ctx)
+                else:
+                    result = DatabaseResultEvent(context=ctx, legacy_post_execute=self._set_post_execute_tags)
+                core.dispatch_event(result, allow_raise=True)
 
     def _dbapi_query_encoding(self) -> Optional[str]:
         """Return the connection's Python codec, or None when it is unknown."""
@@ -180,7 +180,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name,
             query,
             {"sql.executemany": "true"},
-            self._self_dbm_propagator,
+            True,
             query,
             *args,
             **kwargs,
@@ -206,7 +206,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name,
             query,
             {},
-            self._self_dbm_propagator,
+            True,
             query,
             *args,
             **kwargs,
@@ -215,9 +215,15 @@ class TracedCursor(wrapt.ObjectProxy):
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, None, proc, *args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, False, proc, *args)
+
+    def _get_post_execute_result(self, context: core.ExecutionContext[DatabaseOperationEvent]) -> DatabaseResultEvent:
+        return DatabaseResultEvent(
+            context=context, row_count=getattr(self.__wrapped__, "rowcount", None), row_count_as_tag=True
+        )
 
     def _set_post_execute_tags(self, span: Span) -> None:
+        """Compatibility hook for existing subclasses; new subclasses should publish result metadata."""
         # rowcount is in the dbapi specification (https://peps.python.org/pep-0249/#rowcount)
         # but some database drivers (cassandra-driver specifically) don't implement it.
         row_count = getattr(self.__wrapped__, "rowcount", None)
@@ -228,9 +234,12 @@ class TracedCursor(wrapt.ObjectProxy):
         # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
         # this tag has been added since.
         # Check row count is an integer type to avoid comparison type error
-        core.dispatch_event(
-            DatabaseResultEvent(span=span, row_count=row_count, row_count_as_tag=True), allow_raise=True
-        )
+        span._set_attribute(db.ROWCOUNT, row_count)
+        if isinstance(row_count, int) and row_count >= 0:
+            span.set_tag(db.ROWCOUNT, cast(Any, row_count))
+
+    # Preserve the original identity so monkeypatched legacy hooks still run.
+    _default_post_execute_tags = _set_post_execute_tags
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's
@@ -253,14 +262,14 @@ class FetchTracedCursor(TracedCursor):
         """Wraps the cursor.fetchone method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return self._trace_method(
-            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
+            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, False, *args, **kwargs
         )
 
     def fetchall(self, *args, **kwargs):
         """Wraps the cursor.fetchall method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return self._trace_method(
-            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
+            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, False, *args, **kwargs
         )
 
     def fetchmany(self, *args, **kwargs):
@@ -277,7 +286,7 @@ class FetchTracedCursor(TracedCursor):
             extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
 
         return self._trace_method(
-            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, None, *args, **kwargs
+            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, False, *args, **kwargs
         )
 
 

@@ -2,9 +2,9 @@ from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import InitVar
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 from typing import Optional
-from typing import Protocol
 from typing import Union
 
 from ddtrace.ext import SpanKind
@@ -79,31 +79,27 @@ class DatabaseOperationEvent(Event):
         }
 
 
-class DatabaseResultTarget(Protocol):
-    def _set_attribute(self, key: str, value: Any) -> None: ...
-
-    def set_tag(self, key: str, value: Any) -> None: ...
-
-
 @dataclass
 class DatabaseResultEvent(Event):
     """Cursor metadata published while its operation span is still active."""
 
     event_name = "database.result"
 
-    # Retain the span-based DB-API post-execute extension contract.
-    span: DatabaseResultTarget
-    row_count: Any
+    context: core.ExecutionContext[DatabaseOperationEvent]
+    row_count: Any = None
     row_number: Any = None
     row_count_as_tag: bool = False
     skip_none_row_count: bool = True
+    tags: dict[str, Any] = field(default_factory=dict)
+    # Compatibility bridge for existing cursor subclasses; new hooks publish metadata instead.
+    legacy_post_execute: Optional[Callable[[Any], None]] = None
 
 
 @dataclass
-class DatabaseDbmInjectionEvent(Event):
-    """Synchronous DBM argument rewriting after operation metadata is available."""
+class DatabaseQueryPrepareEvent(Event):
+    """Optional query preparation after operation metadata is available."""
 
-    event_name = "database.dbm.inject"
+    event_name = "database.query.prepare"
 
     context: core.ExecutionContext[DatabaseOperationEvent]
     args: tuple[Any, ...]

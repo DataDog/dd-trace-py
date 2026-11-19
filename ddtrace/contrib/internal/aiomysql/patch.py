@@ -6,8 +6,8 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.dbapi import DatabaseDbmInjectionEvent
 from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
+from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.contrib._events.dbapi import DatabaseResultEvent
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
@@ -17,7 +17,6 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 
@@ -90,7 +89,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         )
         with core.context_with_event(event) as ctx:
             # dispatch DBM
-            injection = DatabaseDbmInjectionEvent(context=ctx, args=args, kwargs=kwargs)
+            injection = DatabaseQueryPrepareEvent(context=ctx, args=args, kwargs=kwargs)
             core.dispatch_event(injection)
             args, kwargs = injection.args, injection.kwargs
 
@@ -100,7 +99,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             finally:
                 core.dispatch_event(
                     DatabaseResultEvent(
-                        span=span_from_context(ctx),
+                        context=ctx,
                         row_count=self.rowcount,
                         row_number=self.rownumber,
                         skip_none_row_count=False,
