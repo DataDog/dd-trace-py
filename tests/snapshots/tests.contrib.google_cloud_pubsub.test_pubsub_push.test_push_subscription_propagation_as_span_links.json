@@ -43,6 +43,7 @@
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
+      "gcp.pubsub.subscription.name": "projects/test-project/subscriptions/test-push-subscription",
       "http.status_code": "200",
       "language": "python",
       "messaging.destination.name": "test-push-subscription",

@@ -136,6 +136,9 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
+      # litellm downloads its model cost map when a test imports it. This setting makes litellm use its bundled map.
+      env:
+        LITELLM_LOCAL_MODEL_COST_MAP: 'True'
       # fastuuid 0.14.0 cannot build on Python 3.15.
       variants:
         - name: ai_guard_litellm_guardrail
