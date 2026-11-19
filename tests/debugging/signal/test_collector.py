@@ -204,6 +204,19 @@ def test_push_skip_rate_global_emits_rate_limit_global():
     )
 
 
+def test_push_skip_rejected_emits_trace_not_sampled():
+    collector, _ = _make_collector()
+    signal = _snapshot(state=SignalState.SKIP_REJECTED)
+
+    with mock.patch("ddtrace.debugging._signal.collector.guardrails_meter") as m:
+        collector.push(signal)
+
+    m.increment.assert_any_call(
+        "events.skipped",
+        tags={"reason": "traceNotSampled", "event_type": "snapshot"},
+    )
+
+
 def test_push_skip_rate_probe_emits_rate_limit_probe():
     collector, _ = _make_collector()
     signal = _snapshot(state=SignalState.SKIP_RATE_PROBE)

@@ -231,6 +231,23 @@ class BudgetRateLimiterWithJitter:
         if self.budget > self.max_budget:
             self.budget = self.max_budget
 
+    def _has_token(self) -> bool:
+        """Bring the budget up to date and tell whether a token is available.
+
+        The caller is expected to hold the lock.
+        """
+        self._accrue()
+        return self.budget >= 1.0
+
+    def _take(self, amount: float = 1.0) -> None:
+        """Spend budget, discarding first any beyond the maximum.
+
+        The caller is expected to hold the lock, and to have brought the budget
+        up to date.
+        """
+        self._cap()
+        self.budget -= amount
+
     def has_budget(self) -> bool:
         """Whether a call would be allowed, without consuming any budget.
 
@@ -246,8 +263,7 @@ class BudgetRateLimiterWithJitter:
         forever.
         """
         with self._lock:
-            self._accrue()
-            return self.budget >= 1.0
+            return self._has_token()
 
     def consume(self, amount: float = 1.0) -> None:
         """Spend budget whether or not there is any left.
@@ -259,18 +275,17 @@ class BudgetRateLimiterWithJitter:
         """
         with self._lock:
             self._accrue()
-            self._cap()
-            self.budget -= amount
+            self._take(amount)
 
     def limit(self, f: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any) -> Any:
         """Make rate-limited calls to a function with the given arguments."""
         should_call = False
         with self._lock:
-            self._accrue()
-            should_call = self.budget >= 1.0
-            self._cap()
+            should_call = self._has_token()
             if should_call:
-                self.budget -= 1.0
+                self._take()
+            else:
+                self._cap()
 
         if should_call:
             self._on_exceed_called = False
@@ -293,3 +308,45 @@ class BudgetRateLimiterWithJitter:
             return self.limit(f, *args, **kwargs)
 
         return limited_f
+
+
+def limit_all(*limiters: BudgetRateLimiterWithJitter, peek: bool = False) -> Optional[BudgetRateLimiterWithJitter]:
+    """Let a call through every limiter, or through none of them.
+
+    The limiters are checked in the given order, and the first one with no
+    budget left is returned, with none of them charged. Otherwise each is
+    charged one token, unless peeking, and None is returned. A limiter given
+    more than once is only checked and charged once.
+
+    Every limiter's lock is held throughout, so the check and the charge are
+    atomic with respect to any other use of the limiters: a limiter seen to have
+    budget cannot run out before it is charged, and one that refuses never has
+    the others spend a token. The locks are taken in a fixed order, whatever the
+    order of the limiters, so that concurrent callers cannot deadlock.
+
+    No on_exceed callback is called and RateLimitExceeded is never raised, so
+    that this can be called while holding other locks. Reporting the limiter
+    that refused is left to the caller.
+    """
+    unique = list({id(limiter): limiter for limiter in limiters}.values())
+    locks = [limiter._lock for limiter in sorted(unique, key=id)]
+    acquired = 0
+    try:
+        for lock in locks:
+            lock.acquire()
+            acquired += 1
+
+        for limiter in unique:
+            if not limiter._has_token():
+                return limiter
+
+        if not peek:
+            for limiter in unique:
+                limiter._take()
+                # As in limit(), a call let through ends a run of refusals.
+                limiter._on_exceed_called = False
+
+        return None
+    finally:
+        for lock in reversed(locks[:acquired]):
+            lock.release()
