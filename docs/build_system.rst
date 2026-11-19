@@ -88,7 +88,7 @@ with an editable or `PYTHONPATH` install would not find the one in the repositor
 
 .. code-block:: bash
 
-    python -m ddtrace.commands.ddtrace_run python my_traced_app.py
+    python -m ddtrace_commands.ddtrace_run python my_traced_app.py
 
 Using `sccache` to Speed Up Builds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
