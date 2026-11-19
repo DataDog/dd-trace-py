@@ -6,6 +6,15 @@ runs: 3
 # List more than one to validate the combined instruction set (e.g. AGENTS.md + a Claude skill file).
 instruction_files:
   - AGENTS.md
+# Guidance removed from minimal and retained in default at the same commit.
+setup:
+  files:
+    - AGENTS.md
+    - .claude/CLAUDE.md
+  directories:
+    - .agents/skills
+    - .claude/skills
+    - .cursor/rules
 default_level: full
 presets:
   minimum: # the 1 flagship case. The gating default.
@@ -17,6 +26,24 @@ presets:
     max_cases: 4
     runs: 3
   full: # whole suite.
+    runs: 3
+  # Extend as representative workflows are added.
+  setup-calibration:
+    runs: 3
+    cases:
+      - python-tracer-testing-mandate-001
+      - python-tracer-lint-mandate-002
+      - python-tracer-release-notes-006
+      - python-tracer-domain-guide-iast-008
+      - python-setup-integration-plan-012
+      - python-setup-test-selection-013
+      - python-setup-new-configuration-014
+      - python-setup-release-note-015
+      - python-setup-product-isolation-review-016
+      - python-setup-control-mutable-default-017
+      - python-setup-control-dict-iteration-018
+  # No case list or max_cases: include every setup-eligible case, including future additions.
+  setup-full:
     runs: 3
 # A case blocks the merge on a confident regression by default; mark a case `only_warn: true` to soften it.
 # These thresholds decide when a *blocking* case's pairwise regression actually FAILs:

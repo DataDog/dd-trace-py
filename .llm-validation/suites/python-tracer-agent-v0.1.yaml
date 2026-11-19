@@ -1,13 +1,15 @@
 name: python-tracer-agent
 version: "0.1"
 
-# Seed suite (Phase 1). Two kinds of cases:
+# Seed suite (Phase 1). Three kinds of cases:
 #  - CONTENT cases — grounded in facts AGENTS.md asserts, so a regression in that file is observable.
 #    Tagged `files:` with the file whose content they exercise.
 #  - CONTROL cases — out-of-scope questions AGENTS.md does NOT cover (general Python, answered from the
 #    agent's own knowledge). Tagged `files: [AGENTS.md]` because AGENTS.md is ALWAYS in the agent's context,
 #    so a bloated (even correct) AGENTS.md can degrade these unrelated answers (context saturation) — that's
 #    what they catch. Control cases are `only_warn` while calibrating.
+#  - SETUP cases — `comparisons: [setup]` cases run only by the setup evaluation, which compares the
+#    declared setup in config.yaml (skills, domain rules) against minimal guidance at the same commit.
 # Scale to 25-40 in Phase 4.
 cases:
   - id: python-tracer-testing-mandate-001
@@ -145,3 +147,176 @@ cases:
     bad_signals:
       - Claims Python threads run CPU-bound work fully in parallel on CPython.
       - Invents a non-existent GIL-removal flag as the standard fix.
+
+  # ---- Setup cases (setup comparison only) ----
+  # These compare the declared setup with minimal guidance at the same commit. They judge useful
+  # answers, not whether the removed guidance is present or named.
+  # Ground truth: .agents/skills/apm-integrations/SKILL.md and references/implementation-guide.md.
+  # Acme Search is a hypothetical fixture.
+  - id: python-setup-integration-plan-012
+    comparisons: [setup]
+    files: [.agents/skills/apm-integrations/SKILL.md]
+    only_warn: true
+    input: |
+      Plan a new tracing integration for the hypothetical acmesearch client library, minimum
+      version 2.0. It instruments acmesearch.Client.search(), which has sync and async variants,
+      and creates one client span per call. acmesearch is a fixture, not a library or module to
+      find in this checkout. Give a concise plan covering the patch module, registration and
+      configuration, tests, and documentation. Read local documentation and guidance when useful;
+      do not edit files, run tests, or use external services.
+    expected_criteria:
+      - Places the patch module under ddtrace/contrib/internal/acmesearch/ with patch(), unpatch(),
+        get_version(), and _supported_versions() (a dependency-to-version mapping), keeping
+        patching idempotent and unpatching symmetric.
+      - Uses the typed TracingEvent plus core.context_with_event() lifecycle with tracing
+        subscribers for a new integration, and does not introduce Pin.
+      - Registers the integration in PATCH_MODULES in ddtrace/_monkey.py and its configuration in
+        INTEGRATION_CONFIGS, alphabetically, plus the integration registry and manifest metadata.
+      - Plans tests through tests/contrib/suitespec.yml with patch/unpatch and span behavior,
+        covering both sync and async paths, and validation through scripts/run-tests rather than
+        pytest directly, without claiming tests ran.
+      - Plans an integration docstring in the package __init__.py referenced from
+        docs/integrations.rst, and a release note for the new integration.
+    bad_signals:
+      - Introduces Pin into the new integration or imports AppSec/IAST/AI Guard code into contrib.
+      - Omits registration in ddtrace/_monkey.py or claims creating the patch module alone enables it.
+      - Invents existing acmesearch source files, tests, or successful checks, or performs edits,
+        test runs, or external calls.
+
+  # Ground truth: .agents/skills/run-tests/SKILL.md. The changed file exists; no run is implied.
+  - id: python-setup-test-selection-013
+    comparisons: [setup]
+    files: [.agents/skills/run-tests/SKILL.md]
+    only_warn: true
+    input: |
+      I changed request handling in ddtrace/contrib/internal/httpx/patch.py and pulled main,
+      which also changed some Rust code under src/native/. A teammate says to run
+      `pytest tests/contrib/httpx` directly, or to reuse an environment hash from their run
+      last week. How should I select and run validation, and what should I report afterwards?
+      Read local guidance if useful, but do not run commands or edit files.
+    expected_criteria:
+      - Uses scripts/run-tests --list with the changed files to discover suites and uses the
+        returned environment hashes rather than copying old hashes or invoking pytest directly.
+      - Runs selected environments with scripts/run-tests --venv <hash>, passing test arguments
+        such as -k after a single --.
+      - Rebuilds with -r because native sources changed after updating from main.
+      - Covers the changed operation including the sync and async paths, and treats suite discovery
+        as a starting point rather than proof of coverage.
+      - Reports the environments and tests run, outcomes, and gaps without claiming any check ran.
+    bad_signals:
+      - Accepts running pytest directly or reusing a stale environment hash.
+      - Invents runner flags or environment names, or claims tests passed.
+
+  # Ground truth: .agents/skills/add-new-configuration/SKILL.md. The variable is a fixture.
+  - id: python-setup-new-configuration-014
+    comparisons: [setup]
+    files: [.agents/skills/add-new-configuration/SKILL.md]
+    only_warn: true
+    input: |
+      I'm adding a user-facing boolean environment variable DD_TRACE_ACME_RETRY_ENABLED
+      (default true) read through DDConfig.var() under ddtrace/. It is a hypothetical fixture.
+      What else must change for documentation and CI to accept it? Read local guidance when
+      useful; do not edit files, run commands, or contact external services.
+    expected_criteria:
+      - Adds the entry to supported-configurations.json with type boolean and the string default
+        "true", treating that file as the source of truth.
+      - Regenerates ddtrace/internal/settings/_supported_configurations.py with
+        scripts/supported_configurations.py instead of hand-editing it, and checks it with --check.
+      - Documents the option in docs/configuration.rst and adds a release note for the user-facing
+        configuration.
+      - Does not infer the implementation letter from neighboring entries; defers to the central
+        configuration registry and reports any remaining handoff instead of claiming registration.
+    bad_signals:
+      - Hand-edits the generated _supported_configurations.py module.
+      - Copies the implementation letter from a neighboring variable or claims registry
+        registration succeeded.
+      - Edits files, runs commands, or contacts external services despite the requested scope.
+
+  # Ground truth: .agents/skills/releasenote/SKILL.md and docs/releasenotes.rst. The bug is a fixture.
+  - id: python-setup-release-note-015
+    comparisons: [setup]
+    files: [.agents/skills/releasenote/SKILL.md]
+    only_warn: true
+    input: |
+      Draft the release note for this hypothetical fix: _set_http_meta in the httpx integration
+      raised a KeyError, so httpx client spans were dropped when a request had no Host header.
+      Our internal ticket is APMS-0000. Show the reno fragment YAML and the command that creates
+      it. Do not edit files or run commands.
+    expected_criteria:
+      - Creates the fragment with reno new and a lowercase hyphenated slug.
+      - Puts the note under fixes with the httpx scope and states the customer-visible symptom in
+        present tense, such as "Fixes an issue where ... when ...".
+      - Keeps the note to one or two sentences without internal function names, ticket numbers,
+        or root-cause rationale.
+    bad_signals:
+      - Includes _set_http_meta, the ticket number, or implementation rationale in the note.
+      - Uses a feature or other category for the bug fix, or omits the scope.
+
+  # Ground truth: .cursor/rules/isolated-responsibility.mdc and ddtrace/aiguard/_listener.py.
+  # Frozen hypothetical diff; the filename is a fixture.
+  - id: python-setup-product-isolation-review-016
+    comparisons: [setup]
+    files: [.cursor/rules/isolated-responsibility.mdc]
+    only_warn: true
+    input: |
+      Review this frozen hypothetical diff. Report actionable findings with impact and a focused
+      fix. The filename is a fixture, not a current source file to locate. Do not edit files,
+      run commands, or use external services.
+
+      --- a/ddtrace/contrib/internal/acmeclient/patch.py
+      +++ b/ddtrace/contrib/internal/acmeclient/patch.py
+      @@ -1,5 +1,9 @@
+       from ddtrace.internal import core
+      +from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+      +from ddtrace.internal.settings.asm import config as asm_config
+
+       def _traced_send(wrapped, instance, args, kwargs):
+      +    if asm_config._iast_enabled:
+      +        kwargs["body"] = taint_pyobject(kwargs["body"], source_name="body")
+           with core.context_with_event(AcmeSendEvent(instance, args, kwargs)):
+               return wrapped(*args, **kwargs)
+    expected_criteria:
+      - Flags importing IAST implementation code and checking its enablement inside contrib as a
+        product-isolation violation; contrib should not depend on optional security products.
+      - Proposes dispatching or reusing a core event from contrib and registering an IAST listener
+        within that product's enabled lifecycle, converting provider objects there.
+      - Mentions checking import direction or cycles with the repository's analysis tooling, or
+        otherwise keeps the fix tied to the supplied diff without inventing results.
+    bad_signals:
+      - Approves the diff because the IAST path is behind an enablement check.
+      - Generalizes the rule to forbid contrib importing tracing code.
+      - Edits files, runs commands, or claims checks ran.
+
+  # General Python control: no repository-specific conventions or skill access required.
+  - id: python-setup-control-mutable-default-017
+    comparisons: [setup]
+    only_warn: true
+    input: |
+      Answer from general Python knowledge without reading files or using tools.
+      Why does `def add(item, items=[]): items.append(item); return items` return a growing
+      list across calls, and what is the idiomatic fix? Keep the answer short.
+    expected_criteria:
+      - Explains that default values are evaluated once at function definition, so the same list
+        object is shared across calls.
+      - Gives the idiomatic None-sentinel fix that creates a new list inside the function.
+      - Stays concise and does not require repository validation or claim checks ran.
+    bad_signals:
+      - Claims the default list is recreated on each call or that the behavior is a CPython bug.
+      - Reads files, invokes tools, or recommends repository workflows for this conceptual question.
+
+  # General Python control: mutation during iteration.
+  - id: python-setup-control-dict-iteration-018
+    comparisons: [setup]
+    only_warn: true
+    input: |
+      Answer from general Python knowledge without reading files or using tools.
+      What happens if I delete keys from a dict while iterating over it with
+      `for k in d: if d[k] is None: del d[k]`, and how should I write it instead? Keep it short.
+    expected_criteria:
+      - Says Python raises RuntimeError because the dictionary changed size during iteration.
+      - Gives a correct alternative such as iterating over list(d) or building a new dict with a
+        comprehension.
+      - Stays concise and does not require repository validation or claim checks ran.
+    bad_signals:
+      - Claims deletion during iteration is safe or silently skips keys without error.
+      - Reads files, invokes tools, or recommends repository workflows for this conceptual question.
