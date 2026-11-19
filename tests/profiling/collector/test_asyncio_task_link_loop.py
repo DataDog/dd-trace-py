@@ -183,3 +183,33 @@ def test_asyncio_task_link_survives_shared_loop_untracking() -> None:
         loop.close()
 
     assert_latest_child_has_parent(os.environ["DD_PROFILING_OUTPUT_PPROF"], worker.name)
+
+
+@pytest.mark.subprocess(env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_task_link_future_subclass"}, err=None)
+def test_asyncio_task_link_uses_get_loop_for_future_subclass() -> None:
+    import asyncio
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    assert stack.is_available, stack.failure_msg
+    calls = []
+
+    class CustomFuture(asyncio.Future):
+        def get_loop(self):
+            calls.append(self)
+            return super().get_loop()
+
+    async def main() -> None:
+        parent = asyncio.current_task()
+        child = CustomFuture()
+        stack.link_tasks(parent, child)
+        stack.weak_link_tasks(parent, child)
+        assert calls == [child, child]
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        asyncio.run(main())
+    finally:
+        p.stop()

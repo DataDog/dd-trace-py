@@ -14,10 +14,12 @@
 #include "span_links.hpp"
 
 #include "echion/cpython/asyncio_discovery.h"
+#include "echion/cpython/tasks.h"
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
 #include <cmath>
+#include <cstring>
 #include <string_view>
 #include <utility>
 
@@ -413,6 +415,42 @@ stack_asyncio_task_lists(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 }
 
 static PyObject*
+get_task_link_loop(PyObject* child)
+{
+#if PY_VERSION_HEX >= 0x030c0000 && PY_VERSION_HEX < 0x03100000 && !defined(Py_GIL_DISABLED)
+    // In CPython 3.12 through 3.15, the exact Task and Future types are bound to the _asyncio extension module.
+    // Check the defining module as well as the type name and size before reading the shared loop field.
+    auto* type = Py_TYPE(child);
+    const std::string_view name(type->tp_name);
+    if ((name == "_asyncio.Task" && type->tp_basicsize == static_cast<Py_ssize_t>(sizeof(TaskObj))) ||
+        (name == "_asyncio.Future" && type->tp_basicsize == static_cast<Py_ssize_t>(sizeof(FutureObj)))) {
+        PyObject* module = PyType_GetModule(type);
+        if (module != nullptr) {
+            auto* def = PyModule_GetDef(module);
+            if (def != nullptr && std::string_view(def->m_name) == "_asyncio") {
+                constexpr size_t loop_offset = offsetof(FutureObj, future_loop);
+                static_assert(loop_offset == offsetof(TaskObj, task_loop));
+                PyObject* loop;
+                std::memcpy(&loop, reinterpret_cast<const char*>(child) + loop_offset, sizeof(loop));
+                return Py_XNewRef(loop);
+            }
+        } else {
+            PyErr_Clear();
+        }
+    }
+#endif
+
+    // On free-threaded builds, get_loop() takes the child's critical section.
+    PyObject* method = PyUnicode_FromString("get_loop");
+    if (method == nullptr) {
+        return nullptr;
+    }
+    PyObject* loop = PyObject_CallMethodNoArgs(child, method);
+    Py_DECREF(method);
+    return loop;
+}
+
+static PyObject*
 stack_link_tasks_impl(PyObject* args, bool weak)
 {
     PyObject *parent, *child;
@@ -426,13 +464,7 @@ stack_link_tasks_impl(PyObject* args, bool weak)
     }
 
     // The child's loop need not be the policy loop registered to this thread.
-    PyObject* method = PyUnicode_FromString("get_loop");
-    if (method == nullptr) {
-        PyErr_Clear();
-        Py_RETURN_NONE;
-    }
-    PyObject* loop = PyObject_CallMethodNoArgs(child, method);
-    Py_DECREF(method);
+    PyObject* loop = get_task_link_loop(child);
     if (loop == nullptr) {
         PyErr_Clear();
         Py_RETURN_NONE;
