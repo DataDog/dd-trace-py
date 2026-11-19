@@ -270,3 +270,12 @@ def test_conversation_id_capture_disabled_by_default(mcp_llmobs, test_spans, run
 
     assert len(result.content) == 1
     assert get_llmobs_session_id(_only(_pop_spans(test_spans), "server_tool_call")) is None
+
+
+def test_conversation_id_capture_without_arguments(mcp_llmobs, test_spans, run_client):
+    with override_config("mcp", dict(capture_conversation_id=True)):
+        result = run_client("auto", lambda client: client.call_tool("calculator"))
+
+    conversation_id = get_llmobs_session_id(_only(_pop_spans(test_spans), "server_tool_call"))
+    assert conversation_id
+    assert conversation_id in result.content[-1].text

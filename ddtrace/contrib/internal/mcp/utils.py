@@ -225,9 +225,7 @@ def strip_telemetry_argument(span: Span, ctx: Any) -> Any:
     """
     params = ctx.params or {}
     arguments = params.get("arguments")
-    if not isinstance(arguments, dict):
-        return ctx
-    if TELEMETRY_KEY not in arguments:
+    if not isinstance(arguments, dict) or TELEMETRY_KEY not in arguments:
         if config.mcp.capture_conversation_id:
             core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}))
         return ctx
