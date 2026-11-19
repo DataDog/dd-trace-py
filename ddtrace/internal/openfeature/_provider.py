@@ -627,9 +627,10 @@ class DataDogProvider(AbstractProvider):
                 sources = self._retired_configuration_sources + ([source] if source is not None else [])
                 if not sources:
                     return
-                self._stopping_configuration_source = True
-                self._configuration_source_stopper = current_thread()
+                # Ownership first, so a child forked before the flag is set can always clear it.
                 operation.reserved = sources
+                self._configuration_source_stopper = current_thread()
+                self._stopping_configuration_source = True
 
             failed = []
             error: typing.Optional[BaseException] = None
