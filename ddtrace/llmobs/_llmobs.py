@@ -3862,7 +3862,9 @@ class LLMObs(Service):
         parent_agent_name, parent_agent_span_id, _ = _resolve_parent_agent(active_span)
         _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
 
-        # Mirrored from the locals above, so baggage escapes the x-datadog-tags budget degradation.
+        if extra_baggage is None:
+            return
+        # Same values as the tags above, but baggage is not subject to the x-datadog-tags budget.
         baggage_values: dict[str, Optional[str]] = {
             BAGGAGE_PARENT_ID_KEY: parent_id,
             # Baggage wire contract is to use hex trace IDs (Decimal wire format is legacy)
@@ -3876,8 +3878,6 @@ class LLMObs(Service):
                 parent_agent_name[:BAGGAGE_AGENT_NAME_MAX_LENGTH] if parent_agent_name is not None else None
             ),
         }
-        if extra_baggage is None:
-            return
         # None drops the key from this request, so inbound `llmobs.*` items are never forwarded
         # alongside (or instead of) ours. Without an LLMObs context there is nothing to send.
         for baggage_key, value in baggage_values.items():
@@ -3967,8 +3967,10 @@ class LLMObs(Service):
                 error = "invalid_parent_id"
                 log.warning("Failed to parse LLMObs parent ID from request headers.")
                 return
-            # Baggage carries canonical hex, the tag carries decimal.
-            hex_llmobs_trace_id = read(PROPAGATED_LLMOBS_TRACE_ID_KEY) if carrier == "baggage" else None
+            # Read explicitly, not through read(): baggage carries canonical hex, the tag carries decimal.
+            hex_llmobs_trace_id = (
+                context.get_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY) if carrier == "baggage" else None
+            )
             if hex_llmobs_trace_id is not None:
                 parent_llmobs_trace_id = _trace_id_to_wire(hex_llmobs_trace_id)
             else:

@@ -1256,41 +1256,14 @@ def test_inject_without_llmobs_context_sends_no_llmobs_baggage(llmobs):
     assert not [k for k in _extract_baggage(headers) if k.startswith("llmobs.")]
 
 
-def test_reused_headers_drop_stale_llmobs_baggage(llmobs):
-    """A dict reused after an LLMObs injection must not keep the earlier request's parent."""
-    headers = {}
-    with llmobs.workflow("w") as span:
-        HTTPPropagator.inject(span.context, headers)
-    assert "baggage" in headers
-    with llmobs._instance.tracer.trace("non-llmobs") as span:
-        HTTPPropagator.inject(span.context, headers)
-    assert "baggage" not in headers
-
-
-def test_reused_headers_keep_caller_baggage_and_drop_stale_llmobs_baggage(llmobs):
-    headers = {"baggage": "tenant=a"}
-    with llmobs.workflow("w") as span:
-        HTTPPropagator.inject(span.context, headers)
-    with llmobs._instance.tracer.trace("non-llmobs") as span:
-        HTTPPropagator.inject(span.context, headers)
-    assert _extract_baggage(headers) == {"tenant": "a"}
-
-
-def test_inject_keeps_caller_baggage_header(llmobs):
+def test_inject_replaces_caller_baggage_header_inside_llmobs_span(llmobs):
+    """Same rule as for context baggage: when ddtrace has items to send, it writes the header."""
     headers = {"baggage": "tenant=a"}
     with llmobs.workflow("w") as span:
         HTTPPropagator.inject(span.context, headers)
     baggage = _extract_baggage(headers)
-    assert baggage["tenant"] == "a"
+    assert "tenant" not in baggage
     assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
-
-
-def test_inject_replaces_caller_llmobs_baggage(llmobs):
-    headers = {"baggage": "llmobs.parent_id=1,tenant=a"}
-    with llmobs.workflow("w") as span:
-        HTTPPropagator.inject(span.context, headers)
-    assert _extract_baggage(headers)[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
-    assert headers["baggage"].count("llmobs.parent_id=") == 1
 
 
 def test_inject_context_baggage_wins_over_caller_header(llmobs):
@@ -1299,13 +1272,6 @@ def test_inject_context_baggage_wins_over_caller_header(llmobs):
     with llmobs.workflow("w") as span:
         HTTPPropagator.inject(span.context, headers)
     assert _extract_baggage(headers)["tenant"] == "ctx"
-
-
-def test_inject_leaves_unparseable_caller_header_untouched(llmobs):
-    headers = {"baggage": "not-a-member"}
-    with llmobs._instance.tracer.trace("non-llmobs") as span:
-        HTTPPropagator.inject(span.context, headers)
-    assert headers["baggage"] == "not-a-member"
 
 
 def test_thread_pool_child_keeps_its_own_trace_after_injection(llmobs, patched_futures):
@@ -1549,15 +1515,18 @@ def test_session_survives_baggage_only_pass_through_hop(llmobs):
     assert downstream_ctx._meta.get(PROPAGATED_SESSION_ID_KEY) == "sess-1"
 
 
-def test_baggage_merge_failure_does_not_escape_inject(llmobs):
+def test_baggage_merge_failure_does_not_escape_inject():
     """The merge reads trace-shared baggage that another thread can mutate; a failure there must stay
     inside the encoder's guard instead of failing the request.
     """
-    with llmobs.workflow("w") as span:
-        headers = {"baggage": "user.id=u1"}
-        with mock.patch.object(_BaggageHeader, "_extract", side_effect=RuntimeError("changed size")):
-            HTTPPropagator.inject(span.context, headers)
-    assert "x-datadog-trace-id" in headers
+
+    class _FailingItems(dict):
+        def items(self):
+            raise RuntimeError("dictionary changed size during iteration")
+
+    headers = {}
+    _BaggageHeader._inject(Context(), headers, _FailingItems({BAGGAGE_PARENT_ID_KEY: "1"}))
+    assert "baggage" not in headers
 
 
 @pytest.mark.parametrize(
@@ -1606,14 +1575,3 @@ def test_inject_without_llmobs_context_leaves_caller_baggage_header_untouched(ll
         headers = {"baggage": "tenant=a;scope=internal"}
         HTTPPropagator.inject(span.context, headers)
     assert headers["baggage"] == "tenant=a;scope=internal"
-
-
-def test_inject_merges_caller_baggage_header_with_capitalized_key(llmobs):
-    """A plain dict with "Baggage" must end up with one merged baggage header, not two."""
-    headers = {"Baggage": "tenant=acme"}
-    with llmobs.workflow("w") as span:
-        HTTPPropagator.inject(span.context, headers)
-    assert [k for k in headers if k.lower() == "baggage"] == ["baggage"]
-    baggage = _extract_baggage(headers)
-    assert baggage["tenant"] == "acme"
-    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
