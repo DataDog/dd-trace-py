@@ -39,8 +39,8 @@ Propose a rule only when **all** hold:
 - **Not already enforced**: check section 2 and the existing rule/check lists first. If an
   existing check covers it, report that instead of adding a duplicate.
 - **Low blast radius**: the whole-repo scan (or diff-scoped check) has zero or a handful of
-  hits. A rule that fails hundreds of existing sites needs a human decision first: leave it
-  off, name the files, and ask.
+  hits to fix or allow-list (section 3, step 4). A rule that fails hundreds of existing sites
+  needs a human decision first: leave it off, name the files, and ask.
 
 If any item fails, do not open a PR. Report the theme and why it was not automatable.
 
@@ -101,11 +101,17 @@ A new rule needs no CI or `scripts/lint` change. Do not touch the runner.
    scripts/lint sg            # whole-repo scan; inspect every hit for the new rule
    ```
 
-4. Severity: new rules start at `warning` unless the whole-repo scan has zero hits for the rule
-   (then `error` is fine and preferred, since it blocks). Never raise to `error` with known
-   hits. Fix legitimate hits in the same PR when the cleanup is small and mechanical;
-   otherwise stop and report.
-5. Exceptions: prefer a narrow `ignores:` entry with a comment over loosening the pattern.
+4. Severity and existing violations: the rule must be `error` severity (blocking) and must
+   allow **no new violations**. Handle existing hits in this order:
+   1. Fix them in the same PR when the cleanup is small and mechanical.
+   2. Otherwise allow-list the known existing sites with narrow per-file `ignores:` entries
+      (exact paths, never broad globs), each with a YAML comment saying they are legacy
+      violations to be cleaned up. The scan must then exit 0, so any new violation fails CI.
+   3. If neither is practical (hundreds of sites, or fixes need human judgment), do not land a
+      `warning`-severity rule as a substitute. Leave the rule off, name the files, and report.
+   Never loosen the pattern to hide existing hits.
+5. Exceptions: for intentional exceptions, prefer a narrow `ignores:` entry with a comment
+   over loosening the pattern.
 
 ## 4. Extending a `scripts/check_*.py` checker
 
@@ -156,7 +162,8 @@ All four prior PRs from the `dd-apm-ecosystems` bot were closed unmerged. Avoid 
       closed PRs
 - [ ] Used ast-grep (or ruff / an existing checker); justified in the body if not
 - [ ] Rule + tests with valid, invalid, and near-miss fixtures
-- [ ] `scripts/lint sg-test` and `scripts/lint sg` pass; whole-repo hit count stated
+- [ ] `scripts/lint sg-test` and `scripts/lint sg` pass at `error` severity; existing hits fixed
+      or allow-listed by exact path (count stated); no new violations permitted
 - [ ] Touched Python formatted (`scripts/lint fmt -- <files>`); `scripts/lint checks` run
 - [ ] Wired into existing blocking CI (automatic for ast-grep)
 - [ ] One rule per PR; no unrelated cleanup; no release note for tooling-only changes
