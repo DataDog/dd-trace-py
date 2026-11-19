@@ -1,4 +1,5 @@
 from importlib.util import find_spec
+import sys
 
 import pytest
 
@@ -357,3 +358,88 @@ def test_uvloop_running_task_stack_omits_wrapper() -> None:
     assert any("sync_leaf" in names and "main" in names for names in stacks), stacks
     wrappers = {"wrapper", "run.<locals>.wrapper"}
     assert not any(wrappers.intersection(names) for names in stacks), stacks
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_MAX_FRAMES": "1",
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_native_call_frame_budget",
+        "DD_PROFILING_STACK_NATIVE_FRAMES": "true",
+    },
+    err=None,
+)
+def test_one_frame_budget_keeps_coroutine_calling_native_code() -> None:
+    import asyncio
+    import os
+    import time
+
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import ProfilerContextManager
+
+    async def native_call() -> None:
+        time.sleep(1)
+
+    async def main() -> None:
+        await asyncio.create_task(native_call(), name="native_call")
+
+    with ProfilerContextManager():
+        asyncio.run(main())
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    stacks = set()
+    for sample in pprof_utils.get_samples_with_label_key(profile, "task name"):
+        label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if label is not None and profile.string_table[label.str] == "native_call":
+            stacks.add(
+                tuple(
+                    pprof_utils.get_location_from_id(profile, location_id).function_name
+                    for location_id in sample.location_id
+                )
+            )
+
+    assert stacks == {("native_call",)}, stacks
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_MAX_FRAMES": "2",
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_gc_frame_budget",
+        "DD_PROFILING_STACK_GC_ENABLED": "true",
+        "DD_PROFILING_STACK_NATIVE_FRAMES": "true",
+    },
+    err=None,
+)
+def test_two_frame_budget_keeps_collecting_coroutine_and_gc_marker() -> None:
+    import asyncio
+    import gc
+    import os
+
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.gc_utils import slow_cyclic_collection_coroutine
+    from tests.profiling.collector.test_utils import ProfilerContextManager
+
+    gc.disable()
+
+    with ProfilerContextManager():
+        asyncio.run(slow_cyclic_collection_coroutine())
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    stacks = set()
+    for sample in pprof_utils.get_samples_with_label_key(profile, "task name"):
+        label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if label is not None and profile.string_table[label.str] == "Task-1":
+            stacks.add(
+                tuple(
+                    pprof_utils.get_location_from_id(profile, location_id).function_name
+                    for location_id in sample.location_id
+                )
+            )
+
+    assert () not in stacks, stacks
+    assert all(len(names) <= 2 for names in stacks), stacks
+    gc_stacks = {names for names in stacks if "Garbage collection" in names}
+    assert gc_stacks == {("Garbage collection", "slow_cyclic_collection_coroutine")}, stacks

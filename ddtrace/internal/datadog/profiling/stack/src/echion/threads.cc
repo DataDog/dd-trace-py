@@ -361,12 +361,21 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         // NOTE: Task candidates are selected before physical candidates,
         // but rendered in logical leaf-to-root order below. Keep budgeting and
         // output ordering separate when changing this stitching policy.
-        // Apply the configured limit to rendered locations. A Python frame can
-        // inject one native location, so counting Frame objects alone can let a
-        // lower-priority physical segment displace task context in the exporter.
+        // Apply the configured limit to rendered locations, including injected native and GC locations.
         const bool task_collection_full = task_frames.size() >= max_frames;
         size_t task_locations = 0;
-        const size_t task_to_keep = select_frame_prefix(task_frames, 0, task_frames.size(), max_frames, task_locations);
+        size_t task_to_keep = select_frame_prefix(task_frames, 0, task_frames.size(), max_frames, task_locations);
+        if (task_to_keep == 0 && !task_frames.empty()) {
+            // Keep the Python leaf even when its injected locations do not fit.
+            // Disable native lookup on this sample's copy before dropping the GC marker.
+            auto& leaf = task_frames.front();
+            leaf.code_object = 0;
+            if (max_frames == 1) {
+                leaf.is_in_gc = false;
+            }
+            task_to_keep = 1;
+            task_locations = rendered_location_count(leaf);
+        }
         const bool task_truncated = task_collection_full || task_to_keep < task_frames.size();
         task_frames.erase(task_frames.begin() + static_cast<FrameStack::difference_type>(task_to_keep),
                           task_frames.end());
@@ -375,7 +384,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         // fill it with physical context. Synchronous leaf frames go just before
         // the running task's frames, after any suspended descendants. They have
         // priority over event-loop roots.
-        if (task_truncated || (on_cpu_task_start && !asyncio_boundary_index)) {
+        if (task_truncated || task_locations == max_frames || (on_cpu_task_start && !asyncio_boundary_index)) {
             stack_info->stack = std::move(task_frames);
         } else {
             auto& stack = stack_info->stack;
