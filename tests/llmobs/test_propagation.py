@@ -1598,3 +1598,22 @@ def test_record_activate_distributed_headers_adds_carrier_tag():
     first, second = (c.kwargs["tags"] for c in writer.add_count_metric.call_args_list)
     assert ("carrier", "stale_baggage") in first
     assert not [t for t in second if t[0] == "carrier"]
+
+
+def test_inject_without_llmobs_context_leaves_caller_baggage_header_untouched(llmobs):
+    """With nothing to add, the caller's header must pass through as sent, W3C properties included."""
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        headers = {"baggage": "tenant=a;scope=internal"}
+        HTTPPropagator.inject(span.context, headers)
+    assert headers["baggage"] == "tenant=a;scope=internal"
+
+
+def test_inject_merges_caller_baggage_header_with_capitalized_key(llmobs):
+    """A plain dict with "Baggage" must end up with one merged baggage header, not two."""
+    headers = {"Baggage": "tenant=acme"}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert [k for k in headers if k.lower() == "baggage"] == ["baggage"]
+    baggage = _extract_baggage(headers)
+    assert baggage["tenant"] == "acme"
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)

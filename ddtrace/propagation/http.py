@@ -943,20 +943,31 @@ class _BaggageHeader:
         # The merge iterates the trace-shared _baggage, which another thread can mutate, so it stays
         # inside the guard: baggage propagation is best-effort and must never fail the request.
         try:
+            existing_key = None
             if extra_items:
                 merged = {k: v for k, v in extra_items.items() if v is not None}
                 merged.update((k, v) for k, v in span_context._baggage.items() if k not in extra_items)
+                # Header names are case-insensitive, and a plain dict may hold "Baggage": find the
+                # caller's key so the merged header replaces it instead of becoming a second header.
+                existing_key = next(
+                    (k for k in headers if isinstance(k, str) and k.lower() == _HTTP_HEADER_BAGGAGE), None
+                )
+                existing_header = headers[existing_key] if existing_key is not None else None
                 existing_items: dict[str, str] = {}
-                existing_header = headers.get(_HTTP_HEADER_BAGGAGE)
                 if existing_header:
                     existing_items = _BaggageHeader._extract({_HTTP_HEADER_BAGGAGE: existing_header})._baggage
-                    merged.update((k, v) for k, v in existing_items.items() if k not in extra_items and k not in merged)
+                stale_keys = [k for k in existing_items if k in extra_items]
                 if not merged:
                     # Drop a header that only held request-scoped keys (stale llmobs.* items from an
-                    # earlier injection), but never a caller's header we could not parse.
-                    if existing_items and all(k in extra_items for k in existing_items):
-                        del headers[_HTTP_HEADER_BAGGAGE]
-                    return
+                    # earlier injection). With no stale keys we add nothing, so leave the caller's
+                    # header as sent: re-encoding it through the value-only extractor would corrupt
+                    # W3C properties.
+                    if existing_key is not None and existing_items and len(stale_keys) == len(existing_items):
+                        del headers[existing_key]
+                        return
+                    if not stale_keys:
+                        return
+                merged.update((k, v) for k, v in existing_items.items() if k not in extra_items and k not in merged)
                 baggage_items = merged.items()
             else:
                 baggage_items = span_context._baggage.items()
@@ -983,6 +994,8 @@ class _BaggageHeader:
                 total_size += item_size
 
             header_value = ",".join(encoded_items)
+            if existing_key is not None and existing_key != _HTTP_HEADER_BAGGAGE:
+                del headers[existing_key]
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
             # Record telemetry for successful baggage injection
