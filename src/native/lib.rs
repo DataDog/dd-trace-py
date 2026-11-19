@@ -9,6 +9,7 @@ mod context_provider;
 mod context_watcher;
 mod contextvar;
 mod data_pipeline;
+mod datastreams;
 #[cfg(feature = "stats")]
 mod ddsketch;
 mod ddtrace_utils;
@@ -76,6 +77,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     shared_runtime::register_shared_runtime(m)?;
     remote_config::register_remote_config(m)?;
     data_pipeline::register_data_pipeline(m)?;
+    datastreams::register_datastreams(m)?;
     telemetry::register_telemetry(m)?;
     debugger::register_debugger(m)?;
     symdb::register_symdb(m)?;
