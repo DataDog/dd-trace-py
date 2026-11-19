@@ -14,7 +14,6 @@
 #include "span_links.hpp"
 
 #include "echion/cpython/asyncio_discovery.h"
-#include "echion/cpython/tasks.h"
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
