@@ -1544,9 +1544,9 @@ def test_session_survives_baggage_only_pass_through_hop(llmobs):
     with llmobs._instance.tracer.trace("http.client") as span:
         outbound = {}
         HTTPPropagator.inject(span.context, outbound)
-    downstream = HTTPPropagator.extract(outbound)
-    assert downstream.get_baggage_item(BAGGAGE_SESSION_ID_KEY) == "sess-1"
-    assert downstream._meta.get(PROPAGATED_SESSION_ID_KEY) == "sess-1"
+    downstream_ctx = HTTPPropagator.extract(outbound)
+    assert downstream_ctx.get_baggage_item(BAGGAGE_SESSION_ID_KEY) == "sess-1"
+    assert downstream_ctx._meta.get(PROPAGATED_SESSION_ID_KEY) == "sess-1"
 
 
 def test_baggage_merge_failure_does_not_escape_inject(llmobs):
