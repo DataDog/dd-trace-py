@@ -26,11 +26,6 @@ import pytest
             ),
         ),
         (
-            "ddtrace.contrib._events.span_lifecycle",
-            "ddtrace.internal.core.span_lifecycle",
-            ("SpanLifecycleEvents", "SpanLifecycleListener"),
-        ),
-        (
             "ddtrace.contrib._events.web_framework",
             "ddtrace._trace.web_framework",
             ("WebFrameworkEvents", "WebFrameworkRequestEvent"),

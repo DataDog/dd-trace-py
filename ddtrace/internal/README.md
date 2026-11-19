@@ -92,7 +92,8 @@ Product-neutral HTTP event definitions live in `ddtrace.internal.core.http`, syn
 exception notifications in `ddtrace.internal.core.exception`, and span lifecycle listener
 contracts in `ddtrace.internal.core.span_lifecycle`. The web
 request event combines HTTP and tracing fields in `ddtrace._trace.web_framework`.
-The previous `ddtrace.contrib._events` import paths remain aliases to these definitions.
+The previous HTTP, exception, and web request paths in `ddtrace.contrib._events` remain
+aliases. Span lifecycle consumers import directly from `ddtrace.internal.core.span_lifecycle`.
 
 The shared tracing subscriber base and web request subscriber import these contracts
 and tracing-owned HTTP metadata and propagation helpers directly, without depending
