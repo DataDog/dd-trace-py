@@ -4,7 +4,6 @@ from unittest import mock
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from tests.appsec.iast.conftest import iast_context
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc2
@@ -186,12 +185,20 @@ def test_weak_cipher_cryptography_blowfish_configured(iast_context_blowfish_conf
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
-def test_weak_cipher_rc4_unpatched(iast_context_defaults):
-    _testing_unpatch_iast()
-    cipher_arc4()
-    span_report = get_iast_reporter()
+@pytest.mark.subprocess
+def test_weak_cipher_rc4_unpatched():
+    from contextlib import contextmanager
 
-    assert span_report is None
+    from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+    from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
+    from tests.appsec.iast.conftest import iast_context
+    from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc4
+
+    # Keep the process-wide unpatch out of the shared test worker.
+    with contextmanager(iast_context)(dict(DD_IAST_ENABLED="true")):
+        _testing_unpatch_iast()
+        cipher_arc4()
+        assert get_iast_reporter() is None
 
 
 def test_weak_cipher_deduplication(iast_context_deduplication_enabled):
