@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes deadlocks in gevent-patched applications when a ddtrace background thread logs while a greenlet
+    holds a logging lock, for example when the application forks twice within a short time at startup. Records that
+    ddtrace threads log are now handled on the main thread's gevent hub, so these threads no longer wait for gevent locks.

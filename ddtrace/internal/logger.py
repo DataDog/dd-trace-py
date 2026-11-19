@@ -30,17 +30,23 @@ Usage:
 
 """
 
+from _queue import Empty
+from _queue import SimpleQueue
+from _thread import get_ident
 import collections
 from dataclasses import dataclass
 from dataclasses import field
 import logging
 import time
 import traceback
+from typing import Any
+from typing import Callable
 from typing import DefaultDict
 from typing import Optional
 from typing import Tuple
 from typing import Union
 
+from ddtrace.internal.locks import Lock
 from ddtrace.internal.settings import env
 
 
@@ -110,7 +116,123 @@ def get_logger(name: str) -> logging.Logger:
         if (level := LOG_LEVEL_TRIE.lookup(name)) is not None:
             logger.setLevel(level)
 
+    if main_hub_logging.enabled:
+        main_hub_logging.wrap(logger)
+
     return logger
+
+
+class _MainHubLogger(logging.Logger):
+    """A ddtrace logger that hands the records produced off the main thread to the main gevent hub."""
+
+    def isEnabledFor(self, level: int) -> bool:
+        if main_hub_logging.runs_inline():
+            return super().isEnabledFor(level)
+        # Same as the base class, without the logging lock it takes on a cache miss.
+        if self.disabled:
+            return False
+        try:
+            return self._cache[level]  # type: ignore[attr-defined]
+        except KeyError:
+            return level > self.manager.disable and level >= self.getEffectiveLevel()
+
+    def handle(self, record: logging.LogRecord) -> None:
+        if main_hub_logging.runs_inline():
+            super().handle(record)
+        else:
+            main_hub_logging.put(self, record)
+
+
+class MainHubLogging:
+    """Runs the logging handlers of ddtrace loggers on the main thread once gevent has a hub there.
+
+    Module cloning shares logging with the application, so once gevent has patched threading, the logging lock and
+    the handler locks are gevent locks. A ddtrace thread that waits for one depends on the main thread's hub, which
+    might itself be waiting for that thread, e.g. to join it before a fork. Records logged off the main thread are
+    queued instead, and a single greenlet on the main hub handles them in order.
+    """
+
+    _records: "SimpleQueue[tuple[logging.Logger, logging.LogRecord]]"
+    _draining: bool
+
+    def __init__(self) -> None:
+        self.enabled = False
+        self._main_thread_ident = get_ident()
+        self._hub: Any = None
+        self._spawn_raw: Optional[Callable[..., Any]] = None
+        self.reset()
+
+    def enable(self) -> None:
+        """Wrap the existing and future ddtrace loggers. Called from the main thread."""
+        self.enabled = True
+        self._main_thread_ident = get_ident()
+        for logger in list(logging.root.manager.loggerDict.values()):
+            if isinstance(logger, logging.Logger):
+                self.wrap(logger)
+
+    def wrap(self, logger: logging.Logger) -> None:
+        if type(logger) is logging.Logger and (logger.name == "ddtrace" or logger.name.startswith("ddtrace.")):
+            logger.__class__ = _MainHubLogger
+
+    def set_hub(self, hub: Any, spawn_raw: Callable[..., Any]) -> None:
+        """Record the hub created on the main thread, which owns the gevent locks of logging."""
+        if get_ident() == self._main_thread_ident:
+            self._hub = hub
+            self._spawn_raw = spawn_raw
+
+    def runs_inline(self) -> bool:
+        # Until the main hub exists, nothing can be waiting for it.
+        return self._hub is None or get_ident() == self._main_thread_ident
+
+    def put(self, logger: logging.Logger, record: logging.LogRecord) -> None:
+        self._records.put((logger, record))
+        with self._lock:
+            if self._draining:
+                return
+            self._draining = True
+        try:
+            # Spawning needs the hub's own thread. This only wakes up its loop, and doesn't block.
+            self._hub.loop.run_callback_threadsafe(self._spawn_raw, self._drain)
+        except Exception:
+            # The hub is gone; the records are emitted at exit.
+            with self._lock:
+                self._draining = False
+
+    def flush(self) -> None:
+        """Handle the queued records on the current thread."""
+        while True:
+            try:
+                logger, record = self._records.get_nowait()
+            except Empty:
+                return
+            logging.Logger.handle(logger, record)
+
+    def flush_at_exit(self) -> None:
+        # Nothing will run the hub anymore, so log inline from now on.
+        self._hub = None
+        self.flush()
+
+    def _drain(self) -> None:
+        while True:
+            try:
+                self.flush()
+            except BaseException:
+                with self._lock:
+                    self._draining = False
+                raise
+            with self._lock:
+                if self._records.empty():
+                    self._draining = False
+                    return
+
+    def reset(self) -> None:
+        # The parent emits the records that were pending when it forked.
+        self._records = SimpleQueue()
+        self._lock = Lock()
+        self._draining = False
+
+
+main_hub_logging = MainHubLogging()
 
 
 _RATE_LIMITS = {}

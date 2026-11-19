@@ -1,8 +1,11 @@
+import atexit
 import logging
 import sys
 import warnings
 
 import ddtrace
+from ddtrace.internal import forksafe
+from ddtrace.internal.logger import main_hub_logging
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.settings import env
@@ -121,6 +124,22 @@ def cleanup_loaded_modules() -> None:
     @ModuleWatchdog.after_module_imported("threading")
     def _(threading):
         logging.threading = threading  # type: ignore[attr-defined]
+
+    # Sharing logging also shares the gevent locks it gets once gevent patches
+    # threading, so ddtrace threads hand their records to the main hub instead.
+    main_hub_logging.enable()
+    forksafe.register(main_hub_logging.reset)
+    atexit.register(main_hub_logging.flush_at_exit)
+
+    @ModuleWatchdog.after_module_imported("gevent.hub")
+    def _(gevent_hub):
+        hub_init = gevent_hub.Hub.__init__
+
+        def __init__(self, *args, **kwargs):
+            hub_init(self, *args, **kwargs)
+            main_hub_logging.set_hub(self, gevent_hub.spawn_raw)
+
+        gevent_hub.Hub.__init__ = __init__
 
     # Do module cloning only once
     enabled = False
