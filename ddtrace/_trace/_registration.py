@@ -7,7 +7,16 @@ from ddtrace.internal.core.subscriber import SubscriberBundle
 
 WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.web_framework",
-    subscribers=("WebFrameworkRequestSubscriber",),
+    subscribers=(
+        "WebFrameworkRequestSubscriber",
+        "WebFrameworkResponseSubscriber",
+    ),
+)
+
+
+FLASK_REQUEST_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.flask",
+    subscribers=("FlaskRequestSubscriber",),
 )
 SPAN_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers._base",
@@ -70,7 +79,12 @@ MANUAL_SUBSCRIBER_BUNDLES = (
 )
 
 
-subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS, SPAN_EXCEPTION_SUBSCRIBERS, *MANUAL_SUBSCRIBER_BUNDLES)
+subscriber_bundles = (
+    WEB_FRAMEWORK_SUBSCRIBERS,
+    SPAN_EXCEPTION_SUBSCRIBERS,
+    FLASK_REQUEST_SUBSCRIBERS,
+    *MANUAL_SUBSCRIBER_BUNDLES,
+)
 
 
 def register_subscribers(bundles: tuple[SubscriberBundle, ...] = subscriber_bundles) -> None:

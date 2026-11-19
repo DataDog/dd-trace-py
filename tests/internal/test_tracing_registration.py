@@ -124,7 +124,7 @@ def test_manual_initialization_activates_all_families_without_optional_sdks() ->
     assert "ddtrace._trace.subscribers.ray" not in sys.modules
 
 
-@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
+@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"), parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
 def test_deferred_global_initialization_preserves_manual_tracing() -> None:
     import ddtrace.contrib  # noqa: F401
     from ddtrace.internal import core
@@ -133,8 +133,11 @@ def test_deferred_global_initialization_preserves_manual_tracing() -> None:
     for event_name in ("http.client.request", "llm.request", "messaging.produce", "messaging.consume"):
         assert core.has_listeners("context.started." + event_name), event_name
         assert core.has_listeners("context.ended." + event_name), event_name
-    # Web and exception activation still require product startup in this deferred mode.
-    assert not core.has_listeners("context.started.web.request")
+    for event_name in ("web.request", "flask.request"):
+        assert core.has_listeners("context.started." + event_name), event_name
+        assert core.has_listeners("context.ended." + event_name), event_name
+    assert core.has_listeners("web.response")
+    # Exception activation still requires product startup in this deferred mode.
     assert not core.has_listeners("context.exception")
     assert tracer is not None
 
