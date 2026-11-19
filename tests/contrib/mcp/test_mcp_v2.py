@@ -314,3 +314,14 @@ def test_conversation_id_reused_for_parallel_first_calls(mcp_llmobs):
 
     assert session_ids[0] == session_ids[1]
     assert session_ids[2] != session_ids[0]
+
+
+def test_conversation_id_capture_strips_empty_telemetry(mcp_llmobs, test_spans, run_client):
+    arguments = {"operation": "add", "a": 1, "b": 2, "telemetry": {}}
+    with override_config("mcp", dict(capture_session=True)):
+        result = run_client("auto", lambda client: client.call_tool("calculator", arguments))
+
+    assert not result.is_error
+    server_span = _only(_pop_spans(test_spans), "server_tool_call")
+    assert "telemetry" not in json.loads(get_llmobs_input_value(server_span))["params"]["arguments"]
+    assert get_llmobs_session_id(server_span)

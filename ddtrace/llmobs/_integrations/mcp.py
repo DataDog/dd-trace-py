@@ -264,7 +264,7 @@ class MCPIntegration(BaseLLMIntegration):
         params = _get_attr(request, "params", None)
         arguments = _get_attr(params, "arguments", None)
         telemetry = _get_attr(arguments, TELEMETRY_KEY, None)
-        if isinstance(arguments, dict) and telemetry:
+        if isinstance(arguments, dict) and TELEMETRY_KEY in arguments:
             intent = _get_attr(telemetry, INTENT_KEY, None)
             if intent:
                 _annotate_llmobs_span_data(span, intent=intent)
