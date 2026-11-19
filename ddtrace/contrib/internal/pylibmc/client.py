@@ -157,7 +157,7 @@ class TracedClient(ObjectProxy):
                 span._set_attribute(db.ROWCOUNT, 1 if result else 0)
             elif method_name == "gets":
                 # returns a tuple object that may be (None, None)
-                get_result: tuple[Any, Any] = result
+                get_result = cast(tuple[Any, Any], result)
                 span._set_attribute(
                     db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(get_result) > 0 and get_result[0] else 0
                 )
