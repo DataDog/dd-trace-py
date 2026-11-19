@@ -236,3 +236,26 @@ TEST(TaskLinks, LinksForNeverRegisteredLoopDoNotAccumulate)
     EXPECT_TRUE(echion.task_link_map().empty());
     EXPECT_TRUE(echion.weak_task_link_map().empty());
 }
+
+TEST(TaskLinks, SharedLoopLinksAreClearedOnlyWhenLastThreadUntracks)
+{
+    EchionSampler echion;
+    auto& threads = echion.thread_info_map();
+    auto& first = *threads.emplace(1, std::make_unique<ThreadInfo>(1, 1, "first", 0)).first->second;
+    auto& second = *threads.emplace(2, std::make_unique<ThreadInfo>(2, 2, "second", 0)).first->second;
+    PyObject parent{};
+    PyObject child{};
+
+    echion.set_asyncio_loop(first, 1);
+    echion.set_asyncio_loop(second, 1);
+    echion.link_task(&parent, &child, 1);
+    echion.weak_link_task(&parent, &child, 1);
+
+    echion.set_asyncio_loop(first, 2);
+    EXPECT_EQ(echion.task_link_map().count(&child), 1u);
+    EXPECT_EQ(echion.weak_task_link_map().count(&child), 1u);
+
+    echion.set_asyncio_loop(second, 0);
+    EXPECT_TRUE(echion.task_link_map().empty());
+    EXPECT_TRUE(echion.weak_task_link_map().empty());
+}

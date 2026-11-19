@@ -127,3 +127,59 @@ def test_asyncio_task_link_while_untracked() -> None:
         p.stop()
 
     assert_latest_child_has_parent(os.environ["DD_PROFILING_OUTPUT_PPROF"], "MainThread")
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_task_link_shared_loop",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_asyncio_task_link_survives_shared_loop_untracking() -> None:
+    import asyncio
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector.test_asyncio_task_link_loop import assert_latest_child_has_parent
+
+    assert stack.is_available, stack.failure_msg
+    ready = threading.Event()
+
+    async def child() -> None:
+        ready.set()
+        await main_untracked.wait()
+        await asyncio.sleep(1)
+
+    async def parent() -> None:
+        task = asyncio.create_task(child(), name="linked-child")
+        await asyncio.gather(task)
+
+    def run_loop() -> None:
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+
+    p = profiler.Profiler()
+    p.start()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    main_untracked = asyncio.Event()
+    worker = threading.Thread(target=run_loop, name="loop-worker", daemon=True)
+    worker.start()
+    try:
+        result = asyncio.run_coroutine_threadsafe(parent(), loop)
+        assert ready.wait(timeout=10)
+        asyncio.set_event_loop(None)
+        # The worker keeps running the same loop and must retain the links.
+        loop.call_soon_threadsafe(main_untracked.set)
+        result.result(timeout=10)
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        worker.join(timeout=10)
+        p.stop()
+        assert not worker.is_alive()
+        loop.close()
+
+    assert_latest_child_has_parent(os.environ["DD_PROFILING_OUTPUT_PPROF"], worker.name)

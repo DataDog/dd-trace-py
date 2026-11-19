@@ -246,19 +246,23 @@ class EchionSampler
         prune_untracked_links(weak_task_link_map_, tracked_loops);
     }
 
-    // The caller must hold thread_info_map_lock_. Clear links before replacing or untracking a loop,
-    // including on thread exit, since there may never be another snapshot of that loop.
+    // The caller must hold thread_info_map_lock_. Once the last thread drops a loop, there may never
+    // be another snapshot of that loop, so clear its links now.
     void set_asyncio_loop(ThreadInfo& thread, uintptr_t loop)
     {
-        if (thread.asyncio_loop == loop) {
+        const auto previous_loop = thread.asyncio_loop;
+        thread.asyncio_loop = loop;
+        if (previous_loop == 0 || previous_loop == loop) {
             return;
         }
-        if (thread.asyncio_loop != 0) {
-            std::lock_guard<std::mutex> guard(task_link_map_lock_);
-            clear_links(task_link_map_, thread.asyncio_loop);
-            clear_links(weak_task_link_map_, thread.asyncio_loop);
+        if (std::any_of(thread_info_map_.begin(), thread_info_map_.end(), [previous_loop](const auto& entry) {
+                return entry.second->asyncio_loop == previous_loop;
+            })) {
+            return;
         }
-        thread.asyncio_loop = loop;
+        std::lock_guard<std::mutex> guard(task_link_map_lock_);
+        clear_links(task_link_map_, previous_loop);
+        clear_links(weak_task_link_map_, previous_loop);
     }
 
     std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }
