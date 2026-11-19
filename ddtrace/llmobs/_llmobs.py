@@ -3829,6 +3829,12 @@ class LLMObs(Service):
             )
             sample_rate = active_context._meta.get(PROPAGATED_SAMPLE_RATE)
             sampling_decision = active_context._meta.get(PROPAGATED_SAMPLING_DECISION)
+            # After a baggage-only hop the session exists only on the LLMObs context: the APM context
+            # was extracted without x-datadog-tags, so it has no _dd.p.llmobs_sid to forward.
+            # First writer wins, as in _start_span, so a trace-level session is never replaced.
+            session_id = active_context._meta.get(PROPAGATED_SESSION_ID_KEY)
+            if session_id and span_context._meta.get(PROPAGATED_SESSION_ID_KEY) is None:
+                span_context._meta[PROPAGATED_SESSION_ID_KEY] = session_id
         else:
             new_trace_id = generate_128bit_trace_id()
             ml_app = resolve_ml_app()

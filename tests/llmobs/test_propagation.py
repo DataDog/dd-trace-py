@@ -1534,3 +1534,27 @@ def test_distributed_context_keeps_application_without_apm_parent(llmobs, trace_
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("detached-child") as span:
         assert get_llmobs_ml_app(span) == "remote-app"
+
+
+def test_session_survives_baggage_only_pass_through_hop(llmobs):
+    """A -> (APM headers dropped) -> B, with no LLMObs span in B -> C: the session must reach C."""
+    with llmobs.workflow("a", session_id="sess-1") as a:
+        headers = llmobs.inject_distributed_headers({}, span=a)
+    llmobs.activate_distributed_headers(_drop_apm_trace_headers(headers))
+    with llmobs._instance.tracer.trace("http.client") as span:
+        outbound = {}
+        HTTPPropagator.inject(span.context, outbound)
+    downstream = HTTPPropagator.extract(outbound)
+    assert downstream.get_baggage_item(BAGGAGE_SESSION_ID_KEY) == "sess-1"
+    assert downstream._meta.get(PROPAGATED_SESSION_ID_KEY) == "sess-1"
+
+
+def test_baggage_merge_failure_does_not_escape_inject(llmobs):
+    """The merge reads trace-shared baggage that another thread can mutate; a failure there must stay
+    inside the encoder's guard instead of failing the request.
+    """
+    with llmobs.workflow("w") as span:
+        headers = {"baggage": "user.id=u1"}
+        with mock.patch.object(_BaggageHeader, "_extract", side_effect=RuntimeError("changed size")):
+            HTTPPropagator.inject(span.context, headers)
+    assert "x-datadog-trace-id" in headers
