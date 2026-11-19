@@ -3,9 +3,11 @@ from enum import IntEnum
 import json
 from multiprocessing import Process
 from multiprocessing import Value
+from multiprocessing.sharedctypes import Synchronized
 import os
 import time
 from typing import Optional
+from typing import Union
 from urllib.parse import urljoin
 
 from ddtrace.ext import ci
@@ -85,7 +87,7 @@ class CIVisibilityGitClientSerializerV1:
             {"meta": {"repository_url": repo_url}, "data": [{"id": sha, "type": "commit"} for sha in latest_commits]}
         )
 
-    def search_commits_decode(self, payload: str) -> list[str]:
+    def search_commits_decode(self, payload: Union[str, bytes]) -> list[str]:
         res: list[str] = []
         try:
             if isinstance(payload, bytes):
@@ -181,10 +183,10 @@ class CIVisibilityGitClient:
         else:
             log.debug("git metadata upload worker already started: %s", self._worker)
 
-    def metadata_upload_finished(self):
+    def metadata_upload_finished(self) -> bool:
         return self._metadata_upload_status.value in FINISHED_METADATA_UPLOAD_STATUSES
 
-    def _wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
+    def _wait_for_metadata_upload(self, timeout: float = DEFAULT_METADATA_UPLOAD_TIMEOUT) -> None:
         log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
         if self._worker is None:
             log.debug("No git metadata upload worker started")
@@ -216,14 +218,14 @@ class CIVisibilityGitClient:
     @classmethod
     def _run_protocol(
         cls,
-        serializer,  # CIVisibilityGitClientSerializerV1
-        requests_mode,  # int
-        base_url,  # str
-        _metadata_upload_status,  # METADATA_UPLOAD_STATUS
-        _tags=None,  # Optional[dict[str, str]]
-        _response=None,  # Optional[Response]
-        cwd=None,  # Optional[str]
-        log_level=0,  # int
+        serializer: CIVisibilityGitClientSerializerV1,
+        requests_mode: int,
+        base_url: str,
+        _metadata_upload_status: "Synchronized[int]",
+        _tags: Optional[dict[str, str]] = None,
+        _response: Optional[Response] = None,
+        cwd: Optional[str] = None,
+        log_level: int = 0,
     ) -> None:
         log.setLevel(log_level)
         _metadata_upload_status.value = METADATA_UPLOAD_STATUS.IN_PROCESS
@@ -362,7 +364,7 @@ class CIVisibilityGitClient:
         endpoint: str,
         payload: str,
         serializer: CIVisibilityGitClientSerializerV1,
-        headers: Optional[dict] = None,
+        headers: Optional[dict[str, str]] = None,
         timeout: int = DEFAULT_TIMEOUT,
     ) -> Response:
         url = f"{base_url}/repository{endpoint}"
@@ -455,7 +457,7 @@ class CIVisibilityGitClient:
             packfiles_uploaded_bytes,
         )
 
-        return response.status == 204
+        return bool(response.status == 204)
 
     @classmethod
     def _is_shallow_repository(cls, cwd: Optional[str] = None) -> bool:
