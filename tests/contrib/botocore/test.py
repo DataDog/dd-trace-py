@@ -42,11 +42,13 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.ext import aws
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.trace import Span
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -733,6 +735,27 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws_service") == "sqs"
         assert span.get_tag("queuename") == "Test"
         assert span.get_tag("component") == "botocore"
+        # CreateQueue only carries QueueName, so there is no queue URL to tag
+        assert span.get_tag("aws.sqs.queue.url") is None
+
+    @mock_sqs
+    def test_sqs_client_queue_url(self):
+        queue_url = self.sqs_test_queue["QueueUrl"]
+        self.sqs_client.send_message(QueueUrl=queue_url, MessageBody="world")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.get_tag("aws.operation") == "SendMessage"
+        assert span.get_tag("aws.sqs.queue.url") == queue_url
+        assert span.get_tag("aws.sqs.queue_name") == "Test"
+
+    @mock_sqs
+    def test_sqs_client_queue_url_no_params(self):
+        with self.override_config("botocore", dict(tag_no_params=True)):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            spans = self.get_spans()
+            assert len(spans) == 1
+            assert spans[0].get_tag("aws.sqs.queue.url") is None
 
     @mock_sqs
     def test_sqs_client_no_params(self):
@@ -751,6 +774,7 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 1
         assert span.get_tag("aws.operation") == "SendMessage"
         assert span.resource == "sqs.sendmessage"
+        assert span.get_tag("aws.sqs.queue.url") is None
 
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_off(self):
@@ -1210,6 +1234,8 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
         assert span.name == "states.command"  # This confirms our patch is working
+        start_span = next(s for s in spans if s.get_tag("aws.operation") == "StartExecution")
+        assert start_span.get_tag("aws.step_functions.state_machine.arn") == start_execution_dict["stateMachineArn"]
         sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln")
 
     @mock_stepfunctions
@@ -1294,6 +1320,47 @@ class BotocoreTest(TracerTestCase):
         span = self._test_kinesis_client()
         assert span.get_tag("aws.kinesis.stream_name") == "test"
         assert span.get_tag("streamname") == "test"
+        # PutRecords was called without StreamARN
+        assert span.get_tag("aws.stream.arn") is None
+
+    @mock_kinesis
+    def test_kinesis_client_stream_arn(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        stream_name = "kinesis_stream_arn"
+        _, stream_arn = self._kinesis_create_stream(client, stream_name)
+        self.reset()
+
+        client.put_records(
+            StreamName=stream_name,
+            Records=[{"Data": json.dumps({"Hello": "World"}), "PartitionKey": "1234"}],
+            StreamARN=stream_arn,
+        )
+
+        span = self._kinesis_assert_spans()
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.get_tag("aws.stream.arn") == stream_arn
+        assert span.get_tag("aws.kinesis.stream_name") == stream_name
+
+        client.delete_stream(StreamName=stream_name)
+
+    @mock_kinesis
+    def test_kinesis_client_stream_arn_no_params(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        stream_name = "kinesis_stream_arn_no_params"
+        _, stream_arn = self._kinesis_create_stream(client, stream_name)
+        self.reset()
+
+        with self.override_config("botocore", dict(tag_no_params=True)):
+            client.put_records(
+                StreamName=stream_name,
+                Records=[{"Data": json.dumps({"Hello": "World"}), "PartitionKey": "1234"}],
+                StreamARN=stream_arn,
+            )
+
+        span = self._kinesis_assert_spans()
+        assert span.get_tag("aws.stream.arn") is None
+
+        client.delete_stream(StreamName=stream_name)
 
     @mock_kinesis
     def test_kinesis_client_no_params(self):
@@ -1879,6 +1946,38 @@ class BotocoreTest(TracerTestCase):
     def test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
 
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AWS_SDK_KINESIS_ENABLED="false",
+            DD_TRACE_AWS_SDK_EVENTBRIDGE_ENABLED="0",
+            DD_TRACE_AWS_SDK_SQS_ENABLED="true",
+        )
+    )
+    def test_service_enabled_env_override(self):
+        assert config.botocore.disabled_services == {"kinesis", "events"}
+
+    @mock_sqs
+    def test_disabled_service_creates_no_span_and_no_injection(self):
+        with self.override_config("botocore", dict(propagation_enabled=True, disabled_services={"sqs"})):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageAttributeNames=["_datadog"], WaitTimeSeconds=2
+            )
+            assert not [s for s in self.get_spans() if s.get_tag("aws.operation") in ("SendMessage", "ReceiveMessage")]
+            assert "MessageAttributes" not in response["Messages"][0]
+
+    @mock_sqs
+    def test_disabled_service_removes_before_sign_handler_and_skips_internal_spans(self):
+        with self.override_config("botocore", dict(instrument_internals=True)):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="one")
+            assert self.sqs_client._dd_before_sign_registered is True
+            self.reset()
+
+        with self.override_config("botocore", dict(instrument_internals=True, disabled_services={"sqs"})):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="two")
+            assert self.sqs_client._dd_before_sign_registered is False
+            assert not [s for s in self.get_spans() if s.name == "botocore.parsers.parse"]
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
     def test_propagation_enabled_env_override(self):
         assert config.botocore.propagation_enabled is True
@@ -1978,6 +2077,15 @@ class BotocoreTest(TracerTestCase):
     def test_sns(self):
         span = self._test_sns()
         assert span.get_tag("aws.sns.topic_arn") == "arn:aws:sns:us-east-1:000000000000:testTopic"
+
+    @mock_sns
+    @mock_sqs
+    def test_sns_no_resource_identifier_tags(self):
+        # SNS only reports the topic ARN; the SQS and Kinesis identifiers must not leak onto SNS spans
+        span = self._test_sns()
+        assert span.get_tag("aws.sqs.queue.url") is None
+        assert span.get_tag("aws.stream.arn") is None
+        assert span.get_tag("aws.step_functions.state_machine.arn") is None
 
     @mock_sns
     @mock_sqs
@@ -2725,6 +2833,49 @@ class BotocoreTest(TracerTestCase):
         assert json.loads(records[0]["Data"])["_datadog"] == injected_headers
         assert records[1]["Data"] == original_oversized_record
 
+    def _kinesis_update_record_with_headers(self, record):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        injected_headers = {"x-datadog-trace-id": "1" * 32, "x-datadog-parent-id": "2" * 16}
+
+        def inject_headers(_, payload):
+            payload[2]["_datadog"] = dict(injected_headers)
+
+        with mock.patch.object(kinesis_service.core, "dispatch", side_effect=inject_headers):
+            kinesis_service.update_record(mock.Mock(), record, "stream", inject_trace_context=True)
+
+        return injected_headers
+
+    def _kinesis_record_with_injected_size(self, injected_size, partition_key):
+        # Build a record whose serialized data, after header injection, is exactly ``injected_size`` characters.
+        headers = {"x-datadog-trace-id": "1" * 32, "x-datadog-parent-id": "2" * 16}
+        base = len(json.dumps({"json-string": "", "_datadog": headers}))
+        value = "x" * (injected_size - base)
+        return {"Data": json.dumps({"json-string": value}), "PartitionKey": partition_key}
+
+    def test_kinesis_trace_injection_counts_partition_key_bytes(self):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        # The data alone is under the limit in characters; with the multibyte partition key's
+        # UTF-8 bytes added it exceeds 1 MiB, so injection must be skipped (matches dd-trace-js).
+        partition_key = "\u00e9" * 200
+        record = self._kinesis_record_with_injected_size(kinesis_service.MAX_KINESIS_DATA_SIZE - 100, partition_key)
+        original = record["Data"]
+
+        self._kinesis_update_record_with_headers(record)
+
+        assert record["Data"] == original
+
+    def test_kinesis_trace_injection_allows_exactly_max_size(self):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        # Total bytes (data + partition key) equal to the limit are still injected, like dd-trace-js (``>``).
+        record = self._kinesis_record_with_injected_size(kinesis_service.MAX_KINESIS_DATA_SIZE - 4, "1234")
+
+        headers = self._kinesis_update_record_with_headers(record)
+
+        assert json.loads(record["Data"])["_datadog"] == headers
+
     @mock_kinesis
     def test_kinesis_put_records_base64_trace_injection(self):
         # dict -> json string -> bytes
@@ -3103,9 +3254,10 @@ class BotocoreTest(TracerTestCase):
                 "nine": {"DataType": "String", "StringValue": "nine"},
                 "ten": {"DataType": "String", "StringValue": "ten"},
             }
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
             spans = self.get_spans()
             assert spans
             assert len(spans) == 1
@@ -3159,9 +3311,10 @@ class BotocoreTest(TracerTestCase):
                 "nine": {"DataType": "String", "StringValue": "nine"},
                 "ten": {"DataType": "String", "StringValue": "ten"},
             }
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
 
             self.sqs_client.receive_message(
                 QueueUrl=self.sqs_test_queue["QueueUrl"],
@@ -3204,7 +3357,8 @@ class BotocoreTest(TracerTestCase):
                 {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
                 {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
             ]
-            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
             self.get_spans()
 
             # get SNS messages via SQS
@@ -3260,7 +3414,8 @@ class BotocoreTest(TracerTestCase):
                 {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
                 {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
             ]
-            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING"):
+                sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
             self.get_spans()
 
             # get SNS messages via SQS
@@ -3542,3 +3697,140 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
         # Should have peer.service set to events hostname
         assert span.get_tag("peer.service") == "events.us-east-1.amazonaws.com"
+
+
+_STATE_MACHINE_ARN = "arn:aws:states:us-west-2:000000000000:stateMachine:lincoln"
+_TABLE_ARN = "arn:aws:dynamodb:us-east-1:123456789012:table/orders"
+_FUNCTION_ARN = "arn:aws:lambda:us-east-1:123456789012:function:my-function"
+
+
+@pytest.mark.parametrize(
+    "endpoint_name,params,expected",
+    [
+        (
+            "states",
+            {"stateMachineArn": _STATE_MACHINE_ARN},
+            {"statemachinearn": _STATE_MACHINE_ARN, "aws.step_functions.state_machine.arn": _STATE_MACHINE_ARN},
+        ),
+        # The legacy tag is always set, the new one only when the ARN is present and non-empty
+        ("states", {"stateMachineArn": ""}, {"statemachinearn": "", "aws.step_functions.state_machine.arn": None}),
+        ("states", {"executionArn": "arn"}, {"statemachinearn": "", "aws.step_functions.state_machine.arn": None}),
+        (
+            "kinesis",
+            {"StreamName": "test", "StreamARN": "arn:aws:kinesis:us-east-1:000000000000:stream/test"},
+            {"aws.kinesis.stream_name": "test", "aws.stream.arn": "arn:aws:kinesis:us-east-1:000000000000:stream/test"},
+        ),
+        ("kinesis", {"StreamName": "test", "StreamARN": ""}, {"aws.stream.arn": None}),
+        ("kinesis", {"StreamName": "test"}, {"aws.stream.arn": None}),
+        (
+            "sqs",
+            {"QueueUrl": "https://sqs.us-east-1.amazonaws.com/000000000000/Test"},
+            {
+                "aws.sqs.queue_name": "Test",
+                "aws.sqs.queue.url": "https://sqs.us-east-1.amazonaws.com/000000000000/Test",
+            },
+        ),
+        # Same condition as the queue name/account parsing: non-URL values are not tagged
+        ("sqs", {"QueueUrl": "Test"}, {"aws.sqs.queue.url": None}),
+        ("sqs", {"QueueName": "Test"}, {"aws.sqs.queue_name": "Test", "aws.sqs.queue.url": None}),
+        (
+            "sns",
+            {"StreamARN": "arn", "QueueUrl": "https://sqs/0/q"},
+            {"aws.stream.arn": None, "aws.sqs.queue.url": None},
+        ),
+        (
+            "dynamodb",
+            {"TableName": _TABLE_ARN},
+            {"aws.table.arn": _TABLE_ARN, "aws.dynamodb.table_name": _TABLE_ARN, "tablename": _TABLE_ARN},
+        ),
+        ("dynamodb", {"TableName": "orders"}, {"aws.table.arn": None, "tablename": "orders"}),
+        # Only a full table ARN counts: index ARNs, partial or malformed ARNs are not table identities
+        ("dynamodb", {"TableName": _TABLE_ARN + "/index/by-date"}, {"aws.table.arn": None}),
+        ("dynamodb", {"TableName": "arn:aws:dynamodb:us-east-1:123:table/orders"}, {"aws.table.arn": None}),
+        ("dynamodb", {"TableName": "arn:aws:s3:us-east-1:123456789012:table/orders"}, {"aws.table.arn": None}),
+        (
+            "lambda",
+            {"FunctionName": _FUNCTION_ARN},
+            {"aws.function.arn": _FUNCTION_ARN, "functionname": _FUNCTION_ARN},
+        ),
+        # The qualifier stays part of the ARN, as in dd-trace-java
+        ("lambda", {"FunctionName": _FUNCTION_ARN + ":prod"}, {"aws.function.arn": _FUNCTION_ARN + ":prod"}),
+        ("lambda", {"FunctionName": "my-function"}, {"aws.function.arn": None, "functionname": "my-function"}),
+        ("lambda", {"FunctionName": "my-function:prod"}, {"aws.function.arn": None}),
+        ("lambda", {"FunctionName": "123456789012:function:my-function"}, {"aws.function.arn": None}),
+    ],
+)
+def test_add_api_param_span_tags_resource_identifiers(endpoint_name, params, expected):
+    span = Span("test")
+    aws._add_api_param_span_tags(span, endpoint_name, params)
+    for tag, value in expected.items():
+        assert span.get_tag(tag) == value, tag
+
+
+@mock_stepfunctions
+def test_stepfunctions_client_state_machine_arn(test_spans):
+    # In-process moto, so this does not depend on localstack
+    patch()
+    # patch() is a no-op when an earlier test left botocore patched, so also reset any
+    # submodule filter it left behind; otherwise Step Functions calls are not traced.
+    patch_submodules(True)
+    try:
+        session = botocore.session.get_session()
+        session.set_credentials(access_key="access-key", secret_key="secret-key")
+        sf = session.create_client("stepfunctions", region_name="us-west-2")
+        state_machine_arn = sf.create_state_machine(
+            name="tagging",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::123456789012:role/DummyRole",
+        )["stateMachineArn"]
+        sf.describe_state_machine(stateMachineArn=state_machine_arn)
+    finally:
+        unpatch()
+
+    spans = {span.get_tag("aws.operation"): span for span in test_spans.pop()}
+    assert {"CreateStateMachine", "DescribeStateMachine"} <= spans.keys(), sorted(spans, key=str)
+    describe_span = spans["DescribeStateMachine"]
+    assert describe_span.get_tag("aws.step_functions.state_machine.arn") == state_machine_arn
+    assert describe_span.get_tag("statemachinearn") == state_machine_arn
+    # CreateStateMachine only carries the name, not the ARN
+    assert spans["CreateStateMachine"].get_tag("aws.step_functions.state_machine.arn") is None
+
+
+@mock_dynamodb
+@mock_lambda
+def test_dynamodb_and_lambda_client_arn_tags(test_spans):
+    # In-process moto, so this does not depend on localstack. The resources do not exist; the
+    # tags come from the request parameters, so the calls are allowed to fail.
+    patch()
+    patch_submodules(True)
+    try:
+        session = botocore.session.get_session()
+        session.set_credentials(access_key="access-key", secret_key="secret-key")
+        dynamodb = session.create_client("dynamodb", region_name="us-east-1")
+        lamb = session.create_client("lambda", region_name="us-east-1")
+        for call in (
+            lambda: dynamodb.describe_table(TableName=_TABLE_ARN),
+            lambda: dynamodb.describe_table(TableName="orders"),
+            lambda: lamb.get_function(FunctionName=_FUNCTION_ARN),
+            lambda: lamb.get_function(FunctionName="my-function"),
+        ):
+            with contextlib.suppress(botocore.exceptions.ClientError):
+                call()
+    finally:
+        unpatch()
+
+    # Only the four client spans matter; other spans (e.g. from credential or endpoint
+    # resolution) can land in test_spans depending on the botocore version.
+    spans = sorted(
+        (span for span in test_spans.pop() if span.get_tag("aws_service") in ("dynamodb", "lambda")),
+        key=lambda span: span.start_ns,
+    )
+    tags = [
+        (span.get_tag("aws_service"), span.get_tag("aws.table.arn"), span.get_tag("aws.function.arn")) for span in spans
+    ]
+    assert tags == [
+        ("dynamodb", _TABLE_ARN, None),
+        ("dynamodb", None, None),
+        ("lambda", None, _FUNCTION_ARN),
+        ("lambda", None, None),
+    ]

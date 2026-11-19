@@ -201,7 +201,13 @@ run_cmake() {
     else
       NPROC=$(getconf _NPROCESSORS_ONLN)
     fi
-    ctest -j${NPROC} ${ctest_args[*]} --output-on-failure || { echo "tests failed!"; exit 1; }
+    # CTEST_JUNIT_DIR (CI): write a JUnit report per test directory, uploaded to Test Optimization
+    junit_args=()
+    if [[ -n "${CTEST_JUNIT_DIR:-}" ]]; then
+      mkdir -p "${CTEST_JUNIT_DIR}"
+      junit_args=(--output-junit "${CTEST_JUNIT_DIR}/${dir//\//_}.xml")
+    fi
+    ctest -j${NPROC} ${ctest_args[*]} ${junit_args[@]+"${junit_args[@]}"} --output-on-failure || { echo "tests failed!"; exit 1; }
   fi
 
   # OK, the build or whatever went fine I guess.

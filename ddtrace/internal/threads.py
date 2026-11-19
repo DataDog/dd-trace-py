@@ -1,5 +1,7 @@
 from _queue import SimpleQueue
 from _thread import get_ident as _get_ident
+import atexit
+from contextlib import contextmanager
 import threading as _threading
 from time import monotonic_ns
 from types import ModuleType
@@ -100,25 +102,144 @@ class BoundMethod(t.Protocol):
 _threads_to_start_after_fork: list[BoundMethod] = []
 
 
-def _safe_restart(start: t.Callable[[], None], name: t.Optional[str] = None) -> None:
-    """Invoke a post-fork thread-start callable, logging resource errors instead of raising.
+class BootGate:
+    """Holds back the ddtrace threads started while ddtrace bootstraps.
+
+    Module cloning drops modules from sys.modules, so a thread importing meanwhile can fail. Open by default.
+    """
+
+    def __init__(self) -> None:
+        self._condition = _threading.Condition()
+        self._open = True
+
+    def is_open(self) -> bool:
+        return self._open
+
+    def wait(self, target: "_GatedTarget") -> None:
+        """Wait until the gate opens or the target is released."""
+        with self._condition:
+            while not (self._open or target.released):
+                self._condition.wait()
+
+    def release(self, target: "_GatedTarget") -> None:
+        """Let a single held target through, e.g. to join its thread, while the gate stays closed."""
+        with self._condition:
+            target.released = True
+            self._condition.notify_all()
+
+    def close(self) -> None:
+        with self._condition:
+            self._open = False
+
+    def open(self) -> None:
+        with self._condition:
+            self._open = True
+            self._condition.notify_all()
+
+    @contextmanager
+    def held(self) -> t.Iterator[None]:
+        """Keep the gate closed while the block runs, and open it afterwards."""
+        self.close()
+        try:
+            yield
+        finally:
+            self.open()
+
+
+boot_gate = BootGate()
+
+
+class _GatedTarget:
+    """A thread target that waits for the boot gate to open before each run."""
+
+    def __init__(self, target: t.Callable[[], object], one_shot: bool) -> None:
+        # It must not reference its thread, so that refcounting alone can free the thread.
+        self._target = target
+        self._one_shot = one_shot
+        self.stop_requested = False
+        self.released = False
+
+    def __call__(self) -> object:
+        if not boot_gate.is_open():
+            boot_gate.wait(self)
+            if self._must_skip():
+                return None
+        return self._target()
+
+    def _must_skip(self) -> bool:
+        # Released while the gate is closed only to stop, join or fork. One-shot threads still run once.
+        return self.stop_requested or (self.released and not boot_gate.is_open() and not self._one_shot)
+
+
+@atexit.register
+def _release_boot_gate_at_exit() -> None:
+    """Stop the threads held by the boot gate, then open it, so that they exit without running."""
+    # Registered after the native exit hook that joins the threads, so it runs before it.
+    if boot_gate.is_open():
+        return
+    for thread in list(periodic_threads.values()):
+        try:
+            thread.stop()
+        except Exception:
+            log.debug("failed to stop periodic thread %s at exit", thread.name, exc_info=True)
+    boot_gate.open()
+
+
+def _safe_restart(start: t.Callable[[], None]) -> t.Optional[Exception]:
+    """Invoke a post-fork thread-start callable, returning resource errors instead of raising.
 
     The native layer translates pthread_create failures (EAGAIN, ENOMEM) into
     OSError. Post-fork restart is triggered automatically by forksafe hooks —
     there is no explicit caller that can handle the error, so losing a
     periodic thread to resource exhaustion must not crash the host.
     Explicit start() calls let OSError propagate so the caller can react.
+    The error is returned rather than logged so the caller can log it after
+    releasing _forking_lock.
     """
     try:
         start()
     except Exception as e:
-        log.error("failed to start periodic thread %s: %s", name, e)
+        return e
+    return None
 
 
 class PeriodicThread(_PeriodicThread):
     """A fork-safe periodic thread."""
 
     __autorestart__ = True
+
+    # One-shot threads run their target when released from the boot gate, e.g. to be joined before a fork.
+    _one_shot = False
+
+    def __init__(
+        self,
+        interval: float,
+        target: t.Callable[[], object],
+        name: t.Optional[str] = None,
+        on_shutdown: t.Optional[t.Callable[[], None]] = None,
+        no_wait_at_start: bool = False,
+    ) -> None:
+        self._gated_target = _GatedTarget(target, one_shot=self._one_shot)
+        super().__init__(
+            interval, self._gated_target, name=name, on_shutdown=on_shutdown, no_wait_at_start=no_wait_at_start
+        )
+
+    def stop(self) -> None:
+        # A thread held by the boot gate only sees this once the gate opens.
+        self._gated_target.stop_requested = True
+        super().stop()
+
+    def join(self, timeout: t.Optional[float] = None) -> None:
+        # A started thread held by the boot gate cannot finish until it is released. The gate stays closed for others.
+        if self.is_started() and not boot_gate.is_open():
+            log.debug("Releasing thread %s from the boot gate to join it", self.name)
+            boot_gate.release(self._gated_target)
+        super().join(timeout)
+
+    def _after_fork(self, *, force: bool = False) -> None:
+        # A thread released to be joined before a fork waits on the boot gate again once restarted.
+        self._gated_target.released = False
+        super()._after_fork(force=force)
 
     def start(self) -> None:
         with _forking_lock:
@@ -154,6 +275,7 @@ class Thread(PeriodicThread):
     # explicitly (see ThreadRestartTimer._restart_threads) since force=True
     # there bypasses __autorestart__ by design for genuinely periodic threads.
     __autorestart__ = False
+    _one_shot = True
 
     def __init__(self, target: t.Callable[[], None], name: t.Optional[str] = None) -> None:
         super().__init__(0.0, self._run_once, name=name, no_wait_at_start=True)
@@ -185,6 +307,21 @@ class ThreadRestartTimer(PeriodicThread):
 
     def _restart_threads(self) -> None:
         # Restart the threads after we have stopped calling fork for a while.
+        # Errors are logged only after _forking_lock is released: a log handler
+        # (e.g. telemetry log forwarding) can take a lock whose holder is itself
+        # waiting for _forking_lock, such as a thread stopping a periodic service.
+        # Each entry is (failed_after_fork_restart, thread name, error).
+        errors: list[tuple[bool, str, Exception]] = []
+        try:
+            self._restart_threads_locked(errors)
+        finally:
+            for restarting, name, error in errors:
+                if restarting:
+                    log.error("failed to restart periodic thread %s after fork: %s", name, error)
+                else:
+                    log.error("failed to start periodic thread %s: %s", name, error)
+
+    def _restart_threads_locked(self, errors: list[tuple[bool, str, Exception]]) -> None:
         with _forking_lock:
             # If we are forking, we will try again later.
             if _forking:
@@ -210,7 +347,7 @@ class ThreadRestartTimer(PeriodicThread):
                     try:
                         thread._after_fork(force=self._force_restart)
                     except Exception as e:
-                        log.error("failed to restart periodic thread %s after fork: %s", thread.name, e)
+                        errors.append((True, thread.name, e))
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
@@ -220,7 +357,9 @@ class ThreadRestartTimer(PeriodicThread):
                         # above: don't start it in the child either.
                         continue
                     log.debug("Starting thread %s after fork", thread_start.__self__.name)
-                    _safe_restart(thread_start, thread_start.__self__.name)
+                    error = _safe_restart(thread_start)
+                    if error is not None:
+                        errors.append((False, thread_start.__self__.name, error))
                 _threads_to_start_after_fork.clear()
 
                 # We no longer need this thread so we clear it.
@@ -310,7 +449,7 @@ def _before_fork() -> None:
         log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
 
-    # Join all the threads to ensure they are stopped before the fork.
+    # Join all the threads to ensure they are stopped before the fork. Joining releases them from the boot gate.
     for thread in _threads_to_restart_after_fork:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()

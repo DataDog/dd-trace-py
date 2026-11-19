@@ -836,16 +836,17 @@ def test_event_tag_in_root_span(mock_execute_request, ai_guard_client, tracer):
 
 @pytest.mark.parametrize("mcp_servers", [None, []], ids=["none", "empty"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_evaluate_omits_empty_mcp_servers(mock_execute_request, ai_guard_client, mcp_servers):
+def test_evaluate_omits_empty_mcp_servers(mock_execute_request, ai_guard_client, mcp_servers, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     ai_guard_client.evaluate([Message(role="user", content="hi")], mcp_servers=mcp_servers)
 
     assert set(mock_execute_request.call_args.args[1]["data"]["attributes"]) == {"messages", "meta"}
+    assert "mcp_servers" not in find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_evaluate_sends_mcp_servers(mock_execute_request, ai_guard_client):
+def test_evaluate_sends_mcp_servers(mock_execute_request, ai_guard_client, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     server = MCPServer(
         id="mcp_b77bc22583ac5006",
@@ -863,3 +864,20 @@ def test_evaluate_sends_mcp_servers(mock_execute_request, ai_guard_client):
     attributes = mock_execute_request.call_args.args[1]["data"]["attributes"]
     assert attributes["mcp_servers"] == [server]
     assert attributes["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": "mcp_b77bc22583ac5006"}
+
+    meta = find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)
+    assert meta["mcp_servers"] == [server]
+    assert meta["mcp_servers"][0] is not server
+    assert meta["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": "mcp_b77bc22583ac5006"}
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_extra_metastruct_cannot_override_mcp_servers(mock_execute_request, ai_guard_client, test_spans):
+    server = MCPServer(id="mcp_1", managed_by="provider", transport="streamable_http", tools={}, name="deepwiki")
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ALLOW", extra_metastruct=[{"key": "mcp_servers", "value": []}]
+    )
+
+    ai_guard_client.evaluate([Message(role="user", content="hi")], mcp_servers=[server])
+
+    assert find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)["mcp_servers"] == [server]

@@ -3,6 +3,7 @@ import logging
 import sys
 from typing import Any
 from typing import Callable
+from typing import Generator
 from typing import Optional
 
 from ddtrace.internal import atexit
@@ -32,13 +33,18 @@ class NativeRuntime(SharedRuntime):
     def __init__(self) -> None:
         super().__init__()
         self.register_at_fork()
-        forksafe.register_before_child_hooks(self.defer_after_fork_child)
-        forksafe.register_after_child_hooks(self.allow_after_fork_child)
+        forksafe.register(self._defer_restart_in_child)
         self._original_fork_exec: Optional[Callable[..., Any]] = None
         self._wrapped_fork_exec: Optional[Callable[..., Any]] = None
         self._install_subprocess_fork_hook()
         atexit.register(self._atexit)
         atexit.register_on_exit_signal(self._atexit)
+
+    def _defer_restart_in_child(self) -> Generator[None, None, None]:
+        # Wraps the after-in-child hooks, so the runtime is not restarted while they run.
+        self.defer_after_fork_child()
+        yield
+        self.allow_after_fork_child()
 
     def _install_subprocess_fork_hook(self) -> None:
         # subprocess and asyncio call _posixsubprocess.fork_exec directly, so
@@ -108,8 +114,7 @@ class NativeRuntime(SharedRuntime):
             super().shutdown(timeout_ms=timeout_ms)
         self._uninstall_subprocess_fork_hook()
         atexit.unregister(self._atexit)
-        forksafe.unregister_before_child_hooks(self.defer_after_fork_child)
-        forksafe.unregister_after_child_hooks(self.allow_after_fork_child)
+        forksafe.unregister(self._defer_restart_in_child)
 
 
 @cache

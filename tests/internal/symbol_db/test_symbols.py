@@ -811,3 +811,67 @@ def test_symbols_spawn_uploads():
             p.join()
 
         assert sum(returns) == 1, returns
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_scope_context_usable_in_child_when_forked_while_locks_held():
+    """A fork while an importing thread holds the ScopeContext locks must not
+    leave the child unable to add scopes.
+    """
+    import os
+    from threading import Event
+    from threading import Thread
+    from unittest import mock
+
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.symbol_db.symbols import ScopeContext
+    from ddtrace.internal.symbol_db.symbols import ScopeType
+
+    context = ScopeContext()
+
+    held = Event()
+    release = Event()
+
+    def hold():
+        # Mirrors the nesting in add_scope -> _set_timer -> Timer.start/reset.
+        with context._scopes_lock, context._timer_lock:
+            held.set()
+            release.wait(timeout=10)
+
+    holder = Thread(target=hold)
+    holder.start()
+    assert held.wait(timeout=5)
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            for lock in (context._scopes_lock, context._timer_lock):
+                assert lock.acquire(timeout=2), "lock inherited locked"
+                lock.release()
+
+            scope = Scope(
+                scope_type=ScopeType.MODULE,
+                name="child",
+                source_file=__file__,
+                start_line=0,
+                end_line=0,
+                symbols=[],
+                scopes=[],
+            )
+            with mock.patch.object(ScopeContext, "_upload_locked"):
+                context.add_scope(scope)
+                assert context._timer is not None
+                context._timer.stop()
+        except BaseException:
+            import traceback
+
+            traceback.print_exc()
+            os._exit(1)
+        os._exit(0)
+
+    release.set()
+    holder.join()
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child exited with status {status}"

@@ -26,17 +26,18 @@ log = get_logger(__name__)
 _http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
 
 
-class HttpClientTracingSubscriber(TracingSubscriber):
+class HttpClientTracingSubscriber(TracingSubscriber[HttpClientRequestEvent]):
     """Shared tracing logic for ALL HTTP client integrations.
 
     httpx, requests, aiohttp, etc. all share this subscriber.
     Adding a feature here applies to every HTTP client integration.
     """
 
+    auto_register = False
     event_names = (HttpClientRequestEvent.event_name, HttpClientEvents.HTTPX_REQUEST.value)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]) -> None:
         event: HttpClientRequestEvent = ctx.event
 
         if config._otel_trace_semantics_enabled and event.request_method:
@@ -55,7 +56,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[HttpClientRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: HttpClientRequestEvent = ctx.event

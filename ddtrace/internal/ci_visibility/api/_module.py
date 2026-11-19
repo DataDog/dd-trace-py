@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 from typing import Optional
 
 from ddtrace.ext import test
@@ -16,8 +17,8 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace.internal.ci_visibility.utils import get_relative_path
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.paths import relative_path
 
 
 log = get_logger(__name__)
@@ -49,7 +50,7 @@ class TestVisibilityModule(
                 # '.' is not the desired relative path when the workspace and module path are the same
                 module_path = ""
             else:
-                relative = relative_path(self._module_path, self._session_settings.workspace_path)
+                relative = get_relative_path(self._module_path, self._session_settings.workspace_path)
                 module_path = relative if relative is not None else str(self._module_path)
         else:
             module_path = ""
@@ -60,7 +61,7 @@ class TestVisibilityModule(
             test.MODULE: self.name,
         }
 
-    def _set_itr_tags(self, itr_enabled: bool):
+    def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Set module-level tags based in ITR enablement status"""
         super()._set_itr_tags(itr_enabled)
 
@@ -72,17 +73,17 @@ class TestVisibilityModule(
             )
             self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
 
-    def _telemetry_record_event_created(self):
+    def _telemetry_record_event_created(self) -> None:
         record_event_created(
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
-    def _telemetry_record_event_finished(self):
+    def _telemetry_record_event_finished(self) -> None:
         record_event_finished(
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
-    def add_coverage_data(self, *args, **kwargs):
+    def add_coverage_data(self, *args: Any, **kwargs: Any) -> None:
         raise NotImplementedError("Coverage data cannot be added to modules.")

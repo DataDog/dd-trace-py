@@ -207,7 +207,10 @@ def test_always_excluded_modules_cannot_be_overridden() -> None:
 
     init_ddup("test_always_excluded")
 
-    with ThreadingLockCollector(capture_pct=100), ThreadingSemaphoreCollector(capture_pct=100):
+    with (
+        ThreadingLockCollector(module=threading, capture_pct=100),
+        ThreadingSemaphoreCollector(module=threading, capture_pct=100),
+    ):
         sem = threading.Semaphore(1)
         assert isinstance(sem, _ProfiledLock), "User semaphore should be profiled"
 

@@ -9,15 +9,15 @@ def _supported_versions() -> dict[str, str]:
     return {"urllib": "*"}
 
 
-def patch():
+def patch() -> None:
     """patch the built-in urllib.request methods for tracing"""
     if getattr(urllib.request, "__datadog_patch", False):
         return
-    urllib.request.__datadog_patch = True
+    setattr(urllib.request, "__datadog_patch", True)
 
 
-def unpatch():
+def unpatch() -> None:
     """unpatch any previously patched modules"""
     if not getattr(urllib.request, "__datadog_patch", False):
         return
-    urllib.request.__datadog_patch = False
+    setattr(urllib.request, "__datadog_patch", False)

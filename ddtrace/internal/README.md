@@ -12,11 +12,25 @@ and do not follow the semver versioning scheme of the `ddtrace` package.
 producers and encoders. Products that attach payloads to spans use these shared
 limits to keep their output within the encoding limits.
 
+## Context span lookup
+
+`ddtrace.internal.span_bus.find_span_on_context(ctx)` returns only the span stored on
+that context, or `None`. It never searches parent contexts or creates a fallback span.
+Use it when a context may intentionally have no span, including exception notifications.
+The existing `span_from_context(ctx)` retains its fallback behavior.
+
 ## HTTP endpoint normalization
 
 `ddtrace.internal.utils.endpoint.SimplifiedEndpointComputer` normalizes URL paths
 for both tracing resource names and API Security endpoint grouping. It operates on
 URLs independently of span processing.
+
+## HTTP span metadata
+
+HTTP tagging resolves optional query-string overrides alongside the integration policy;
+web subscribers pass request data without duplicating URL or query-tag decisions.
+For OpenTelemetry HTTP tags, an explicit override takes precedence over both integration
+query-string settings for clients and servers.
 
 ## Coverage collection contexts
 
@@ -97,8 +111,11 @@ def stop(join=False):
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
 and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so importing their module does not
-activate them.
+subscribers must disable class-definition registration so imports do not activate them
+implicitly. Set the `auto_register = False` class attribute to also defer registration
+for subclasses. Context subscribers can instead pass `auto_register=False` in the class
+declaration to defer only that class, preserving automatic registration for its subclasses.
+Any compatibility activation during initialization belongs to the product.
 
 Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
@@ -121,6 +138,49 @@ completion listeners after `stop()` returns.
 `unregister()` never imports an unused module. Products registering listeners outside
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
+
+Deferred integrations report exceptions synchronously with `ContextExceptionEvent`.
+The event in `ddtrace.contrib._events.exception` carries any execution context and its exception
+information. `SpanExceptionSubscriber` annotates only a span already stored on that context; it
+never creates one or borrows an active parent. It consumes the live exception immediately;
+deferred contexts never store the exception or its traceback. Completion dispatch carries response metadata, while
+exception details are available during the separate notification. Consumers must not retain
+that notification or its exception tuple. Late errors can update a finished span object, but
+cannot guarantee updating an already exported trace.
+
+Aiohttp coordinates the handler task, final response metadata, and tasks executing response
+preparation/sending. A middleware-created child task ending does not by itself finish the request.
+Each request keeps its captured context for completion, including IAST reporting. Same-task
+completion uses the live context only while the request context is still active; after middleware
+returns, completion re-enters the captured context. Connection
+closure is only an abort fallback; all task callbacks and captured state are removed at completion
+so completed requests do not accumulate on keep-alive connections.
+HTTP 101 protocol upgrades complete at preparation, so WebSocket request spans cover
+only the handshake and message processing does not join the completed request trace.
+Each nested middleware callback retains its own context, and response preparation visits every context
+shared by request clones. The existing `disable_stream_timing_for_mem_leak` option still
+completes at header preparation to release request state sooner.
+
+Tracing declares SDK-independent subscriber bundles in `ddtrace._trace._registration`.
+Its `register_subscribers()` helper activates every declared bundle. Product startup
+calls this helper directly. Normal `ddtrace` initialization installs an import hook
+that calls it after the subscriber package loads through contrib. Waiting for the
+package to finish avoids registering against partially initialized subscriber bases
+and preserves lightweight bare tracer imports.
+The subscriber package also explicitly activates `MANUAL_SUBSCRIBER_BUNDLES` for
+manual instrumentation, including when global tracer creation is deferred. Web request
+and span exception bundles retain their existing activation timing. Listeners remain
+available with `DD_TRACE_ENABLED=false` so existing integrations can finish their spans
+without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
+Concrete product subscribers disable class-definition registration; custom subscriber
+registration defaults are unchanged. Integrations emit events without registering
+tracing listeners themselves. Ray's SDK-dependent bundle remains separate: a tracing-owned
+import hook activates it after `ddtrace.contrib.internal.ray.patch` finishes loading.
+This also supports manual patching with deferred global tracer initialization, without
+importing Ray during ordinary tracing startup. Repeated tracing startup restores Ray
+listeners once that integration module has loaded. Ray unpatching retains completion
+listeners for active work. Tracing retains its existing shutdown behavior
+and keeps these listeners registered.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
@@ -376,6 +436,30 @@ forksafe.register(my_after_child_hook)  # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
 ```
 
+When something must happen before and/or after all the `after_in_child` hooks
+in the child (for example, deferring work until every hook has run), register a
+generator function with `forksafe.register`. It becomes a wrapper around the
+hooks: the code before its `yield` runs before them, in registration order, and
+the code after it runs once they have all completed, in reverse order. Either
+part can be empty. A wrapper must yield exactly once; one that raises before
+its `yield` is skipped. Wrappers are always resumed normally: hook exceptions
+are logged and are not propagated to them.
+
+> **Careful:** wrappers are detected with `inspect.isgeneratorfunction`, which
+> recognizes generator functions and bound methods or `functools.partial`
+> objects of them. A callable that only *returns* a generator (a decorator
+> around a generator function, an object whose `__call__` yields, a lambda) is
+> registered as a plain hook instead, and none of its code runs, silently.
+> Register the generator function itself.
+
+```python
+@forksafe.register
+def my_child_wrapper():
+    pause_something()
+    yield  # the after_in_child hooks run here
+    resume_something()
+```
+
 **Keep hooks non-blocking.** By the time a hook registered *after*
 `ddtrace.internal.threads._before_fork` runs, all periodic threads have already
 been stopped, so there are no locks held by those threads to worry about. (Hooks
@@ -406,6 +490,17 @@ the parent.
 > must use their own timeouts — an unbounded block will prevent `fork()` from
 > returning until the operation completes, which can hang pre-fork servers.
 
+**Boot gate**
+
+Sitecustomize holds `threads.boot_gate` closed (`boot_gate.held()`) while
+preload and module cloning run, so that threads started meanwhile wait on it
+before running their target, and opens it once `cleanup_loaded_modules()`
+has finished, before the `post_preload` hooks and any user code run, as those
+may wait on ddtrace threads. Only the hold, and exit, open the gate. Joining a
+held thread, including the joins before a fork, releases that thread alone, and
+a restarted thread waits on the gate again; released periodic threads skip
+their target, while one-shot threads run it once.
+
 **Phase 2 — after fork**
 
 Both the parent and the child call `_after_fork()` on every thread. In the
@@ -420,6 +515,12 @@ In the parent, restarts are **asynchronous**: `_after_fork_parent` merely calls
 forks. Parent-side periodic workers are therefore not immediately active after
 `fork()` returns; components that rely on parent-side metrics or flushing
 immediately after a fork should account for this delay.
+
+A thread stopped with `stop()` before its deferred restart, in the parent or
+the child, stays stopped: the restart only runs its `on_shutdown` callback. A
+`join()` called before the restart does not wait for that callback. A thread
+that is running its `on_shutdown` callback when the fork starts is not
+restarted.
 
 The default `__autorestart__ = True` means that for most `PeriodicService`
 subclasses **no fork-specific code is required** — the protocol handles
