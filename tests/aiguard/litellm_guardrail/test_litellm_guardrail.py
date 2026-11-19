@@ -20,6 +20,7 @@ from ddtrace.aiguard.integrations.litellm import _READING_STREAM
 from ddtrace.aiguard.integrations.litellm import _REQUEST_CLAIM
 from ddtrace.aiguard.integrations.litellm import DatadogAIGuardGuardrail
 from ddtrace.aiguard.integrations.litellm import DatadogAIGuardGuardrailException
+from ddtrace.aiguard.integrations.litellm import _call_type_from_route
 from tests.aiguard.litellm_guardrail.conftest import _AI_GUARD_CONFIG
 from tests.aiguard.litellm_guardrail.conftest import assistant_msg
 from tests.aiguard.litellm_guardrail.conftest import function_msg
@@ -423,8 +424,13 @@ class TestOnRequest:
     def test_applied_guardrail_is_recorded_without_metadata(self, mock_req, guardrail_monitor, extra_keys):
         # Some litellm versions record the applied guardrail only in a metadata dict that is not empty.
         mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
-        guardrail_monitor.get_guardrail_dynamic_request_body_params = Mock(return_value={})
-        data = {"model": "gpt-4o", "messages": [user_msg("Hello")], **extra_keys}
+        # The proxy keeps its own data in litellm_metadata on the routes where metadata belongs to the client.
+        data = {
+            "model": "gpt-4o",
+            "messages": [user_msg("Hello")],
+            "litellm_metadata": {"user_api_key": "hashed-key"},
+            **extra_keys,
+        }
 
         asyncio.run(guardrail_monitor._on_request(data, "completion"))
 
@@ -458,6 +464,24 @@ class TestOnRequest:
 
         with pytest.raises(DatadogAIGuardGuardrailException):
             asyncio.run(guardrail._on_request(make_request_data(), "completion"))
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ("http://proxy.test/completions", "text_completion"),
+        ("http://proxy.test/v1/completions", "text_completion"),
+        ("http://proxy.test/engines/gpt-4o/completions?x=1", "text_completion"),
+        ("http://proxy.test/v1/messages", "anthropic_messages"),
+        ("http://proxy.test/chat/completions", None),
+        ("http://proxy.test/v1/threads/t1/messages", None),
+        ("http://proxy.test/embeddings", None),
+        (None, None),
+    ],
+)
+def test_call_type_from_route(url, expected):
+    data = {} if url is None else {"proxy_server_request": {"url": url}}
+    assert _call_type_from_route(data) == expected
 
 
 # ---------------------------------------------------------------------------

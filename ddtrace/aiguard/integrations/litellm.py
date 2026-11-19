@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
+from urllib.parse import urlparse
 
 from litellm._logging import verbose_proxy_logger
 from litellm.integrations.custom_guardrail import CustomGuardrail
@@ -66,6 +67,16 @@ def _claim_request() -> None:
 
 def _release_request() -> None:
     reset_aiguard_context_active(_REQUEST_CLAIM.get())
+
+
+def _call_type_from_route(data: dict[str, Any]) -> Optional[CallTypesLiteral]:
+    """Get the call type from the proxy route of the request."""
+    path = urlparse(str((data.get("proxy_server_request") or {}).get("url") or "")).path.rstrip("/")
+    if path.endswith("/v1/messages"):
+        return "anthropic_messages"
+    if path.endswith("/completions") and not path.endswith("/chat/completions"):
+        return "text_completion"
+    return None
 
 
 async def _read_next(stream: Any) -> Any:
@@ -304,6 +315,10 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
     ) -> Optional[Union[Exception, str, dict[str, Any]]]:
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
 
+        if call_type is None:
+            # Some litellm versions send no call type to the during_call hook of the text completion
+            # and messages routes.
+            call_type = _call_type_from_route(data)
         try:
             # The proxy also sends call types that are not CallTypes values, for example "embeddings".
             request_call_type = CallTypes(call_type)

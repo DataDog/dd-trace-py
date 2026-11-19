@@ -425,6 +425,28 @@ async def test_messages_api_does_not_claim(litellm_proxy, openai_stub, evaluatio
     assert not is_aiguard_context_active()
 
 
+@pytest.mark.parametrize(
+    "path, body",
+    [
+        ("/completions", {"model": MODEL, "prompt": PROMPT}),
+        ("/v1/messages", {"model": MODEL, "max_tokens": 64, "messages": [{"role": "user", "content": PROMPT}]}),
+    ],
+)
+async def test_during_call_evaluates_the_prompt(
+    litellm_proxy, evaluations, evaluated_messages, monkeypatch, path, body
+):
+    # Some litellm versions send no call type to the during_call hook of these routes.
+    litellm_proxy(event_hook=("during_call",))
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+
+    response = await _post(path, body)
+
+    assert response.status_code == 200, response.text
+    assert ("litellm", "prompt") in evaluations
+    assert evaluated_messages[evaluations.index(("litellm", "prompt"))] == [{"role": "user", "content": PROMPT}]
+    assert not is_aiguard_context_active()
+
+
 @pytest.mark.parametrize("event_hook", [("pre_call", "post_call"), ("during_call",)])
 async def test_embeddings_are_not_evaluated(litellm_proxy, openai_stub, evaluations, event_hook):
     # Some litellm versions send the call type "embeddings" to the hooks. This value is not a CallTypes value.
