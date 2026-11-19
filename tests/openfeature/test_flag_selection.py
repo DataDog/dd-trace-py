@@ -1899,8 +1899,12 @@ def test_forked_child_keeps_only_the_forking_threads_claims():
 def _forked_child_status(check):
     """Fork, run ``check`` in the child, and return the child's exit status: 0 when ``check`` returns True."""
     import os
+    import tempfile
+    import traceback
     import warnings
 
+    with tempfile.NamedTemporaryFile(prefix="fork-child-", delete=False) as report:
+        path = report.name
     with warnings.catch_warnings():
         # CPython 3.12+ warns when a multi-threaded process forks.
         warnings.simplefilter("ignore", DeprecationWarning)
@@ -1909,11 +1913,15 @@ def _forked_child_status(check):
         try:
             os._exit(0 if check() else 1)
         except BaseException:
-            import traceback
-
-            os.write(2, traceback.format_exc().encode())
+            with open(path, "w") as out:
+                out.write(traceback.format_exc())
             os._exit(2)
     _, status = os.waitpid(pid, 0)
+    with open(path) as written:
+        raised = written.read()
+    os.unlink(path)
+    # The child's stderr does not reach every test runner's capture, so its traceback is reported from here.
+    assert not raised, raised
     return os.WEXITSTATUS(status) if os.WIFEXITED(status) else -1
 
 
@@ -1934,9 +1942,12 @@ def _poller_runs(source, timeout):
 
 
 def _child_selection_released(provider):
-    """Shut the inherited provider down in the child and check that the next claim takes a new selection."""
+    """Stop the inherited provider's poller in the child and check that the next claim takes a new selection.
+
+    Only the poller is stopped: the fork may land while the initializing thread is still starting the writers.
+    """
     other = canonicalize_flag_selection({"tags": ["b"]})
-    provider.shutdown()
+    provider._stop_configuration_source()
     released = _flag_selection._claim_count == 0 and claim_process_selection(other) == other
     _flag_selection.release_process_selection()
     return released
