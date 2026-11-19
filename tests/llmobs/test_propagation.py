@@ -1672,7 +1672,9 @@ def _tags_and_baggage_context(baggage_trace_id, tag_parent="111", baggage_parent
     return ctx
 
 
-@pytest.mark.parametrize("bad", ["-1", "a" * 33, "1" * 42, "0" * 32 + "1", "0123", "ABCDEF0123456789ABCDEF0123456789"])
+@pytest.mark.parametrize(
+    "bad", ["-1", "a" * 33, "1" * 42, "0" * 32 + "1", "0123", "ABCDEF0123456789ABCDEF0123456789", "\u00b2"]
+)
 def test_activate_falls_back_to_the_tag_trace_id_when_baggage_is_not_canonical(llmobs, bad):
     llmobs._instance._activate_llmobs_distributed_context({}, _tags_and_baggage_context(bad))
     with llmobs.workflow("w") as span:

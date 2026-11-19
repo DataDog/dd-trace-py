@@ -406,10 +406,15 @@ _CANONICAL_HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 def _is_canonical_trace_id(value: str) -> bool:
     """Whether value is in the form format_trace_id produces, which the baggage contract requires:
     32 lowercase hex characters, or a decimal number from 1 to 2**64 - 1 without leading zeros.
+
+    The ASCII and length checks run before int(): str.isdigit() accepts Unicode digits that int()
+    rejects, and int() raises on values over the interpreter's digit limit. 2**64 - 1 has 20 digits.
     """
     if _CANONICAL_HEX_TRACE_ID_RE.match(value):
         return True
-    return value.isdigit() and value[0] != "0" and int(value) <= MAX_UINT_64BITS
+    return (
+        value.isascii() and value.isdigit() and value[0] != "0" and len(value) <= 20 and int(value) <= MAX_UINT_64BITS
+    )
 
 
 def _encoded_baggage_size(value: str) -> int:
