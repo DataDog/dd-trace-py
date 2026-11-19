@@ -206,11 +206,11 @@ def release_process_selection() -> None:
 def recount_process_selection_in_child(count: int) -> None:
     """Set the claim's reference count, in a forked child, to the pollers that still hold it there."""
     global _claimed, _claim_count, _dropped_reason
-    with _lock:
-        _claim_count = count
-        if count == 0:
-            _claimed = NO_SELECTION
-            _dropped_reason = None
+    # Without the lock: the child hooks run on one thread, before the fork-safe locks are reset.
+    _claim_count = count
+    if count == 0:
+        _claimed = NO_SELECTION
+        _dropped_reason = None
 
 
 def snapshot_from_other_selection() -> bool:

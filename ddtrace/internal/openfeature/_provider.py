@@ -239,11 +239,8 @@ class DataDogProvider(AbstractProvider):
         self._configuration_source_stopper: typing.Any = None
         # Pollers whose teardown failed. Each keeps its claim until a later shutdown finishes it.
         self._retired_configuration_sources: list[AgentlessConfigurationSource] = []
-        # A source a start built and has not stored or discarded; it holds a claim.
-        self._pending_configuration_source: typing.Optional[AgentlessConfigurationSource] = None
-        # The thread of each start or teardown in progress, from before it takes a claim until it has stored or
-        # released it. Guarded by _lifecycle_lock; a fork waits for these (_wait_for_lifecycle_before_fork).
-        self._configuration_source_operations: list[typing.Any] = []
+        # Starts and teardowns in progress, guarded by _lifecycle_lock; a fork waits for them.
+        self._configuration_source_operations: list[_LifecycleOperation] = []
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
@@ -539,10 +536,10 @@ class DataDogProvider(AbstractProvider):
                 return None
             changed.wait(remaining)
 
-        with _lifecycle_operation(self):
-            return self._start_reserved_configuration_source(shutdowns)
+        with _lifecycle_operation(self, teardown=False) as operation:
+            return self._start_reserved_configuration_source(shutdowns, operation)
 
-    def _start_reserved_configuration_source(self, shutdowns: int) -> bool:
+    def _start_reserved_configuration_source(self, shutdowns: int, operation: "_LifecycleOperation") -> bool:
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
         source = None
@@ -551,7 +548,7 @@ class DataDogProvider(AbstractProvider):
             source = create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
             if source is not None:
                 with self._configuration_source_lock:
-                    self._pending_configuration_source = source
+                    operation.source = source
             if source is not None and self._configuration_source_shutdowns == shutdowns:
                 # A poller of the released selection may have notified this provider after attach()
                 # registered it. Nothing under the new claim has polled yet, so no notification is lost.
@@ -565,7 +562,7 @@ class DataDogProvider(AbstractProvider):
                 started = True
         except BaseException:
             with self._configuration_source_lock:
-                self._pending_configuration_source = None
+                operation.source = None
                 self._end_configuration_source_start()
                 if source is not None:
                     release_process_selection()
@@ -575,7 +572,7 @@ class DataDogProvider(AbstractProvider):
             cancelled = self._configuration_source_shutdowns != shutdowns
             if source is not None and not cancelled:
                 self._configuration_source = source
-                self._pending_configuration_source = None
+                operation.source = None
             # In the same step as storing the source, so a shutdown sees either the start or the source. This
             # wakes waiting starts before any teardown below: one may be a callback on the poller being joined.
             self._end_configuration_source_start()
@@ -588,10 +585,10 @@ class DataDogProvider(AbstractProvider):
         except BaseException:
             with self._configuration_source_lock:
                 self._retired_configuration_sources.append(source)
-                self._pending_configuration_source = None
+                operation.source = None
             raise
         with self._configuration_source_lock:
-            self._pending_configuration_source = None
+            operation.source = None
             release_process_selection()
         return False
 
@@ -619,7 +616,7 @@ class DataDogProvider(AbstractProvider):
 
         A poller whose teardown fails is retired: it keeps its claim, and the next shutdown retries it.
         """
-        with _lifecycle_operation(self):
+        with _lifecycle_operation(self, teardown=True):
             with self._configuration_source_lock:
                 self._configuration_source_shutdowns += 1
                 self._wake_configuration_source_waiters()
@@ -657,27 +654,22 @@ class DataDogProvider(AbstractProvider):
             raise error
         logger.debug("Feature Flags: agentless configuration source stopped")
 
-    def _discard_configuration_sources_in_child(self) -> None:
-        """Forget, in a forked child, every poller of a start or teardown that a parent thread was running.
-
-        None of them runs in the child and none of their claims counts there, as if the teardown had finished.
-        """
-        sources = [self._configuration_source, self._pending_configuration_source, *self._retired_configuration_sources]
-        for each in sources:
+    def _discard_pollers_in_child(self) -> None:
+        """Finish, in a forked child, a teardown a parent thread was running: none of its pollers runs there."""
+        for each in [self._configuration_source, *self._retired_configuration_sources]:
             if each is not None:
                 each.discard_in_child()
         self._configuration_source = None
-        self._pending_configuration_source = None
         self._retired_configuration_sources = []
-        self._starting_configuration_source = False
-        self._configuration_source_starter = None
         self._stopping_configuration_source = False
         self._configuration_source_stopper = None
-        self._configuration_source_operations = []
 
     def _claims_held(self) -> int:
-        current = [getattr(self, "_configuration_source", None), getattr(self, "_pending_configuration_source", None)]
-        return sum(each is not None for each in current) + len(getattr(self, "_retired_configuration_sources", []))
+        pollers = getattr(self, "_retired_configuration_sources", []) + [getattr(self, "_configuration_source", None)]
+        # Only the forking thread's operations are left. A start that has not built its source yet may be inside
+        # create_agentless_source after it claimed; counting it can only keep the inherited selection.
+        starts = [each for each in _operations(self) if not each.teardown]
+        return sum(each is not None for each in pollers) + len(starts)
 
     def resolve_boolean_details(
         self,
@@ -1049,29 +1041,41 @@ _lifecycle_lock = Lock()
 _lifecycle_ended = Event()
 
 
+class _LifecycleOperation:
+    """A start or teardown, from before it takes a claim until it has stored its source or released the claim."""
+
+    __slots__ = ("owner", "source", "teardown")
+
+    def __init__(self, teardown: bool) -> None:
+        self.owner = current_thread()
+        self.teardown = teardown
+        # The source a start built and has neither stored nor released; it holds a claim.
+        self.source: typing.Optional[AgentlessConfigurationSource] = None
+
+
 @contextmanager
-def _lifecycle_operation(provider: DataDogProvider) -> typing.Iterator[None]:
+def _lifecycle_operation(provider: DataDogProvider, teardown: bool) -> typing.Iterator[_LifecycleOperation]:
     global _lifecycle_ended
-    owner = current_thread()
+    operation = _LifecycleOperation(teardown)
     with _lifecycle_lock:
-        provider._configuration_source_operations.append(owner)
+        provider._configuration_source_operations.append(operation)
     try:
-        yield
+        yield operation
     finally:
         with _lifecycle_lock:
-            provider._configuration_source_operations.remove(owner)
+            provider._configuration_source_operations.remove(operation)
             ended, _lifecycle_ended = _lifecycle_ended, Event()
         ended.set()
 
 
-def _operations(provider: DataDogProvider) -> list[typing.Any]:
+def _operations(provider: DataDogProvider) -> list[_LifecycleOperation]:
     # A provider another thread is still constructing at the fork is in the set before it has this field.
     return getattr(provider, "_configuration_source_operations", [])
 
 
 def _another_thread_in_lifecycle(me: typing.Any) -> bool:
     providers = list(_providers_with_exposure_cache)
-    return any(owner is not me for provider in providers for owner in _operations(provider))
+    return any(operation.owner is not me for provider in providers for operation in _operations(provider))
 
 
 @forksafe.register_before_fork
@@ -1113,13 +1117,19 @@ def _reset_provider_state_in_child() -> typing.Iterator[None]:
             # A start reserved on a parent thread but not yet building its source holds no claim.
             provider._starting_configuration_source = False
             provider._configuration_source_starter = None
-        owners = _operations(provider)
-        if owners and me not in owners:
-            provider._discard_configuration_sources_in_child()
+        operations = _operations(provider)
+        kept = [operation for operation in operations if operation.owner is me]
+        for operation in operations:
+            if operation.owner is me:
+                continue
             reset = True
-    # The forking thread's own start or teardown carries on here with a claim the child cannot see, so the
-    # inherited count stays: it can only be too high, which keeps the inherited selection.
-    if reset and not any(me in _operations(provider) for provider in providers):
+            if operation.source is not None:
+                operation.source.discard_in_child()
+            if operation.teardown:
+                provider._discard_pollers_in_child()
+        if len(kept) != len(operations):
+            provider._configuration_source_operations = kept
+    if reset:
         recount_process_selection_in_child(sum(provider._claims_held() for provider in providers))
     yield
 

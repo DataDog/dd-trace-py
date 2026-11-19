@@ -1607,8 +1607,7 @@ def test_forked_child_drops_a_retired_poller_teardown_reservation():
     retired = mock.Mock()
     provider._retired_configuration_sources = [retired]
     provider._stopping_configuration_source = True
-    # The teardown ran on a parent thread, which does not survive the fork.
-    provider._configuration_source_operations = [threading.Thread(target=lambda: None)]
+    _parent_operation(provider, teardown=True)
     _run_provider_child_hook()
     assert provider._stopping_configuration_source is False
     assert provider._retired_configuration_sources == []
@@ -1841,6 +1840,62 @@ def test_child_forked_while_running_keeps_the_claim_until_its_own_shutdown(cdn, 
         provider.shutdown()
 
 
+def _parent_operation(provider, teardown, source=None):
+    import ddtrace.internal.openfeature._provider as provider_module
+
+    operation = provider_module._LifecycleOperation(teardown)
+    # A thread of the parent, which does not survive the fork.
+    operation.owner = threading.Thread(target=lambda: None)
+    operation.source = source
+    provider._configuration_source_operations.append(operation)
+    return operation
+
+
+def test_forked_child_recounts_without_the_inherited_selection_lock():
+    provider = _provider(None)
+    provider._configuration_source = mock.Mock()
+    _parent_operation(provider, teardown=True)
+    claim_process_selection(canonicalize_flag_selection({"tags": ["a"]}))
+    # A parent thread held the selection lock at the fork; the recount must not wait for it.
+    _flag_selection._lock.acquire()
+    try:
+        hook = threading.Thread(target=_run_provider_child_hook)
+        hook.start()
+        hook.join(timeout=2)
+        assert not hook.is_alive()
+    finally:
+        _flag_selection._lock.release()
+    assert _flag_selection._claim_count == 0
+
+
+def test_forked_child_discards_each_overlapping_start_on_its_own():
+    provider = _provider(None)
+    cancelled, replacement = mock.Mock(), mock.Mock()
+    _parent_operation(provider, teardown=False, source=cancelled)
+    _parent_operation(provider, teardown=False, source=replacement)
+    _run_provider_child_hook()
+    cancelled.discard_in_child.assert_called_once_with()
+    replacement.discard_in_child.assert_called_once_with()
+    assert provider._configuration_source_operations == []
+
+
+def test_forked_child_keeps_only_the_forking_threads_claims():
+    import ddtrace.internal.openfeature._provider as provider_module
+
+    interrupted = _provider(None)
+    interrupted._configuration_source = mock.Mock()
+    _parent_operation(interrupted, teardown=True)
+    forking = _provider(None)
+    forking._configuration_source_operations.append(provider_module._LifecycleOperation(teardown=False))
+    for _ in range(3):
+        claim_process_selection(canonicalize_flag_selection({"tags": ["a"]}))
+    _run_provider_child_hook()
+    # The forking thread's start carries on in the child with its claim; the interrupted teardown's is gone.
+    assert _flag_selection._claim_count == 1
+    forking._configuration_source_operations = []
+    _flag_selection.release_process_selection()
+
+
 def _forked_child_status(check):
     """Fork, run ``check`` in the child, and return the child's exit status: 0 when ``check`` returns True."""
     import os
@@ -1854,6 +1909,9 @@ def _forked_child_status(check):
         try:
             os._exit(0 if check() else 1)
         except BaseException:
+            import traceback
+
+            os.write(2, traceback.format_exc().encode())
             os._exit(2)
     _, status = os.waitpid(pid, 0)
     return os.WEXITSTATUS(status) if os.WIFEXITED(status) else -1
@@ -1893,7 +1951,8 @@ def _fork_during(hold_released_by, monkeypatch, wait_expires, check):
         status = _forked_child_status(check)
         hold_released_by.set()
     else:
-        # The fork is already waiting when the held operation is let go.
+        # The fork is already waiting when the held operation is let go; a slow runner must not make it give up.
+        monkeypatch.setattr(provider_module, "_FORK_WAIT_SECONDS", 5.0)
         threading.Timer(0.2, hold_released_by.set).start()
         status = _forked_child_status(check)
     return status
@@ -1935,7 +1994,7 @@ def test_fork_during_a_start_leaves_the_child_a_correct_claim(cdn, api_key, monk
         if wait_expires:
             # The start never finished here: none of its pollers runs and its claim is gone.
             unowned = poller_started and _poller_runs(created[0], 0.4)
-            reset = provider._configuration_source is None and provider._pending_configuration_source is None
+            reset = provider._configuration_source is None and not provider._configuration_source_operations
             return reset and not unowned and _child_selection_released(provider)
         stored = provider._configuration_source is created[0] and _flag_selection._claim_count == 1
         running = not poller_started or _poller_runs(created[0], 2.0)
@@ -2025,7 +2084,7 @@ def test_fork_during_a_cancelled_start_leaves_the_child_a_correct_claim(cdn, api
         assert joined.wait(timeout=5)
 
         def check():
-            gone = provider._configuration_source is None and provider._pending_configuration_source is None
+            gone = provider._configuration_source is None and not provider._configuration_source_operations
             return gone and not _poller_runs(created[0], 0.4) and _child_selection_released(provider)
 
         assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
