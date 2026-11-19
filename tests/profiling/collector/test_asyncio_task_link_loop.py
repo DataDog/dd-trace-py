@@ -328,3 +328,52 @@ def test_asyncio_task_links_expire_after_dummy_thread_exits() -> None:
         assert counts == (0, 0), counts
     finally:
         p.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fork is not available on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_task_link_start_after_fork",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_asyncio_task_link_when_profiler_starts_after_fork() -> None:
+    import asyncio
+    import os
+    import threading
+    import traceback
+
+    thread_name = threading.main_thread().name
+
+    async def child() -> None:
+        await asyncio.sleep(1)
+
+    async def parent() -> None:
+        task = asyncio.create_task(child(), name="linked-child")
+        await asyncio.gather(task)
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            from ddtrace.internal.datadog.profiling import stack
+            from ddtrace.profiling import profiler
+            from tests.profiling.collector.test_asyncio_task_link_loop import assert_latest_child_has_parent
+
+            assert stack.is_available, stack.failure_msg
+            p = profiler.Profiler()
+            p.start()
+            try:
+                asyncio.run(parent())
+            finally:
+                p.stop()
+
+            assert_latest_child_has_parent(os.environ["DD_PROFILING_OUTPUT_PPROF"], thread_name)
+        except BaseException:
+            traceback.print_exc()
+            os._exit(1)
+        os._exit(0)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status), f"Child did not exit normally: {status}"
+    assert os.WEXITSTATUS(status) == 0

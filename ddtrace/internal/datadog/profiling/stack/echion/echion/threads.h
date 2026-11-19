@@ -57,7 +57,10 @@ class ThreadInfo
     microsecond_t cpu_time = 0;
 
     uintptr_t asyncio_loop = 0;
-#if PY_VERSION_HEX < 0x030b0000
+#if PY_VERSION_HEX >= 0x030b0000
+    // The loop owner's tstate has the real native ID even if threading.Thread's ID is stale after fork.
+    unsigned long asyncio_loop_native_id = 0;
+#else
     // Older PyThreadState has no native_thread_id. Identify the tstate that tracked the loop instead.
     int64_t asyncio_loop_interp_id = -1;
     uint64_t asyncio_loop_tstate_id = 0;
@@ -68,7 +71,7 @@ class ThreadInfo
     uintptr_t live_asyncio_loop(const PyThreadState& tstate, [[maybe_unused]] int64_t interp_id) const
     {
 #if PY_VERSION_HEX >= 0x030b0000
-        const bool same_thread = native_id == tstate.native_thread_id;
+        const bool same_thread = asyncio_loop_native_id == tstate.native_thread_id;
 #else
         const bool same_thread = asyncio_loop_interp_id == interp_id && asyncio_loop_tstate_id == tstate.id;
 #endif

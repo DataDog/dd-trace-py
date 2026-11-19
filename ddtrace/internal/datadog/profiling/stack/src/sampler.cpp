@@ -877,7 +877,9 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
             // to the thread before, unless the thread id now belongs to another thread.
             if (it->second->native_id == native_id) {
                 (*maybe_thread_info)->asyncio_loop = it->second->asyncio_loop;
-#if PY_VERSION_HEX < 0x030b0000
+#if PY_VERSION_HEX >= 0x030b0000
+                (*maybe_thread_info)->asyncio_loop_native_id = it->second->asyncio_loop_native_id;
+#else
                 (*maybe_thread_info)->asyncio_loop_interp_id = it->second->asyncio_loop_interp_id;
                 (*maybe_thread_info)->asyncio_loop_tstate_id = it->second->asyncio_loop_tstate_id;
 #endif
@@ -1016,14 +1018,16 @@ Sampler::set_max_tasks_per_sample(unsigned int value)
 }
 
 void
-Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop, [[maybe_unused]] const PyThreadState& tstate)
+Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop, const PyThreadState& tstate)
 {
     // Holds echion's global lock
     std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
     if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
         auto& thread = *it->second;
         thread.asyncio_loop = loop != Py_None ? reinterpret_cast<uintptr_t>(loop) : 0;
-#if PY_VERSION_HEX < 0x030b0000
+#if PY_VERSION_HEX >= 0x030b0000
+        thread.asyncio_loop_native_id = tstate.native_thread_id;
+#else
         thread.asyncio_loop_interp_id = tstate.interp->id;
         thread.asyncio_loop_tstate_id = tstate.id;
 #endif

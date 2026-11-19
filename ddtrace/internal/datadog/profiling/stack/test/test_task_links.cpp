@@ -210,7 +210,8 @@ TEST(TaskLinks, ReusedThreadIdDoesNotKeepLoopLive)
     PyThreadState tstate{};
     tstate.thread_id = thread.thread_id;
 #if PY_VERSION_HEX >= 0x030b0000
-    tstate.native_thread_id = thread.native_id;
+    thread.asyncio_loop_native_id = 4;
+    tstate.native_thread_id = thread.asyncio_loop_native_id;
 #else
     thread.asyncio_loop_interp_id = 0;
     thread.asyncio_loop_tstate_id = 1;
@@ -219,7 +220,7 @@ TEST(TaskLinks, ReusedThreadIdDoesNotKeepLoopLive)
     ASSERT_EQ(thread.live_asyncio_loop(tstate, 0), 3u);
 
 #if PY_VERSION_HEX >= 0x030b0000
-    ++tstate.native_thread_id;
+    tstate.native_thread_id = thread.native_id;
 #else
     ++tstate.id;
 #endif
