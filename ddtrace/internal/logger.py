@@ -180,8 +180,8 @@ class MainHubLogging:
         self.reset()
 
     def reset(self) -> None:
-        """Log inline in a fork child: the parent emits the records it had queued, and the child might never run a
-        hub, or exit with os._exit. The thread that forked is the main thread of the child.
+        """Log inline in a fork child until a main hub runs there: the parent emits the records it had queued, and
+        the child might exit with os._exit before. The thread that forked is the main thread of the child.
         """
         self._pid = os.getpid()
         self._main_thread_ident = get_ident()
@@ -288,6 +288,7 @@ def _format_args(record: logging.LogRecord) -> None:
 
 main_hub_logging = MainHubLogging()
 # Registered before the native threads module registers the hook that joins them, so that it runs after it.
+# Not ddtrace.internal.atexit: it imports that module, and registering later would flush before the join.
 atexit.register(main_hub_logging.flush_at_exit)
 
 

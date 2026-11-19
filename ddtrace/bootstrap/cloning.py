@@ -126,7 +126,20 @@ def cleanup_loaded_modules() -> None:
 
     # Sharing logging also shares the gevent locks it gets once gevent patches
     # threading, so ddtrace threads hand their records to the main hub instead.
-    forksafe.register(main_hub_logging.reset)
+    def reset_main_hub_logging():
+        main_hub_logging.reset()
+        # The thread that forked is the main thread of the child. gevent reinitializes the loop of its hub after
+        # the fork hooks, so records go to that hub again once it runs.
+        gevent_hub = sys.modules.get("gevent.hub")
+        if gevent_hub is not None and (hub := gevent_hub._get_hub()) is not None:
+            hub.loop.run_callback(main_hub_logging.set_hub, hub, gevent_hub.spawn_raw)
+
+    forksafe.register(reset_main_hub_logging)
+
+    @ModuleWatchdog.after_module_imported("multiprocessing.util")
+    def _(mp_util):
+        # A multiprocessing child exits with os._exit once these finalizers have run, and skips atexit.
+        mp_util.register_after_fork(main_hub_logging, lambda m: mp_util.Finalize(m, m.flush_at_exit, exitpriority=0))
 
     @ModuleWatchdog.after_module_imported("gevent.hub")
     def _(gevent_hub):

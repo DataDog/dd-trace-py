@@ -183,7 +183,7 @@ def test_records_are_handled_inline_when_the_queue_is_full():
 
 @pytest.mark.subprocess(env=CLONING, out="['logged in the child']", err=None, timeout=30)
 def test_fork_child_handles_thread_records_inline():
-    """A fork child might exit with os._exit before its main hub runs, e.g. a multiprocessing worker."""
+    """A fork child logs inline until its main hub runs, as it might exit with os._exit before."""
     import gevent.monkey
 
     import ddtrace.auto  # noqa:F401
@@ -639,3 +639,182 @@ def test_level_changes_apply_to_records_from_ddtrace_threads():
 
     assert drained.wait(timeout=10), messages
     assert messages == ["logged at debug level"], messages
+
+
+@pytest.mark.subprocess(
+    env=CLONING,
+    parametrize={"FORK": ["os.fork", "fork_and_watch"]},
+    out="['logged in the child']",
+    err=None,
+    timeout=30,
+)
+def test_fork_child_hands_thread_records_to_its_hub_once_it_runs():
+    """gevent reinitializes the loop of the main hub in the child, which keeps the same hub."""
+    import gevent.monkey
+
+    import ddtrace.auto  # noqa:F401
+
+    gevent.monkey.patch_all()
+
+    import faulthandler
+    import logging
+    import os
+
+    import gevent
+    import gevent.event
+    import gevent.os
+
+    from ddtrace.internal import threads
+
+    messages = []
+    drained = gevent.event.Event()
+
+    class ListHandler(logging.Handler):
+        def emit(self, record):
+            messages.append(record.getMessage())
+            drained.set()
+
+    handler = ListHandler()
+    threads.log.addHandler(handler)
+    gevent.sleep(0)
+
+    pid = os.fork() if os.environ["FORK"] == "os.fork" else gevent.os.fork_and_watch()
+    if pid == 0:
+        faulthandler.dump_traceback_later(20, exit=True)
+        gevent.sleep(0)  # The hub runs in the child.
+        release = gevent.event.Event()
+
+        def hold_handler_lock():
+            with handler.lock:
+                release.wait()
+
+        holder = gevent.spawn(hold_handler_lock)
+        gevent.sleep(0)
+        thread = threads.Thread(target=lambda: threads.log.warning("logged in the child"), name="test-logger")
+        thread.start()
+        thread.join()
+        release.set()
+        holder.join()
+        drained.wait(timeout=10)
+        os.write(1, repr(messages).encode())
+        os._exit(0)
+
+    gevent.monkey.get_original("os", "waitpid")(pid, 0)
+
+
+@pytest.mark.subprocess(env=CLONING, out="logged in the worker\n", err=None, timeout=30)
+def test_multiprocessing_fork_child_emits_queued_records_before_it_exits():
+    """A multiprocessing child exits with os._exit, which skips atexit."""
+    import gevent.monkey
+
+    import ddtrace.auto  # noqa:F401
+
+    gevent.monkey.patch_all()
+
+    import faulthandler
+    import logging
+    import multiprocessing
+    import os
+
+    import gevent
+    import gevent.event
+
+    from ddtrace.internal import threads
+
+    class WriteHandler(logging.Handler):
+        def emit(self, record):
+            os.write(1, (record.getMessage() + "\n").encode())
+
+    handler = WriteHandler()
+    threads.log.addHandler(handler)
+    gevent.sleep(0)
+
+    def worker():
+        faulthandler.dump_traceback_later(20, exit=True)
+        gevent.sleep(0)  # The hub runs in the child.
+        release = gevent.event.Event()
+
+        def hold_handler_lock():
+            with handler.lock:
+                release.wait()
+
+        gevent.spawn(hold_handler_lock)
+        gevent.sleep(0)
+        thread = threads.Thread(target=lambda: threads.log.warning("logged in the worker"), name="test-logger")
+        thread.start()
+        thread.join()
+        release.set()
+        # The worker returns without running the hub again.
+
+    process = multiprocessing.get_context("fork").Process(target=worker)
+    process.start()
+    process.join()
+    assert process.exitcode == 0, process.exitcode
+
+
+@pytest.mark.subprocess(
+    env=CLONING, parametrize={"HUB_BEFORE_FORK": ["0", "1"]}, out="['logged in the child']", err=None, timeout=30
+)
+def test_hub_of_the_thread_that_forked_is_the_main_hub_of_the_child():
+    import gevent.monkey
+
+    import ddtrace.auto  # noqa:F401
+
+    gevent.monkey.patch_all()
+
+    import faulthandler
+    import logging
+    import os
+
+    import gevent
+    import gevent.event
+    import gevent.os
+
+    from ddtrace.internal import threads
+
+    messages = []
+
+    class ListHandler(logging.Handler):
+        def emit(self, record):
+            messages.append(record.getMessage())
+
+    handler = ListHandler()
+    threads.log.addHandler(handler)
+    gevent.sleep(0)
+
+    start_new_thread, allocate_lock = gevent.monkey.get_original("_thread", ["start_new_thread", "allocate_lock"])
+    waitpid = gevent.monkey.get_original("os", "waitpid")
+    done = allocate_lock()
+    done.acquire()
+
+    def fork_and_wait():
+        if os.environ["HUB_BEFORE_FORK"] == "1":
+            gevent.sleep(0)  # Creates the hub of this thread before the fork.
+        # The patched os.fork watches the child, which only works on the main thread.
+        pid = gevent.os.fork_gevent()
+        if pid == 0:
+            faulthandler.dump_traceback_later(20, exit=True)
+            drained = gevent.event.Event()
+            handler.emit = lambda record: (messages.append(record.getMessage()), drained.set())
+            gevent.sleep(0)  # The hub of the forking thread runs as the main hub of the child.
+            release = gevent.event.Event()
+
+            def hold_handler_lock():
+                with handler.lock:
+                    release.wait()
+
+            holder = gevent.spawn(hold_handler_lock)
+            gevent.sleep(0)
+            thread = threads.Thread(target=lambda: threads.log.warning("logged in the child"), name="test-logger")
+            thread.start()
+            thread.join()
+            release.set()
+            holder.join()
+            drained.wait(timeout=10)
+            os.write(1, repr(messages).encode())
+            os._exit(0)
+        waitpid(pid, 0)
+        done.release()
+
+    start_new_thread(fork_and_wait, ())
+    done.acquire()

@@ -550,9 +550,11 @@ which can be waiting for that thread, e.g. joining it before a fork.
 - Records are formatted when queued, so mutable arguments and exceptions are
   captured as logged.
 - After fork, the child resets it with a `forksafe.register` hook and logs
-  inline, since it might never run a hub, or might exit with `os._exit`. The
-  parent emits the records it had queued. Hooks that run in the child before
-  the reset log inline too.
+  inline until its hub runs, since it might exit with `os._exit` before. The
+  parent emits the records it had queued. The thread that forked is the main
+  thread of the child, so its hub, created before or after the fork, becomes
+  the main hub. A `multiprocessing` child emits its queued records with a
+  `multiprocessing.util.Finalize`, since it exits with `os._exit`.
 - At exit, `flush_at_exit` emits the queued records and switches to inline
   logging. It is registered with the stdlib `atexit` when the logger module is
   imported, before the native threads module registers the hook that joins the
