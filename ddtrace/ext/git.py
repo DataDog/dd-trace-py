@@ -295,11 +295,13 @@ def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = Non
 def extract_git_version(cwd: Optional[str] = None) -> tuple[int, int, int]:
     output = _git_subprocess_cmd("--version")
     try:
-        version_info = tuple([int(part) for part in output.split()[2].split(".")])
+        parts = [int(part) for part in output.split()[2].split(".")]
     except ValueError:
         log.error("Git version not found, it is not following the desired version format: %s", output)
         return 0, 0, 0
-    return version_info
+    # Callers compare against (major, minor, patch), so pad or trim the version to three parts.
+    major, minor, patch = (parts + [0, 0, 0])[:3]
+    return major, minor, patch
 
 
 def _extract_remote_url_with_details(cwd: Optional[str] = None) -> _GitSubprocessDetails:
