@@ -32,6 +32,7 @@ def start_profiler() -> None:
                 profiling_config.memory.enabled,
                 profiling_config.lock.enabled,
                 profiling_config.exception.enabled,
+                profiling_config.gc.enabled,
                 profiling_config.pytorch.enabled,
                 # Native heap does not use a collector, but is also started by the
                 # Profiler object, so for the time being we include it here.

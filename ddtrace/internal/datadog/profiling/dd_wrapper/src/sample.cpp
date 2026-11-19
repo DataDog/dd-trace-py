@@ -578,6 +578,24 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 }
 
 bool
+Datadog::Sample::push_gctime(int64_t gctime, int64_t count)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    // Same multiply as push_walltime: callers that already summed a window
+    // must pass count=1 or the total is applied `count` times.
+    if (0U != (type_mask & SampleType::GC)) {
+        values[ProfilerState::get().profile_state.val().gc_time] += gctime * count;
+        values[ProfilerState::get().profile_state.val().gc_count] += count;
+        return true;
+    }
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push gc" << std::endl;
+    }
+    return false;
+}
+
+bool
 Datadog::Sample::push_exception_message(std::string_view exception_message)
 {
     push_label(ExportLabelKey::exception_message, exception_message);
