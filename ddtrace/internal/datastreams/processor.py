@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from collections import defaultdict
+from functools import lru_cache
 from functools import partial
 import gzip
 import struct
@@ -319,30 +320,26 @@ class DataStreamsProcessor(PeriodicService):
         self.stop(timeout)
 
     def decode_pathway(self, data: bytes) -> DataStreamsCtx:
-        try:
-            hash_value = struct.unpack("<Q", data[:8])[0]
-            data = data[8:]
-            pathway_start_ms, data = decode_var_int_64(data)
-            current_edge_start_ms, data = decode_var_int_64(data)
-            ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
-            # reset context of current thread every time we decode
-            self._current_context.value = ctx
-            return ctx
-        except (EOFError, TypeError, struct.error):
-            return self.new_pathway()
+        return self._ctx_from_fields(_parse_pathway(data))
 
     def decode_pathway_b64(self, data: Optional[Union[str, bytes]]) -> DataStreamsCtx:
         if not data:
             return self.new_pathway()
 
-        if isinstance(data, str):
-            binary_pathway = data.encode("utf-8")
+        if isinstance(data, (str, bytes)) and len(data) <= _MAX_CACHED_PATHWAY_B64_LEN:
+            fields = _parse_pathway_b64_cached(data)
         else:
-            binary_pathway = data
+            fields = _parse_pathway(base64.b64decode(data.encode("utf-8") if isinstance(data, str) else data))
+        return self._ctx_from_fields(fields)
 
-        encoded_pathway = base64.b64decode(binary_pathway)
-        data_streams_context = self.decode_pathway(encoded_pathway)
-        return data_streams_context
+    def _ctx_from_fields(self, fields: Optional[tuple[int, int, int]]) -> DataStreamsCtx:
+        if fields is None:
+            return self.new_pathway()
+        hash_value, pathway_start_ms, current_edge_start_ms = fields
+        ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
+        # reset context of current thread every time we decode
+        self._current_context.value = ctx
+        return ctx
 
     def new_pathway(self, now_sec: Optional[float] = None) -> DataStreamsCtx:
         """
@@ -399,6 +396,37 @@ class DataStreamsProcessor(PeriodicService):
         return SchemaBuilder.get_schema(schema_name, iterator)
 
 
+# A pathway is at most 8 + 2 * 9 bytes, i.e. 36 base64 characters; longer values are not pathways.
+_MAX_CACHED_PATHWAY_B64_LEN = 64
+
+
+def _parse_pathway(data: bytes) -> Optional[tuple[int, int, int]]:
+    """(hash, pathway_start_ms, current_edge_start_ms) of an encoded pathway, or None if malformed."""
+    try:
+        hash_value = struct.unpack("<Q", data[:8])[0]
+        data = data[8:]
+        pathway_start_ms, data = decode_var_int_64(data)
+        current_edge_start_ms, data = decode_var_int_64(data)
+        return hash_value, pathway_start_ms, current_edge_start_ms
+    except (EOFError, TypeError, struct.error):
+        return None
+
+
+@lru_cache(maxsize=256)
+def _parse_pathway_b64_cached(data: Union[str, bytes]) -> Optional[tuple[int, int, int]]:
+    """Memoized by header value: the same pathway is often decoded repeatedly. Invalid base64 raises, uncached."""
+    return _parse_pathway(base64.b64decode(data.encode("utf-8") if isinstance(data, str) else data))
+
+
+@lru_cache(maxsize=256)
+def _encode_pathway_b64(hash_value: int, pathway_start_ms: int, current_edge_start_ms: int) -> str:
+    """Base64 pathway header value. Memoized: the same pathway state is often propagated repeatedly."""
+    encoded_pathway = (
+        struct.pack("<Q", hash_value) + encode_var_int_64(pathway_start_ms) + encode_var_int_64(current_edge_start_ms)
+    )
+    return base64.b64encode(encoded_pathway).decode("utf-8")
+
+
 class DataStreamsCtx:
     def __init__(
         self, processor: DataStreamsProcessor, hash_value: int, pathway_start_sec: float, current_edge_start_sec: float
@@ -422,10 +450,7 @@ class DataStreamsCtx:
         )
 
     def encode_b64(self) -> str:
-        encoded_pathway = self.encode()
-        binary_pathway = base64.b64encode(encoded_pathway)
-        data_streams_context = binary_pathway.decode("utf-8")
-        return data_streams_context
+        return _encode_pathway_b64(self.hash, int(self.pathway_start_sec * 1e3), int(self.current_edge_start_sec * 1e3))
 
     def _compute_hash(self, tags, parent_hash):
         def get_bytes(s):

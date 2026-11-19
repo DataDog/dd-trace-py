@@ -1,19 +1,25 @@
+import base64
 import gzip
 import logging
 import os
+import random
 import signal
+import struct
 import time
 from unittest import mock
 
 import msgpack
 import pytest
 
+from ddtrace.internal.datastreams.encoding import encode_var_int_64
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.processor import PartitionKey
+from ddtrace.internal.datastreams.processor import _encode_pathway_b64
+from ddtrace.internal.datastreams.processor import _parse_pathway_b64_cached
 
 
 processor = DataStreamsProcessor("http://localhost:8126")
@@ -450,3 +456,81 @@ def test_dsm_pathway_codec_decode_no_context():
     assert ctx.hash == processor.new_pathway().hash
     assert ctx.pathway_start_sec == mocked_time
     assert ctx.current_edge_start_sec == mocked_time
+
+
+def _reference_encode_b64(hash_value, pathway_start_ms, current_edge_start_ms):
+    raw = struct.pack("<Q", hash_value) + encode_var_int_64(pathway_start_ms) + encode_var_int_64(current_edge_start_ms)
+    return base64.b64encode(raw).decode("utf-8")
+
+
+def test_encode_b64_matches_reference_and_is_cached():
+    _encode_pathway_b64.cache_clear()
+    rng = random.Random(99)
+    ctx = processor.new_pathway()
+    for _ in range(300):
+        ctx.hash = rng.randrange(1, 2**64)
+        ctx.pathway_start_sec = rng.uniform(0, 4e9)
+        ctx.current_edge_start_sec = rng.uniform(0, 4e9)
+        expected = _reference_encode_b64(
+            ctx.hash, int(ctx.pathway_start_sec * 1e3), int(ctx.current_edge_start_sec * 1e3)
+        )
+        misses = _encode_pathway_b64.cache_info().misses
+        assert ctx.encode_b64() == expected
+        assert ctx.encode_b64() == expected
+        info = _encode_pathway_b64.cache_info()
+        assert info.misses == misses + 1
+    assert info.currsize <= 256
+
+    # A different hash or timestamp is a different header.
+    ctx.hash, ctx.pathway_start_sec, ctx.current_edge_start_sec = 5, 10.0, 11.0
+    base = ctx.encode_b64()
+    ctx.hash = 6
+    assert ctx.encode_b64() != base
+    ctx.hash, ctx.current_edge_start_sec = 5, 11.001
+    assert ctx.encode_b64() != base
+
+
+def test_decode_b64_roundtrip_is_cached_and_bounded():
+    _parse_pathway_b64_cached.cache_clear()
+    ctx = processor.new_pathway()
+    ctx.hash, ctx.pathway_start_sec, ctx.current_edge_start_sec = 123456789, 1700000000.5, 1700000001.25
+    header = ctx.encode_b64()
+
+    for value in (header, header.encode()):
+        before = _parse_pathway_b64_cached.cache_info()
+        first = DsmPathwayCodec.decode({PROPAGATION_KEY_BASE_64: value}, processor)
+        second = DsmPathwayCodec.decode({PROPAGATION_KEY_BASE_64: value}, processor)
+        after = _parse_pathway_b64_cached.cache_info()
+        assert (after.hits - before.hits, after.misses - before.misses) == (1, 1)
+        # Every decode returns a fresh ctx and resets the thread's current context.
+        assert first is not second
+        assert processor._current_context.value is second
+        for decoded in (first, second):
+            assert decoded.hash == 123456789
+            assert decoded.pathway_start_sec == 1700000000.5
+            assert decoded.current_edge_start_sec == 1700000001.25
+
+    for i in range(1, 600):
+        ctx.hash = i
+        processor.decode_pathway_b64(ctx.encode_b64())
+    assert _parse_pathway_b64_cached.cache_info().currsize <= 256
+
+
+def test_decode_b64_invalid_values_are_not_cached():
+    _parse_pathway_b64_cached.cache_clear()
+    # Truncated pathway: falls back to a new pathway, like the uncached path.
+    short = base64.b64encode(b"\x01\x02\x03").decode()
+    for _ in range(2):
+        assert processor.decode_pathway_b64(short).hash == 0
+    # Not base64: still raises on every call.
+    for _ in range(2):
+        with pytest.raises(Exception):
+            processor.decode_pathway_b64("not base64!!")
+    # Oversized values bypass the cache.
+    big = base64.b64encode(b"\x00" * 4096).decode()
+    processor.decode_pathway_b64(big)
+    assert _parse_pathway_b64_cached.cache_info().currsize == 1
+    # Non-hashable bytes-like input still decodes.
+    ctx = processor.new_pathway()
+    ctx.hash = 77
+    assert processor.decode_pathway_b64(bytearray(ctx.encode_b64().encode())).hash == 77
