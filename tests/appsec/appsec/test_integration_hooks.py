@@ -42,10 +42,10 @@ def test_requests_patch_wraps_session_request_for_appsec(load_modules):
 
 
 def test_httplib_patch_wraps_request_outside_the_integration():
-    from ddtrace.appsec._contrib.httplib import _wrap_request as appsec_wrap_request
     from ddtrace.contrib.internal.httplib.patch import _wrap_request as httplib_wrap_request
     from ddtrace.contrib.internal.httplib.patch import patch
     from ddtrace.contrib.internal.httplib.patch import unpatch
+    from ddtrace.internal.appsec.integration_hooks.httplib import _wrap_request as appsec_wrap_request
 
     unpatch()
     try:
@@ -60,7 +60,7 @@ def test_httplib_patch_wraps_request_outside_the_integration():
 
 @pytest.mark.parametrize("enabled", [True, False])
 def test_httplib_appsec_wrapper_checks_config_per_call(enabled):
-    from ddtrace.appsec._contrib.httplib import _wrap_request
+    from ddtrace.internal.appsec.integration_hooks.httplib import _wrap_request
     from ddtrace.internal.settings.asm import config as asm_config
 
     wrapped = mock.Mock(return_value=None)

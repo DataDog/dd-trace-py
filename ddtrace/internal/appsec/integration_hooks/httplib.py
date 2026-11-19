@@ -3,7 +3,9 @@
 Loaded through the ddtrace.integration_hooks entry point when the integration is patched.
 """
 
-import http.client
+# The alias form resolves through sys.modules: the integration is patched while http.client is still
+# being imported, before it is bound as an attribute of the http package.
+import http.client as httplib
 from typing import Any
 from typing import Callable
 
@@ -17,7 +19,7 @@ _wrapped = False
 
 
 def _wrap_request(
-    wrapped: Callable[..., Any], instance: http.client.HTTPConnection, args: tuple[Any, ...], kwargs: dict[str, Any]
+    wrapped: Callable[..., Any], instance: httplib.HTTPConnection, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
     # Checked per call: remote configuration can enable AppSec after the integration is patched.
     if asm_config._asm_enabled and asm_config._ep_enabled:
@@ -33,7 +35,7 @@ def listen() -> None:
 
     if _wrapped:
         return
-    _w(http.client, "HTTPConnection.request", _wrap_request)
+    _w(httplib, "HTTPConnection.request", _wrap_request)
     _wrapped = True
 
 
@@ -43,5 +45,5 @@ def unlisten() -> None:
     # The integration unpatches after this, so the outermost wrapper must be ours.
     if not _wrapped:
         return
-    _u(http.client.HTTPConnection, "request")
+    _u(httplib.HTTPConnection, "request")
     _wrapped = False
