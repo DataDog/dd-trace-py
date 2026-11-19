@@ -22,3 +22,13 @@ Other repositories:
 - [Rust (`dd-trace-rs`)](https://github.com/DataDog/dd-trace-rs)
 - [C++ (`dd-trace-cpp`)](https://github.com/DataDog/dd-trace-cpp)
 - [Rust (`libdatadog`, provides common shared components)](https://github.com/DataDog/libdatadog)
+
+## 1. Process identity
+
+### XSDK-1.1: Keep the runtime ID stable for the life of a process, changing only on fork
+- Flag: code that regenerates or refreshes the runtime ID at runtime for a reason other than fork (for example, an AWS Lambda MicroVM restore), or that stops passing the runtime ID to native components, without citing the shared definition it follows. Remote config and libdatadog treat it as stable per process, so a different need may call for a different identifier.
+
+## 2. Configuration
+
+### XSDK-2.1: Register new settings so the cross-language feature-parity registry tracks them
+- Flag: a new `DD_*`/`OTEL_*` setting that skips the [add-new-configuration](../../add-new-configuration/SKILL.md) hand-off, or whose name, default, or accepted values differ from the same setting in another SDK.
