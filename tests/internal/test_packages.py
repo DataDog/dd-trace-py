@@ -18,10 +18,7 @@ def packages():
 
     # Clear caches
 
-    try:
-        del _p._package_for_root_module_mapping.__closure__[0].cell_contents.__callonce_result__
-    except AttributeError:
-        pass
+    _p._reset_installed_distributions()
 
     for f in _p.__dict__.values():
         try:
@@ -77,8 +74,7 @@ def test_get_distributions():
     assert pkg_resources_ws == importlib_pkgs
 
 
-def test_filename_to_package(packages):
-    # type: (...) -> None
+def test_filename_to_package(packages) -> None:
     package = packages.filename_to_package(packages.__file__)
     assert package is None or package.name == "ddtrace"
     package = packages.filename_to_package(pytest.__file__)

@@ -1,7 +1,7 @@
 #!/usr/bin/env scripts/uv-run-script
 # -*- mode: python -*-
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.11"
 # dependencies = [
 #   "lxml==5.3.0",
 #   "packaging==23.1",
@@ -17,9 +17,11 @@ import sys
 
 
 _FILES = [
+    "scripts/check_libdatadog_pins.py",
     "scripts/get-target-milestone.py",
     "scripts/needs_testrun.py",
     "scripts/resolve_previous_version.py",
+    "scripts/check_type_comments.py",
     "tests/suitespec.py",
 ]
 

@@ -1,12 +1,16 @@
+from collections.abc import Sequence
 import functools
 from typing import Any
 from typing import Optional
-from typing import Sequence
 from typing import get_origin
 
+from ddtrace.contrib.internal.pydantic_ai._constants import TAG_MODEL
+from ddtrace.contrib.internal.pydantic_ai._constants import TAG_PROVIDER
+from ddtrace.contrib.internal.pydantic_ai.utils import get_model_and_provider
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import callable_name
@@ -16,24 +20,17 @@ from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import type_name
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import AgentCapability
 from ddtrace.llmobs.types import AgentInstructionResolver
 from ddtrace.llmobs.types import AgentManifest
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
-
-# in some cases, PydanticAI uses a different provider name than what we expect
-PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
-    "google-gla": "google",
-    "google-vertex": "google",
-}
 
 FRAMEWORK_NAME = "PydanticAI"
 _OUTPUT_MARKERS = frozenset({"ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"})
@@ -105,35 +102,23 @@ def _collect_dynamic_system_prompts(agent: Any) -> list[Any]:
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
-    _running_agents: dict[int, list[int]] = {}  # dictionary mapping agent span ID to tool span ID(s)
-    _latest_agent = None  # str representing the span ID of the latest agent that was started
-    _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
-        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
-        kind = kwargs.get("kind", None)
-        if kind:
-            self._register_span(span, kind)
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself."""
+
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
+        return "agent" if kwargs.get("operation") == "agent" else None
+
+    def _stamp_llmobs_span_kind_at_start(self, span: _LLMObsSpan, operation_id: str = "", **kwargs: Any) -> None:
+        super()._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
+        # Agent and tool spans carry their kind whether or not LLMObs is enabled; _llmobs_set_tags reads it back.
+        kind = kwargs.get("operation")
+        if kind in ("agent", "tool"):
             _annotate_llmobs_span_data(span, kind=kind)
-        return span
-
-    def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, **kwargs) -> None:
-        if model:
-            model_name, provider = self._get_model_and_provider(model)
-            span.set_tag("pydantic_ai.request.model", model_name)
-            if provider:
-                span.set_tag("pydantic_ai.request.provider", provider)
-
-    def _get_model_and_provider(self, model: Optional[Any]) -> tuple[str, str]:
-        model_name = getattr(model, "model_name", "")
-        system = getattr(model, "system", None)
-        if system:
-            system = PYDANTIC_AI_SYSTEM_TO_PROVIDER.get(system, system)
-        return model_name, system
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -149,19 +134,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind=span_kind,
-            model_name=span.get_tag("pydantic_ai.request.model") or "",
-            model_provider=span.get_tag("pydantic_ai.request.provider") or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
 
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt", optional=True)
-        # AIDEV-NOTE: When callers like VercelAIAdapter pass all messages via message_history
+        # When callers like VercelAIAdapter pass all messages via message_history
         # without setting user_prompt, we fall back to extracting the last user message from
         # message_history. See https://github.com/DataDog/dd-trace-py/issues/16400
         if user_prompt is None:
@@ -202,7 +187,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return None
 
     def _llmobs_set_tags_tool(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
         raw_call = (
@@ -256,7 +241,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ),
         )
 
-    def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: _LLMObsSpan, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
         # dict() rather than a cast: the consumer takes a plain mapping, and a TypedDict is not
@@ -292,7 +277,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _manifest_labels(self, agent: Any) -> AgentManifest:
         """Labels that name the agent. Grouped for failure isolation only; the manifest is flat."""
         fields: AgentManifest = {"framework": FRAMEWORK_NAME}
-        # AIDEV-NOTE: placeholder per review, matching the span name fallback. Two unnamed agents
+        # placeholder per review, matching the span name fallback. Two unnamed agents
         # therefore share it, so name is not an identity.
         agent_name = getattr(agent, "name", None)
         fields["name"] = agent_name if isinstance(agent_name, str) and agent_name else "PydanticAI Agent"
@@ -330,8 +315,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             _, _, declared_name = model.partition(":")
             fields["model"] = declared_name or model
         elif model:
-            model_name, _ = self._get_model_and_provider(model)
-            # AIDEV-NOTE: str-only, for the same reason as the tool description read. model_name is
+            model_name, _ = get_model_and_provider(model)
+            # str-only, for the same reason as the tool description read. model_name is
             # annotated str, but a custom Model subclass returns whatever it likes and the encoder
             # reprs what it cannot encode, which can carry a connection string.
             if isinstance(model_name, str):
@@ -429,7 +414,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tools: list[dict[str, Any]] = []
         for tool_name, tool_instance in _iter_agent_tools(agent):
             entry: dict[str, Any] = {"name": tool_name if isinstance(tool_name, str) else str(tool_name)}
-            # AIDEV-NOTE: str-only. pydantic-ai accepts a non-str description and the encoder reprs
+            # str-only. pydantic-ai accepts a non-str description and the encoder reprs
             # what it cannot encode, which can carry credentials.
             description = getattr(tool_instance, "description", None)
             entry["description"] = description if isinstance(description, str) else None
@@ -521,7 +506,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _toolset_name(toolset: Any) -> str:
         """Toolset or MCP server name: the id the user set, else the class name.
 
-        AIDEV-NOTE: never read label. Without an id it falls back to repr(self), which carries the
+        Never read the label. Without an id it falls back to repr(self), which carries the
         connection config, so only an explicit str id or the class name ships. No URI is emitted at
         all, which is what keeps a credential in a server's userinfo, path or query off the wire.
         """
@@ -563,17 +548,3 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if get_origin(candidate) is not None:
             return False
         return callable(candidate) and not isinstance(candidate, type)
-
-    def _register_span(self, span: Span, kind: Any) -> None:
-        if kind == "agent":
-            self._register_agent(span)
-        elif kind == "tool":
-            self._register_tool(span)
-
-    def _register_agent(self, span: Span) -> None:
-        self._latest_agent = span.span_id
-        self._running_agents[span.span_id] = []
-
-    def _register_tool(self, span: Span) -> None:
-        if self._latest_agent is not None:
-            self._running_agents[self._latest_agent].append(span.span_id)

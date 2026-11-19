@@ -38,8 +38,10 @@ class OriginTaskLinks
   public:
     static OriginTaskLinks& get_instance()
     {
-        static OriginTaskLinks instance;
-        return instance;
+        // uWSGI may call exit without running the atexit hooks that stop the sampler.
+        // Making this a raw pointer prevents crashes at exit.
+        static OriginTaskLinks* const instance = new OriginTaskLinks();
+        return *instance;
     }
 
     OriginTaskLinks(OriginTaskLinks const&) = delete;

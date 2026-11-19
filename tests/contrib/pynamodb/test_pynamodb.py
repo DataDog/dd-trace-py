@@ -17,10 +17,10 @@ class PynamodbTest(TracerTestCase):
         self.conn = Connection(region="us-east-1")
         self.conn.session.set_credentials("aws-access-key", "aws-secret-access-key", "session-token")
 
-        super(PynamodbTest, self).setUp()
+        super().setUp()
 
     def tearDown(self):
-        super(PynamodbTest, self).tearDown()
+        super().tearDown()
         unpatch()
 
     def _create_table(self):

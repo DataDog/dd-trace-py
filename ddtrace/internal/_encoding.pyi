@@ -6,7 +6,7 @@ from ddtrace._trace.span import Span
 
 Trace = list[Span]
 
-class ListStringTable(object):
+class ListStringTable:
     def index(self, string: str) -> int: ...
 
 class BufferFull(Exception):
@@ -15,7 +15,7 @@ class BufferFull(Exception):
 class BufferItemTooLarge(Exception):
     pass
 
-class BufferedEncoder(object):
+class BufferedEncoder:
     content_type: str
     max_size: int
     max_item_size: int

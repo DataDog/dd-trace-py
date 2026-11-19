@@ -10,7 +10,7 @@ def job_fail():
     raise MyException("error")
 
 
-class JobClass(object):
+class JobClass:
     def __call__(self, x):
         return x * 2
 

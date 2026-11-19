@@ -1,8 +1,9 @@
 #pragma once
 
-#include <iostream>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
+#include <iostream>
 #include <regex>
 #include <sstream>
 #include <unordered_map>
@@ -93,7 +94,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            const TaintRangeRefs& source_ranges,
                            const py::list& split_result,
                            bool include_separator,
-                           size_t context_id);
+                           std::uint64_t context_id);
 
 PyObject*
 api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,

@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace import config
@@ -23,14 +24,7 @@ from tests.utils import assert_is_measured
 TEST_TABLE = "test_table"
 
 
-@pytest.fixture(scope="function")
-def test_tracer(request, tracer):
-    request.cls.test_tracer = tracer
-    return tracer
-
-
-@pytest.fixture(scope="function")
-def test_conn(request, test_tracer):
+def _open_connection(test_tracer):
     patch()
 
     import vertica_python  # must happen AFTER installing with patch()
@@ -38,28 +32,28 @@ def test_conn(request, test_tracer):
     conn = vertica_python.connect(**VERTICA_CONFIG)
 
     cur = conn.cursor()
-    cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
+    cur.execute(f"DROP TABLE IF EXISTS {TEST_TABLE}")
     cur.execute(
-        """CREATE TABLE {} (
+        f"""CREATE TABLE {TEST_TABLE} (
         a INT,
         b VARCHAR(32)
         )
-        """.format(TEST_TABLE)
+        """
     )
     TracerSpanContainer(test_tracer).pop()
 
-    request.cls.test_conn = (conn, cur)
     return conn, cur
 
 
 class TestVerticaPatching(TracerTestCase):
     def tearDown(self):
-        super(TestVerticaPatching, self).tearDown()
+        super().tearDown()
         unpatch()
 
     def test_query_event_can_block(self):
         cases = (
             ("execute", ("SELECT 1",)),
+            ("execute", (b"SELECT 1",)),
             ("copy", ("COPY test_table (a, b) FROM STDIN DELIMITER ','", "1,foo")),
         )
 
@@ -72,7 +66,7 @@ class TestVerticaPatching(TracerTestCase):
 
     def test_non_string_query_does_not_dispatch_event(self):
         with mock.patch.object(core, "dispatch_event") as dispatch_event:
-            _dispatch_query_event("execute", (b"SELECT 1",), {})
+            _dispatch_query_event("execute", (None,), {})
 
         dispatch_event.assert_not_called()
 
@@ -138,10 +132,14 @@ class TestVerticaPatching(TracerTestCase):
         assert not is_wrapted(vertica_python.vertica.cursor.Cursor.execute)
 
 
-@pytest.mark.usefixtures("test_tracer", "test_conn")
 class TestVertica(TracerTestCase):
+    def setUp(self):
+        super().setUp()
+        self.test_conn = _open_connection(self.tracer)
+        self.addCleanup(self.test_conn[0].close)
+
     def tearDown(self):
-        super(TestVertica, self).tearDown()
+        super().tearDown()
 
         unpatch()
 
@@ -154,7 +152,7 @@ class TestVertica(TracerTestCase):
             conn = vertica_python.connect(**VERTICA_CONFIG)
             cur = conn.cursor()
             with conn:
-                cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
+                cur.execute(f"DROP TABLE IF EXISTS {TEST_TABLE}")
         spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].service == "test_svc_name"
@@ -194,8 +192,8 @@ class TestVertica(TracerTestCase):
         conn, cur = self.test_conn
 
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -223,8 +221,8 @@ class TestVertica(TracerTestCase):
         conn, cur = self.test_conn
 
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -279,8 +277,8 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.execute(
-                """
-                INSERT INTO {} (a, b)
+                f"""
+                INSERT INTO {TEST_TABLE} (a, b)
                 SELECT 1, 'a'
                 UNION ALL
                 SELECT 2, 'b'
@@ -290,11 +288,11 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(TEST_TABLE)
+                """
             )
             assert cur.rowcount == -1
 
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
             cur.fetchone()
             assert cur.rowcount == 1
             cur.fetchone()
@@ -338,7 +336,7 @@ class TestVertica(TracerTestCase):
         conn, cur = self.test_conn
 
         with conn:
-            cur.execute("SELECT * FROM {0}; SELECT * FROM {0}".format(TEST_TABLE))
+            cur.execute(f"SELECT * FROM {TEST_TABLE}; SELECT * FROM {TEST_TABLE}")
             cur.nextset()
 
         spans = self.pop_spans()
@@ -358,7 +356,7 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.copy(
-                "COPY {0} (a, b) FROM STDIN DELIMITER ','".format(TEST_TABLE),
+                f"COPY {TEST_TABLE} (a, b) FROM STDIN DELIMITER ','",
                 "1,foo\n2,bar",
             )
 
@@ -372,8 +370,7 @@ class TestVertica(TracerTestCase):
         assert spans[1].name == "vertica.query"
         assert spans[1].resource == "COMMIT;"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"), use_pytest=True)
-    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         """
         v0 (default): When a user specifies a service for the app
@@ -385,18 +382,15 @@ class TestVertica(TracerTestCase):
         assert config.service == "mysvc"
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True
-    )
-    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -408,18 +402,15 @@ class TestVertica(TracerTestCase):
         assert config.service == "mysvc"
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "vertica"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True
-    )
-    @pytest.mark.usefixtures("test_tracer", "test_conn")
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -431,16 +422,15 @@ class TestVertica(TracerTestCase):
         assert config.service == "mysvc"
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "mysvc"
 
-    @pytest.mark.usefixtures("test_tracer", "test_conn")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True)
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0(self):
         """
         v1: When a service is unspecified, vertica
@@ -448,16 +438,15 @@ class TestVertica(TracerTestCase):
         """
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "vertica"
 
-    @pytest.mark.usefixtures("test_tracer", "test_conn")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True)
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         """
         v1: When a service is unspecified, vertica
@@ -465,16 +454,15 @@ class TestVertica(TracerTestCase):
         """
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @pytest.mark.usefixtures("test_tracer", "test_conn")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True)
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0(self):
         """
         v0: Vertica has several different names for operations, including 'fetchall, 'fetchone', and 'query'
@@ -483,8 +471,8 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.execute(
-                """
-                INSERT INTO {} (a, b)
+                f"""
+                INSERT INTO {TEST_TABLE} (a, b)
                 SELECT 1, 'a'
                 UNION ALL
                 SELECT 2, 'b'
@@ -494,11 +482,11 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(TEST_TABLE)
+                """
             )
             assert cur.rowcount == -1
 
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
             cur.fetchone()
             assert cur.rowcount == 1
             cur.fetchone()
@@ -517,8 +505,7 @@ class TestVertica(TracerTestCase):
         assert spans[3].name == "vertica.fetchone"
         assert spans[4].name == "vertica.fetchall"
 
-    @pytest.mark.usefixtures("test_tracer", "test_conn")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True)
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1(self):
         """
         v1: Vertica should use 'query' for all operation names
@@ -527,8 +514,8 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.execute(
-                """
-                INSERT INTO {} (a, b)
+                f"""
+                INSERT INTO {TEST_TABLE} (a, b)
                 SELECT 1, 'a'
                 UNION ALL
                 SELECT 2, 'b'
@@ -538,11 +525,11 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(TEST_TABLE)
+                """
             )
             assert cur.rowcount == -1
 
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
             cur.fetchone()
             assert cur.rowcount == 1
             cur.fetchone()

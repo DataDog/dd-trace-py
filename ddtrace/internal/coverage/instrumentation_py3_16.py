@@ -3,7 +3,7 @@ import sys
 from types import CodeType
 
 from ddtrace.internal.bytecode_injection import HookType
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check

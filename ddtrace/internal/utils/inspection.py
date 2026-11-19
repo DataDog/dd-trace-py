@@ -1,20 +1,22 @@
 from collections import deque
+from collections.abc import Iterator
 from dis import findlinestarts
-from functools import lru_cache
 from functools import partial
 from functools import singledispatch
 from pathlib import Path
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
-from typing import Iterator
 from typing import Optional
 from typing import cast
 import weakref
 
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.cache import miss
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 
@@ -122,7 +124,27 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
             except AttributeError:
                 pass
 
-        # Last resort
+        # PERF: g itself is the answer when it already matches, none of the explicit wrapper
+        # relationships above led elsewhere, and the queue holds no other candidate that the
+        # BFS would have reached first. Both conditions are load-bearing:
+        #   - checking here rather than before the probes preserves their precedence, so a
+        #     wrapper sharing the target's name and file still resolves to the original it
+        #     closes over;
+        #   - requiring an empty queue keeps the BFS honest when an outer wrapper matches but
+        #     a queued intermediate leads to the real original (see
+        #     test_undecorated_same_name_outer_wrapper_defers_to_queued_candidates).
+        # For a plain function neither applies and the expensive __dir__() scan below is
+        # skipped, which is the case the pytest plugin hits once per test.
+        if not q and _isinstance(g, FunctionType) and match(g):
+            return g
+
+        # Last resort.
+        # NOTE: the try wraps the whole loop, so the first name in object.__dir__(g) that is
+        # not gettable via object.__getattribute__ ends the scan early. Bound methods hit
+        # this: object.__dir__ merges in the underlying function's attributes, so a wrapper
+        # decorated with functools.wraps surfaces __wrapped__, which a method object does not
+        # forward, and the scan stops before reaching __func__. That is why a bound method
+        # can come back unresolved, and why the shortcut above is restricted to functions.
         try:
             for v in (object.__getattribute__(g, a) for a in object.__dir__(g)):
                 if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
@@ -142,11 +164,31 @@ def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
             q.append(new_code)
 
 
-@lru_cache(maxsize=(1 << 14))  # 16k entries
+# CodeType.__eq__ treats structurally-identical code objects (e.g. the code
+# objects produced by reloading a module whose source hasn't changed) as
+# equal, which a plain lru_cache or weakref.WeakKeyDictionary would conflate,
+# returning a stale functions list computed for the old, possibly dead, code
+# object. IdentityWeakKeyDictionary keys on id(code) instead. The cached
+# value additionally holds the functions only weakly: a function keeps its
+# own __code__ alive, so a cache that held them strongly would keep the old
+# code object (and thus its own entry) reachable forever, defeating the
+# point of keying on the code's liveness.
+_functions_for_code_gc_cache: "IdentityWeakKeyDictionary[CodeType, list[weakref.ref[FunctionType]]]" = (
+    IdentityWeakKeyDictionary()
+)
+
+
 def _functions_for_code_gc(code: CodeType) -> list[FunctionType]:
     import gc
 
-    return [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
+    cached_refs = _functions_for_code_gc_cache.get(code, miss)
+    if cached_refs is not miss:
+        return [f for f in (ref() for ref in cached_refs) if f is not None]
+
+    functions = [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
+    _functions_for_code_gc_cache[code] = [weakref.ref(f) for f in functions]
+
+    return functions
 
 
 def functions_for_code(code: CodeType) -> list[FunctionType]:
@@ -162,10 +204,14 @@ def functions_for_code(code: CodeType) -> list[FunctionType]:
 def clear():
     """Clear the inspection state.
 
-    This should be called when modules are reloaded to ensure that the mappings
-    stay relevant.
+    Both caches this clears are already self-cleaning on garbage collection, so
+    this is not required for correctness on module reload. It remains as an
+    explicit, immediate reset for tests and other callers that don't want to
+    wait on GC.
     """
-    _functions_for_code_gc.cache_clear()
+    global _functions_for_code_gc_cache
+
+    _functions_for_code_gc_cache = IdentityWeakKeyDictionary()
     _CODE_TO_ORIGINAL_FUNCTION_MAPPING.clear()
 
 
@@ -189,10 +235,19 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     def __init__(self) -> None:
         super().__init__()
-        self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str]]] = weakref.WeakKeyDictionary()
+        self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str], bool]] = (
+            weakref.WeakKeyDictionary()
+        )
 
     def transform(self, code: CodeType, module: ModuleType) -> CodeType:
-        self._code[module] = (list(collect_code_objects(code)), set(self._subscribers))
+        # Only the obfuscation verdict is kept, rather than the top-level code
+        # object itself, since that would also pin all of its constants (e.g.
+        # large top-level literals) for as long as the entry lives.
+        self._code[module] = (
+            list(collect_code_objects(code)),
+            set(self._subscribers),
+            is_obfuscated_code(code),
+        )
         return code
 
     def after_import(self, module: ModuleType) -> None:
@@ -219,6 +274,20 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         return entry[0] if entry is not None else None
 
     @classmethod
+    def is_obfuscated(cls, module: ModuleType) -> bool:
+        """Check whether the module's top-level code object looks obfuscated.
+
+        Raises KeyError if the module was never tracked, e.g. because it was
+        imported before this watchdog was installed, or its loader has no
+        get_code (as with C extension modules). Callers must handle that
+        case explicitly rather than treating an untracked module as a
+        confirmed negative.
+        """
+        if not cls.is_installed():
+            raise KeyError(module)
+        return cast("ModuleCodeCollector", cls._instance)._code[module][2]
+
+    @classmethod
     def release(cls, module: ModuleType, subscriber: str) -> None:
         """Release a subscriber's interest in a module's collected code objects.
 
@@ -232,7 +301,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         entry = instance._code.get(module)
         if entry is None:
             return
-        _, pending = entry
+        _, pending, _ = entry
         pending.discard(subscriber)
         if not pending:
             del instance._code[module]

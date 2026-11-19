@@ -6,10 +6,10 @@ import subprocess
 import sys
 import time
 from time import sleep
+from unittest import mock
 
 import celery
 from celery.exceptions import Retry
-import mock
 import pytest
 
 from ddtrace.constants import ERROR_MSG
@@ -35,7 +35,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
     """
 
     def tearDown(self):
-        super(CeleryIntegrationTask, self).tearDown()
+        super().tearDown()
         for file_path in ("celerybeat-schedule.bak", "celerybeat-schedule.dat", "celerybeat-schedule.dir"):
             Path(file_path).unlink(missing_ok=True)
 
@@ -583,7 +583,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         t = fn_task.delay()
         assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-        traces = self.pop_traces()
+        traces = self.pop_traces_until(expected_traces=2 if self.ASYNC_USE_CELERY_FIXTURES else 1)
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert len(traces) == 2
@@ -623,11 +623,20 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
             beat_service = celery.beat.EmbeddedService(self.app, thread=True)
             beat_service.start()
-            sleep(run_time_seconds + 0.3)
+
+            traces = []
+            deadline = time.monotonic() + self.ASYNC_GET_TIMEOUT
+            while time.monotonic() < deadline:
+                traces.extend(self.pop_traces())
+                deep_traces_count = sum(trace[0].name == "celery.beat.tick" and len(trace) > 1 for trace in traces)
+                if deep_traces_count >= target_task_run_count:
+                    break
+                sleep(0.1)
+
             beat_service.stop()
 
             actual_run_count = beat_service.service.get_scheduler().schedule["mytestschedule"].total_run_count
-            traces = self.pop_traces()
+            traces.extend(self.pop_traces())
             assert len(traces) >= actual_run_count
             assert traces[0][0].name == "celery.beat.tick"
 
@@ -681,12 +690,12 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
     """
 
     def setUp(self):
-        super(CeleryDistributedTracingIntegrationTask, self).setUp()
+        super().setUp()
         provider = self.tracer.context_provider
         provider.activate(Context(trace_id=12345, span_id=12345, sampling_priority=1))
 
     def tearDown(self):
-        super(CeleryDistributedTracingIntegrationTask, self).tearDown()
+        super().tearDown()
 
     # override instrumenting fixture to add prerrun signal for context setting
     @pytest.fixture(autouse=True)
@@ -756,7 +765,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             result = fn_task.apply_async(headers=headers)
             assert result.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
-        traces = self.pop_traces()
+        traces = self.pop_traces_until(expected_traces=2 if self.ASYNC_USE_CELERY_FIXTURES else 1)
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert 2 == len(traces)
@@ -973,6 +982,7 @@ def test_worker_custom_service_name_schematized():
         "meta.celery.correlation_id",
         "meta.celery.hostname",
         "meta.celery.reply_to",
+        "meta.celery.delivery_info.redelivered",  # None on celery 5.2, "False" on newer releases
     ]
 )
 def test_distributed_tracing_propagation_no_producer_span(

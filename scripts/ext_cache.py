@@ -1,14 +1,26 @@
 import argparse
+import json
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 import typing as t
 
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 CACHE = ROOT / ".ext_cache"
+
+# Where the extensions live. An editable/base-venv build puts them in the source tree; a
+# wheel build (``uv build --wheel``) puts them under ``build/lib.<platform>``. ``ext_hashes``
+# reports whichever the caller asks for, and the cache has to target the same tree.
+INPLACE = True
+
+# How long an unused source state stays in the cache. main and every release branch write to
+# one cache object. When a branch stops producing a hash, nothing refreshes its entry, and it
+# ages out on its own. The sweep needs no list of which extensions still exist.
+MAX_CACHE_AGE_DAYS = 2
 
 
 def invoke_ext_hashes() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, Path]]]:
@@ -27,13 +39,17 @@ def invoke_ext_hashes() -> tuple[list[tuple[str, str, str]], list[tuple[str, str
     if eggs_dir.exists():
         shutil.rmtree(eggs_dir)
 
-    output = subprocess.check_output([sys.executable, ROOT / "setup.py", "ext_hashes", "--inplace"])
+    cmd = [sys.executable, ROOT / "setup.py", "ext_hashes"]
+    if INPLACE:
+        cmd.append("--inplace")
+    output = subprocess.check_output(cmd)
     ext_entries: list[tuple[str, str, str]] = []
     dep_entries: list[tuple[str, str, Path]] = []
     for line in output.decode().splitlines():
         if line.startswith("#EXTHASH:"):
             ext_name, ext_hash, ext_target = t.cast(tuple[str, str, str], eval(line.split(":", 1)[-1].strip()))
-            ext_entries.append((ext_name, ext_hash, ext_target))
+            # build_lib targets come back relative to the project root, not the caller's cwd.
+            ext_entries.append((ext_name, ext_hash, str(ROOT / ext_target)))
         elif line.startswith("#SHAREDEPINFO:"):
             name, config_hash, install_path = t.cast(tuple[str, str, str], eval(line.split(":", 1)[-1].strip()))
             dep_entries.append((name, config_hash, Path(install_path)))
@@ -45,7 +61,7 @@ def invoke_ext_hashes() -> tuple[list[tuple[str, str, str]], list[tuple[str, str
 # ---------------------------------------------------------------------------
 
 
-def try_restore_from_cache() -> None:
+def try_restore_from_cache(shared_deps: bool = True) -> None:
     ext_entries, dep_entries = invoke_ext_hashes()
 
     for ext_name, ext_hash, ext_target in ext_entries:
@@ -65,10 +81,54 @@ def try_restore_from_cache() -> None:
                 else:
                     print(f"Failed to copy {d.name} to {target_dir.resolve()} directory")
 
-    _restore_shared_deps(dep_entries)
+    if shared_deps:
+        _restore_shared_deps(dep_entries)
 
 
-def save_to_cache() -> None:
+def _record_and_prune(
+    cache: Path,
+    ext_entries: list[tuple[str, str, str]],
+    now: t.Optional[float] = None,
+    max_age_days: float = MAX_CACHE_AGE_DAYS,
+) -> None:
+    """Mark this build's entries as used now and evict every generation older than max_age_days.
+
+    Recency lives in one index file keyed by wall-clock time, not per-entry mtimes. The cache
+    round-trips through an archiver that need not preserve mtimes.
+
+    The sweep walks every directory under cache, not only the extensions this build produced.
+    A removed or renamed extension's generation still ages out, rather than sitting in the
+    archive forever.
+    """
+    now = time.time() if now is None else now
+    index_path = cache / "usage.json"
+    try:
+        index = json.loads(index_path.read_text())
+    except (OSError, ValueError):
+        index = {}
+
+    used: dict[str, float] = index.get("entries", {})
+    for ext_name, ext_hash, _ in ext_entries:
+        used[f"{ext_name}/{ext_hash}"] = now
+
+    cutoff = now - max_age_days * 86400
+    for ext_dir in cache.iterdir() if cache.is_dir() else []:
+        if not ext_dir.is_dir() or ext_dir.name == "shared_deps":
+            continue
+        for generation in ext_dir.iterdir():
+            if not generation.is_dir():
+                continue
+            key = f"{ext_dir.name}/{generation.name}"
+            if used.get(key, 0) < cutoff:
+                print(f"Evicting {generation} from the cache")
+                shutil.rmtree(generation, ignore_errors=True)
+                used.pop(key, None)
+
+    cache.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(json.dumps({"entries": used}))
+
+
+def save_to_cache(shared_deps: bool = True) -> None:
     ext_entries, dep_entries = invoke_ext_hashes()
 
     for ext_name, ext_hash, ext_target in ext_entries:
@@ -88,7 +148,10 @@ def save_to_cache() -> None:
                 else:
                     print(f"Failed to copy {f.name} to {cache_dir.resolve()} directory")
 
-    _save_shared_deps(dep_entries)
+    if shared_deps:
+        _save_shared_deps(dep_entries)
+
+    _record_and_prune(CACHE, ext_entries)
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +215,19 @@ def parse_args():
             "Useful for local experiments, e.g. --root /tmp/ext_cache."
         ),
     )
+    parser.add_argument(
+        "--build-lib",
+        action="store_true",
+        help="Target build/lib.<platform> (the wheel build) instead of the source tree.",
+    )
+    parser.add_argument(
+        "--no-shared-deps",
+        action="store_true",
+        help=(
+            "Skip the shared C++ dependency trees. GitLab cache cost scales with file count, "
+            "and in CI those trees are already carried by the .download_cache entry."
+        ),
+    )
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
     subparsers.add_parser("restore", help="Restore extensions and shared deps from cache")
     subparsers.add_parser("save", help="Save extensions and shared deps to cache")
@@ -159,17 +235,19 @@ def parse_args():
 
 
 def main():
-    global CACHE
+    global CACHE, INPLACE
 
     args = parse_args()
+    INPLACE = not args.build_lib
     if args.root is not None:
         CACHE = Path(args.root)
         print(f"Using cache root: {CACHE}")
 
+    shared_deps = not args.no_shared_deps
     if args.command == "restore":
-        try_restore_from_cache()
+        try_restore_from_cache(shared_deps=shared_deps)
     elif args.command == "save":
-        save_to_cache()
+        save_to_cache(shared_deps=shared_deps)
 
 
 if __name__ == "__main__":

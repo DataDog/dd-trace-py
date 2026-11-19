@@ -21,6 +21,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio() -> None:
     import os
     import sys
     import time
+    from typing import Any
 
     from tests.profiling.collector import pprof_utils
 
@@ -29,7 +30,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio() -> None:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    async def my_function():
+    async def my_function() -> Any:
         async def background_task_func() -> None:
             """Background task that runs in the existing loop."""
             await asyncio.sleep(1.5)
@@ -47,7 +48,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio() -> None:
             while time.time() < start_time + loop_run_time:
                 await asyncio.sleep(sleep_time)
 
-        async def main_task():
+        async def main_task() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
             t1 = asyncio.create_task(tracked_task(), name="tracked 1")
             t2 = asyncio.create_task(tracked_task(), name="tracked 2")
             await tracked_task()
@@ -140,6 +141,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
     import os
     import sys
     import time
+    from typing import Any
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
@@ -155,7 +157,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    async def my_function():
+    async def my_function() -> Any:
         async def background_task_func() -> None:
             """Background task that runs in the existing loop."""
             await asyncio.sleep(1.5)
@@ -173,7 +175,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
             while time.time() < start_time + loop_run_time:
                 await asyncio.sleep(sleep_time)
 
-        async def main_task():
+        async def main_task() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
             t1 = asyncio.create_task(tracked_task(), name="tracked 1")
             t2 = asyncio.create_task(tracked_task(), name="tracked 2")
             await tracked_task()
@@ -265,6 +267,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
     import os
     import sys
     import time
+    from typing import Any
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
@@ -280,7 +283,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
     p = profiler.Profiler()
     p.start()
 
-    async def my_function():
+    async def my_function() -> Any:
         async def background_task_func() -> None:
             """Background task that runs in the existing loop."""
             await asyncio.sleep(1.5)
@@ -298,7 +301,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
             while time.time() < start_time + loop_run_time:
                 await asyncio.sleep(sleep_time)
 
-        async def main_task():
+        async def main_task() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
             t1 = asyncio.create_task(tracked_task(), name="tracked 1")
             t2 = asyncio.create_task(tracked_task(), name="tracked 2")
             await tracked_task()
@@ -391,6 +394,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop() -> None:
     import os
     import sys
     import time
+    from typing import Any
 
     from tests.profiling.collector import pprof_utils
 
@@ -407,7 +411,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop() -> None:
     p = profiler.Profiler()
     p.start()
 
-    async def my_function():
+    async def my_function() -> Any:
         async def background_task_func() -> None:
             """Background task that runs in the existing loop."""
             await asyncio.sleep(1.5)
@@ -425,7 +429,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop() -> None:
             while time.time() < start_time + loop_run_time:
                 await asyncio.sleep(sleep_time)
 
-        async def main_task():
+        async def main_task() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
             t1 = asyncio.create_task(tracked_task(), name="tracked 1")
             t2 = asyncio.create_task(tracked_task(), name="tracked 2")
             await tracked_task()
@@ -517,6 +521,7 @@ def test_asyncio_start_profiler_from_process_after_task_start() -> None:
     import os
     import sys
     import time
+    from typing import Any
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
@@ -527,7 +532,7 @@ def test_asyncio_start_profiler_from_process_after_task_start() -> None:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    async def my_function():
+    async def my_function() -> Any:
         async def background_task_func() -> None:
             """Background task that runs in the existing loop."""
             await asyncio.sleep(2.5)
@@ -553,7 +558,7 @@ def test_asyncio_start_profiler_from_process_after_task_start() -> None:
             while time.time() < start_time + loop_run_time:
                 await asyncio.sleep(sleep_time)
 
-        async def main_task():
+        async def main_task() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
             t1 = asyncio.create_task(tracked_task(), name="tracked 1")
             t2 = asyncio.create_task(tracked_task(), name="tracked 2")
             await tracked_task()
@@ -663,6 +668,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start() -> No
     import os
     import sys
     import time
+    from typing import Any
 
     from tests.profiling.collector import pprof_utils
 
@@ -671,7 +677,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start() -> No
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    async def my_function():
+    async def my_function() -> Any:
         async def background_task_func() -> None:
             """Background task that runs in the existing loop."""
             await asyncio.sleep(1.5)
@@ -701,7 +707,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start() -> No
             while time.time() < start_time + loop_run_time:
                 await asyncio.sleep(sleep_time)
 
-        async def main_task():
+        async def main_task() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
             t1 = asyncio.create_task(tracked_task(), name="tracked 1")
             t2 = asyncio.create_task(tracked_task(), name="tracked 2")
             await tracked_task()

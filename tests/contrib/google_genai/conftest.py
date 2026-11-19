@@ -1,6 +1,6 @@
+from collections.abc import Iterator
 import os
 from typing import Any
-from typing import Iterator
 from unittest import mock
 from unittest.mock import Mock
 from unittest.mock import patch as mock_patch
@@ -55,7 +55,7 @@ def genai_client(request, genai):
 
 @pytest.fixture
 def genai_client_vcr(genai):
-    return genai.Client(http_options={"base_url": "http://127.0.0.1:9126/vcr/genai"})
+    return genai.Client(http_options={"base_url": "http://127.0.0.1:9126/vcr/genai", "api_version": "v1beta"})
 
 
 @pytest.fixture

@@ -1,15 +1,16 @@
 from datetime import datetime
 from datetime import timezone
 import logging
+from typing import Any
 from typing import Optional
 
 
-def post_fork(server, worker) -> None:
+def post_fork(server: Any, worker: Any) -> None:
     """Log the startup time of each worker."""
     logging.info("Worker %s started", worker.pid)
 
 
-def post_worker_init(worker) -> None:
+def post_worker_init(worker: Any) -> None:
     logging.info("Worker %s initialized", worker.pid)
 
 

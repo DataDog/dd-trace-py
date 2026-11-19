@@ -1,0 +1,4 @@
+features:
+  - |
+    OpenAI: Adds reported audio, text, image, and cached token counts to Realtime
+    spans in LLM Observability for detailed token breakdowns.

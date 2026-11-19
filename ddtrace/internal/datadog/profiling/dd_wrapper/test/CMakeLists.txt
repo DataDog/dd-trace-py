@@ -69,12 +69,6 @@ function(dd_wrapper_add_test name)
         PROPERTIES # We start new threads after fork(), and we want to continue running the tests after that instead of
                    # dying.
                    ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/TSan.supp")
-
-    if(LIB_INSTALL_DIR)
-        get_filename_component(_test_install_dir "${LIB_INSTALL_DIR}" DIRECTORY)
-        set(_test_install_dir "${_test_install_dir}/test")
-        install(TARGETS ${name} RUNTIME DESTINATION ${_test_install_dir})
-    endif()
 endfunction()
 
 # Add the tests
@@ -83,3 +77,9 @@ dd_wrapper_add_test(test_api test_api.cpp)
 dd_wrapper_add_test(test_threading test_threading.cpp)
 dd_wrapper_add_test(test_forking test_forking.cpp)
 dd_wrapper_add_test(test_cleanup_race test_cleanup_race.cpp)
+dd_wrapper_add_test(test_oom test_oom.cpp)
+dd_wrapper_add_test(test_profiler_stats test_profiler_stats.cpp)
+target_link_libraries(test_oom PRIVATE _native)
+if(DO_VALGRIND)
+    target_compile_definitions(test_oom PRIVATE DD_VALGRIND)
+endif()

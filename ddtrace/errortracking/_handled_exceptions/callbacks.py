@@ -3,20 +3,21 @@ import hashlib
 import io
 import sys
 import traceback
+from types import TracebackType
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace._trace.span import Span
-from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-from ddtrace.errortracking._handled_exceptions.collector import SpanEventData
+from ddtrace.errortracking._handled_exceptions.events import HandledExceptionSpanProtocol
+from ddtrace.errortracking._handled_exceptions.events import SpanEventData
+from ddtrace.errortracking._handled_exceptions.events import capture_exception_event
 from ddtrace.internal.utils.time import Time
 
 
-_error_tuple_info = (None, None, None)
+_error_tuple_info: tuple[type[BaseException] | None, BaseException | None, TracebackType | None] = (None, None, None)
 
 
 @cached(maxsize=8192)
-def _get_formatted_traceback(tb_hash):
+def _get_formatted_traceback(tb_hash: str) -> str:
     """Most of the overhead of automatic reporting is added by traceback formatting
     Cache was added to try to be faster is the same error is reported several times
     """
@@ -28,7 +29,9 @@ def _get_formatted_traceback(tb_hash):
     return buff.getvalue()
 
 
-def _generate_span_event(span: Span, exc=None) -> tuple[Exception, Span, SpanEventData] | None:
+def _generate_span_event(
+    span: HandledExceptionSpanProtocol, exc: BaseException | None = None
+) -> tuple[BaseException, HandledExceptionSpanProtocol, SpanEventData] | None:
     """Generate the exception span event"""
     global _error_tuple_info
 
@@ -39,7 +42,7 @@ def _generate_span_event(span: Span, exc=None) -> tuple[Exception, Span, SpanEve
 
     # store the information globally so the cached function can access it
     # passing this information as function arguments would be less efficient
-    _error_tuple_info = type(exc), exc, exc.__traceback__  # type: ignore
+    _error_tuple_info = type(exc), exc, exc.__traceback__
 
     # compute a hash of a traceback for caching purpose
     tb_list = traceback.extract_tb(_error_tuple_info[2])
@@ -62,14 +65,16 @@ def _generate_span_event(span: Span, exc=None) -> tuple[Exception, Span, SpanEve
     )
 
 
-def _default_bytecode_exc_callback(*args, exc=None):
+def _default_bytecode_exc_callback(*args: object, exc: BaseException | None = None) -> None:
     span = tracer.current_span()
     if span:
         _default_errortracking_exc_callback(span=span, exc=exc)
 
 
-def _default_errortracking_exc_callback(*args, span: Span, exc=None):
+def _default_errortracking_exc_callback(
+    *args: object, span: HandledExceptionSpanProtocol, exc: BaseException | None = None
+) -> None:
     generated = _generate_span_event(span, exc)
     if generated is not None:
         exc, span, span_event = generated
-        HandledExceptionCollector.capture_exception_event(span, exc, span_event)
+        capture_exception_event(span, exc, span_event)

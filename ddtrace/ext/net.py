@@ -10,6 +10,8 @@ TARGET_NAME = "network.destination.name"
 
 SERVER_ADDRESS = "server.address"
 
+CLIENT_IP = "network.client.ip"
+
 PEER_HOSTNAME = "peer.hostname"
 
 BYTES_OUT = "net.out.bytes"

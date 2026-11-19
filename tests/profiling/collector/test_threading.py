@@ -118,7 +118,7 @@ def test_collector_repr(
     collector_class: CollectorTypeClass,
     expected_repr: str,
 ) -> None:
-    test_collector._test_repr(collector_class, expected_repr)
+    test_collector._test_repr(collector_class, expected_repr, module=threading)
 
 
 @pytest.mark.parametrize(
@@ -162,7 +162,7 @@ def test_lock_repr(
     """Test that __repr__ shows correct format with profiling info."""
     import re
 
-    collector: CollectorTypeInst = collector_class(capture_pct=100)
+    collector: CollectorTypeInst = collector_class(module=threading, capture_pct=100)
     collector.start()
     try:
         # Get the lock class from threading module AFTER patching
@@ -177,9 +177,9 @@ def test_lock_repr(
     assert re.match(pattern, repr_str), f"repr {repr_str!r} didn't match pattern {pattern!r}"
 
 
-def test_patch():
+def test_patch() -> None:
     lock = threading.Lock
-    collector = ThreadingLockCollector()
+    collector = ThreadingLockCollector(module=threading)
     collector.start()
     assert lock == collector._original_lock
     # After patching, threading.Lock is replaced with our wrapper
@@ -196,7 +196,7 @@ def test_patch():
 # Run in a subprocess: pops threading from sys.modules to simulate gevent's
 # cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
 @pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
-def test_lock_patching_survives_module_reimport():
+def test_lock_patching_survives_module_reimport() -> None:
     """Test that lock patches are re-applied when threading is re-imported.
 
     This simulates what cleanup_loaded_modules() does when gevent is installed:
@@ -211,7 +211,7 @@ def test_lock_patching_survives_module_reimport():
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-    collector = ThreadingLockCollector()
+    collector = ThreadingLockCollector(module=threading)
     collector.start()
 
     assert isinstance(threading.Lock, LockAllocatorWrapper)
@@ -238,7 +238,7 @@ def test_lock_patching_survives_module_reimport():
 # Run in a subprocess: pops threading from sys.modules to simulate gevent's
 # cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
 @pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
-def test_lock_unpatch_after_module_reimport():
+def test_lock_unpatch_after_module_reimport() -> None:
     """Test that stop/unpatch works correctly after module has been swapped."""
     import importlib
     import sys
@@ -247,7 +247,7 @@ def test_lock_unpatch_after_module_reimport():
     from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-    collector = ThreadingLockCollector()
+    collector = ThreadingLockCollector(module=threading)
     collector.start()
     assert isinstance(threading.Lock, LockAllocatorWrapper)
 
@@ -280,7 +280,7 @@ def test_all_threading_collectors_survive_module_reimport(
     """Test that all threading lock collector types re-patch after module re-import."""
     import importlib
 
-    collector_inst = collector_class()
+    collector_inst = collector_class(module=threading)
     collector_inst.start()
 
     assert isinstance(getattr(threading, lock_name), LockAllocatorWrapper)
@@ -297,7 +297,7 @@ def test_all_threading_collectors_survive_module_reimport(
 
 
 @pytest.mark.subprocess()
-def test_lock_patching_survives_simulated_gevent_monkey_patch():
+def test_lock_patching_survives_simulated_gevent_monkey_patch() -> None:
     """Test that lock patches are re-applied after gevent-style in-place attribute replacement.
 
     Exercises the full _ensure_gevent_monkey_hook path by injecting a fake
@@ -315,10 +315,10 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch():
     fake_lock_type = type("FakeLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
     fake_monkey = types.ModuleType("gevent.monkey")
 
-    def fake_patch_all():
+    def fake_patch_all() -> None:
         threading.Lock = fake_lock_type
 
-    def fake_patch_thread():
+    def fake_patch_thread() -> None:
         threading.Lock = fake_lock_type
 
     fake_monkey.patch_all = fake_patch_all
@@ -327,7 +327,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch():
 
     sys.modules["gevent.monkey"] = fake_monkey
 
-    collector = ThreadingLockCollector()
+    collector = ThreadingLockCollector(module=threading)
     collector.start()
     assert isinstance(threading.Lock, LockAllocatorWrapper)
 
@@ -344,7 +344,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch():
 
 
 @pytest.mark.subprocess()
-def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
+def test_lock_patching_survives_simulated_gevent_monkey_patch_thread() -> None:
     """Test that direct gevent.monkey.patch_thread() calls also trigger re-patching."""
     import sys
     import threading
@@ -356,7 +356,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
     fake_lock_type = type("FakeLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
     fake_monkey = types.ModuleType("gevent.monkey")
 
-    def fake_patch_thread():
+    def fake_patch_thread() -> None:
         threading.Lock = fake_lock_type
 
     fake_monkey.patch_all = lambda: None
@@ -365,7 +365,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
 
     sys.modules["gevent.monkey"] = fake_monkey
 
-    collector = ThreadingLockCollector()
+    collector = ThreadingLockCollector(module=threading)
     collector.start()
     assert isinstance(threading.Lock, LockAllocatorWrapper)
 
@@ -379,7 +379,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
 
 
 @pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
-def test_lock_patching_full_sequence_cleanup_reimport_gevent():
+def test_lock_patching_full_sequence_cleanup_reimport_gevent() -> None:
     """Test the full ddtrace-run + gevent worker sequence:
     1. Profiler patches threading.Lock (gevent hook also registered)
     2. cleanup_loaded_modules() removes threading from sys.modules
@@ -399,7 +399,7 @@ def test_lock_patching_full_sequence_cleanup_reimport_gevent():
     fake_lock_type = type("GeventLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
     fake_monkey = types.ModuleType("gevent.monkey")
 
-    def fake_patch_all():
+    def fake_patch_all() -> None:
         new_threading = sys.modules.get("threading")
         if new_threading is not None:
             new_threading.Lock = fake_lock_type
@@ -410,7 +410,7 @@ def test_lock_patching_full_sequence_cleanup_reimport_gevent():
 
     sys.modules["gevent.monkey"] = fake_monkey
 
-    collector = ThreadingLockCollector()
+    collector = ThreadingLockCollector(module=threading)
     collector.start()
     assert isinstance(threading.Lock, LockAllocatorWrapper)
 
@@ -435,7 +435,7 @@ def test_lock_patching_full_sequence_cleanup_reimport_gevent():
 
 
 @pytest.mark.subprocess()
-def test_all_collectors_survive_simulated_gevent_monkey_patch():
+def test_all_collectors_survive_simulated_gevent_monkey_patch() -> None:
     """Test that all lock collector types (Lock, RLock, Semaphore, etc.) re-patch after
     simulated gevent monkey-patching.
     """
@@ -461,7 +461,7 @@ def test_all_collectors_survive_simulated_gevent_monkey_patch():
     fake_types = {name: type("Fake" + name, (), {}) for _, name in collector_pairs}
     fake_monkey = types.ModuleType("gevent.monkey")
 
-    def fake_patch_all():
+    def fake_patch_all() -> None:
         for _, lock_name in collector_pairs:
             setattr(threading, lock_name, fake_types[lock_name])
 
@@ -473,7 +473,7 @@ def test_all_collectors_survive_simulated_gevent_monkey_patch():
 
     collectors = []
     for cls, _ in collector_pairs:
-        c = cls()
+        c = cls(module=threading)
         c.start()
         collectors.append(c)
 
@@ -493,7 +493,7 @@ def test_all_collectors_survive_simulated_gevent_monkey_patch():
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess()
-def test_lock_patching_survives_real_gevent_monkey_patch():
+def test_lock_patching_survives_real_gevent_monkey_patch() -> None:
     """Integration test: verify lock profiler survives real gevent.monkey.patch_all().
 
     Imports gevent.monkey before starting the collector so _ensure_gevent_monkey_hook
@@ -507,7 +507,7 @@ def test_lock_patching_survives_real_gevent_monkey_patch():
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-    collector = ThreadingLockCollector()
+    collector = ThreadingLockCollector(module=threading)
     collector.start()
     assert isinstance(threading.Lock, LockAllocatorWrapper)
 
@@ -526,7 +526,7 @@ def test_lock_patching_survives_real_gevent_monkey_patch():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(err=None)
 # For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
-def test_user_threads_have_native_id():
+def test_user_threads_have_native_id() -> None:
     from os import getpid
     from threading import Thread
     from threading import _MainThread
@@ -643,9 +643,9 @@ def test_lock_gevent_tasks() -> None:
             try:
                 os.remove(f)
             except Exception as e:
-                print("Error removing file: {}".format(e))
+                print(f"Error removing file: {e}")
 
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
         t.start()
         t.join()
@@ -730,9 +730,9 @@ def test_rlock_gevent_tasks() -> None:
             try:
                 os.remove(f)
             except Exception as e:
-                print("Error removing file: {}".format(e))
+                print(f"Error removing file: {e}")
 
-    with ThreadingRLockCollector(capture_pct=100):
+    with ThreadingRLockCollector(module=threading, capture_pct=100):
         t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
         t.start()
         t.join()
@@ -741,7 +741,7 @@ def test_rlock_gevent_tasks() -> None:
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
-def test_assertion_error_raised_with_enable_asserts():
+def test_assertion_error_raised_with_enable_asserts() -> None:
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
     from unittest import mock
@@ -753,7 +753,7 @@ def test_assertion_error_raised_with_enable_asserts():
 
     init_ddup("test_asserts")
 
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         lock = threading.Lock()
 
         # Patch _update_name to raise AssertionError
@@ -762,6 +762,25 @@ def test_assertion_error_raised_with_enable_asserts():
         with pytest.raises(AssertionError):
             # AssertionError should be propagated when enable_asserts=True
             lock.acquire()
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_acquire_after_stop_with_outstanding_sample_skips_asserts() -> None:
+    import threading
+
+    from ddtrace.profiling.collector.threading import ThreadingRLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_acquire_after_stop_with_outstanding_sample_skips_asserts")
+
+    with ThreadingRLockCollector(module=threading, capture_pct=100):
+        lock: threading.RLock = threading.RLock()
+        lock.acquire()
+
+    # acquired_time is still set from the sampled acquire; this must not raise.
+    lock.acquire()
+    lock.release()
+    lock.release()
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"), timeout=30)
@@ -775,7 +794,10 @@ def test_internal_lock_skips_asserts() -> None:
 
     init_ddup("test_internal_lock_skips_asserts")
 
-    with ThreadingLockCollector(capture_pct=100), ThreadingConditionCollector(capture_pct=100):
+    with (
+        ThreadingLockCollector(module=threading, capture_pct=100),
+        ThreadingConditionCollector(module=threading, capture_pct=100),
+    ):
         cond = threading.Condition()
         # Acquire/release uses the internal lock created inside threading.py.
         error: list[BaseException] = []
@@ -847,7 +869,7 @@ def test_flush_sample_handles_shallow_stack() -> None:
     init_ddup("test_flush_sample_shallow")
 
     # Create lock normally to get proper init_location
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         lock = threading.Lock()
 
     # Access the wrapped _ProfiledLock
@@ -910,15 +932,14 @@ def test_all_exceptions_suppressed_by_default() -> None:
     when config.enable_asserts=False (default).
     """
     import threading
-
-    import mock  # type: ignore[import-untyped]
+    from unittest import mock  # type: ignore[import-untyped]
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup
 
     init_ddup("test_exceptions")
 
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         lock = threading.Lock()
 
         # Patch _update_name to raise AssertionError
@@ -949,8 +970,7 @@ def test_flush_sample_uses_push_monotonic_ns() -> None:
     """
     import threading
     import time
-
-    import mock
+    from unittest import mock
 
     import ddtrace.profiling.collector._lock as _lock_module
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -963,7 +983,7 @@ def test_flush_sample_uses_push_monotonic_ns() -> None:
     before: int = time.monotonic_ns()
     with (
         mock.patch.object(_lock_module, "ddup") as mock_ddup,
-        ThreadingLockCollector(capture_pct=100),
+        ThreadingLockCollector(module=threading, capture_pct=100),
     ):
         mock_ddup.SampleHandle.return_value = mock_handle
 
@@ -988,8 +1008,7 @@ def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
     the exact instant of boot — never in practice, but guard it anyway.
     """
     import threading
-
-    import mock
+    from unittest import mock
 
     import ddtrace.profiling.collector._lock as _lock_module
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -1002,7 +1021,7 @@ def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
     with (
         mock.patch.object(_lock_module, "ddup") as mock_ddup,
         mock.patch.object(_lock_module, "time") as mock_time,
-        ThreadingLockCollector(capture_pct=100),
+        ThreadingLockCollector(module=threading, capture_pct=100),
     ):
         mock_ddup.SampleHandle.return_value = mock_handle
         mock_time.monotonic_ns.return_value = 0
@@ -1026,7 +1045,10 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
     init_ddup("test_semaphore_and_bounded_semaphore_collectors_coexist")
 
     # Both collectors active at the same time - this triggers the inheritance case
-    with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
+    with (
+        ThreadingSemaphoreCollector(module=threading, capture_pct=100),
+        ThreadingBoundedSemaphoreCollector(module=threading, capture_pct=100),
+    ):
         sem = threading.Semaphore(2)
         sem.acquire()
         sem.release()
@@ -1101,7 +1123,7 @@ class LockCollectorTestBase:
             try:
                 os.remove(f)
             except Exception as e:
-                print("Error removing file: {}".format(e))
+                print(f"Error removing file: {e}")
 
     @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_type_union_syntax(self) -> None:
@@ -1110,7 +1132,7 @@ class LockCollectorTestBase:
         Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
         Skips when the lock is a factory function (e.g., threading.Lock) rather than a type.
         """
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
 
 
@@ -1133,9 +1155,9 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         return threading.Lock
 
     def test_wrapper(self) -> None:
-        with self.collector_class():
+        with self.collector_class(module=threading):
 
-            class Foobar(object):
+            class Foobar:
                 def __init__(self, lock_class: LockTypeClass) -> None:
                     lock: LockTypeInst = lock_class()
                     assert lock.acquire()
@@ -1157,18 +1179,18 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
     def test_lock_class_pickle(self) -> None:
         """Test that the wrapped lock class can be pickled (Python 3.14+ forkserver compat)."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             self._assert_pickle_roundtrip(self.lock_class, LockAllocatorWrapper)
 
     def test_lock_instance_pickle(self) -> None:
         """Test that profiled lock instances can be pickled (Python 3.14+ forkserver compat)."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             self._assert_pickle_roundtrip(self.lock_class(), _ProfiledLock)
 
     def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events
             lock.acquire()  # !ACQUIRE! test_lock_events
             lock.release()  # !RELEASE! test_lock_events
@@ -1217,7 +1239,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 return
             deep_lock_ops(depth - 1, lock)
 
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events_truncate_frames
             deep_lock_ops(recursion_depth, lock)
 
@@ -1264,10 +1286,10 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         # Store reference to class for later qualname access
         foobar_class: Optional[type] = None
 
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock_class: LockTypeClass = self.lock_class  # Capture for inner class
 
-            class Foobar(object):
+            class Foobar:
                 def lockfunc(self) -> None:
                     lock: LockTypeInst = lock_class()  # !CREATE! test_lock_acquire_events_class
                     lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
@@ -1300,6 +1322,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         resource: str = str(uuid.uuid4())
         span_type: str = ext.SpanTypes.WEB
         with self.collector_class(
+            module=threading,
             tracer=tracer,
             capture_pct=100,
         ):
@@ -1361,6 +1384,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         resource: str = str(uuid.uuid4())
         span_type: str = ext.SpanTypes.SQL
         with self.collector_class(
+            module=threading,
             tracer=tracer,
             capture_pct=100,
         ):
@@ -1403,6 +1427,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         resource: str = str(uuid.uuid4())
         span_type: str = ext.SpanTypes.WEB
         with self.collector_class(
+            module=threading,
             tracer=tracer,
             capture_pct=100,
         ):
@@ -1458,6 +1483,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         resource: str = str(uuid.uuid4())
         span_type: str = ext.SpanTypes.WEB
         with self.collector_class(
+            module=threading,
             tracer=tracer,
             capture_pct=100,
         ):
@@ -1514,7 +1540,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         )
 
     def test_lock_enter_exit_events(self) -> None:
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             th_lock: LockTypeInst = self.lock_class()  # !CREATE! test_lock_enter_exit_events
             with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
                 pass
@@ -1556,7 +1582,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         ):
             expected_lock_name: Optional[str] = "foo_lock" if inspect_dir_enabled else None
 
-            with self.collector_class(capture_pct=100):
+            with self.collector_class(module=threading, capture_pct=100):
                 foobar: Foo = Foo(self.lock_class)
                 foobar.foo()
                 bar: Bar = Bar(self.lock_class)
@@ -1611,7 +1637,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
             True,
         ):
-            with self.collector_class(capture_pct=100):
+            with self.collector_class(module=threading, capture_pct=100):
                 holder = SlottedHolder(self.lock_class)
                 assert isinstance(holder.my_lock, _ProfiledLock)
                 found_name: Optional[str] = holder.my_lock._find_name({"holder": holder})
@@ -1641,7 +1667,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
             True,
         ):
-            with self.collector_class(capture_pct=100):
+            with self.collector_class(module=threading, capture_pct=100):
                 holder = HolderWithCrashingDescriptor(self.lock_class)
                 assert isinstance(holder.my_lock, _ProfiledLock)
                 # Must not raise, even though accessing dangerous_attr crashes
@@ -1663,7 +1689,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         # Capture reference before context manager
         foo_class = Foo
 
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             foo: Foo = Foo(self.lock_class)
             foo.foo()
 
@@ -1710,7 +1736,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         # Capture reference before context manager
         bar_class = Bar
 
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             bar: Bar = Bar(self.lock_class)
             bar.bar()
 
@@ -1744,7 +1770,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         )
 
     def test_anonymous_lock(self) -> None:
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
                 pass
         ddup.upload()  # pyright: ignore[reportCallIssue]
@@ -1777,7 +1803,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         foo_func: Optional[Callable[[], None]] = None
         test_bar_class: Optional[type] = None
 
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             # Create true module-level globals
             _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
 
@@ -1855,7 +1881,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         # This test checks that the profile is cleared after each upload() call
         # It is added in test_threading.py as LockCollector can easily be
         # configured to be deterministic with capture_pct=100.
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
                 pass
 
@@ -1900,7 +1926,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
     def test_lock_hash(self) -> None:
         """Test that __hash__ allows profiled locks to be used in sets and dicts."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock1: LockTypeInst = self.lock_class()
             lock2: LockTypeInst = self.lock_class()
 
@@ -1923,7 +1949,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
     def test_lock_equality(self) -> None:
         """Test that __eq__ compares locks correctly."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock1: LockTypeInst = self.lock_class()
             lock2: LockTypeInst = self.lock_class()
 
@@ -1945,14 +1971,14 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
     def test_lock_getattr_nonexistent(self) -> None:
         """Test that __getattr__ raises AttributeError for non-existent attributes."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock: LockTypeInst = self.lock_class()
             with pytest.raises(AttributeError):
                 _ = lock.this_attribute_does_not_exist  # type: ignore[union-attr]
 
     def test_lock_slots_enforced(self) -> None:
         """Test that __slots__ is defined on _ProfiledLock for memory efficiency."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock: LockTypeInst = self.lock_class()
             from ddtrace.profiling.collector._lock import _ProfiledLock
 
@@ -1966,6 +1992,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 "capture_sampler",
                 "init_location",
                 "acquired_time",
+                "acquired_generation",
                 "name",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
@@ -1991,7 +2018,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         regular_time: float = best_time(self.lock_class())
 
         # Measure with profiling at 0% capture (should skip profiling logic)
-        with self.collector_class(capture_pct=0):
+        with self.collector_class(module=threading, capture_pct=0):
             profiled_time_zero: float = best_time(self.lock_class())
 
         # With 0% capture, there's still wrapper overhead but should be reasonable
@@ -2007,7 +2034,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
     def test_release_not_sampled_when_acquire_not_sampled(self) -> None:
         """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
         # Use capture_pct=0 to ensure acquire is NEVER sampled
-        with self.collector_class(capture_pct=0):
+        with self.collector_class(module=threading, capture_pct=0):
             lock: LockTypeInst = self.lock_class()
             # Do multiple acquire/release cycles
             for _ in range(10):
@@ -2033,7 +2060,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         must NOT be set. Setting it would produce a spurious acquire sample and corrupt
         the hold-time of the thread that actually holds the lock.
         """
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock: LockTypeInst = self.lock_class()
             lock.acquire()
             profiled = cast(_ProfiledLock, lock)
@@ -2059,6 +2086,135 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         )
         assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
 
+    def test_lock_not_sampled_after_collector_stop(self) -> None:
+        """A lock created while the collector ran must not sample once the collector is stopped."""
+        with self.collector_class(module=threading, capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+
+        lock.acquire()
+        lock.release()
+        with lock:
+            pass
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename, assert_samples=False)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 0, f"Expected no acquire samples after stop, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    def test_lock_not_sampled_on_release_after_collector_stop(self) -> None:
+        """A lock acquired before stop and released after stop must not produce a release sample."""
+        with self.collector_class(module=threading, capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+
+        lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    def test_blocked_acquire_finishing_after_collector_stop_not_sampled(self) -> None:
+        """An acquire that blocks across collector stop must not be sampled when it completes."""
+        acquired: threading.Event = threading.Event()
+
+        def _contend(lock: LockTypeInst) -> None:
+            lock.acquire()
+            acquired.set()
+            lock.release()
+
+        with self.collector_class(module=threading, capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+            t: threading.Thread = threading.Thread(target=_contend, args=(lock,))
+            t.start()
+            # Give the thread time to block on the held lock.
+            time.sleep(0.1)
+            assert not acquired.is_set()
+
+        lock.release()
+        t.join(5.0)
+        assert acquired.is_set()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        # Only the main thread's acquire, made while the collector ran, is recorded.
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    def test_blocked_acquire_finishing_after_collector_restart_not_sampled(self) -> None:
+        """An acquire that blocks across collector stop and restart must not be sampled when it completes."""
+        acquired: threading.Event = threading.Event()
+
+        def _contend(lock: LockTypeInst) -> None:
+            lock.acquire()
+            acquired.set()
+            lock.release()
+
+        with self.collector_class(module=threading, capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+            t: threading.Thread = threading.Thread(target=_contend, args=(lock,))
+            t.start()
+            # Give the thread time to block on the held lock.
+            time.sleep(0.1)
+            assert not acquired.is_set()
+
+        with self.collector_class(module=threading, capture_pct=100):
+            lock.release()
+            t.join(5.0)
+            assert acquired.is_set()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        # Only the main thread's acquire, made under the first collector run, is recorded.
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples, got {len(release_samples)}"
+
+    def test_hold_spanning_collector_restart_not_sampled_on_release(self) -> None:
+        """A lock acquired before stop and released after restart must not produce a release sample."""
+        with self.collector_class(module=threading, capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+
+        with self.collector_class(module=threading, capture_pct=100):
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples, got {len(release_samples)}"
+
+    def test_lock_sampled_by_new_collector_after_restart(self) -> None:
+        """A lock created under a stopped collector samples again when a new collector starts."""
+        with self.collector_class(module=threading, capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+
+        with self.collector_class(module=threading, capture_pct=100):
+            lock.acquire()
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 1, f"Expected 1 release sample, got {len(release_samples)}"
+
 
 class TestThreadingLockCollector(LockCollectorTestBase):
     """Test Lock-specific profiling behavior.
@@ -2078,7 +2234,7 @@ class TestThreadingLockCollector(LockCollectorTestBase):
     @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_skips_for_lock(self) -> None:
         """Assert PEP 604 test skips for Lock when it's a factory (Python < 3.14), or runs when it's a type (3.14+)."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             try:
                 assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
             except pytest.skip.Exception:
@@ -2086,7 +2242,7 @@ class TestThreadingLockCollector(LockCollectorTestBase):
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates Lock-specific attributes."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock: LockTypeInst = self.lock_class()
             from ddtrace.profiling.collector._lock import _ProfiledLock
 
@@ -2121,7 +2277,7 @@ class TestThreadingRLockCollector(LockCollectorTestBase):
     @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_skips_for_rlock(self) -> None:
         """Assert PEP 604 test skips for RLock when it's a factory, or runs when it's a type."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             try:
                 assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
             except pytest.skip.Exception:
@@ -2129,7 +2285,7 @@ class TestThreadingRLockCollector(LockCollectorTestBase):
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates RLock-specific attributes."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             lock: LockTypeInst = self.lock_class()
             from ddtrace.profiling.collector._lock import _ProfiledLock
 
@@ -2167,7 +2323,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         threading.Lock and threading.RLock are C types that don't support subclassing
         through __mro_entries__.
         """
-        with self.collector_class():
+        with self.collector_class(module=threading):
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
@@ -2269,7 +2425,10 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         from ddtrace.profiling.collector._lock import _ProfiledLock
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-        with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
+        with (
+            ThreadingLockCollector(module=threading, capture_pct=100),
+            self.collector_class(module=threading, capture_pct=100),
+        ):
             regular_lock: LockTypeInst = threading.Lock()
             assert isinstance(regular_lock, _ProfiledLock), "User lock should be profiled"
 
@@ -2291,7 +2450,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
 
         Note: We use capture_pct=0 because we only care about behavior, not profile output.
         """
-        with self.collector_class(capture_pct=0):
+        with self.collector_class(module=threading, capture_pct=0):
             sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
 
             # Test that blocking acquire succeeds
@@ -2324,7 +2483,7 @@ class TestThreadingSemaphoreCollector(BaseSemaphoreTest):
 
     def test_stack_trace_points_to_user_code(self) -> None:
         """Verify Semaphore stack traces point to user code (uses Semaphore-specific markers)."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             sem: LockTypeInst = self.lock_class(2)  # !CREATE! test_stack_trace_sem
             sem.acquire()  # !ACQUIRE! test_stack_trace_sem
             sem.release()  # !RELEASE! test_stack_trace_sem
@@ -2335,7 +2494,10 @@ class TestThreadingSemaphoreCollector(BaseSemaphoreTest):
         """Verify no double-counting with Semaphore (uses Semaphore-specific markers)."""
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-        with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
+        with (
+            ThreadingLockCollector(module=threading, capture_pct=100),
+            self.collector_class(module=threading, capture_pct=100),
+        ):
             sem: LockTypeInst = self.lock_class(1)  # !CREATE! test_no_double_counting
             sem.acquire()  # !ACQUIRE! test_no_double_counting
             sem.release()  # !RELEASE! test_no_double_counting
@@ -2350,7 +2512,7 @@ class TestThreadingSemaphoreCollector(BaseSemaphoreTest):
 
         Note: We use capture_pct=0 because we only care about behavior, not profile output.
         """
-        with self.collector_class(capture_pct=0):
+        with self.collector_class(module=threading, capture_pct=0):
             sem: LockTypeInst = self.lock_class(1)
 
             # Acquire and release normally
@@ -2379,7 +2541,7 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
 
     def test_stack_trace_points_to_user_code(self) -> None:
         """Verify BoundedSemaphore stack traces point to user code (uses BoundedSemaphore-specific markers)."""
-        with self.collector_class(capture_pct=100):
+        with self.collector_class(module=threading, capture_pct=100):
             bsem: LockTypeInst = self.lock_class(2)  # !CREATE! test_stack_trace_bsem
             bsem.acquire()  # !ACQUIRE! test_stack_trace_bsem
             bsem.release()  # !RELEASE! test_stack_trace_bsem
@@ -2390,7 +2552,10 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
         """Verify no double-counting with BoundedSemaphore (uses BoundedSemaphore-specific markers)."""
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-        with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
+        with (
+            ThreadingLockCollector(module=threading, capture_pct=100),
+            self.collector_class(module=threading, capture_pct=100),
+        ):
             bsem: LockTypeInst = self.lock_class(1)  # !CREATE! test_no_double_counting_bounded
             bsem.acquire()  # !ACQUIRE! test_no_double_counting_bounded
             bsem.release()  # !RELEASE! test_no_double_counting_bounded
@@ -2405,7 +2570,7 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
 
         Note: We use capture_pct=0 because we only care about behavior, not profile output.
         """
-        with self.collector_class(capture_pct=0):
+        with self.collector_class(module=threading, capture_pct=0):
             sem: LockTypeInst = self.lock_class(1)
             sem.acquire()
             sem.release()
@@ -2443,7 +2608,7 @@ def test_rlock_reentrant_acquire_no_assert() -> None:
 
     # 1% capture: acquire/release pairs get independent sampling. Re-entrant acquires
     # can have acquired_time set from outer acquire while inner acquire is not sampled.
-    with ThreadingRLockCollector(capture_pct=1):
+    with ThreadingRLockCollector(module=threading, capture_pct=1):
         lock = threading.RLock()
         for _ in range(200):
             lock.acquire()
@@ -2466,7 +2631,7 @@ def test_exclude_modules_skips_wrapping() -> None:
 
     init_ddup("test_exclude_modules")
 
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         lock = threading.Lock()
         assert not isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
@@ -2482,7 +2647,7 @@ def test_exclude_modules_wraps_non_excluded() -> None:
 
     init_ddup("test_exclude_modules_wraps")
 
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         lock = threading.Lock()
         assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
@@ -2501,7 +2666,7 @@ def test_exclude_modules_empty_is_backward_compatible() -> None:
 
     init_ddup("test_exclude_modules_empty")
 
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         lock = threading.Lock()
         assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
@@ -2517,7 +2682,7 @@ def test_exclude_modules_prefix_requires_dot_boundary() -> None:
 
     init_ddup("test_exclude_prefix")
 
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         lock = threading.Lock()
         assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
@@ -2533,6 +2698,6 @@ def test_exclude_modules_multiple() -> None:
 
     init_ddup("test_exclude_multiple")
 
-    with ThreadingLockCollector(capture_pct=100):
+    with ThreadingLockCollector(module=threading, capture_pct=100):
         lock = threading.Lock()
         assert not isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]

@@ -28,7 +28,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     runtime.interpreters.head = reinterpret_cast<PyInterpreterState*>(p0);
 
     size_t interp_count = 0;
-    for_each_interp(&runtime, [&interp_count](InterpreterInfo&) { interp_count++; });
+    (void)for_each_interp(&runtime, [&interp_count](InterpreterInfo&) { interp_count++; });
 
     g_data = nullptr;
     g_size = 0;

@@ -54,13 +54,17 @@ def test_asyncio_executor_origin_task_labels() -> None:
     # Collect the task ids observed on the event-loop thread (the awaiting task).
     awaiting_task_ids = set()
     for sample in pprof_utils.get_samples_with_label_key(profile, "task id"):
-        awaiting_task_ids.add(pprof_utils.get_label_with_key(string_table, sample, "task id").num)
+        task_id_label = pprof_utils.get_label_with_key(string_table, sample, "task id")
+        assert task_id_label is not None
+        awaiting_task_ids.add(task_id_label.num)
     assert awaiting_task_ids, "expected at least one asyncio task sample on the event-loop thread"
 
     # Every origin task id seen on a worker thread must match a task id on the loop thread,
     # and the origin task name must be populated.
     for sample in origin_task_samples:
-        origin_task_id = pprof_utils.get_label_with_key(string_table, sample, "origin task id").num
+        origin_task_id_label = pprof_utils.get_label_with_key(string_table, sample, "origin task id")
+        assert origin_task_id_label is not None
+        origin_task_id = origin_task_id_label.num
         assert origin_task_id in awaiting_task_ids, (
             f"origin task id {origin_task_id} does not match any awaiting task id {awaiting_task_ids}"
         )
@@ -132,11 +136,15 @@ def test_asyncio_to_thread_origin_task_labels() -> None:
 
     awaiting_task_ids = set()
     for sample in pprof_utils.get_samples_with_label_key(profile, "task id"):
-        awaiting_task_ids.add(pprof_utils.get_label_with_key(string_table, sample, "task id").num)
+        task_id_label = pprof_utils.get_label_with_key(string_table, sample, "task id")
+        assert task_id_label is not None
+        awaiting_task_ids.add(task_id_label.num)
     assert awaiting_task_ids, "expected at least one asyncio task sample on the event-loop thread"
 
     for sample in origin_task_samples:
-        origin_task_id = pprof_utils.get_label_with_key(string_table, sample, "origin task id").num
+        origin_task_id_label = pprof_utils.get_label_with_key(string_table, sample, "origin task id")
+        assert origin_task_id_label is not None
+        origin_task_id = origin_task_id_label.num
         assert origin_task_id in awaiting_task_ids, (
             f"origin task id {origin_task_id} does not match any awaiting task id {awaiting_task_ids}"
         )
@@ -169,6 +177,7 @@ def test_asyncio_executor_wall_time() -> None:
     import asyncio
     import os
     from sys import version_info as PYVERSION
+    import threading
     import time
 
     from ddtrace.internal.datadog.profiling import stack
@@ -178,8 +187,11 @@ def test_asyncio_executor_wall_time() -> None:
 
     assert stack.is_available, stack.failure_msg
 
+    executor_thread_names: list[str] = []
+
     def slow_sync_function() -> None:
         time.sleep(1)
+        executor_thread_names.append(threading.current_thread().name)
 
     async def asynchronous_function() -> None:
         await asyncio.get_running_loop().run_in_executor(executor=None, func=slow_sync_function)
@@ -220,15 +232,11 @@ def test_asyncio_executor_wall_time() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "thread name")
     assert len(samples) > 0
 
-    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
-
-    # uvloop uses ThreadPoolExecutor naming instead of asyncio naming
-    if use_uvloop:
-        executor_thread_name = "ThreadPoolExecutor-0_0"
-    elif PYVERSION >= (3, 9):
-        executor_thread_name = "asyncio_0"
-    else:
-        executor_thread_name = "ThreadPoolExecutor-0_0"
+    # The default executor's thread name depends on the event loop and its
+    # version: asyncio uses "asyncio_0", uvloop 0.22 "ThreadPoolExecutor-0_0",
+    # uvloop 0.23 "uvloop_0".
+    assert len(executor_thread_names) == 1
+    executor_thread_name: str = executor_thread_names[0]
 
     if PYVERSION >= (3, 11):
         # Thread Pool Executor

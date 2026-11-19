@@ -2,7 +2,7 @@ import collections
 import socket
 
 
-class MockSocket(object):
+class MockSocket:
     def __init__(self, recv_bufs, connect_failure=None):
         self.recv_bufs = collections.deque(recv_bufs)
         self.send_bufs = []
@@ -36,7 +36,7 @@ class MockSocket(object):
         self.socket_options.append((level, option, value))
 
 
-class MockSocketModule(object):
+class MockSocketModule:
     def __init__(self, connect_failure=None):
         self.connect_failure = connect_failure
         self.sockets = []

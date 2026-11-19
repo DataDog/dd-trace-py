@@ -13,37 +13,11 @@ import os
 from pathlib import Path
 import socketserver
 import subprocess
-import textwrap
 
 import pytest
 
 from tests.ci_visibility.util import _get_default_ci_env_vars
-from tests.utils import snapshot
 
-
-SELENIUM_SNAPSHOT_IGNORES = [
-    "resource",  # Ignored because v1 and v2 plugins have different results, but that's okay
-    "meta.ci.workspace_path",
-    "meta.error.stack",
-    "meta.library_version",
-    "meta.os.architecture",
-    "meta.os.platform",
-    "meta.os.version",
-    "meta.runtime-id",
-    "meta.runtime.version",
-    "meta.test.browser.version",  # ignored because it may change when images are rebuilt
-    "meta.test.browser.driver_version",  # ignored because it may change when images are rebuilt
-    "meta.test.framework_version",
-    "meta.test_module_id",
-    "meta.test_session_id",
-    "meta.test_suite_id",
-    "metrics._dd.top_level",
-    "metrics._dd.tracer_kr",
-    "metrics._sampling_priority_v1",
-    "metrics.process_id",
-    "duration",
-    "start",
-]
 
 # Selenium Grid endpoint — standalone-chrome runs with network_mode: host so it binds on localhost
 SELENIUM_GRID_URL = os.environ.get("SELENIUM_GRID_URL", "http://localhost:4444")
@@ -88,138 +62,6 @@ def _http_server():
     yield
     if server.is_alive():
         server.terminate()
-
-
-@snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
-    selenium_test_script = textwrap.dedent(
-        _SELENIUM_DRIVER_SETUP
-        + """
-    def test_selenium_local_pass():
-        with _make_driver() as driver:
-            url = "http://localhost:8079/rum_enabled/page_1.html"
-
-            driver.get(url)
-
-            assert driver.title == "Page 1"
-
-            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
-
-            link_2.click()
-
-            assert driver.title == "Page 2"
-
-            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-            link_1.click()
-
-            assert driver.title == "Page 1"
-    """
-    )
-    testdir.makepyfile(test_selenium=selenium_test_script)
-    subprocess.run(
-        ["pytest", "--ddtrace", "-s", "--ddtrace-patch-all"],
-        env=_get_default_ci_env_vars(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_CIVISIBILITY_ITR_ENABLED="false",
-                DD_PATCH_MODULES="sqlite3:false",
-                CI_PROJECT_DIR=str(testdir.tmpdir),
-                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
-                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
-                DD_PYTEST_USE_NEW_PLUGIN="false",
-            )
-        ),
-    )
-
-
-@snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
-    selenium_test_script = textwrap.dedent(
-        _SELENIUM_DRIVER_SETUP
-        + """
-    def test_selenium_local_pass():
-        with _make_driver() as driver:
-            url = "http://localhost:8079/rum_disabled/page_1.html"
-
-            driver.get(url)
-
-            assert driver.title == "Page 1"
-
-            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
-
-            link_2.click()
-
-            assert driver.title == "Page 2"
-
-            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-            link_1.click()
-
-            assert driver.title == "Page 1"
-    """
-    )
-    testdir.makepyfile(test_selenium=selenium_test_script)
-    subprocess.run(
-        ["pytest", "--ddtrace", "-s", "--ddtrace-patch-all"],
-        env=_get_default_ci_env_vars(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_CIVISIBILITY_ITR_ENABLED="false",
-                DD_PATCH_MODULES="sqlite3:false",
-                CI_PROJECT_DIR=str(testdir.tmpdir),
-                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
-                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
-                DD_PYTEST_USE_NEW_PLUGIN="false",
-            )
-        ),
-    )
-
-
-@snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_server, testdir, git_repo):
-    selenium_test_script = textwrap.dedent(
-        _SELENIUM_DRIVER_SETUP
-        + """
-    from ddtrace.contrib.internal.selenium.patch import unpatch
-
-    def test_selenium_local_unpatch():
-        unpatch()
-        with _make_driver() as driver:
-            url = "http://localhost:8079/rum_disabled/page_1.html"
-
-            driver.get(url)
-
-            assert driver.title == "Page 1"
-
-            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
-
-            link_2.click()
-
-            assert driver.title == "Page 2"
-
-            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-            link_1.click()
-
-            assert driver.title == "Page 1"
-    """
-    )
-    testdir.makepyfile(test_selenium=selenium_test_script)
-    subprocess.run(
-        ["pytest", "--ddtrace", "-s", "--ddtrace-patch-all"],
-        env=_get_default_ci_env_vars(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_CIVISIBILITY_ITR_ENABLED="false",
-                DD_PATCH_MODULES="sqlite3:false",
-                CI_PROJECT_DIR=str(testdir.tmpdir),
-                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
-                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
-                DD_PYTEST_USE_NEW_PLUGIN="false",
-            )
-        ),
-    )
 
 
 def test_selenium_v3_plugin_tags(tmp_path, pytester, git_repo):
@@ -270,7 +112,6 @@ def test_selenium_browser_tags():
                 CI_PROJECT_DIR=str(pytester.path),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
-                DD_PYTEST_USE_NEW_PLUGIN="true",
             )
         ),
     )

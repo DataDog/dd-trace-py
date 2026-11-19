@@ -7,6 +7,7 @@ from flask import Flask
 from flask import Response
 from flask import render_template_string
 from flask import request
+from flask import stream_with_context
 
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
@@ -65,6 +66,21 @@ def create_app():
     def post_view():
         data = request.data
         return data, 200
+
+    @app.route("/stream")
+    def stream():
+        # Chunked response: the WSGI server iterates the traced response wrapper
+        # once per chunk, so this exercises the response-iteration hot path that
+        # a single-body response never reaches. Chunk count and size mimic a
+        # server-sent-events / large-download workload.
+        num_chunks = int(request.args.get("chunks", 1000))
+        payload = b"x" * 512
+
+        def generate():
+            for _ in range(num_chunks):
+                yield payload
+
+        return Response(stream_with_context(generate()), mimetype="application/octet-stream")
 
     @app.route("/sqli", methods=["POST"])
     def sqli():

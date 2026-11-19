@@ -1,7 +1,11 @@
+import asyncio
+import contextvars
 from functools import partial
+import gc
 from inspect import unwrap
 from pathlib import Path
 import typing as t
+import weakref
 
 import pytest
 
@@ -34,7 +38,7 @@ class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
 
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
-        super(SpanProbeTestCase, self).setUp()
+        super().setUp()
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
 
@@ -45,7 +49,7 @@ class SpanProbeTestCase(TracerTestCase):
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
-        super(SpanProbeTestCase, self).tearDown()
+        super().tearDown()
 
         MockSpanCodeOriginProcessorEntry.disable()
 
@@ -148,40 +152,6 @@ class SpanProbeTestCase(TracerTestCase):
 
         assert snapshot_ids_from_span_tags == snapshot_ids
 
-    def test_span_origin_entry(self):
-        def entry_call():
-            pass
-
-        core.dispatch("service_entrypoint.patch", (entry_call,))
-
-        with self.tracer.trace("entry"):
-            entry_call()
-            with self.tracer.trace("middle"):
-                with self.tracer.trace("exit", span_type=SpanTypes.HTTP):
-                    pass
-
-        self.assert_span_count(3)
-        entry, middle, _exit = self.get_spans()
-
-        # Check for the expected tags on the entry span
-        assert entry.get_tag("_dd.code_origin.type") == "entry"
-        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
-        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(entry_call.__code__.co_firstlineno)
-        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
-        assert (
-            entry.get_tag("_dd.code_origin.frames.0.method")
-            == "SpanProbeTestCase.test_span_origin_entry.<locals>.entry_call"
-        )
-
-        # Check that we don't have span location tags on the middle span
-        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
-        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
-
-        # Check that we also don't have the span location tags on the exit span
-        assert _exit.get_tag("_dd.code_origin.type") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.line") is None
-
     def test_span_origin_entry_method(self):
         class App:
             def entry_call(self):
@@ -232,6 +202,30 @@ class SpanProbeTestCase(TracerTestCase):
             entry.get_tag("_dd.code_origin.frames.0.method")
             == "SpanProbeTestCase.test_span_origin_tracer_wrap.<locals>.entry_call"
         )
+
+    def test_span_origin_tracer_wrap_async_copied_context(self):
+        class Payload:
+            pass
+
+        refs = []
+        copies = []
+
+        @self.tracer.wrap("entry")
+        async def entry_call():
+            payload = Payload()
+            refs.append(weakref.ref(payload))
+            copies.append(contextvars.copy_context())
+            await asyncio.sleep(0)
+
+        async def main():
+            with self.tracer.trace("root"):
+                await entry_call()
+
+        asyncio.run(main())
+        gc.collect()
+
+        assert len(copies) == 1
+        assert refs[0]() is None, "locals of a finished wrapped call are kept alive by a copied Context"
 
     def test_span_origin_tracer_wrap_method(self):
         class App:

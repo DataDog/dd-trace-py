@@ -1,21 +1,30 @@
+from __future__ import annotations
+
+import abc
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 import json
 from typing import Any
+from typing import ClassVar
 from typing import Optional
 
 from ddtrace.internal.utils.fnv import fnv1_64
 
 from .schema import Schema
-from .schema_iterator import SchemaIterator
+
+
+class SchemaIterator:
+    @abc.abstractmethod
+    def iterate_over_schema(self, builder: SchemaBuilder) -> None:
+        pass
 
 
 class SchemaBuilder:
     max_depth = 10
     max_properties = 1000
-    CACHE: dict[str, Schema] = {}
-    properties = 0
+    CACHE: ClassVar[dict[str, Schema]] = {}
+    properties: int = 0
 
     def __init__(self, iterator: SchemaIterator) -> None:
         self.schema: OpenApiSchema = OpenApiSchema()
@@ -30,7 +39,7 @@ class SchemaBuilder:
         description: Optional[str],
         ref: Optional[str],
         format_: Optional[str],
-        enum_values: Optional[list[Any]],
+        enum_values: Optional[list[str]],
     ) -> bool:
         if self.properties >= self.max_properties:
             return False
@@ -41,14 +50,14 @@ class SchemaBuilder:
         self.schema.components.schemas[schema_name].properties[field_name] = _property
         return True
 
-    def build(self):
+    def build(self) -> Schema:
         self.iterator.iterate_over_schema(self)
         no_nones = convert_to_json_compatible(self.schema)
         definition = json.dumps(no_nones, default=lambda o: o.__dict__)
         _id = str(fnv1_64(definition.encode("utf-8")))
         return Schema(definition, _id)
 
-    def should_extract_schema(self, schema_name, depth):
+    def should_extract_schema(self, schema_name: str, depth: int) -> bool:
         if depth > self.max_depth:
             return False
         if schema_name in self.schema.components.schemas:
@@ -57,7 +66,7 @@ class SchemaBuilder:
         return True
 
     @staticmethod
-    def get_schema(schema_name, iterator):
+    def get_schema(schema_name: str, iterator: SchemaIterator) -> Schema:
         if schema_name not in SchemaBuilder.CACHE:
             SchemaBuilder.CACHE[schema_name] = SchemaBuilder(iterator).build()
         return SchemaBuilder.CACHE[schema_name]
@@ -66,7 +75,7 @@ class SchemaBuilder:
 @dataclass
 class OpenApiSchema:
     openapi: str = "3.0.0"
-    components: "OpenApiSchema.Components" = field(default_factory=lambda: OpenApiSchema.Components())
+    components: OpenApiSchema.Components = field(default_factory=lambda: OpenApiSchema.Components())
 
     @dataclass
     class Property:
@@ -75,16 +84,16 @@ class OpenApiSchema:
         ref: Optional[str] = field(default=None, metadata={"name": "$ref"})
         format: Optional[str] = None
         enum_values: Optional[list[str]] = field(default=None, metadata={"name": "enum"})
-        items: Optional["OpenApiSchema.Property"] = None
+        items: Optional[OpenApiSchema.Property] = None
 
     @dataclass
     class Schema:
         type: str = "object"
-        properties: dict[str, "OpenApiSchema.Property"] = field(default_factory=dict)
+        properties: dict[str, OpenApiSchema.Property] = field(default_factory=dict)
 
     @dataclass
     class Components:
-        schemas: dict[str, "OpenApiSchema.Schema"] = field(default_factory=dict)
+        schemas: dict[str, OpenApiSchema.Schema] = field(default_factory=dict)
 
 
 def convert_to_json_compatible(obj: Any) -> Any:

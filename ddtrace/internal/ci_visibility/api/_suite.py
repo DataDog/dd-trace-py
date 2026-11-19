@@ -18,8 +18,8 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)
@@ -93,13 +93,13 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         ):
             self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)
 
-    def _telemetry_record_event_created(self):
+    def _telemetry_record_event_created(self) -> None:
         record_event_created(
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
-    def _telemetry_record_event_finished(self):
+    def _telemetry_record_event_finished(self) -> None:
         record_event_finished(
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,

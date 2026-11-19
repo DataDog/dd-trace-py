@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Simple test to test tracing. Inspired by CherryPy Tutorials:
 https://github.com/cherrypy/cherrypy/blob/master/cherrypy/tutorial/tut01_helloworld.py
@@ -64,7 +63,7 @@ class StubApp:
     @cherrypy.expose(UNICODE_ENDPOINT)
     def unicode(self):
         logger.info("In the /unicode resource")
-        return "üŋïĉóđē".encode("utf-8")
+        return "üŋïĉóđē".encode()
 
     @cherrypy.expose
     def custom_span(self):
@@ -72,6 +71,14 @@ class StubApp:
         assert span
         span.resource = "overridden"
         return "hiya"
+
+    @cherrypy.expose
+    def sampled_resource(self):
+        span = tracer.current_root_span()
+        assert span
+        resource = span.resource
+        tracer.sample(span)
+        return resource
 
     @cherrypy.expose
     def response_headers(self):
@@ -83,7 +90,7 @@ class StubApp:
 class TestDispatch:
     @cherrypy.expose
     def index(self, test_value):
-        return "dispatch with {test_value}".format(test_value=test_value)
+        return f"dispatch with {test_value}"
 
 
 testconf = os.path.join(os.path.dirname(__file__), "test.conf")

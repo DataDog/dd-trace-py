@@ -188,15 +188,6 @@ Datadog::Uploader::upload_unlocked()
     return ret;
 }
 
-bool
-Datadog::Uploader::upload()
-{
-    // The upload operation sets up some global state in libdatadog (the tokio runtime), so
-    // we ensure exclusivity here.
-    const std::lock_guard<std::mutex> lock_guard(ProfilerState::get().upload_lock);
-    return upload_unlocked();
-}
-
 void
 Datadog::Uploader::lock()
 {

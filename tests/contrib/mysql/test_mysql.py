@@ -1,12 +1,14 @@
 import asyncio
+from contextlib import closing
+from unittest import mock
 
-import mock
 import mysql
 import pytest
 
 from ddtrace.contrib.internal.mysql.patch import patch
 from ddtrace.contrib.internal.mysql.patch import unpatch
 from tests.contrib import shared_tests
+from tests.contrib import shared_tests_async
 from tests.contrib.config import MYSQL_CONFIG
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
@@ -25,14 +27,14 @@ def _has_mysql_aio():
         return False
 
 
-class MySQLCore(object):
+class MySQLCore:
     """Base test case for MySQL drivers"""
 
     conn = None
     tracer = None
 
     def tearDown(self):
-        super(MySQLCore, self).tearDown()
+        super().tearDown()
 
         # Reuse the connection across tests
         if self.conn:
@@ -325,11 +327,11 @@ class MySQLCore(object):
 
 class TestMysqlPatch(MySQLCore, TracerTestCase):
     def setUp(self):
-        super(TestMysqlPatch, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
-        super(TestMysqlPatch, self).tearDown()
+        super().tearDown()
         unpatch()
 
     def _get_conn(self):
@@ -338,6 +340,27 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert self.conn.is_connected()
 
         return self.conn
+
+    def test_connect_alias(self):
+        conn = mysql.connector.Connect(**MYSQL_CONFIG)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            assert len(rows) == 1
+        finally:
+            conn.close()
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].name == "mysql.query"
+
+    def test_byte_query_uses_connection_encoding(self):
+        # C extension cursors reference their connection differently from pure Python ones
+        for use_pure in (True, False) if mysql.connector.HAVE_CEXT else (True,):
+            for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
+                with closing(mysql.connector.connect(**MYSQL_CONFIG, charset=charset, use_pure=use_pure)) as conn:
+                    shared_tests._test_byte_query_event(conn.cursor(), codec, "mysql")
 
     def test_patch_unpatch(self):
         unpatch()
@@ -384,6 +407,28 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             conn.close()
 
         patch()
+
+    @pytest.mark.skipif(not _has_mysql_aio(), reason="mysql.connector.aio.connect is not available")
+    @TracerTestCase.run_in_subprocess()
+    def test_async_byte_query_uses_connection_encoding(self):
+        from mysql.connector.aio import connect
+
+        params = dict(MYSQL_CONFIG)
+        params.pop("db")
+
+        async def run_queries():
+            for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
+                conn = await connect(**params, charset=charset)
+                try:
+                    cursor = await conn.cursor()
+                    try:
+                        await shared_tests_async._test_byte_query_event(cursor, codec, "mysql")
+                    finally:
+                        await cursor.close()
+                finally:
+                    await conn.close()
+
+        asyncio.run(run_queries())
 
     @pytest.mark.skipif(not _has_mysql_aio(), reason="mysql.connector.aio.connect is not available")
     @TracerTestCase.run_in_subprocess()
