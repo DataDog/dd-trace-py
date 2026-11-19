@@ -28,22 +28,28 @@ def test_asyncio_eager_task_first_step_is_sampled_once() -> None:
 
     worker = os.environ["WORKER"]
     task_ids: dict[str, int] = {}
+    p = profiler.Profiler()
 
     def eager_step_work() -> None:
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
+    def profile_eager_step() -> None:
+        eager_step_work()
+        # Stop before the eager task can finish between the sampler's stack and task reads.
+        p.stop()
+
     async def eager_grandchild() -> None:
         task_ids["grandchild"] = id(asyncio.current_task())
-        eager_step_work()
+        profile_eager_step()
 
     async def eager_child() -> None:
         task_ids["child"] = id(asyncio.current_task())
         if worker == "grandchild":
             await asyncio.create_task(eager_grandchild())
         else:
-            eager_step_work()
+            profile_eager_step()
 
     async def creator() -> None:
         loop = asyncio.get_running_loop()
@@ -53,10 +59,8 @@ def test_asyncio_eager_task_first_step_is_sampled_once() -> None:
         finally:
             loop.set_task_factory(None)
 
-    p = profiler.Profiler()
     p.start()
     asyncio.run(creator())
-    p.stop()
 
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
     wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -82,7 +86,7 @@ def test_asyncio_eager_task_first_step_is_sampled_once() -> None:
             sample,
             [
                 pprof_utils.StackLocation(function_name=name, filename="", line_no=-1)
-                for name in ["eager_step_work", *callers, "creator"]
+                for name in ["eager_step_work", "profile_eager_step", *callers, "creator"]
             ],
         )
 
