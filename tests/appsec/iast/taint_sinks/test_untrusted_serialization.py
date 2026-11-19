@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
 from ddtrace.appsec._iast.taint_sinks import untrusted_serialization as untrusted_mod
 from tests.appsec.iast.iast_utils import _get_iast_data
 
@@ -22,7 +21,8 @@ def _assert_one_untrusted_vuln():
     assert len(vulnerabilities) == 1
     vulnerability = vulnerabilities[0]
     print(vulnerability)
-    assert vulnerability["type"] == VULN_UNTRUSTED_SERIALIZATION
+    # Literal on purpose: this is the type name the backend and the other tracers expect.
+    assert vulnerability["type"] == "UNTRUSTED_DESERIALIZATION"
 
 
 def _assert_no_untrusted_vuln():

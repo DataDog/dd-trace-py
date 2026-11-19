@@ -41,7 +41,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.contrib.utils import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
