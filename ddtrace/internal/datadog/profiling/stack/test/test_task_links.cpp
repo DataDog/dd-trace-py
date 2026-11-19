@@ -11,13 +11,13 @@ TEST(TaskLinks, LinkSurvivesOneSnapshotWithoutChild)
     PyObject parent{};
     PyObject child{};
 
-    echion.link_task(&parent, &child);
-    echion.prune_task_links({ &parent });
+    echion.link_task(&parent, &child, 1);
+    echion.prune_task_links(1, { &parent });
     ASSERT_EQ(echion.task_link_map().count(&child), 1u);
-    EXPECT_EQ(echion.task_link_map()[&child], &parent);
+    EXPECT_EQ(echion.task_link_map()[&child].parent, &parent);
 
-    echion.prune_task_links({ &parent, &child });
-    echion.prune_task_links({ &parent });
+    echion.prune_task_links(1, { &parent, &child });
+    echion.prune_task_links(1, { &parent });
     EXPECT_EQ(echion.task_link_map().count(&child), 1u);
 }
 
@@ -27,10 +27,10 @@ TEST(TaskLinks, LinkIsRemovedAfterTwoSnapshotsWithoutChild)
     PyObject parent{};
     PyObject child{};
 
-    echion.link_task(&parent, &child);
-    echion.prune_task_links({ &parent, &child });
-    echion.prune_task_links({ &parent });
-    echion.prune_task_links({ &parent });
+    echion.link_task(&parent, &child, 1);
+    echion.prune_task_links(1, { &parent, &child });
+    echion.prune_task_links(1, { &parent });
+    echion.prune_task_links(1, { &parent });
     EXPECT_EQ(echion.task_link_map().count(&child), 0u);
 }
 
@@ -43,10 +43,10 @@ TEST(TaskLinks, LinkOfChildNeverSeenIsRemoved)
     PyObject children[10]{};
 
     for (auto& child : children) {
-        echion.link_task(&parent, &child);
+        echion.link_task(&parent, &child, 1);
     }
-    echion.prune_task_links({ &parent });
-    echion.prune_task_links({ &parent });
+    echion.prune_task_links(1, { &parent });
+    echion.prune_task_links(1, { &parent });
     EXPECT_TRUE(echion.task_link_map().empty());
 }
 
@@ -59,12 +59,12 @@ TEST(TaskLinks, NewLinkForReusedAddressGetsFullGracePeriod)
     PyObject new_parent{};
     PyObject child{};
 
-    echion.link_task(&old_parent, &child);
-    echion.prune_task_links({ &old_parent, &new_parent });
-    echion.link_task(&new_parent, &child);
-    echion.prune_task_links({ &old_parent, &new_parent });
+    echion.link_task(&old_parent, &child, 1);
+    echion.prune_task_links(1, { &old_parent, &new_parent });
+    echion.link_task(&new_parent, &child, 1);
+    echion.prune_task_links(1, { &old_parent, &new_parent });
     ASSERT_EQ(echion.task_link_map().count(&child), 1u);
-    EXPECT_EQ(echion.task_link_map()[&child], &new_parent);
+    EXPECT_EQ(echion.task_link_map()[&child].parent, &new_parent);
 }
 
 TEST(TaskLinks, StrongAndWeakLinksArePrunedIndependently)
@@ -75,15 +75,106 @@ TEST(TaskLinks, StrongAndWeakLinksArePrunedIndependently)
     PyObject parent{};
     PyObject child{};
 
-    echion.link_task(&parent, &child);
-    echion.weak_link_task(&parent, &child);
-    echion.prune_task_links({ &parent });
-    echion.prune_weak_task_links({ &parent });
+    echion.link_task(&parent, &child, 1);
+    echion.weak_link_task(&parent, &child, 1);
+    echion.prune_task_links(1, { &parent });
+    echion.prune_weak_task_links(1, { &parent });
     EXPECT_EQ(echion.task_link_map().count(&child), 1u);
     EXPECT_EQ(echion.weak_task_link_map().count(&child), 1u);
 
-    echion.prune_task_links({ &parent });
-    echion.prune_weak_task_links({ &parent });
+    echion.prune_task_links(1, { &parent });
+    echion.prune_weak_task_links(1, { &parent });
     EXPECT_EQ(echion.task_link_map().count(&child), 0u);
     EXPECT_EQ(echion.weak_task_link_map().count(&child), 0u);
+}
+
+TEST(TaskLinks, OtherLoopSnapshotsDoNotStartGracePeriod)
+{
+    EchionSampler echion;
+    PyObject parent{};
+    PyObject child{};
+
+    echion.link_task(&parent, &child, 2);
+    // Thread subsampling can select loop 1 twice before loop 2 is sampled at all.
+    echion.prune_task_links(1, {});
+    echion.prune_task_links(1, {});
+    ASSERT_EQ(echion.task_link_map().count(&child), 1u);
+    EXPECT_EQ(echion.task_link_map()[&child].parent, &parent);
+
+    // Only snapshots of the child's own loop count toward expiration.
+    echion.prune_task_links(2, { &parent });
+    EXPECT_EQ(echion.task_link_map().count(&child), 1u);
+    echion.prune_task_links(2, { &parent });
+    EXPECT_TRUE(echion.task_link_map().empty());
+}
+
+TEST(TaskLinks, OtherLoopSnapshotsDoNotConsumeGracePeriod)
+{
+    EchionSampler echion;
+    PyObject parent{};
+    PyObject child{};
+    const std::unordered_set<PyObject*> snapshot{ &parent };
+
+    // The child is linked after loop 2 takes its snapshot but before it prunes.
+    echion.link_task(&parent, &child, 2);
+    echion.prune_task_links(2, snapshot);
+    echion.prune_task_links(1, {});
+    echion.prune_task_links(1, {});
+    ASSERT_EQ(echion.task_link_map().count(&child), 1u);
+
+    echion.prune_task_links(2, { &parent, &child });
+    echion.prune_task_links(2, { &parent });
+    EXPECT_EQ(echion.task_link_map().count(&child), 1u);
+    echion.prune_task_links(2, { &parent });
+    EXPECT_TRUE(echion.task_link_map().empty());
+}
+
+TEST(TaskLinks, RelinkedAddressBelongsToNewLoop)
+{
+    EchionSampler echion;
+    PyObject parent{};
+    PyObject child{};
+
+    echion.link_task(&parent, &child, 1);
+    echion.prune_task_links(1, {});
+    echion.link_task(&parent, &child, 2);
+    echion.prune_task_links(1, {});
+    echion.prune_task_links(1, {});
+    echion.prune_task_links(2, {});
+    EXPECT_EQ(echion.task_link_map().count(&child), 1u);
+    echion.prune_task_links(2, {});
+    EXPECT_TRUE(echion.task_link_map().empty());
+}
+
+TEST(TaskLinks, ReplacingOrUntrackingLoopClearsOnlyItsLinks)
+{
+    EchionSampler echion;
+    ThreadInfo thread(1, 1, "loop-thread", 0);
+    PyObject parent{};
+    PyObject child1{};
+    PyObject child2{};
+
+    echion.set_asyncio_loop(thread, 1);
+    echion.link_task(&parent, &child1, 1);
+    echion.weak_link_task(&parent, &child1, 1);
+    echion.link_task(&parent, &child2, 2);
+    echion.weak_link_task(&parent, &child2, 2);
+
+    // Registering the same loop again must not discard links.
+    echion.set_asyncio_loop(thread, 1);
+    EXPECT_EQ(echion.task_link_map().size(), 2u);
+    EXPECT_EQ(echion.weak_task_link_map().size(), 2u);
+
+    echion.set_asyncio_loop(thread, 2);
+    EXPECT_EQ(thread.asyncio_loop, 2u);
+    EXPECT_EQ(echion.task_link_map().count(&child1), 0u);
+    EXPECT_EQ(echion.weak_task_link_map().count(&child1), 0u);
+    EXPECT_EQ(echion.task_link_map().count(&child2), 1u);
+    EXPECT_EQ(echion.weak_task_link_map().count(&child2), 1u);
+
+    // Thread exit and set_event_loop(None) untrack the loop, without waiting for another sample.
+    echion.set_asyncio_loop(thread, 0);
+    EXPECT_EQ(thread.asyncio_loop, 0u);
+    EXPECT_TRUE(echion.task_link_map().empty());
+    EXPECT_TRUE(echion.weak_task_link_map().empty());
 }

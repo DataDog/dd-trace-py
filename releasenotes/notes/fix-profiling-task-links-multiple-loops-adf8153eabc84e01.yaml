@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes missing parent frames in asyncio task profiles when multiple
+    threads run event loops.
