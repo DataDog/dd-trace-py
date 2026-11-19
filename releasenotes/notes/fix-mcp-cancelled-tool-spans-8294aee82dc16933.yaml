@@ -1,0 +1,3 @@
+fixes:
+  - |
+    mcp: Fixes an issue where canceled client tool calls are reported as successful instead of errors in APM and LLM Observability.
