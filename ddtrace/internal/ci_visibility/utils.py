@@ -4,6 +4,7 @@ from functools import wraps
 import inspect
 import logging
 import os
+from pathlib import Path
 import random
 import re
 from time import sleep
@@ -17,6 +18,7 @@ from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.paths import relative_path
 
 
 log = get_logger(__name__)
@@ -26,6 +28,19 @@ T = t.TypeVar("T")
 # co_lines() is available from Python 3.10+; check once at import time.
 # TODO: remove _CO_LINES_SUPPORTED and the findlinestarts fallback once Python 3.9 support is dropped.
 _CO_LINES_SUPPORTED = hasattr((lambda: None).__code__, "co_lines")
+
+
+@lru_cache(maxsize=512)
+def get_relative_path(path: Path, root: Path) -> t.Optional[str]:
+    """Return a checkout-relative path, resolving aliases only on a lexical miss."""
+    relative = relative_path(path, root)
+    if relative is not None:
+        return relative
+    # Git reports physical roots; callers may use a CI workspace symlink.
+    try:
+        return relative_path(path.resolve(), root.resolve())
+    except (OSError, RuntimeError):
+        return None
 
 
 def get_relative_or_absolute_path_for_path(path: str, start_directory: str) -> str:
