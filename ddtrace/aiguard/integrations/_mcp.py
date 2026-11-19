@@ -253,6 +253,7 @@ def stdio_program(command: str) -> str:
 
     A full path can hold the user name and changes from machine to machine, so it is never sent nor hashed.
     """
+    command = re.sub(r"^[A-Za-z]:", "", command)
     program = command[max(command.rfind("/"), command.rfind("\\")) + 1 :].lower()
     for suffix in (".exe", ".cmd"):
         if program.endswith(suffix):
