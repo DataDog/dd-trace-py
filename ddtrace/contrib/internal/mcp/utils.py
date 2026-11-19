@@ -232,7 +232,8 @@ def strip_telemetry_argument(span: Span, ctx: Any) -> Any:
     params = ctx.params or {}
     arguments = params.get("arguments")
     transport_session_id = get_transport_session_id(_get_attr(ctx.request, "headers", None))
-    connection = getattr(ctx, "session", None)
+    # ctx.session is new for each request, its connection lasts as long as the transport
+    connection = _get_attr(getattr(ctx, "session", None), "_connection", None)
     if not isinstance(arguments, dict) or TELEMETRY_KEY not in arguments:
         if config.mcp.capture_session:
             core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}, transport_session_id, connection))

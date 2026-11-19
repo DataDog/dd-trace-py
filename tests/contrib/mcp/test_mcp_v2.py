@@ -343,3 +343,18 @@ def test_pending_conversation_id_keeps_creation_time(mcp_llmobs):
         assert integration._pending_conversation_ids[connection][1] == created - 1.5
         integration._pending_conversation_ids[connection] = (conversation_id, created - 2.5)
         assert integration._new_conversation_id(connection) != first
+
+
+def test_conversation_id_shared_by_parallel_first_calls(mcp_llmobs, test_spans, run_client):
+    """Stateless requests have no connection to share an ID on, so only the legacy stream reuses it."""
+
+    async def parallel_calls(client):
+        args = {"operation": "add", "a": 1, "b": 2}
+        return await asyncio.gather(client.call_tool("calculator", args), client.call_tool("calculator", args))
+
+    with override_config("mcp", dict(capture_session=True)):
+        run_client("legacy", parallel_calls)
+
+    spans = [span for span in _pop_spans(test_spans) if span.resource == "server_tool_call"]
+    assert len(spans) == 2
+    assert get_llmobs_session_id(spans[0]) == get_llmobs_session_id(spans[1])
