@@ -1,0 +1,7 @@
+"""
+Limits for span attributes shared by producers and encoders.
+"""
+
+MAX_SPAN_META_KEY_LEN = 200
+MAX_SPAN_META_VALUE_LEN = 25000
+TRUNCATED_SPAN_ATTRIBUTE_LEN = 2500

@@ -1,12 +1,16 @@
-defaults: &defaults
+# Eval hot path the caller pays: bounded immutable snapshot + non-blocking enqueue.
+# Keep the shared anchor on a real scenario; the runner executes every top-level key.
+hook-enqueue-typical: &defaults
   num_flags: 100
   num_users: 50
   num_context_fields: 10
+  observe_full_evaluation_data: true
+  mode: hook_enqueue
 
-# Eval hot path the caller pays: bounded immutable snapshot + non-blocking enqueue.
-hook-enqueue-typical:
+hook-enqueue-protected-typical:
   <<: *defaults
   mode: hook_enqueue
+  observe_full_evaluation_data: false
 
 hook-enqueue-stress:
   <<: *defaults
@@ -27,11 +31,17 @@ hook-enqueue-bounded-adversarial:
   <<: *defaults
   mode: hook_enqueue_adversarial
   num_context_fields: 257
+  observe_full_evaluation_data: true
 
 # Background worker hot path: canonical key + two-tier aggregation.
 aggregate-typical:
   <<: *defaults
   mode: aggregate
+
+aggregate-protected-typical:
+  <<: *defaults
+  mode: aggregate
+  observe_full_evaluation_data: false
 
 aggregate-stress:
   <<: *defaults
@@ -54,3 +64,31 @@ hook-plus-drain-scale:
   num_flags: 2500
   num_users: 500
   num_context_fields: 20
+
+# Native resolution plus the provider hooks for one evaluation, with and without split
+# features. Compare the pairs within a run: they differ only in the features.
+provider-resolution-typical:
+  <<: *defaults
+  mode: provider_resolution
+  split_features: false
+
+provider-resolution-split-features-typical:
+  <<: *defaults
+  mode: provider_resolution
+  split_features: true
+
+provider-resolution-stress:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 10
+  num_users: 1000
+  num_context_fields: 250
+  split_features: false
+
+provider-resolution-split-features-stress:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 10
+  num_users: 1000
+  num_context_fields: 250
+  split_features: true

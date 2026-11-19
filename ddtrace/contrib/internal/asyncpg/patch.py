@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from types import ModuleType
-from typing import TYPE_CHECKING  # noqa:I001
+from typing import TYPE_CHECKING
 from typing import Union
 
 import asyncpg
@@ -29,7 +31,7 @@ from ddtrace.trace import tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
+    from asyncpg.prepared_stmt import PreparedStatement
 
 
 DBMS_NAME = "postgresql"
@@ -74,7 +76,7 @@ def _get_connection_tags(conn: asyncpg.Connection) -> dict[str, str]:
 
 class _TracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn):
-        super(_TracedConnection, self).__init__(conn)
+        super().__init__(conn)
         tags = _get_connection_tags(conn)
         tags[db.SYSTEM] = DBMS_NAME
         self._protocol._datadog_tags = tags
@@ -146,9 +148,12 @@ async def _traced_protocol_execute(func, instance, args, kwargs):
     if not is_tracing_enabled():
         return await func(*args, **kwargs)
 
-    state: Union[str, "PreparedStatement"] = get_argument_value(args, kwargs, 0, "state")
+    state: Union[str, PreparedStatement] = get_argument_value(args, kwargs, 0, "state")
     query = state if isinstance(state, str) or isinstance(state, bytes) else state.query
-    return await _traced_query(instance._datadog_tags, func, query, args, kwargs)
+    # Protocols whose connection was not opened through the patched asyncpg.connect()
+    # (e.g. create_pool() without a custom connect, or connections opened before patching)
+    # carry no connection tags; still trace them, as the module-level Pin fallback did.
+    return await _traced_query(getattr(instance, "_datadog_tags", None) or {}, func, query, args, kwargs)
 
 
 def _patch(asyncpg: ModuleType) -> None:

@@ -1,11 +1,10 @@
 import os
+from unittest import mock
 
 import aiomysql
-import mock
 import pymysql
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.aiomysql.patch import AIOTracedCursor
 from ddtrace.contrib.internal.aiomysql.patch import patch
@@ -15,7 +14,6 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import MYSQL_CONFIG
 
 
@@ -66,15 +64,27 @@ async def test_queries(snapshot_conn):
 @pytest.mark.asyncio
 async def test_query_is_blocked_before_execution() -> None:
     cursor = mock.AsyncMock()
-    traced_cursor = AIOTracedCursor(cursor, Pin())
+    traced_cursor = AIOTracedCursor(cursor, db_tags={})
 
     for method in ("execute", "executemany"):
         with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
             with pytest.raises(BlockingException):
                 await getattr(traced_cursor, method)("SELECT 1")
 
-        dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="mysql"))
+        dispatch_event.assert_called_once_with(
+            DbQueryEvent(query="SELECT 1", span_name_prefix="mysql", get_encoding=traced_cursor._dbapi_query_encoding)
+        )
         getattr(cursor, method).assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_byte_query_uses_connection_encoding():
+    for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
+        conn = await aiomysql.connect(**AIOMYSQL_CONFIG, charset=charset)
+        try:
+            await shared_tests._test_byte_query_event(await conn.cursor(), codec, "mysql")
+        finally:
+            conn.close()
 
 
 @pytest.mark.asyncio
@@ -240,14 +250,13 @@ class AioMySQLTestCase(AsyncioTestCase):
         self.conn = None
         patch()
 
-    async def tearDown(self):
-        super().tearDown()
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
         if self.conn and not self.conn.closed:
             self.conn.close()
 
         unpatch()
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
@@ -261,7 +270,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
     )
@@ -275,7 +283,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_service_v0(self):
         conn = await self._get_conn()
@@ -287,7 +294,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysql"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_service_v1(self):
         conn = await self._get_conn()
@@ -299,7 +305,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_unspecified_service_v1(self):
         conn = await self._get_conn()
@@ -311,7 +316,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_span_name_v0_schema(self):
         conn = await self._get_conn()
@@ -323,7 +327,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.name == "mysql.query"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_span_name_v1_schema(self):
         conn = await self._get_conn()
@@ -335,7 +338,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.name == "mysql.query"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_aiomysql_dbm_propagation_enabled(self):
         conn = await self._get_conn()
@@ -343,7 +345,6 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         await shared_tests._test_dbm_propagation_enabled(self.tracer, cursor, "mysql")
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -362,7 +363,6 @@ class AioMySQLTestCase(AsyncioTestCase):
             config=AIOMYSQL_CONFIG, db_system="mysql", cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -382,7 +382,6 @@ class AioMySQLTestCase(AsyncioTestCase):
             config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -402,7 +401,6 @@ class AioMySQLTestCase(AsyncioTestCase):
             config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",

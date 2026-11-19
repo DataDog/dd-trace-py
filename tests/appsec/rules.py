@@ -30,6 +30,6 @@ class _IP:
     DEFAULT = "1.1.1.1"  # default behaviour
 
 
-class Config(object):
+class Config:
     def __init__(self):
         self.is_header_tracing_configured = False

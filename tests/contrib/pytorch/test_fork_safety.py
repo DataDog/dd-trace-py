@@ -23,6 +23,9 @@ def _child_assert_fresh(q):
         assert _th.current_rank_span() is None, "rank span leaked into child"
         assert _distributed._rank_ctx.get() is None, "_rank_ctx leaked into child"
         assert _device._cache is None, "_device._cache leaked into child"
+        from ddtrace.internal import core
+
+        assert core.root.get_item("tracer") is not None, "tracer registration lost on the reset root context"
         q.put("ok")
     except AssertionError as e:
         q.put(str(e))

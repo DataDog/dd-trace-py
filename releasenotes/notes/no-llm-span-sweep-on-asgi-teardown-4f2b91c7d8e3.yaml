@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a regression introduced in 4.15.2 where LLM
+    Observability spans that were still open when an ASGI request finished
+    (FastAPI, Starlette, Django ASGI) were force-finished at request teardown.
+    Agents and background tasks that intentionally outlive the HTTP request had
+    their spans truncated, and work started afterwards was detached into
+    separate root traces instead of staying nested. Abandoned streams are still
+    reclaimed by ``TracedStream``/``TracedAsyncStream`` finalization and the
+    stream context managers.

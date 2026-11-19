@@ -4,17 +4,6 @@ globs:
 alwaysApply: true
 ---
 
-# dd-trace-py AI Guidelines
+# Repository instructions
 
-All project guidelines, rules, architecture context, and coding standards
-live in the canonical file: **`AGENTS.md`** (repository root).
-
-When unsure about implementation details, ALWAYS ask the developer.
-
-Read and follow `AGENTS.md` for:
-- Project rules (testing, linting, formatting)
-- Key architecture
-- AIDEV anchor comments
-- PR guidelines
-- Skills reference
-- Domain guides
+Read and follow `AGENTS.md` at the repository root.

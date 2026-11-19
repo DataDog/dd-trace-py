@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import types
 
 import pytest
@@ -27,7 +26,7 @@ class TestRedisClusterPatch(TracerTestCase):
         return redis.cluster.RedisCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
-        super(TestRedisClusterPatch, self).setUp()
+        super().setUp()
         patch()
         r = self._get_test_client()
         r.flushall()
@@ -35,7 +34,7 @@ class TestRedisClusterPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestRedisClusterPatch, self).tearDown()
+        super().tearDown()
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_span_service_name_v1(self):

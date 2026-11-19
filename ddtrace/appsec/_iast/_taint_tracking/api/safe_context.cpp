@@ -26,7 +26,7 @@ safe_get_tainted_object_map_from_list_of_pyobjects(const std::vector<PyObject*>&
 }
 
 TaintedObjectMapTypePtr
-safe_get_tainted_object_map_by_ctx_id(size_t ctx_id)
+safe_get_tainted_object_map_by_ctx_id(std::uint64_t ctx_id)
 {
     if (!taint_engine_context) {
         return nullptr;

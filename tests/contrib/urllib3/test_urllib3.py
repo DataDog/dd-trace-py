@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 import urllib3
 
@@ -19,22 +20,22 @@ from tests.utils import snapshot
 # host:port of httpbin container
 HOST = HTTPBIN_CONFIG["host"]
 PORT = HTTPBIN_CONFIG["port"]
-SOCKET = "{}:{}".format(HOST, PORT)
-URL_200 = "http://{}/status/200".format(SOCKET)
-URL_500 = "http://{}/status/500".format(SOCKET)
+SOCKET = f"{HOST}:{PORT}"
+URL_200 = f"http://{SOCKET}/status/200"
+URL_500 = f"http://{SOCKET}/status/500"
 
 
 class BaseUrllib3TestCase(TracerTestCase):
     """Provides the setup and teardown for patching/unpatching the urllib3 integration"""
 
     def setUp(self):
-        super(BaseUrllib3TestCase, self).setUp()
+        super().setUp()
 
         patch()
         self.http = urllib3.PoolManager()
 
     def tearDown(self):
-        super(BaseUrllib3TestCase, self).tearDown()
+        super().tearDown()
         unpatch()
 
 
@@ -82,6 +83,37 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == HOST
+
+    def test_resource_with_otel_semantics(self):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            resp = self.http.request("GET", URL_200)
+
+        assert resp.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.resource == "GET"
+        assert span.get_tag("http.request.method") == "GET"
+        assert span.get_tag("url.full") == URL_200
+        assert span.get_tag("http.method") is None
+        assert span.get_tag("http.url") is None
+
+    def _otel_pool_tags(self, pool):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)), pytest.raises(Exception):
+            pool.urlopen("GET", "/x", retries=False)
+        span = self.pop_spans()[0]
+        return {**span.get_tags(), **span.get_metrics()}
+
+    def test_otel_semantics_keeps_non_default_scheme_port(self):
+        tags = self._otel_pool_tags(urllib3.HTTPConnectionPool("localhost", port=443, timeout=0.1))
+        assert tags["url.full"] == "http://localhost:443/x"
+        assert tags["server.port"] == 443
+
+    def test_otel_semantics_ipv6_host(self):
+        tags = self._otel_pool_tags(urllib3.HTTPConnectionPool("::1", port=1, timeout=0.1))
+        assert tags["url.full"] == "http://[::1]:1/x"
+        assert tags["server.address"] == "::1"
+        assert tags["server.port"] == 1
 
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
@@ -371,7 +403,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_split_by_domain_remove_auth_in_url(self):
         """Tests that only the hostname is used as the default service name"""
         with self.override_config("urllib3", dict(split_by_domain=True)):
-            out = self.http.request("GET", "http://user:pass@{}".format(SOCKET))
+            out = self.http.request("GET", f"http://user:pass@{SOCKET}")
             assert out.status == 200
 
             spans = self.pop_spans()
@@ -430,10 +462,10 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "x-datadog-trace-id": str(s._trace_id_64bits),
                 "x-datadog-parent-id": str(s.span_id),
                 "x-datadog-sampling-priority": "1",
-                "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
+                "x-datadog-tags": f"_dd.p.dm=-0,_dd.p.tid={_get_64_highest_order_bits_as_hex(s.trace_id)}",
                 "traceparent": s.context._traceparent,
                 # outgoing headers must contain last parent span id in tracestate
-                "tracestate": s.context._tracestate.replace("dd=", "dd=p:{:016x};".format(s.span_id)),
+                "tracestate": s.context._tracestate.replace("dd=", f"dd=p:{s.span_id:016x};"),
             }
 
             if int(urllib3.__version__.split(".")[0]) >= 2:

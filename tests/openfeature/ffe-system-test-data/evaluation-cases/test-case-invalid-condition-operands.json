@@ -1,0 +1,59 @@
+[
+  {
+    "description": "GT requires a numeric configured operand. A flag with a string operand must return a parse error rather than falling through to the catch-all allocation.",
+    "attributes": {
+      "age": 42
+    },
+    "defaultValue": "default",
+    "flag": "invalid-gt-condition-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": "invalid-gt",
+    "variationType": "STRING"
+  },
+  {
+    "description": "ONE_OF requires an array configured operand. A flag with a scalar operand must return a parse error rather than falling through to the catch-all allocation.",
+    "attributes": {
+      "role": "admin"
+    },
+    "defaultValue": "default",
+    "flag": "invalid-one-of-condition-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": "invalid-one-of",
+    "variationType": "STRING"
+  },
+  {
+    "description": "IS_NULL requires a boolean configured operand. A flag with a string operand must return a parse error rather than falling through to the catch-all allocation.",
+    "attributes": {
+      "deleted_at": null
+    },
+    "defaultValue": "default",
+    "flag": "invalid-is-null-condition-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": "invalid-is-null",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A valid flag in the same configuration must still evaluate after malformed condition operands are isolated.",
+    "attributes": {},
+    "defaultValue": "default",
+    "flag": "valid-flag-after-invalid-config",
+    "result": {
+      "reason": "STATIC",
+      "value": "expected"
+    },
+    "targetingKey": "valid-neighbor",
+    "variationType": "STRING"
+  }
+]

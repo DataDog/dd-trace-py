@@ -6,14 +6,18 @@ from ddtrace import config
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import filter_forced_partial_noise
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import handle_streamed_response
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import wrap_prompt_if_async_iterable
+from ddtrace.contrib.internal.claude_agent_sdk.utils import COMPONENT
 from ddtrace.contrib.internal.claude_agent_sdk.utils import DD_PARTIAL_EXPLICIT_ATTR
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.internal.claude_agent_sdk.utils import force_include_partial_messages
+from ddtrace.contrib.internal.claude_agent_sdk.utils import llmobs_enabled
+from ddtrace.contrib.internal.claude_agent_sdk.utils import request_event
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
 
 
 log = get_logger(__name__)
@@ -68,9 +72,8 @@ def traced_client_init(func, instance, args, kwargs):
       caller's own — so we skip it, exactly as the standalone query() path does.
     """
     func(*args, **kwargs)
-    integration = claude_agent_sdk._datadog_integration
     transport = get_argument_value(args, kwargs, 1, "transport", optional=True)
-    if transport is not None or not integration.llmobs_enabled:
+    if transport is not None or not llmobs_enabled():
         instance._dd_forced_partial = False
         return
     try:
@@ -80,10 +83,21 @@ def traced_client_init(func, instance, args, kwargs):
         instance._dd_forced_partial = False
 
 
+def _agent_request_kwargs(args, kwargs, prompt_wrapper):
+    """Build the agent span's request kwargs.
+
+    The prompt is folded into the kwargs because lifecycle subscribers only receive kwargs.
+    """
+    request_kwargs = dict(kwargs)
+    if args:
+        request_kwargs["prompt"] = args[0]
+    if prompt_wrapper is not None:
+        request_kwargs["prompt_wrapper"] = prompt_wrapper
+    return request_kwargs
+
+
 def traced_query_async_generator(func, _instance, args, kwargs):
     """Trace the standalone query() async generator function."""
-    integration = claude_agent_sdk._datadog_integration
-
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
 
     # Turn on partial streaming so the handler can read accurate per-turn output tokens
@@ -93,32 +107,27 @@ def traced_query_async_generator(func, _instance, args, kwargs):
     # forcing (and therefore filtering) the flag would only risk swallowing chunks that
     # transport emits on its own — skip it there.
     forced_partial = False
-    if integration.llmobs_enabled and wrapped_kwargs.get("transport") is None:
+    if llmobs_enabled() and wrapped_kwargs.get("transport") is None:
         options, forced_partial = force_include_partial_messages(wrapped_kwargs.get("options"))
         if forced_partial:
             wrapped_kwargs = dict(wrapped_kwargs)
             wrapped_kwargs["options"] = options
 
-    span = integration.trace(
+    event = request_event(
         "claude_agent_sdk.query",
-        submit_to_llmobs=True,
-        span_name="claude_agent_sdk.query",
-        kind="agent",  # known at start for agent attribution
+        "claude_agent_sdk.query",
+        "query",
+        request_kwargs=_agent_request_kwargs(args, kwargs, prompt_wrapper),
     )
-
-    if prompt_wrapper:
-        span._set_ctx_item("_dd_prompt_wrapper", prompt_wrapper)
-
-    try:
-        resp = func(*wrapped_args, **wrapped_kwargs)
-        return handle_streamed_response(
-            integration, resp, args, kwargs, span, operation="query", filter_partial=forced_partial
-        )
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="query")
-        span.finish()
-        raise
+    # The span outlives this call: the stream handler dispatches the ended event once the stream
+    # is exhausted or closed, and errors before the stream is returned dispatch it here.
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = func(*wrapped_args, **wrapped_kwargs)
+            return handle_streamed_response(resp, ctx, operation="query", filter_partial=forced_partial)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
 
 
 async def traced_client_query(func, instance, args, kwargs):
@@ -127,37 +136,29 @@ async def traced_client_query(func, instance, args, kwargs):
     if getattr(instance, "_dd_internal_context_query", False):
         return await func(*args, **kwargs)
 
-    integration = claude_agent_sdk._datadog_integration
-
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
 
-    span = integration.trace(
+    event = request_event(
         "claude_agent_sdk.ClaudeSDKClient.query",
-        submit_to_llmobs=True,
-        span_name="claude_agent_sdk.ClaudeSDKClient.query",
+        "claude_agent_sdk.ClaudeSDKClient.query",
+        "request",
+        request_kwargs=_agent_request_kwargs(args, kwargs, prompt_wrapper),
         instance=instance,
-        kind="agent",  # known at start for agent attribution
     )
-
-    if prompt_wrapper:
-        span._set_ctx_item("_dd_prompt_wrapper", prompt_wrapper)
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        pass
 
     before_context = await _retrieve_context(instance)
+    if before_context is not None:
+        event.request_kwargs["_dd_before_context"] = before_context
 
-    instance._dd_query_args = {
-        "span": span,
-        "args": args,
-        "kwargs": kwargs,
-        "before_context": before_context,
-    }
+    instance._dd_query_ctx = ctx
 
     try:
         return await func(*wrapped_args, **wrapped_kwargs)
     except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="request")
-        span.finish()
-        instance._dd_query_args = None
+        ctx.dispatch_ended_event(*sys.exc_info())
+        instance._dd_query_ctx = None
         raise
 
 
@@ -167,18 +168,10 @@ def traced_receive_messages(func, instance, args, kwargs):
     if getattr(instance, "_dd_internal_context_query", False):
         return func(*args, **kwargs)
 
-    integration = claude_agent_sdk._datadog_integration
-    query_args_dict = getattr(instance, "_dd_query_args", None) or {}
-    span = query_args_dict.get("span")
-    query_args = query_args_dict.get("args")
-    query_kwargs = query_args_dict.get("kwargs") or {}
-    before_context = query_args_dict.get("before_context")
-    instance._dd_query_args = None
+    ctx = getattr(instance, "_dd_query_ctx", None)
+    instance._dd_query_ctx = None
 
-    if before_context is not None:
-        query_kwargs["_dd_before_context"] = before_context
-
-    if span is None:
+    if ctx is None:
         resp = func(*args, **kwargs)
         # connect(prompt=...) followed by receive_response() has no traced query() span, but we
         # may still have forced partial streaming on at init. Strip the events we injected so
@@ -190,19 +183,14 @@ def traced_receive_messages(func, instance, args, kwargs):
     try:
         resp = func(*args, **kwargs)
         return handle_streamed_response(
-            integration,
             resp,
-            query_args,
-            query_kwargs,
-            span,
+            ctx,
             operation="request",
             instance=instance,
             filter_partial=getattr(instance, "_dd_forced_partial", False),
         )
     except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=query_args, kwargs=query_kwargs, response=None, operation="request")
-        span.finish()
+        ctx.dispatch_ended_event(*sys.exc_info())
         raise
 
 
@@ -212,14 +200,15 @@ def patch():
 
     claude_agent_sdk._datadog_patch = True
 
-    integration = ClaudeAgentSdkIntegration(integration_config=config.claude_agent_sdk)
-    claude_agent_sdk._datadog_integration = integration
-
     wrap("claude_agent_sdk", "query", traced_query_async_generator)
     wrap("claude_agent_sdk", "ClaudeAgentOptions.__init__", traced_options_init)
     wrap("claude_agent_sdk", "ClaudeSDKClient.__init__", traced_client_init)
     wrap("claude_agent_sdk", "ClaudeSDKClient.query", traced_client_query)
     wrap("claude_agent_sdk", "ClaudeSDKClient.receive_messages", traced_receive_messages)
+
+    # Let products (LLMObs) attach their shared lifecycle subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
 
 
 def unpatch():
@@ -228,10 +217,10 @@ def unpatch():
 
     claude_agent_sdk._datadog_patch = False
 
+    integration_hooks.on_unpatch(COMPONENT)
+
     unwrap(claude_agent_sdk, "query")
     unwrap(claude_agent_sdk.ClaudeAgentOptions, "__init__")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "__init__")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "query")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "receive_messages")
-
-    delattr(claude_agent_sdk, "_datadog_integration")

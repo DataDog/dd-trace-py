@@ -1,6 +1,5 @@
 #include "profile.hpp"
 
-#include "libdatadog_helpers.hpp"
 #include "profile_borrow.hpp"
 #include "profiler_state.hpp"
 #include "profiler_stats.hpp"
@@ -31,40 +30,16 @@ make_profile(const ddog_prof_Slice_SampleType& sample_types,
 
     auto& dict = maybe_dict.value();
     auto res = ddog_prof_Profile_with_dictionary(&profile, &dict, sample_types, period);
-    if (res.flags) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (Datadog::status_is_error(res)) {
         if (!already_warned) {
             already_warned = true;
-            const std::string errmsg = std::string(res.err);
-            std::cerr << errmsg << std::endl;
+            std::cerr << res.err << std::endl;
         }
         return false;
     }
     return true;
 }
 
-}
-
-bool
-Datadog::Profile::reset_profile()
-{
-    const std::lock_guard<std::mutex> lock(profile_mtx);
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-
-    // Clear the profile before using it
-    auto res = ddog_prof_Profile_reset(&cur_profile);
-    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
-        if (!already_warned) {
-            already_warned = true;
-            const std::string errmsg = err_to_msg(&err, "Error resetting profile");
-            std::cerr << "Could not drop profile:" << errmsg << std::endl;
-        }
-        ddog_Error_drop(&err);
-        return false;
-    }
-
-    cur_profiler_stats.reset_state();
-    return true;
 }
 
 void
@@ -215,11 +190,10 @@ Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
     auto res = ddog_prof_Profile_add2(&cur_profile, sample, endtime_ns);
-    if (res.flags) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (status_is_error(res)) {
         if (!already_warned) {
             already_warned = true;
-            const std::string errmsg = std::string(res.err);
-            std::cerr << errmsg << std::endl;
+            std::cerr << res.err << std::endl;
         }
         return false;
     }

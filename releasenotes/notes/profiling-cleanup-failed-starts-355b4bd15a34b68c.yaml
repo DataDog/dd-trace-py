@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Profiling: Profilers failing to start now clean up after themselves instead
+    of keeping half-initialised resources around.

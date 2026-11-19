@@ -22,10 +22,13 @@ class TestMysqlPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, mysql_connector):
-        pass
+        self.assert_wrapped(mysql_connector.connect)
+        self.assert_wrapped(mysql_connector.Connect)
 
     def assert_not_module_patched(self, mysql_connector):
-        pass
+        self.assert_not_wrapped(mysql_connector.connect)
+        self.assert_not_wrapped(mysql_connector.Connect)
 
     def assert_not_module_double_patched(self, mysql_connector):
-        pass
+        self.assert_not_double_wrapped(mysql_connector.connect)
+        self.assert_not_double_wrapped(mysql_connector.Connect)

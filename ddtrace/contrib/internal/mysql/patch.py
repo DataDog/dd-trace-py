@@ -4,13 +4,17 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
+from ddtrace.contrib.internal.mysql.cursor import MySQLFetchTracedAsyncCursor
+from ddtrace.contrib.internal.mysql.cursor import MySQLFetchTracedCursor
+from ddtrace.contrib.internal.mysql.cursor import MySQLTracedAsyncCursor
+from ddtrace.contrib.internal.mysql.cursor import MySQLTracedCursor
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -61,7 +65,8 @@ def patch_conn(conn, traced_conn_cls=TracedConnection):
     if database := _convert_to_string(getattr(conn, "database", None)):
         tags[db.NAME] = database
     tags[db.SYSTEM] = "mysql"
-    return traced_conn_cls(conn, cfg=config.mysql, db_tags=tags)
+    cursor_cls = MySQLFetchTracedCursor if config.mysql.trace_fetch_methods else MySQLTracedCursor
+    return traced_conn_cls(conn, cfg=config.mysql, cursor_cls=cursor_cls, db_tags=tags)
 
 
 def _connect(func, instance, args, kwargs):
@@ -80,7 +85,8 @@ async def _connect_async(func, instance, args, kwargs):
         database = None
 
     tags[db.SYSTEM] = "mysql"
-    return TracedAsyncConnection(conn, cfg=config.mysql, db_tags=tags)
+    cursor_cls = MySQLFetchTracedAsyncCursor if config.mysql.trace_fetch_methods else MySQLTracedAsyncCursor
+    return TracedAsyncConnection(conn, cfg=config.mysql, cursor_cls=cursor_cls, db_tags=tags)
 
 
 def patch():
@@ -89,15 +95,14 @@ def patch():
 
     mysql._datadog_patch = True
     _w("mysql.connector", "connect", _connect)
+    # Connect is a separate module binding for the same function, so it must be wrapped independently.
+    if hasattr(mysql.connector, "Connect"):
+        _w("mysql.connector", "Connect", _connect)
 
     if getattr(mysql.connector, "aio", None):
         _w("mysql.connector.aio", "connect", _connect_async)
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-
-        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
+    core.dispatch("sql.patch", ())
 
 
 def unpatch():
@@ -106,6 +111,8 @@ def unpatch():
 
     mysql._datadog_patch = False
     _u(mysql.connector, "connect")
+    if hasattr(mysql.connector, "Connect"):
+        _u(mysql.connector, "Connect")
 
     if getattr(mysql.connector, "aio", None):
         _u(mysql.connector.aio, "connect")

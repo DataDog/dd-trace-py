@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Span tag/metric/attribute APIs.
 
 Moved from tests/tracer/test_span.py and extended with tests for the
@@ -6,8 +5,8 @@ internal _set_attribute / _get_attribute family of methods.
 """
 
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace._trace.provider import DefaultContextProvider
@@ -183,7 +182,7 @@ def test_set_attribute_numpy():
 
 def test_tags_not_string():
     # ensure we can cast as strings
-    class Foo(object):
+    class Foo:
         def __repr__(self):
             1 / 0
 

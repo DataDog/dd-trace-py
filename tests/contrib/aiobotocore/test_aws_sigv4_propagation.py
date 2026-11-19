@@ -10,6 +10,7 @@ of in the botocore tests directory.
 
 import re
 
+import botocore.auth
 import pytest
 
 import ddtrace
@@ -103,7 +104,11 @@ def test_aiobotocore_only_patch_injects_into_signed_request():
     assert "x-datadog-trace-id" in signed_headers, (
         f"aiobotocore-only patch did not get trace headers into SignedHeaders {signed_headers!r}"
     )
-    assert "traceparent" in signed_headers, f"traceparent not in SignedHeaders {signed_headers!r}"
+    assert "traceparent" in headers, f"traceparent was not injected into the request {dict(headers)!r}"
+    # Newer botocore releases never sign traceparent (SIGNED_HEADERS_BLACKLIST), so it is only
+    # expected in SignedHeaders on versions that do.
+    if "traceparent" not in getattr(botocore.auth, "SIGNED_HEADERS_BLACKLIST", ()):
+        assert "traceparent" in signed_headers, f"traceparent not in SignedHeaders {signed_headers!r}"
 
 
 def test_distributed_tracing_disabled_passes_no_headers():
@@ -209,7 +214,6 @@ def test_aiobotocore_wrapped_api_call_suppresses_propagation_during_await():
     """
     import asyncio
 
-    from ddtrace._trace.pin import Pin
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
     from ddtrace.contrib.internal.aiobotocore.patch import _wrapped_api_call
 
@@ -234,7 +238,6 @@ def test_aiobotocore_wrapped_api_call_suppresses_propagation_during_await():
         meta = _FakeMeta()
 
     instance = _FakeClient()
-    Pin().onto(instance)
 
     async def fake_make_api_call(*args, **kwargs):
         inside["suppressed"] = _http_propagation_suppressed.get()
@@ -257,7 +260,7 @@ def test_aiobotocore_wrapped_api_call_suppresses_propagation_during_await():
     assert _http_propagation_suppressed.get() is False
 
 
-# AIDEV-NOTE: The per-owner gate is tested directly here (manipulating only the
+# The per-owner gate is tested directly here (manipulating only the
 # integrations' _datadog_patch flags, not the wraps) rather than by patching and
 # unpatching the integrations. The aiobotocore suite runs under auto-instrumentation
 # and shares a process with other tests, so asserting global wrap state

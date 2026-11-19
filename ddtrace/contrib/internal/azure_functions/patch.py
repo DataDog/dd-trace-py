@@ -7,6 +7,8 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
 
+from ._worker import patch_worker_context
+from ._worker import unpatch_worker_context
 from .shared import patched_get_functions
 
 
@@ -37,6 +39,7 @@ def patch():
     azure_functions._datadog_patch = True
 
     _w("azure.functions", "FunctionApp.get_functions", patched_get_functions)
+    patch_worker_context()
 
 
 def unpatch():
@@ -45,3 +48,4 @@ def unpatch():
     azure_functions._datadog_patch = False
 
     _u(azure_functions.FunctionApp, "get_functions")
+    unpatch_worker_context()

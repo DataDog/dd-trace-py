@@ -1,0 +1,11 @@
+_v: 1
+name: elevenlabs
+display_name: ElevenLabs
+description: Instruments ElevenLabs Python Agents WebSocket conversations, capturing conversation turns, transcripts, audio, and client tool execution in LLM Observability.
+packages:
+- name: elevenlabs
+category:
+- gen_ai
+systems:
+- elevenlabs
+creation_date: '2026-10-06'

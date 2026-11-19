@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    botocore: Adds ``DD_TRACE_AWS_SDK_<SERVICE>_ENABLED`` (for example ``DD_TRACE_AWS_SDK_KINESIS_ENABLED=false``)
+    to skip instrumenting calls to a specific AWS service, matching the variables supported by dd-trace-js.
+fixes:
+  - |
+    botocore: Fixes Kinesis trace context injection pushing a record over the 1 MiB limit. The size check now
+    counts the UTF-8 bytes of the data plus the partition key, as dd-trace-js does.

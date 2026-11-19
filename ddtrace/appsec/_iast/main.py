@@ -88,6 +88,8 @@ def patch_iast():
         # SQL sanitizers
         iast_funcs.wrap_function("mysql.connector.conversion", "MySQLConverter.escape", sqli_sanitizer)
         iast_funcs.wrap_function("pymysql.connections", "Connection.escape_string", sqli_sanitizer)
+        # PyMySQL 1.2.1 dropped Connection.escape_string; the implementation is _escape_string.
+        iast_funcs.wrap_function("pymysql.connections", "Connection._escape_string", sqli_sanitizer)
         iast_funcs.wrap_function("pymysql.converters", "escape_string", sqli_sanitizer)
 
         # Header Injection sanitizers

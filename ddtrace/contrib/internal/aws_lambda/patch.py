@@ -116,7 +116,7 @@ class TimeoutChannel:
         self._remove_alarm_signal()
 
 
-class DatadogInstrumentation(object):
+class DatadogInstrumentation:
     """Patches an AWS Lambda handler function for Datadog instrumentation."""
 
     def __call__(self, func, args, kwargs):

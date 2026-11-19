@@ -1,13 +1,12 @@
 import ipaddress
 import logging
 import re
+from typing import Union
 from urllib import parse
 
-from ddtrace import config
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.ext import net
-from ddtrace.internal.constants import USER_AGENT_HEADER
-from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
+from ddtrace.internal.constants import OTLP_GRPC_EXPORT_METHODS
 
 
 log = logging.getLogger(__name__)
@@ -113,14 +112,8 @@ def _parse_rpc_repr_string(rpc_string, module):
     return code, details
 
 
-def is_otlp_export(metadata: tuple) -> bool:
-    """Determine if a gRPC channel is submitting data to the OpenTelemetry OTLP exporter."""
-    if not (config._otel_logs_enabled or config._otel_metrics_enabled):
-        return False
-
-    for key, value in metadata:
-        if key in (USER_AGENT_HEADER, constants.GRPC_PRIMARY_USER_AGENT_OPTION):
-            normalized_value = value.lower().replace(" ", "-")
-            if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_value:
-                return True
-    return False
+def is_otlp_export(method: Union[str, bytes]) -> bool:
+    """Determine if a gRPC method submits telemetry through an OTLP export service."""
+    if isinstance(method, bytes):
+        method = method.decode()
+    return method in OTLP_GRPC_EXPORT_METHODS

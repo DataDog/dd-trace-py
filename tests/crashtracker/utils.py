@@ -1,10 +1,10 @@
 # Utility functions for testing crashtracker in subprocesses
+from collections.abc import Generator
 from contextlib import contextmanager
 import os
 import random
 import time
 from typing import Callable
-from typing import Generator
 from typing import Optional
 import uuid
 
@@ -44,12 +44,19 @@ def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional
     return ret
 
 
+def disable_core_dumps() -> None:
+    """Call in a process that is about to crash on purpose, so CI only collects cores from real crashes."""
+    import resource
+
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
 def read_files(files):
     msg = []
     for file in files:
         this_msg = ""
         if os.path.exists(file):
-            with open(file, "r") as f:
+            with open(file) as f:
                 this_msg = f.read()
         msg.append(this_msg)
     return msg

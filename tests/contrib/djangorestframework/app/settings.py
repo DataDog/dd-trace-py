@@ -15,8 +15,11 @@ DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memor
 
 SITE_ID = 1
 SECRET_KEY = "not_very_secret_in_tests"
+TIME_ZONE = "UTC"
 USE_I18N = True
 USE_L10N = True
+# Keep error-report timestamps unambiguous across daylight saving transitions.
+TIME_ZONE = "UTC"
 STATIC_URL = "/static/"
 ROOT_URLCONF = "tests.contrib.djangorestframework.app.views"
 

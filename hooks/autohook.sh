@@ -29,7 +29,7 @@
 
 
 echo() {
-    builtin echo "[Autohook] $@";
+    builtin echo "[Autohook] $*";
 }
 
 
@@ -40,20 +40,46 @@ install() {
         "post-checkout"
     )
 
-    repo_root=$(git rev-parse --show-toplevel)
-    hooks_dir="$repo_root/.git/hooks"
-    autohook_linktarget="../../hooks/autohook.sh"
+    # Remove only the old relative override before resolving Git's effective hook
+    # path. Valid custom paths such as .githooks must remain in effect.
+    drop_broken_hooks_path
+    hooks_dir=$(git rev-parse --path-format=absolute --git-path hooks)
+    mkdir -p "$hooks_dir"
+    autohook_path=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/autohook.sh
     for hook_type in "${hook_types[@]}"
     do
         hook_symlink="$hooks_dir/$hook_type"
-        ln -sf $autohook_linktarget $hook_symlink
+        if [[ -e "$hook_symlink" || -L "$hook_symlink" ]]
+        then
+            rm -f "$hook_symlink"
+        fi
+        ln -s "$autohook_path" "$hook_symlink"
+    done
+}
+
+
+# Unset the old relative core.hooksPath value from repo/worktree config.
+drop_broken_hooks_path() {
+    config_files=(
+        "$(git rev-parse --path-format=absolute --git-path config)"
+        "$(git rev-parse --path-format=absolute --git-path config.worktree)"
+    )
+    for scope_file in "${config_files[@]}"
+    do
+        [[ -f "$scope_file" ]] || continue
+        if git config --file "$scope_file" --get-regexp '^core\.hookspath$' 2>/dev/null |
+            grep -Fxq 'core.hookspath .git/hooks'
+        then
+            git config --file "$scope_file" --unset-all core.hooksPath '^\.git/hooks$'
+            echo "Removed old core.hooksPath=.git/hooks from $scope_file."
+        fi
     done
 }
 
 
 main() {
-    git config --local include.path ../.gitconfig
-    calling_file=$(basename $0)
+    git config --local include.path "../.gitconfig"
+    calling_file=$(basename "$0")
 
     if [[ $calling_file == "autohook.sh" ]]
     then
@@ -70,7 +96,7 @@ main() {
         number_of_symlinks="${#files[@]}"
         if [[ $number_of_symlinks == 1 ]]
         then
-            if [[ "$(basename ${files[0]})" == "*" ]]
+            if [[ "$(basename "${files[0]}")" == "*" ]]
             then
                 number_of_symlinks=0
             fi
@@ -82,7 +108,7 @@ main() {
             failed_scripts=()
             for file in "${files[@]}"
             do
-                scriptname=$(basename $file)
+                scriptname=$(basename "$file")
                 echo "BEGIN $scriptname"
                 "$file" "$@"
                 script_exit_code="$?"

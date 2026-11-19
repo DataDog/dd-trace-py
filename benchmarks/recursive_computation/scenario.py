@@ -1,6 +1,6 @@
+from collections.abc import Generator
 import time
 from typing import Callable
-from typing import Generator
 
 import bm
 import bm.utils as utils

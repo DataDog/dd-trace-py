@@ -21,6 +21,7 @@ mod library_config;
 mod log;
 #[cfg(target_os = "linux")]
 mod otel_thread_ctx;
+mod packages;
 mod process_metrics;
 mod py_string;
 mod rand;
@@ -70,15 +71,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     #[cfg(target_os = "linux")]
     {
-        m.add_wrapped(wrap_pyfunction!(
-            otel_thread_ctx::update_otel_thread_context_from_span
-        ))?;
-        m.add_wrapped(wrap_pyfunction!(
-            otel_thread_ctx::update_otel_thread_context_from_context
-        ))?;
-        m.add_wrapped(wrap_pyfunction!(
-            otel_thread_ctx::detach_otel_thread_context
-        ))?;
+        m.add_wrapped(wrap_pyfunction!(otel_thread_ctx::sync_otel_thread_context))?;
     }
     shared_runtime::register_shared_runtime(m)?;
     remote_config::register_remote_config(m)?;
@@ -94,6 +87,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     context_provider::register_context_provider(m)?;
     rand::register_rand(m)?;
     process_metrics::register_process_metrics(m)?;
+    packages::register_packages(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;

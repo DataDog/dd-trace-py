@@ -428,7 +428,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            const TaintRangeRefs& source_ranges,
                            const py::list& split_result,
                            bool include_separator,
-                           size_t context_id)
+                           std::uint64_t context_id)
 {
     CHECK_IAST_INITIALIZED_OR_RETURN(false);
 

@@ -42,6 +42,34 @@ def test_registry_pending():
     assert all(p not in registry for p in unreg_probes)
 
 
+def test_registry_reset_pending():
+    probes = [create_snapshot_line_probe(probe_id=i, source_file=__file__, line=i) for i in range(4)]
+
+    registry = ProbeRegistry(DummyProbeStatusLogger("test"))
+    registry.register(*probes)
+
+    installed_probes, pending_probes = probes[:3], probes[3:]
+    for probe in installed_probes:
+        registry.set_installed(probe)
+    # Installing a probe more than once must not track it more than once
+    registry.set_installed(installed_probes[0])
+    registry.set_emitting(installed_probes[0])
+
+    # An unregistered installed probe must not come back as pending
+    registry.unregister(installed_probes[2])
+
+    registry.reset_pending(__file__)
+
+    assert registry.get_pending(__file__) == pending_probes + installed_probes[:2]
+    assert not any(registry[p.probe_id].installed for p in installed_probes[:2])
+    # A reset probe must not report as emitting until it does so again
+    assert not registry[installed_probes[0].probe_id].emitting
+
+    # Nothing is installed any longer, so a further reset is a no-op
+    registry.reset_pending(__file__)
+    assert registry.get_pending(__file__) == pending_probes + installed_probes[:2]
+
+
 def test_registry_location_error():
     status_logger = DummyProbeStatusLogger("test")
     registry = ProbeRegistry(status_logger)

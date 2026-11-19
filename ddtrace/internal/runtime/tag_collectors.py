@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ddtrace.internal.runtime import get_runtime_id
 
 from ...constants import ENV_KEY
@@ -12,9 +14,9 @@ from .constants import SERVICE
 from .constants import TRACER_VERSION
 
 
-class RuntimeTagCollector(ValueCollector):
+class RuntimeTagCollector(ValueCollector[tuple[str, str]]):
     periodic = False
-    value = []  # type: list[tuple[str, str]]
+    value: Optional[list[tuple[str, str]]] = []
 
 
 class TracerTagCollector(RuntimeTagCollector):
@@ -22,8 +24,8 @@ class TracerTagCollector(RuntimeTagCollector):
 
     required_modules = ["ddtrace"]
 
-    def collect_fn(self, keys):
-        ddtrace = self.modules.get("ddtrace")
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, str]]:
+        ddtrace = self.modules["ddtrace"]
 
         service = DEFAULT_SERVICE_NAME
         if ddtrace.config.service:
@@ -63,9 +65,9 @@ class PlatformTagCollector(RuntimeTagCollector):
 
     required_modules = ["platform", "ddtrace.version"]
 
-    def collect_fn(self, keys):
-        platform = self.modules.get("platform")
-        version = self.modules.get("ddtrace.version")
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, str]]:
+        platform = self.modules["platform"]
+        version = self.modules["ddtrace.version"]
         tags = [
             (LANG, "python"),
             (LANG_INTERPRETER, platform.python_implementation()),
@@ -91,16 +93,18 @@ class PlatformTagCollectorV2(PlatformTagCollector):
     - ``runtime-id`` e.g. `e4724609efa84cf58424a8b1ef44b17d`
     """
 
-    def collect_fn(self, keys):
-        tags = super(PlatformTagCollectorV2, self).collect_fn(keys)
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, str]]:
+        tags = super().collect_fn(keys)
         tags.append(("runtime-id", get_runtime_id()))
         return tags
 
 
-class ProcessTagCollector(RuntimeTagCollector):
+class ProcessTagCollector(ValueCollector[str]):
     """Tag collector for process tags."""
 
-    def collect_fn(self, keys):
+    value: Optional[list[str]] = []
+
+    def collect_fn(self, keys: Optional[set[str]]) -> list[str]:
         # DEV: we do not access direct process_tags_list so we can
         # reload it in the tests
         process_tags_list = process_tags.process_tags_list

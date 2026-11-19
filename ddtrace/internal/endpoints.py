@@ -1,8 +1,8 @@
+from collections.abc import Sequence
 import dataclasses
 from time import monotonic
 from typing import Callable
 from typing import Optional
-from typing import Sequence
 
 
 @dataclasses.dataclass(frozen=True)
@@ -37,7 +37,7 @@ class Singleton(type):
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+            cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
 
