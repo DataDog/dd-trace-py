@@ -11,7 +11,7 @@ from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import BAGGAGE_AGENT_NAME_MAX_LENGTH
+from ddtrace.llmobs._constants import BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES
 from ddtrace.llmobs._constants import BAGGAGE_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import BAGGAGE_ML_APP_KEY
 from ddtrace.llmobs._constants import BAGGAGE_PARENT_AGENT_ID_KEY
@@ -1139,15 +1139,72 @@ def test_inject_does_not_leak_stale_baggage_between_calls(llmobs):
     assert BAGGAGE_PARENT_AGENT_NAME_KEY not in _extract_baggage(headers)
 
 
-def test_inject_baggage_caps_agent_name(llmobs):
-    """The agent name is the only arbitrary-length value in the set; it cannot be unbounded."""
-    long_name = "a" * (BAGGAGE_AGENT_NAME_MAX_LENGTH + 500)
-    with llmobs.agent(name=long_name) as agent_span:
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("a" * 600, "a" * BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES),
+        # Each emoji percent-encodes to 12 bytes, so 10 fit in 128.
+        ("\U0001f600" * 600, "\U0001f600" * 10),
+    ],
+)
+def test_inject_baggage_caps_agent_name_by_encoded_bytes(llmobs, name, expected):
+    """The cap counts encoded bytes, which is what the baggage budget counts, and never splits a character."""
+    with llmobs.agent(name=name) as agent_span:
         headers = {}
         HTTPPropagator.inject(agent_span.context, headers)
     baggage = _extract_baggage(headers)
-    assert baggage[BAGGAGE_PARENT_AGENT_NAME_KEY] == "a" * BAGGAGE_AGENT_NAME_MAX_LENGTH
+    assert baggage[BAGGAGE_PARENT_AGENT_NAME_KEY] == expected
     assert baggage[BAGGAGE_PARENT_AGENT_ID_KEY] == str(agent_span.span_id)
+
+
+def test_inject_skips_an_oversized_llmobs_value_and_keeps_the_rest(llmobs):
+    """An oversized value would stop the encoder and drop every item after it, so it is not sent."""
+    with llmobs.workflow("w", session_id="s" * 9000) as span:
+        span.context.set_baggage_item("tenant", "acme")
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    baggage = _extract_baggage(headers)
+    assert BAGGAGE_SESSION_ID_KEY not in baggage
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+    assert "llmobs.sampling_decision" in baggage
+    assert baggage["tenant"] == "acme"
+
+
+@pytest.mark.parametrize("kwargs", [{"session_id": " "}, {"ml_app": " "}])
+def test_inject_skips_blank_llmobs_values(llmobs, kwargs):
+    """An empty member makes the receiving extractor reject the whole header, user baggage included."""
+    with llmobs.workflow("w", **kwargs) as span:
+        span.context.set_baggage_item("tenant", "acme")
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    baggage = _extract_baggage(headers)
+    assert baggage["tenant"] == "acme"
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+
+
+def test_inject_skips_a_blank_agent_name(llmobs):
+    with llmobs.agent(name=" ") as agent_span:
+        agent_span.context.set_baggage_item("tenant", "acme")
+        headers = {}
+        HTTPPropagator.inject(agent_span.context, headers)
+    baggage = _extract_baggage(headers)
+    assert baggage["tenant"] == "acme"
+    assert BAGGAGE_PARENT_AGENT_NAME_KEY not in baggage
+    assert baggage[BAGGAGE_PARENT_AGENT_ID_KEY] == str(agent_span.span_id)
+
+
+def test_llmobs_items_come_first_at_the_item_limit(llmobs):
+    """At the 64-item limit the llmobs.* items are kept and the last application items are dropped."""
+    with llmobs.workflow("w") as span:
+        for i in range(64):
+            span.context.set_baggage_item("app%d" % i, "v")
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    baggage = _extract_baggage(headers)
+    llmobs_keys = [k for k in baggage if k.startswith("llmobs.")]
+    assert {BAGGAGE_PARENT_ID_KEY, BAGGAGE_LLMOBS_TRACE_ID_KEY} <= set(llmobs_keys)
+    assert len(baggage) == 64
+    assert [k for k in baggage if k.startswith("app")] == ["app%d" % i for i in range(64 - len(llmobs_keys))]
 
 
 def test_llmobs_context_survives_dropped_apm_trace_headers(llmobs, llmobs_events):
@@ -1256,14 +1313,44 @@ def test_inject_without_llmobs_context_sends_no_llmobs_baggage(llmobs):
     assert not [k for k in _extract_baggage(headers) if k.startswith("llmobs.")]
 
 
-def test_inject_replaces_caller_baggage_header_inside_llmobs_span(llmobs):
-    """Same rule as for context baggage: when ddtrace has items to send, it writes the header."""
+def test_inject_merges_caller_baggage_header_inside_llmobs_span(llmobs):
+    """The caller's members are kept after ours, verbatim, so W3C properties survive."""
+    headers = {"baggage": "tenant=a;scope=internal,llmobs.parent_id=1"}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert headers["baggage"].endswith(",tenant=a;scope=internal")
+    assert headers["baggage"].count("llmobs.parent_id=") == 1
+    assert _extract_baggage(headers)[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+
+
+def test_inject_merges_caller_baggage_header_with_capitalized_key(llmobs):
+    headers = {"Baggage": "tenant=acme"}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert [k for k in headers if k.lower() == "baggage"] == ["baggage"]
+    baggage = _extract_baggage(headers)
+    assert baggage["tenant"] == "acme"
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+
+
+def test_reused_headers_drop_stale_llmobs_baggage(llmobs):
+    """A dict reused after an LLMObs injection must not carry the earlier request's parent."""
+    headers = {}
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert BAGGAGE_PARENT_ID_KEY in _extract_baggage(headers)
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert "baggage" not in headers
+
+
+def test_reused_headers_keep_caller_baggage_and_drop_stale_llmobs_baggage(llmobs):
     headers = {"baggage": "tenant=a"}
     with llmobs.workflow("w") as span:
         HTTPPropagator.inject(span.context, headers)
-    baggage = _extract_baggage(headers)
-    assert "tenant" not in baggage
-    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        HTTPPropagator.inject(span.context, headers)
+    assert headers["baggage"] == "tenant=a"
 
 
 def test_inject_context_baggage_wins_over_caller_header(llmobs):
@@ -1575,3 +1662,64 @@ def test_inject_without_llmobs_context_leaves_caller_baggage_header_untouched(ll
         headers = {"baggage": "tenant=a;scope=internal"}
         HTTPPropagator.inject(span.context, headers)
     assert headers["baggage"] == "tenant=a;scope=internal"
+
+
+def _tags_and_baggage_context(baggage_trace_id, tag_parent="111", baggage_parent="111"):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID, parent_id=tag_parent)
+    ctx.set_baggage_item(BAGGAGE_PARENT_ID_KEY, baggage_parent)
+    if baggage_trace_id is not None:
+        ctx.set_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY, baggage_trace_id)
+    return ctx
+
+
+@pytest.mark.parametrize("bad", ["-1", "a" * 33, "1" * 42, "0" * 32 + "1", "0123", "ABCDEF0123456789ABCDEF0123456789"])
+def test_activate_falls_back_to_the_tag_trace_id_when_baggage_is_not_canonical(llmobs, bad):
+    llmobs._instance._activate_llmobs_distributed_context({}, _tags_and_baggage_context(bad))
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == "111"
+        assert get_llmobs_trace_id(span) == _HEX_TRACE_ID
+
+
+def test_activate_falls_back_to_the_apm_trace_id_when_baggage_alone_is_not_canonical(llmobs):
+    ctx = _extract_baggage_only_context("-1", parent_id="111")
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == "111"
+        assert get_llmobs_trace_id(span) != "-1"
+
+
+def test_activate_accepts_a_64_bit_decimal_baggage_trace_id(llmobs):
+    ctx = _extract_baggage_only_context("12345", parent_id="111")
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_trace_id(span) == "12345"
+
+
+def test_activate_fills_fields_missing_from_baggage_from_matching_tags(llmobs):
+    ctx = _tags_and_baggage_context(_HEX_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_sample_rate(span) == "0.5"
+        assert get_llmobs_sampling_decision(span) == "0"
+
+
+def test_activate_prefers_baggage_values_over_matching_tags(llmobs):
+    ctx = _tags_and_baggage_context(_HEX_TRACE_ID)
+    ctx._meta[PROPAGATED_SESSION_ID_KEY] = "from-tags"
+    ctx.set_baggage_item(BAGGAGE_SESSION_ID_KEY, "from-baggage")
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_session_id(span) == "from-baggage"
+
+
+def test_activating_empty_headers_clears_the_previous_request_context(llmobs):
+    """Two requests in sequence on one thread: the second, with no LLMObs context, starts a new trace."""
+    with llmobs.workflow("first") as first:
+        headers = llmobs.inject_distributed_headers({}, span=first)
+    llmobs.activate_distributed_headers(headers)
+    llmobs.activate_distributed_headers({})
+    with llmobs.workflow("second") as second:
+        assert get_llmobs_parent_id(second) == ROOT_PARENT_ID
+        assert get_llmobs_trace_id(second) != get_llmobs_trace_id(first)

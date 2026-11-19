@@ -927,37 +927,75 @@ class _BaggageHeader:
         return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
 
     @staticmethod
+    def _caller_members(
+        headers: dict[str, str], extra_items: dict[str, Optional[str]], written_keys: dict[str, str]
+    ) -> tuple[Optional[str], list[str]]:
+        """Find a baggage header the caller already set, and return its key and the members to keep.
+
+        Members stay as raw text, so W3C properties survive. A member is dropped when this request
+        owns its key (request-scoped keys, such as stale items from an earlier injection into a
+        reused dict) or when the key is already written from the context.
+        """
+        existing_key = next((k for k in headers if isinstance(k, str) and k.lower() == _HTTP_HEADER_BAGGAGE), None)
+        if existing_key is None or not headers[existing_key]:
+            return existing_key, []
+        members = []
+        for member in str(headers[existing_key]).split(BAGGAGE_DELIMITER):
+            member = member.strip()
+            name, sep, _ = member.partition("=")
+            key = urllib.parse.unquote(name.strip())
+            if not sep or not key or key in extra_items or key in written_keys:
+                continue
+            members.append(member)
+        return existing_key, members
+
+    @staticmethod
     def _inject(
         span_context: Context, headers: dict[str, str], extra_items: Optional[dict[str, Optional[str]]] = None
     ) -> None:
         """Encode the context's baggage into the ``baggage`` header.
 
         ``extra_items`` apply to this request only and are never written to the (trace-shared)
-        context. They go first so they survive truncation, win on a key collision, and a ``None``
-        value drops that key from the header.
+        context. A ``None`` value drops that key from the header.
+
+        With ``extra_items``, the header is built in this order, and the item and byte limits cut from
+        the end: the non-``None`` extra items, then the context's items, then the members of a baggage
+        header the caller already set. So the extra items survive truncation and win on a key
+        collision, and the caller's members are kept instead of replaced.
         """
         # The merge iterates the trace-shared _baggage, which another thread can mutate, so it stays
         # inside the guard: baggage propagation is best-effort and must never fail the request.
         try:
+            existing_key: Optional[str] = None
+            caller_members: list[str] = []
             if extra_items:
                 merged = {k: v for k, v in extra_items.items() if v is not None}
                 merged.update((k, v) for k, v in span_context._baggage.items() if k not in extra_items)
+                existing_key, caller_members = _BaggageHeader._caller_members(headers, extra_items, merged)
                 baggage_items = merged.items()
             else:
                 baggage_items = span_context._baggage.items()
-            if not baggage_items:
+            if not baggage_items and not caller_members:
+                if existing_key is not None:
+                    # Only request-scoped members were left in the caller's header.
+                    del headers[existing_key]
                 return
 
-            if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+            if len(baggage_items) + len(caller_members) > DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning("Baggage item limit exceeded, dropping excess items")
                 # Record telemetry for baggage item count exceeding limit
                 _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
-                baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
+            encoded = itertools.chain(
+                (
+                    f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
+                    for key, value in baggage_items
+                ),
+                caller_members,
+            )
             encoded_items: list[str] = []
             total_size = 0
-            for key, value in baggage_items:
-                item = f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
+            for item in itertools.islice(encoded, DD_TRACE_BAGGAGE_MAX_ITEMS):
                 item_size = len(item.encode("utf-8")) + (1 if encoded_items else 0)  # +1 for comma if not first item
                 if total_size + item_size > DD_TRACE_BAGGAGE_MAX_BYTES:
                     log.warning("Baggage header size exceeded, dropping excess items")
@@ -968,6 +1006,8 @@ class _BaggageHeader:
                 total_size += item_size
 
             header_value = ",".join(encoded_items)
+            if existing_key is not None and existing_key != _HTTP_HEADER_BAGGAGE:
+                del headers[existing_key]
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
             # Record telemetry for successful baggage injection

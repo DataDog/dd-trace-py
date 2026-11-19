@@ -68,7 +68,11 @@ BAGGAGE_SAMPLING_DECISION_KEY = "llmobs.sampling_decision"
 BAGGAGE_PARENT_AGENT_ID_KEY = "llmobs.parent_agent_span_id"
 BAGGAGE_PARENT_AGENT_NAME_KEY = "llmobs.parent_agent_name"
 
-BAGGAGE_AGENT_NAME_MAX_LENGTH = 512
+# Limits on encoded (percent-escaped) bytes, because that is what the 8192-byte baggage budget counts.
+# The agent name is truncated to its limit. Any other value over its limit is not sent: one oversized
+# value would otherwise stop the encoder and drop every item after it.
+BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES = 128
+BAGGAGE_VALUE_MAX_ENCODED_BYTES = 512
 
 # Process-local slot for the canonical hex LLMObs trace ID on an LLMObs parent Context. Not
 # `_dd.p.`-prefixed, so it is never injected. Local reads use this, never `llmobs.*` baggage:

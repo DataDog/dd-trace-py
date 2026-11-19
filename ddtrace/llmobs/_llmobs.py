@@ -6,6 +6,7 @@ from dataclasses import field
 import functools
 import inspect
 import math
+import re
 import sys
 import time
 from typing import Any
@@ -35,6 +36,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -60,7 +62,7 @@ from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
-from ddtrace.llmobs._constants import BAGGAGE_AGENT_NAME_MAX_LENGTH
+from ddtrace.llmobs._constants import BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES
 from ddtrace.llmobs._constants import BAGGAGE_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import BAGGAGE_ML_APP_KEY
 from ddtrace.llmobs._constants import BAGGAGE_PARENT_AGENT_ID_KEY
@@ -69,6 +71,7 @@ from ddtrace.llmobs._constants import BAGGAGE_PARENT_ID_KEY
 from ddtrace.llmobs._constants import BAGGAGE_SAMPLE_RATE_KEY
 from ddtrace.llmobs._constants import BAGGAGE_SAMPLING_DECISION_KEY
 from ddtrace.llmobs._constants import BAGGAGE_SESSION_ID_KEY
+from ddtrace.llmobs._constants import BAGGAGE_VALUE_MAX_ENCODED_BYTES
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
@@ -242,6 +245,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.version import __version__
 
 
@@ -394,6 +398,46 @@ class LLMObsSubmitEvaluationError(Exception):
     """Error raised when submitting an evaluation."""
 
     pass
+
+
+_CANONICAL_HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _is_canonical_trace_id(value: str) -> bool:
+    """Whether value is in the form format_trace_id produces, which the baggage contract requires:
+    32 lowercase hex characters, or a decimal number from 1 to 2**64 - 1 without leading zeros.
+    """
+    if _CANONICAL_HEX_TRACE_ID_RE.match(value):
+        return True
+    return value.isdigit() and value[0] != "0" and int(value) <= MAX_UINT_64BITS
+
+
+def _encoded_baggage_size(value: str) -> int:
+    return len(urllib.parse.quote(value, safe=_BaggageHeader.SAFE_CHARACTERS_VALUE))
+
+
+def _truncate_to_encoded_bytes(value: str, max_bytes: int) -> str:
+    """Cut value at a code point boundary so that it percent-encodes to at most max_bytes."""
+    size = 0
+    for index, char in enumerate(value):
+        size += _encoded_baggage_size(char)
+        if size > max_bytes:
+            return value[:index]
+    return value
+
+
+def _baggage_value(value: object) -> Optional[str]:
+    """The string to send for one llmobs.* baggage item, or None to not send it.
+
+    A blank value is not sent: the encoder strips it to nothing, and an empty member makes the
+    receiving extractor reject the whole header. An oversized value is not sent either.
+    """
+    if value is None:
+        return None
+    text = str(value)
+    if not text.strip() or _encoded_baggage_size(text.strip()) > BAGGAGE_VALUE_MAX_ENCODED_BYTES:
+        return None
+    return text
 
 
 class LLMObsInjectDistributedHeadersError(Exception):
@@ -3875,13 +3919,15 @@ class LLMObs(Service):
             BAGGAGE_SAMPLING_DECISION_KEY: span_context._meta.get(PROPAGATED_SAMPLING_DECISION),
             BAGGAGE_PARENT_AGENT_ID_KEY: parent_agent_span_id,
             BAGGAGE_PARENT_AGENT_NAME_KEY: (
-                parent_agent_name[:BAGGAGE_AGENT_NAME_MAX_LENGTH] if parent_agent_name is not None else None
+                _truncate_to_encoded_bytes(parent_agent_name, BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES)
+                if parent_agent_name is not None
+                else None
             ),
         }
         # None drops the key from this request, so inbound `llmobs.*` items are never forwarded
         # alongside (or instead of) ours. Without an LLMObs context there is nothing to send.
         for baggage_key, value in baggage_values.items():
-            extra_baggage[baggage_key] = str(value) if active_context is not None and value is not None else None
+            extra_baggage[baggage_key] = _baggage_value(value) if active_context is not None else None
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
@@ -3945,10 +3991,17 @@ class LLMObs(Service):
             if cls.enabled is False:
                 return
             carrier, carrier_decision = cls._select_propagated_carrier(context)
+            # Both carriers name the same parent, so one hop wrote them and a field missing from
+            # baggage can come from the tags.
+            tags_match = carrier == "baggage" and context._meta.get(
+                PROPAGATED_PARENT_ID_KEY
+            ) == context.get_baggage_item(BAGGAGE_PARENT_ID_KEY)
             if carrier == "baggage":
 
                 def read(propagated_key: str) -> Optional[str]:
                     value = context.get_baggage_item(PROPAGATED_KEY_TO_BAGGAGE_KEY[propagated_key])
+                    if value is None and tags_match:
+                        return context._meta.get(propagated_key)
                     return str(value) if value is not None else None
 
             else:
@@ -3960,22 +4013,29 @@ class LLMObs(Service):
             if _parent_id is None or _parent_id == ROOT_PARENT_ID:
                 error = "missing_parent_id"
                 log.debug("Failed to extract LLMObs parent ID from request headers.")
+                # A request without LLMObs context starts a new trace: clear the context an earlier
+                # request on this thread or task activated, so it is not taken as the parent.
+                cls._instance._llmobs_context_provider.activate(None)
                 return
             try:
                 parent_id = int(_parent_id)
             except ValueError:
                 error = "invalid_parent_id"
                 log.warning("Failed to parse LLMObs parent ID from request headers.")
+                cls._instance._llmobs_context_provider.activate(None)
                 return
-            # Read explicitly, not through read(): baggage carries canonical hex, the tag carries decimal.
-            hex_llmobs_trace_id = (
-                context.get_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY) if carrier == "baggage" else None
-            )
+            # Read explicitly, not through read(): baggage carries the canonical form, the tag carries decimal.
+            hex_llmobs_trace_id = None
+            if carrier == "baggage":
+                hex_llmobs_trace_id = context.get_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY)
+                if hex_llmobs_trace_id is not None and not _is_canonical_trace_id(hex_llmobs_trace_id):
+                    log.debug("Ignoring a non-canonical LLMObs trace ID in baggage: %r", hex_llmobs_trace_id)
+                    hex_llmobs_trace_id = None
             if hex_llmobs_trace_id is not None:
                 parent_llmobs_trace_id = _trace_id_to_wire(hex_llmobs_trace_id)
             else:
                 parent_llmobs_trace_id = (
-                    context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) if carrier == "tags" else None
+                    context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) if carrier == "tags" or tags_match else None
                 )
             if parent_llmobs_trace_id is None:
                 error = "missing_parent_llmobs_trace_id"

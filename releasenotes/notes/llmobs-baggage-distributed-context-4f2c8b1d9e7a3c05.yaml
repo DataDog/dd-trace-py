@@ -4,10 +4,15 @@ features:
     LLM Observability: distributed LLMObs context is now also propagated in the W3C ``baggage``
     header under the ``llmobs.*`` namespace, in addition to the existing ``_dd.p.llmobs_*`` tags.
     Since baggage propagates independently of APM trace identity, LLMObs traces are no longer
-    fragmented by a hop that drops the APM headers. Both carriers are read, so this is
-    backwards compatible with older tracer versions. This requires ``baggage`` in
+    fragmented by a hop that drops the APM headers. Both carriers are read, so this works with
+    older tracer versions, with one limitation: when a service on an older tracer sits between two
+    services on this version and a later hop drops the APM headers, the receiver continues from the
+    first service and leaves out the older one. This requires ``baggage`` in
     ``DD_TRACE_PROPAGATION_STYLE`` (the default). With
-    ``DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT=restart``, inbound LLMObs baggage is ignored.
+    ``DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT=restart``, inbound LLMObs baggage is ignored. The LLMObs
+    items go first in the header and use up to 8 of the 64 baggage items, so at the item limit the
+    last application items are dropped. A baggage header that the application already set on the
+    request is kept and merged.
 upgrade:
   - |
     LLM Observability: ``LLMObs.activate_distributed_headers()`` no longer raises an exception when the
