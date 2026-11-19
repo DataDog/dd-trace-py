@@ -190,7 +190,9 @@ class BackendConnectorSetup(BackendConnectorSetupProtocol):
         """
         if agentless_config.ci_visibility:
             log.debug("Connecting to backend in agentless mode")
-            return cls._detect_agentless_setup(api_key_override=env.get("_CI_DD_API_KEY"))
+            return cls._detect_agentless_setup(
+                api_key_override=env.get("_CI_DD_API_KEY"), site_override=env.get("_CI_DD_SITE")
+            )
 
         else:
             log.debug("Connecting to backend through agent in EVP proxy mode")
@@ -213,11 +215,13 @@ class BackendConnectorSetup(BackendConnectorSetupProtocol):
             return cls._detect_evp_proxy_setup()
 
     @classmethod
-    def _detect_agentless_setup(cls, *, api_key_override: t.Optional[str] = None) -> BackendConnectorSetup:
+    def _detect_agentless_setup(
+        cls, *, api_key_override: t.Optional[str] = None, site_override: t.Optional[str] = None
+    ) -> BackendConnectorSetup:
         """
         Detect settings for agentless backend connection mode.
         """
-        site = env.get("DD_SITE") or DEFAULT_SITE
+        site = site_override or env.get("DD_SITE") or DEFAULT_SITE
         api_key = api_key_override or env.get("DD_API_KEY")
 
         if not api_key:
@@ -460,6 +464,7 @@ class BackendConnector(threading.local):
         is_json_response: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
+        expected_status_codes: tuple[int, ...] = (),
     ) -> BackendResult:
         attempts_so_far = 0
 
@@ -496,7 +501,12 @@ class BackendConnector(threading.local):
                 break
 
         if result.error_type:
-            log.warning(
+            log_error = (
+                log.debug
+                if result.response is not None and result.response.status_code in expected_status_codes
+                else log.warning
+            )
+            log_error(
                 "Request %s %s failed after %d attempt(s): %s", method, path, attempts_so_far, result.error_description
             )
 
@@ -613,6 +623,7 @@ class NoOpBackendConnector:
         is_json_response: bool = False,
         telemetry: t.Any = None,
         max_attempts: int = 1,
+        expected_status_codes: tuple[int, ...] = (),
     ) -> BackendResult:
         log.debug("NoOp connector: skipping %s %s in offline mode", method, path)
         return BackendResult()

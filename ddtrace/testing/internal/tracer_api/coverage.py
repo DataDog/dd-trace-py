@@ -44,6 +44,10 @@ def uninstall_coverage() -> None:
     ModuleCodeCollector.uninstall()
 
 
+def is_coverage_installed() -> bool:
+    return ModuleCodeCollector.is_installed()
+
+
 @functools.lru_cache(maxsize=65536)
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
     relative = relative_path(Path(absolute_path), Path(relative_to))
@@ -59,6 +63,14 @@ class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
         self._covered_file_paths: t.Optional[t.Iterable[str]] = None
+
+    def get_covered_files(self, relative_to: Path) -> t.Iterable[str]:
+        relative_to_str = resolved_path(str(relative_to))
+        paths = self._covered_file_paths if self._covered_file_paths is not None else self._covered_lines or {}
+        for absolute_path in paths:
+            relative = _relative_coverage_path(absolute_path, relative_to_str)
+            if relative is not None:
+                yield Path(relative).as_posix()
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         # Canonicalize the workspace: instrumentation records covered paths under
@@ -95,6 +107,16 @@ def coverage_collection(
             coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()
         else:
             coverage_data._covered_lines = coverage_collector.get_covered_lines()
+
+
+def coverage_for_files(files: t.Iterable[Path]) -> CoverageData:
+    """Expand file roots through the collector's recorded import-time dependencies."""
+    with ModuleCodeCollector.CollectInContext() as collector:
+        for path in files:
+            collector.anchor_file(resolved_path(str(path)))
+    data = CoverageData()
+    data._covered_file_paths = collector.get_covered_file_paths()
+    return data
 
 
 def install_coverage_percentage():

@@ -2,6 +2,7 @@
 
 import contextlib
 from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import patch
 
 import pytest
@@ -1209,3 +1210,35 @@ class TestGitShallowBoundary:
 
         with patch.object(git, "_git_output", return_value=""):
             assert git.get_shallow_boundary() is None
+
+
+class TestGitTIA:
+    def test_recent_history_has_no_date_cutoff(self):
+        commits = [f"{index:040x}" for index in range(20)]
+        with patch.object(Git, "_call_git") as call_git:
+            call_git.return_value = Mock(return_code=0, stdout="\n".join(commits))
+            assert Git().get_tia_commits() == commits
+            call_git.assert_called_once_with(["rev-list", "--max-count=20", "HEAD"])
+
+    def test_diff_includes_both_rename_paths_and_untracked_paths(self):
+        with patch.object(Git, "_call_git") as call_git:
+            call_git.side_effect = [
+                Mock(return_code=0, stdout="old.py\0new.py\0 leading space.py\0line\nbreak.py\0"),
+                Mock(return_code=0, stdout="untracked.py\0"),
+            ]
+            assert Git().get_tia_changed_files("a" * 40) == {
+                "old.py",
+                "new.py",
+                " leading space.py",
+                "line\nbreak.py",
+                "untracked.py",
+            }
+            assert call_git.call_args_list[0] == call(
+                ["diff", "--name-only", "--no-renames", "-z", "a" * 40, "--"], strip_output=False
+            )
+
+    def test_diff_failure_is_unknown(self):
+        with patch.object(Git, "_call_git", return_value=Mock(return_code=128, stdout="")):
+            assert Git().get_tia_changed_files("a" * 40) is None
+            assert Git().get_tia_commits() == []
+            assert not Git().is_tia_worktree_clean()
