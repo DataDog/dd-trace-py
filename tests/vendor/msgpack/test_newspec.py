@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from msgpack import unpackb
 
 from ddtrace.internal._encoding import packb

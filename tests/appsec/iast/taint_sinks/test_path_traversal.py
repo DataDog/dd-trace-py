@@ -1,5 +1,7 @@
 import os
+import tarfile
 from unittest import mock
+from zipfile import ZipFile
 
 import pytest
 
@@ -131,8 +133,8 @@ def test_path_traversal(module, function, iast_context_defaults, ensure_test_fil
         file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
     )
 
-    path = "path_{}_{}".format(module, function)
-    getattr(mod, "path_{}_{}".format(module, function))(tainted_string)
+    path = f"path_{module}_{function}"
+    getattr(mod, f"path_{module}_{function}")(tainted_string)
     line, hash_value = get_line_and_hash(path, VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH)
 
     data = _get_iast_data()
@@ -192,3 +194,57 @@ def test_path_traversal_non_text_types_no_vulnerability(non_text_obj, obj_type, 
     # Assert no vulnerability was reported
     span_report = get_iast_reporter()
     assert span_report is None, f"Vulnerability reported for {obj_type}: {non_text_obj}"
+
+
+@pytest.mark.parametrize(
+    "function",
+    (
+        "open",
+        "os_remove",
+        "os_rename",
+        "os_mkdir",
+        "os_listdir",
+        "shutil_copy",
+        "shutil_rmtree",
+        "glob_glob",
+        "tarfile_open",
+        "zipfile_ZipFile",
+    ),
+)
+def test_path_traversal_path_passed_by_keyword(function, iast_context_defaults, ensure_test_file, tmp_path):
+    """Passing the path by keyword must report the same vulnerability as passing it positionally."""
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
+
+    if function in {"os_listdir", "shutil_rmtree", "os_mkdir"}:
+        directory = tmp_path / "keyword-directory"
+        if function != "os_mkdir":
+            directory.mkdir()
+        file_path = str(directory)
+    elif function == "tarfile_open":
+        file_path = str(tmp_path / "keyword.tar")
+        with tarfile.open(file_path, mode="w"):
+            pass
+    elif function == "zipfile_ZipFile":
+        file_path = str(tmp_path / "keyword.zip")
+        with ZipFile(file_path, mode="w"):
+            pass
+    else:
+        file_path = ensure_test_file
+
+    tainted_string = taint_pyobject(
+        file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
+    )
+
+    path = f"path_kw_{function}"
+    getattr(mod, path)(tainted_string)
+    line, hash_value = get_line_and_hash(path, VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH)
+
+    data = _get_iast_data()
+    assert len(data["vulnerabilities"]) == 1
+    vulnerability = data["vulnerabilities"][0]
+    assert vulnerability["type"] == VULN_PATH_TRAVERSAL
+    assert vulnerability["location"]["path"] == FIXTURES_PATH
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == path
+    assert vulnerability["hash"] == hash_value
+    assert vulnerability["evidence"]["valueParts"] == [{"source": 0, "value": file_path}]

@@ -1,33 +1,43 @@
+from collections.abc import Collection
+from collections.abc import Iterable
 import io
 import json
 from types import TracebackType
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 from urllib.parse import urlsplit
 from urllib.parse import urlunparse
+import weakref
 
+from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
+from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT_LAYER
+from ddtrace.appsec._asm_request_context import SsrfLayer
 from ddtrace.appsec._asm_request_context import _get_asm_context
+from ddtrace.appsec._asm_request_context import _RaspSubcontextHolder
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
+from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._contrib.filesystem.patch import patch as patch_filesystem_for_appsec
 from ddtrace.appsec._contrib.filesystem.patch import unpatch as unpatch_filesystem_for_appsec
+from ddtrace.appsec._contrib.httpx.subscribers import APPSEC_SSRF_ANALYZE_BODY_KEY
 from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appsec
 from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
 from ddtrace.appsec._contrib.subprocess.patch import patch as patch_subprocess_for_appsec
 from ddtrace.appsec._contrib.subprocess.patch import unpatch as unpatch_subprocess_for_appsec
+from ddtrace.appsec._contrib.webbrowser.patch import patch as patch_webbrowser_for_appsec
+from ddtrace.appsec._contrib.webbrowser.patch import unpatch as unpatch_webbrowser_for_appsec
 from ddtrace.appsec._metrics import report_rasp_skipped
-from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.http import MediaType
+from ddtrace.internal.utils.http import classify_media_type
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
 from ddtrace.internal.wrapping.hooks import try_wrap_context
@@ -43,19 +53,24 @@ def patch_common_modules() -> None:
     if _is_patched:
         return
 
-    try_wrap_function_wrapper(
-        "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request_6D4E8B2A1F095C73
-    )
-    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
-    try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
-    try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
+    try_wrap_context("urllib3.connectionpool", "HTTPConnectionPool.urlopen", _SsrfUrllib3Urlopen)
+    try_wrap_context("urllib3.connectionpool", "HTTPConnectionPool._make_request", _SsrfUrllib3MakeRequest)
+    # Exactly one of these exists per major version: v2 moved RequestMethods to _request_methods.
+    try_wrap_context("urllib3._request_methods", "RequestMethods.request", _SsrfUrllib3Request)
+    try_wrap_context("urllib3.request", "RequestMethods.request", _SsrfUrllib3Request)
+    try_wrap_context("urllib.request", "urlopen", _SsrfUrllibUrlopen)
     try_wrap_context("urllib.request", "OpenerDirector.open", _SsrfOpenerDirectorOpen)
     try_wrap_context("http.client", "HTTPConnection.request", _SsrfHttpConnectionRequest)
     try_wrap_context("http.client", "HTTPConnection.getresponse", _SsrfHttpConnectionGetresponse)
+    try_wrap_context("aiohttp.client", "ClientSession._request", _SsrfAiohttpRequest)
+    try_wrap_context("aiohttp.connector", "BaseConnector.connect", _SsrfAiohttpConnect)
+    try_wrap_context("aiohttp.client_reqrep", "ClientResponse.start", _SsrfAiohttpResponseStart)
+    try_wrap_context("aiohttp.client_reqrep", "ClientResponse.read", _SsrfAiohttpResponseRead)
 
     patch_filesystem_for_appsec()
     patch_stripe_for_appsec()
     patch_subprocess_for_appsec()
+    patch_webbrowser_for_appsec()
 
     log.debug("Patching common modules: builtins and urllib.request")
     _is_patched = True
@@ -66,16 +81,22 @@ def unpatch_common_modules():
     if not _is_patched:
         return
 
-    try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
-    try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
-    try_unwrap("urllib3._request_methods", "RequestMethods.request")
-    try_unwrap("urllib3.request", "RequestMethods.request")
+    try_unwrap_context("urllib3.connectionpool", "HTTPConnectionPool._make_request")
+    try_unwrap_context("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
+    try_unwrap_context("urllib3._request_methods", "RequestMethods.request")
+    try_unwrap_context("urllib3.request", "RequestMethods.request")
+    try_unwrap_context("urllib.request", "urlopen")
     try_unwrap_context("urllib.request", "OpenerDirector.open")
     try_unwrap_context("http.client", "HTTPConnection.request")
     try_unwrap_context("http.client", "HTTPConnection.getresponse")
+    try_unwrap_context("aiohttp.client", "ClientSession._request")
+    try_unwrap_context("aiohttp.connector", "BaseConnector.connect")
+    try_unwrap_context("aiohttp.client_reqrep", "ClientResponse.start")
+    try_unwrap_context("aiohttp.client_reqrep", "ClientResponse.read")
     unpatch_filesystem_for_appsec()
     unpatch_stripe_for_appsec()
     unpatch_subprocess_for_appsec()
+    unpatch_webbrowser_for_appsec()
 
     log.debug("Unpatching common modules subprocess, builtins and urllib.request")
     _is_patched = False
@@ -111,6 +132,9 @@ def _parse_http_response_body(response):
 class _RaspContext(WrappingContext):
     """Base for RASP wrapping contexts: reads the wrapped call's arguments by name."""
 
+    # urllib3 v1 keeps body and headers inside these bags instead of as named parameters.
+    _VARKWARGS = ("httplib_request_kw", "urlopen_kw")
+
     def _locals(self) -> dict[str, Any]:
         """The wrapped call's locals, to read its arguments by name.
 
@@ -118,6 +142,21 @@ class _RaspContext(WrappingContext):
         universal context swallows, silently disabling the hook.
         """
         return self.__frame__.f_locals
+
+    def _arg(self, name: str, default: Any = None) -> Any:
+        """Read one parameter by name, falling back to the target's **kwargs bag.
+
+        urllib3 v1 declares _make_request as (conn, method, url, timeout, chunked,
+        **httplib_request_kw), so body and headers are not locals at all there.
+        """
+        frame_locals = self._locals()
+        if name in frame_locals:
+            return frame_locals[name]
+        for bag in self._VARKWARGS:
+            values = frame_locals.get(bag)
+            if isinstance(values, dict) and name in values:
+                return values[name]
+        return default
 
 
 class _ScopedRaspContext(_RaspContext):
@@ -155,9 +194,25 @@ class _ScopedRaspContext(_RaspContext):
             self.set("core_ctx", None)
             core_ctx.__exit__(None, None, None)
 
+    def __return__(self, value: Any) -> Any:
+        self._close_core_context()
+        return super().__return__(value)
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self._close_core_context()
+        super().__exit__(exc_type, exc_value, exc_tb)
+
 
 class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
     """RASP SSRF analysis around urllib.request.OpenerDirector.open."""
+
+    # The wrapped call's parameter holding the URL; urlopen names it differently.
+    _URL_ARGUMENT = "fullurl"
 
     def __enter__(self) -> "_SsrfOpenerDirectorOpen":
         super().__enter__()
@@ -173,18 +228,17 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
     def _handle_enter(self) -> None:
         if not get_rasp_capability("ssrf"):
             return
-        try:
-            from ddtrace.appsec._asm_request_context import should_analyze_body_response
-        except ImportError:
-            # open is used during module initialization
-            # and shouldn't be changed at that time
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
-            return
-
-        url: Any = self._locals().get("fullurl")
+        url: Any = self._locals().get(self._URL_ARGUMENT)
         if url.__class__.__name__ == "Request":
             url = url.get_full_url()
         if not (isinstance(url, str) and url):
+            return
+
+        if core.find_item("full_url") == url:
+            # An enclosing scope already owns this exact request - urlopen above us, or a
+            # requests/urllib3 wrapper - so inspecting again would issue a second SSRF_REQ call.
+            # Compare the URL, not just presence: an opener may rewrite it before delegating, and
+            # that destination is the one that has to be evaluated.
             return
 
         ctx = get_active_asm_context()
@@ -194,9 +248,9 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
 
         use_body = should_analyze_body_response(ctx)
         self.set("use_body", use_body)
-        # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
         self._open_core_context("url_open_analysis", full_url=url, use_body=use_body)
-        open_rasp_subcontext_scope()
+        # An open nested directly in a urllib open is a redirect or rewrite of that request.
+        open_rasp_subcontext_scope(SsrfLayer.URLLIB, inherit_from=(SsrfLayer.URLLIB,))
 
     def __return__(self, response: Any) -> Any:
         if self._rasp_active():
@@ -284,6 +338,16 @@ def _absolute_downstream_url(connection: Any, path: str) -> str:
         return path
 
 
+class _SsrfUrllibUrlopen(_SsrfOpenerDirectorOpen):
+    """The same analysis on urllib.request.urlopen, whose parameter is named url.
+
+    install_opener accepts any object with an open method, so a custom opener bypasses
+    OpenerDirector.open entirely and would otherwise go uninspected.
+    """
+
+    _URL_ARGUMENT = "url"
+
+
 class _SsrfHttpConnectionRequest(_RaspContext):
     """RASP SSRF + API10 downstream-request analysis around http.client.HTTPConnection.request."""
 
@@ -365,91 +429,310 @@ def _parse_headers_urllib3(headers):
         return {}
 
 
-def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, instance, args, kwargs):
-    full_url = core.find_item("full_url")
-    env = _get_asm_context()
-    do_rasp = get_rasp_capability("ssrf") and full_url is not None and env is not None
-    if not do_rasp:
-        return original_request_callable(*args, **kwargs)
-    core.discard_item("full_url")
-    # Run this outgoing request in its own core context so concurrent urllib3 requests each get a
-    # distinct subcontext (shared only by this request's SSRF_REQ + SSRF_RES). When an outer client
-    # (e.g. requests) already owns a scope, open_rasp_subcontext_scope finds it (walks up) and
-    # reuses it. Dropping this context releases the holder, so no explicit close is needed.
-    with core.context_with_data("rasp.ssrf.urllib3"):
-        open_rasp_subcontext_scope()
-        use_body = core.find_item("use_body", False)
-        method = args[1] if len(args) > 1 else kwargs.get("method", None)
-        body = args[3] if len(args) > 3 else kwargs.get("body", None)
-        headers = _parse_headers_urllib3(args[4] if len(args) > 4 else kwargs.get("headers", {}))
-        addresses = {EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url, "DOWN_REQ_METHOD": method, "DOWN_REQ_HEADERS": headers}
-        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
-        if use_body and content_type == "application/json":
-            try:
-                addresses["DOWN_REQ_BODY"] = json.loads(body)
-            except Exception:
-                pass  # nosec
-        res = call_waf_callback(
-            addresses,
-            crop_trace="wrapped_urllib3_make_request_6D4E8B2A1F095C73",
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
-        )
-        env.downstream_requests += 1
-        if res and _must_block(res.actions):
-            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-        # api10 redirect (3xx) response analysis is intentionally NOT done here: urllib3 bottoms
-        # out in http.client.HTTPConnection.getresponse (_SsrfHttpConnectionGetresponse), which
-        # already sends DOWN_RES_STATUS/DOWN_RES_HEADERS for 3xx responses within this same SSRF
-        # subcontext. Re-inspecting here would double-call the WAF.
-        return original_request_callable(*args, **kwargs)
-
-
 def _urllib3_absolute_url(instance, path: str) -> str:
     try:
         port = getattr(instance, "port", None)
-        netloc = "{}:{}".format(instance.host, port) if port and port not in (80, 443) else str(instance.host)
+        netloc = f"{instance.host}:{port}" if port and port not in (80, 443) else str(instance.host)
         return urlunparse((instance.scheme, netloc, path, "", "", ""))
     except Exception:  # nosec
         return path
 
 
-def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
-    # urlopen(method, url, ...): url is positional arg 1 (also on redirect re-invocation).
-    full_url = args[1] if len(args) > 1 else kwargs.get("url", None)
-    if isinstance(full_url, str) and full_url.startswith("/") and instance is not None:
-        # PoolManager passes a relative URI; rebuild the absolute URL so SSRF/API10 sees the host.
-        full_url = _urllib3_absolute_url(instance, full_url)
-    if core.find_item("full_url") is None:
-        core.set_item("full_url", full_url)
-    try:
-        return original_open_callable(*args, **kwargs)
-    finally:
+class _SsrfUrllib3Urlopen(_ScopedRaspContext):
+    """Publishes the absolute URL of a urllib3 request for the _make_request hook to inspect."""
+
+    def __enter__(self) -> "_SsrfUrllib3Urlopen":
+        super().__enter__()
+        try:
+            self._handle_enter()
+        except Exception:
+            self._close_core_context()
+            log.debug("Error handling SSRF instrumentation enter", exc_info=True)
+        return self
+
+    def _handle_enter(self) -> None:
+        if not get_rasp_capability("ssrf"):
+            return
+        if core.find_item("full_url") is not None:
+            # An outer client already owns this outgoing request and published its URL.
+            return
+
+        full_url: Any = self._arg("url")
+        if isinstance(full_url, str) and full_url.startswith("/"):
+            # PoolManager passes a relative URI, so rebuild it or SSRF sees no host.
+            full_url = _urllib3_absolute_url(self._arg("self"), full_url)
+        if not (isinstance(full_url, str) and full_url):
+            return
+
+        # Scoped rather than set on the current context: an item set with no context of our own is
+        # visible to ddtrace's own worker threads, and this releases it on both exit paths.
+        self._open_core_context("rasp.ssrf.urllib3.urlopen", full_url=full_url)
+
+
+class _SsrfUrllib3MakeRequest(_ScopedRaspContext):
+    """RASP SSRF + API10 downstream-request analysis around urllib3's _make_request."""
+
+    def __enter__(self) -> "_SsrfUrllib3MakeRequest":
+        super().__enter__()
+        try:
+            self._handle_enter()
+        except Exception:
+            self._close_core_context()
+            log.debug("Error handling SSRF instrumentation enter", exc_info=True)
+        return self
+
+    def _handle_enter(self) -> None:
+        if not get_rasp_capability("ssrf"):
+            return
+        full_url = core.find_item("full_url")
+        env = get_active_asm_context()
+        if full_url is None or env is None:
+            return
         core.discard_item("full_url")
 
+        # Own core context so concurrent urllib3 requests get distinct subcontexts. It has to span
+        # the call: the SSRF_RES side comes from http.client's getresponse underneath this one.
+        self._open_core_context("rasp.ssrf.urllib3")
+        # requests sends its redirect hops through here without republishing the URL, so they
+        # stay in the request's subcontext. That also covers a bare urllib3 call from a requests
+        # hook, which cannot be told apart from a hop; one from any other client's hooks gets its own.
+        open_rasp_subcontext_scope(SsrfLayer.URLLIB3, inherit_from=(SsrfLayer.REQUESTS, SsrfLayer.URLLIB3))
 
-def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs):
+        headers = _parse_headers_urllib3(self._arg("headers", {}))
+        addresses = {
+            EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url,
+            "DOWN_REQ_METHOD": self._arg("method"),
+            "DOWN_REQ_HEADERS": headers,
+        }
+        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
+        if core.find_item("use_body", False) and content_type == "application/json":
+            try:
+                addresses["DOWN_REQ_BODY"] = json.loads(self._arg("body"))
+            except Exception:
+                pass  # nosec
+        res = call_waf_callback(
+            addresses,
+            crop_trace=self.__wrapped__.__code__.co_name,
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+        )
+        env.downstream_requests += 1
+        if res and _must_block(res.actions):
+            # Released before the block propagates, the way the other RASP contexts do it.
+            self._close_core_context()
+            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
+
+    def __return__(self, response: Any) -> Any:
+        # No API10 response analysis here: urllib3 bottoms out in http.client's getresponse, which
+        # already reports DOWN_RES_* for this same subcontext. Re-inspecting would double-call.
+        self._close_core_context()
+        return super().__return__(response)
+
+
+class _SsrfUrllib3Request(_ScopedRaspContext):
+    """Opens the subcontext scope for a urllib3 RequestMethods.request call.
+
+    The response side is left to the hooks underneath: this method returns urllib3's own
+    HTTPResponse, which the API10 response analysis does not inspect.
+    """
+
+    def __enter__(self) -> "_SsrfUrllib3Request":
+        super().__enter__()
+        try:
+            self._handle_enter()
+        except Exception:
+            self._close_core_context()
+            log.debug("Error handling SSRF instrumentation enter", exc_info=True)
+        return self
+
+    def _handle_enter(self) -> None:
+        if not get_rasp_capability("ssrf"):
+            return
+        url: Any = self._arg("url")
+        if not (isinstance(url, str) and url):
+            return
+        ctx = get_active_asm_context()
+        if ctx is None:
+            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
+            return
+
+        # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
+        self._open_core_context("url_open_analysis", full_url=url, use_body=should_analyze_body_response(ctx))
+        open_rasp_subcontext_scope(SsrfLayer.URLLIB3, inherit_from=())
+
+
+_AIOHTTP_RASP = "appsec.rasp.aiohttp"
+
+
+class _AiohttpRaspRequest:
+    """State shared by the hops of one aiohttp ClientSession request."""
+
+    __slots__ = ("use_body", "pending_hop")
+
+    def __init__(self) -> None:
+        self.use_body: Optional[bool] = None
+        self.pending_hop: Optional[tuple[str, str]] = None
+
+
+# Final responses whose body is analyzed when the application reads it, with the RASP subcontext
+# holder and a weak reference to the ASM environment of their request.
+_aiohttp_pending_bodies: "weakref.WeakKeyDictionary[Any, tuple[Any, Any]]" = weakref.WeakKeyDictionary()
+
+
+def _aiohttp_headers(headers: Any) -> dict[str, Union[str, list[str]]]:
+    return _build_headers((key.lower(), value) for key, value in headers.items())
+
+
+def _aiohttp_request_body(req: Any) -> Optional[bytes]:
+    body = getattr(req, "body", None)
+    if not isinstance(body, (bytes, bytearray, memoryview)):
+        body = getattr(body, "_value", None)
+    return bytes(body) if isinstance(body, (bytes, bytearray, memoryview)) else None
+
+
+class _SsrfAiohttpRequest(_ScopedRaspContext):
+    """Opens the scope shared by the hops of an aiohttp ClientSession._request call."""
+
+    def __enter__(self) -> "_SsrfAiohttpRequest":
+        super().__enter__()
+        try:
+            # Inside an httpx send, e.g. httpx over an aiohttp transport, the httpx hooks own the
+            # analysis, so any aiohttp request made there is skipped.
+            if get_rasp_capability("ssrf") and core.find_item(APPSEC_SSRF_ANALYZE_BODY_KEY) is None:
+                if get_active_asm_context() is None:
+                    report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
+                else:
+                    # A request nested in another one, e.g. from a client middleware, gets its own
+                    # subcontext.
+                    self._open_core_context(
+                        "rasp.ssrf.aiohttp",
+                        **{
+                            _AIOHTTP_RASP: _AiohttpRaspRequest(),
+                            _RASP_SUBCONTEXT: _RaspSubcontextHolder(),
+                            _RASP_SUBCONTEXT_LAYER: SsrfLayer.AIOHTTP,
+                        },
+                    )
+        except Exception:
+            self._close_core_context()
+            log.debug("Error handling SSRF instrumentation enter", exc_info=True)
+        return self
+
+
+class _SsrfAiohttpConnect(_RaspContext):
+    """RASP SSRF + API10 request analysis of each hop, around aiohttp's BaseConnector.connect."""
+
+    def __enter__(self) -> "_SsrfAiohttpConnect":
+        super().__enter__()
+        try:
+            self._handle_enter()
+        except Exception:
+            log.debug("Error handling SSRF instrumentation enter", exc_info=True)
+        return self
+
+    def _handle_enter(self) -> None:
+        state: Optional[_AiohttpRaspRequest] = core.find_item(_AIOHTTP_RASP)
+        if state is None:
+            return
+        env = get_active_asm_context()
+        if env is None:
+            return
+        req = self._arg("req")
+        url = str(req.url)
+        hop = (req.method, url)
+        # The same hop again with no response in between is aiohttp retrying it on a stale
+        # keep-alive connection.
+        if state.pending_hop == hop:
+            return
+        if state.use_body is None:
+            state.use_body = should_analyze_body_response(env)
+        env.downstream_requests += 1
+        state.pending_hop = hop
+        addresses: dict[str, Any] = {
+            EXPLOIT_PREVENTION.ADDRESS.SSRF: url,
+            "DOWN_REQ_METHOD": req.method,
+            "DOWN_REQ_HEADERS": _aiohttp_headers(req.headers),
+        }
+        if state.use_body and classify_media_type(req.headers.get("Content-Type")) is MediaType.JSON:
+            body = _aiohttp_request_body(req)
+            if body:
+                try:
+                    addresses["DOWN_REQ_BODY"] = json.loads(body)
+                except Exception:
+                    pass  # nosec
+        res = call_waf_callback(
+            addresses,
+            crop_trace=self.__wrapped__.__code__.co_name,
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+        )
+        if res and _must_block(res.actions):
+            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, url)
+
+
+class _SsrfAiohttpResponseStart(WrappingContext):
+    """API10 analysis of each response status and headers, around aiohttp's ClientResponse.start."""
+
+    def __return__(self, response: Any) -> Any:
+        try:
+            state: Optional[_AiohttpRaspRequest] = core.find_item(_AIOHTTP_RASP)
+            # The proxy's answer to a CONNECT tunnel is not the downstream response.
+            if state is not None and response.method != "CONNECT" and (env := get_active_asm_context()) is not None:
+                state.pending_hop = None
+                status = response.status
+                call_waf_callback(
+                    {"DOWN_RES_STATUS": str(status), "DOWN_RES_HEADERS": _aiohttp_headers(response.headers)},
+                    rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+                )
+                if (
+                    state.use_body
+                    and not (300 <= status < 400)
+                    and classify_media_type(response.headers.get("Content-Type")) is MediaType.JSON
+                ):
+                    _aiohttp_pending_bodies[response] = (core.find_item(_RASP_SUBCONTEXT), weakref.ref(env))
+        except Exception:
+            log.debug("Error handling SSRF instrumentation return", exc_info=True)
+        return super().__return__(response)
+
+
+class _SsrfAiohttpResponseRead(_RaspContext):
+    """API10 analysis of the final response body, once the application reads it."""
+
+    def __return__(self, body: Any) -> Any:
+        if _aiohttp_pending_bodies:
+            try:
+                holder, env_ref = _aiohttp_pending_bodies.pop(self._arg("self"), (None, None))
+                # A response shared with another incoming request is not analyzed under its context.
+                if holder is not None and (env := get_active_asm_context()) is not None and env_ref() is env:
+                    with core.context_with_data("rasp.ssrf.aiohttp.body", **{_RASP_SUBCONTEXT: holder}):
+                        call_waf_callback(
+                            {"DOWN_RES_BODY": json.loads(body)}, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES
+                        )
+            except Exception:
+                log.debug("Error handling SSRF instrumentation return", exc_info=True)
+        return super().__return__(body)
+
+
+def wrapped_request_D8CB81E472AF98A2(
+    original_request_callable,
+    instance,
+    args,
+    kwargs,
+    *,
+    layer: str = SsrfLayer.REQUESTS,
+    inherit_from: Collection[str] = (),
+):
     """
     wrapper for third party requests.request function
     https://requests.readthedocs.io
+
+    wrapped_http_client_request reuses it with the http.client layer.
     """
     if get_rasp_capability("ssrf"):
-        try:
-            from ddtrace.appsec._asm_request_context import _get_asm_context
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import should_analyze_body_response
-        except ImportError:
-            # open is used during module initialization
-            # and shouldn't be changed at that time
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
-            return original_request_callable(*args, **kwargs)
-
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
         valid_url = isinstance(url, str) and bool(url)
         if valid_url and url and (ctx := _get_asm_context()):
             use_body = should_analyze_body_response(ctx)
             with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
                 # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
-                open_rasp_subcontext_scope()
+                open_rasp_subcontext_scope(layer, inherit_from=inherit_from)
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_request_callable(*args, **kwargs)
@@ -470,3 +753,19 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         elif valid_url:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_request_callable(*args, **kwargs)
+
+
+def wrapped_http_client_request(original_request_callable, instance, args, kwargs):
+    """The same analysis for http.client.HTTPConnection.request, used by the httplib integration.
+
+    Only urllib and urllib3 drive http.client; a call made from another client's hooks is a
+    separate request.
+    """
+    return wrapped_request_D8CB81E472AF98A2(
+        original_request_callable,
+        instance,
+        args,
+        kwargs,
+        layer=SsrfLayer.HTTP_CLIENT,
+        inherit_from=(SsrfLayer.URLLIB, SsrfLayer.URLLIB3),
+    )

@@ -3,6 +3,8 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.contrib.internal.mistralai.patch import patch
+from ddtrace.contrib.internal.mistralai.patch import unpatch
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.contrib.mistralai.utils import CHAT_TOOLS
@@ -189,7 +191,7 @@ def _expected_reasoning_span_data():
 def _assert_reasoning_output_messages(actual):
     messages = actual.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {}).get(LLMOBS_STRUCT.MESSAGES)
     assert messages is not None, "expected output messages to be present"
-    assert len(messages) == 2, "expected a reasoning message then an assistant message, got {!r}".format(messages)
+    assert len(messages) == 2, f"expected a reasoning message then an assistant message, got {messages!r}"
     reasoning_message, assistant_message = messages
     assert reasoning_message["role"] == "reasoning"
     assert reasoning_message["content"], "expected non empty reasoning content"
@@ -557,4 +559,26 @@ async def test_async_chat_stream_with_tools(mistral_client, mistralai_llmobs, te
             metrics={"input_tokens": 72, "output_tokens": 14, "total_tokens": 86},
             tool_definitions=WEATHER_TOOL_DEFINITIONS,
         ),
+    )
+
+
+@pytest.mark.parametrize("repatch", [False, True])
+def test_chat_stream_finishes_after_unpatch(mistral_client, mistralai_llmobs, test_spans, repatch):
+    stream = mistral_client.chat.stream(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+    unpatch()
+    if repatch:
+        patch()
+    for _ in stream:
+        pass
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(spans[0], output_messages=STREAM_CHAT_OUTPUT_MESSAGES),
     )

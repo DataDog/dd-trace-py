@@ -410,6 +410,8 @@ def _start_ray_cluster(env_vars=None, ddtrace_run=False):
     env = os.environ.copy()
     base_env = {
         "DD_PATCH_MODULES": "ray:true,aiohttp:false,grpc:false,requests:false",
+        # Keep partial ray.job flushes beyond the 30s job timeout so snapshots only see final spans.
+        "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL": "600",
     }
     if env_vars:
         base_env.update(env_vars)
@@ -492,15 +494,13 @@ class TestRayWithoutInit(TracerTestCase):
 
     dashboard_url = None
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.dashboard_url = _start_ray_cluster()
-
-    @classmethod
-    def tearDownClass(cls):
-        _stop_ray_cluster()
-        super().tearDownClass()
+    @pytest.fixture(autouse=True)
+    def ray_cluster(self, snapshot):
+        try:
+            self.dashboard_url = _start_ray_cluster()
+            yield
+        finally:
+            _stop_ray_cluster()
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_task_without_init(self):
@@ -527,7 +527,7 @@ class TestRayWithoutInit(TracerTestCase):
         _submit_and_wait_for_job(self.dashboard_url, "service.py", metadata={"job_name": "my_model"})
 
 
-@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES, wait_for_num_spans=6)
 def test_service_name():
     """Test that DD_SERVICE environment variable is used as service name."""
     dashboard_url = _start_ray_cluster(env_vars={"DD_SERVICE": "test"}, ddtrace_run=True)
@@ -538,7 +538,7 @@ def test_service_name():
         _stop_ray_cluster()
 
 
-@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES, wait_for_num_spans=6)
 def test_use_entrypoint_service_name():
     """Test that entrypoint can be used as service name when configured."""
     dashboard_url = _start_ray_cluster(

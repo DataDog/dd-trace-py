@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    aws_lambda: Rotates the runtime ID and refreshes registered components when an AWS Lambda
+    MicroVM application starts after restore.

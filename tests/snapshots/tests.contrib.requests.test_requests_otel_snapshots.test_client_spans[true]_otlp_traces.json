@@ -1,0 +1,754 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "_dd.sdk.otlp_export",
+            "value": {
+              "stringValue": "true"
+            }
+          },
+          {
+            "key": "datadog.sdk.semantics",
+            "value": {
+              "stringValue": "otel"
+            }
+          },
+          {
+            "key": "runtime-id",
+            "value": {
+              "stringValue": "c6d5e067f5ed4c6fad016820edd7de90"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "otel-http-client-snapshots"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "datadog"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "4.16.0rc1"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000001",
+              "traceState": "dd=p:d87deff317a76ba5;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:780db86dab30aa;th:0",
+              "name": "GET",
+              "kind": 3,
+              "startTimeUnixNano": "1792156753275994403",
+              "endTimeUnixNano": "1792156753277996387",
+              "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "stringValue": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.p.tid",
+                  "value": {
+                    "stringValue": "6ad2245100000000"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "_dd.tags.process",
+                  "value": {
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpwz1f03mj,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.tracer_kr",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "OK"
+                  }
+                },
+                {
+                  "key": "process_id",
+                  "value": {
+                    "intValue": "148"
+                  }
+                },
+                {
+                  "key": "runtime-id",
+                  "value": {
+                    "stringValue": "c6d5e067f5ed4c6fad016820edd7de90"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8001"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:d87deff317a76ba5;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:780db86dab30aa;th:0"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://REDACTED:REDACTED@localhost:8001/status/200?<redacted>&page=2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "0000000000000002",
+              "traceState": "dd=p:f1cd84bb40a5d7a8;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:32f73b05dadb8a;th:0",
+              "name": "HTTP",
+              "kind": 3,
+              "startTimeUnixNano": "1792156753278530308",
+              "endTimeUnixNano": "1792156753288089132",
+              "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "stringValue": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.p.tid",
+                  "value": {
+                    "stringValue": "6ad2245100000000"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "_dd.tags.process",
+                  "value": {
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpwz1f03mj,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.tracer_kr",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "405"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "_OTHER"
+                  }
+                },
+                {
+                  "key": "http.request.method_original",
+                  "value": {
+                    "stringValue": "PROPFIND"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "405"
+                  }
+                },
+                {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "METHOD NOT ALLOWED"
+                  }
+                },
+                {
+                  "key": "process_id",
+                  "value": {
+                    "intValue": "148"
+                  }
+                },
+                {
+                  "key": "runtime-id",
+                  "value": {
+                    "stringValue": "c6d5e067f5ed4c6fad016820edd7de90"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8001"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:f1cd84bb40a5d7a8;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:32f73b05dadb8a;th:0"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://localhost:8001/status/405"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
+                  }
+                }
+              ],
+              "status": {
+                "code": 2
+              },
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "0000000000000003",
+              "traceState": "dd=p:a51283457bbe3eb8;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:3cedfe5cb88d2c;th:0",
+              "name": "GET",
+              "kind": 3,
+              "startTimeUnixNano": "1792156753288589264",
+              "endTimeUnixNano": "1792156753307352022",
+              "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "stringValue": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.p.tid",
+                  "value": {
+                    "stringValue": "6ad2245100000000"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "_dd.tags.process",
+                  "value": {
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpwz1f03mj,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.tracer_kr",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "302"
+                  }
+                },
+                {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "FOUND"
+                  }
+                },
+                {
+                  "key": "process_id",
+                  "value": {
+                    "intValue": "148"
+                  }
+                },
+                {
+                  "key": "runtime-id",
+                  "value": {
+                    "stringValue": "c6d5e067f5ed4c6fad016820edd7de90"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8001"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:a51283457bbe3eb8;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:3cedfe5cb88d2c;th:0"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://localhost:8001/status/302"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000004",
+              "spanId": "0000000000000004",
+              "traceState": "dd=p:aafea06e3f820b61;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:223e42aadd068b;th:0",
+              "name": "GET",
+              "kind": 3,
+              "startTimeUnixNano": "1792156753307820072",
+              "endTimeUnixNano": "1792156753308982740",
+              "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "stringValue": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.p.tid",
+                  "value": {
+                    "stringValue": "6ad2245100000000"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "_dd.tags.process",
+                  "value": {
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpwz1f03mj,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.tracer_kr",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "404"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "404"
+                  }
+                },
+                {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "NOT FOUND"
+                  }
+                },
+                {
+                  "key": "process_id",
+                  "value": {
+                    "intValue": "148"
+                  }
+                },
+                {
+                  "key": "runtime-id",
+                  "value": {
+                    "stringValue": "c6d5e067f5ed4c6fad016820edd7de90"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8001"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:aafea06e3f820b61;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:223e42aadd068b;th:0"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://localhost:8001/status/404"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
+                  }
+                }
+              ],
+              "status": {
+                "code": 2
+              },
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000005",
+              "spanId": "0000000000000005",
+              "traceState": "dd=p:2dbe6d60cab51575;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:f12c8daef4bffb;th:0",
+              "name": "GET",
+              "kind": 3,
+              "startTimeUnixNano": "1792156753309306259",
+              "endTimeUnixNano": "1792156753310217611",
+              "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "stringValue": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.p.tid",
+                  "value": {
+                    "stringValue": "6ad2245100000000"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "_dd.tags.process",
+                  "value": {
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpwz1f03mj,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.tracer_kr",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "500"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "500"
+                  }
+                },
+                {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "INTERNAL SERVER ERROR"
+                  }
+                },
+                {
+                  "key": "process_id",
+                  "value": {
+                    "intValue": "148"
+                  }
+                },
+                {
+                  "key": "runtime-id",
+                  "value": {
+                    "stringValue": "c6d5e067f5ed4c6fad016820edd7de90"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8001"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:2dbe6d60cab51575;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:f12c8daef4bffb;th:0"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "http://localhost:8001/status/500"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
+                  }
+                }
+              ],
+              "status": {
+                "code": 2
+              },
+              "flags": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

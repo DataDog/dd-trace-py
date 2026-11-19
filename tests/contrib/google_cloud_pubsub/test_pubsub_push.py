@@ -128,3 +128,31 @@ def test_no_inferred_span_without_push_headers(pubsub_push_client, test_spans):
 
         assert receive_span is None, "gcp.pubsub.receive span should not exist without push headers"
         assert falcon_span is not None, f"falcon.request span not found. Spans: {[s.name for s in spans]}"
+
+
+@pytest.mark.parametrize(
+    "subscription_name,expected",
+    [
+        (PUSH_SUBSCRIPTION_NAME, PUSH_SUBSCRIPTION_NAME),
+        # A subscription in another project than the caller keeps its own project
+        (
+            "projects/other-project/subscriptions/warehouse-orders",
+            "projects/other-project/subscriptions/warehouse-orders",
+        ),
+        # Not a full subscription path: the identity is omitted
+        (PUSH_SUBSCRIPTION_ID, None),
+    ],
+)
+def test_push_subscription_identity(pubsub_push_client, test_spans, subscription_name, expected):
+    with override_global_config(dict(_inferred_proxy_services_enabled=True)):
+        headers = {
+            "X-Goog-Pubsub-Subscription-Name": subscription_name,
+            "X-Goog-Pubsub-Message-Id": PUSH_MESSAGE_ID,
+        }
+        resp = pubsub_push_client.simulate_post("/push", body=b"Hello push world", headers=headers)
+        assert resp.status_code == 200
+
+    receive_span = test_spans.find_span(name="gcp.pubsub.receive")
+    assert receive_span.get_tag("gcp.pubsub.subscription.name") == expected
+    # The push request does not carry the topic
+    assert receive_span.get_tag("gcp.pubsub.topic.name") is None

@@ -1,0 +1,10 @@
+_v: 1
+name: futures
+display_name: futures
+description: Instruments ThreadPoolExecutor task submission and execution to propagate tracing and LLM Observability contexts
+  and link profiler samples to originating asyncio tasks.
+packages: []
+category:
+- task.execution
+systems: []
+creation_date: '2017-10-24'

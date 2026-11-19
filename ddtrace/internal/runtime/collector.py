@@ -1,13 +1,19 @@
 import importlib
-from typing import Optional  # noqa:F401
+from types import ModuleType
+from typing import Generic
+from typing import Optional
+from typing import TypeVar
+from typing import Union
 
 from ..logger import get_logger
 
 
 log = get_logger(__name__)
 
+T = TypeVar("T", bound=Union[tuple[str, object], str])
 
-class ValueCollector(object):
+
+class ValueCollector(Generic[T]):
     """A basic state machine useful for collecting, caching and updating data
     obtained from different Python modules.
 
@@ -22,7 +28,7 @@ class ValueCollector(object):
     enabled = True
     periodic = False
     required_modules: list[str] = []
-    value: Optional[list[tuple[str, str]]] = None
+    value: Optional[list[T]] = None
     value_loaded = False
 
     def __init__(
@@ -40,10 +46,10 @@ class ValueCollector(object):
         if self._modules_successfully_loaded:
             self._on_modules_load()
 
-    def _on_modules_load(self):
+    def _on_modules_load(self) -> None:
         """Hook triggered after all required_modules have been successfully loaded."""
 
-    def _load_modules(self):
+    def _load_modules(self) -> dict[str, ModuleType]:
         modules = {}
         try:
             for module in self.required_modules:
@@ -53,10 +59,13 @@ class ValueCollector(object):
             # DEV: disable collector if we cannot load any of the required modules
             self.enabled = False
             log.warning('Could not import module "%s" for %s. Disabling collector.', module, self)
-            return None
+            return {}
         return modules
 
-    def collect(self, keys: Optional[set[str]] = None) -> Optional[list[tuple[str, str]]]:
+    def collect_fn(self, keys: Optional[set[str]]) -> list[T]:
+        raise NotImplementedError
+
+    def collect(self, keys: Optional[set[str]] = None) -> Optional[list[T]]:
         """Returns metrics as collected by `collect_fn`.
 
         :param keys: The keys of the metrics to collect.
@@ -70,12 +79,12 @@ class ValueCollector(object):
             return self.value
 
         # call underlying collect function and filter out keys not requested
-        # TODO: provide base method collect_fn() in ValueCollector
-        self.value = self.collect_fn(keys)  # type: ignore[attr-defined]
+        # TODO: make collect_fn abstract once all callers provide an implementation.
+        self.value = self.collect_fn(keys)
 
         # filter values for keys
         if len(keys) > 0 and isinstance(self.value, list):
-            self.value = [(k, v) for (k, v) in self.value if k in keys]
+            self.value = [value for value in self.value if value[0] in keys]
 
         self.value_loaded = True
         return self.value
@@ -83,10 +92,8 @@ class ValueCollector(object):
     def stop(self) -> None:
         """Release process-wide resources. Base is a no-op."""
 
-    def __repr__(self):
-        return "<{}(enabled={},periodic={},required_modules={})>".format(
-            self.__class__.__name__,
-            self.enabled,
-            self.periodic,
-            self.required_modules,
+    def __repr__(self) -> str:
+        return (
+            f"<{self.__class__.__name__}(enabled={self.enabled},periodic={self.periodic},"
+            f"required_modules={self.required_modules})>"
         )

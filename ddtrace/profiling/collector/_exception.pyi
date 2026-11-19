@@ -1,10 +1,12 @@
 from types import CodeType
 from typing import Optional
 
+from ddtrace.internal.monitoring import MonitoringEventHandler
 from ddtrace.profiling import collector
 
 HAS_MONITORING: bool
 MAX_EXCEPTION_MESSAGE_LEN: int
+_exception_handler: Optional[MonitoringEventHandler]
 
 class ExceptionCollector(collector.Collector):
     _sampling_interval: int

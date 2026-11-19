@@ -68,9 +68,6 @@ struct StringArena
 using string_id = ddog_prof_StringId2;
 using function_id = ddog_prof_FunctionId2;
 
-std::optional<string_id>
-intern_string(std::string_view s);
-
 std::optional<function_id>
 intern_function(string_id name, string_id filename);
 
@@ -119,7 +116,6 @@ class Sample
     bool push_alloc(int64_t size, int64_t count);
     bool push_heap(int64_t size, int64_t count);
     void reset_alloc();
-    void reset_heap();
     bool push_gpu_gputime(int64_t time, int64_t count);
     bool push_gpu_memory(int64_t size, int64_t count);
     bool push_gpu_flops(int64_t flops, int64_t count);
@@ -143,7 +139,6 @@ class Sample
 
     // Interacts with static Sample state
     static bool is_timeline_enabled();
-    static void set_timeline(bool enabled);
 
     // Pytorch GPU metadata
     bool push_gpu_device_name(std::string_view device_name);

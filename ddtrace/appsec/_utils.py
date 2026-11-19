@@ -10,13 +10,12 @@ from typing import Optional
 from typing import TypedDict
 from typing import Union
 
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
-from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -281,24 +280,6 @@ def _hash_user_id(user_id: str) -> str:
     return f"anon_{hashlib.sha256(user_id.encode()).hexdigest()[:32]}"
 
 
-def _safe_userid(user_id: Any) -> Optional[Any]:
-    try:
-        _ = int(user_id)
-        return user_id
-    except ValueError:
-        try:
-            # Import uuid lazily because this also imports threading via the
-            # platform module
-            import uuid
-
-            _ = uuid.UUID(user_id)
-            return user_id
-        except ValueError:
-            pass
-
-    return None
-
-
 class _UserExtraInfo(TypedDict, total=False):
     login: Optional[str]
     email: Optional[str]
@@ -339,7 +320,7 @@ class _UserInfoRetriever:
         return user_login
 
     def get_username(self) -> Optional[str]:
-        username = getattr(self.user, asm_config._user_model_name_field, None)
+        username = getattr(self.user, asm_config._user_model_login_field, None)
         if username is not None:
             return str(username)
 
@@ -393,16 +374,16 @@ class _UserInfoRetriever:
         return user_id, user_extra_info
 
 
-def has_triggers(span: SpanProtocol) -> bool:
+def has_triggers(span: SpanData) -> bool:
     if asm_config._use_metastruct_for_triggers:
         return (span._get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
-    return span.get_tag(APPSEC.JSON) is not None
+    return span._get_str_attribute(APPSEC.JSON) is not None
 
 
-def get_triggers(span: SpanProtocol) -> Any:
+def get_triggers(span: SpanData) -> Any:
     if asm_config._use_metastruct_for_triggers:
         return (span._get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
-    json_payload = span.get_tag(APPSEC.JSON)
+    json_payload = span._get_str_attribute(APPSEC.JSON)
     if json_payload:
         try:
             return json.loads(json_payload).get("triggers", None)
@@ -448,7 +429,3 @@ def unpatching_popen() -> typing.Iterator[None]:
         else:
             # If it was False, keep it False (normal production scenario)
             asm_config._bypass_instrumentation_for_waf = False
-
-
-def is_inferred_span(span: SpanProtocol) -> bool:
-    return span.name in INFERRED_SPAN_NAMES

@@ -172,14 +172,10 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     PyObject* result = nullptr;
     if (PyUnicode_Check(sep)) {
         result = PyUnicode_Join(sep, arg0);
-    } else if (PyBytes_Check(sep)) {
-        py::bytes result_ptr =
-          py::reinterpret_borrow<py::bytes>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-        result = result_ptr.release().ptr();
-    } else if (PyByteArray_Check(sep)) {
-        py::bytearray result_ptr =
-          py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-        result = result_ptr.release().ptr();
+    } else if (PyBytes_Check(sep) or PyByteArray_Check(sep)) {
+        // pybind11 .attr(...)(...) would throw error_already_set here, and this raw METH_FASTCALL entry point
+        // cannot let a C++ exception escape.
+        result = PyObject_CallMethod(sep, "join", "O", arg0);
     }
 
     if (has_pyerr()) {

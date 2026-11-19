@@ -201,7 +201,7 @@ class TestCodeProvenance:
         calls = 0
         expected_json = json.dumps({"v1": [{"kind": "library", "name": "foo", "version": "1.2.3", "paths": ["/x"]}]})
 
-        def _compute_json():
+        def _compute_json() -> str:
             nonlocal calls
             calls += 1
             return expected_json
@@ -244,7 +244,7 @@ class TestCodeProvenance:
         expected_json = json.dumps({"v1": [{"kind": "library", "name": "foo", "version": "1.2.3", "paths": ["/x"]}]})
         calls = 0
 
-        def _ensure(*_):
+        def _ensure(*_: Any) -> bool:
             nonlocal calls
             calls += 1
             if calls == 1:

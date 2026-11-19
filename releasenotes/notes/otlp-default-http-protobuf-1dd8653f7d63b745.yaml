@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    tracing: Changes the default OTLP protocol for metrics and logs from ``grpc`` to
+    ``http/protobuf``, matching traces, with default local endpoints on port 4318.
+    Set ``OTEL_EXPORTER_OTLP_PROTOCOL=grpc`` or the signal-specific
+    ``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL`` / ``OTEL_EXPORTER_OTLP_LOGS_PROTOCOL``
+    to ``grpc`` to keep using a gRPC collector.

@@ -9,7 +9,7 @@ import pytest
     ),
     err=None,
 )
-def test_heap_tracker_count_present():
+def test_heap_tracker_count_present() -> None:
     """heap_tracker_count is present and non-zero when memory profiling is enabled."""
     import json
     import os

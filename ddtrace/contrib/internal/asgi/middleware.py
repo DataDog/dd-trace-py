@@ -1,14 +1,15 @@
+from collections.abc import Mapping
 from functools import wraps
 import sys
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from urllib import parse
 
 from ddtrace import config
+from ddtrace._trace.http_tags import set_status_code_tag
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -31,6 +32,7 @@ from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.time import Time
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -97,7 +99,7 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span._set_attribute(http.STATUS_CODE, "500")
+    set_status_code_tag(span, 500)
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -136,6 +138,24 @@ def _call_route_resource_resolver(scope: Mapping[str, Any], span: Span) -> None:
         route_resource_resolver(scope, span)
     except Exception:
         log.debug("failed to resolve route pattern for span resource", exc_info=True)
+
+
+def _finish_request_span(scope: Mapping[str, Any], span: Span) -> None:
+    request_spans = scope.get("datadog", {}).get("request_spans")
+    if not request_spans or len(request_spans) == 1:
+        span.finish()
+        return
+
+    # Outer send wrappers return first. Preserve their response completion time
+    # while waiting to finish them after the inner wrapper.
+    # If a child waits for scope exit, its queued parents wait there too.
+    pending = scope["datadog"].setdefault("request_spans_to_finish", {})
+    pending.setdefault(span, Time.time())
+    for request_span in reversed(request_spans):
+        if request_span in pending:
+            request_span.finish(finish_time=pending.pop(request_span))
+        elif not request_span.finished:
+            break
 
 
 class TraceMiddleware:
@@ -215,6 +235,10 @@ class TraceMiddleware:
             method = "websocket"
         else:
             return await self.app(scope, receive, send)
+        # Before activating distributed headers, as WSGI does: a MicroVM /run refresh detaches
+        # the active context, which would otherwise be the one just extracted from this request.
+        if scope["type"] == "http" and not is_subapp:
+            trace_utils.dispatch_asgi_web_request_starting(scope)
         try:
             headers = extract_headers(scope)
         except Exception:
@@ -277,14 +301,14 @@ class TraceMiddleware:
             raw_path = scope.get("raw_path")
             raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
             if host_header:
-                url = "{}://{}{}".format(scheme, host_header, full_path)
-                raw_url = "{}://{}{}".format(scheme, host_header, raw_path_str)
+                url = f"{scheme}://{host_header}{full_path}"
+                raw_url = f"{scheme}://{host_header}{raw_path_str}"
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
-                url = "{}://{}{}".format(scheme, server_host, full_path)
-                raw_url = "{}://{}{}".format(scheme, server_host, raw_path_str)
+                url = f"{scheme}://{server_host}{full_path}"
+                raw_url = f"{scheme}://{server_host}{raw_path_str}"
             else:
                 url = None
                 raw_url = None
@@ -295,7 +319,8 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
                 if raw_url:
                     raw_url = f"{raw_url}?{query_string}"
-            if not self.integration_config.trace_query_string:
+            # The OTel writer decides whether to tag url.query from http_tag_query_string.
+            if not config._otel_trace_semantics_enabled and not self.integration_config.trace_query_string:
                 query_string = None
             # Body parsing is HTTP-only: sub-apps skip it (parent already handled it),
             # and websocket scopes must not have their receive() consumed here.
@@ -468,7 +493,7 @@ class TraceMiddleware:
                             _call_route_resource_resolver(scope, span)
                         # If the span has an error status code delay finishing the span until the
                         # traceback and exception message is available
-                        span.finish()
+                        _finish_request_span(scope, span)
 
             async def wrapped_blocked_send(message: Mapping[str, Any]):
                 result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -495,7 +520,7 @@ class TraceMiddleware:
                         span, self.integration_config, status_code=status, response_headers=dict(headers)
                     )
                     if message.get("type") == "http.response.body" and span.error == 0:
-                        span.finish()
+                        _finish_request_span(scope, span)
 
             wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
             try:
@@ -516,6 +541,7 @@ class TraceMiddleware:
                 if exc := find_exception(exception, BlockingException):
                     set_blocked(exc.args[0])
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                span.set_exc_info(*sys.exc_info())
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
@@ -528,6 +554,12 @@ class TraceMiddleware:
                 request_spans = scope.get("datadog", {}).get("request_spans")
                 if request_spans and span in request_spans:
                     request_spans.remove(span)
+                pending = scope.get("datadog", {}).get("request_spans_to_finish")
+                if pending and span in pending:
+                    try:
+                        span.finish(finish_time=pending.pop(span))
+                    except Exception:
+                        log.exception("error closing ASGI request span")
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:
@@ -590,7 +622,11 @@ class TraceMiddleware:
         if span and message.get("type") == "http.response.start" and "status" in message:
             cookies = _parse_response_cookies(response_headers)
             status_code = message["status"]
-            if self.integration_config.obfuscate_404_resource and status_code == 404:
+            if (
+                self.integration_config.obfuscate_404_resource
+                and status_code == 404
+                and not config._otel_trace_semantics_enabled
+            ):
                 span.resource = " ".join((method, "404"))
 
             trace_utils.set_http_meta(

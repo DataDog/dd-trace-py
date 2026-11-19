@@ -1,5 +1,8 @@
 from io import BytesIO
 from io import StringIO
+from types import FrameType
+from typing import Callable
+from typing import Optional
 
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._utils import _is_iast_propagation_debug_enabled
@@ -9,23 +12,25 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-if _is_iast_propagation_debug_enabled():
-    TAINTED_FRAMES = []
+_TraceFunction = Callable[[FrameType, str, object], Optional["_TraceFunction"]]
 
-    def trace_calls_and_returns(frame, event, arg):
+if _is_iast_propagation_debug_enabled():
+    TAINTED_FRAMES: list[FrameType] = []
+
+    def trace_calls_and_returns(frame: FrameType, event: str, arg: object) -> Optional[_TraceFunction]:
         co = frame.f_code
         func_name = co.co_name
         if func_name == "write":
             # Ignore write() calls from print statements
-            return
+            return None
         if func_name in ("is_pyobject_tainted", "__repr__"):
-            return
+            return None
         line_no = frame.f_lineno
         filename = co.co_filename
         if "ddtrace" in filename:
-            return
+            return None
         if event == "call":
-            f_locals = frame.f_locals
+            f_locals: dict[str, object] = frame.f_locals
             try:
                 if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
                     TAINTED_FRAMES.append(frame)
@@ -52,6 +57,6 @@ if _is_iast_propagation_debug_enabled():
                     else:
                         log.debug("Return value is NOT tainted")
                 log.debug("-----")
-        return
+        return None
 
     threading.settrace(trace_calls_and_returns)

@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 import torch.nn
 import torch.optim
@@ -10,7 +12,7 @@ from torchvision.models import resnet18
 class FakeImageDataset(torch.utils.data.Dataset):
     """Synthetic dataset that mimics CIFAR10-like data without network access."""
 
-    def __init__(self, size: int = 320, num_classes: int = 10):
+    def __init__(self, size: int = 320, num_classes: int = 10) -> None:
         self.size = size
         self.num_classes = num_classes
 
@@ -25,7 +27,7 @@ class FakeImageDataset(torch.utils.data.Dataset):
         return self.images[idx], self.labels[idx]
 
 
-def cifar():
+def cifar() -> None:
     train_set = FakeImageDataset(size=320)
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=True)
     device = torch.device("cuda")
@@ -34,7 +36,7 @@ def cifar():
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     model.train()
 
-    def train(data):
+    def train(data: Any) -> None:
         inputs, labels = data[0].to(device=device), data[1].to(device=device)
         outputs = model(inputs)
         loss = criterion(outputs, labels)

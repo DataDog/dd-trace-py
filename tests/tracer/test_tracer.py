@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 tests for Tracer and utilities.
 """
@@ -10,9 +9,9 @@ from os import getpid
 import sys
 import threading
 import time
+from unittest import mock
 from unittest.case import SkipTest
 
-import mock
 import pytest
 
 import ddtrace
@@ -31,6 +30,8 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
@@ -213,7 +214,7 @@ class TracerTestCases(TracerTestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            class Foo(object):
+            class Foo:
                 @staticmethod
                 @self.tracer.wrap()
                 def s():
@@ -245,7 +246,7 @@ class TracerTestCases(TracerTestCase):
         """With DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true the class name is included in the span name."""
         with self.override_global_config({"_trace_wrap_span_name_include_class": True}):
 
-            class Foo(object):
+            class Foo:
                 @staticmethod
                 @self.tracer.wrap()
                 def s():
@@ -845,6 +846,80 @@ class TracerTestCases(TracerTestCase):
         assert self.tracer._span_aggregator.writer is writer
         assert not self.tracer._new_process
 
+    def test_tracer_shutdown_waits_for_in_flight_post_fork_writer_recreation(self):
+        self.tracer._child_after_fork()
+        aggregator = self.tracer._span_aggregator
+        inherited_writer = aggregator.writer
+        recreate_entered = threading.Event()
+        release_recreate = threading.Event()
+        stopped_writers = []
+        recreate = self.tracer._recreate
+        stop_aggregator = aggregator.shutdown
+
+        def blocking_recreate(*args, **kwargs):
+            recreate_entered.set()
+            assert release_recreate.wait(timeout=2)
+            recreate(*args, **kwargs)
+
+        def recording_shutdown(timeout):
+            stopped_writers.append(aggregator.writer)
+            stop_aggregator(timeout)
+
+        with (
+            mock.patch.object(self.tracer, "_recreate", side_effect=blocking_recreate),
+            mock.patch.object(aggregator, "shutdown", side_effect=recording_shutdown),
+        ):
+            rebuild = threading.Thread(target=self.tracer._ensure_post_fork_writer)
+            rebuild.start()
+            assert recreate_entered.wait(timeout=2)
+
+            shutdown = threading.Thread(target=self.tracer.shutdown)
+            shutdown.start()
+            shutdown.join(timeout=0.2)
+            # Stopping the inherited writer now would leave the rebuilt one running.
+            assert shutdown.is_alive()
+
+            release_recreate.set()
+            rebuild.join(timeout=2)
+            shutdown.join(timeout=2)
+
+        assert not rebuild.is_alive()
+        assert not shutdown.is_alive()
+        assert stopped_writers == [aggregator.writer]
+        assert aggregator.writer is not inherited_writer
+
+    def test_tracer_shutdown_timeout_does_not_bound_post_fork_wait_outside_microvm(self):
+        # Only MicroVM bounds this wait by the shutdown timeout; elsewhere shutdown still waits out the rebuild.
+        self.tracer._child_after_fork()
+        recreate_entered = threading.Event()
+        release_recreate = threading.Event()
+        recreate = self.tracer._recreate
+
+        def blocking_recreate(*args, **kwargs):
+            recreate_entered.set()
+            assert release_recreate.wait(timeout=2)
+            recreate(*args, **kwargs)
+
+        with (
+            mock.patch("ddtrace._trace.tracer.in_aws_lambda_microvm", return_value=False),
+            mock.patch.object(self.tracer, "_recreate", side_effect=blocking_recreate),
+        ):
+            rebuild = threading.Thread(target=self.tracer._ensure_post_fork_writer)
+            rebuild.start()
+            assert recreate_entered.wait(timeout=2)
+
+            shutdown = threading.Thread(target=self.tracer.shutdown, kwargs={"timeout": 0.01})
+            shutdown.start()
+            shutdown.join(timeout=0.2)
+            assert shutdown.is_alive()
+
+            release_recreate.set()
+            rebuild.join(timeout=2)
+            shutdown.join(timeout=2)
+
+        assert not rebuild.is_alive()
+        assert not shutdown.is_alive()
+
     def test_tracer_context_provider_shutdown(self):
         context = Context(trace_id=1, span_id=1)
         self.tracer.context_provider.activate(context)
@@ -862,7 +937,7 @@ def test_tracer_url_default():
 
 @pytest.mark.subprocess()
 def test_tracer_shutdown_no_timeout():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -876,7 +951,7 @@ def test_tracer_shutdown_no_timeout():
 
 @pytest.mark.subprocess()
 def test_tracer_shutdown_timeout():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -895,8 +970,7 @@ def test_tracer_shutdown_timeout():
 )
 def test_tracer_shutdown():
     import os
-
-    import mock
+    from unittest import mock
 
     from ddtrace._trace.span import Span
     from ddtrace.trace import tracer as t
@@ -1354,7 +1428,7 @@ def test_runtime_id_fork():
 
 
 def test_filters(tracer, test_spans):
-    class FilterAll(object):
+    class FilterAll:
         def process_trace(self, trace):
             return None
 
@@ -1367,7 +1441,7 @@ def test_filters(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 0
 
-    class FilterMutate(object):
+    class FilterMutate:
         def __init__(self, key, value):
             self.key = key
             self.value = value
@@ -1402,7 +1476,7 @@ def test_filters(tracer, test_spans):
         assert s.get_tag("boop") == "beep"
         assert s.get_tag("mats") == "sundin"
 
-    class FilterBroken(object):
+    class FilterBroken:
         def process_trace(self, trace):
             _ = 1 / 0
 
@@ -2053,15 +2127,19 @@ def test_fork_pid():
 @pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_republishes_tracer_metadata_linux():
     import os
+    from unittest.mock import patch
 
     import msgpack
 
     import ddtrace.auto  # noqa
     from ddtrace.internal.runtime import get_runtime_id
+    from ddtrace.trace import tracer
 
-    pid = os.fork()
+    with patch.object(tracer, "_store_metadata", wraps=tracer._store_metadata) as store_metadata:
+        pid = os.fork()
 
     if pid == 0:
+        store_metadata.assert_called_once_with()
         metadata = []
         for fd in os.listdir("/proc/self/fd"):
             path = "/proc/self/fd/" + fd
@@ -2171,7 +2249,7 @@ def test_gc_not_used_on_root_spans():
 
 @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
 def test_detect_agent_config_with_lambda_extension():
-    import mock
+    from unittest import mock
 
     def mock_os_path_exists(path):
         return path == "/opt/extensions/datadog-agent"
@@ -2191,7 +2269,7 @@ def test_detect_agent_config_with_lambda_extension():
 
 @pytest.mark.subprocess()
 def test_multiple_tracer_instances():
-    import mock
+    from unittest import mock
 
     import ddtrace
 
@@ -2268,3 +2346,54 @@ def test_activate_context_nesting_and_restoration(tracer):
         assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None
+
+
+@pytest.mark.parametrize("initial_compute_stats", [True, False])
+@pytest.mark.parametrize("stats_while_opted_out", [None, True, False])
+@pytest.mark.parametrize("compute_stats_enabled", [None, True, False])
+def test_standalone_shadows_compute_stats(tracer, initial_compute_stats, stats_while_opted_out, compute_stats_enabled):
+    """Opting out must not rewrite the user's stats preference.
+
+    Standalone mode shadows the setting in the writer and processors via their
+    opt-out flags, so stats resume as soon as APM tracing is re-enabled.
+    """
+    with mock.patch.object(config, "_trace_compute_stats", initial_compute_stats):
+        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
+            try:
+                tracer.configure(appsec_enabled=True, iast_enabled=False, apm_tracing_disabled=True)
+                # The preference is untouched while opted out; the writer and
+                # processors carry the opt-out shadow instead.
+                assert config._trace_compute_stats is initial_compute_stats
+                aggr = tracer._span_aggregator
+                assert aggr.tags_processor.apm_opt_out is True
+                inner_writer = aggr.writer._inner_writer
+                assert inner_writer._compute_stats_enabled is initial_compute_stats
+                assert inner_writer._stats_opt_out is True
+
+                tracer.configure(appsec_enabled=True)
+                assert config._trace_compute_stats is initial_compute_stats
+
+                # Explicit stats updates while opted out set the preference.
+                if stats_while_opted_out is not None:
+                    tracer.configure(appsec_enabled=True, compute_stats_enabled=stats_while_opted_out)
+                    assert config._trace_compute_stats is stats_while_opted_out
+
+                tracer.configure(appsec_enabled=False, compute_stats_enabled=compute_stats_enabled)
+                expected_stats = initial_compute_stats
+                if stats_while_opted_out is not None:
+                    expected_stats = stats_while_opted_out
+                if compute_stats_enabled is not None:
+                    expected_stats = compute_stats_enabled
+                assert config._trace_compute_stats is expected_stats
+                # Leaving standalone mode lifts the shadow: the writer computes
+                # stats again iff the preference says so.
+                aggr = tracer._span_aggregator
+                assert aggr.tags_processor.apm_opt_out is False
+                inner_writer = aggr.writer._inner_writer
+                assert inner_writer._compute_stats_enabled is expected_stats
+                assert inner_writer._stats_opt_out is False
+
+                tracer.configure(trace_processors=[])
+                assert config._trace_compute_stats is expected_stats
+            finally:
+                tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)

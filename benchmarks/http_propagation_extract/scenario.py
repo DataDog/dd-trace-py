@@ -19,7 +19,7 @@ class HTTPPropagationExtract(bm.Scenario):
             headers = {utils.get_wsgi_header(header): value for header, value in headers.items()}
 
         for i in range(self.extra_headers):
-            header = "x-test-header-{}".format(i)
+            header = f"x-test-header-{i}"
             if self.wsgi_style:
                 header = utils.get_wsgi_header(header)
             headers[header] = str(i)

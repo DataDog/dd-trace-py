@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 from io import BytesIO
 import struct
@@ -82,4 +77,4 @@ def testDecodeBinary():
 
 
 def testPackFloat():
-    assert packb(1.0) == b"\xcb" + struct.pack(str(">d"), 1.0)
+    assert packb(1.0) == b"\xcb" + struct.pack(">d", 1.0)

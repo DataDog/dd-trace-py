@@ -1,0 +1,12 @@
+_v: 1
+name: aiopg
+display_name: aiopg
+description: Instruments aiopg database cursors to trace asynchronous PostgreSQL queries, batch executions, and stored procedure
+  calls.
+packages:
+- name: aiopg
+category:
+- db.client
+systems:
+- postgresql
+creation_date: '2017-07-01'

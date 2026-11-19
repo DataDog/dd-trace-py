@@ -10,9 +10,19 @@ import tempfile
 import typing as t
 
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.settings import env
+
+
+# tempfile.gettempdir holds a module-level lock during its first call.
+# Determine temporary directory at import time to avoid forks copying it in a locked state.
+_tmpdir: t.Optional[Path]
+try:
+    _tmpdir = Path(tempfile.gettempdir())
+except (FileNotFoundError, OSError):
+    _tmpdir = None
 
 
 class Library:
@@ -59,7 +69,7 @@ class CodeProvenance:
         # sys.stdlib_module_names was added in Python 3.10
         # For older versions, we could iterate over sys.modules.keys(), but that
         # would include all modules, not just stdlib modules.
-        if sys.version_info >= (3, 10):
+        if is_at_least_py(3, 10):
             for name in sys.stdlib_module_names:
                 try:
                     spec = importlib.util.find_spec(name)
@@ -161,10 +171,12 @@ def _cache_basename() -> str:
 
 
 def _cache_file_and_lock() -> tuple[t.Optional[Path], t.Optional[Path]]:
+    if _tmpdir is None:
+        return None, None
+
     try:
         base = _cache_basename()
-        tmpdir = Path(tempfile.gettempdir())
-        return tmpdir / f"{base}.json", tmpdir / f"{base}.lock"
+        return _tmpdir / f"{base}.json", _tmpdir / f"{base}.lock"
     except (FileNotFoundError, OSError):
         return None, None
 

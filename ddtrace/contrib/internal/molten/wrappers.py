@@ -1,27 +1,33 @@
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import SPAN_KIND
+from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.molten import MoltenRouteEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.importlib import func_name
+
+
+MOLTEN_REQUEST_CONTEXT_KEY = "molten.request.context"
 
 
 def trace_wrapped(resource, wrapped, *args, **kwargs):
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
-    with core.context_with_data(
-        "molten.trace_func",
-        span_name=func_name(wrapped),
-        service=trace_utils.int_service(None, config.molten),
-        resource=resource,
-        allow_default_resource=True,
-        tags={COMPONENT: config.molten.integration_name, SPAN_KIND: SpanKind.SERVER},
-        integration_config=config.molten,
+    with core.context_with_event(
+        TracingEvent.create(
+            operation_name=func_name(wrapped),
+            component=config.molten.integration_name,
+            integration_config=config.molten,
+            service=trace_utils.int_service(None, config.molten),
+            resource=resource,
+            span_type="",  # no SpanType matches
+            span_kind=SpanKind.SERVER,
+            measured=False,
+        )
     ):
         return wrapped(*args, **kwargs)
 
@@ -38,7 +44,7 @@ class WrapperComponent(wrapt.ObjectProxy):
     def can_handle_parameter(self, *args, **kwargs):
         func = self.__wrapped__.can_handle_parameter
         cname = func_name(self.__wrapped__)
-        resource = "{}.{}".format(cname, func.__name__)
+        resource = f"{cname}.{func.__name__}"
         return trace_wrapped(resource, func, *args, **kwargs)
 
 
@@ -46,7 +52,7 @@ class WrapperRenderer(wrapt.ObjectProxy):
     def render(self, *args, **kwargs):
         func = self.__wrapped__.render
         cname = func_name(self.__wrapped__)
-        resource = "{}.{}".format(cname, func.__name__)
+        resource = f"{cname}.{func.__name__}"
         return trace_wrapped(resource, func, *args, **kwargs)
 
 
@@ -68,6 +74,17 @@ class WrapperRouter(wrapt.ObjectProxy):
         if route_and_params is not None:
             route, params = route_and_params
             route.handler = trace_func(func_name(route.handler))(route.handler)
-            core.dispatch("molten.router.match", (route,))
+
+            request_context = core.find_item(MOLTEN_REQUEST_CONTEXT_KEY)
+            if request_context is not None:
+                core.dispatch_event(
+                    MoltenRouteEvent(
+                        request_context=request_context,
+                        resource=f"{route.method} {route.template}",
+                        request_route=route.template,
+                        route_name=route.name,
+                    )
+                )
+
             return route, params
         return route_and_params

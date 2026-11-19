@@ -51,6 +51,70 @@ def test_auto():
         )
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true",
+        # Coverage preloads stdlib modules, which would change what cloning drops.
+        COVERAGE_PROCESS_START=None,
+        COVERAGE_PROCESS_CONFIG=None,
+        COV_CORE_SOURCE=None,
+        COV_CORE_CONFIG=None,
+        COV_CORE_DATAFILE=None,
+    ),
+    timeout=60,
+)
+def test_module_cloning_holds_threads_started_during_boot():
+    """A ddtrace thread started during boot runs only once module cloning is done, so its imports cannot race it."""
+    import sys
+
+    import ddtrace
+    from ddtrace.bootstrap import cloning
+    from ddtrace.internal.threads import Thread
+
+    assert cloning.enabled
+
+    # Keep the worker on the GIL once it runs, so that without the gate it runs before cleanup goes on.
+    sys.setswitchinterval(30)
+
+    cleaned_up = []
+    observed = []
+    errors = []
+
+    def target():
+        observed.append(bool(cleaned_up))
+        try:
+            from http.cookies import SimpleCookie  # noqa:F401
+        except Exception as e:
+            errors.append(e)
+
+    cleanup_loaded_modules = cloning.cleanup_loaded_modules
+    workers = []
+
+    def cleanup():
+        # Like a remote config callback enabling AppSec on the poller thread started by preload.
+        import http  # noqa:F401
+
+        assert "http" not in ddtrace.LOADED_MODULES
+        sys.modules.pop("http.cookies", None)
+
+        worker = Thread(target, name="remote-config")
+        worker.start()
+        workers.append(worker)
+
+        cleanup_loaded_modules()
+        cleaned_up.append(True)
+
+    cloning.cleanup_loaded_modules = cleanup
+
+    import ddtrace.auto  # noqa:F401
+
+    (worker,) = workers
+    worker.join()
+
+    assert observed == [True], observed
+    assert not errors, errors
+
+
 def test_pytest_with_gevent_and_ddtrace_auto():
     """
     Test that pytest works when a module imports ddtrace.auto and gevent is installed.
@@ -133,6 +197,45 @@ def test_dataclasses_not_unloaded():
     b = B(x=1, y=2)
 
     assert b
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_warnings_not_unloaded():
+    """``logging.captureWarnings()`` must keep working after module cleanup.
+
+    Regression test for #20875. ``logging`` is kept loaded (it is in
+    ``KEEP_MODULES``) but ``warnings`` used to be unloaded, so
+    ``logging.captureWarnings(True)`` patched a stale ``warnings`` module while
+    ``warnings.warn()`` used the freshly re-imported one. Warnings then bypassed
+    ``logging`` and were printed straight to stderr.
+    """
+    import ddtrace  # noqa
+
+    import ddtrace.auto  # noqa  (runs cleanup_loaded_modules())
+
+    import io
+    import logging
+    import sys
+    import warnings
+
+    assert logging.warnings is sys.modules["warnings"]
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger = logging.getLogger("py.warnings")
+    logger.addHandler(handler)
+    logger.setLevel(logging.WARNING)
+
+    logging.captureWarnings(True)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            warnings.warn("captureWarnings regression")
+    finally:
+        logging.captureWarnings(False)
+        logger.removeHandler(handler)
+
+    assert "captureWarnings regression" in stream.getvalue()
 
 
 def test_uwsgi_gevent():

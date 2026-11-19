@@ -1,9 +1,10 @@
 import gzip
 import logging
 import os
+import signal
 import time
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
@@ -61,7 +62,7 @@ def test_periodic_payload_process_tags():
 
 
 def test_periodic_logs_warning_on_flush_failure(caplog):
-    # AIDEV-NOTE: DSMS-144 — when retry-budget is exhausted, the customer-facing log
+    # DSMS-144 — when retry-budget is exhausted, the customer-facing log
     # must (a) be WARNING (not ERROR) so it doesn't trip alerting on benign flush
     # failures, (b) preserve the leading phrase for customers' existing log-based
     # alerts, (c) explain impact, (d) include the exception cause inline for triage,
@@ -248,8 +249,10 @@ def test_kafka_offset_serialization_cluster_id_tag():
         assert all(not t.startswith("kafka_cluster_id:") for t in b["Tags"])
 
 
-def test_processor_atexit(ddtrace_run_python_code_in_subprocess):
+@pytest.mark.skipif(os.name == "nt", reason="requires POSIX SIGTERM handling")
+def test_processor_atexit(python_process, tmp_path):
     code = """
+import os
 import pytest
 import sys
 import time
@@ -258,7 +261,7 @@ from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.atexit import register_on_exit_signal
 
 def fake_flush(*args, **kwargs):
-    print("Fake flush called")
+    print("Fake flush called", flush=True)
 
 _exit = False
 def set_exit():
@@ -277,6 +280,7 @@ def run_test():
     aggr_key = (",".join(["direction:out", "topic:topicA", "type:kafka"]), 1, 2)
     assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key].full_pathway_latency.count == 1
 
+    open(os.environ["READY_FILE"], "w").close()
     counter = 0
     while counter < 500 and not _exit:
         counter += 1
@@ -288,8 +292,14 @@ run_test()
 
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
-    assert out.decode().strip() == "Fake flush called"
+    ready = tmp_path / "ready"
+    env["READY_FILE"] = str(ready)
+    with python_process.start(code, env=env, ddtrace_run=True) as child:
+        child.wait_until(ready.exists)
+        child.process.terminate()
+        result = child.wait()
+    result.check_returncode(-signal.SIGTERM)
+    assert result.stdout.decode().strip() == "Fake flush called"
 
 
 def test_processor_flushes_on_sigint(ddtrace_run_python_code_in_subprocess):

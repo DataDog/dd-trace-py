@@ -24,7 +24,7 @@ def find_ai_guard_span(test_spans: TracerSpanContainer) -> Span:
     assert len(spans) == 1
     span = spans[0]
     assert span.name == AI_GUARD.RESOURCE_TYPE
-    return span
+    return span  # type: ignore[no-any-return]
 
 
 def assert_ai_guard_span(
@@ -51,6 +51,8 @@ def mock_evaluate_response(
     sds_findings: Optional[list[Any]] = None,
     tag_probs: Optional[dict[str, float]] = None,
     redaction_replacements: Optional[Any] = None,
+    extra_tags: Optional[Any] = None,
+    extra_metastruct: Optional[Any] = None,
 ) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
@@ -66,6 +68,10 @@ def mock_evaluate_response(
         attributes["tag_probs"] = tag_probs
     if redaction_replacements is not None:
         attributes["redaction_replacements"] = redaction_replacements
+    if extra_tags is not None:
+        attributes["extra_tags"] = extra_tags
+    if extra_metastruct is not None:
+        attributes["extra_metastruct"] = extra_metastruct
     mock_response.get_json.return_value = {"data": {"attributes": attributes}}
     return mock_response
 

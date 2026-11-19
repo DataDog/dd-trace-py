@@ -69,6 +69,36 @@ setup_env() {
 }
 
 
+# ext_cache invokes `setup.py ext_hashes`, which imports the build backend. uv build's
+# isolated environment is not reachable from here, so give it an ephemeral one.
+ext_cache() {
+  uv run --no-project \
+    --with "setuptools" \
+    --with "cython" \
+    --with "setuptools-rust<2" \
+    --with "cmake>=3.24.2,<3.28" \
+    --with "patchelf>=0.17.0.0" \
+    python scripts/ext_cache.py --build-lib --no-shared-deps "$1"
+}
+
+# A hit here skips the Rust fat-LTO link, which is ~88% of the build and is not cacheable
+# by sccache (links never are) or by a cargo target dir (CI has none).
+restore_ext_cache() {
+  section_start "restore_ext_cache" "Restoring compiled extensions from cache"
+  ext_cache restore || echo "ext_cache restore failed; falling back to a full build"
+  section_end "restore_ext_cache"
+}
+
+save_ext_cache() {
+  # Under `policy: pull` the runner discards whatever we write, so don't spend the copy.
+  if [[ "${EXT_CACHE_POLICY:-pull}" != "pull-push" ]]; then
+    return 0
+  fi
+  section_start "save_ext_cache" "Saving compiled extensions to cache"
+  ext_cache save || echo "ext_cache save failed; the next build will be cold"
+  section_end "save_ext_cache"
+}
+
 build_wheel() {
   section_start "build_wheel_function" "Building wheel function"
 
@@ -82,8 +112,14 @@ build_wheel() {
   export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_TAG}.log"
   echo "Building wheel for Python ${PYTHON_VER} (log: ${BUILD_LOG})"
 
-  # Redirect build output to log file
-  if uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" . > "${BUILD_LOG}" 2>&1; then
+  # Keep the full build log while surfacing cache health checks before a job timeout.
+  # pipefail preserves build failures through tee and the progress filter.
+  if uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" . 2>&1 | tee "${BUILD_LOG}" | \
+      while IFS= read -r build_line; do
+        case "$build_line" in
+          *"INFO: sccache "*|*"WARNING: sccache "*) printf '%s\n' "$build_line" ;;
+        esac
+      done; then
     echo "✓ Build completed successfully"
     export BUILT_WHEEL_FILE=$(ls ${BUILT_WHEEL_DIR}/*.whl | head -n 1)
   else

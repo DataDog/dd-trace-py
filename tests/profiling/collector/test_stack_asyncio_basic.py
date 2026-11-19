@@ -30,7 +30,7 @@ def test_asyncio_basic() -> None:
         while time.time() < start_time + loop_run_time:
             await asyncio.sleep(sleep_time)
 
-    async def hello():
+    async def hello() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
         t1 = asyncio.create_task(stuff(), name="sleep 1")
         t2 = asyncio.create_task(stuff(), name="sleep 2")
         await stuff()

