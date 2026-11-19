@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast import load_iast
-from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch

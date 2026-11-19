@@ -12,6 +12,7 @@ from typing import Union
 
 from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import unpatching_popen
+from ddtrace.internal import _libddwaf_platform
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -32,7 +33,8 @@ class DDWafSqlTokenizer(str, Enum):
 log = get_logger(__name__)
 
 #
-# Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
+# Dynamic loading of libddwaf: either the library bundled in the package, or, when the build
+# bundled none, the names the dynamic linker may resolve (see ddtrace.internal._libddwaf_platform).
 #
 
 if system() == "Linux":
@@ -42,8 +44,25 @@ if system() == "Linux":
     except Exception:  # nosec
         pass
 
-with unpatching_popen():
-    ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
+
+def _load_libddwaf() -> ctypes.CDLL:
+    candidates = _libddwaf_platform.load_candidates(asm_config._asm_libddwaf, system())
+    failures = []
+    for candidate in candidates:
+        try:
+            with unpatching_popen():
+                library = ctypes.CDLL(candidate)
+        except OSError as e:
+            if len(candidates) == 1:
+                raise
+            failures.append("%s: %s" % (candidate, e))
+            continue
+        asm_config._asm_libddwaf = candidate
+        return library
+    raise OSError("could not load libddwaf (%s)" % ", ".join(failures) or "no candidate")
+
+
+ddwaf = _load_libddwaf()
 #
 # Constants
 #
@@ -737,6 +756,14 @@ ddwaf_get_version: Callable[[], bytes] = ctypes.CFUNCTYPE(ctypes.c_char_p)(
 )
 
 asm_config._ddwaf_version = ddwaf_get_version().decode()
+
+# A system libddwaf is whatever the linker resolved, and libddwaf sets no SOVERSION upstream,
+# so the major version is only known here.
+if not asm_config._ddwaf_version.startswith("%d." % _libddwaf_platform.ABI_MAJOR):
+    raise RuntimeError(
+        "libddwaf %s loaded from %s is not supported, ddtrace requires %d.x"
+        % (asm_config._ddwaf_version, asm_config._asm_libddwaf, _libddwaf_platform.ABI_MAJOR)
+    )
 
 
 ddwaf_set_log_cb: Callable[[Any, int], bool] = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(

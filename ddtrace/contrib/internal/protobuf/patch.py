@@ -1,9 +1,9 @@
 from google import protobuf
-from google.protobuf.internal import builder
+from google.protobuf.internal import builder  # noqa: F401
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.trace import tracer
 
@@ -36,7 +36,6 @@ def patch():
     _w = wrapt.wrap_function_wrapper
 
     _w("google.protobuf.internal", "builder.BuildTopDescriptorsAndMessages", _traced_build)
-    Pin().onto(builder)
 
 
 def unpatch():
@@ -70,7 +69,6 @@ def _wrap_message(message_descriptor, message_class):
 
     global _WRAPPED_MESSAGE_CLASSES
     _WRAPPED_MESSAGE_CLASSES.append(message_class)
-    Pin().onto(message_class)
 
 
 #
@@ -79,9 +77,7 @@ def _wrap_message(message_descriptor, message_class):
 def _traced_build(func, instance, args, kwargs):
     file_des = args[0]
 
-    # ``instance`` is None for this module-level function; the Pin lives on the ``builder`` module.
-    pin = Pin.get_from(builder)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     try:
@@ -97,8 +93,7 @@ def _traced_build(func, instance, args, kwargs):
 
 
 def _traced_deserialize_message(func, instance, args, kwargs, msg_descriptor):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     active = tracer.current_span()
@@ -111,8 +106,7 @@ def _traced_deserialize_message(func, instance, args, kwargs, msg_descriptor):
 
 
 def _traced_serialize_message(func, instance, args, kwargs, msg_descriptor):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled() or not msg_descriptor:
+    if not is_tracing_enabled() or not msg_descriptor:
         return func(*args, **kwargs)
 
     active = tracer.current_span()

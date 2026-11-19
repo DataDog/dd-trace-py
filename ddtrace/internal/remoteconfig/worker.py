@@ -1,6 +1,7 @@
+from collections.abc import Iterable  # noqa:F401
 import os
+from time import monotonic
 from typing import TYPE_CHECKING
-from typing import Iterable  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config as ddconfig
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-class RemoteConfigPoller(periodic.PeriodicService):
+class RemoteConfigPoller(periodic.AwakeablePeriodicService):
     """Remote configuration worker.
 
     This implements a finite-state machine that allows checking the agent for
@@ -34,21 +35,28 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     _enable = True
     _MAX_CONSECUTIVE_FAILURES = 3
+    # Products are usually enabled in bursts, e.g. while the product manager
+    # starts them on boot. A request waits until no new product has been
+    # enabled for this long, so that a single one advertises the whole burst.
+    # Products enabled later wake the poller up again and open a new window.
+    _PRODUCT_COLLECTION_WINDOW = 0.1
 
     def __init__(self) -> None:
-        super(RemoteConfigPoller, self).__init__(
-            interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False
-        )
+        super().__init__(interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False)
         self._client = RemoteConfigClient()
+        # The interval between requests, which the poller shortens while it
+        # collects the products enabled in a burst.
+        self._poll_interval = self.interval
+        self._products_enabled_at = self._last_request = 0.0
         # Agentless fetches go straight to the Remote Config backend, so there is
         # no agent to negotiate the v0.7/config endpoint with.
         self._state = self._online if self._client.agentless else self._agent_check
         self._parent_id = os.getpid()
-        self._capabilities_map: "dict[RemoteConfigCapabilities, RemoteConfigProduct]" = dict()
+        self._capabilities_map: dict[RemoteConfigCapabilities, RemoteConfigProduct] = dict()
         self._consecutive_failures = 0
         # Child-process consumer of the SHM (created at fork); None in the
         # single-process case, where the poller dispatches directly.
-        self._subscriber: Optional["RemoteConfigSubscriber"] = None
+        self._subscriber: Optional[RemoteConfigSubscriber] = None
         self._before_fork_registered = False
 
     def _agent_check(self) -> None:
@@ -62,6 +70,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             if endpoints and (
                 REMOTE_CONFIG_AGENT_ENDPOINT in endpoints or ("/" + REMOTE_CONFIG_AGENT_ENDPOINT) in endpoints
             ):
+                log.debug("Remote Config Agent available; configuration polling resumes")
                 self._state = self._online
                 # Immediately query the agent for the remote config configuration
                 self._online()
@@ -71,22 +80,31 @@ class RemoteConfigPoller(periodic.PeriodicService):
             "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
             "Check Your Remote Config environment variables on your Agent:\n"
             "DD_REMOTE_CONFIGURATION_ENABLED=true\n"
-            "See: https://docs.datadoghq.com/agent/guide/how_remote_config_works/",
+            "See: https://docs.datadoghq.com/agent/guide/how_remote_config_works/\n"
+            "Retrying Agent discovery in %.3fs",
+            self.interval,
         )
 
     def _online(self) -> None:
+        log.debug(
+            "Remote Config poll attempt (sdk_env=%s, preceding failures=%d)", ddconfig.env, self._consecutive_failures
+        )
         with StopWatch() as sw:
             succeeded = self._client.request()
 
         # The interval is the backend's to decide in agentless mode: it recommends
         # a cadence on every successful fetch and a backoff after a failed one.
         interval = self._client.refresh_interval()
-        if interval is not None and interval != self.interval:
+        if interval is not None and interval != self._poll_interval:
             log.debug("Remote Config poll interval set to %.3fs by the backend", interval)
-            self.interval = interval
+            self.interval = self._poll_interval = interval
 
         if not succeeded:
             self._consecutive_failures += 1
+            log.debug(
+                "Remote Config poll failed; retaining applied configuration; retrying in %.3fs",
+                self.interval,
+            )
             # Without an agent there is nothing to fall back to, so keep retrying
             # on the backoff the native client asked for.
             if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES and not self._client.agentless:
@@ -94,6 +112,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 self._consecutive_failures = 0
             return
 
+        if self._consecutive_failures:
+            log.debug("Remote Config delivery recovered after %d failed poll(s)", self._consecutive_failures)
         self._consecutive_failures = 0
         log.debug(
             "[%d][P: %d] Datadog Remote Config Poller sent request to %s in %.5fs",
@@ -104,9 +124,30 @@ class RemoteConfigPoller(periodic.PeriodicService):
         )
 
     def periodic(self) -> None:
+        now = monotonic()
+
+        # Wait until no new product has been enabled for a while, so that a
+        # single request advertises all the products enabled in a burst. The
+        # thread does the waiting, so that stopping it does not have to wait.
+        if (collecting := now - self._products_enabled_at) < self._PRODUCT_COLLECTION_WINDOW:
+            self.interval = self._PRODUCT_COLLECTION_WINDOW - collecting
+            return None
+        self.interval = self._poll_interval
+
         # Run product housekeeping every cycle, before the fetch, so stale-state
         # timeouts still fire when the agent is down or a fetch fails.
         self._client.run_periodic()
+
+        # A request without products cannot receive any configuration.
+        if not self._client._enabled_products:
+            return None
+
+        # Products enabled while collecting wake the poller up again, but an
+        # earlier request may already have advertised them.
+        if self._products_enabled_at <= self._last_request and now - self._last_request < self._poll_interval:
+            return None
+
+        self._last_request = now
         return self._state()
 
     def enable(self) -> bool:
@@ -218,7 +259,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         if self.status == ServiceStatus.STOPPED or self._worker is None:
             return
 
-        super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
+        super()._stop_service(*args, **kwargs)
 
     def update_product_callback(self, product: "RemoteConfigProduct", callback: RCCallback) -> bool:
         """Update the callback for a registered product.
@@ -285,12 +326,21 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         When a product is enabled, it will be added to the 'products' list
         in payloads sent to the agent, indicating that this client wants
-        to receive configurations for this product.
+        to receive configurations for this product. The poller is woken up to
+        request it right away, once no new product has been enabled for a short
+        while, so that a single request advertises all the products enabled in a
+        burst.
 
         Args:
             product: Product name to enable
         """
+        if product in self._client._enabled_products:
+            return
         self._client.enable_product(product)
+        self._products_enabled_at = monotonic()
+        # Forked children do not poll (reset_at_fork clears _enable).
+        if self._enable:
+            self.awake()
 
     def disable_product(self, product: "RemoteConfigProduct") -> None:
         """Disable a product, removing it from client payloads.

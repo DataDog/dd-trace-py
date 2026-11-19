@@ -1,8 +1,9 @@
+import ctypes
 import json
 import logging
 import os.path
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -12,6 +13,7 @@ from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._ddwaf.waf import py_ddwaf_builder_get_config_paths
+from ddtrace.appsec._metrics import log_waf_error
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
@@ -19,6 +21,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.trace import Span
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import get_waf_addresses
@@ -66,6 +69,74 @@ def test_enable_custom_rules():
 
     assert processor.enabled
     assert processor.rule_filename == rules.RULES_GOOD_PATH
+
+
+def test_waf_address_discovery_failure_disables_waf_without_raising(caplog):
+    processor = AppSecSpanProcessor()
+    with caplog.at_level(logging.ERROR, logger="ddtrace.appsec._processor"):
+        with mock.patch("ddtrace.appsec._processor.log_waf_error") as log_waf_error:
+            with mock.patch("ddtrace.appsec._processor.set_waf_init_metric") as set_waf_init_metric:
+                with mock.patch.object(
+                    DDWaf,
+                    "required_data",
+                    new_callable=mock.PropertyMock,
+                    side_effect=ctypes.ArgumentError("argument 2"),
+                ):
+                    processor.on_span_start(Span("test", span_type=SpanTypes.SYSTEM))
+
+    assert processor._ddwaf is None
+    assert "[DDAS-0005-00] WAF address discovery failed" in caplog.text
+    log_waf_error.assert_called_once()
+    assert log_waf_error.call_args.args[0] == "appsec.waf.error::address_discovery::ArgumentError::argument 2"
+    set_waf_init_metric.assert_called_once()
+    assert set_waf_init_metric.call_args.args[1] is False
+
+
+def test_waf_address_refresh_failure_on_rules_update_is_reported():
+    processor = AppSecSpanProcessor()
+    processor.delayed_init()
+    previous_addresses = set(processor._addresses_to_keep)
+
+    with override_global_config(dict(_asm_static_rule_file=None)):
+        with mock.patch("ddtrace.appsec._processor.log_waf_error") as log_waf_error:
+            with mock.patch("ddtrace.appsec._processor.set_waf_updates_metric") as set_waf_updates_metric:
+                with mock.patch.object(
+                    DDWaf,
+                    "required_data",
+                    new_callable=mock.PropertyMock,
+                    side_effect=ctypes.ArgumentError("argument 2"),
+                ):
+                    assert processor._update_rules([], []) is False
+
+    assert processor.enabled
+    assert processor._addresses_to_keep == previous_addresses
+    log_waf_error.assert_called_once()
+    set_waf_updates_metric.assert_called_once()
+    assert set_waf_updates_metric.call_args.args[1] is False
+
+
+def test_log_waf_error_does_not_count_a_config_error():
+    with override_global_config(dict(_asm_deduplication_enabled=False)):
+        with mock.patch("ddtrace.appsec._metrics.telemetry.telemetry_writer") as telemetry_writer:
+            log_waf_error("appsec.waf.error::address_discovery::test_log_waf_error_does_not_count", "1.19.0")
+
+    telemetry_writer.add_log.assert_called_once()
+    telemetry_writer.add_count_metric.assert_not_called()
+
+
+def test_failed_waf_address_refresh_keeps_previous_addresses():
+    processor = AppSecSpanProcessor()
+    processor.delayed_init()
+    previous_addresses = set(processor._addresses_to_keep)
+    assert previous_addresses
+
+    with mock.patch.object(
+        DDWaf, "required_data", new_callable=mock.PropertyMock, side_effect=ctypes.ArgumentError("argument 2")
+    ):
+        with pytest.raises(ctypes.ArgumentError):
+            processor._update_required()
+
+    assert processor._addresses_to_keep == previous_addresses
 
 
 def test_ddwaf_ctx(tracer):
@@ -317,7 +388,7 @@ def test_ip_update_rules_and_block(tracer):
                 ],
             ),
         )
-        # AIDEV-NOTE: WAF updates apply to request contexts created after the update.
+        # WAF updates apply to request contexts created after the update.
         # A nested same-service WEB span is part of the current service entry, not a new request.
         with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED) as span:
             set_http_meta(
@@ -463,8 +534,7 @@ def test_appsec_abort_on_waf_failure():
     completely if an error is found in the bindings layer.
     """
     import ctypes
-
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config
@@ -644,8 +714,8 @@ def test_ddwaf_run_timeout():
         rules_json = rule_set.read()
         _ddwaf = DDWaf(rules_json, b"", b"")
         data = {
-            "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
-            "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
+            "server.request.path_params": {f"param_{i}": f"value_{i}" for i in range(100)},
+            "server.request.cookies": {f"attack{i}": f"1' or '1' = '{i}'" for i in range(100)},
         }
         ctx = _ddwaf._at_request_start()
         res = _ddwaf.run(ctx, data, timeout_ms=0.001)  # res is a serialized json
@@ -1020,7 +1090,7 @@ def test_lambda_unsupported_event(tracer, skip_event):
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
 
 
-@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi", "azure.apim"])
+@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi", "azure.apim", "azure.frontdoor"])
 def test_lambda_inferred_span(tracer, inferred_span_name):
     """
     Ensure that when the service entry span is below an inferred span, both spans have
@@ -1044,13 +1114,9 @@ def test_lambda_inferred_span(tracer, inferred_span_name):
     assert get_triggers(gateway_span)
 
 
-def test_rasp_subcontext_scope_shared_for_ssrf():
-    """A nested SSRF operation (e.g. requests driving urllib3) must share ONE subcontext.
-
-    The reentrant open must not let an inner scope clobber the outer holder, and SSRF_REQ +
-    SSRF_RES of the same outgoing request must resolve the same subcontext.
-    """
+def test_rasp_subcontext_scope_inherits_only_from_the_layer_driving_it():
     from ddtrace.appsec import _asm_request_context as arc
+    from ddtrace.appsec._asm_request_context import SsrfLayer
     from ddtrace.internal import core
 
     class _FakeSubctx:
@@ -1066,18 +1132,26 @@ def test_rasp_subcontext_scope_shared_for_ssrf():
 
     waf = _FakeWaf()
     main_ctx = object()
-    with core.context_with_data("outer_request"):
-        arc.open_rasp_subcontext_scope()
-        s_req = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
-        # Inner client opens a nested scope: it must detect the parent holder and not create one.
-        with core.context_with_data("inner_send"):
-            arc.open_rasp_subcontext_scope()  # reentrant: reuses the outer holder
-            s_inner = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
-            assert s_inner is s_req
-        # Final response on the outer scope still shares the same subcontext.
-        s_res = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_res")
-        assert s_res is s_req
-    assert waf.created == 1
+
+    def subctx():
+        return arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
+
+    transports = (SsrfLayer.URLLIB, SsrfLayer.URLLIB3)
+    with core.context_with_data("requests"):
+        arc.open_rasp_subcontext_scope(SsrfLayer.REQUESTS, inherit_from=())
+        outer = subctx()
+        with core.context_with_data("urllib3"):
+            arc.open_rasp_subcontext_scope(SsrfLayer.URLLIB3, inherit_from=(SsrfLayer.REQUESTS,))
+            assert subctx() is outer
+            with core.context_with_data("http.client"):
+                arc.open_rasp_subcontext_scope(SsrfLayer.HTTP_CLIENT, inherit_from=transports)
+                assert subctx() is outer
+        # http.client called from a requests hook is a separate request.
+        with core.context_with_data("hook"):
+            arc.open_rasp_subcontext_scope(SsrfLayer.HTTP_CLIENT, inherit_from=transports)
+            assert subctx() is not outer
+        assert arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_res") is outer
+    assert waf.created == 2
 
 
 def test_rasp_subcontext_distinct_per_concurrent_outgoing_request():
@@ -1102,10 +1176,10 @@ def test_rasp_subcontext_distinct_per_concurrent_outgoing_request():
     main_ctx = object()
     with core.context_with_data("inbound_request"):  # shared parent (the inbound request)
         with core.context_with_data("outgoing_a"):
-            arc.open_rasp_subcontext_scope()
+            arc.open_rasp_subcontext_scope(arc.SsrfLayer.REQUESTS, inherit_from=())
             a = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
         with core.context_with_data("outgoing_b"):  # sibling, not nested under A
-            arc.open_rasp_subcontext_scope()
+            arc.open_rasp_subcontext_scope(arc.SsrfLayer.REQUESTS, inherit_from=())
             b = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
         assert a is not b
     assert waf.created == 2
@@ -1130,7 +1204,7 @@ def test_rasp_subcontext_fresh_per_non_ssrf_call():
     waf = _FakeWaf()
     main_ctx = object()
     with core.context_with_data("request"):
-        arc.open_rasp_subcontext_scope()
+        arc.open_rasp_subcontext_scope(arc.SsrfLayer.REQUESTS, inherit_from=())
         a = arc.get_or_create_rasp_subcontext(waf, main_ctx, "lfi")
         b = arc.get_or_create_rasp_subcontext(waf, main_ctx, "lfi")
         assert a is not b

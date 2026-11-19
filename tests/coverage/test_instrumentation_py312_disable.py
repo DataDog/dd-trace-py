@@ -10,7 +10,7 @@ import sys
 import pytest
 
 
-# AIDEV-NOTE: Tests for the "Datadog is the only monitoring tool" branch run in-process
+# Tests for the "Datadog is the only monitoring tool" branch run in-process
 # and skip when a session-level tool such as pytest-cov already owns another slot. The
 # neighboring tests explicitly register another tool to cover the opposite branch.
 

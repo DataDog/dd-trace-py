@@ -23,8 +23,7 @@ from .internal.trace_utils import iswrapped
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -98,8 +97,14 @@ class TracedAsyncCursor(TracedCursor):
     async def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(
+                    query=query,
+                    span_name_prefix=self._self_dbapi_span_name_prefix,
+                    get_encoding=self._dbapi_query_encoding,
+                )
+            )
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -119,8 +124,14 @@ class TracedAsyncCursor(TracedCursor):
     async def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(
+                    query=query,
+                    span_name_prefix=self._self_dbapi_span_name_prefix,
+                    get_encoding=self._dbapi_query_encoding,
+                )
+            )
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -177,7 +188,7 @@ class TracedAsyncConnection(TracedConnection):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = FetchTracedAsyncCursor if cfg.trace_fetch_methods else TracedAsyncCursor
-        super(TracedAsyncConnection, self).__init__(conn, pin=pin, cfg=cfg, cursor_cls=cursor_cls, db_tags=db_tags)
+        super().__init__(conn, pin=pin, cfg=cfg, cursor_cls=cursor_cls, db_tags=db_tags)
 
     async def __aenter__(self):
         """Context management is not defined by the dbapi spec.

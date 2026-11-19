@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    LLM Observability: resolves an issue where a streamed Bedrock ``InvokeModelWithResponseStream``
+    request that ended in an error or was cancelled part-way produced a span with no output
+    annotation. The text received before the failure is now tagged on the span.
+  - |
+    LLM Observability: resolves an issue where a streamed Bedrock ``ConverseStream`` request that
+    ended in an error or was cancelled part-way produced a span that was not marked as an error,
+    making an interrupted request indistinguishable from a successful one.

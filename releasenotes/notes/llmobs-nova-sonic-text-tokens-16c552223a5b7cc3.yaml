@@ -1,0 +1,4 @@
+features:
+  - |
+    AWS Bedrock Runtime: Adds reported input and output text token counts to
+    Nova Sonic 2 spans in LLM Observability alongside audio token counts.

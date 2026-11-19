@@ -7,14 +7,16 @@ import traceback
 from types import TracebackType
 from typing import Optional
 
+import ddtrace
 from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import excepthook
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
+from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -101,7 +103,7 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     python_executable = sys.executable
 
     # Get the path to the receiver script module
-    spec = importlib.util.find_spec("ddtrace.commands._dd_crashtracker_receiver")
+    spec = importlib.util.find_spec("ddtrace_commands._dd_crashtracker_receiver")
     if spec is None:
         log.error("Failed to locate _dd_crashtracker_receiver module")
         return (None, None, None)
@@ -144,7 +146,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         crashtracker_config.debug_url or upload_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
-        None,
+        None,  # api_key
+        config._otel_thread_context_enabled,
     )
 
     receiver_env = {}
@@ -179,16 +182,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         env_value = env.get(env_var)
         if env_value is not None:
             if env_var == "PYTHONPATH":
-                # ddtrace-run and SSI prepends its bootstrap dir (containing sitecustomize.py) to
-                # PYTHONPATH so the traced app auto-instruments on startup. If we inherit it
-                # as-is, the receiver's own interpreter re-triggers that bootstrap and ends up
-                # running a second, independently-configured copy of ddtrace using this stripped-down env.
-                # Strip it so the receiver stays a plain, uninstrumented script while still finding
-                # the ddtrace package via any other PYTHONPATH entries.
-                # receiver_script_path is .../ddtrace/commands/_dd_crashtracker_receiver.py,
-                # so two dirname() calls reach the ddtrace package root and "bootstrap"
-                # names the sibling directory that sitecustomize.py lives in.
-                bootstrap_dir = os.path.join(os.path.dirname(os.path.dirname(receiver_script_path)), "bootstrap")
+                # Strip the ddtrace-run/SSI bootstrap path so the receiver is not instrumented.
+                bootstrap_dir = os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap")
                 path_entries = [p for p in env_value.split(os.pathsep) if p != bootstrap_dir]
                 if not path_entries:
                     continue
@@ -280,14 +275,17 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 stack_mod.uninstall_segv_handler()
             except Exception:  # nosec: B110
                 pass
-        crashtracker_init(config, receiver_config, metadata)
+        try:
+            crashtracker_init(config, receiver_config, metadata)
+        finally:
+            # Reinstall even if crashtracker_init failed, so that a failed start
+            # does not leave the profiler without its recovery handler.
+            if stack_mod is not None:
+                try:
+                    stack_mod.reinstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
         excepthook.register(_unhandled_exception_reporter)
-
-        if stack_mod is not None:
-            try:
-                stack_mod.reinstall_segv_handler()
-            except Exception:  # nosec: B110
-                pass
 
         def crashtracker_fork_handler():
             # We recreate the args here mainly to pass updated runtime_id after
@@ -299,7 +297,12 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             crashtracker_on_fork(config, receiver_config, metadata)
 
         forksafe.register(crashtracker_fork_handler)
-    except Exception:
+    except BaseException as e:
+        # A Rust panic in the native bindings raises PanicException, which is not an Exception.
+        if not (isinstance(e, Exception) or is_panic_exception(e)):
+            raise
+
         log.exception("Failed to start crashtracker")
         return False
+
     return True

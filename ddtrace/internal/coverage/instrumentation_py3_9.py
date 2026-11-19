@@ -9,7 +9,7 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 
@@ -52,7 +52,7 @@ if sys.version_info < (3, 10):
             self.offset = offset
             self.opcode = opcode
             self.arg = arg
-            self.targets: list["Branch"] = []
+            self.targets: list[Branch] = []
 
     class Branch(ABC):
         def __init__(self, start: Instruction, end: Instruction) -> None:

@@ -7,6 +7,7 @@ from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info
 from ddtrace.contrib.internal.aiohttp.patch import patch
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 from ..config import HTTPBIN_CONFIG
@@ -14,12 +15,12 @@ from ..config import HTTPBIN_CONFIG
 
 HOST = HTTPBIN_CONFIG["host"]
 PORT = HTTPBIN_CONFIG["port"]
-SOCKET = "{}:{}".format(HOST, PORT)
-URL = "http://{}".format(SOCKET)
-URL_AUTH = "http://user:pass@{}".format(SOCKET)
-URL_200 = "{}/status/200".format(URL)
-URL_AUTH_200 = "{}/status/200".format(URL_AUTH)
-URL_500 = "{}/status/500".format(URL)
+SOCKET = f"{HOST}:{PORT}"
+URL = f"http://{SOCKET}"
+URL_AUTH = f"http://user:pass@{SOCKET}"
+URL_200 = f"{URL}/status/200"
+URL_AUTH_200 = f"{URL_AUTH}/status/200"
+URL_500 = f"{URL}/status/500"
 
 
 @pytest.mark.parametrize("qs,query_res", [("", None), ("?foo=bar&baz=quux", "foo=bar&baz=quux")])
@@ -81,6 +82,21 @@ async def test_500_request(snapshot_context):
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_500) as resp:
                 assert resp.status == 500
+
+
+@pytest.mark.asyncio
+async def test_resource_with_otel_semantics(test_spans):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(URL_200) as resp:
+                assert resp.status == 200
+
+    span = test_spans.find_span(name="aiohttp.request")
+    assert span.resource == "GET"
+    assert span.get_tag("http.request.method") == "GET"
+    assert span.get_tag("url.full") == URL_200
+    assert span.get_tag("http.method") is None
+    assert span.get_tag("http.url") is None
 
 
 @pytest.mark.asyncio
@@ -260,7 +276,7 @@ async def test_base_url(snapshot_context):
         The full URL (base + path) is captured in the span
     """
     with snapshot_context():
-        async with aiohttp.ClientSession(base_url="http://{}".format(SOCKET)) as session:
+        async with aiohttp.ClientSession(base_url=f"http://{SOCKET}") as session:
             async with session.get("/status/200") as resp:
                 assert resp.status == 200
 

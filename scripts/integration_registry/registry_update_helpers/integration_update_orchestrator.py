@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-import subprocess
+import subprocess  # nosec: B404
 import sys
 import tempfile
 import time
@@ -10,21 +10,22 @@ from typing import Union
 
 class IntegrationUpdateOrchestrator:
     TOOLING_VENV_DIR = ".venv-registry-tools"
-    TOOLING_DEPS = ["pyyaml", "riot", "filelock"]
+    TOOLING_DEPS = ["pyyaml", "filelock", "ruamel.yaml", "packaging"]
     REGISTRY_UPDATER_MODULE = "registry_update_helpers.integration_registry_updater"
     REGISTRY_UPDATER_CLASS = "IntegrationRegistryUpdater"
     MAIN_UPDATE_SCRIPT = "scripts/integration_registry/update_and_format_registry.py"
-    UPDATER_LOCK_FILE = "scripts/integration_registry/registry.yaml.lock"
-    LOCK_MAX_WAIT_SECONDS = 15
+    LOCK_MAX_WAIT_SECONDS = 60
+    # Lock files older than this are assumed to be left over from a crashed/killed process rather
+    # than an active holder, and are safe to clear before attempting to acquire the lock.
+    STALE_LOCK_MAX_AGE_SECONDS = 120
 
     def __init__(self, project_root: str):
         self.project_root = project_root
         self.tooling_env_path = os.path.join(project_root, self.TOOLING_VENV_DIR)
         # Define path for the venv setup lock relative to project root
         self.venv_lock_file_path = os.path.join(project_root, ".venv-registry-tools.lock")
-        self.updater_lock_file_path = os.path.join(project_root, self.UPDATER_LOCK_FILE)
 
-    def _acquire_lock(self, lock_file_path):
+    def _acquire_lock(self, lock_file_path: str) -> bool:
         start_time = time.monotonic()
         while time.monotonic() - start_time < self.LOCK_MAX_WAIT_SECONDS:
             try:
@@ -39,10 +40,30 @@ class IntegrationUpdateOrchestrator:
         print(f"Timeout acquiring lock {lock_file_path}", file=sys.stderr)
         return False
 
-    def _release_lock(self, lock_file_path):
+    def _release_lock(self, lock_file_path: str) -> None:
         try:
             os.remove(lock_file_path)
-        except Exception:
+        except Exception:  # nosec: B110
+            pass
+
+    def _ensure_no_stale_lock(self, lock_file_path: str) -> None:
+        try:
+            age = time.time() - os.path.getmtime(lock_file_path)
+        except OSError:
+            return
+        if age < self.STALE_LOCK_MAX_AGE_SECONDS:
+            return
+
+        # Rename so only one worker wins stale lock reclamation.
+        tmp_path = lock_file_path + f".stale.{os.getpid()}"
+        try:
+            os.rename(lock_file_path, tmp_path)
+        except OSError:
+            return
+
+        try:
+            os.remove(tmp_path)
+        except OSError:
             pass
 
     def _ensure_tooling_venv(self):
@@ -87,7 +108,9 @@ class IntegrationUpdateOrchestrator:
     def _run_subprocess(self, cmd: list, timeout: int, cwd: str, description: str, verbose: bool = True) -> bool:
         """Helper to run subprocess. Prints stderr on failure by default."""
         try:
-            process = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+            process = subprocess.run(  # nosec: B603
+                cmd, check=True, capture_output=True, text=True, timeout=timeout, cwd=cwd
+            )
             if verbose:
                 if process.stdout:
                     print(f"\n--- stdout: {description} ---\n{process.stdout.strip()}", file=sys.stdout)
@@ -147,62 +170,41 @@ class IntegrationUpdateOrchestrator:
         venv_lock_acquired = False
         updater_succeeded = False
 
+        self._ensure_no_stale_lock(self.venv_lock_file_path)
+
+        # Setup Tooling Venv
         try:
-            # Remove potentially stale venv lock file
-            if os.path.exists(self.venv_lock_file_path):
-                try:
-                    os.remove(self.venv_lock_file_path)
-                except OSError:
-                    pass
-
-            # Setup Tooling Venv
-            try:
-                if not self._acquire_lock(self.venv_lock_file_path):
-                    return
-                venv_lock_acquired = True
-                if not self._ensure_tooling_venv():
-                    return
-            finally:
-                if venv_lock_acquired:
-                    self._release_lock(self.venv_lock_file_path)
-
-            # Remove potentially stale updater lock file
-            if os.path.exists(self.updater_lock_file_path):
-                try:
-                    os.remove(self.updater_lock_file_path)
-                except OSError:
-                    pass
-
-            # Run Update Process
-            tooling_python = os.path.join(self.tooling_env_path, "bin", "python")
-            if not os.path.exists(tooling_python):
+            if not self._acquire_lock(self.venv_lock_file_path):
                 return
-
-            # 1. Run IntegrationRegistryUpdater
-            integration_registry_dir = os.path.join(self.project_root, "scripts", "integration_registry")
-            escaped_path = data_file_path.replace("'", "'\\''")
-            py_cmd = (
-                f"import sys; sys.path.insert(0, '{integration_registry_dir}'); "
-                f"from {self.REGISTRY_UPDATER_MODULE} import {self.REGISTRY_UPDATER_CLASS}; "
-                f"updater = {self.REGISTRY_UPDATER_CLASS}(); success = updater.run('{escaped_path}'); "
-                f"sys.exit(0 if success else 1);"
-            )
-            cmd_updater = [tooling_python, "-c", py_cmd]
-            updater_succeeded = self._run_subprocess(
-                cmd_updater, 20, self.project_root, self.REGISTRY_UPDATER_CLASS, verbose=False
-            )
-
-            # 2. Run Main IntegrationRegistry Update/Format Script if we have changes to the registry
-            if updater_succeeded:
-                script_path = os.path.join(self.project_root, self.MAIN_UPDATE_SCRIPT)
-                if os.path.exists(script_path):
-                    cmd_main = [tooling_python, script_path]
-                    self._run_subprocess(cmd_main, 20, self.project_root, "Main Update Script", verbose=True)
-
+            venv_lock_acquired = True
+            if not self._ensure_tooling_venv():
+                return
         finally:
-            # Cleanup updater's lock file
-            if os.path.exists(self.updater_lock_file_path):
-                try:
-                    os.remove(self.updater_lock_file_path)
-                except OSError:
-                    pass
+            if venv_lock_acquired:
+                self._release_lock(self.venv_lock_file_path)
+
+        # Run Update Process
+        tooling_python = os.path.join(self.tooling_env_path, "bin", "python")
+        if not os.path.exists(tooling_python):
+            return
+
+        # 1. Run IntegrationRegistryUpdater
+        integration_registry_dir = os.path.join(self.project_root, "scripts", "integration_registry")
+        escaped_path = data_file_path.replace("'", "'\\''")
+        py_cmd = (
+            f"import sys; sys.path.insert(0, '{integration_registry_dir}'); "
+            f"from {self.REGISTRY_UPDATER_MODULE} import {self.REGISTRY_UPDATER_CLASS}; "
+            f"updater = {self.REGISTRY_UPDATER_CLASS}(); success = updater.run('{escaped_path}'); "
+            f"sys.exit(0 if success else 1);"
+        )
+        cmd_updater = [tooling_python, "-c", py_cmd]
+        updater_succeeded = self._run_subprocess(
+            cmd_updater, 20, self.project_root, self.REGISTRY_UPDATER_CLASS, verbose=False
+        )
+
+        # 2. Run Main IntegrationRegistry Update/Format Script if we have changes to the registry
+        if updater_succeeded:
+            script_path = os.path.join(self.project_root, self.MAIN_UPDATE_SCRIPT)
+            if os.path.exists(script_path):
+                cmd_main = [tooling_python, script_path]
+                self._run_subprocess(cmd_main, 20, self.project_root, "Main Update Script", verbose=True)

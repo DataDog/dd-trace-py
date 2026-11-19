@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where Test Optimization lost test results in suites that block network access while
+    their tests run, such as with pytest-socket, and failed the tests during which it sent them when the suite checks
+    for blocked connections. Test Optimization now sends its requests with ddtrace's native HTTP client, which doesn't
+    go through Python's socket module.
+  - |
+    CI Visibility: Fixes an issue where Test Optimization turned itself off with a Datadog Agent on a Unix domain
+    socket, as with ``DD_TRACE_AGENT_URL=unix:///path/to/apm.socket`` or with ``/var/run/datadog/apm.socket``, which
+    it uses when that file exists and no agent URL, host or port is set: it requested the socket's path followed by
+    ``/info`` and got a 404.

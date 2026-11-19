@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    algoliasearch: This introduces tracing support for ``algoliasearch`` 3.x.

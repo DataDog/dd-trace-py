@@ -1,3 +1,4 @@
+from operator import attrgetter
 import os
 from typing import Any
 from unittest import mock
@@ -16,6 +17,7 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 import pytest
 
+from ddtrace.contrib.internal.google_adk.patch import _tool_dispatch_target
 from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
 from ddtrace.internal.utils.version import parse_version
@@ -151,17 +153,19 @@ ADK_VERSION = parse_version(google.adk.__version__)
 # google-adk >= 2.7.0 removed `__call_tool_live` and routes streaming tools through
 # `__call_tool_async`, which then returns an async generator.
 streaming_via_call_tool_async = pytest.mark.skipif(
-    ADK_VERSION < (2, 7, 0),
-    reason="streaming tools are dispatched through __call_tool_live before google-adk 2.7.0",
+    ADK_VERSION < (2, 7, 0) or ADK_VERSION >= (2, 12, 0),
+    reason="streaming tools are dispatched through __call_tool_live before google-adk 2.7.0, and from 2.12.0 "
+    "run as workflow nodes that need a Runner, so the dispatcher cannot be called directly",
 )
 
 
 def call_tool_async(module):
-    """Return the wrapped tool dispatch function.
+    """Return the wrapped tool dispatch function of the installed google-adk.
 
     Looked up with getattr so the name is not mangled when referenced from a class body.
     """
-    return getattr(module.flows.llm_flows.functions, "__call_tool_async")
+    dispatch_module, dispatch_name = _tool_dispatch_target(ADK_VERSION)
+    return getattr(attrgetter(dispatch_module)(module), dispatch_name)
 
 
 async def stream_values(count: int):

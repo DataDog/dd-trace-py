@@ -1,8 +1,8 @@
 FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d AS base
 
 # Keep this version in sync with the one we actually use in benchmarking-platform
-# https://github.com/DataDog/benchmarking-platform/blob/32681a9f805f4d62cf6bd7d205ddeb83ab72288d/container/install-base-deps.sh#L21
-ARG PYTHON_VERSION=3.9.15
+# https://github.com/DataDog/benchmarking-platform/blob/dd-trace-py/container/install-base-deps.sh
+ARG PYTHON_VERSION=3.12.10
 ARG PYENV_VERSION=2.5.5
 RUN apt-get update && apt-get install --no-install-recommends -y \
     make build-essential libssl-dev zlib1g-dev \
@@ -17,13 +17,22 @@ RUN pyenv install "$PYTHON_VERSION"
 
 FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
 # Keep this version in sync with
-# https://github.com/DataDog/benchmarking-platform/blob/32681a9f805f4d62cf6bd7d205ddeb83ab72288d/container/install-base-deps.sh#L21
-ARG PYTHON_VERSION=3.9.15
+# https://github.com/DataDog/benchmarking-platform/blob/dd-trace-py/container/install-base-deps.sh
+ARG PYTHON_VERSION=3.12.10
 
 COPY --from=base /pyenv /pyenv
 ENV PYENV_ROOT "/pyenv"
 ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:/root/.cargo/bin/:$PATH"
 RUN pyenv global "$PYTHON_VERSION"
+
+# Increase pip/uv timeout and retries to avoid transient network failures
+# when downloading packages from PyPI in CI. Set before `pip install -U pip`
+# so the upgrade itself benefits from the increased timeout/retries.
+ENV PIP_DEFAULT_TIMEOUT=120
+ENV PIP_RETRIES=10
+ENV UV_HTTP_TIMEOUT=120
+ENV UV_HTTP_RETRIES=10
+
 RUN pip install -U pip
 
 ARG SCENARIO=base

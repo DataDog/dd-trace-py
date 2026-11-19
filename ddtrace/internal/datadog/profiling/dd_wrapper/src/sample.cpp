@@ -1,9 +1,13 @@
-#include "sample.hpp"
-
+// TODO(py-315): Python.h must be included first, before any system or project headers.
+// CPython's pyconfig.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE to their current
+// POSIX standard values (202405L on 3.15+). If system headers (included transitively
+// via libdatadog_helpers.hpp → features.h) are pulled in first, they define older
+// values (200809L), and pyconfig.h's later redefinition triggers -Werror on GCC/Clang.
 #define PY_SSIZE_T_CLEAN
-
 #include <Python.h>
 #include <frameobject.h>
+
+#include "sample.hpp"
 
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
@@ -11,6 +15,7 @@
 #include "python_helpers.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <datadog/profiling.h>
 #include <string_view>
@@ -29,8 +34,12 @@ Datadog::intern_string(std::string_view s)
     auto insert_str_res = ddog_prof_ProfilesDictionary_insert_str(
       &string_id, *maybe_dict, to_slice(s), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
 
-    if (insert_str_res.flags) {
-        std::cerr << "Error inserting string: " << insert_str_res.err << std::endl;
+    if (status_is_error(insert_str_res)) {
+        // Under memory pressure this fails for every frame, so only report it once.
+        static std::atomic<bool> already_warned{ false };
+        if (!already_warned.exchange(true, std::memory_order_relaxed)) {
+            std::cerr << "Error inserting string: " << insert_str_res.err << std::endl;
+        }
         return std::nullopt;
     }
 
@@ -54,8 +63,11 @@ Datadog::intern_function(string_id name, string_id filename)
 
     ddog_prof_FunctionId2 function_id;
     auto insert_function_res = ddog_prof_ProfilesDictionary_insert_function(&function_id, *maybe_dict, &my_function);
-    if (insert_function_res.flags) {
-        std::cerr << "Error inserting function: " << insert_function_res.err << std::endl;
+    if (status_is_error(insert_function_res)) {
+        static std::atomic<bool> already_warned{ false };
+        if (!already_warned.exchange(true, std::memory_order_relaxed)) {
+            std::cerr << "Error inserting function: " << insert_function_res.err << std::endl;
+        }
         return std::nullopt;
     }
 
@@ -113,13 +125,16 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
     auto maybe_name_id = intern_string(name);
     auto maybe_filename_id = intern_string(filename);
 
-    // Skip frame if interning failed (e.g., dictionary not available)
+    // Skip the frame if interning failed (for example, the dictionary is gone).
+    // Count it once even when both strings failed to intern.
     if (!maybe_name_id || !maybe_filename_id) {
+        ProfilerStats::incr_intern_failed_count();
         return;
     }
 
     auto maybe_func_id = intern_function(*maybe_name_id, *maybe_filename_id);
     if (!maybe_func_id) {
+        ProfilerStats::incr_intern_failed_count();
         return;
     }
 
@@ -287,7 +302,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     std::string_view val_str = string_storage.insert(val);
-    const static std::string unit_str = "";
+    constexpr std::string_view unit_str = "";
 
     // Otherwise, persist the val string and add the label
     labels.push_back({
@@ -297,7 +312,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
       .str = to_slice(val_str),
       .num = 0,
       // Do not intern this because it could be a memory leak if values are high-cardinality.
-      .num_unit = to_slice(unit_str.c_str()),
+      .num_unit = to_slice(unit_str),
     });
     return true;
 }
@@ -510,21 +525,6 @@ Datadog::Sample::reset_alloc()
         if (alloc_space_idx < values.size() && alloc_count_idx < values.size()) {
             values[alloc_space_idx] = 0;
             values[alloc_count_idx] = 0;
-        }
-    }
-}
-
-void
-Datadog::Sample::reset_heap()
-{
-    if (0U != (type_mask & SampleType::Heap)) {
-        const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
-        const size_t heap_count_idx = ProfilerState::get().profile_state.val().heap_count;
-        if (heap_space_idx < values.size()) {
-            values[heap_space_idx] = 0;
-        }
-        if (heap_count_idx < values.size()) {
-            values[heap_count_idx] = 0;
         }
     }
 }
@@ -819,12 +819,6 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
     }
 
     return true;
-}
-
-void
-Datadog::Sample::set_timeline(bool enabled)
-{
-    ProfilerState::get().timeline_enabled = enabled;
 }
 
 bool

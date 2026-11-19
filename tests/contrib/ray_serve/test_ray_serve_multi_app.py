@@ -27,7 +27,7 @@ EXPECTED_MULTI_APP_DEPLOYMENTS = {
 
 
 def _start_ray_cluster(env):
-    # AIDEV-NOTE: Keep this explicit cluster small; `serve run` auto-starts Ray
+    # Keep this explicit cluster small; `serve run` auto-starts Ray
     # with default object-store sizing, which is too large for constrained CI pods.
     subprocess.run(["ray", "stop", "--force"], env=env, check=False, capture_output=True)
     return subprocess.run(

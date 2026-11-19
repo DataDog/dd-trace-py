@@ -51,7 +51,6 @@ from ._utils import get_wsgi_header
 
 log = get_logger(__name__)
 
-
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
 _HTTP_BAGGAGE_PREFIX: Literal["ot-baggage-"] = "ot-baggage-"
@@ -141,8 +140,8 @@ def _dd_id_to_b3_id(dd_id: int) -> str:
     if dd_id > _MAX_UINT_64BITS:
         # b3 trace ids can have the length of 16 or 32 characters:
         # https://github.com/openzipkin/b3-propagation#traceid
-        return "{:032x}".format(dd_id)
-    return "{:016x}".format(dd_id)
+        return f"{dd_id:032x}"
+    return f"{dd_id:016x}"
 
 
 # Propagation runs on every inject/extract, use MetricRecorder for extra-fast dispatch. Both parts
@@ -247,7 +246,7 @@ class _DatadogMultiHeader:
     @staticmethod
     def _put_together_trace_id(trace_id_hob_hex: str, low_64_bits: int) -> int:
         # combine highest and lowest order hex values to create a 128 bit trace_id
-        return int(trace_id_hob_hex + "{:016x}".format(low_64_bits), 16)
+        return int(trace_id_hob_hex + f"{low_64_bits:016x}", 16)
 
     @staticmethod
     def _higher_order_is_valid(upper_64_bits: str) -> bool:
@@ -364,7 +363,7 @@ class _DatadogMultiHeader:
                 if config._128_bit_trace_id_enabled:
                     trace_id = _DatadogMultiHeader._put_together_trace_id(trace_id_hob_hex, trace_id)
             else:
-                meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
+                meta["_dd.propagation_error"] = f"malformed_tid {trace_id_hob_hex}"
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
 
@@ -573,7 +572,7 @@ class _B3SingleHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        single_header = "{}-{}".format(_dd_id_to_b3_id(span_context.trace_id), _dd_id_to_b3_id(span_context.span_id))
+        single_header = f"{_dd_id_to_b3_id(span_context.trace_id)}-{_dd_id_to_b3_id(span_context.span_id)}"
         sampling_priority = span_context.sampling_priority
         if sampling_priority is not None:
             if sampling_priority <= 0:
@@ -977,26 +976,36 @@ class _BaggageHeader:
 
         baggage_data: dict[str, str] = {}
         total_size = 0
-        splitted_header = header_value.split(BAGGAGE_DELIMITER)
+        # One extra character ensures a partial final member exceeds the byte budget.
+        splitted_header = header_value[: DD_TRACE_BAGGAGE_MAX_BYTES + 1].split(
+            BAGGAGE_DELIMITER, DD_TRACE_BAGGAGE_MAX_ITEMS
+        )
         for pair_index, key_value in enumerate(splitted_header):
             if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning(
-                    "Baggage item limit exceeded, dropping excess items, skipped: %d items",
-                    len(splitted_header) - DD_TRACE_BAGGAGE_MAX_ITEMS,
+                    "Baggage item limit exceeded (%d items), dropping excess items; retained %d items",
+                    DD_TRACE_BAGGAGE_MAX_ITEMS,
+                    len(baggage_data),
                 )
                 _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
                 break
-            if "=" not in key_value:
+            try:
+                base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
+            except UnicodeEncodeError:
                 return _BaggageHeader._record_malformed_and_return_empty()
-            base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
             segment_bytes = base_size_bytes + (len(BAGGAGE_DELIMITER) if baggage_data else 0)
             if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
                 log.warning(
-                    "Baggage header size exceeded, dropping excess items. size would be %d bytes",
+                    "Baggage header size exceeded, dropping excess items; "
+                    "size would be at least %d bytes (limit: %d bytes, parsed: %d bytes)",
                     total_size + segment_bytes,
+                    DD_TRACE_BAGGAGE_MAX_BYTES,
+                    total_size,
                 )
                 _BAGGAGE_TRUNCATED_BYTE_COUNT.add()
                 break
+            if "=" not in key_value:
+                return _BaggageHeader._record_malformed_and_return_empty()
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
@@ -1017,7 +1026,7 @@ _PROP_STYLES = {
 }
 
 
-class HTTPPropagator(object):
+class HTTPPropagator:
     """A HTTP Propagator using HTTP headers as carrier. Injects and Extracts headers
     according to the propagation style set by ddtrace configurations.
     """
@@ -1137,7 +1146,7 @@ class HTTPPropagator(object):
                         primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
                     elif dd_context:
                         # if p value is not present in tracestate, use the parent id from the datadog headers
-                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = f"{dd_context.span_id:016x}"
                     # the span_id in tracecontext takes precedence over the first extracted propagation style
                     primary_context.span_id = context.span_id
 

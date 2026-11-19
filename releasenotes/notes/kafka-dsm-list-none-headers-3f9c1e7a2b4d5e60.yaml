@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    kafka: Fixes an issue where Data Streams Monitoring did not link producers to consumers when
+    ``Producer.produce()`` was called with ``headers`` as a list of tuples or as ``None``.

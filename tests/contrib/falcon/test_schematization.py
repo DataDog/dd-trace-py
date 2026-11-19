@@ -10,7 +10,7 @@ def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_
     expected_service_name = {None: "falcon", "v0": "falcon", "v1": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME}[
         schema_version
     ]
-    code = """
+    code = f"""
 import pytest
 import falcon
 import sys
@@ -38,11 +38,11 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
         assert len(traces) == 1
         falcon_spans = [span for trace in traces for span in trace if span.get_tag("component") == "falcon"]
         assert len(falcon_spans) == 2
-        assert falcon_spans[0].service == "{}"
+        assert falcon_spans[0].service == "{expected_service_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -58,7 +58,7 @@ def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schem
     expected_operation_name = {None: "falcon.request", "v0": "falcon.request", "v1": "http.server.request"}[
         schema_version
     ]
-    code = """
+    code = f"""
 import pytest
 import falcon
 import sys
@@ -86,11 +86,11 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
         assert len(traces) == 1
         falcon_spans = [span for trace in traces for span in trace if span.get_tag("component") == "falcon"]
         assert len(falcon_spans) == 2
-        assert falcon_spans[0].name == "{}"
+        assert falcon_spans[0].name == "{expected_operation_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version

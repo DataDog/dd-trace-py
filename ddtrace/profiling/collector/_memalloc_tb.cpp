@@ -1,7 +1,9 @@
-#include <string_view>
-
+// _memalloc_frame.h must set Py_BUILD_CORE before our own header includes Python.h.
 #include "_memalloc_frame.h"
+
 #include "_memalloc_tb.h"
+
+#include <string_view>
 
 /* Extract a UTF-8 string_view from a Python unicode object without any
  * CPython API calls that could allocate, free, or touch error state.
@@ -134,7 +136,7 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe,
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
     size_t count = (size_t)scaled_count;
 
-    sample.push_alloc(weighted_size, count);
+    sample.push_alloc(static_cast<int64_t>(weighted_size), static_cast<int64_t>(count));
     sample.push_allocator_domain(to_allocator_domain(domain));
 
     push_threadinfo_to_sample(sample);
@@ -142,8 +144,11 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe,
 }
 
 // Constructor calls init_sample() which reads CPython structs directly
+// SampleType is a bitmask, so the combined value is not one of its enumerators.
+// NOLINTBEGIN(clang-analyzer-optin.core.EnumCastOutOfRange)
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain)
   : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
+// NOLINTEND(clang-analyzer-optin.core.EnumCastOutOfRange)
 {
     if (max_nframe == 0) {
         return;

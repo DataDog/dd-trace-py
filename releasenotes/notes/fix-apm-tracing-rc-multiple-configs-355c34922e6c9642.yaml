@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    remote_config: Fixes an issue where updating or deleting one remote configuration for a
+    service discards the tracing settings, such as sampling rules, tags, and log injection,
+    applied by the other remote configurations that still target it.

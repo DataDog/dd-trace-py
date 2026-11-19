@@ -20,11 +20,11 @@ import pickle  # nosec: B403  -- pickle is only used to serialize coverage data 
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.coverage.code import _get_ctx_covered_lines
-from ddtrace.internal.coverage.code import ctx_coverage_enabled
+from ddtrace.internal.coverage.context_state import _get_ctx_covered_lines
+from ddtrace.internal.coverage.context_state import ctx_coverage_enabled
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.threading_coverage import _patch_threading
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)

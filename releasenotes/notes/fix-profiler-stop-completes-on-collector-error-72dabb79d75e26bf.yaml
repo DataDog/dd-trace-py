@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: An issue where unexpected errors while stopping the profiler prevented
+    the profiler from stopping completely has been fixed.

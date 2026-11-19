@@ -8,6 +8,7 @@ import typing as t
 from ddtrace import config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.packages import prefetch_distributions
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -35,16 +36,8 @@ def register_post_preload(func: t.Callable) -> None:
 
 log = get_logger(__name__)
 
-# Run the product manager protocol
-manager.run_protocol()
-
-# Post preload operations
-register_post_preload(manager.post_preload_products)
-
-
-# TODO: Migrate the following product logic to the new product plugin interface
-
-# DEV: We want to start the crashtracker as early as possible
+# DEV: We want to start the crashtracker as early as possible, before the
+# products, so that native crashes during their startup are reported.
 if crashtracker_config.enabled:
     try:
         from ddtrace.internal.core import crashtracking
@@ -53,13 +46,17 @@ if crashtracker_config.enabled:
     except Exception:
         log.error("failed to enable crashtracking", exc_info=True)
 
+# Run the product manager protocol
+manager.run_protocol()
 
-if profiling_config.enabled:
-    log.debug("profiler enabled via environment variable")
-    try:
-        import ddtrace.profiling.auto  # noqa: F401
-    except Exception:
-        log.error("failed to enable profiling", exc_info=True)
+# Post preload operations
+register_post_preload(manager.post_preload_products)
+
+# Scan installed distributions in the background, at the end of the bootstrap.
+register_post_preload(prefetch_distributions)
+
+
+# TODO: Migrate the following product logic to the new product plugin interface
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()

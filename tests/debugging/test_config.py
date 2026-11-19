@@ -72,6 +72,16 @@ def test_redacted_identifiers():
         assert config.redacted_identifiers == frozenset(["foo", "bar"])
 
 
+def test_redacted_identifiers_normalizes_separators() -> None:
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS="X-My-Secret, my_other.secret") as config:
+        assert config.redacted_identifiers == frozenset(["xmysecret", "myothersecret"])
+
+
+def test_redaction_excluded_identifiers_normalizes_separators():
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS="X-Api-Key") as config:
+        assert config.redaction_excluded_identifiers == frozenset(["xapikey"])
+
+
 def test_redacted_types():
     with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="Foo, Bar") as config:
         assert config.redacted_types == frozenset(["Foo", "Bar"])
