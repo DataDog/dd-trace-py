@@ -99,6 +99,7 @@ ddtrace/_logger.py                  @DataDog/apm-python-guild  @DataDog/apm-core
 ddtrace/auto.py                     @DataDog/apm-python-guild  @DataDog/apm-core-python
 ddtrace/bootstrap/                  @DataDog/apm-python-guild  @DataDog/apm-core-python
 ddtrace/commands/                   @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace_commands/                   @DataDog/apm-python-guild  @DataDog/apm-core-python
 ddtrace/internal/_file_queue.py     @DataDog/apm-python-guild
 ddtrace/internal/_unpatched.py      @DataDog/apm-python-guild
 ddtrace/__init__.py                 @DataDog/apm-python-guild
@@ -249,7 +250,6 @@ docs/debug_symbols.rst                            @DataDog/apm-python-guild @Dat
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/internal/settings/crashtracker.py   @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/internal/settings/crashtracker.pyi  @DataDog/profiling-python @DataDog/apm-core-python
-ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog/apm-core-python
 tests/crashtracker/                          @DataDog/profiling-python
 src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
 
