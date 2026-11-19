@@ -14,7 +14,9 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from tests.debugging.utils import SLOW_SCOPE
 from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_capture_expressions_function_probe
 from tests.debugging.utils import create_capture_expressions_line_probe
+from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.debugging.utils import slow_timed_expr
@@ -261,3 +263,64 @@ def test_capture_expression_complete_capture_sets_no_incomplete_reason():
 
     assert snap._capture_incomplete_reason is None
     assert snap._capture_expr_error_reason is None
+
+
+# ---------------------------------------------------------------------------
+# Incomplete-capture state survives the return capture of entry-timed probes
+# ---------------------------------------------------------------------------
+
+_NO_EXC = (None, None, None)
+
+
+def _scoped_capture_expression(name="v"):
+    def _eval(scope):
+        if scope.get("fail"):
+            raise ZeroDivisionError("boom")
+        return scope["v"]
+
+    return CaptureExpression(
+        name=name, expr=DDTimedRedactedExpression(dsl=name, callable=_eval), capture=DEFAULT_CAPTURE_LIMITS
+    )
+
+
+def _make_function_snapshot(**kwargs):
+    probe = create_capture_expressions_function_probe(
+        probe_id="test", module="tests.submod.stuff", func_qname="mutator", **kwargs
+    )
+    return _make_snapshot(probe)
+
+
+def test_entry_structural_incomplete_reason_survives_complete_return():
+    snap = _make_function_snapshot(capture_expressions=[_scoped_capture_expression()])
+
+    snap.enter({"v": list(range(1000))})
+    snap.exit(None, _NO_EXC, 0, {"v": 1})
+
+    assert snap._capture_incomplete_reason == "collectionSize"
+
+
+def test_entry_capture_expression_error_survives_complete_return():
+    snap = _make_function_snapshot(capture_expressions=[_scoped_capture_expression()])
+
+    snap.enter({"fail": True})
+    snap.exit(None, _NO_EXC, 0, {"v": 1})
+
+    assert snap.entry_capture["captureExpressions"]["v"] == {"notCapturedReason": "runtimeError"}
+    assert snap._capture_expr_error_reason == "runtimeError"
+
+
+def test_entry_segment_timeout_survives_fast_return():
+    probe = create_log_function_probe(
+        probe_id="test",
+        module="tests.submod.stuff",
+        func_qname="mutator",
+        template="{slow}",
+        segments=[ExpressionTemplateSegment(slow_timed_expr())],
+    )
+    snap = _make_snapshot(probe)
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap.enter(SLOW_SCOPE)
+        snap.exit(None, _NO_EXC, 0, {"big": range(3)})
+
+    assert snap._segment_timed_out

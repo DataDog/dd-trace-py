@@ -4,6 +4,7 @@ import typing as t
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvalDeadline
 from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._expressions import get_eval_deadline
 from ddtrace.debugging._expressions import iterates
@@ -192,17 +193,28 @@ class DDTimedRedactedExpression(DDRedactedExpression):
             return super().eval(scope)
 
         outer = get_eval_deadline()
-        deadline = perf_counter_ns() + int(eval_timeout_ms * 1_000_000)
-        if outer is not None and outer < deadline:
+        deadline_ns = perf_counter_ns() + int(eval_timeout_ms * 1_000_000)
+        if outer is not None:
             # Nested evaluation (e.g. a probe hit from code the outer
-            # expression calls into): the outer budget still applies.
-            deadline = outer
+            # expression calls into): the outer budget still applies. Its ns
+            # is None if it was inherited from an evaluation that has ended.
+            outer_ns = outer.ns
+            if outer_ns is not None and outer_ns < deadline_ns:
+                deadline_ns = outer_ns
+        deadline = EvalDeadline(deadline_ns)
         set_eval_deadline(deadline)
         try:
-            return super().eval(scope)
+            result = super().eval(scope)
+            # A short-circuiting any()/all() never resumes the iteration to
+            # reach its next check, so an overrun can still end here.
+            if perf_counter_ns() > deadline_ns:
+                raise EvaluationTimeoutError()
+            return result
         except DDExpressionEvaluationError as e:
             if isinstance(e.__cause__, EvaluationTimeoutError):
                 raise e.__cause__ from None
             raise
         finally:
+            # Invalidates any copy of the context captured during evaluation
+            deadline.ns = None
             set_eval_deadline(outer)

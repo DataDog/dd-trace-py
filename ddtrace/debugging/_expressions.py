@@ -71,18 +71,34 @@ class EvaluationTimeoutError(TimeoutError):
     """Raised when an expression evaluation exceeds its deadline."""
 
 
-# Deadline (in perf_counter_ns) of the expression evaluation running in this
-# context, or None. A context variable rather than a thread-local so that it is
-# also per greenlet: user code called by an expression can switch greenlets
-# mid-evaluation, and a thread-local would then leak the deadline into
-# evaluations running in other greenlets on the same thread.
-_eval_deadline: ContextVar[Optional[int]] = ContextVar("_eval_deadline", default=None)
+class EvalDeadline:
+    """The deadline (in perf_counter_ns) of an expression evaluation.
+
+    A mutable cell rather than a bare int in the context variable: asyncio
+    (and anything else that copies the current context) can capture it into a
+    task or callback scheduled by user code that an expression calls. Clearing
+    ns when the evaluation ends reaches every such copy, so a stale deadline is
+    never mistaken for an enclosing evaluation that is still running.
+    """
+
+    __slots__ = ("ns",)
+
+    def __init__(self, ns: Optional[int]) -> None:
+        self.ns = ns
+
+
+# Deadline of the expression evaluation running in this context, or None. A
+# context variable rather than a thread-local so that it is also per greenlet:
+# user code called by an expression can switch greenlets mid-evaluation, and a
+# thread-local would then leak the deadline into evaluations running in other
+# greenlets on the same thread.
+_eval_deadline: ContextVar[Optional[EvalDeadline]] = ContextVar("_eval_deadline", default=None)
 
 
 # Bound methods rather than wrapper functions: these run on every timed
 # evaluation, and a Python-level call each is measurable.
-get_eval_deadline: Callable[[], Optional[int]] = _eval_deadline.get
-set_eval_deadline: Callable[[Optional[int]], Any] = _eval_deadline.set
+get_eval_deadline: Callable[[], Optional[EvalDeadline]] = _eval_deadline.get
+set_eval_deadline: Callable[[Optional[EvalDeadline]], Any] = _eval_deadline.set
 
 
 # The deadline is checked once per chunk of elements. Chunks are sized at
@@ -105,7 +121,9 @@ _MAX_CHUNK_GROWTH = 8
 # Built-in types whose len(), iteration, and iterator length_hint() can't run
 # user code. Exact types only: a subclass may override __len__ or __iter__.
 # Calling len() on anything else could have side effects, so those are
-# iterated without knowing their size (_bounded_each).
+# iterated without knowing their size (_bounded_each). Look types up in these
+# sets only once type(type(it)) is type: membership hashes the type, which for
+# any other metaclass can run user code or raise.
 _SIZED_SAFE_TYPES = frozenset({list, tuple, range, set, frozenset, str, bytes, bytearray, type({}.items())})
 # The subset that can grow silently while being iterated (sets and dicts raise
 # instead), e.g. from a property that an expression reads.
@@ -155,6 +173,11 @@ def _bounded_chunks(it: Iterable[Any], deadline_ns: int) -> Iterator[Iterable[An
         elif size < 1:
             size = 1
         last = now
+    # Either exhausted or, for a dict or set that changed size, invalidated
+    # (their length hint then drops to 0). Advancing the iterator once more
+    # raises the RuntimeError unbounded iteration would, rather than silently
+    # cutting the iteration short.
+    yield _it
 
 
 def _bounded_each(it: Iterable[Any], deadline_ns: int) -> Iterator[Any]:
@@ -181,15 +204,30 @@ def _bounded_each(it: Iterable[Any], deadline_ns: int) -> Iterator[Any]:
 
 def _bounded(it: Iterable[Any]) -> Iterable[Any]:
     """Iterate it, raising EvaluationTimeoutError once the deadline passes."""
-    deadline_ns = _eval_deadline.get()
+    deadline = _eval_deadline.get()
+    if deadline is None:
+        return it
+    deadline_ns = deadline.ns
     if deadline_ns is None:
+        # Inherited from an evaluation that has already ended
         return it
     _type = type(it)
-    if _type in _SIZED_SAFE_TYPES:
-        if _type not in _GROWABLE_TYPES and len(it) <= _INITIAL_CHUNK_SIZE:  # type: ignore[arg-type]
-            # The first check would only come after the whole collection, so
-            # bounding it buys nothing. The caller still checks the deadline.
-            return it
+    if type(_type) is type and _type in _SIZED_SAFE_TYPES:
+        if _type not in _GROWABLE_TYPES:
+            try:
+                n = len(it)  # type: ignore[arg-type]
+            except OverflowError:
+                # A range longer than sys.maxsize. Its iterator can't report
+                # a length hint either, so iterate it element by element.
+                return _bounded_each(it, deadline_ns)
+            if n <= _INITIAL_CHUNK_SIZE:
+                # The first check in _bounded_chunks would only come after the
+                # whole collection, so skip the chunking. Still check here once:
+                # nested iterations over short collections would otherwise
+                # never reach a check.
+                if perf_counter_ns() > deadline_ns:
+                    raise EvaluationTimeoutError()
+                return it
         return chain.from_iterable(_bounded_chunks(it, deadline_ns))
     return _bounded_each(it, deadline_ns)
 
@@ -567,7 +605,11 @@ class DDCompiler:
                 filtered = (e for e in _bounded(it) if cond(e, None, None, _locals))
                 # Only reconstruct using the original type for known-safe builtins.
                 # For custom subclasses, fall back to list to avoid __init__ side effects.
-                return it_type(filtered) if it_type in _SAFE_RECONSTRUCTIBLE_TYPES else list(filtered)
+                return (
+                    it_type(filtered)
+                    if type(it_type) is type and it_type in _SAFE_RECONSTRUCTIBLE_TYPES
+                    else list(filtered)
+                )
 
             return self._call_function(coll_filter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
 

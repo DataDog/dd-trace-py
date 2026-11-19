@@ -111,6 +111,10 @@ class Snapshot(LogSignal):
     duration: Optional[int] = field(default=None)  # nanoseconds
     _capture_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
     _template_eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
+    # The incomplete-capture state below is kept across the entry and return
+    # captures of an entry-timed function probe: the event carries both, so an
+    # incomplete entry capture must still be reported when the return capture
+    # is complete. Each holds the first reason found.
     _segment_timed_out: bool = field(default=False, init=False, repr=False)
     # Structural capture.incomplete reason (depth/fieldCount/collectionSize/
     # stringLength/other) -- no evaluation_kind, since it reflects a capacity
@@ -149,11 +153,14 @@ class Snapshot(LogSignal):
     def _eval_message(self, _locals: Mapping[str, Any]) -> None:
         probe = cast(LogProbeMixin, self.probe)
         t_start = Time.monotonic()
+        timed_out_before = self._segment_timed_out
         self._segment_timed_out = False
         self._message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
         self._template_eval_duration_ms = (Time.monotonic() - t_start) * 1000
+        timed_out = self._segment_timed_out
+        self._segment_timed_out = timed_out or timed_out_before
 
-        if self._segment_timed_out:
+        if timed_out:
             # Already reported by _eval_segment; don't report the same
             # overrun twice through the post-hoc check below.
             return
@@ -186,6 +193,8 @@ class Snapshot(LogSignal):
         "timeout" or "runtimeError" for the first capture expression whose
         own eval() failed -- kept separate from the structural reason since
         it carries an evaluation_kind=capture_expression tag downstream.
+        Neither is overwritten once an earlier capture of this snapshot (the
+        entry capture of a function probe) has set it.
         """
         incomplete = utils.IncompleteCapture()
         with HourGlass(duration=di_config.capture_timeout_ms / 1000) as hg:
@@ -227,7 +236,8 @@ class Snapshot(LogSignal):
                     incomplete,
                 )
 
-            self._capture_incomplete_reason = incomplete.reason
+            if self._capture_incomplete_reason is None:
+                self._capture_incomplete_reason = incomplete.reason
             return {"captureExpressions": captured}
 
     def _do(self, retval: Any, exc_info: ExcInfoType, scope: Mapping[str, Any]) -> Optional[dict[str, Any]]:
@@ -243,12 +253,11 @@ class Snapshot(LogSignal):
             t_start = Time.monotonic()
             result = _capture_context(frame, exc_info, retval=retval, limits=probe.limits, incomplete=incomplete)
             self._capture_duration_ms = (Time.monotonic() - t_start) * 1000
-            self._capture_incomplete_reason = incomplete.reason
+            if self._capture_incomplete_reason is None:
+                self._capture_incomplete_reason = incomplete.reason
             return result
 
         if probe.capture_expressions:
-            self._capture_incomplete_reason = None
-            self._capture_expr_error_reason = None
             t_start = Time.monotonic()
             result = self._capture_expressions(probe.capture_expressions, scope)
             self._capture_duration_ms = (Time.monotonic() - t_start) * 1000

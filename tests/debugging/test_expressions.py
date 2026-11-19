@@ -1,5 +1,6 @@
 from dis import dis
 import re
+import sys
 from time import perf_counter_ns
 from typing import Any
 
@@ -8,6 +9,7 @@ import pytest
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import DDExpressionCompilationError
+from ddtrace.debugging._expressions import EvalDeadline
 from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._expressions import _bounded
 from ddtrace.debugging._expressions import _is_one_shot_iterator
@@ -456,7 +458,7 @@ def test_isdefined_does_not_swallow_evaluation_timeout():
 @pytest.fixture
 def eval_deadline():
     def _set(timeout_ms):
-        set_eval_deadline(perf_counter_ns() + int(timeout_ms * 1_000_000))
+        set_eval_deadline(EvalDeadline(perf_counter_ns() + int(timeout_ms * 1_000_000)))
 
     yield _set
     set_eval_deadline(None)
@@ -555,6 +557,56 @@ def test_bounded_small_list_growing_is_still_bounded(eval_deadline):
     with pytest.raises(EvaluationTimeoutError):
         for e in _bounded(coll):
             coll.append(e + 1)
+
+
+def test_bounded_small_collection_past_deadline_times_out(eval_deadline):
+    # Nested iterations over short collections never reach a chunk check, so
+    # the short path checks the deadline itself.
+    eval_deadline(-1)
+
+    with pytest.raises(EvaluationTimeoutError):
+        _bounded((1, 2))
+
+
+@pytest.mark.parametrize("make", [dict.items, set])
+def test_bounded_preserves_size_change_error(eval_deadline, make):
+    # A dict or set that changes size mid-iteration reports a zero length
+    # hint; that must not be mistaken for exhaustion.
+    eval_deadline(10_000)
+    d = dict.fromkeys(range(10))
+    coll = make(d) if make is dict.items else set(d)
+
+    with pytest.raises(RuntimeError):
+        for i, _ in enumerate(_bounded(coll)):
+            if i == 3:
+                if make is dict.items:
+                    d[100] = None
+                else:
+                    coll.add(100)
+
+
+def test_bounded_range_longer_than_maxsize(eval_deadline):
+    eval_deadline(10_000)
+    assert any(e == 0 for e in _bounded(range(sys.maxsize * 4)))
+
+
+class _UnhashableMeta(type):
+    __hash__ = None  # type: ignore[assignment]
+
+
+class _UnhashableTypeIterable(metaclass=_UnhashableMeta):
+    def __iter__(self):
+        return iter([1, 2, 3])
+
+
+def test_bounded_unhashable_metaclass(eval_deadline):
+    eval_deadline(10_000)
+    assert list(_bounded(_UnhashableTypeIterable())) == [1, 2, 3]
+
+
+def test_filter_unhashable_metaclass():
+    f = dd_compile({"filter": [{"ref": "xs"}, {"gt": [{"ref": "@it"}, 1]}]})
+    assert f({"xs": _UnhashableTypeIterable()}) == [2, 3]
 
 
 def test_compiled_expression_frames_are_named():

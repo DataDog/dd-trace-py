@@ -1,3 +1,4 @@
+import asyncio
 from contextvars import Context
 import time
 from unittest import mock
@@ -6,6 +7,7 @@ import pytest
 
 from ddtrace.debugging._expressions import DDExpressionCompilationError
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvalDeadline
 from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._expressions import get_eval_deadline
 from ddtrace.debugging._expressions import iterates
@@ -200,13 +202,13 @@ def test_timed_redacted_expression_nested_keeps_outer_deadline():
     """A nested evaluation (e.g. a probe hit from code an expression calls
     into) cannot extend the outer deadline, and restores it on exit.
     """
-    outer_deadline = time.perf_counter_ns() + 1_000_000  # 1ms from now
+    outer_deadline = EvalDeadline(time.perf_counter_ns() + 1_000_000)  # 1ms from now
     set_eval_deadline(outer_deadline)
     try:
         with mock.patch.object(config, "evaluation_timeout_ms", 5000):
             with pytest.raises(EvaluationTimeoutError):
                 slow_timed_expr().eval(SLOW_SCOPE)
-        assert get_eval_deadline() == outer_deadline
+        assert get_eval_deadline() is outer_deadline
     finally:
         set_eval_deadline(None)
 
@@ -228,7 +230,7 @@ def test_timed_redacted_expression_deadline_is_per_context():
             # fresh context, like a greenlet switch would.
             time.sleep(0.002)
             seen.append(Context().run(lambda: (get_eval_deadline(), expr.eval({"small": range(1000)}))))
-            assert get_eval_deadline() == outer
+            assert get_eval_deadline() is outer
             yield 0
 
     with mock.patch.object(config, "evaluation_timeout_ms", 1):
@@ -238,6 +240,59 @@ def test_timed_redacted_expression_deadline_is_per_context():
     # The other evaluation saw no deadline and got its own full budget.
     assert seen == [(None, False)]
     assert get_eval_deadline() is None
+
+
+def test_timed_redacted_expression_ignores_deadline_inherited_by_task():
+    """A task scheduled by user code during an evaluation copies the context,
+    deadline included. Once that evaluation has ended, the copy must not
+    constrain evaluations running in the task.
+    """
+    expr = DDTimedRedactedExpression.compile(
+        {"dsl": "small", "json": {"any": [{"ref": "small"}, {"eq": [{"ref": "@it"}, -1]}]}}
+    )
+    seen = []
+
+    async def main():
+        loop = asyncio.get_running_loop()
+        tasks = []
+
+        async def child():
+            # Well past the parent's budget
+            await asyncio.sleep(0.05)
+            seen.append(expr.eval({"small": range(10)}))
+
+        class _Scheduling:
+            def __iter__(self):
+                tasks.append(loop.create_task(child()))
+                yield 0
+
+        with mock.patch.object(config, "evaluation_timeout_ms", 10):
+            expr.eval({"small": _Scheduling()})
+            await asyncio.gather(*tasks)
+
+    asyncio.run(main())
+
+    assert seen == [False]
+
+
+def test_timed_redacted_expression_short_circuit_overrun_times_out():
+    """An any() that short-circuits never resumes the bounded iteration, so
+    the overrun is caught once the evaluation returns.
+    """
+
+    class _Slow:
+        @property
+        def value(self):
+            time.sleep(0.01)
+            return 1
+
+    expr = DDTimedRedactedExpression.compile(
+        {"dsl": "slow", "json": {"any": [{"ref": "xs"}, {"eq": [{"getmember": [{"ref": "@it"}, "value"]}, 1]}]}}
+    )
+
+    with mock.patch.object(config, "evaluation_timeout_ms", 1):
+        with pytest.raises(EvaluationTimeoutError):
+            expr.eval({"xs": [_Slow()]})
 
 
 def test_timed_redacted_expression_disabled_when_timeout_not_positive():
