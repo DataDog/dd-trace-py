@@ -8,6 +8,7 @@ from ddtrace.contrib.internal.mcp.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
+from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
@@ -227,3 +228,45 @@ def test_server_constructed_before_patch(mcp_llmobs, test_spans):
 
     spans = _pop_spans(test_spans)
     assert len([span for span in spans if span.resource == "server_tool_call"]) == 2
+
+
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_conversation_id_capture(mcp_llmobs, test_spans, run_client, mode):
+    async def run(client):
+        tools = await client.list_tools()
+        first = await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+        conversation_id = first.content[-1].text.split('"')[1]
+        second = await client.call_tool(
+            "calculator",
+            {
+                "operation": "add",
+                "a": 1,
+                "b": 2,
+                "telemetry": {"intent": "Testing", "conversation_id": conversation_id},
+            },
+        )
+        return tools, first, second, conversation_id
+
+    with override_config("mcp", dict(capture_intent=True, capture_conversation_id=True)):
+        tools, first, second, conversation_id = run_client(mode, run)
+
+    telemetry_schema = next(t for t in tools.tools if t.name == "calculator").input_schema["properties"]["telemetry"]
+    assert set(telemetry_schema["properties"]) == {"intent", "conversation_id"}
+    assert telemetry_schema["required"] == ["intent"]
+
+    assert len(conversation_id) == 32
+    assert len(first.content) == 2
+    assert len(second.content) == 1
+
+    first_span, second_span = [span for span in _pop_spans(test_spans) if span.resource == "server_tool_call"]
+    assert get_llmobs_session_id(first_span) == conversation_id
+    assert get_llmobs_session_id(second_span) == conversation_id
+    assert _get_llmobs_data_metastruct(second_span)["meta"]["intent"] == "Testing"
+    assert "telemetry" not in json.loads(get_llmobs_input_value(second_span))["params"]["arguments"]
+
+
+def test_conversation_id_capture_disabled_by_default(mcp_llmobs, test_spans, run_client):
+    result = run_client("auto", lambda client: client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2}))
+
+    assert len(result.content) == 1
+    assert get_llmobs_session_id(_only(_pop_spans(test_spans), "server_tool_call")) is None

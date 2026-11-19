@@ -28,6 +28,7 @@ from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAM
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_ARGUMENT_EVENT
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
+from ddtrace.contrib.internal.mcp._constants import TOOL_RESULT_EVENT
 from ddtrace.contrib.internal.mcp._constants import TOOLS_LIST_RESPONSE_EVENT
 from ddtrace.contrib.internal.mcp._tool_result import DEFAULT_TOOL_ERROR_MESSAGE
 from ddtrace.contrib.internal.mcp._tool_result import get_tool_error_message
@@ -162,7 +163,7 @@ class DatadogServerMiddleware:
 
         if method == "tools/list":
             result = await call_next(ctx)
-            if config.mcp.capture_intent:
+            if config.mcp.capture_intent or config.mcp.capture_conversation_id:
                 core.dispatch(TOOLS_LIST_RESPONSE_EVENT, (result,))
             return result
 
@@ -180,6 +181,8 @@ class DatadogServerMiddleware:
         error = False
         try:
             result = await call_next(ctx)
+            if method == "tools/call" and config.mcp.capture_conversation_id:
+                core.dispatch(TOOL_RESULT_EVENT, (span_from_context(request_ctx), result))
             if method == "tools/call" and is_tool_error(result):
                 span = span_from_context(request_ctx)
                 span.error = 1
@@ -222,7 +225,11 @@ def strip_telemetry_argument(span: Span, ctx: Any) -> Any:
     """
     params = ctx.params or {}
     arguments = params.get("arguments")
-    if not isinstance(arguments, dict) or TELEMETRY_KEY not in arguments:
+    if not isinstance(arguments, dict):
+        return ctx
+    if TELEMETRY_KEY not in arguments:
+        if config.mcp.capture_conversation_id:
+            core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}))
         return ctx
     params = {**params, "arguments": dict(arguments)}
     core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}))

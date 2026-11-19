@@ -16,3 +16,6 @@ TOOLS_LIST_RESPONSE_EVENT = "mcp.tools_list_response"
 TELEMETRY_ARGUMENT_EVENT = "mcp.telemetry_argument"
 # Dispatched with (span, server_info) when a stateless mcp>=2 client session adopts its server's identity.
 CLIENT_SESSION_SERVER_INFO_EVENT = "mcp.client_session.server_info"
+# Dispatched with (span, result) before a server returns a tool call result, when DD_MCP_CAPTURE_CONVERSATION_ID is
+# enabled, so LLMObs can tell the agent which conversation ID to send on later calls. The result is modified in place.
+TOOL_RESULT_EVENT = "mcp.tool_result"

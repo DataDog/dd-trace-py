@@ -4,6 +4,7 @@ from typing import Optional
 from ddtrace.contrib.internal.mcp._constants import CLIENT_SESSION_SERVER_INFO_EVENT
 from ddtrace.contrib.internal.mcp._constants import COMPONENT
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_ARGUMENT_EVENT
+from ddtrace.contrib.internal.mcp._constants import TOOL_RESULT_EVENT
 from ddtrace.contrib.internal.mcp._constants import TOOLS_LIST_RESPONSE_EVENT
 from ddtrace.internal import core
 from ddtrace.llmobs._contrib._subscribers import get_integration
@@ -29,6 +30,12 @@ def _on_telemetry_argument(span: Any, request: Any) -> None:
         integration.process_telemetry_argument(span, request)
 
 
+def _on_tool_result(span: Any, result: Any) -> None:
+    integration = _integration()
+    if integration is not None:
+        integration.inject_tool_result(span, result)
+
+
 def _on_client_session_server_info(span: Any, server_info: Any) -> None:
     integration = _integration()
     if integration is not None:
@@ -38,6 +45,7 @@ def _on_client_session_server_info(span: Any, server_info: Any) -> None:
 _LISTENERS = (
     (TOOLS_LIST_RESPONSE_EVENT, _on_tools_list_response),
     (TELEMETRY_ARGUMENT_EVENT, _on_telemetry_argument),
+    (TOOL_RESULT_EVENT, _on_tool_result),
     (CLIENT_SESSION_SERVER_INFO_EVENT, _on_client_session_server_info),
 )
 

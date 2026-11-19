@@ -1,6 +1,8 @@
 from typing import Any
 from typing import Optional
+from typing import get_args
 
+from ddtrace import config
 from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
 from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
@@ -10,11 +12,13 @@ from ddtrace.contrib.internal.mcp._constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
 from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 
@@ -35,17 +39,23 @@ INTENT_PROMPT = """Briefly describe the wider context task, and why this tool wa
  """
 
 
+CONVERSATION_ID_KEY = "conversation_id"
+CONVERSATION_ID_PROMPT = "The conversation_id from an earlier result of this server. Omit it if you have none."
+CONVERSATION_ID_INSTRUCTION = (
+    'Pass telemetry.conversation_id="{}" in all later tool calls to this server in this conversation.'
+)
+NEW_CONVERSATION_ID = "_dd.mcp.new_conversation_id"
+
+
 def dd_trace_input_schema() -> dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            INTENT_KEY: {
-                "type": "string",
-                "description": INTENT_PROMPT,
-            },
-        },
-        "required": [INTENT_KEY],
-    }
+    properties: dict[str, Any] = {}
+    required = []
+    if config.mcp.capture_intent:
+        properties[INTENT_KEY] = {"type": "string", "description": INTENT_PROMPT}
+        required.append(INTENT_KEY)
+    if config.mcp.capture_conversation_id:
+        properties[CONVERSATION_ID_KEY] = {"type": "string", "description": CONVERSATION_ID_PROMPT}
+    return {"type": "object", "properties": properties, "required": required}
 
 
 def _find_client_session_root(span: Optional[_LLMObsSpan]) -> Optional[_LLMObsSpan]:
@@ -113,7 +123,8 @@ class MCPIntegration(BaseLLMIntegration):
                 input_schema["required"] = []
 
             input_schema["properties"][TELEMETRY_KEY] = dd_trace_input_schema()
-            input_schema["required"].append(INTENT_KEY)
+            if config.mcp.capture_intent:
+                input_schema["required"].append(INTENT_KEY)
 
     def _parse_mcp_text_content(self, item: Any) -> dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""
@@ -249,6 +260,34 @@ class MCPIntegration(BaseLLMIntegration):
 
             # The argument is removed before recording the input and calling the tool
             del arguments[TELEMETRY_KEY]
+
+        if config.mcp.capture_conversation_id and not get_llmobs_session_id(span):
+            conversation_id = _get_attr(telemetry, CONVERSATION_ID_KEY, None) if telemetry else None
+            if not isinstance(conversation_id, str) or not conversation_id:
+                conversation_id = uuid4().replace("-", "")
+                span._set_ctx_item(NEW_CONVERSATION_ID, conversation_id)
+            _annotate_llmobs_span_data(span, session_id=conversation_id)
+
+    def inject_tool_result(self, span: _LLMObsSpan, result: Any) -> None:
+        """Tell the agent to send the newly generated conversation ID on later tool calls."""
+        if not self.llmobs_enabled:
+            return
+        conversation_id = span._get_ctx_item(NEW_CONVERSATION_ID)
+        content = _get_attr(result, "content", None)
+        if not conversation_id or not isinstance(content, list):
+            return
+
+        block: Any = {"type": "text", "text": CONVERSATION_ID_INSTRUCTION.format(conversation_id)}
+        try:
+            # mcp>=2 middleware results are dicts validated later. mcp<2 results are already validated models.
+            if not isinstance(result, dict):
+                from pydantic import TypeAdapter
+
+                content_type = get_args(type(result).model_fields["content"].annotation)[0]
+                block = TypeAdapter(content_type).validate_python(block)
+            content.append(block)
+        except Exception:
+            log.debug("Error adding the conversation ID instruction to the MCP tool result", exc_info=True)
 
     def _set_server_request_tags(
         self, span: _LLMObsSpan, request: Any, input_obj: Any, response: Any, session: Any, session_id: Any
