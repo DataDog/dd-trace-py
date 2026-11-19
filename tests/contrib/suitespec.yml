@@ -137,6 +137,9 @@ components:
   kafka:
     - ddtrace/contrib/internal/kafka/*
     - ddtrace/ext/kafka.py
+  kafka_python:
+    - ddtrace/contrib/internal/kafka_python/*
+    - ddtrace/ext/kafka.py
   kombu:
     - ddtrace/contrib/internal/kombu/*
     - ddtrace/ext/kombu.py
@@ -1712,6 +1715,30 @@ suites:
         - name: kafka
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
+  kafka_python:
+    venvs_per_job: 4
+    env:
+      TEST_KAFKA_HOST: kafka
+      TEST_KAFKA_PORT: '29092'
+    paths:
+      - '@bootstrap'
+      - '@contrib'
+      - '@kafka_python'
+      - '@datastreams'
+      - tests/contrib/kafka_python/*
+    services:
+      - kafka
+    matrix:
+      command: pytest {cmdargs} tests/contrib/kafka_python
+      env:
+        DD_DATA_STREAMS_ENABLED: 'true'
+      variants:
+        - name: kafka_python
+          python: ['3.9', '3.12']
+          dependencies: [pytest-randomly, 'kafka-python~=2.0.2']
+        - name: kafka_python
+          python: ['3.9', '3.12', '3.14']
+          dependencies: [pytest-randomly, kafka-python]
   kombu:
     paths:
       - '@bootstrap'
