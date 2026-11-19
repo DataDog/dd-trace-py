@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where AI Guard events in aiohttp applications were missing the client IP
+    and user agent when App and API Protection threat detection is disabled.
+  - |
+    aiohttp: Fixes an issue where request spans were missing ``network.client.ip`` when client IP
+    collection is enabled with ``DD_TRACE_CLIENT_IP_ENABLED`` and App and API Protection is disabled.

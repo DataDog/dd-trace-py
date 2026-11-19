@@ -43,6 +43,18 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
                 span._set_attribute(otel_http.ROUTE, event.request_route)
             set_otel_resource_for_method(span, event.request_method, event.request_route)
 
+        if event.tag_request_on_start:
+            try:
+                trace_utils.set_http_meta(
+                    span=span_from_context(ctx),
+                    integration_config=event.integration_config,
+                    request_headers=event.request_headers,
+                    headers_are_case_sensitive=event.headers_case_sensitive,
+                    peer_ip=event.peer_ip,
+                )
+            except Exception:
+                log.debug("%s: error adding request tags", event.integration_config.integration_name, exc_info=True)
+
     @classmethod
     def on_ended(
         cls,
@@ -90,6 +102,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
                 response_headers=response_headers,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
+                peer_ip=event.peer_ip,
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
