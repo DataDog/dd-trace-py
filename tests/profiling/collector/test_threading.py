@@ -959,6 +959,39 @@ def test_acquire_from_destructor_during_frame_teardown() -> None:
             lock.release()
 
 
+@pytest.mark.subprocess()
+def test_acquire_without_python_frame_is_not_sampled() -> None:
+    """A lock acquired by a thread with no Python frame is dropped, not exported without a stack."""
+    import _thread
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import init_ddup
+
+    test_name = "test_acquire_without_python_frame_is_not_sampled"
+    init_ddup(test_name)
+
+    with ThreadingLockCollector(module=threading, capture_pct=100):
+        lock = threading.Lock()
+        # The new thread runs the Cython acquire directly, so it has no Python frame.
+        _thread.start_new_thread(lock.acquire, ())
+        deadline = time.monotonic() + 10
+        while (not lock.locked() or _thread._count()) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert lock.locked() and not _thread._count()
+        lock.release()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile("/tmp/" + test_name + "." + str(os.getpid()))
+    assert pprof_utils.get_samples_with_value_type(profile, "lock-release")
+    assert not pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
 def test_all_exceptions_suppressed_by_default() -> None:
     """
