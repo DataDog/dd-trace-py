@@ -1607,7 +1607,7 @@ def test_forked_child_drops_a_retired_poller_teardown_reservation():
     assert provider._stopping_configuration_source is False
 
 
-def test_initialize_that_times_out_accepts_configuration_from_the_in_flight_start(cdn, api_key, monkeypatch):
+def test_initialize_that_times_out_fails_even_after_the_in_flight_start_delivered(cdn, api_key, monkeypatch):
     import ddtrace.internal.openfeature._source_selection as source_selection
 
     provider = _provider({"tags": ["a"]}, timeout=0.3)
@@ -1633,30 +1633,48 @@ def test_initialize_that_times_out_accepts_configuration_from_the_in_flight_star
         return source
 
     monkeypatch.setattr(source_selection, "create_agentless_source", create_with_a_held_store)
-    starting = threading.Thread(target=lambda: _initialize_quietly(provider))
+    outcome = []
+
+    def initialize_first():
+        try:
+            provider.initialize(EvaluationContext())
+            outcome.append(provider._status)
+        except ProviderNotReadyError:
+            outcome.append("timed out")
+
+    starting = threading.Thread(target=initialize_first)
     starting.start()
     try:
         assert delivered.wait(timeout=5)
-        provider.initialize(EvaluationContext())
-        assert provider._status == ProviderStatus.READY
+        # The in-flight start has not finished, so this initialization times out, signal or not.
+        with pytest.raises(ProviderNotReadyError):
+            provider.initialize(EvaluationContext())
+        resume.set()
+        starting.join(timeout=5)
+        # The start that did deliver reports READY through its own initialization.
+        assert outcome == [ProviderStatus.READY]
     finally:
         resume.set()
         starting.join(timeout=5)
         provider.shutdown()
 
 
-def test_initialize_that_times_out_ignores_a_notification_from_another_selection(cdn, api_key, monkeypatch):
+@pytest.mark.parametrize("first_still_running", [False, True], ids=["first-shut-down", "first-running"])
+def test_initialize_that_times_out_ignores_a_notification_from_another_selection(
+    cdn, api_key, monkeypatch, first_still_running
+):
     from ddtrace.internal.openfeature._config import _register_provider
 
     cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
     first = _provider({"tags": ["a"]})
     first.initialize(EvaluationContext())
     provider = _provider({"tags": ["b"]}, timeout=0.3)
-    # Selection A's poller notifies the B provider once it is registered, then A shuts down.
+    # Selection A's poller notifies the B provider once it is registered; A may still hold its claim.
     _register_provider(provider)
     first._configuration_source._apply_configuration(json.loads(_flag_body("selected-a"))["data"]["attributes"])
     assert provider._config_received.is_set()
-    first.shutdown()
+    if not first_still_running:
+        first.shutdown()
 
     resume = threading.Event()
     holding = _hold_source_creation(monkeypatch, resume)
@@ -1670,6 +1688,7 @@ def test_initialize_that_times_out_ignores_a_notification_from_another_selection
         resume.set()
         starting.join(timeout=5)
         provider.shutdown()
+        first.shutdown()
 
 
 def test_forked_child_drops_a_start_reservation_from_the_parent():
