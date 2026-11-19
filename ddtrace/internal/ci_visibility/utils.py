@@ -21,12 +21,14 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
+T = t.TypeVar("T")
+
 # co_lines() is available from Python 3.10+; check once at import time.
 # TODO: remove _CO_LINES_SUPPORTED and the findlinestarts fallback once Python 3.9 support is dropped.
 _CO_LINES_SUPPORTED = hasattr((lambda: None).__code__, "co_lines")
 
 
-def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
+def get_relative_or_absolute_path_for_path(path: str, start_directory: str) -> str:
     try:
         relative_path = os.path.relpath(path, start=start_directory)
     except ValueError:
@@ -38,7 +40,7 @@ def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
     return relative_path
 
 
-def get_source_file_path_for_test_method(test_method_object, repo_directory: str) -> t.Union[str, None]:
+def get_source_file_path_for_test_method(test_method_object: t.Any, repo_directory: str) -> t.Union[str, None]:
     try:
         file_object = inspect.getfile(test_method_object)
     except TypeError:
@@ -73,7 +75,7 @@ def _max_line_in_code(code: types.CodeType) -> int:
 
 @lru_cache(maxsize=512)
 def get_source_lines_for_test_method(
-    test_method_object,
+    test_method_object: t.Any,
 ) -> t.Union[tuple[int, int], tuple[None, None]]:
     """
     Get the start and end line numbers for a test method.
@@ -112,8 +114,8 @@ def get_source_lines_for_test_method(
 
 
 def _add_start_end_source_file_path_data_to_span(
-    span: ddtrace.trace.Span, test_method_object, test_name: str, repo_directory: str
-):
+    span: ddtrace.trace.Span, test_method_object: t.Any, test_name: str, repo_directory: str
+) -> None:
     if not test_method_object:
         log.debug(
             "Tried to collect source start/end lines for test method %s but test method object could not be found",
@@ -137,7 +139,7 @@ def _add_start_end_source_file_path_data_to_span(
         span._set_attribute(test.SOURCE_END, end_line)
 
 
-def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
+def _add_pct_covered_to_span(coverage_data: dict[str, t.Any], span: ddtrace.trace.Span) -> None:
     if not coverage_data or PCT_COVERED_KEY not in coverage_data:
         log.warning("Tried to add total covered percentage to session span but no data was found")
         return
@@ -156,7 +158,7 @@ def _generate_fully_qualified_module_name(test_module_path: str, test_suite_name
     return f"{test_module_path}.{test_suite_name}"
 
 
-def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
+def take_over_logger_stream_handler(remove_ddtrace_stream_handlers: bool = True) -> None:
     """Creates a handler with a filter for CIVisibility-specific messages. The also removes the existing
     handlers on the DDTrace logger, to prevent double-logging.
 
@@ -205,7 +207,7 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
     log.debug("logger setup complete")
 
 
-def combine_url_path(*args: str):
+def combine_url_path(*args: str) -> str:
     """Combine URL path segments.
 
     NOTE: this is custom-built for its current usage in the Test Visibility codebase. Use with care.
@@ -223,14 +225,14 @@ def _get_test_framework_telemetry_name(test_framework: str) -> TEST_FRAMEWORKS:
 def retry_on_exceptions(
     after: t.Iterable[float],
     exceptions: tuple[type[BaseException], ...],
-) -> t.Callable:
+) -> t.Callable[[t.Callable[..., T]], t.Callable[..., T]]:
     """
     Decorator to automatically retry a function if it raises specified exceptions.
     """
 
-    def retry_decorator(f):
+    def retry_decorator(f: t.Callable[..., T]) -> t.Callable[..., T]:
         @wraps(f)
-        def retry_wrapped(*args, **kwargs):
+        def retry_wrapped(*args: t.Any, **kwargs: t.Any) -> T:
             for delay in after:
                 try:
                     return f(*args, **kwargs)
@@ -249,7 +251,7 @@ def retry_on_exceptions(
 
 def fibonacci_backoff_with_jitter_on_exceptions(
     attempts: int, exceptions: tuple[type[BaseException], ...]
-) -> t.Callable:
+) -> t.Callable[[t.Callable[..., T]], t.Callable[..., T]]:
     """
     Decorator to automatically retry a function if it raises specified exceptions, with exponential backoff delays.
     """

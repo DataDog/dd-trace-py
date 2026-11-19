@@ -1,5 +1,7 @@
 """Lazy subscriber declarations owned by tracing initialization and product startup."""
 
+import sys
+
 from ddtrace.internal.core.subscriber import SubscriberBundle
 
 
@@ -37,6 +39,20 @@ AWS_DURABLE_SUBSCRIBERS = SubscriberBundle(
 )
 
 
+# Ray subscribers depend on its optional SDK and are activated only once the
+# integration's patch module has loaded its configuration and dependencies.
+RAY_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.ray",
+    subscribers=(
+        "RayJobStartSubscriber",
+        "RayExecutionSubscriber",
+        "RayCoreAPITracingSubscriber",
+        "RaySubmissionSubscriber",
+        "RayContextInjectionSubscriber",
+    ),
+)
+
+
 SPAN_EXCEPTION_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers._base",
     subscribers=("SpanExceptionSubscriber",),
@@ -61,3 +77,14 @@ def register_subscribers(bundles: tuple[SubscriberBundle, ...] = subscriber_bund
     """Activate tracing listeners for manual initialization and product startup."""
     for bundle in bundles:
         bundle.register()
+
+    # Restore SDK-dependent listeners only after the patch module finishes loading.
+    # Modules appear in sys.modules before their SDK imports and configuration complete.
+    ray_patch_name = "ddtrace.contrib.internal.ray.patch"
+    ray_patch = sys.modules.get(ray_patch_name)
+    if (
+        ray_patch is not None
+        and not getattr(ray_patch.__spec__, "_initializing", False)
+        and sys.modules.get(ray_patch_name) is ray_patch
+    ):
+        RAY_SUBSCRIBERS.register()

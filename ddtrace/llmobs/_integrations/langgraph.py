@@ -5,6 +5,8 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.contrib.internal.langgraph._constants import ASTREAM_OUTPUT
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
@@ -12,7 +14,6 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -49,27 +50,32 @@ class LangGraphIntegration(BaseLLMIntegration):
     _agent_manifests: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
     _graph_spans_to_graph_instances: WeakKeyDictionary[_LLMObsSpan, Any] = WeakKeyDictionary()
 
-    def trace(
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: LangGraph spans carry no provider or model tags."""
+
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
+        # Graph spans are agents, known at start for agent attribution.
+        if kwargs.get("operation") == "graph":
+            return "agent"
+        return super()._llmobs_span_kind(operation_id, span, **kwargs)
+
+    def _on_request_span_started(
         self,
-        operation_id: str,
-        submit_to_llmobs: bool = False,
-        instance=None,
-        **kwargs,
-    ) -> _LLMObsSpan:
-        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
+        span: _LLMObsSpan,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        if operation != "graph" or instance is None:
+            return
+        self._graph_spans_to_graph_instances[span] = instance
 
-        if instance:
-            self._graph_spans_to_graph_instances[span] = instance
-
-        # Stamp agent name at start so children resolve the correct pagent_name.
-        # instance is captured before **kwargs so _llmobs_agent_name_at_start can't reach it;
-        # stamp here after super().trace() has already written the kind.
-        if submit_to_llmobs and self.llmobs_enabled and kwargs.get("kind") == "agent":
-            agent_name = getattr(instance, "name", None) if instance else None
+        # Stamp the agent name at start so children resolve the correct pagent_name: the LLMObs name is the
+        # graph's short name, while the APM span name is the long composed one.
+        if span.span_type == SpanTypes.LLM:
+            agent_name = getattr(instance, "name", None)
             if agent_name:
                 _annotate_llmobs_span_data(span, name=agent_name)
-
-        return span
 
     def _llmobs_set_tags(
         self,
@@ -115,7 +121,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             kind=span_kind,
             input_value=format_langchain_io(inputs),
             output_value=maybe_format_langchain_io(response)
-            or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
+            or maybe_format_langchain_io(span._get_ctx_item(ASTREAM_OUTPUT)),
             name=invoked_node.get("name") or kwargs.get("name", span.name),
             span_links=current_span_links + span_links,
             agent_manifest=agent_manifest,
@@ -139,7 +145,8 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         if (
             "dependencies" not in agent_manifest
-            and isinstance(args, tuple)
+            # The shared LLMObs subscriber passes the request args as a list.
+            and isinstance(args, (list, tuple))
             and len(args) > 0
             and isinstance(args[0], dict)
         ):

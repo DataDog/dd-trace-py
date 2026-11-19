@@ -174,8 +174,12 @@ available with `DD_TRACE_ENABLED=false` so existing integrations can finish thei
 without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
 Concrete product subscribers disable class-definition registration; custom subscriber
 registration defaults are unchanged. Integrations emit events without registering
-tracing listeners themselves. Ray retains SDK-dependent activation from its patch
-module until a separate migration. Tracing retains its existing shutdown behavior
+tracing listeners themselves. Ray's SDK-dependent bundle remains separate: a tracing-owned
+import hook activates it after `ddtrace.contrib.internal.ray.patch` finishes loading.
+This also supports manual patching with deferred global tracer initialization, without
+importing Ray during ordinary tracing startup. Repeated tracing startup restores Ray
+listeners once that integration module has loaded. Ray unpatching retains completion
+listeners for active work. Tracing retains its existing shutdown behavior
 and keeps these listeners registered.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
@@ -485,6 +489,17 @@ the parent.
 > timeout. Blocking operations in a `periodic()` callback are fine, but they
 > must use their own timeouts — an unbounded block will prevent `fork()` from
 > returning until the operation completes, which can hang pre-fork servers.
+
+**Boot gate**
+
+Sitecustomize holds `threads.boot_gate` closed (`boot_gate.held()`) while
+preload and module cloning run, so that threads started meanwhile wait on it
+before running their target, and opens it once `cleanup_loaded_modules()`
+has finished, before the `post_preload` hooks and any user code run, as those
+may wait on ddtrace threads. Only the hold, and exit, open the gate. Joining a
+held thread, including the joins before a fork, releases that thread alone, and
+a restarted thread waits on the gate again; released periodic threads skip
+their target, while one-shot threads run it once.
 
 **Phase 2 — after fork**
 
