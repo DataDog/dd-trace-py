@@ -229,6 +229,7 @@ def test_asyncio_collection_honors_frame_limit() -> None:
 
 @pytest.mark.subprocess(
     env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_off_cpu_sibling"},
+    parametrize={"DD_PROFILING_MAX_FRAMES": ["64", "6"]},
     err=None,
 )
 def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
@@ -239,13 +240,15 @@ def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
-    def busy_sync() -> None:
-        deadline = time.monotonic() + 1
-        while time.monotonic() < deadline:
-            pass
+    def busy_sync(depth: int) -> None:
+        if depth:
+            busy_sync(depth - 1)
+        else:
+            time.sleep(1)
 
     async def busy(done: asyncio.Event) -> None:
-        busy_sync()
+        # The smaller budget can't reach the event-loop boundary through this stack.
+        busy_sync(20)
         done.set()
 
     async def sleeper(done: asyncio.Event) -> None:
@@ -273,7 +276,7 @@ def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
                 ]
             )
 
-    assert sleeper_stacks
+    assert any("sleeper" in names for names in sleeper_stacks), sleeper_stacks
     leaked = [names for names in sleeper_stacks if {"busy_sync", "busy"}.intersection(names)]
     assert not leaked, leaked
 
@@ -358,6 +361,54 @@ def test_uvloop_running_task_stack_omits_wrapper() -> None:
     assert any("sync_leaf" in names and "main" in names for names in stacks), stacks
     wrappers = {"wrapper", "run.<locals>.wrapper"}
     assert not any(wrappers.intersection(names) for names in stacks), stacks
+
+
+@pytest.mark.skipif(find_spec("uvloop") is None, reason="uvloop is not installed in this environment")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_uvloop_missing_boundary"},
+    parametrize={"DD_PROFILING_MAX_FRAMES": ["1", "3"], "DD_PROFILING_STACK_NATIVE_FRAMES": ["true", "false"]},
+    err=None,
+)
+def test_uvloop_keeps_physical_leaf_when_boundary_is_missing() -> None:
+    import asyncio
+    import os
+    import time
+
+    import uvloop
+
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import ProfilerContextManager
+
+    def sync_leaf() -> None:
+        time.sleep(1)
+
+    async def main() -> None:
+        task = asyncio.current_task()
+        assert task is not None
+        task.set_name("uvloop_main")
+        sync_leaf()
+
+    with ProfilerContextManager():
+        uvloop.run(main())
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    max_frames = int(os.environ["DD_PROFILING_MAX_FRAMES"])
+    stacks = set()
+    for sample in pprof_utils.get_samples_with_label_key(profile, "task name"):
+        label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if label is not None and profile.string_table[label.str] == "uvloop_main":
+            stacks.add(
+                tuple(
+                    pprof_utils.get_location_from_id(profile, location_id).function_name
+                    for location_id in sample.location_id
+                )
+            )
+
+    assert stacks
+    assert all(0 < len(names) <= max_frames for names in stacks), stacks
+    assert not any({"wrapper", "run.<locals>.wrapper"}.intersection(names) for names in stacks), stacks
+    assert any("sync_leaf" in names for names in stacks), stacks
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")

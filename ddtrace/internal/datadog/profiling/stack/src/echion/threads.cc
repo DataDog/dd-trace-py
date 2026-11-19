@@ -27,6 +27,17 @@ select_frame_prefix(const FrameStack& frames, size_t start, size_t count, size_t
     }
     return selected;
 }
+
+// Keep the Python frame when it and its injected locations cannot all fit.
+void
+drop_injected_locations_to_fit(Frame& frame, size_t budget)
+{
+    // Disable native lookup on this sample's copy before dropping the GC marker.
+    frame.code_object = 0;
+    if (budget == 1) {
+        frame.is_in_gc = false;
+    }
+}
 } // namespace
 
 void
@@ -56,9 +67,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     asyncio_boundary_index.reset();
 
     if (asyncio_loop) {
-        // Boundary discovery is limited to the physical frames that can be
-        // reported. If an on-CPU boundary lies beyond the budget, unwind_tasks
-        // reports task context alone rather than stitching unknown overlap.
+        // Look for the boundary only in the bounded physical stack.
         for (size_t i = 0; i < python_stack.size(); i++) {
             if (is_asyncio_boundary_frame(echion, python_stack[i])) {
                 asyncio_boundary_index = i;
@@ -223,6 +232,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         size_t depth = 0;
     };
     const size_t max_frames = echion.stack_max_frames();
+    const bool physical_context_unknown =
+      !asyncio_boundary_index && python_stack_unwind_result.truncation == TruncationStatus::Truncated;
     std::unordered_map<PyObject*, CachedTaskStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         CachedTaskStack cached;
@@ -370,15 +381,9 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         size_t task_locations = 0;
         size_t task_to_keep = select_frame_prefix(task_frames, 0, task_frames.size(), max_frames, task_locations);
         if (task_to_keep == 0 && !task_frames.empty()) {
-            // Keep the Python leaf even when its injected locations do not fit.
-            // Disable native lookup on this sample's copy before dropping the GC marker.
-            auto& leaf = task_frames.front();
-            leaf.code_object = 0;
-            if (max_frames == 1) {
-                leaf.is_in_gc = false;
-            }
+            drop_injected_locations_to_fit(task_frames.front(), max_frames);
             task_to_keep = 1;
-            task_locations = rendered_location_count(leaf);
+            task_locations = rendered_location_count(task_frames.front());
         }
         const bool task_truncated = task_collection_full || task_to_keep < task_frames.size();
         task_frames.erase(task_frames.begin() + static_cast<FrameStack::difference_type>(task_to_keep),
@@ -388,10 +393,37 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         // fill it with physical context. Synchronous leaf frames go just before
         // the running task's frames, after any suspended descendants. They have
         // priority over event-loop roots.
-        if (task_truncated || task_locations == max_frames || (on_cpu_task_start && !asyncio_boundary_index)) {
-            stack_info->stack = std::move(task_frames);
+        auto& stack = stack_info->stack;
+        if (task_truncated || task_locations == max_frames || physical_context_unknown ||
+            (on_cpu_task_start && !asyncio_boundary_index)) {
+            stack = std::move(task_frames);
+            if (physical_context_unknown && using_uvloop && stack_info->on_cpu && stack.empty()) {
+                // The uvloop wrapper can leave a running task with no coroutine frames.
+                // Use only its own physical leaf frames rather than emit an empty task stack.
+                size_t locations = 0;
+                for (const auto& frame : python_stack) {
+                    if (is_uvloop_wrapper_frame(echion, using_uvloop, frame)) {
+                        continue;
+                    }
+                    const size_t frame_locations = rendered_location_count(frame);
+                    if (frame_locations > max_frames - locations) {
+                        if (stack.empty()) {
+                            stack.push_back(frame);
+                            drop_injected_locations_to_fit(stack.back(), max_frames);
+                        }
+                        break;
+                    }
+                    stack.push_back(frame);
+                    locations += frame_locations;
+                    if (locations == max_frames) {
+                        break;
+                    }
+                }
+                if (stack.empty()) {
+                    continue; // The bounded prefix contained only the wrapper.
+                }
+            }
         } else {
-            auto& stack = stack_info->stack;
             size_t locations = task_locations;
 
             if (on_cpu_task_start && asyncio_boundary_index) {
