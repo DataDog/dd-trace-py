@@ -1,3 +1,5 @@
+from importlib.util import find_spec
+
 import pytest
 
 
@@ -320,3 +322,38 @@ def test_running_parent_sync_frames_follow_suspended_child_frames() -> None:
     assert child_stacks
     wait_name = "Event.wait" if sys.version_info >= (3, 11) else "wait"
     assert all(names[:4] == [wait_name, "child", "parent_sync", "parent"] for names in child_stacks), child_stacks
+
+
+@pytest.mark.skipif(find_spec("uvloop") is None, reason="uvloop is not installed in this environment")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_uvloop_wrapper"},
+    err=None,
+)
+def test_uvloop_running_task_stack_omits_wrapper() -> None:
+    import os
+    import time
+
+    import uvloop
+
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import ProfilerContextManager
+
+    def sync_leaf() -> None:
+        time.sleep(1)
+
+    async def main() -> None:
+        sync_leaf()
+
+    with ProfilerContextManager():
+        uvloop.run(main())
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    stacks = [
+        [pprof_utils.get_location_from_id(profile, location_id).function_name for location_id in sample.location_id]
+        for sample in samples
+    ]
+    assert any("sync_leaf" in names and "main" in names for names in stacks), stacks
+    wrappers = {"wrapper", "run.<locals>.wrapper"}
+    assert not any(wrappers.intersection(names) for names in stacks), stacks

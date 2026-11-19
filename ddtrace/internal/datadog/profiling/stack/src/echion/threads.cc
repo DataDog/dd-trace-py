@@ -384,38 +384,51 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             if (on_cpu_task_start && asyncio_boundary_index) {
                 const size_t leaf_depth =
                   *asyncio_boundary_index > on_cpu_task_depth ? *asyncio_boundary_index - on_cpu_task_depth : 0;
-                const size_t leaf_available = std::min(leaf_depth, python_stack.size());
-                const size_t runtime_start = std::min(*asyncio_boundary_index, python_stack.size());
+                const size_t runtime_start = *asyncio_boundary_index;
                 const size_t runtime_available = python_stack.size() - runtime_start;
-
-                size_t leaf_to_keep = select_frame_prefix(python_stack, 0, leaf_available, max_frames, locations);
-                size_t runtime_to_keep =
-                  select_frame_prefix(python_stack, runtime_start, runtime_available, max_frames, locations);
-                bool leaf_truncated = leaf_depth > leaf_to_keep;
-                bool runtime_truncated = runtime_available > runtime_to_keep;
-
-                // A truncation marker consumes one location. Remove the
-                // lowest-priority selected physical frame if the real locations
-                // have already filled the budget.
-                if ((leaf_truncated || runtime_truncated) && locations >= max_frames) {
-                    if (runtime_to_keep > 0) {
-                        runtime_to_keep--;
-                    } else if (leaf_to_keep > 0) {
-                        leaf_to_keep--;
-                    }
-                    leaf_truncated = leaf_depth > leaf_to_keep;
-                    runtime_truncated = runtime_available > runtime_to_keep;
-                }
 
                 const auto on_cpu_begin =
                   task_frames.begin() + static_cast<FrameStack::difference_type>(*on_cpu_task_start);
                 stack.insert(stack.end(), task_frames.begin(), on_cpu_begin);
-                stack.insert(stack.end(),
-                             python_stack.begin(),
-                             python_stack.begin() + static_cast<FrameStack::difference_type>(leaf_to_keep));
-                if (leaf_truncated) {
+                const size_t leaf_start = stack.size();
+                size_t leaf_dropped = 0;
+                for (size_t i = 0; i < leaf_depth; ++i) {
+                    const auto& frame = python_stack[i];
+                    if (using_uvloop && is_uvloop_wrapper_frame(echion, using_uvloop, frame)) {
+                        continue;
+                    }
+                    if (leaf_dropped == 0) {
+                        const size_t frame_locations = rendered_location_count(frame);
+                        if (frame_locations <= max_frames - locations) {
+                            locations += frame_locations;
+                            stack.push_back(frame);
+                            continue;
+                        }
+                        if (!using_uvloop) {
+                            leaf_dropped = leaf_depth - i;
+                            break;
+                        }
+                    }
+                    ++leaf_dropped;
+                }
+                size_t runtime_to_keep =
+                  select_frame_prefix(python_stack, runtime_start, runtime_available, max_frames, locations);
+
+                // A truncation marker consumes one location. Remove the
+                // lowest-priority selected physical frame if the real locations
+                // have already filled the budget.
+                if ((leaf_dropped > 0 || runtime_available > runtime_to_keep) && locations >= max_frames) {
+                    if (runtime_to_keep > 0) {
+                        runtime_to_keep--;
+                    } else if (stack.size() > leaf_start) {
+                        stack.pop_back();
+                        ++leaf_dropped;
+                    }
+                }
+
+                if (leaf_dropped > 0) {
                     stack_info->truncation_index = stack.size();
-                    stack_info->truncated_frames = leaf_depth - leaf_to_keep;
+                    stack_info->truncated_frames = leaf_dropped;
                 }
                 stack.insert(stack.end(), on_cpu_begin, task_frames.end());
                 const auto runtime_begin =
@@ -423,7 +436,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                 stack.insert(stack.end(),
                              runtime_begin,
                              runtime_begin + static_cast<FrameStack::difference_type>(runtime_to_keep));
-                if (!leaf_truncated && runtime_truncated) {
+                if (leaf_dropped == 0 && runtime_available > runtime_to_keep) {
                     stack_info->truncation_index = stack.size();
                     stack_info->truncated_frames = runtime_available - runtime_to_keep;
                 }
