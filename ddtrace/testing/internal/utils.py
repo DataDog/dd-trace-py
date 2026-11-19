@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import re
+import tempfile
 import typing as t
 
 from ddtrace.testing.internal.tracer_api import rand64bits
@@ -77,3 +80,20 @@ class DDTraceTestContext(TestContext):
     def get_metrics(self) -> dict[str, float]:
         # DEV: in ddtrace < 4.x, key names can be bytes.
         return {ensure_text(k): v for k, v in self._span.get_metrics().items()}
+
+
+def _write_json_atomic(path: Path, payload: dict[str, t.Any]) -> None:
+    """Publish JSON using a private temporary file on the destination filesystem."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp: t.Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, prefix=path.name + ".", suffix=".tmp", delete=False
+        ) as output:
+            tmp = Path(output.name)
+            json.dump(payload, output)
+        # Close before replacing so publication also works on Windows.
+        tmp.replace(path)
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)

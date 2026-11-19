@@ -1053,6 +1053,22 @@ Test Visibility
         order and duplicate flags are preserved. Up to 32 flags are supported. If more are provided, the flags are
         omitted without canceling the report upload.
 
+   DD_TIA_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+        Enables import-based Test Impact Analysis in the pytest plugin, including test reporting,
+        without requiring ``--ddtrace``. Uses a local dependency map matching the pytest command,
+        configuration, and recent commit history, querying the backend on a cache miss,
+        then deselects unaffected tests. Local and remote lookups consider the 20 most recent commits.
+        A missing map or an uncertain Git diff runs all tests. Failed, new, subprocess-spawning,
+        and explicitly selected tests continue to run. Retrieved maps are cached locally;
+        clean runs cache and upload an updated map.
+        Requires Git and a Datadog connection. Distributed pytest-xdist sessions and offline
+        manifest or payload-file sessions do not use this feature. ``--no-ddtrace`` and
+        ``DD_CIVISIBILITY_ENABLED=false`` disable it.
+
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean
      default: False

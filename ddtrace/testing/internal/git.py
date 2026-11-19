@@ -153,7 +153,9 @@ class Git:
         self.git_command: str = git_command
         self.cwd = cwd
 
-    def _call_git(self, args: list[str], input_string: t.Optional[str] = None) -> _GitSubprocessDetails:
+    def _call_git(
+        self, args: list[str], input_string: t.Optional[str] = None, *, strip_output: bool = True
+    ) -> _GitSubprocessDetails:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
@@ -175,7 +177,7 @@ class Git:
             stdout, stderr = process.communicate(input=input_string)
 
         return _GitSubprocessDetails(
-            stdout=stdout.strip(),
+            stdout=stdout.strip() if strip_output else stdout,
             stderr=stderr.strip(),
             return_code=process.returncode,
             elapsed_seconds=sw.elapsed(),
@@ -320,6 +322,23 @@ class Git:
             ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
         )
         return output.split("\n") if output else []
+
+    def get_tia_commits(self) -> list[str]:
+        """Recent local history, newest first, without a time cutoff or fetch."""
+        result = self._call_git(["rev-list", "--max-count=20", "HEAD"])
+        return result.stdout.splitlines() if result.return_code == 0 else []
+
+    def get_tia_changed_files(self, base_commit: str) -> t.Optional[set[str]]:
+        # Disable rename detection so dependencies on either pathname are invalidated.
+        changed = self._call_git(["diff", "--name-only", "--no-renames", "-z", base_commit, "--"], strip_output=False)
+        untracked = self._call_git(["ls-files", "--others", "--exclude-standard", "-z"], strip_output=False)
+        if changed.return_code or untracked.return_code:
+            return None
+        return set(filter(None, (changed.stdout + untracked.stdout).split("\0")))
+
+    def is_tia_worktree_clean(self) -> bool:
+        result = self._call_git(["status", "--porcelain", "-z", "--untracked-files=normal"])
+        return result.return_code == 0 and not result.stdout
 
     def get_filtered_revisions(self, excluded_commits: list[str], included_commits: list[str]) -> list[str]:
         exclusions = [f"^{sha}" for sha in excluded_commits]
