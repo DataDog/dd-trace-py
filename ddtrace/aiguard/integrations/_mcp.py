@@ -277,17 +277,24 @@ def mcp_reference(server: MCPServer, tool_name: str, original_name: str) -> MCP:
 def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]) -> Optional[list[MCPServer]]:
     """The servers the tool calls of messages reference, with only the tools they call; None if none.
 
-    Restricting to referenced servers keeps every entry resolvable and every tools map non-empty.
+    Servers sharing an ID become one entry: the first server's fields, with the tools of all of them.
     """
-    by_id = {server["id"]: server for server in servers}
+    by_id: dict[str, MCPServer] = {}
+    tools_by_id: dict[str, dict[str, str]] = {}
+    for server in servers:
+        by_id.setdefault(server["id"], server)
+        known = tools_by_id.setdefault(server["id"], {})
+        for name, original_name in server["tools"].items():
+            known.setdefault(name, original_name)
     called: dict[str, dict[str, str]] = {}
     for message in messages:
         for tool_call in message.get("tool_calls") or []:
             mcp = tool_call.get("mcp")
-            server = by_id.get(mcp["server_id"]) if mcp else None
+            server_id = mcp["server_id"] if mcp else None
+            tools = tools_by_id.get(server_id) if server_id else None
             name = tool_call["function"]["name"]
-            if server is not None and name in server["tools"]:
-                called.setdefault(server["id"], {})[name] = server["tools"][name]
+            if server_id and tools is not None and name in tools:
+                called.setdefault(server_id, {})[name] = tools[name]
     if not called:
         return None
     result = []
