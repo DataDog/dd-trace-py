@@ -18,6 +18,8 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.native import decode_pathway_b64 as native_decode_pathway_b64
+from ddtrace.internal.native import encode_pathway_b64 as native_encode_pathway_b64
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
@@ -336,6 +338,15 @@ class DataStreamsProcessor(PeriodicService):
         if not data:
             return self.new_pathway()
 
+        decoded = native_decode_pathway_b64(data)
+        if decoded is not None:
+            hash_value, pathway_start_sec, current_edge_start_sec = decoded
+            ctx = DataStreamsCtx(self, hash_value, pathway_start_sec, current_edge_start_sec)
+            # reset context of current thread every time we decode
+            self._current_context.value = ctx
+            return ctx
+
+        # Lenient base64 and malformed contexts keep the Python decoding semantics.
         if isinstance(data, str):
             binary_pathway = data.encode("utf-8")
         else:
@@ -433,6 +444,9 @@ class DataStreamsCtx:
         )
 
     def encode_b64(self) -> str:
+        native_encoded = native_encode_pathway_b64(self.hash, self.pathway_start_sec, self.current_edge_start_sec)
+        if native_encoded is not None:
+            return native_encoded
         encoded_pathway = self.encode()
         binary_pathway = base64.b64encode(encoded_pathway)
         data_streams_context = binary_pathway.decode("utf-8")
