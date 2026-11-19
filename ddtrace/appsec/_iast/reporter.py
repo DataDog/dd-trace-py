@@ -269,8 +269,7 @@ class IastSpanReporter(NotNoneDictable):
                     if "value" in part:
                         part["value"] = _truncate_evidence_value(part["value"])
                 redacted_sources = scrubbing_result["redacted_sources"]
-                i = 0
-                for source in self.sources:
+                for i, source in enumerate(self.sources):
                     if i in redacted_sources:
                         source.value = None
                 vuln.evidence.valueParts = redacted_value_parts
