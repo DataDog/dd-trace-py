@@ -345,7 +345,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         log.info("Detected configurations: %s", str(self._configurations))
 
         try:
-            self._codeowners = Codeowners(cwd=self._tags.get(ci.WORKSPACE_PATH))
+            self._codeowners = Codeowners(cwd=self.get_workspace_path())
         except ValueError:
             log.warning("CODEOWNERS file is not available")
         except Exception:
@@ -976,7 +976,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         return self._api_settings.test_management
 
     def get_workspace_path(self) -> Optional[str]:
-        return self._tags.get(ci.WORKSPACE_PATH)
+        return self._tags.get(ci.git.CHECKOUT_ROOT) or self._tags.get(ci.WORKSPACE_PATH)
 
     def is_item_itr_skippable(self, item_id: TestVisibilityItemId) -> bool:
         return _is_item_itr_skippable(item_id, self._suite_skipping_mode, self._itr_data)

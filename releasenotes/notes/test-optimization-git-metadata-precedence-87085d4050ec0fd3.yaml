@@ -1,0 +1,8 @@
+upgrade:
+  - |
+    CI visibility: Uses the tested repository and revision consistently for test
+    events, Test Impact Analysis requests and Git uploads, including custom and
+    nested checkouts, while preserving explicit ``DD_GIT_*`` overrides. Matching
+    detached CI checkouts retain their CI branch and canonical repository URL;
+    the checkout root and provider merge commit are reported separately from
+    the original CI workspace.

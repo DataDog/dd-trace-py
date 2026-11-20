@@ -70,12 +70,12 @@ cdef _SamplerState _state = None
 cdef bint _collecting = False
 
 
-cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object frame) except *:
+cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object frame, int count) except *:
     if not ddup.is_available:
         return
 
     cdef object handle = ddup.SampleHandle()
-    handle.push_exceptioninfo(exc_type, 1)
+    handle.push_exceptioninfo(exc_type, count)
 
     # Custom exception __str__ can raise, so guard with fallbacks.
     if state.collect_message:
@@ -147,9 +147,10 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
             state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
         state.counter = 0
 
-        # At the raise site the head of the traceback is the raising frame;
-        # its f_back chain is the full Python stack up to the entry point.
-        _collect_exception(state, type(exception), exception, tb.tb_frame)
+        # Each sampled exception is weighted by sampling_interval (R) so the
+        # reported count is an unbiased estimator of the true exception volume
+        # E[k * R] = (N/R) * R = N.
+        _collect_exception(state, type(exception), exception, tb.tb_frame, state.sampling_interval)
     except Exception:
         LOG.debug("[profiling] Failed to collect exception", exc_info=True)
     finally:

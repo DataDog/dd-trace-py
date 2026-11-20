@@ -8,6 +8,24 @@ SYNC_DB_NAME = "db.azure_cosmos_sync"
 SYNC_CONTAINER_NAME = "container.azure_cosmos_sync"
 ASYNC_DB_NAME = "db.azure_cosmos_async"
 ASYNC_CONTAINER_NAME = "container.azure_cosmos_async"
+ERR_DB_NAME = "db.azure_cosmos_error"
+ERR_CONTAINER_NAME = "container.azure_cosmos_error"
+
+
+def delete_test_databases():
+    """Delete the databases the tests create, if a previous run left them behind.
+
+    The tests use fixed database names and delete them only when they succeed: without this, one
+    failure makes every later run on the same emulator fail with "Database ... already exists".
+    Call it while the integration is unpatched, so it doesn't add spans to the snapshots.
+    """
+    cosmos_client = azure_cosmos.CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
+    for name in (SYNC_DB_NAME, ASYNC_DB_NAME, ERR_DB_NAME):
+        try:
+            cosmos_client.delete_database(name)
+        except azure_cosmos.exceptions.CosmosHttpResponseError:
+            # Not found, or the emulator is down: the test itself reports the real error
+            pass
 
 
 def run_test():
