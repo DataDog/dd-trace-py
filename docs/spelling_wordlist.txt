@@ -329,6 +329,7 @@ stacktrace
 starlette
 statsd
 stderr
+stdlib
 stdout
 streamable
 setuptools
