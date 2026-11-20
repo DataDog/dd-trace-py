@@ -265,14 +265,17 @@ cases:
 
       --- a/ddtrace/contrib/internal/acmeclient/patch.py
       +++ b/ddtrace/contrib/internal/acmeclient/patch.py
-      @@ -1,5 +1,9 @@
+      @@ -1,5 +1,12 @@
        from ddtrace.internal import core
+      +from ddtrace.appsec._iast._taint_tracking import OriginType
       +from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
       +from ddtrace.internal.settings.asm import config as asm_config
 
        def _traced_send(wrapped, instance, args, kwargs):
       +    if asm_config._iast_enabled:
-      +        kwargs["body"] = taint_pyobject(kwargs["body"], source_name="body")
+      +        kwargs["body"] = taint_pyobject(
+      +            kwargs["body"], source_name="body", source_value=kwargs["body"], source_origin=OriginType.BODY
+      +        )
            with core.context_with_event(AcmeSendEvent(instance, args, kwargs)):
                return wrapped(*args, **kwargs)
     expected_criteria:
