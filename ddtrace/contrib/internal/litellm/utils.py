@@ -1,7 +1,12 @@
 from collections import defaultdict
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import FrozenInstanceError
+from typing import Optional
 
+from ddtrace import config
 from ddtrace._monkey import _get_patched_modules
+from ddtrace.contrib.internal.litellm._constants import TAG_MODEL
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
 from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
 from ddtrace.contrib.internal.litellm._constants import model_map
@@ -63,6 +68,90 @@ def has_downstream_openai_span(kwargs, model=None):
     # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
     is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
     return is_openai_model and not stream and _openai_is_patched()
+
+
+# Duplicated from ddtrace.llmobs._constants to keep the contrib free of llmobs imports.
+_PROXY_REQUEST = "llmobs.proxy_request"
+
+# Set while a call that submits an LLM span runs litellm's fallback runner, which re-enters
+# ``litellm.completion``/``acompletion`` once per attempt. Those inner calls skip their own span and record the model
+# they were asked for here, so the outer span can be attributed to the attempt that produced the response.
+_fallback_dispatch_attempts: ContextVar[Optional[dict]] = ContextVar("ddtrace_litellm_fallback_attempts", default=None)
+
+
+def has_fallbacks(kwargs):
+    """Determine whether litellm will dispatch the request through its fallback runner."""
+    import litellm
+
+    return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
+
+
+_OPENAI_SDK_PROVIDERS = ("openai", "azure", "azure_text", "text-completion-openai")
+
+
+def _emits_openai_span(kwargs, model) -> bool:
+    """Determine whether the answering attempt really runs the OpenAI SDK.
+
+    ``has_downstream_openai_span`` is a loose guess, which is fine for the primary call. A fallback span is replaced
+    by a workflow span, so a wrong guess would leave the request with no LLM span.
+    """
+    if not has_downstream_openai_span(kwargs, model) or kwargs.get("mock_response") is not None:
+        return False
+    provider_override = kwargs.get("custom_llm_provider")
+    if provider_override:
+        return str(provider_override).lower() in _OPENAI_SDK_PROVIDERS
+    provider, _, _ = (model or "").lower().partition("/")
+    # Bare model names ("gpt-4o") are OpenAI's own; any other provider prefix routes elsewhere ("ollama/gpt-oss").
+    return provider in _OPENAI_SDK_PROVIDERS or "/" not in (model or "")
+
+
+def _is_cache_hit(response) -> bool:
+    return bool((getattr(response, "_hidden_params", None) or {}).get("cache_hit"))
+
+
+@contextmanager
+def fallback_dispatch(ctx):
+    """Mark the wrapped call so the fallback runner's inner calls do not submit a second LLM span."""
+    event = ctx.event
+    if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
+        yield
+        return
+    attempts: dict = {}
+    token = _fallback_dispatch_attempts.set(attempts)
+    try:
+        yield
+    finally:
+        _fallback_dispatch_attempts.reset(token)
+        # The runner returns the first successful attempt, which is the last one made. A dict fallback can override
+        # the messages, tools and generation params, so the span takes the whole request of that attempt.
+        attempt = attempts.get("request")
+        if attempt:
+            model, attempt_kwargs = attempt
+            event.model = model
+            span = span_from_context(ctx)
+            span.set_tag(TAG_MODEL, model)
+            # The span was classified from the original request. Classify it again from the answering attempt, so a
+            # fallback that leaves an instrumented proxy for a direct provider keeps its LLM span.
+            base_url = attempt_kwargs.get("base_url") or attempt_kwargs.get("api_base")
+            span._set_ctx_item(
+                _PROXY_REQUEST,
+                bool(base_url) and str(base_url) in (config._llmobs_instrumented_proxy_urls or set()),
+            )
+            if (
+                _emits_openai_span(attempt_kwargs, model)
+                and event.response is not None
+                and not _is_cache_hit(event.response)
+            ):
+                # The OpenAI integration emitted the LLM span for the answering attempt, so this span becomes a
+                # workflow span: it keeps the trace intact without repeating the span's tokens and cost.
+                span._set_ctx_item(_PROXY_REQUEST, True)
+            request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
+            for key in ("litellm_logging_obj", "litellm_call_id"):
+                attempt_kwargs.pop(key, None)
+            request_kwargs.update(attempt_kwargs)
+            request_kwargs["model"] = model
+            event.request_kwargs = request_kwargs
+            event.request_args = ()
 
 
 class BaseLiteLLMStreamHandler:
