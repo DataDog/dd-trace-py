@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Sampled exceptions are now scaled by the sampling interval so the 
+    reported count reflects the true volume.
