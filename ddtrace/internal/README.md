@@ -161,8 +161,7 @@ Each nested middleware callback retains its own context, and response preparatio
 shared by request clones. The existing `disable_stream_timing_for_mem_leak` option still
 completes at header preparation to release request state sooner.
 
-Tracing declares SDK-independent subscriber bundles in `ddtrace._trace._registration`,
-including the framework-specific `FLASK_REQUEST_SUBSCRIBERS` bundle.
+Tracing declares SDK-independent subscriber bundles in `ddtrace._trace._registration`.
 Its `register_subscribers()` helper activates every declared bundle. Product startup
 calls this helper directly. Normal `ddtrace` initialization installs an import hook
 that calls it after the subscriber package loads through contrib. Waiting for the
@@ -170,7 +169,7 @@ package to finish avoids registering against partially initialized subscriber ba
 and preserves lightweight bare tracer imports.
 The subscriber package also explicitly activates `MANUAL_SUBSCRIBER_BUNDLES` for
 manual instrumentation, including when global tracer creation is deferred. In that mode,
-a post-import hook also activates web and Flask request bundles after the subscriber package
+a post-import hook also activates the web request bundle after the subscriber package
 finishes loading. Span exception activation still requires product startup. Listeners remain
 available with `DD_TRACE_ENABLED=false` so existing integrations can finish their spans
 without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
