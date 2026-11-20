@@ -27,6 +27,7 @@ def test_runtime_metrics_exported_over_otlp():
     from opentelemetry.metrics import get_meter_provider
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 
+    from ddtrace.internal.runtime import get_runtime_id
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.runtime import RuntimeMetrics
     from tests.opentelemetry.utils import _capture_http_requests
@@ -71,7 +72,11 @@ def test_runtime_metrics_exported_over_otlp():
         "involuntary",
         "voluntary",
     }
-    assert all(point == {} for point in points["process.memory.usage"] + points["process.thread.count"]), points
+    assert all(
+        point == {"datadog.runtime_id": get_runtime_id()}
+        for point in points["process.memory.usage"] + points["process.thread.count"]
+    ), points
+    assert all(point["datadog.runtime_id"] == get_runtime_id() for name in points for point in points[name]), points
 
 
 @requires_exporter
@@ -123,27 +128,32 @@ def test_runtime_metrics_counters_stay_monotonic_across_fork():
     from opentelemetry.metrics import get_meter_provider
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 
+    from ddtrace.internal.runtime import get_runtime_id
     from ddtrace.runtime import RuntimeMetrics
     from tests.opentelemetry.utils import _capture_http_requests
 
-    def values(requests, name):
+    def points(requests, *names):
         return [
-            getattr(data_point, data_point.WhichOneof("value"))
+            (
+                getattr(data_point, data_point.WhichOneof("value")),
+                {attribute.key: attribute.value.string_value for attribute in data_point.attributes},
+            )
             for request in requests
             for resource_metrics in request.resource_metrics
             for scope_metrics in resource_metrics.scope_metrics
             for metric in scope_metrics.metrics
-            if metric.name == name
+            if metric.name in names
             for data_point in metric.sum.data_points
         ]
 
-    # Use CPU in the parent, so that a child restarting its CPU time from zero would report a negative delta.
+    # Use CPU in the parent, so that a child continuing its counters would report the CPU time of its parent.
     deadline = time.monotonic() + 0.5
     while time.monotonic() < deadline:
         pass
     with _capture_http_requests(14321, ExportMetricsServiceRequest) as parent_requests:
         assert get_meter_provider().force_flush()
-    parent_cpu_time = sum(values(parent_requests, "process.cpu.time"))
+    parent_runtime_id = get_runtime_id()
+    parent_cpu_time = sum(value for value, _ in points(parent_requests, "process.cpu.time"))
 
     with warnings.catch_warnings():
         # Python 3.12+ warns when a multi-threaded process forks.
@@ -154,21 +164,87 @@ def test_runtime_metrics_counters_stay_monotonic_across_fork():
         try:
             with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
                 flushed = get_meter_provider().force_flush()
-            cpu_time = values(requests, "process.cpu.time")
-            counters = cpu_time + values(requests, "process.context_switches")
-            if os.environ["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] == "delta":
-                # The deltas are computed from the last values that the parent reported.
-                valid = all(value >= 0 for value in counters)
-            else:
-                # The child reports its own totals, without those of its parent.
-                valid = sum(cpu_time) < parent_cpu_time
+            counters = points(requests, "process.cpu.time", "process.context_switches")
+            child_runtime_id = get_runtime_id()
+            # The child reports only its own usage, under its own runtime ID.
+            valid = (
+                child_runtime_id != parent_runtime_id
+                and all(attributes["datadog.runtime_id"] == child_runtime_id for _, attributes in counters)
+                and all(value >= 0 for value, _ in counters)
+                and sum(value for value, attributes in counters if "cpu.mode" in attributes) < parent_cpu_time
+            )
             exit_code = 0 if flushed and counters and valid else 1
         finally:
             os._exit(exit_code)
 
     _, status = os.waitpid(pid, 0)
     RuntimeMetrics.disable()
-    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report monotonic counters"
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report its own usage"
+
+
+@requires_exporter
+@pytest.mark.subprocess(parametrize={"TEMPORALITY": ["delta", "cumulative"]})
+def test_runtime_metrics_after_fork_with_an_application_reader():
+    import os
+    import time
+    import warnings
+
+    from opentelemetry.metrics import set_meter_provider
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics import ObservableCounter
+    from opentelemetry.sdk.metrics.export import AggregationTemporality
+    from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+
+    from ddtrace.internal.runtime import get_runtime_id
+    from ddtrace.internal.runtime import otlp_runtime_metrics
+
+    temporality = getattr(AggregationTemporality, os.environ["TEMPORALITY"].upper())
+    reader = InMemoryMetricReader(preferred_temporality={ObservableCounter: temporality})
+    set_meter_provider(MeterProvider(metric_readers=[reader]))
+    otlp_runtime_metrics.start()
+
+    def cpu_time_points():
+        return [
+            (data_point.value, dict(data_point.attributes))
+            for resource_metrics in reader.get_metrics_data().resource_metrics
+            for scope_metrics in resource_metrics.scope_metrics
+            for metric in scope_metrics.metrics
+            if metric.name == "process.cpu.time"
+            for data_point in metric.data.data_points
+        ]
+
+    # Use CPU in the parent, so that a child continuing its counters would report the CPU time of its parent.
+    deadline = time.monotonic() + 0.5
+    while time.monotonic() < deadline:
+        pass
+    parent_runtime_id = get_runtime_id()
+    parent_points = cpu_time_points()
+    assert parent_points and all(
+        attributes["datadog.runtime_id"] == parent_runtime_id for _, attributes in parent_points
+    )
+    parent_cpu_time = sum(value for value, _ in parent_points)
+
+    with warnings.catch_warnings():
+        # Python 3.12+ warns when a multi-threaded process forks.
+        warnings.simplefilter("ignore", DeprecationWarning)
+        pid = os.fork()
+    if pid == 0:
+        exit_code = 1
+        try:
+            child_points = cpu_time_points()
+            child_runtime_id = get_runtime_id()
+            valid = (
+                child_runtime_id != parent_runtime_id
+                and all(attributes["datadog.runtime_id"] == child_runtime_id for _, attributes in child_points)
+                and all(value >= 0 for value, _ in child_points)
+                and sum(value for value, _ in child_points) < parent_cpu_time
+            )
+            exit_code = 0 if child_points and valid else 1
+        finally:
+            os._exit(exit_code)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report its own usage"
 
 
 # The DogStatsD client also logs the packets it drops when nothing listens on the DogStatsD port.

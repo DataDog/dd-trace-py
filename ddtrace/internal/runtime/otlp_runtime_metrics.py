@@ -7,6 +7,8 @@ instead of being sent to DogStatsD:
 - https://opentelemetry.io/docs/specs/semconv/runtime/cpython-metrics/
 - https://opentelemetry.io/docs/specs/semconv/system/process-metrics/
 
+Each process reports them under its own runtime ID, in the ``datadog.runtime_id`` attribute.
+
 Like the meter provider, this module is only loaded once the application imports OpenTelemetry.
 """
 
@@ -18,9 +20,10 @@ from opentelemetry.metrics import Meter
 from opentelemetry.metrics import Observation
 from opentelemetry.metrics import get_meter
 
+from ddtrace.internal.runtime import get_runtime_id
+
 from .. import forksafe
 from ..logger import get_logger
-from ..settings._opentelemetry import otel_config
 from .metric_collectors import _ProcessMetrics
 
 
@@ -35,22 +38,19 @@ _NS_TO_SEC = 1e-9
 _enabled = False
 _instruments_created = False
 
-# With the delta temporality, the OpenTelemetry SDK computes the deltas of the observable counters from the last values
-# that they reported, which a forked child inherits from its parent, while the CPU time and context switches of the
-# child restart from zero. So that these counters stay monotonic, the child reports them on top of the last values that
-# its parent reported. With the other temporalities, the observable counters export the totals of the process.
-_last_reported: dict[str, float] = {}
-_fork_offsets: dict[str, float] = {}
+# ddtrace gives a forked child its own runtime ID. As the OpenTelemetry SDK keeps the state of the observable counters
+# per attribute set, the counters of a child then start from zero, with any temporality and reader, instead of
+# continuing those of its parent.
+RUNTIME_ID_ATTRIBUTE = "datadog.runtime_id"
+
+# A forked child inherits the GC statistics of its parent: it reports those since the fork.
+_gc_stats_at_fork: list[dict[str, int]] = []
 
 
-def _continue_counters_after_fork() -> None:
-    _fork_offsets.update(_last_reported)
+def _reset_after_fork() -> None:
+    global _gc_stats_at_fork
 
-
-def _monotonic(counter: str, value: float) -> float:
-    reported = _fork_offsets.get(counter, 0) + value
-    _last_reported[counter] = reported
-    return reported
+    _gc_stats_at_fork = gc.get_stats()
 
 
 def start() -> None:
@@ -73,6 +73,8 @@ def stop() -> None:
 
 
 def _create_instruments(meter: Meter) -> None:
+    forksafe.register(_reset_after_fork)
+
     meter.create_observable_counter(
         "cpython.gc.collections",
         callbacks=[_gc_callback("collections")],
@@ -98,9 +100,6 @@ def _create_instruments(meter: Meter) -> None:
     except Exception:
         log.debug("Process metrics are not available on this platform", exc_info=True)
         return
-
-    if otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE.lower() == "delta":
-        forksafe.register(_continue_counters_after_fork)
 
     meter.create_observable_counter(
         "process.cpu.time",
@@ -132,8 +131,13 @@ def _gc_callback(stat: str) -> Callable[[CallbackOptions], list[Observation]]:
     def callback(_options: CallbackOptions) -> list[Observation]:
         if not _enabled:
             return []
+        runtime_id = get_runtime_id()
+        at_fork = _gc_stats_at_fork
         return [
-            Observation(row.get(stat, 0), {"cpython.gc.generation": generation})
+            Observation(
+                row.get(stat, 0) - (at_fork[generation].get(stat, 0) if generation < len(at_fork) else 0),
+                {"cpython.gc.generation": generation, RUNTIME_ID_ATTRIBUTE: runtime_id},
+            )
             for generation, row in enumerate(gc.get_stats())
         ]
 
@@ -150,31 +154,33 @@ def _observe_cpu_time(_options: CallbackOptions) -> list[Observation]:
     if not _enabled:
         return []
     metrics = _process_metrics()
+    runtime_id = get_runtime_id()
     return [
-        Observation(_monotonic("cpu.user", metrics.cpu_time_user_ns * _NS_TO_SEC), {"cpu.mode": "user"}),
-        Observation(_monotonic("cpu.system", metrics.cpu_time_sys_ns * _NS_TO_SEC), {"cpu.mode": "system"}),
+        Observation(metrics.cpu_time_user_ns * _NS_TO_SEC, {"cpu.mode": "user", RUNTIME_ID_ATTRIBUTE: runtime_id}),
+        Observation(metrics.cpu_time_sys_ns * _NS_TO_SEC, {"cpu.mode": "system", RUNTIME_ID_ATTRIBUTE: runtime_id}),
     ]
 
 
 def _observe_memory_usage(_options: CallbackOptions) -> list[Observation]:
     if not _enabled:
         return []
-    return [Observation(_process_metrics().rss_bytes)]
+    return [Observation(_process_metrics().rss_bytes, {RUNTIME_ID_ATTRIBUTE: get_runtime_id()})]
 
 
 def _observe_thread_count(_options: CallbackOptions) -> list[Observation]:
     if not _enabled:
         return []
-    return [Observation(_process_metrics().num_threads)]
+    return [Observation(_process_metrics().num_threads, {RUNTIME_ID_ATTRIBUTE: get_runtime_id()})]
 
 
 def _observe_context_switches(_options: CallbackOptions) -> list[Observation]:
     if not _enabled:
         return []
     metrics = _process_metrics()
+    runtime_id = get_runtime_id()
     # A negative count means that the platform cannot report this type of context switch.
     return [
-        Observation(_monotonic(f"context_switches.{switch_type}", count), {"process.context_switch.type": switch_type})
+        Observation(count, {"process.context_switch.type": switch_type, RUNTIME_ID_ATTRIBUTE: runtime_id})
         for switch_type, count in (
             ("voluntary", metrics.ctx_switches_voluntary),
             ("involuntary", metrics.ctx_switches_involuntary),
