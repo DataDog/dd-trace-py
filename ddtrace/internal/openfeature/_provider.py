@@ -32,6 +32,8 @@ from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
 from ddtrace.internal import forksafe
+from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _FfeSnapshot
@@ -1162,14 +1164,20 @@ _START_WAIT_SLICE_SECONDS = 0.01
 
 
 def _release_exited_pollers() -> None:
-    # One caller at a time, so a start that returns from here knows every exited poller's claim is released.
+    """Release the claims of exited self-stopped pollers, from an application thread only.
+
+    An entry leaves the list only once its claim is released, so a start that finds the list empty knows every such
+    claim is released, and a child forked in between still has the entry to finish. ddtrace threads skip this: a
+    provider call from a callback on one must not wait for the lock.
+    """
+    if not _exited_configuration_sources or ddtrace_threading.get_ident() in periodic_threads:
+        return
+    # One caller at a time, so a start that has to wait here finds every claim released when it continues.
     with _exited_release_lock:
-        while True:
-            try:
-                provider, source = _exited_configuration_sources.pop()
-            except IndexError:
-                return
+        while _exited_configuration_sources:
+            provider, source = _exited_configuration_sources[0]
             provider._release_exited_poller(source)
+            _exited_configuration_sources.pop(0)
 
 
 def _wait_cooperatively(event: typing.Any, timeout: float) -> None:

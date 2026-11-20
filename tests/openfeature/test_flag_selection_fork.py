@@ -582,3 +582,63 @@ def test_fork_while_an_exited_pollers_claim_is_released_leaves_the_child_a_corre
             if draining is not None:
                 draining.join(timeout=5)
             provider.shutdown()
+
+
+@pytest.mark.subprocess(err=None, parametrize={"WAIT_EXPIRES": ["finishes", "wait-expires"]})
+def test_fork_before_an_exited_poller_leaves_the_provider_lets_the_child_finish_its_release():
+    import os
+    import threading
+
+    from openfeature.evaluation_context import EvaluationContext
+    import pytest
+
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
+    from tests.openfeature.flag_selection_helpers import _fork_during
+    from tests.openfeature.flag_selection_helpers import _on_recovery
+    from tests.openfeature.flag_selection_helpers import _poll_without_configuration
+    from tests.openfeature.flag_selection_helpers import _provider
+    from tests.openfeature.flag_selection_helpers import _sent_selection
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
+
+    wait_expires = os.environ["WAIT_EXPIRES"] == "wait-expires"
+
+    with pytest.MonkeyPatch.context() as monkeypatch, _serving_cdn(monkeypatch) as cdn, _agentless_api_key():
+        provider = _provider({"tags": ["a"]}, timeout=0.3)
+        source = _poll_without_configuration(provider, cdn, monkeypatch)
+        stopped, releasing, resume = threading.Event(), threading.Event(), threading.Event()
+        release = provider._release_exited_poller
+
+        def shut_down(*args, **kwargs):
+            provider.shutdown()
+            stopped.set()
+
+        def held_release(exited):
+            # The release has started; the poller is still on the provider, with its claim.
+            releasing.set()
+            resume.wait(timeout=5)
+            release(exited)
+
+        def check():
+            resume.set()
+            later = _provider({"tags": ["b"]})
+            try:
+                later.initialize(EvaluationContext())
+                return _sent_selection(later._configuration_source) == (["b"], [])
+            finally:
+                later.shutdown()
+
+        draining = None
+        try:
+            _on_recovery(provider, cdn, monkeypatch, shut_down)
+            assert stopped.wait(timeout=5)
+            source.join(timeout=5)
+            monkeypatch.setattr(provider, "_release_exited_poller", held_release)
+            draining = threading.Thread(target=provider.shutdown)
+            draining.start()
+            assert releasing.wait(timeout=5)
+            assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
+        finally:
+            resume.set()
+            if draining is not None:
+                draining.join(timeout=5)
+            provider.shutdown()
