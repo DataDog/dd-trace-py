@@ -1135,3 +1135,60 @@ def test_initialize_that_times_out_waiting_for_a_start_ignores_a_source_error(cd
         resume.set()
         first.join(timeout=5)
         provider.shutdown()
+
+
+def test_start_while_another_start_releases_an_exited_pollers_claim_claims_its_own_selection(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    first, second = _provider({"tags": ["b"]}), _provider({"tags": ["b"]})
+    source = _poll_without_configuration(provider, cdn, monkeypatch)
+    stopped, releasing, resume = threading.Event(), threading.Event(), threading.Event()
+    release = provider_module.release_process_selection
+
+    def shut_down(*args, **kwargs):
+        provider.shutdown()
+        stopped.set()
+
+    def held_release():
+        releasing.set()
+        resume.wait(timeout=5)
+        release()
+
+    class _SignalingLock:
+        def __init__(self, lock):
+            self._lock = lock
+            self.waiting = threading.Event()
+
+        def __enter__(self):
+            self.waiting.set()
+            return self._lock.__enter__()
+
+        def __exit__(self, *exc_info):
+            return self._lock.__exit__(*exc_info)
+
+    starting = [threading.Thread(target=each.initialize, args=(EvaluationContext(),)) for each in (first, second)]
+    try:
+        _on_recovery(provider, cdn, monkeypatch, shut_down)
+        assert stopped.wait(timeout=5)
+        source.join(timeout=5)
+        monkeypatch.setattr(provider_module, "release_process_selection", held_release)
+        starting[0].start()
+        # The first start took the exited poller off the list and is releasing its claim.
+        assert releasing.wait(timeout=5)
+        lock = _SignalingLock(getattr(provider_module, "_exited_release_lock", threading.Lock()))
+        monkeypatch.setattr(provider_module, "_exited_release_lock", lock, raising=False)
+        starting[1].start()
+        deadline = time.monotonic() + 5
+        while not lock.waiting.is_set() and starting[1].is_alive() and time.monotonic() < deadline:
+            threading.Event().wait(0.01)
+        resume.set()
+        for each in starting:
+            each.join(timeout=5)
+        assert _sent_selection(first._configuration_source) == (["b"], [])
+        assert _sent_selection(second._configuration_source) == (["b"], [])
+    finally:
+        resume.set()
+        for each in starting:
+            if each.is_alive():
+                each.join(timeout=5)
+        for each in (first, second, provider):
+            each.shutdown()

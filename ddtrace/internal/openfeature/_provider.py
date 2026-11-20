@@ -1156,17 +1156,20 @@ _lifecycle_ended = original_Event()
 # Pollers stopped from inside their own poll, added by their worker as it exits. The worker takes no lock that another
 # thread holds, so the next provider start or shutdown releases their claims, on an application thread.
 _exited_configuration_sources: "list[tuple[DataDogProvider, AgentlessConfigurationSource]]" = []
+_exited_release_lock = forksafe.Lock()
 # How long an application thread sleeps between checks while it waits for a start or teardown on another thread.
 _START_WAIT_SLICE_SECONDS = 0.01
 
 
 def _release_exited_pollers() -> None:
-    while True:
-        try:
-            provider, source = _exited_configuration_sources.pop()
-        except IndexError:
-            return
-        provider._release_exited_poller(source)
+    # One caller at a time, so a start that returns from here knows every exited poller's claim is released.
+    with _exited_release_lock:
+        while True:
+            try:
+                provider, source = _exited_configuration_sources.pop()
+            except IndexError:
+                return
+            provider._release_exited_poller(source)
 
 
 def _wait_cooperatively(event: typing.Any, timeout: float) -> None:
