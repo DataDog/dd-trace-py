@@ -3,18 +3,11 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import core
-from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 
 
-def _processor() -> Optional[DataStreamsProcessor]:
-    # Checked on every call, not at import, so the handlers stay inert while DSM is disabled.
-    if not config._data_streams_enabled:
-        return None
-    from . import data_streams_processor
-
-    return data_streams_processor()
+# The integration dispatches these events only while DSM is enabled.
 
 
 def _payload_size(body: Any, headers: Optional[dict[str, Any]]) -> int:
@@ -24,9 +17,7 @@ def _payload_size(body: Any, headers: Optional[dict[str, Any]]) -> int:
 def handle_aio_pika_publish(
     exchange: str, routing_key: str, headers: Optional[dict[str, Any]], body: Any, span: Any
 ) -> None:
-    processor = _processor()
-    if processor is None:
-        return
+    from . import data_streams_processor as processor
 
     # Same pathway tags as the kombu integration, so producers on either AMQP client link to the same consumers.
     # On the default (unnamed) exchange, the routing key is the destination queue name.
@@ -40,24 +31,25 @@ def handle_aio_pika_publish(
             "type:rabbitmq",
         ]
 
-    ctx = processor.set_checkpoint(pathway_tags, payload_size=_payload_size(body, headers), span=span)
-    if headers is not None:
-        DsmPathwayCodec.encode(ctx, headers)
+    if (p := processor()) is not None:
+        ctx = p.set_checkpoint(pathway_tags, payload_size=_payload_size(body, headers), span=span)
+        if headers is not None:
+            DsmPathwayCodec.encode(ctx, headers)
 
 
 def handle_aio_pika_receive(queue: str, message: Any, span: Any) -> None:
-    processor = _processor()
-    if processor is None:
-        return
+    from . import data_streams_processor as processor
 
-    headers = getattr(message, "headers", None) or {}
-    ctx = DsmPathwayCodec.decode(headers, processor)
-    ctx.set_checkpoint(
-        ["direction:in", f"topic:{queue}", "type:rabbitmq"],
-        payload_size=_payload_size(getattr(message, "body", None), headers),
-        span=span,
-    )
+    if (p := processor()) is not None:
+        headers = getattr(message, "headers", None) or {}
+        ctx = DsmPathwayCodec.decode(headers, p)
+        ctx.set_checkpoint(
+            ["direction:in", f"topic:{queue}", "type:rabbitmq"],
+            payload_size=_payload_size(getattr(message, "body", None), headers),
+            span=span,
+        )
 
 
-core.on("aio_pika.publish.start", handle_aio_pika_publish)
-core.on("aio_pika.receive.post", handle_aio_pika_receive)
+if config._data_streams_enabled:
+    core.on("aio_pika.publish.start", handle_aio_pika_publish)
+    core.on("aio_pika.receive.post", handle_aio_pika_receive)

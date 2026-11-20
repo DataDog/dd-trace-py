@@ -14,7 +14,7 @@ from tests.utils import override_global_config
 @pytest.fixture
 def dsm_processor():
     with override_global_config(dict(_data_streams_enabled=True)):
-        # Registers the DSM listeners; they stay inert once DSM is disabled again.
+        # Registers the DSM listeners; the integration stops dispatching to them once DSM is disabled again.
         import ddtrace.internal.datastreams.aio_pika  # noqa: F401
 
         processor = data_streams_processor(reset=True)
@@ -122,6 +122,38 @@ async def test_callback_consume_is_tagged_with_queue_name(rabbitmq_connection, d
     # The topic is the queue, not the routing key the message was published with.
     assert consume[0] == f"direction:in,topic:{queue.name},type:rabbitmq"
     assert consume[2] == produce[1]
+
+
+@pytest.mark.asyncio
+async def test_callable_object_consume_is_tagged_with_queue_name(rabbitmq_connection, dsm_processor):
+    channel = await rabbitmq_connection.channel()
+    exchange, queue = await bound_queue(channel, "order.*")
+    processed = asyncio.Event()
+
+    class Handler:
+        async def __call__(self, message):
+            await message.ack()
+            processed.set()
+
+    with receive_events() as events:
+        consumer_tag = await queue.consume(Handler())
+        await exchange.publish(aio_pika.Message(b"payload"), routing_key="order.created")
+        await asyncio.wait_for(processed.wait(), timeout=2)
+        await queue.cancel(consumer_tag)
+
+    assert events == [queue.name]
+
+
+@pytest.mark.asyncio
+async def test_empty_get_is_not_a_receive(rabbitmq_connection, dsm_processor):
+    channel = await rabbitmq_connection.channel()
+    queue = await channel.declare_queue(exclusive=True, auto_delete=True)
+
+    with receive_events() as events:
+        assert await queue.get(fail=False, timeout=2) is None
+
+    assert events == []
+    assert not [key for key in checkpoints(dsm_processor) if "direction:in" in key[0]]
 
 
 @pytest.mark.asyncio

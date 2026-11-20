@@ -1,8 +1,8 @@
 _v: 1
 name: aio_pika
 display_name: aio-pika
-description: Instruments aio-pika RabbitMQ message publishing, push and pull consumption, message processing, and acknowledgement
-  with distributed trace propagation.
+description: Instruments aio-pika RabbitMQ message publishing, push and pull consumption, message processing, and settlement,
+  including opt-in distributed trace propagation and data-stream pathway checkpoints.
 packages:
 - name: aio-pika
 category:

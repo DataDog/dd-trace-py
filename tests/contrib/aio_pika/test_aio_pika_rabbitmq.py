@@ -334,6 +334,45 @@ async def test_settlement_outside_process_parents_on_producer(rabbitmq_connectio
 
 
 @pytest.mark.asyncio
+async def test_settlement_outside_process_links_producer_in_span_link_mode(rabbitmq_connection, test_spans):
+    channel = await rabbitmq_connection.channel()
+    queue = await channel.declare_queue(exclusive=True, auto_delete=True)
+    await channel.default_exchange.publish(aio_pika.Message(b"payload"), routing_key=queue.name)
+    publish = next(span for span in test_spans.spans if span.name == "rabbitmq.publish")
+
+    with mock.patch.object(config, "_propagation_as_span_links", {"aio_pika"}):
+        incoming = await queue.get(timeout=2)
+        await incoming.ack()
+
+    ack = next(span for span in test_spans.spans if span.name == "rabbitmq.ack")
+    assert ack.trace_id != publish.trace_id
+    assert [(link.trace_id, link.span_id) for link in ack._get_links()] == [(publish.trace_id, publish.span_id)]
+
+
+@pytest.mark.asyncio
+async def test_callable_object_callback(rabbitmq_connection, test_spans):
+    channel = await rabbitmq_connection.channel()
+    queue = await channel.declare_queue(exclusive=True, auto_delete=True)
+    processed = asyncio.Event()
+
+    class Handler:
+        async def __call__(self, message):
+            async with message.process():
+                processed.set()
+
+    consumer_tag = await queue.consume(Handler())
+    await channel.default_exchange.publish(aio_pika.Message(b"payload"), routing_key=queue.name)
+    await asyncio.wait_for(processed.wait(), timeout=2)
+    await queue.cancel(consumer_tag)
+    await asyncio.sleep(0)
+
+    processes = [span for span in test_spans.spans if span.name == "rabbitmq.consume"]
+    publish = next(span for span in test_spans.spans if span.name == "rabbitmq.publish")
+    assert len(processes) == 1
+    assert processes[0].parent_id == publish.span_id
+
+
+@pytest.mark.asyncio
 async def test_process_restores_caller_span(rabbitmq_connection, test_spans):
     channel = await rabbitmq_connection.channel()
     queue = await channel.declare_queue(exclusive=True, auto_delete=True)

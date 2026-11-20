@@ -59,6 +59,8 @@ log = get_logger(__name__)
 
 # aio-pika 10 overrides __anext__ on RobustQueueIterator; 9.x inherits it from QueueIterator.
 _ROBUST_ITERATOR_HAS_ANEXT = "__anext__" in aio_pika.robust_queue.RobustQueueIterator.__dict__
+# Queue.consume adapts the callback with this helper (and warns about sync callbacks); older releases lack it.
+_ENSURE_AWAITABLE: Optional[Callable[[Any], Any]] = getattr(getattr(aio_pika, "tools", None), "ensure_awaitable", None)
 
 
 config._add(  # type: ignore[no-untyped-call]
@@ -200,11 +202,10 @@ def _consume_event(
         activate_distributed_headers=activate and not links_mode,
         tags=tags,
     )
-    if links_mode:
-        if headers and _distributed_tracing_enabled():
-            event.span_links.append(HTTPPropagator.extract(headers))  # type: ignore[no-untyped-call]
-    elif not activate:
-        _parent_on_producer(event, message)
+    if links_mode or not activate:
+        link = _attach_producer(event, message, headers)
+        if link is not None:
+            event.span_links.append(link)
     return event
 
 
@@ -299,41 +300,17 @@ async def _call_callback(callback: Callable[[Any], Any], message: Any) -> Any:
     return result
 
 
-def _dispatch_receive(queue: Optional[str], message: Any, ctx: Any) -> None:
+def _dispatch_receive(queue: str, message: Any, ctx: Any) -> None:
     """Notify DSM that the application received message from queue."""
     if not config._data_streams_enabled:
         return
-    # Without a known queue (a sync callback, or basic_consume called directly), fall back to the routing key,
-    # which names the queue on the default exchange.
+    # An unnamed queue falls back to the routing key, which names the queue on the default exchange.
     queue_name = queue or str(getattr(message, "routing_key", None) or "")
     core.dispatch("aio_pika.receive.post", (queue_name, message, span_from_context(ctx)))
 
 
-def _bind_queue(callback: Callable[[Any], Awaitable[Any]], queue_name: str) -> Callable[[Any], Awaitable[Any]]:
-    """Return callback carrying the name of the queue it consumes; the AMQP delivery itself has no queue name."""
-
-    @wraps(callback)
-    async def bound(message: Any) -> Any:
-        return await callback(message)
-
-    bound._dd_aio_pika_queue = queue_name  # type: ignore[attr-defined]
-    return bound
-
-
-async def _traced_queue_consume(
-    wrapped: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> Any:
-    callback = get_argument_value(args, kwargs, 0, "callback")
-    # Only coroutine functions are bound: wrapping a sync callback would hide aio-pika's deprecation warning.
-    # The iterator's own callback is left alone so the consumer wrapper can still recognize it.
-    if inspect.iscoroutinefunction(callback) and not _is_iterator_callback(callback):
-        bound = _bind_queue(callback, str(getattr(instance, "name", "")))
-        args, kwargs = set_argument_value(args, kwargs, 0, "callback", bound)
-    return await wrapped(*args, **kwargs)
-
-
-def _traced_callback(callback: Callable[[Any], Any]) -> Callable[[Any], Awaitable[Any]]:
-    queue = getattr(callback, "_dd_aio_pika_queue", None)
+def _traced_callback(callback: Callable[[Any], Any], queue: str) -> Callable[[Any], Awaitable[Any]]:
+    """Wrap a consumer callback once per consume; the AMQP delivery itself does not name its queue."""
 
     @wraps(callback)
     async def traced(message: Any) -> Any:
@@ -344,37 +321,42 @@ def _traced_callback(callback: Callable[[Any], Any]) -> Callable[[Any], Awaitabl
     return traced
 
 
-async def _traced_consumer(
+async def _traced_queue_consume(
     wrapped: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
     callback = cast(Callable[[Any], Any], get_argument_value(args, kwargs, 0, "callback"))
     if _is_iterator_callback(callback):
         # The iterator path is traced when the application pulls the message in __anext__.
         return await wrapped(*args, **kwargs)
-    args, kwargs = set_argument_value(args, kwargs, 0, "callback", _traced_callback(callback))
+    if _ENSURE_AWAITABLE is not None:
+        # Apply aio-pika's own adapter first, so a sync callback still gets its deprecation warning.
+        callback = _ENSURE_AWAITABLE(callback)
+    traced = _traced_callback(callback, str(getattr(instance, "name", "")))
+    args, kwargs = set_argument_value(args, kwargs, 0, "callback", traced)
     return await wrapped(*args, **kwargs)
 
 
-def _producer_context(message: Any) -> Optional[Context]:
-    """Return the producer context propagated in the message headers, if distributed tracing allows it."""
-    if not _distributed_tracing_enabled() or _span_links_enabled():
+def _attach_producer(event: TracingEvent, message: Any, headers: Optional[dict[str, str]] = None) -> Optional[Context]:
+    """Parent event on the producer context in the message headers, or return that context to link.
+
+    In span-links mode the producer context is returned for the caller to link; otherwise event is parented on
+    it. The producer context is never activated. headers, when given, are the message's already-decoded headers.
+    """
+    if not _distributed_tracing_enabled():
         return None
-    headers = _string_headers(message)
+    if headers is None:
+        headers = _string_headers(message)
     if not headers:
         return None
     # HTTPPropagator.extract has no return annotation in the legacy propagation API.
-    parent = cast(Context, HTTPPropagator.extract(headers))  # type: ignore[no-untyped-call]
-    if parent.trace_id and parent.span_id:
-        return parent
+    producer = cast(Context, HTTPPropagator.extract(headers))  # type: ignore[no-untyped-call]
+    if not (producer.trace_id and producer.span_id):
+        return None
+    if _span_links_enabled():
+        return producer
+    event.distributed_context = producer
+    event.use_active_context = False
     return None
-
-
-def _parent_on_producer(event: TracingEvent, message: Any) -> None:
-    """Parent event on the producer context in the message headers, without activating that context."""
-    parent = _producer_context(message)
-    if parent is not None:
-        event.distributed_context = parent
-        event.use_active_context = False
 
 
 def _receive_event(instance: Any, message: Any, destination: str) -> MessagingConsumeEvent:
@@ -408,8 +390,10 @@ async def _receive(
 
     with core.context_with_event(_receive_event(instance, message, destination)) as ctx:
         span_from_context(ctx).start_ns = start_ns
-        # A later message.process() records no checkpoint, so a pulled message is counted once.
-        _dispatch_receive(destination, message, ctx)
+        # get(fail=False) returns None on an empty queue, which is not a receive for DSM. A later
+        # message.process() records no checkpoint, so a pulled message is counted once.
+        if message is not None:
+            _dispatch_receive(destination, message, ctx)
     return message
 
 
@@ -464,11 +448,13 @@ def _action_wrapper(action: str) -> Callable[..., Awaitable[Any]]:
             resource=_resource(destination),
             tags={**_message_tags(instance), **_semantic_tags(action, destination)},
         )
-        # Settling a pulled message outside process() has no active span; parent it on the
-        # producer instead of starting a one-span trace. The context is not activated.
-        if tracer.context_provider.active() is None:
-            _parent_on_producer(event, instance)
-        with core.context_with_event(event):
+        # Settling a pulled message outside process() has no active span; parent it on the producer (or link
+        # it in span-links mode) instead of starting an unconnected trace. The context is not activated.
+        link = _attach_producer(event, instance) if tracer.context_provider.active() is None else None
+        with core.context_with_event(event) as ctx:
+            if link is not None:
+                # The generic span event carries no links, so the producer is linked on the span itself.
+                span_from_context(ctx).link_span(link)
             return await wrapped(*args, **kwargs)
 
     return traced
@@ -480,7 +466,6 @@ def patch() -> None:
 
     wrap("aio_pika.exchange", "Exchange.publish", _traced_publish)
     wrap("aio_pika.queue", "Queue.consume", _traced_queue_consume)
-    wrap("aio_pika.queue", "consumer", _traced_consumer)
     wrap("aio_pika.queue", "Queue.get", _traced_get)
     wrap("aio_pika.queue", "QueueIterator.__anext__", _traced_anext)
 
@@ -500,7 +485,6 @@ def unpatch() -> None:
 
     unwrap(aio_pika.exchange.Exchange, "publish")
     unwrap(aio_pika.queue.Queue, "consume")
-    unwrap(aio_pika.queue, "consumer")
     unwrap(aio_pika.queue.Queue, "get")
     unwrap(aio_pika.queue.QueueIterator, "__anext__")
     if _ROBUST_ITERATOR_HAS_ANEXT:
