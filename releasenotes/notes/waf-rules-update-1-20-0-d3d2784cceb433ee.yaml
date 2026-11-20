@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    App and API Protection: Updates the default WAF rules to 1.20.0, expanding
+    detection coverage and reducing false positives for server-side template injection.
