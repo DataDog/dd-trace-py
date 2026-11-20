@@ -1791,7 +1791,7 @@ def test_failed_poller_join_leaves_the_claim_to_the_next_shutdown(cdn, api_key, 
         provider.initialize(EvaluationContext())
         source = provider._configuration_source
         join = source.join
-        failures = [RuntimeError("Cannot join the current periodic thread")]
+        failures = [RuntimeError("join failed")]
 
         def join_failing_once(*args, **kwargs):
             if failures:
@@ -1811,6 +1811,125 @@ def test_failed_poller_join_leaves_the_claim_to_the_next_shutdown(cdn, api_key, 
     finally:
         provider.shutdown()
         later.shutdown()
+
+
+def _poll_without_configuration(provider, cdn, monkeypatch):
+    """Initialize provider while the CDN has no configuration, so it times out and keeps polling every 0.2 s."""
+    from ddtrace.internal.openfeature import _provider as provider_module
+
+    monkeypatch.setattr(provider_module.ffe_config, "configuration_source_agentless_poll_interval_seconds", 0.2)
+    cdn.respond = lambda target: _FakeResponse(404)
+    with pytest.raises(ProviderNotReadyError):
+        provider.initialize(EvaluationContext())
+    return provider._configuration_source
+
+
+def _on_recovery(provider, cdn, monkeypatch, handler):
+    """Serve configuration, so the poller emits PROVIDER_READY and runs handler on its own thread, in its poll.
+
+    openfeature-sdk 0.8.4 runs PROVIDER_READY handlers on the emitting thread, as this does.
+    """
+    monkeypatch.setattr(provider, "emit_provider_ready", handler)
+    cdn.respond = lambda target: _FakeResponse(200, _ufc_body())
+
+
+def test_shutdown_from_inside_the_poll_returns_and_releases_the_claim_after_the_poll(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    later = _provider({"tags": ["b"]})
+    source = _poll_without_configuration(provider, cdn, monkeypatch)
+    in_poll = []
+    returned = threading.Event()
+
+    def shut_down(*args, **kwargs):
+        in_poll.append(source.polling_on_current_thread())
+        provider.shutdown()
+        returned.set()
+
+    try:
+        _on_recovery(provider, cdn, monkeypatch, shut_down)
+        assert returned.wait(timeout=5), "shutdown() from inside the poll did not return"
+        assert in_poll == [True]
+        # The claim is released on the worker after its last poll, before a join() from here returns.
+        source.join(timeout=5)
+        assert _flag_selection._claim_count == 0
+        assert provider._retired_configuration_sources == []
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        later.shutdown()
+        provider.shutdown()
+
+
+def test_second_shutdown_during_the_poll_that_stopped_its_poller_releases_the_claim_once(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    source = _poll_without_configuration(provider, cdn, monkeypatch)
+    # Another reference to the claim, as a running provider with the same selection holds.
+    claim_process_selection(canonicalize_flag_selection({"tags": ["a"]}))
+    stopped, finish, joining = threading.Event(), threading.Event(), threading.Event()
+    join = source.join
+
+    def signaling_join(*args, **kwargs):
+        joining.set()
+        return join(*args, **kwargs)
+
+    def shut_down_and_hold(*args, **kwargs):
+        provider.shutdown()
+        stopped.set()
+        finish.wait(timeout=5)
+
+    monkeypatch.setattr(source, "join", signaling_join)
+    second = threading.Thread(target=provider.shutdown)
+    try:
+        _on_recovery(provider, cdn, monkeypatch, shut_down_and_hold)
+        assert stopped.wait(timeout=5)
+        assert not joining.is_set()
+        assert provider._retired_configuration_sources == [source]
+        assert _flag_selection._claim_count == 2
+        second.start()
+        # The second shutdown reserved the poller and waits for its poll to end.
+        assert joining.wait(timeout=5)
+        finish.set()
+        second.join(timeout=5)
+        assert not second.is_alive()
+        assert provider._retired_configuration_sources == []
+        assert _flag_selection._claim_count == 1
+    finally:
+        finish.set()
+        if second.is_alive():
+            second.join(timeout=5)
+        provider.shutdown()
+
+
+def test_fork_while_a_poller_stopped_from_inside_its_poll_finishes_it_releases_the_claim(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    other = canonicalize_flag_selection({"tags": ["b"]})
+    _poll_without_configuration(provider, cdn, monkeypatch)
+    stopped, finish = threading.Event(), threading.Event()
+
+    def shut_down_and_hold(*args, **kwargs):
+        provider.shutdown()
+        stopped.set()
+        finish.wait(timeout=5)
+
+    def released():
+        # The thread module restarts the stopped poller after the fork only to run its exit, which releases the claim.
+        deadline = time.monotonic() + 5
+        while _flag_selection._claim_count and time.monotonic() < deadline:
+            threading.Event().wait(0.01)
+        return _flag_selection._claim_count == 0 and claim_process_selection(other) == other
+
+    # The fork joins the poller before it forks, so the poll ends while the fork waits for it.
+    ending = threading.Timer(0.3, finish.set)
+    try:
+        _on_recovery(provider, cdn, monkeypatch, shut_down_and_hold)
+        assert stopped.wait(timeout=5)
+        ending.start()
+        assert _forked_child_status(released) == 0
+        assert released()
+    finally:
+        finish.set()
+        ending.cancel()
+        provider.shutdown()
 
 
 def test_child_forked_while_running_keeps_the_claim_until_its_own_shutdown(cdn, api_key):

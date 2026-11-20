@@ -39,6 +39,7 @@ from ddtrace.internal.openfeature._native import DEPENDENT_FLAG_VARIANT_KEY_V1
 from ddtrace.internal.openfeature._native import get_evaluator_capabilities
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import current_thread
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import retry
@@ -230,6 +231,9 @@ class AgentlessConfigurationSource(PeriodicService):
         super().__init__(interval=poll_interval, no_wait_at_start=True)
 
         self._apply_configuration = apply_configuration
+        # The thread inside periodic(), so a shutdown from a callback during a poll does not join that thread.
+        self._polling_thread: Optional[object] = None
+        self._exit_callbacks: list[Callable[[], None]] = []
         self._api_key = api_key
         # Only reported in debug logs, to diagnose an SDK env that does not match
         # the environment the flags were configured for.
@@ -302,6 +306,26 @@ class AgentlessConfigurationSource(PeriodicService):
         self._cancel_in_flight_request()
         super()._stop_service(*args, **kwargs)
 
+    def polling_on_current_thread(self) -> bool:
+        """Whether the current thread is inside this source's poll, where joining the worker would wait forever."""
+        return self._polling_thread is current_thread()
+
+    def call_on_exit(self, callback: Callable[[], None]) -> None:
+        """Run callback on the worker thread once its last poll has returned.
+
+        It runs before a join() from another thread returns, so code on the worker thread, which cannot join it,
+        can still act once the worker's final poll is over.
+        """
+        self._exit_callbacks.append(callback)
+
+    def on_shutdown(self) -> None:  # type: ignore[override]
+        callbacks, self._exit_callbacks = self._exit_callbacks, []
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:
+                log.debug("Feature Flags: agentless configuration source exit callback failed", exc_info=True)
+
     def discard_in_child(self) -> None:
         """Keep the poller from restarting in a forked child that does not own it.
 
@@ -355,6 +379,13 @@ class AgentlessConfigurationSource(PeriodicService):
 
     def periodic(self) -> None:
         """Run one poll with in-tick retries; never let an error escape."""
+        self._polling_thread = current_thread()
+        try:
+            self._poll_once()
+        finally:
+            self._polling_thread = None
+
+    def _poll_once(self) -> None:
         count_inherited_drop()
         if self._stagger_first_poll_after_fork():
             return

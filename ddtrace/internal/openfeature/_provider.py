@@ -8,6 +8,7 @@ and forwards the raw bytes to the native FFE processor.
 from collections import OrderedDict
 from collections.abc import MutableMapping
 from contextlib import contextmanager
+import functools
 import time
 import typing
 import weakref
@@ -239,7 +240,8 @@ class DataDogProvider(AbstractProvider):
         self._configuration_source_shutdowns = 0
         self._stopping_configuration_source = False
         self._configuration_source_stopper: typing.Any = None
-        # Pollers whose teardown failed. Each keeps its claim until a later shutdown finishes it.
+        # Pollers whose teardown failed, or that were stopped from their own thread. Each keeps its claim until a
+        # later shutdown finishes it or, for the latter, until its last poll returns.
         self._retired_configuration_sources: list[AgentlessConfigurationSource] = []
         # Starts and teardowns in progress, guarded by _lifecycle_lock; a fork waits for them.
         self._configuration_source_operations: list[_LifecycleOperation] = []
@@ -654,17 +656,33 @@ class DataDogProvider(AbstractProvider):
         woken.set()
 
     @staticmethod
-    def _stop_and_join(source: "AgentlessConfigurationSource") -> None:
+    def _stop_and_join(source: "AgentlessConfigurationSource") -> bool:
+        """Stop and join source. Return False, without joining, when called from inside its own poll.
+
+        That happens when shutdown() runs from a callback on the poller, such as a PROVIDER_READY handler, which
+        openfeature-sdk 0.8.4 runs on the emitting thread. The native join would wait for this very call to return.
+        """
         try:
             source.stop()
         except ServiceStatusError:
             logger.debug("Agentless configuration source is already stopped", exc_info=True)
+        if source.polling_on_current_thread():
+            return False
         source.join()
+        return True
+
+    def _release_exited_poller(self, source: "AgentlessConfigurationSource") -> None:
+        """Release the claim of a poller stopped from its own thread, once its last poll has returned."""
+        with self._configuration_source_lock:
+            if source in self._retired_configuration_sources:
+                self._retired_configuration_sources.remove(source)
+                release_process_selection()
 
     def _stop_configuration_source(self) -> None:
         """Stop the agentless poller and any retired one, or cancel a start in progress.
 
-        A poller whose teardown fails is retired: it keeps its claim, and the next shutdown retries it.
+        A poller whose teardown fails is retired: it keeps its claim, and the next shutdown retries it. A poller
+        stopped from inside its own poll is retired without a join and releases its claim once that poll returns.
         """
         with _lifecycle_operation(self, teardown=True) as operation:
             with self._configuration_source_lock:
@@ -682,26 +700,38 @@ class DataDogProvider(AbstractProvider):
                 self._stopping_configuration_source = True
 
             failed = []
+            deferred = []
             error: typing.Optional[BaseException] = None
             for each in sources:
                 try:
-                    self._stop_and_join(each)
+                    if not self._stop_and_join(each):
+                        deferred.append(each)
                 except BaseException as e:
                     failed.append(each)
                     if error is None:
                         error = e
             with self._configuration_source_lock:
                 # The pollers stay on the provider until here, so a start during the teardown adds no poller and
-                # a forked child can see every poller whose claim is still held.
+                # a forked child can see every poller whose claim is still held. A poller stopped earlier from its
+                # own thread may have released its claim at exit during the join, and is then no longer here.
+                present = [
+                    each
+                    for each in sources
+                    if each is self._configuration_source or each in self._retired_configuration_sources
+                ]
+                kept = [each for each in present if each in failed or each in deferred]
                 if source is not None:
                     self._configuration_source = None
                 retired = [each for each in self._retired_configuration_sources if each not in sources]
-                self._retired_configuration_sources = retired + failed
+                self._retired_configuration_sources = retired + kept
                 self._stopping_configuration_source = False
                 self._configuration_source_stopper = None
                 self._wake_configuration_source_waiters()
-                for _ in range(len(sources) - len(failed)):
+                for _ in range(len(present) - len(kept)):
                     release_process_selection()
+            for each in deferred:
+                # Registered from inside that poller's poll, which therefore cannot have exited yet.
+                each.call_on_exit(functools.partial(self._release_exited_poller, each))
         if error is not None:
             raise error
         logger.debug("Feature Flags: agentless configuration source stopped")
