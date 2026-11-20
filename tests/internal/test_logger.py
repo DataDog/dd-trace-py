@@ -385,11 +385,16 @@ def test_logger_roots_follow_package_naming_convention():
         assert root.startswith(ddtrace.internal.logger.PACKAGE_ROOT_PREFIX)
 
 
+def test_logger_package_paths_cover_every_package_root():
+    assert set(ddtrace._logger.LOGGER_PACKAGE_PATHS) == set(PACKAGE_ROOTS)
+
+
 @pytest.mark.parametrize("root", PACKAGE_ROOTS)
 def test_logger_log_level_from_env_package_roots(monkeypatch, root):
-    package = root[len(ddtrace.internal.logger.PACKAGE_ROOT_PREFIX) :]
-    monkeypatch.setenv(f"_DD_{package.upper()}_LOG_LEVEL", "ERROR")
-    monkeypatch.setenv(f"_DD_{package.upper()}_SUBMODULE_LOG_LEVEL", "DEBUG")
+    # The setting keeps the name it had before the code moved out of ddtrace
+    setting = ddtrace._logger.LOGGER_PACKAGE_PATHS[root].replace(".", "_").upper()
+    monkeypatch.setenv(f"_DD_{setting}_LOG_LEVEL", "ERROR")
+    monkeypatch.setenv(f"_DD_{setting}_SUBMODULE_LOG_LEVEL", "DEBUG")
 
     with (
         mock.patch.object(ddtrace.internal.logger, "LOG_LEVEL_TRIE", ddtrace.internal.logger.LoggerPrefix.build_trie()),
@@ -413,6 +418,33 @@ def test_logger_log_level_from_env_package_root_matches_ddtrace(monkeypatch):
         assert get_logger("ddtrace.internal.module").level == logging.ERROR
         assert get_logger("_ddtrace_internal.module").level == logging.ERROR
         assert get_logger("_ddtrace_internal.other").level == logging.NOTSET
+
+
+def test_logger_log_level_from_env_moved_coverage_keeps_setting_name(monkeypatch):
+    monkeypatch.setenv("_DD_INTERNAL_COVERAGE_LOG_LEVEL", "ERROR")
+
+    with (
+        mock.patch.object(ddtrace.internal.logger, "LOG_LEVEL_TRIE", ddtrace.internal.logger.LoggerPrefix.build_trie()),
+        mock.patch.dict(logging.root.manager.loggerDict),
+    ):
+        assert get_logger("ddtrace.internal.coverage.code").level == logging.ERROR
+        assert get_logger("_ddtrace_coverage.code").level == logging.ERROR
+
+
+def test_register_package_root_paths_relevels_existing_loggers(monkeypatch):
+    monkeypatch.setenv("_DD_INTERNAL_LATE_LOG_LEVEL", "ERROR")
+
+    with (
+        mock.patch.object(ddtrace.internal.logger, "LOG_LEVEL_TRIE", ddtrace.internal.logger.LoggerPrefix.build_trie()),
+        mock.patch.dict(ddtrace.internal.logger._PACKAGE_ROOT_PATHS, clear=True),
+        mock.patch.dict(logging.root.manager.loggerDict),
+    ):
+        # Created before the package's path is known: resolved by its own name, which has no setting
+        logger = get_logger("_ddtrace_late.module")
+        assert logger.level == logging.NOTSET
+
+        ddtrace.internal.logger.register_package_root_paths({"_ddtrace_late": "internal.late"})
+        assert logger.level == logging.ERROR
 
 
 @pytest.mark.parametrize("root", PACKAGE_ROOTS)

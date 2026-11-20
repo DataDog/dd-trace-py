@@ -31,6 +31,7 @@ Usage:
 """
 
 import collections
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 import logging
@@ -54,6 +55,11 @@ DAY = 24 * HOUR
 # `ddtrace` configuration. The prefix is a naming convention, so this module does not need to know the packages.
 PACKAGE_ROOT_PREFIX = "_ddtrace_"
 
+# The path each package root had inside ddtrace (e.g. `_ddtrace_coverage` -> `internal.coverage`), so moved code
+# keeps its `_DD_<PRODUCT>_LOG_LEVEL` setting name. The owner of the package list registers it; an unregistered
+# root falls back to its own name without the prefix.
+_PACKAGE_ROOT_PATHS: dict[str, str] = {}
+
 
 @dataclass
 class LoggerPrefix:
@@ -69,12 +75,14 @@ class LoggerPrefix:
         If a part is not found, it returns the level of the closest parent node.
 
         The root of the name (``ddtrace``) is not part of the trie. Package roots (``_ddtrace_<package>``) are
-        resolved as ``<package>``, so ``_ddtrace_internal.module`` is looked up like ``ddtrace.internal.module``.
+        resolved as their registered path inside ddtrace (see ``register_package_root_paths``), so
+        ``_ddtrace_coverage.code`` is looked up like ``ddtrace.internal.coverage.code``.
         """
         root, _, rest = name.partition(".")
         parts = rest.replace("_", ".").lower().split(".")
         if root.startswith(PACKAGE_ROOT_PREFIX):
-            parts[:0] = root[len(PACKAGE_ROOT_PREFIX) :].replace("_", ".").lower().split(".")
+            path = _PACKAGE_ROOT_PATHS.get(root, root[len(PACKAGE_ROOT_PREFIX) :])
+            parts[:0] = path.replace("_", ".").lower().split(".")
         current = self
         while parts:
             if (part := parts.pop(0)) not in current.children:
@@ -121,6 +129,18 @@ def get_logger(name: str) -> logging.Logger:
             logger.setLevel(level)
 
     return logger
+
+
+def register_package_root_paths(paths: Mapping[str, str]) -> None:
+    """Register the path each package logger root had inside ddtrace.
+
+    For example ``{"_ddtrace_coverage": "internal.coverage"}``. Package loggers already created by
+    ``get_logger`` are re-leveled, so registration order does not matter.
+    """
+    _PACKAGE_ROOT_PATHS.update(paths)
+    for name in list(logging.Logger.manager.loggerDict):
+        if name.partition(".")[0] in paths and (level := LOG_LEVEL_TRIE.lookup(name)) is not None:
+            logging.getLogger(name).setLevel(level)
 
 
 _RATE_LIMITS = {}
