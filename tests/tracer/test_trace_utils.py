@@ -1,5 +1,6 @@
 from ipaddress import ip_network
 from unittest import mock
+import wsgiref.headers
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -800,6 +801,37 @@ def test_get_request_header_ip(header_env_var, headers_dict, expected, span):
 def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, expected):
     ip = _get_request_header_client_ip(headers_dict, peer_ip, True)
     assert ip == expected
+
+
+@pytest.mark.parametrize(
+    "configured_header,header_lines,expected",
+    [
+        (None, [("X-Forwarded-For", "1.1.1.1"), ("x-forwarded-for", "10.0.0.1, 8.8.8.8")], "1.1.1.1"),
+        (
+            None,
+            [("X-Forwarded-For", "10.0.0.1"), ("X-Real-Ip", "4.4.4.4"), ("X-Forwarded-For", "10.0.0.2")],
+            "10.0.0.1",
+        ),
+        (
+            None,
+            [("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1"), ("x-forwarded-for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        (
+            None,
+            [("X_Forwarded_For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1"), ("x_forwarded_for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        ("X-Use-This", [("X-Use-This", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X-Use-This", "4.4.4.4")], "4.4.4.4"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X_Use_This", "1.1.1.1")], ""),
+    ],
+)
+def test_get_request_header_client_ip_repeated_and_respelled_header_lines(configured_header, header_lines, expected):
+    headers = wsgiref.headers.Headers(header_lines)
+    with override_global_config(dict(_client_ip_header=configured_header)):
+        assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):

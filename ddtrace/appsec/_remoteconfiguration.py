@@ -20,6 +20,12 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
+_ASM_RULE_PRODUCTS = (
+    RemoteConfigProduct.AsmData,  # IP Blocking
+    RemoteConfigProduct.Asm,  # Exclusion Filters & Custom Rules
+    RemoteConfigProduct.AsmDd,  # DD Rules
+)
+
 APPSEC_PRODUCTS = {
     RemoteConfigProduct.AsmFeatures,
     RemoteConfigProduct.Asm,
@@ -45,6 +51,18 @@ class AsmFeaturesResult(TypedDict, total=False):
     auto_user_instrum: _AutoUserInstrumState
 
 
+def _register_rule_products(callback: "AppSecCallback") -> None:
+    for product in _ASM_RULE_PRODUCTS:
+        remoteconfig_poller.register_callback(product, callback)
+        remoteconfig_poller.enable_product(product)
+
+
+def _unregister_rule_products() -> None:
+    for product in _ASM_RULE_PRODUCTS:
+        remoteconfig_poller.unregister_callback(product)
+        remoteconfig_poller.disable_product(product)
+
+
 def enable_appsec_rc(callback: "AppSecCallback") -> None:
     """Remote config will be used by ASM libraries to receive four different updates from the backend.
     Each update has it's own product:
@@ -68,12 +86,7 @@ def enable_appsec_rc(callback: "AppSecCallback") -> None:
 
     # Register other ASM products if AppSec is enabled
     if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
-        remoteconfig_poller.register_callback(RemoteConfigProduct.AsmData, callback)  # IP Blocking
-        remoteconfig_poller.enable_product(RemoteConfigProduct.AsmData)
-        remoteconfig_poller.register_callback(RemoteConfigProduct.Asm, callback)  # Exclusion Filters & Custom Rules
-        remoteconfig_poller.enable_product(RemoteConfigProduct.Asm)
-        remoteconfig_poller.register_callback(RemoteConfigProduct.AsmDd, callback)  # DD Rules
-        remoteconfig_poller.enable_product(RemoteConfigProduct.AsmDd)
+        _register_rule_products(callback)
 
     asm_config._rc_client_id = remoteconfig_poller._client.id
 
@@ -111,21 +124,9 @@ class AppSecCallback(RCCallback):
             if asm_config._asm_static_rule_file is None:
                 if result["asm"].get("enabled", False):
                     # Register additional ASM products with the same callback
-                    remoteconfig_poller.register_callback(RemoteConfigProduct.AsmData, self)  # IP Blocking
-                    remoteconfig_poller.enable_product(RemoteConfigProduct.AsmData)
-                    remoteconfig_poller.register_callback(
-                        RemoteConfigProduct.Asm, self
-                    )  # Exclusion Filters & Custom Rules
-                    remoteconfig_poller.enable_product(RemoteConfigProduct.Asm)
-                    remoteconfig_poller.register_callback(RemoteConfigProduct.AsmDd, self)  # DD Rules
-                    remoteconfig_poller.enable_product(RemoteConfigProduct.AsmDd)
+                    _register_rule_products(self)
                 else:
-                    remoteconfig_poller.unregister_callback(RemoteConfigProduct.AsmData)
-                    remoteconfig_poller.disable_product(RemoteConfigProduct.AsmData)
-                    remoteconfig_poller.unregister_callback(RemoteConfigProduct.Asm)
-                    remoteconfig_poller.disable_product(RemoteConfigProduct.Asm)
-                    remoteconfig_poller.unregister_callback(RemoteConfigProduct.AsmDd)
-                    remoteconfig_poller.disable_product(RemoteConfigProduct.AsmDd)
+                    _unregister_rule_products()
         debug_info = (
             f"appsec._remoteconfiguration.deb::AppSecCallback::payload"
             f"{tuple(p.path for p in payloads)}[{os.getpid()}][P: {os.getppid()}]"
