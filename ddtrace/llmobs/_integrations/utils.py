@@ -190,8 +190,8 @@ REACT_ACTION_REGEX = re.compile(r"Action\s*(?:\d+\s*)?:")
 REACT_ACTION_INPUT_REGEX = re.compile(r"Action\s*(?:\d+\s*)?Input\s*(?:\d+\s*)?:")
 
 
-def get_llmobs_metrics_tags(integration_name, span):
-    usage = {}
+def get_llmobs_metrics_tags(integration_name: str, span: Any) -> dict[str, Any]:
+    usage: dict[str, Any] = {}
 
     # check for both prompt / completion or input / output tokens
     input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name) or span.get_metric(
@@ -214,8 +214,8 @@ def get_llmobs_metrics_tags(integration_name, span):
     return usage
 
 
-def parse_llmobs_metric_args(metrics):
-    usage = {}
+def parse_llmobs_metric_args(metrics: Any) -> dict[str, Any]:
+    usage: dict[str, Any] = {}
     input_tokens = _get_attr(metrics, "prompt_tokens", None)
     output_tokens = _get_attr(metrics, "completion_tokens", None)
     total_tokens = _get_attr(metrics, "total_tokens", None)
@@ -311,14 +311,14 @@ LANGCHAIN_ROLE_MAPPING = {
 
 
 def format_langchain_io(
-    messages,
-):
+    messages: Any,
+) -> Any:
     """
     Formats input and output messages for serialization to JSON.
     Specifically, makes sure that any schema messages are converted to strings appropriately.
     """
     if isinstance(messages, dict):
-        formatted = {}
+        formatted: dict[Any, Any] = {}
         for key, value in messages.items():
             formatted[key] = format_langchain_io(value)
         return formatted
@@ -327,7 +327,7 @@ def format_langchain_io(
     return get_content_from_langchain_message(messages)
 
 
-def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
+def get_content_from_langchain_message(message: Any) -> Union[str, tuple[str, str]]:
     """
     Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
     """
@@ -341,12 +341,14 @@ def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
         return str(message)
 
 
-def format_anthropic_tool_result_content(content) -> str:
+def format_anthropic_tool_result_content(content: Any) -> str:
     """Flatten the `content` field of an Anthropic `tool_result` block into a string."""
     if isinstance(content, str):
         return content
     elif isinstance(content, dict):
-        return safe_json(content)
+        # safe_json returns None on serialization failure; preserve that.
+        serialized: str = safe_json(content)
+        return serialized
     elif isinstance(content, Iterable):
         formatted_content = []
         for tool_result_block in content:
@@ -676,7 +678,7 @@ def _capture_inline_image(url: Any) -> tuple[Optional[ImagePart], Optional[str]]
     return format_image_part(payload, match.group(1).lower()), None
 
 
-def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[ImagePart]]:
+def _extract_content_parts(parts: list[Any]) -> tuple[str, list[AudioPart], list[ImagePart]]:
     """Extract readable text, audio and image segments from multimodal content parts."""
     extracted = []
     audio_parts: list[AudioPart] = []
@@ -1647,31 +1649,35 @@ class OaiSpanAdapter:
     It is also handy for providing defaults when we bump into missing data or unexpected data shapes.
     """
 
-    def __init__(self, oai_span):
+    def __init__(self, oai_span: Any) -> None:
         self._raw_oai_span = oai_span  # openai span data type
 
     @property
     def span_id(self) -> str:
         """Get the span ID."""
-        return self._raw_oai_span.span_id
+        span_id: str = self._raw_oai_span.span_id
+        return span_id
 
     @property
     def trace_id(self) -> str:
         """Get the trace ID."""
-        return self._raw_oai_span.trace_id
+        trace_id: str = self._raw_oai_span.trace_id
+        return trace_id
 
     @property
     def name(self) -> str:
         """Get the span name."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "name"):
-            return self._raw_oai_span.span_data.name
+            name: str = self._raw_oai_span.span_data.name
+            return name
         return f"openai_agents.{self.span_type.lower()}"
 
     @property
     def span_type(self) -> str:
         """Get the span type."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "type"):
-            return self._raw_oai_span.span_data.type
+            span_type: str = self._raw_oai_span.span_data.type
+            return span_type
         return ""
 
     @property
@@ -1748,14 +1754,16 @@ class OaiSpanAdapter:
         data = self.data
         if not data:
             return {}
-        return load_data_value(data)
+        formatted: dict[str, Any] = load_data_value(data)
+        return formatted
 
     @property
     def response_output_text(self) -> str:
         """Get the output text from the response."""
         if not self.response:
             return ""
-        return self.response.output_text
+        output_text: str = self.response.output_text
+        return output_text
 
     @property
     def response_system_instructions(self) -> Optional[str]:
@@ -1772,7 +1780,8 @@ class OaiSpanAdapter:
 
         if self.span_type == "response" and self.response:
             if hasattr(self.response, "model"):
-                return self.response.model
+                model: Optional[str] = self.response.model
+                return model
         return None
 
     @property
@@ -1864,7 +1873,7 @@ class OaiSpanAdapter:
         if not self.response or not self.response.output:
             return [], [], []
 
-        messages: list[Any] = self.response.output
+        messages: Any = self.response.output
         if not messages:
             return [], [], []
 
@@ -1901,13 +1910,14 @@ class OaiTraceAdapter:
     OpenAI Agents SDK Trace objects without needing to know their internal structure.
     """
 
-    def __init__(self, oai_trace):
+    def __init__(self, oai_trace: Any) -> None:
         self._trace = oai_trace  # openai trace data type
 
     @property
     def trace_id(self) -> str:
         """Get the trace ID."""
-        return self._trace.trace_id
+        trace_id: str = self._trace.trace_id
+        return trace_id
 
     @property
     def name(self) -> str:
@@ -1918,7 +1928,8 @@ class OaiTraceAdapter:
     def group_id(self) -> Optional[str]:
         """Get the group ID if it exists."""
         try:
-            return self._trace.export().get("group_id")
+            group_id: Optional[str] = self._trace.export().get("group_id")
+            return group_id
         except (AttributeError, KeyError):
             return None
 
@@ -1928,7 +1939,7 @@ class OaiTraceAdapter:
         return self._trace.metadata if hasattr(self._trace, "metadata") else None
 
     @property
-    def raw_trace(self):
+    def raw_trace(self) -> Any:
         """Get the raw OpenAI Agents SDK trace."""
         return self._trace
 
@@ -2000,7 +2011,7 @@ def get_final_message_converse_stream_message(
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
-def _compute_prompt_tokens(prompts=None, messages=None):
+def _compute_prompt_tokens(prompts: Any = None, messages: Any = None) -> int:
     """Compute token span metrics on streamed chat/completion requests.
     Only required if token usage is not provided in the streamed response.
     """
@@ -2018,7 +2029,7 @@ def _compute_prompt_tokens(prompts=None, messages=None):
     return num_prompt_tokens
 
 
-def _compute_completion_tokens(completions_or_messages):
+def _compute_completion_tokens(completions_or_messages: Any) -> int:
     """Compute/Estimate the completion token count from the streamed response."""
     num_completion_tokens = 0
     for choice in completions_or_messages:
@@ -2028,7 +2039,7 @@ def _compute_completion_tokens(completions_or_messages):
     return num_completion_tokens
 
 
-def _est_tokens(prompt: Union[str, list[int]]) -> int:
+def _est_tokens(prompt: Union[str, list[Any]]) -> int:
     """
     Provide a very rough estimate of the number of tokens in a string prompt.
     Note that if the prompt is passed in as a token array (list of ints), the token count
