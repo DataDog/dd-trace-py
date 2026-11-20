@@ -192,6 +192,8 @@ async def trace_middleware(
                 trace_query_string=trace_query_string,
                 query=request.rel_url.raw_query_string,
                 service=service,
+                peer_ip=request.remote,
+                tag_request_on_start=True,
             ),
             dispatch_end_event=False,
         ) as ctx:

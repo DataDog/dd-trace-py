@@ -181,7 +181,9 @@ class DataDogProvider(AbstractProvider):
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
         self._config_received = Event()
-        self._initialization_timed_out = False
+        self._initialization_failed = False
+        # Makes the failure decision in initialize() atomic with on_configuration_received().
+        self._initialization_lock = Lock()
 
         # Read through a fresh config instance so values reflect the environment at
         # provider-construction time rather than at import time (see the killswitch
@@ -202,7 +204,7 @@ class DataDogProvider(AbstractProvider):
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
         self._exposure_cache: LRUCache[ExposureCacheKey, ExposureCacheValue] = LRUCache(maxsize=65536)
         self._exposure_cache_lock = Lock()
-        _providers_with_exposure_cache.add(self)
+        _providers_with_plain_locks.add(self)
         self._exposure_logging_hook = ExposureLoggingHook()
 
         # Master gate: the resolved configuration source (stable kill switch +
@@ -241,38 +243,20 @@ class DataDogProvider(AbstractProvider):
         self._retired_configuration_sources: list[AgentlessConfigurationSource] = []
         # Starts and teardowns in progress, guarded by _lifecycle_lock; a fork waits for them.
         self._configuration_source_operations: list[_LifecycleOperation] = []
+        # Why the selected source could not start; initialize() then fails without waiting.
+        self._configuration_source_error: typing.Optional[str] = None
 
-        # Initialize flag evaluation metrics tracking
-        # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
+        # Evaluation hooks; built by _build_evaluation_hooks() and torn down by shutdown().
         self._flag_eval_metrics: typing.Optional[FlagEvalMetrics] = None
         self._flag_eval_metrics_hook: typing.Optional[FlagEvalMetricsHook] = None
-        if self._active:
-            self._flag_eval_metrics = FlagEvalMetrics()
-            self._flag_eval_metrics_hook = FlagEvalMetricsHook(self._flag_eval_metrics)
-
-        # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
-        # (default on). Gates ONLY the EVP path; the OTel path above is always registered
-        # when the provider is enabled (preserves the existing OTel non-regression).
-        # the killswitch is read through the ddtrace config system
-        # (OpenFeatureConfig.flagging_evaluation_counts_enabled, registered in
-        # supported-configurations.json) rather than raw os.environ. It comes from the
-        # fresh instance_config built at the top of __init__, so the value reflects the
-        # environment at provider-construction time (the config var parses the live
-        # environment via the DDConfig var system), which keeps the killswitch overridable
-        # per-instance in tests.
         self._flag_eval_evp_writer: typing.Optional[FlagEvaluationWriter] = None
         self._flag_eval_evp_hook: typing.Optional[FlagEvalEVPHook] = None
-        evp_counts_enabled = instance_config.flagging_evaluation_counts_enabled
-        if self._active and evp_counts_enabled:
-            self._flag_eval_evp_writer = FlagEvaluationWriter()
-            self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
-
-        # APM span enrichment hook (experimental, distinct gate, OFF by default).
-        # Constructed ONLY when the gate is on, so nothing is allocated and
-        # nothing subscribes to span finish when it is off (DG-005).
         self._span_enrichment_hook: typing.Optional[SpanEnrichmentHook] = None
-        if self._active and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
-            self._span_enrichment_hook = SpanEnrichmentHook()
+        # DD_FLAGGING_EVALUATION_COUNTS_ENABLED (default on) gates only the EVP path. It is read
+        # through the fresh instance_config, so it reflects the environment at construction time
+        # and stays overridable per instance in tests.
+        self._evp_counts_enabled = instance_config.flagging_evaluation_counts_enabled
+        self._build_evaluation_hooks()
 
         # Evaluation-detail logging for self-diagnosis. Registered only when debug
         # logs would actually be emitted, so it costs nothing otherwise. The
@@ -282,6 +266,25 @@ class DataDogProvider(AbstractProvider):
         if self._active and debug_logging_enabled():
             self._debug_logging_hook = DebugLoggingHook()
             warn_raw_evaluation_data_logged()
+
+    def _build_evaluation_hooks(self) -> None:
+        """Build the evaluation hooks that are missing, so initialize() after shutdown() restores them.
+
+        - OTel flag evaluation metrics (emitted when DD_METRICS_OTEL_ENABLED=true): always, while enabled.
+        - EVP flagevaluation writer and hook: when DD_FLAGGING_EVALUATION_COUNTS_ENABLED is on.
+        - APM span enrichment (experimental, off by default): only when its gate is on, so
+          nothing is allocated and nothing subscribes to span finish when it is off (DG-005).
+        """
+        if not self._active:
+            return
+        if self._flag_eval_metrics is None:
+            self._flag_eval_metrics = FlagEvalMetrics()
+            self._flag_eval_metrics_hook = FlagEvalMetricsHook(self._flag_eval_metrics)
+        if self._evp_counts_enabled and self._flag_eval_evp_writer is None:
+            self._flag_eval_evp_writer = FlagEvaluationWriter()
+            self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
+        if ffe_config.experimental_flagging_provider_span_enrichment_enabled and self._span_enrichment_hook is None:
+            self._span_enrichment_hook = SpanEnrichmentHook()
 
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
@@ -340,12 +343,15 @@ class DataDogProvider(AbstractProvider):
         ErrorCode.PROVIDER_NOT_READY.
 
         If config already arrived before initialize() runs (e.g. in the master process of
-        a pre-fork server), the fast path sets READY without waiting.
+        a pre-fork server), the fast path sets READY without waiting. If the selected
+        source cannot start (e.g. agentless without DD_API_KEY), no configuration can
+        arrive, so it raises ProviderNotReadyError at once instead of waiting.
 
         Provider lifecycle:
             NOT_READY -> initialize() waits -> config arrives -> READY
             NOT_READY -> initialize() waits -> timeout -> ERROR
                       -> config arrives -> on_configuration_received() -> READY
+            NOT_READY -> initialize() -> source cannot start -> ERROR
         """
         if not self._active:
             return
@@ -353,7 +359,9 @@ class DataDogProvider(AbstractProvider):
         logger.debug(
             "Feature Flags: waiting for provider initialization (timeout %.1fs)...", self._initialization_timeout
         )
-        self._initialization_timed_out = False
+        self._initialization_failed = False
+        # shutdown() tears the hooks down; rebuild them for a re-initialization.
+        self._build_evaluation_hooks()
 
         # Register for RC config callbacks (in initialize, not __init__, so
         # re-initialization after shutdown re-registers the provider)
@@ -392,6 +400,13 @@ class DataDogProvider(AbstractProvider):
             logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")
             return  # SDK will dispatch PROVIDER_READY
 
+        if self._configuration_source_error is not None:
+            # No configuration can arrive, so fail now instead of waiting for the timeout.
+            if self._mark_initialization_failed():
+                raise ProviderNotReadyError(self._configuration_source_error)
+            logger.debug("Feature Flags: provider initialized successfully (configuration received meanwhile)")
+            return  # SDK will dispatch PROVIDER_READY
+
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
         wait_started = time.monotonic()
@@ -411,7 +426,8 @@ class DataDogProvider(AbstractProvider):
         # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
         # non-blocking registration and propagates it for blocking registration.
         # Warning rather than error: errors are forwarded to telemetry, and a routine
-        # initialization timeout should not inflate its volume.
+        # initialization timeout should not inflate its volume. Logged before the failure is
+        # recorded, so a configuration that arrives meanwhile takes the success path.
         if _get_ffe_snapshot() is None:
             logger.warning(
                 "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
@@ -426,8 +442,22 @@ class DataDogProvider(AbstractProvider):
                 "arrives",
                 self._initialization_timeout,
             )
-        self._initialization_timed_out = True
+        if not self._mark_initialization_failed() and started:
+            logger.debug("Feature Flags: provider initialized successfully (configuration received at the timeout)")
+            return  # SDK will dispatch PROVIDER_READY
         raise ProviderNotReadyError("No Feature Flagging configuration received before the initialization timeout")
+
+    def _mark_initialization_failed(self) -> bool:
+        """Record an initialization failure, unless configuration arrived first.
+
+        Returns False when configuration arrived, so initialize() succeeds. Otherwise a
+        configuration that arrives later sees the failure and emits the recovery event.
+        """
+        with self._initialization_lock:
+            if self._config_received.is_set():
+                return False
+            self._initialization_failed = True
+            return True
 
     def shutdown(self) -> None:
         """
@@ -495,7 +525,7 @@ class DataDogProvider(AbstractProvider):
         )
         self._status = ProviderStatus.NOT_READY
         self._config_received.clear()
-        self._initialization_timed_out = False
+        self._initialization_failed = False
         logger.debug("Feature Flags: provider shut down; see writer shutdown outcomes for delivery or unfinished work")
 
     def _start_configuration_source(self, deadline: float) -> typing.Optional[bool]:
@@ -540,13 +570,32 @@ class DataDogProvider(AbstractProvider):
             operation.shutdowns = shutdowns
             return self._start_reserved_configuration_source(shutdowns, operation)
 
-    def _start_reserved_configuration_source(self, shutdowns: int, operation: "_LifecycleOperation") -> bool:
+    def _create_configuration_source(self) -> typing.Optional["AgentlessConfigurationSource"]:
+        """Build the agentless poller, or record in _configuration_source_error why it cannot start."""
+        from ddtrace.internal.openfeature._source_selection import MissingApiKeyError
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
+        self._configuration_source_error = None
+        try:
+            return create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
+        except MissingApiKeyError as e:
+            self._configuration_source_error = str(e)
+            # A constant message: error telemetry drops the arguments.
+            logger.error(
+                "Feature Flags: DD_API_KEY is required for the default Datadog Feature Flagging endpoint; "
+                "set DD_API_KEY, set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL, "
+                "or set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE=remote_config to load flags through the Datadog Agent"
+            )
+        except ValueError as e:
+            self._configuration_source_error = str(e)
+            logger.error("Unable to configure Feature Flagging configuration source: %s", e)
+        return None
+
+    def _start_reserved_configuration_source(self, shutdowns: int, operation: "_LifecycleOperation") -> bool:
         source = None
         started = False
         try:
-            source = create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
+            source = self._create_configuration_source()
             if source is not None:
                 with self._configuration_source_lock:
                     operation.source = source
@@ -1006,18 +1055,21 @@ class DataDogProvider(AbstractProvider):
         Updates status first, then signals the event for observers.
         Emits PROVIDER_READY for late arrivals after initialization fails.
         """
-        if not self._config_received.is_set():
-            self._status = ProviderStatus.READY
+        with self._initialization_lock:
+            first = not self._config_received.is_set()
+            if first:
+                self._status = ProviderStatus.READY
             # The SDK emits READY after successful initialization. The provider only
             # owns the recovery event after initialization reported an error.
-            if self._initialization_timed_out:
-                logger.debug("Feature Flags: provider recovered: configuration received after initialization timed out")
-                self._emit_ready_event()
-            else:
-                logger.debug("First FFE configuration received, provider is now READY")
+            recovered = first and self._initialization_failed
+            # Signal the event after status is updated.
+            self._config_received.set()
 
-        # Signal the event last after status is updated.
-        self._config_received.set()
+        if recovered:
+            logger.debug("Feature Flags: provider recovered: configuration received after initialization failed")
+            self._emit_ready_event()
+        elif first:
+            logger.debug("First FFE configuration received, provider is now READY")
 
     def _emit_ready_event(self) -> None:
         """
@@ -1043,9 +1095,9 @@ class DataDogProvider(AbstractProvider):
 
 
 # A plain lock is much cheaper than forksafe.Lock() on every evaluation, so the provider
-# resets its own lock in a forked child instead. The reset is in place because pending
-# exposure decisions keep a reference to the lock.
-_providers_with_exposure_cache: "weakref.WeakSet[DataDogProvider]" = weakref.WeakSet()
+# resets its own locks in a forked child instead. The reset is in place because pending
+# exposure decisions keep a reference to the exposure cache lock.
+_providers_with_plain_locks: "weakref.WeakSet[DataDogProvider]" = weakref.WeakSet()
 
 
 # How long a fork waits for a provider start or teardown in progress. By then the fork has joined every periodic
@@ -1087,7 +1139,7 @@ def _lifecycle_operation(provider: DataDogProvider, teardown: bool) -> typing.It
         global _recount_when_idle
         with _lifecycle_lock:
             provider._configuration_source_operations.remove(operation)
-            if _recount_when_idle and not any(_operations(each) for each in list(_providers_with_exposure_cache)):
+            if _recount_when_idle and not any(_operations(each) for each in list(_providers_with_plain_locks)):
                 # The forking thread's last operation in this child has ended: every claim is now on a poller.
                 _recount_when_idle = False
                 recount_process_selection(_claims_held_by_providers())
@@ -1096,7 +1148,7 @@ def _lifecycle_operation(provider: DataDogProvider, teardown: bool) -> typing.It
 
 
 def _claims_held_by_providers() -> int:
-    return sum(provider._claims_held() for provider in list(_providers_with_exposure_cache))
+    return sum(provider._claims_held() for provider in list(_providers_with_plain_locks))
 
 
 def _operations(provider: DataDogProvider) -> list[_LifecycleOperation]:
@@ -1105,7 +1157,7 @@ def _operations(provider: DataDogProvider) -> list[_LifecycleOperation]:
 
 
 def _another_thread_in_lifecycle(me: typing.Any) -> bool:
-    providers = list(_providers_with_exposure_cache)
+    providers = list(_providers_with_plain_locks)
     return any(operation.owner is not me for provider in providers for operation in _operations(provider))
 
 
@@ -1128,19 +1180,21 @@ def _wait_for_lifecycle_before_fork() -> None:
 
 @forksafe.register
 def _reset_provider_state_in_child() -> typing.Iterator[None]:
-    """Reset what parent threads left in progress.
+    """Reset the provider locks and what parent threads left in progress.
 
-    It runs before the other child hooks, so the thread module does not restart a discarded poller and the claim's
-    fork reset sees the recounted claim.
+    It runs before the other child hooks: they can start threads that take these locks, and _at_fork_reinit() does not
+    wake a thread that already waits. The thread module then does not restart a discarded poller, and the claim's fork
+    reset sees the recounted claim.
     """
     global _lifecycle_lock, _lifecycle_ended, _recount_when_idle
     _lifecycle_lock = Lock()
     _lifecycle_ended = Event()
     me = current_thread()
-    providers = list(_providers_with_exposure_cache)
+    providers = list(_providers_with_plain_locks)
     reset = False
     for provider in providers:
         provider._exposure_cache_lock._at_fork_reinit()  # type: ignore[attr-defined]
+        provider._initialization_lock._at_fork_reinit()  # type: ignore[attr-defined]
         # A parent thread may have held the event's internal lock at the fork, and no parent waiter survives.
         provider._configuration_source_changed = Event()
         starter = getattr(provider, "_configuration_source_starter", None)

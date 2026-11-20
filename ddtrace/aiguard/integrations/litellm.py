@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
+from urllib.parse import urlparse
 
 from litellm._logging import verbose_proxy_logger
 from litellm.integrations.custom_guardrail import CustomGuardrail
@@ -66,6 +67,16 @@ def _claim_request() -> None:
 
 def _release_request() -> None:
     reset_aiguard_context_active(_REQUEST_CLAIM.get())
+
+
+def _call_type_from_route(data: dict[str, Any]) -> Optional[CallTypesLiteral]:
+    """Get the call type from the proxy route of the request."""
+    path = urlparse(str((data.get("proxy_server_request") or {}).get("url") or "")).path.rstrip("/")
+    if path.endswith("/v1/messages"):
+        return "anthropic_messages"
+    if path.endswith("/completions") and not path.endswith("/chat/completions"):
+        return "text_completion"
+    return None
 
 
 async def _read_next(stream: Any) -> Any:
@@ -304,23 +315,31 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
     ) -> Optional[Union[Exception, str, dict[str, Any]]]:
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
 
-        request_messages = self.get_guardrails_messages_for_call_type(
-            call_type=CallTypes(call_type),
-            data=data,
-        )
+        if call_type is None:
+            # Some litellm versions send no call type to the during_call hook of the text completion
+            # and messages routes.
+            call_type = _call_type_from_route(data)
+        try:
+            # The proxy also sends call types that are not CallTypes values, for example "embeddings".
+            request_call_type = CallTypes(call_type)
+        except ValueError:
+            verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. Unknown call type %s", call_type)
+            return data
+        request_messages = self.get_guardrails_messages_for_call_type(call_type=request_call_type, data=data)
         if not request_messages and call_type in ("text_completion", "atext_completion"):
             request_messages = self._convert_text_prompt(data.get("prompt"))
         if not request_messages:
             verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. No messages found in request")
             return data
 
-        ai_guard_messages = self._convert_request_messages(request_messages)
-        data.setdefault("metadata", {})["ai_guard_messages"] = ai_guard_messages
-        completed = await self._run_ai_guard_check(ai_guard_messages, dynamic_params)
+        completed = await self._run_ai_guard_check(self._convert_request_messages(request_messages), dynamic_params)
         # After an AI Guard error, do not claim: the provider listeners then evaluate the prompt again.
         if claim and completed:
             _claim_request()
 
+        # Some litellm versions record the applied guardrail only in a metadata dict that is not empty.
+        if not data.get("metadata"):
+            data["metadata"] = {"applied_guardrails": []}
         add_guardrail_to_applied_guardrails_header(request_data=data, guardrail_name=self.guardrail_name)
         return data
 
@@ -352,7 +371,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
             return None
 
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
-        messages: list[Message] = list(data.get("metadata", {}).get("ai_guard_messages", []))
+        # Get the prompt from the request. The client controls the request metadata, so do not keep the prompt there.
+        messages = self._convert_request_messages(data.get("messages") or self._convert_text_prompt(data.get("prompt")))
         messages.extend(response_messages)
         await self._run_ai_guard_check(messages, dynamic_params, can_block)
 
@@ -392,7 +412,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         try:
             event_type: GuardrailEventHooks = GuardrailEventHooks.post_call
             if not self.should_run_guardrail(data=data, event_type=event_type):
-                return data
+                # The proxy uses a return value that is not None as the new response.
+                return None
             if _READING_STREAM.get():
                 # The streaming hook reads the model stream now, and it evaluates this answer itself.
                 return None
