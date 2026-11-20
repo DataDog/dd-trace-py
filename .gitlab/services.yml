@@ -129,6 +129,9 @@
   azurecosmosemulator:
     name: registry.ddbuild.io/images/mirror/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
     alias: azurecosmosemulator
+    # The image runs `tdnf distro-sync` in the background at start, which replaces the Postgres files
+    # under the running server and breaks it (Azure/azure-cosmos-db-emulator-docker#390): skip it.
+    entrypoint: ["/bin/bash", "-c", "sed 's/^if command -v tdnf/if false \\&\\& command -v tdnf/' /home/cosmosdev/docker_entrypoint.sh > /tmp/entrypoint.sh && exec bash /tmp/entrypoint.sh"]
     variables:
       ACCEPT_EULA: "Y"
       BLOB_SERVER: azurite

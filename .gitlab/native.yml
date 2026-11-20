@@ -37,6 +37,16 @@ include:
       cargo test --no-fail-fast --locked
       echo -e "\e[0Ksection_end:`date +%s`:gotter_cargo_test\r\e[0K"
 
+# The libdatadog crates are released together. Make sure that all Cargo.toml and
+# Cargo.lock files use one libdatadog release tag. See scripts/check_libdatadog_pins.py.
+"libdatadog pins":
+  extends: .ci_utils
+  stage: tests
+  needs: []
+  timeout: 5m
+  script:
+    - python3 scripts/check_libdatadog_pins.py
+
 "clang-tidy profiling":
   stage: tests
   image: registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native

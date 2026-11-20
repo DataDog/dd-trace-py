@@ -55,7 +55,7 @@ The `run-tests` skill (`.agents/skills/run-tests/`) explains environment selecti
 | `profile-memalloc` | `collector/test_memalloc.py` and `test_memalloc_fork.py`, run once per `PYTHONMALLOC` mode (`malloc`, `pymalloc`, `malloc_debug`, `pymalloc_debug`). | 3.9 to 3.15 |
 
 Many tests use `@pytest.mark.subprocess` and run in a fresh interpreter.
-The `crashtracker` suite (`tests/crashtracker/`) also runs on profiler changes.
+The `crashtracker` suite (`tests/crashtracker/`) also runs on profiler changes, as the GitLab job `core/crashtracker`.
 
 ### Native unit tests
 
@@ -89,6 +89,7 @@ The Valgrind runs check for leaks instead.
 In Docker, ThreadSanitizer needs `--security-opt seccomp=unconfined`, because it calls `personality()` to disable address randomization.
 
 `--valgrind` runs CTest under `valgrind` memcheck with the `valgrind.supp` files in each test directory. It needs Linux.
+Run it on amd64. On arm64, such as Docker on Apple silicon, it reports uninitialized values in Rust regex code.
 
 The same `profiling_native` matrix runs all three in CI.
 
@@ -108,6 +109,12 @@ No CI job runs it, and it fails on current findings in `dd_wrapper`.
 
 `cargo test`, `cargo clippy`, and `cargo fmt --check` for `src/native/` and `src/native_heap_gotter/`.
 CI job: `rust ci` in [.gitlab/native.yml](../../../../../.gitlab/native.yml), on every pipeline.
+
+### Wheels
+
+`build linux` (manylinux2014 and musllinux, x86_64 and aarch64), `build macos amd64`, and `build macos arm64` in [.gitlab/package.yml](../../../../../.gitlab/package.yml) build the wheels for every supported Python version, on every pipeline.
+Linux wheels go through `auditwheel repair`, so a library feature that manylinux2014 does not allow builds in-tree but fails here.
+See the manylinux2014 decision in [Architecture.md](Architecture.md#design-decisions).
 
 ### CI trigger coverage
 
@@ -179,10 +186,11 @@ CI jobs
 
 | Check | CI job | Runs on | Blocks merge |
 |-------|--------|---------|--------------|
-| Python suites | GitLab `profiling/profile`, `profiling/profile-uwsgi`, `profiling/profile-memalloc` | Matching path changes, `main` | Yes |
+| Python suites | GitLab `profiling/profile`, `profiling/profile-uwsgi`, `profiling/profile-memalloc`, `core/crashtracker` | Matching path changes, `main` | Yes |
 | Native unit tests, sanitizers, Valgrind | GitLab `profiling_native` | Native path changes, `main`, schedules | Yes |
 | clang-tidy | GitLab `clang-tidy profiling` | Every pipeline | Yes |
 | Rust | GitLab `rust ci` | Every pipeline | Yes |
+| Wheels | GitLab `build linux`, `build macos amd64`, `build macos arm64` | Every pipeline | Yes |
 | CI trigger coverage | GitLab `prechecks` (`Check profiling native coverage`) | Profiler or CI config changes | Yes |
 | Fuzzing | GitLab `fuzz_infra` | Nightly, manual | No |
 | End-to-end correctness | GitHub `Profiling correctness`, GitLab `prof-correctness` | Profiler path changes | No |
