@@ -164,7 +164,7 @@ def test_nested_same_service_web_span_preserves_waf_results(tracer, user_agent, 
 
     # ProxyTraceMiddleware opens the outer span before Flask knows the headers.
     with asm_context(tracer=tracer, span_name="proxy.request", service="svc", config=config_asm) as proxy_span:
-        with core.context_with_data("flask.request", headers=request_headers):
+        with core.context_with_data("test.flask.request", headers=request_headers):
             with tracer.trace("flask.request", service="svc", span_type=SpanTypes.WEB) as flask_span:
                 set_http_meta(flask_span, rules.Config(), request_headers=request_headers)
                 _asm_request_context.call_waf_callback()
@@ -204,7 +204,7 @@ def test_only_owner_finish_flushes_shared_asm_context(mock_run, tracer):
         env = _asm_request_context.get_active_asm_context()
         assert env is not None
 
-        with core.context_with_data("flask.request"):
+        with core.context_with_data("test.flask.request"):
             with tracer.trace("flask.request", service="svc", span_type=SpanTypes.WEB) as flask_span:
                 set_http_meta(flask_span, rules.Config(), status_code=200)
 
