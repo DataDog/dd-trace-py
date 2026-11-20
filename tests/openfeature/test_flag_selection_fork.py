@@ -1,5 +1,6 @@
-"""Flag selection: fork safety of the process claim, with real forks and the provider's child hook."""
+"""Flag selection in forked children: the claim, inherited lifecycle bookkeeping, once-per-process diagnostics."""
 
+import json
 import threading
 import time
 from unittest import mock
@@ -10,16 +11,134 @@ import pytest
 from ddtrace.internal.openfeature import _flag_selection
 from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
 from ddtrace.internal.openfeature._flag_selection import claim_process_selection
-from tests.openfeature import test_flag_selection as selection_tests
-from tests.openfeature.test_flag_selection import _initialize_quietly
-from tests.openfeature.test_flag_selection import _on_recovery
-from tests.openfeature.test_flag_selection import _poll_without_configuration
-from tests.openfeature.test_flag_selection import _provider
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from tests.openfeature.flag_selection_helpers import _create_source
+from tests.openfeature.flag_selection_helpers import _FakeResponse
+from tests.openfeature.flag_selection_helpers import _initialize_quietly
+from tests.openfeature.flag_selection_helpers import _on_recovery
+from tests.openfeature.flag_selection_helpers import _poll_without_configuration
+from tests.openfeature.flag_selection_helpers import _provider
+from tests.openfeature.flag_selection_helpers import _ufc_body
 
 
-# Fixtures shared with the main flag selection tests; pytest finds fixtures by module attribute.
-cdn = selection_tests.cdn
-api_key = selection_tests.api_key
+# err=None: CPython 3.12+ warns on stderr when a multi-threaded process forks; the child's exit status is the result.
+@pytest.mark.subprocess(err=None)
+def test_once_per_process_guards_reset_in_a_forked_child():
+    import os
+    from unittest import mock
+
+    from ddtrace.internal.openfeature import _flag_selection
+    from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
+    from ddtrace.internal.openfeature._flag_selection import claim_process_selection
+    from ddtrace.internal.openfeature._flag_selection import report_ignored
+    from ddtrace.internal.openfeature._flag_selection import selection_request_url
+    from ddtrace.internal.openfeature._flag_selection import warn_remote_config
+
+    endpoint = "https://example.test/config"
+    claimed = canonicalize_flag_selection({"tags": ["a"]})
+    with (
+        mock.patch.object(_flag_selection, "log"),
+        mock.patch.object(_flag_selection, "telemetry_writer"),
+    ):
+        claim_process_selection(claimed)
+        second = canonicalize_flag_selection({"tags": ["b"]})
+        selection_request_url(endpoint, second, claim_process_selection(second), lambda url: url)
+        report_ignored("tag_load_failed")
+        warn_remote_config(claimed)
+
+    pid = os.fork()
+    if pid == 0:
+        with (
+            mock.patch.object(_flag_selection, "log") as log,
+            mock.patch.object(_flag_selection, "telemetry_writer") as telemetry_writer,
+        ):
+            third = canonicalize_flag_selection({"tags": ["c"]})
+            inherited = claim_process_selection(third)
+            selection_request_url(endpoint, third, inherited, lambda url: url)
+            report_ignored("tag_load_failed")
+            warn_remote_config(claimed)
+        reset = (
+            inherited == claimed
+            and telemetry_writer.add_count_metric.call_count == 1
+            and log.error.call_count == 1
+            and log.warning.call_count == 2
+        )
+        os._exit(0 if reset else 1)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
+def _child_dropped_counts(flag_selection):
+    """Start a source for ``flag_selection``, fork, and return the dropped counts the child records."""
+    import os
+
+    with (
+        mock.patch.object(_flag_selection, "log"),
+        mock.patch.object(_flag_selection, "telemetry_writer"),
+    ):
+        _create_source(flag_selection)
+
+    read_fd, write_fd = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.close(read_fd)
+        with (
+            mock.patch.object(_flag_selection, "log") as log,
+            mock.patch.object(_flag_selection, "telemetry_writer") as telemetry_writer,
+        ):
+            _flag_selection.count_inherited_drop()
+            _flag_selection.count_inherited_drop()
+        calls = telemetry_writer.add_count_metric.call_args_list
+        result = {"counts": [list(c.args[1:2]) + [dict(c.args[3])] for c in calls]}
+        result["logged"] = log.error.call_count + log.warning.call_count
+        os.write(write_fd, json.dumps(result).encode())
+        os._exit(0)
+
+    os.close(write_fd)
+    with os.fdopen(read_fd) as reader:
+        output = reader.read()
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+    return json.loads(output)
+
+
+def test_forked_child_counts_an_inherited_dropped_selection_once():
+    assert _child_dropped_counts({"tags": ["t" * 201]}) == {
+        "counts": [["flag_selection.dropped", {"reason": "invalid_tag"}]],
+        "logged": 0,
+    }
+
+
+def test_forked_child_does_not_count_a_sent_selection():
+    assert _child_dropped_counts({"tags": ["a"]}) == {"counts": [], "logged": 0}
+
+
+def test_inherited_drop_is_counted_on_the_next_poll(poller, count_metric):
+    with mock.patch.object(_flag_selection, "log"):
+        _create_source({"tags": ["t" * 201]})
+    count_metric.reset_mock()
+    _flag_selection._reset_once_per_process_guards()
+
+    poller([_FakeResponse(200, _ufc_body())], flag_selection_sent=False).periodic()
+
+    assert [c.args for c in count_metric.call_args_list] == [
+        (TELEMETRY_NAMESPACE.TRACERS, "flag_selection.dropped", 1, (("reason", "invalid_tag"),))
+    ]
+
+
+def test_released_claim_leaves_no_inherited_drop(count_metric):
+    from ddtrace.internal.openfeature._flag_selection import release_process_selection
+
+    with mock.patch.object(_flag_selection, "log"):
+        _create_source({"tags": ["t" * 201]})
+    release_process_selection()
+    count_metric.reset_mock()
+    _flag_selection._reset_once_per_process_guards()
+
+    _flag_selection.count_inherited_drop()
+
+    assert count_metric.call_args_list == []
 
 
 def _run_provider_child_hook():

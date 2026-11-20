@@ -67,3 +67,73 @@ def _reset_flag_selection():
     _reset_flag_selection_state()
     yield
     _reset_flag_selection_state()
+
+
+@pytest.fixture
+def count_metric():
+    from unittest import mock
+
+    from ddtrace.internal.openfeature import _flag_selection
+
+    # Replace only this module's reference: other threads record their own counts on the process-wide writer.
+    with mock.patch.object(_flag_selection, "telemetry_writer") as telemetry_writer:
+        yield telemetry_writer.add_count_metric
+
+
+@pytest.fixture
+def poller(monkeypatch):
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+    from tests.openfeature.flag_selection_helpers import MANAGED_TARGET
+    from tests.openfeature.flag_selection_helpers import _FakeConn
+
+    def build(responses, flag_selection_sent=True, apply_configuration=None):
+        requests: list = []
+        applied: list = []
+        monkeypatch.setattr(
+            source_mod, "get_connection", lambda url, timeout=None: _FakeConn(lambda _: responses.pop(0), requests)
+        )
+        source = AgentlessConfigurationSource(
+            endpoint="https://ufc-server.ff-cdn.datadoghq.com" + MANAGED_TARGET + "&selected_flag_tags=a",
+            apply_configuration=apply_configuration or applied.append,
+            flag_selection_sent=flag_selection_sent,
+        )
+        monkeypatch.setattr(source, "_retry_delay", lambda attempt: 0.0)
+        source._applied = applied
+        return source
+
+    return build
+
+
+@pytest.fixture
+def cdn(monkeypatch):
+    """Serve every agentless poll from a swappable responder and record request targets."""
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._config import _set_ffe_config
+    from tests.openfeature.flag_selection_helpers import _FakeConn
+    from tests.openfeature.flag_selection_helpers import _FakeResponse
+    from tests.openfeature.flag_selection_helpers import _ufc_body
+
+    class _Cdn:
+        requests: list = []
+
+        def __init__(self):
+            self.respond = lambda target: _FakeResponse(200, _ufc_body())
+
+    server = _Cdn()
+    monkeypatch.setattr(
+        source_mod,
+        "get_connection",
+        lambda url, timeout=None: _FakeConn(lambda target: server.respond(target), server.requests),
+    )
+    _set_ffe_config(None)
+    yield server
+    _set_ffe_config(None)
+
+
+@pytest.fixture
+def api_key():
+    from tests.utils import override_global_config
+
+    with override_global_config({"_dd_api_key": "secret", "_dd_site": "datadoghq.com", "env": None}):
+        yield
