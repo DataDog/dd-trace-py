@@ -168,6 +168,13 @@ async def test_realtime_websocket_payload(agents, openai_agents_llmobs, test_spa
     await model.close()
     span, spans = llm_span(test_spans)
     assert len(spans) == 2
+    for current in spans:
+        assert current.name == "openai_agents.request"
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(current),
+            span_kind="llm" if current is span else "workflow",
+            tags={"integration": "openai_agents"},
+        )
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(span),
         span_kind="llm",
@@ -2049,3 +2056,33 @@ async def test_realtime_truncation_survives_late_generation(
             output_messages=[{"role": "assistant", "content": "heard", "audio_parts": mock.ANY}],
         )
         assert_llmobs_span_data(_get_llmobs_data_metastruct(root), span_kind="workflow", output_value="heard")
+
+
+def test_realtime_disabled_before_patch(agents, monkeypatch):
+    unpatch()
+    original = sdk.OpenAIRealtimeWebSocketModel.connect
+    try:
+        with monkeypatch.context() as disabled:
+            disabled.setenv("DD_OPENAI_REALTIME_ENABLED", "false")
+            patch()
+            assert agents._datadog_patch
+            assert sdk.OpenAIRealtimeWebSocketModel.connect is original
+            unpatch()
+        patch()
+        assert hasattr(sdk.OpenAIRealtimeWebSocketModel.connect, "__wrapped__")
+    finally:
+        unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_OPENAI_REALTIME_ENABLED": "false", "DD_LLMOBS_ENABLED": "false"})
+def test_realtime_disabled_before_lazy_import():
+    import agents
+
+    from ddtrace import patch
+
+    patch(openai_agents=True)
+    from agents.realtime.openai_realtime import OpenAIRealtimeWebSocketModel
+
+    assert agents._datadog_patch
+    assert not hasattr(OpenAIRealtimeWebSocketModel.connect, "__wrapped__")
+    assert not hasattr(OpenAIRealtimeWebSocketModel._handle_ws_event, "__wrapped__")

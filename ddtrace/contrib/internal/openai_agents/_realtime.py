@@ -1410,6 +1410,7 @@ class _WrappedMethod:
 
 
 _wrapped_methods: list[_WrappedMethod] = []
+_hook_registered = False
 
 
 def _patch_module(module: ModuleType) -> None:
@@ -1429,11 +1430,18 @@ def _patch_module(module: ModuleType) -> None:
 
 
 def patch_realtime() -> None:
+    global _hook_registered
+    if _hook_registered or not asbool(env.get("DD_OPENAI_REALTIME_ENABLED", "true")):
+        return
     ModuleWatchdog.register_module_hook(_MODULE, _patch_module)
+    _hook_registered = True
 
 
 def unpatch_realtime() -> None:
-    ModuleWatchdog.unregister_module_hook(_MODULE, _patch_module)
+    global _hook_registered
+    if _hook_registered:
+        ModuleWatchdog.unregister_module_hook(_MODULE, _patch_module)
+        _hook_registered = False
     while _wrapped_methods:
         record = _wrapped_methods.pop()
         # A later application decorator may retain our proxy. Disable it without

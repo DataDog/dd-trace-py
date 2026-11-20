@@ -36,6 +36,10 @@ from ddtrace.trace import Span
 logger = get_logger(__name__)
 
 
+class _AgentsRealtimeOpenAIIntegration(OpenAIIntegration):
+    _integration_name = "openai_agents"
+
+
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
 
@@ -48,8 +52,8 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
 
     def realtime_integration(self, openai: Any) -> OpenAIIntegration:
-        """Supply OpenAI wire extraction independently of provider trace processors."""
-        return OpenAIIntegration(self.integration_config, openai)
+        """Reuse provider extraction while attributing spans to the Agents integration."""
+        return _AgentsRealtimeOpenAIIntegration(self.integration_config, openai)
 
     def trace(
         self,

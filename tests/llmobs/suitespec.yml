@@ -469,6 +469,7 @@ suites:
     paths:
       - '@bootstrap'
       - '@openai_agents'
+      - '@openai'
       - '@llmobs'
       - tests/contrib/openai_agents/*
       - tests/snapshots/tests.contrib.openai_agents.*
