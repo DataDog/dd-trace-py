@@ -99,8 +99,8 @@ in `ddtrace/trace/`, and startup in `ddtrace/bootstrap/`. Contrib patch modules 
 `ddtrace/contrib/internal/`; LLMObs extraction classes live in `ddtrace/llmobs/_integrations/`.
 
 Shared event dispatch is in `ddtrace/internal/core/`; tracing subscribers are in
-`ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, Rust in
-`src/native/`, and profiling native code under `ddtrace/internal/datadog/profiling/`.
+`ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, the Rust profiling FFI in
+`src/profiling_ffi/`, and profiling native code under `ddtrace/internal/datadog/profiling/`.
 
 Use a skill when available; otherwise read its `SKILL.md` and follow its commands.
 Shared skills live at `.agents/skills/<name>/SKILL.md` and are discovered directly by Codex,

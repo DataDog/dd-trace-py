@@ -379,7 +379,7 @@ How the Build Works
            │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
            │    └─ LibDDWafDownload.run()
            └─ build_ext → CustomBuildExt.run()
-                ├─ build_rust()          → Rust _native extension
+                ├─ build_profiling_ffi() → Rust _profiling_ffi library (libdatadog profiling FFI)
                 ├─ build_libdd_wrapper() → libdd_wrapper.so (C++)
                 ├─ build_shared_deps()   → absl (once, cached by sentinel file)
                 └─ super().run()         → build_extension() for every ext

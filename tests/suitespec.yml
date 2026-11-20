@@ -37,8 +37,6 @@ components:
   crashtracker:
     - ddtrace/internal/core/crashtracking.py
     - ddtrace/internal/settings/crashtracker.py
-    - src/native/crashtracker.rs
-    - src/native/crashtracker/*
     - tests/crashtracker/*
   ci:
     - ddtrace/ext/ci/*
@@ -88,7 +86,6 @@ components:
     - ddtrace/py.typed
     - ddtrace/version.py
     - ddtrace/internal/settings/_config.py
-    - src/native/*
   context_watcher:
     - ddtrace/internal/_context_watcher.py
   datastreams:
@@ -240,7 +237,6 @@ suites:
       - 'setup.py'
       - 'setup.cfg'
       - 'pyproject.toml'
-      - 'src/native/*'
       - 'scripts/global-lock-detection.py'
     matrix:
       command: python -X importtime scripts/global-lock-detection.py

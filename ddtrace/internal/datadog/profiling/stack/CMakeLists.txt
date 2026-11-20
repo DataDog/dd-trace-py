@@ -104,7 +104,7 @@ target_include_directories(
 target_include_directories(
     ${EXTENSION_NAME} SYSTEM
     PRIVATE ${Python3_INCLUDE_DIRS} echion include/vendored include/util
-            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
+            ../../../../../src/profiling_ffi/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
 
 # Echion sources need to be given the current platform
 if(APPLE)

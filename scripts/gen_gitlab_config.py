@@ -683,7 +683,7 @@ def gen_pre_checks() -> None:
             "scripts/check_profiling_native_coverage.py",
             "scripts/gen_gitlab_config.py",
             "scripts/lint",
-            "src/native/*",
+            "src/profiling_ffi/*",
         },
     )
     check(

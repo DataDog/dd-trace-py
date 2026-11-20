@@ -7,7 +7,7 @@ include:
   tags: !reference [.testrunner, tags]
   timeout: 10m
   needs: []
-  before_script: cd src/native
+  before_script: cd src/profiling_ffi
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_fmt[collapsed=true]\r\e[0Kcargo fmt"
@@ -21,7 +21,7 @@ include:
       echo -e "\e[0Ksection_start:`date +%s`:cargo_test[collapsed=true]\r\e[0Kcargo test"
       cargo test --no-fail-fast --locked
       echo -e "\e[0Ksection_end:`date +%s`:cargo_test\r\e[0K"
-    # The standalone heap-gotter cdylib crate lives outside src/native, so run
+    # The standalone heap-gotter cdylib crate lives outside src/profiling_ffi, so run
     # the same fmt/clippy/test gate against it here to keep it under native CI.
     - |
       cd ../native_heap_gotter
