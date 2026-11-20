@@ -124,6 +124,7 @@ current signatures and defaults.
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Profiling hot spots and optimization opportunities | `profile` |
+| Profiler changes (`ddtrace/profiling/`, `ddtrace/internal/datadog/profiling/`) | `Design.md` and `Standalone.md` (native CTest and sanitizer builds) in `ddtrace/internal/datadog/profiling/docs/`; end-to-end scenarios for a pushed commit: `gh workflow run prof-correctness.yml -f commit_sha=<sha>` |
 | Build-cache performance | `debug-build-times` |
 | Native crash investigation | `analyze-crash` |
 | CPython compatibility | `find-cpython-usage`, then `compare-cpython-versions` |
