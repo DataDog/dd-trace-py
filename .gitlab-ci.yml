@@ -46,8 +46,11 @@ variables:
   # Also use the wheels that .gitlab/third-party-wheels.yml builds for packages that have no
   # PyPI wheel for some Python versions or platforms. This index has only those wheels and
   # does not mirror PyPI, thus it must be an extra index.
-  PIP_EXTRA_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
-  UV_EXTRA_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
+  # The datadog-apm-python repository also publishes its packages (ddtrace-internal, ...) to
+  # its own Depot repository with a +dd.repackaging.<pipeline id> local version, because the
+  # plain PyPI version is in cooldown for a few days after publication.
+  PIP_EXTRA_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/ https://depot-read-api-python.us1.ddbuild.io/datadog/datadog-apm-python-wheels/@current/simple/"
+  UV_EXTRA_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/ https://depot-read-api-python.us1.ddbuild.io/datadog/datadog-apm-python-wheels/@current/simple/"
   # By default, uv uses only the first index that has a package, and uv examines the extra
   # index first. Thus, uv would not find the PyPI wheels of a package that the extra index
   # has for one Python version only. This strategy compares the versions of all indexes.
