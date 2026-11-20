@@ -22,19 +22,15 @@ import ddtrace.bootstrap.cloning as cloning
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.threads import boot_gate
 
 
 log = get_logger(__name__)
 
 
 try:
-    # Hold the threads started by preload until cloning is done, so they do not import while modules are dropped.
-    # Opening later would hang post_preload hooks and user code that wait on our threads.
-    with boot_gate.held():
-        import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation
+    import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation
 
-        cloning.cleanup_loaded_modules()
+    cloning.cleanup_loaded_modules()
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
