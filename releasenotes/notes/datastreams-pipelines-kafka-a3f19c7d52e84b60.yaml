@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    datastreams: Adds automatic pipelines reporting for Kafka and aiokafka. Topic produce and consume sides, and the in-process links between them, are reported to the Datadog Agent. It is enabled by default and can be disabled with ``DD_DATA_STREAMS_PIPELINES_ENABLED=false``. The reporting window is set with ``DD_DATA_STREAMS_PIPELINES_INTERVAL`` (seconds, default 300).
