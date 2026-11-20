@@ -242,6 +242,15 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  datastreams:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - ddtrace/internal/datastreams/*
+      - benchmarks/datastreams/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   appsec_iast_aspects:
     paths:
       - '@bootstrap'

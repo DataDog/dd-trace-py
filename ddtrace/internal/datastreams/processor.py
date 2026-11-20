@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from collections import defaultdict
+from functools import lru_cache
 from functools import partial
 import gzip
 import struct
@@ -17,6 +18,8 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.native import decode_pathway_b64 as native_decode_pathway_b64
+from ddtrace.internal.native import encode_pathway_b64 as native_encode_pathway_b64
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
@@ -335,6 +338,15 @@ class DataStreamsProcessor(PeriodicService):
         if not data:
             return self.new_pathway()
 
+        decoded = native_decode_pathway_b64(data)
+        if decoded is not None:
+            hash_value, pathway_start_sec, current_edge_start_sec = decoded
+            ctx = DataStreamsCtx(self, hash_value, pathway_start_sec, current_edge_start_sec)
+            # reset context of current thread every time we decode
+            self._current_context.value = ctx
+            return ctx
+
+        # Lenient base64 and malformed contexts keep the Python decoding semantics.
         if isinstance(data, str):
             binary_pathway = data.encode("utf-8")
         else:
@@ -399,6 +411,16 @@ class DataStreamsProcessor(PeriodicService):
         return SchemaBuilder.get_schema(schema_name, iterator)
 
 
+@lru_cache(maxsize=256)
+def _compute_pathway_hash(
+    service: str, env: str, base_hash_bytes: bytes, tags: tuple[str, ...], parent_hash: int
+) -> int:
+    """Pathway hash of a checkpoint. Memoized: a steady-state pathway repeats the same inputs for every message."""
+    b = service.encode("utf-8") + env.encode("utf-8") + base_hash_bytes + b"".join(t.encode("utf-8") for t in tags)
+    node_hash = fnv1_64(b)
+    return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+
+
 class DataStreamsCtx:
     def __init__(
         self, processor: DataStreamsProcessor, hash_value: int, pathway_start_sec: float, current_edge_start_sec: float
@@ -422,21 +444,16 @@ class DataStreamsCtx:
         )
 
     def encode_b64(self) -> str:
+        native_encoded = native_encode_pathway_b64(self.hash, self.pathway_start_sec, self.current_edge_start_sec)
+        if native_encoded is not None:
+            return native_encoded
         encoded_pathway = self.encode()
         binary_pathway = base64.b64encode(encoded_pathway)
         data_streams_context = binary_pathway.decode("utf-8")
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        def get_bytes(s):
-            return bytes(s, encoding="utf-8")
-
-        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
-
-        for t in tags:
-            b += get_bytes(t)
-        node_hash = fnv1_64(b)
-        return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+        return _compute_pathway_hash(self.service, self.env, process_tags.base_hash_bytes, tuple(tags), parent_hash)
 
     def set_checkpoint(
         self,

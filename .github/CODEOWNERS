@@ -424,6 +424,7 @@ ddtrace/data_streams.py                                   @DataDog/data-streams-
 ddtrace/internal/datastreams                              @DataDog/data-streams-monitoring
 tests/datastreams                                         @DataDog/data-streams-monitoring
 tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-monitoring
+benchmarks/datastreams/                                   @DataDog/data-streams-monitoring
 
 # ASM (order matters)
 tests/**/*appsec*                       @DataDog/asm-python
@@ -467,4 +468,5 @@ scripts/integration_registry/registry.yaml      @DataDog/apm-idm-python @DataDog
 .gitlab/benchmarks/slos/profiling-python.yml             @DataDog/profiling-python
 .gitlab/benchmarks/slos/debugger-python.yml              @DataDog/debugger-python
 .gitlab/benchmarks/slos/feature-flagging-and-experimentation-sdk.yml @DataDog/feature-flagging-and-experimentation-sdk
+.gitlab/benchmarks/slos/data-streams-monitoring.yml       @DataDog/data-streams-monitoring
 .gitlab/benchmarks/slos/ci-app-libraries.yml             @DataDog/ci-app-libraries

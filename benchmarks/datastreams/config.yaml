@@ -1,0 +1,10 @@
+# Producer checkpoint plus pathway header injection
+produce:
+  operation: "produce"
+# Pathway header extraction plus consumer checkpoint
+consume:
+  operation: "consume"
+encode:
+  operation: "encode"
+decode:
+  operation: "decode"
