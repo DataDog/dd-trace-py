@@ -597,6 +597,9 @@ Datadog::Sample::push_threadinfo(int64_t thread_id, int64_t thread_native_id, st
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     std::string temp_string;
     if (thread_name.empty()) {
+        thread_name = ProfilerState::get().thread_name_registry.lookup(thread_id);
+    }
+    if (thread_name.empty()) {
         temp_string = std::to_string(thread_id);
         thread_name = temp_string;
     }

@@ -147,6 +147,8 @@ ProfilerState::cleanup()
 void
 ProfilerState::prefork()
 {
+    thread_name_registry.prefork();
+
     // Cancel inflight uploads to prevent state leaking to children
     auto current_cancel = upload_cancel.exchange({ .inner = nullptr });
     if (current_cancel.inner != nullptr) {
@@ -167,17 +169,19 @@ ProfilerState::prefork()
 
     // Lock the profile mutex so the sampling thread cannot be mid-allocation
     // inside ddog_prof_Profile_add2 when the child calls ddog_prof_Profile_drop.
-    // postfork_parent releases it via unlock; postfork_child releases it
-    // via placement-new reinit of profile_mtx (which implicitly creates a fresh
-    // unlocked mutex, consistent with every other mutex's postfork path).
+    // postfork_parent and postfork_child both release it via unlock.
     profile_state.prefork();
+
+    thread_name_registry.prefork();
 }
 
 void
 ProfilerState::postfork_parent()
 {
+    thread_name_registry.postfork_parent();
     profile_state.postfork_parent();
     upload_lock.unlock();
+    thread_name_registry.postfork_parent();
 }
 
 void
@@ -200,6 +204,10 @@ ProfilerState::postfork_child()
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
     native_call_registry.postfork_child();
+
+    // Re-init the thread name registry mutex, which prefork locked (data is
+    // preserved so the thread that forked keeps its name in the child)
+    thread_name_registry.postfork_child();
 
     // Free our copy of the Profiles Dictionary - its String IDs refer to memory
     // that doesn't exist in the child process
