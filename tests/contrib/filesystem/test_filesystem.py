@@ -1,0 +1,219 @@
+import builtins
+from collections.abc import Generator
+from functools import wraps
+import os
+from pathlib import Path
+from unittest import mock
+
+import pytest
+from wrapt import FunctionWrapper
+
+from ddtrace import patch
+from ddtrace.contrib._events.filesystem import FileOpenEvent
+from ddtrace.contrib.internal.filesystem import patch as filesystem
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
+
+
+@pytest.fixture
+def events() -> Generator[list[FileOpenEvent], None, None]:
+    captured: list[FileOpenEvent] = []
+    core.on(FileOpenEvent.event_name, captured.append, name="test.filesystem")
+    filesystem.patch()
+    try:
+        yield captured
+    finally:
+        filesystem.unpatch()
+        core.reset_listeners(FileOpenEvent.event_name, captured.append)
+
+
+@pytest.mark.parametrize("method", ["builtin", "keyword", "pathlib"])
+def test_open_publishes_before_creating_file(tmp_path: Path, events: list[FileOpenEvent], method: str) -> None:
+    target = tmp_path / "new.txt"
+
+    def before_open(event: FileOpenEvent) -> None:
+        assert event.filename == str(target)
+        assert not target.exists()
+
+    core.on(FileOpenEvent.event_name, before_open)
+    try:
+        if method == "pathlib":
+            stream = target.open("w")
+        elif method == "keyword":
+            stream = open(file=str(target), mode="w")
+        else:
+            stream = open(str(target), "w")
+        with stream:
+            stream.write("contents")
+    finally:
+        core.reset_listeners(FileOpenEvent.event_name, before_open)
+    assert target.exists()
+    assert [event.filename for event in events] == [str(target)]
+
+
+@pytest.mark.parametrize("method", ["read_text", "read_bytes", "write_text", "write_bytes"])
+def test_path_helpers_publish_once(tmp_path: Path, events: list[FileOpenEvent], method: str) -> None:
+    target = tmp_path / "contents.txt"
+    target.write_bytes(b"contents")
+    events.clear()
+    if method.startswith("read"):
+        getattr(target, method)()
+    else:
+        getattr(target, method)(b"replacement" if method.endswith("bytes") else "replacement")
+    assert [event.filename for event in events] == [str(target)]
+
+
+@pytest.mark.parametrize("method", ["builtin", "pathlib"])
+def test_block_prevents_side_effect(tmp_path: Path, events: list[FileOpenEvent], method: str) -> None:
+    target = tmp_path / "blocked.txt"
+    blocked = BlockingException("blocked")
+
+    def block(event: FileOpenEvent) -> None:
+        raise blocked
+
+    core.on(FileOpenEvent.event_name, block)
+    try:
+        with pytest.raises(BlockingException) as raised:
+            if method == "pathlib":
+                target.open("w")
+            else:
+                open(target, "w")
+        assert raised.value is blocked
+        assert not target.exists()
+    finally:
+        core.reset_listeners(FileOpenEvent.event_name, block)
+
+
+def test_listener_failure_does_not_prevent_open(tmp_path: Path, events: list[FileOpenEvent]) -> None:
+    def fail(event: FileOpenEvent) -> None:
+        raise RuntimeError("inspection failed")
+
+    core.on(FileOpenEvent.event_name, fail)
+    try:
+        with (tmp_path / "ok.txt").open("w") as stream:
+            stream.write("ok")
+    finally:
+        core.reset_listeners(FileOpenEvent.event_name, fail)
+
+
+@pytest.mark.parametrize("method", ["builtin", "pathlib"])
+def test_no_event_allocated_without_listeners(events: list[FileOpenEvent], method: str) -> None:
+    with (
+        mock.patch.object(core, "has_listeners", return_value=False),
+        mock.patch.object(filesystem, "FileOpenEvent", wraps=FileOpenEvent) as event,
+    ):
+        with Path(os.devnull).open() if method == "pathlib" else open(os.devnull):
+            pass
+    event.assert_not_called()
+
+
+@pytest.mark.parametrize("variadic", [False, True])
+def test_replacement_receiver_name(events: list[FileOpenEvent], variadic: bool) -> None:
+    filesystem.unpatch()
+    original = Path.open
+
+    def named_receiver(path, *args, **kwargs):
+        return original(path, *args, **kwargs)
+
+    def variadic_receiver(*args, mode="r", **kwargs):
+        return original(*args, mode=mode, **kwargs)
+
+    Path.open = variadic_receiver if variadic else named_receiver
+    try:
+        filesystem.patch()
+        assert filesystem._PathOpenContext.is_wrapped(Path.open)
+        with Path(os.devnull).open():
+            pass
+        assert [event.filename for event in events] == [os.devnull]
+    finally:
+        filesystem.unpatch()
+        Path.open = original
+
+
+@pytest.mark.parametrize("replacement", ["decorator", "mock", "alias"])
+def test_retained_builtin_wrapper_is_inactive_after_unpatch(events: list[FileOpenEvent], replacement: str) -> None:
+    filesystem.unpatch()
+    original = builtins.open
+    filesystem.patch()
+    retained = builtins.open
+
+    @wraps(retained)
+    def outer(*args, **kwargs):
+        return retained(*args, **kwargs)
+
+    try:
+        if replacement == "decorator":
+            builtins.open = outer
+        if replacement == "mock":
+            with mock.patch("builtins.open"):
+                filesystem.unpatch()
+        else:
+            filesystem.unpatch()
+        with builtins.open(os.devnull):
+            pass
+        assert events == []
+
+        for _ in range(2):
+            filesystem.patch()
+            events.clear()
+            with retained(os.devnull):
+                pass
+            assert events == []
+            with builtins.open(os.devnull):
+                pass
+            assert [event.filename for event in events] == [os.devnull]
+            filesystem.unpatch()
+    finally:
+        filesystem.unpatch()
+        builtins.open = original
+
+
+def test_patch_cycles_and_bytecode_wrapping() -> None:
+    filesystem.unpatch()
+    original_open = builtins.open
+    original_path_open = Path.open
+    try:
+        patch(filesystem=True)
+        wrapped_open = builtins.open
+        filesystem.patch()
+        assert builtins.open is wrapped_open
+        assert Path.open is original_path_open
+        assert filesystem._PathOpenContext.is_wrapped(Path.open)
+        assert not isinstance(Path.open, FunctionWrapper)
+    finally:
+        filesystem.unpatch()
+    filesystem.unpatch()
+    assert builtins.open is original_open
+    assert not filesystem._PathOpenContext.is_wrapped(Path.open)
+
+
+def test_unpatch_preserves_other_builtin_wrapper() -> None:
+    filesystem.unpatch()
+    original = builtins.open
+    filesystem.patch()
+    outer = FunctionWrapper(builtins.open, lambda wrapped, instance, args, kwargs: wrapped(*args, **kwargs))
+    builtins.open = outer
+    try:
+        filesystem.unpatch()
+        assert builtins.open is outer
+        assert outer.__wrapped__ is original
+    finally:
+        builtins.open = original
+
+
+@pytest.mark.subprocess(env={"DD_APPSEC_ENABLED": "false", "DD_IAST_ENABLED": "false"})
+def test_manual_patch_does_not_import_appsec() -> None:
+    import os
+    import sys
+
+    from ddtrace import patch
+    from ddtrace.contrib.internal.filesystem.patch import unpatch
+
+    patch(filesystem=True)
+    try:
+        with open(os.devnull) as stream:
+            assert stream.read() == ""
+        assert "ddtrace.appsec._processor" not in sys.modules
+        assert "ddtrace.appsec._contrib.filesystem.subscribers" not in sys.modules
+    finally:
+        unpatch()

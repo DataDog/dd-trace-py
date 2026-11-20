@@ -1,6 +1,8 @@
 components:
   appsec:
     - ddtrace/appsec/*
+    - ddtrace/contrib/internal/filesystem/*
+    - ddtrace/contrib/_events/filesystem.py
     - ddtrace/internal/appsec/*
     - ddtrace/internal/settings/asm.py
     - ddtrace/internal/security/*

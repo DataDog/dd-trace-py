@@ -431,6 +431,10 @@ integrations:
       min: 0.64.0
       max: 0.162.0
 
+- integration_name: filesystem
+  is_external_package: false
+  is_tested: true
+
 - integration_name: flask
   is_external_package: true
   is_tested: true

@@ -143,6 +143,7 @@ _PATCHED_MODULES = set()
 # name coincides with the integration name, then there is no need to add an
 # entry here.
 _MODULES_FOR_CONTRIB = {
+    "filesystem": ("builtins",),
     "elasticsearch": (
         "elasticsearch",
         "elasticsearch1",

@@ -10,6 +10,10 @@ EXPLOIT_PREVENTION_SUBSCRIBERS = (
         subscribers=("AppSecDbApiSubscriber",),
     ),
     SubscriberBundle(
+        module="ddtrace.appsec._contrib.filesystem.subscribers",
+        subscribers=("AppSecFileOpenSubscriber",),
+    ),
+    SubscriberBundle(
         module="ddtrace.appsec._contrib.httpx.subscribers",
         subscribers=("AppSecHttpxRequestContextSubscriber", "AppSecHttpxSingleRequestContextSubscriber"),
     ),
