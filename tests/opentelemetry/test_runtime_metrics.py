@@ -82,6 +82,58 @@ def test_runtime_metrics_exported_over_otlp():
 
 
 @requires_exporter
+@pytest.mark.subprocess()
+def test_runtime_metrics_report_the_collected_values():
+    from unittest import mock
+
+    from opentelemetry.metrics import set_meter_provider
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+    import pytest
+
+    from ddtrace.internal.runtime import otlp_runtime_metrics
+
+    reader = InMemoryMetricReader()
+    set_meter_provider(MeterProvider(metric_readers=[reader]))
+    gc_stats = [
+        {"collections": 10, "collected": 100, "uncollectable": 1},
+        {"collections": 5, "collected": 50, "uncollectable": 0},
+        {"collections": 2, "collected": 20, "uncollectable": 3},
+    ]
+    # CPU times (system, user) in nanoseconds, context switches (voluntary, involuntary), threads, RSS in bytes.
+    process_metrics = (2_500_000_000, 1_250_000_000, 7, 3, 4, 123_456)
+    with mock.patch("gc.get_stats", return_value=gc_stats):
+        with mock.patch("ddtrace.internal.native.process_metrics", return_value=process_metrics):
+            otlp_runtime_metrics.start()
+            metrics = {
+                metric.name: metric
+                for resource_metrics in reader.get_metrics_data().resource_metrics
+                for scope_metrics in resource_metrics.scope_metrics
+                for metric in scope_metrics.metrics
+            }
+
+    def values(name, attribute=None):
+        return {data_point.attributes.get(attribute): data_point.value for data_point in metrics[name].data.data_points}
+
+    assert {name: metric.unit for name, metric in metrics.items()} == {
+        "cpython.gc.collections": "{collection}",
+        "cpython.gc.collected_objects": "{object}",
+        "cpython.gc.uncollectable_objects": "{object}",
+        "process.cpu.time": "s",
+        "process.memory.usage": "By",
+        "process.thread.count": "{thread}",
+        "process.context_switches": "{context_switch}",
+    }
+    assert values("cpython.gc.collections", "cpython.gc.generation") == {0: 10, 1: 5, 2: 2}
+    assert values("cpython.gc.collected_objects", "cpython.gc.generation") == {0: 100, 1: 50, 2: 20}
+    assert values("cpython.gc.uncollectable_objects", "cpython.gc.generation") == {0: 1, 1: 0, 2: 3}
+    assert values("process.cpu.time", "cpu.mode") == {"user": pytest.approx(1.25), "system": pytest.approx(2.5)}
+    assert values("process.context_switches", "process.context_switch.type") == {"voluntary": 7, "involuntary": 3}
+    assert values("process.thread.count") == {None: 4}
+    assert values("process.memory.usage") == {None: 123_456}
+
+
+@requires_exporter
 @pytest.mark.subprocess(ddtrace_run=True, env=OTLP_RUNTIME_METRICS_ENV)
 def test_runtime_metrics_wait_for_the_application_to_import_opentelemetry():
     import sys
