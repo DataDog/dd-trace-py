@@ -54,10 +54,11 @@ _cpu_sample: Optional[tuple[float, float]] = None
 
 
 def _reset_after_fork() -> None:
-    global _gc_stats_at_fork
+    global _gc_stats_at_fork, _cpu_sample
 
     _gc_stats_at_fork = gc.get_stats()
-    _reset_cpu_sample()
+    # The next collection takes the first CPU sample of the child: fork hooks do no I/O.
+    _cpu_sample = None
 
 
 def _reset_cpu_sample() -> None:
