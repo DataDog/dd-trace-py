@@ -25,6 +25,7 @@ def test_vulnerability_type_mapping():
     expected_types = {
         "CODE_INJECTION",
         "COMMAND_INJECTION",
+        "CMDI",  # Alias
         "HEADER_INJECTION",
         "UNVALIDATED_REDIRECT",
         "INSECURE_COOKIE",
@@ -43,12 +44,18 @@ def test_vulnerability_type_mapping():
 
     assert set(VULNERABILITY_TYPE_MAPPING.keys()) == expected_types
     assert VULNERABILITY_TYPE_MAPPING["SQLI"] == VulnerabilityType.SQL_INJECTION
+    assert VULNERABILITY_TYPE_MAPPING["CMDI"] == VulnerabilityType.COMMAND_INJECTION
 
 
 def test_parse_vulnerability_types_single():
     """Test parsing a single vulnerability type."""
     result = parse_vulnerability_types("COMMAND_INJECTION")
     assert result == [VulnerabilityType.COMMAND_INJECTION]
+
+
+def test_parse_vulnerability_types_cmdi_alias():
+    """Test parsing the documented CMDI alias for COMMAND_INJECTION."""
+    assert parse_vulnerability_types("CMDI") == [VulnerabilityType.COMMAND_INJECTION]
 
 
 def test_parse_vulnerability_types_multiple():
@@ -141,6 +148,18 @@ def test_parse_security_controls_config_single():
     assert len(result) == 1
     control = result[0]
     assert control.control_type == SC_VALIDATOR
+    assert control.vulnerability_types == [VulnerabilityType.COMMAND_INJECTION]
+    assert control.module_path == "shlex"
+    assert control.method_name == "quote"
+
+
+def test_parse_security_controls_config_cmdi_alias():
+    """Test that a control configured with the CMDI alias is parsed as COMMAND_INJECTION."""
+    result = parse_security_controls_config("SANITIZER:CMDI:shlex:quote")
+
+    assert len(result) == 1
+    control = result[0]
+    assert control.control_type == SC_SANITIZER
     assert control.vulnerability_types == [VulnerabilityType.COMMAND_INJECTION]
     assert control.module_path == "shlex"
     assert control.method_name == "quote"

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    litellm: Fixes an issue where LLM Observability does not record an LLM span for a non-streamed OpenAI chat
+    request. This issue occurs with litellm 1.108.1 and later versions when you enable the OpenAI integration.
