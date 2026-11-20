@@ -30,7 +30,6 @@ from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils import get_argument_value
 
@@ -67,7 +66,6 @@ _TOOLNODE_MCP_TOOL: contextvars.ContextVar[Optional[Callable[..., Any]]] = conte
 _MCP_ATTR = "_dd_ai_guard_mcp"
 
 _MCP_ADAPTER_MODULE = "langchain_mcp_adapters.tools"
-_mcp_adapter_hook: Optional[Callable[[ModuleType], None]] = None
 
 # langchain-mcp-adapters connection transports; others (websocket) report the unknown transport.
 _MCP_TRANSPORTS: dict[str, MCPTransport] = {
@@ -109,11 +107,9 @@ def _langchain_patch(client: AIGuardClient) -> None:
     except Exception:
         logger.debug("Failed to instrument langgraph ToolNode", exc_info=True)
 
-    # Client-managed MCP tools. An import hook, since that module can be the one importing langchain_core.
-    global _mcp_adapter_hook
+    # Client-managed MCP tools; skipped when langchain-mcp-adapters is not installed.
     try:
-        _mcp_adapter_hook = partial(_patch_mcp_adapter, client)
-        ModuleWatchdog.register_module_hook(_MCP_ADAPTER_MODULE, _mcp_adapter_hook)
+        wrap(_MCP_ADAPTER_MODULE, "convert_mcp_tool_to_langchain_tool", partial(_langchain_mcp_convert_tool, client))
     except Exception:
         logger.debug("Failed to instrument langchain-mcp-adapters", exc_info=True)
 
@@ -158,11 +154,7 @@ def _langchain_unpatch() -> None:
     except Exception:
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
 
-    global _mcp_adapter_hook
     try:
-        if _mcp_adapter_hook is not None:
-            ModuleWatchdog.unregister_module_hook(_MCP_ADAPTER_MODULE, _mcp_adapter_hook)
-            _mcp_adapter_hook = None
         module = sys.modules.get(_MCP_ADAPTER_MODULE)
         if module is not None:
             unwrap(module, "convert_mcp_tool_to_langchain_tool")
@@ -192,14 +184,6 @@ def _langchain_unpatch() -> None:
             unwrap(owner, method)
         except Exception:
             logger.debug("Failed to unpatch %s.%s", owner.__name__, method, exc_info=True)
-
-
-def _patch_mcp_adapter(client: AIGuardClient, module: ModuleType) -> None:
-    # Called again once the module finishes importing when the first call found it half-imported.
-    try:
-        wrap(module, "convert_mcp_tool_to_langchain_tool", partial(_langchain_mcp_convert_tool, client))
-    except Exception:
-        logger.debug("Failed to instrument langchain-mcp-adapters", exc_info=True)
 
 
 def _langchain_agent_plan(

@@ -147,8 +147,10 @@ Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic
   `athrow` on the inner generator while it is awaiting (for example on anyio cancellation).
 
 LangChain client-managed MCP (`managed_by: client`) is captured in `_langchain.py` by wrapping
-`langchain_mcp_adapters.tools.convert_mcp_tool_to_langchain_tool` through a `ModuleWatchdog` import
-hook (that module can itself be the one importing `langchain_core`). Supported: `langchain-mcp-adapters`
+`langchain_mcp_adapters.tools.convert_mcp_tool_to_langchain_tool` with a plain `wrap()` on
+`langchain.patch` (skipped when the package is missing). Known gap: when an app imports
+`langchain_mcp_adapters.tools` before any other LangChain module, the patch fires while that module is
+half-imported and the converter stays unwrapped (no MCP checks). Supported: `langchain-mcp-adapters`
 >= 0.2.0 (first release with `connection`, `server_name` and `tool_name_prefix`; `load_mcp_tools` and
 `MultiServerMCPClient.get_tools` reach the converter through the module global). Not supported yet:
 `langchain.mcp.MCPAdapter` (FastMCP). Keep these rules:
