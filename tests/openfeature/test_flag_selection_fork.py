@@ -157,6 +157,7 @@ def test_fork_while_a_poller_stopped_from_inside_its_poll_finishes_it_releases_t
     from ddtrace.internal.openfeature import _flag_selection
     from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
     from ddtrace.internal.openfeature._flag_selection import claim_process_selection
+    import ddtrace.internal.openfeature._provider as provider_module
     from tests.openfeature.flag_selection_helpers import _agentless_api_key
     from tests.openfeature.flag_selection_helpers import _forked_child_status
     from tests.openfeature.flag_selection_helpers import _on_recovery
@@ -167,7 +168,7 @@ def test_fork_while_a_poller_stopped_from_inside_its_poll_finishes_it_releases_t
     with pytest.MonkeyPatch.context() as monkeypatch, _serving_cdn(monkeypatch) as cdn, _agentless_api_key():
         provider = _provider({"tags": ["a"]}, timeout=0.3)
         other = canonicalize_flag_selection({"tags": ["b"]})
-        _poll_without_configuration(provider, cdn, monkeypatch)
+        source = _poll_without_configuration(provider, cdn, monkeypatch)
         stopped, finish = threading.Event(), threading.Event()
 
         def shut_down_and_hold(*args, **kwargs):
@@ -176,11 +177,14 @@ def test_fork_while_a_poller_stopped_from_inside_its_poll_finishes_it_releases_t
             finish.wait(timeout=5)
 
         def released():
-            # The thread module restarts the stopped poller after the fork only to run its exit, which releases the
-            # claim.
+            # The thread module restarts the stopped poller after the fork only to run its exit, which hands it over;
+            # the next provider shutdown then releases its claim.
             deadline = time.monotonic() + 5
-            while _flag_selection._claim_count and time.monotonic() < deadline:
+            while not any(each is source for _, each in provider_module._exited_configuration_sources):
+                if time.monotonic() >= deadline:
+                    return False
                 threading.Event().wait(0.01)
+            provider.shutdown()
             return _flag_selection._claim_count == 0 and claim_process_selection(other) == other
 
         # The fork joins the poller before it forks, so the poll ends while the fork waits for it.

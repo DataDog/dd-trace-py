@@ -15,6 +15,7 @@ from ddtrace.internal.openfeature import _flag_selection
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
 from ddtrace.internal.openfeature._flag_selection import claim_process_selection
+import ddtrace.internal.openfeature._provider as provider_module
 from tests.openfeature.flag_selection_helpers import SECOND_SELECTION_WARNING
 from tests.openfeature.flag_selection_helpers import SELECTION_LOGGER
 from tests.openfeature.flag_selection_helpers import _FakeResponse
@@ -938,12 +939,12 @@ def test_shutdown_from_inside_the_poll_returns_and_releases_the_claim_after_the_
         _on_recovery(provider, cdn, monkeypatch, shut_down)
         assert returned.wait(timeout=5), "shutdown() from inside the poll did not return"
         assert in_poll == [True]
-        # The claim is released on the worker after its last poll, before a join() from here returns.
+        # The worker hands the poller over as it exits; the next provider start releases its claim.
         source.join(timeout=5)
-        assert _flag_selection._claim_count == 0
-        assert provider._retired_configuration_sources == []
+        assert (provider, source) in provider_module._exited_configuration_sources
         later.initialize(EvaluationContext())
         assert _sent_selection(later._configuration_source) == (["b"], [])
+        assert provider._retired_configuration_sources == []
     finally:
         later.shutdown()
         provider.shutdown()
@@ -992,7 +993,6 @@ def test_second_shutdown_during_the_poll_that_stopped_its_poller_releases_the_cl
 def test_lifecycle_events_stay_unpatched_when_the_application_patches_threading(cdn, api_key, monkeypatch):
     # gevent patches the application's threading; a callback on the poller thread can set these events.
     from ddtrace.internal import threads
-    import ddtrace.internal.openfeature._provider as provider_module
 
     class _ApplicationEvent(threading.Event):
         pass
@@ -1031,10 +1031,39 @@ def test_poll_raising_after_a_shutdown_from_inside_it_still_releases_the_claim(c
         _on_recovery(provider, cdn, monkeypatch, shut_down_and_raise)
         # The poll raises out of the worker, which then exits without on_shutdown.
         source.join(timeout=5)
-        assert _flag_selection._claim_count == 0
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
         assert provider._retired_configuration_sources == []
+    finally:
+        later.shutdown()
+        provider.shutdown()
+
+
+def test_poller_stopped_from_inside_its_poll_exits_while_another_thread_holds_the_locks(cdn, api_key, monkeypatch):
+    from ddtrace.internal._threads import periodic_threads
+
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    later = _provider({"tags": ["b"]})
+    source = _poll_without_configuration(provider, cdn, monkeypatch)
+    stopped, finish = threading.Event(), threading.Event()
+
+    def shut_down_and_hold(*args, **kwargs):
+        provider.shutdown()
+        stopped.set()
+        finish.wait(timeout=5)
+
+    try:
+        _on_recovery(provider, cdn, monkeypatch, shut_down_and_hold)
+        assert stopped.wait(timeout=5)
+        # A ddtrace thread takes no lock another thread holds, so the worker exits while this thread holds both.
+        with provider._configuration_source_lock, _flag_selection._lock:
+            finish.set()
+            source.join(timeout=2)
+            exited = all(thread is not source._worker for thread in list(periodic_threads.values()))
+        assert exited
         later.initialize(EvaluationContext())
         assert _sent_selection(later._configuration_source) == (["b"], [])
     finally:
+        finish.set()
         later.shutdown()
         provider.shutdown()

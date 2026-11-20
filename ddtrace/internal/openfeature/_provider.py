@@ -244,7 +244,7 @@ class DataDogProvider(AbstractProvider):
         self._stopping_configuration_source = False
         self._configuration_source_stopper: typing.Any = None
         # Pollers whose teardown failed, or that were stopped from their own thread. Each keeps its claim until a
-        # later shutdown finishes it or, for the latter, until its last poll returns.
+        # later shutdown finishes it or, for the latter, until the next provider start or shutdown after its exit.
         self._retired_configuration_sources: list[AgentlessConfigurationSource] = []
         # Starts and teardowns in progress, guarded by _lifecycle_lock; a fork waits for them.
         self._configuration_source_operations: list[_LifecycleOperation] = []
@@ -605,6 +605,8 @@ class DataDogProvider(AbstractProvider):
         return None
 
     def _start_reserved_configuration_source(self, shutdowns: int, operation: "_LifecycleOperation") -> bool:
+        # Before the claim, so a poller that exited after stopping itself no longer pins its selection.
+        _release_exited_pollers()
         source = None
         started = False
         try:
@@ -683,7 +685,7 @@ class DataDogProvider(AbstractProvider):
         return True
 
     def _release_exited_poller(self, source: "AgentlessConfigurationSource") -> None:
-        """Release the claim of a poller stopped from its own thread, once its last poll has returned."""
+        """Release the claim of a poller stopped from its own thread whose last poll has returned."""
         with self._configuration_source_lock:
             if source in self._retired_configuration_sources:
                 self._retired_configuration_sources.remove(source)
@@ -693,8 +695,10 @@ class DataDogProvider(AbstractProvider):
         """Stop the agentless poller and any retired one, or cancel a start in progress.
 
         A poller whose teardown fails is retired: it keeps its claim, and the next shutdown retries it. A poller
-        stopped from inside its own poll is retired without a join and releases its claim once that poll returns.
+        stopped from inside its own poll is retired without a join; after that poll it waits in
+        _exited_configuration_sources for the next provider start or shutdown to release its claim.
         """
+        _release_exited_pollers()
         with _lifecycle_operation(self, teardown=True) as operation:
             with self._configuration_source_lock:
                 self._configuration_source_shutdowns += 1
@@ -742,7 +746,7 @@ class DataDogProvider(AbstractProvider):
                     release_process_selection()
             for each in deferred:
                 # Registered from inside that poller's poll, which therefore cannot have exited yet.
-                each.call_on_exit(functools.partial(self._release_exited_poller, each))
+                each.call_on_exit(functools.partial(_exited_configuration_sources.append, (self, each)))
         if error is not None:
             raise error
         logger.debug("Feature Flags: agentless configuration source stopped")
@@ -1149,6 +1153,18 @@ _lifecycle_lock = Lock()
 _recount_when_idle = False
 # Replaced, and set, when a start or teardown ends, so a waiting fork checks again.
 _lifecycle_ended = original_Event()
+# Pollers stopped from inside their own poll, added by their worker as it exits. The worker takes no lock that another
+# thread holds, so the next provider start or shutdown releases their claims, on an application thread.
+_exited_configuration_sources: "list[tuple[DataDogProvider, AgentlessConfigurationSource]]" = []
+
+
+def _release_exited_pollers() -> None:
+    while True:
+        try:
+            provider, source = _exited_configuration_sources.pop()
+        except IndexError:
+            return
+        provider._release_exited_poller(source)
 
 
 class _LifecycleOperation:
