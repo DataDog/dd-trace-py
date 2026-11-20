@@ -577,7 +577,7 @@ class DataDogProvider(AbstractProvider):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return None
-            changed.wait(remaining)
+            _wait_cooperatively(changed, remaining)
 
         with _lifecycle_operation(self, teardown=False) as operation:
             operation.shutdowns = shutdowns
@@ -1156,6 +1156,8 @@ _lifecycle_ended = original_Event()
 # Pollers stopped from inside their own poll, added by their worker as it exits. The worker takes no lock that another
 # thread holds, so the next provider start or shutdown releases their claims, on an application thread.
 _exited_configuration_sources: "list[tuple[DataDogProvider, AgentlessConfigurationSource]]" = []
+# How long an application thread sleeps between checks while it waits for a start or teardown on another thread.
+_START_WAIT_SLICE_SECONDS = 0.01
 
 
 def _release_exited_pollers() -> None:
@@ -1165,6 +1167,20 @@ def _release_exited_pollers() -> None:
         except IndexError:
             return
         provider._release_exited_poller(source)
+
+
+def _wait_cooperatively(event: typing.Any, timeout: float) -> None:
+    """Wait up to timeout for event on an application thread.
+
+    The event is ddtrace's own, since the poller thread can set it. Waiting in short sleeps keeps the wait cooperative
+    when the application patches time.sleep, as gevent does, so the start being waited for can run on this OS thread.
+    """
+    deadline = time.monotonic() + timeout
+    while not event.is_set():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(remaining, _START_WAIT_SLICE_SECONDS))
 
 
 class _LifecycleOperation:

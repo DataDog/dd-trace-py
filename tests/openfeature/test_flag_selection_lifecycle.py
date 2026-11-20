@@ -25,7 +25,6 @@ from tests.openfeature.flag_selection_helpers import _on_recovery
 from tests.openfeature.flag_selection_helpers import _poll_without_configuration
 from tests.openfeature.flag_selection_helpers import _provider
 from tests.openfeature.flag_selection_helpers import _sent_selection
-from tests.openfeature.flag_selection_helpers import _SignalingEvent
 from tests.utils import override_global_config
 
 
@@ -280,6 +279,18 @@ def test_shutdown_from_another_thread_cancels_a_start_in_progress(cdn, api_key, 
         later.shutdown()
 
 
+class _CheckedEvent(threading.Event):
+    """Sets waiting once a start that waits for another one checks it: the wait polls is_set() between sleeps."""
+
+    def __init__(self):
+        super().__init__()
+        self.waiting = threading.Event()
+
+    def is_set(self):
+        self.waiting.set()
+        return super().is_set()
+
+
 def _hold_source_creation(monkeypatch, resume):
     """Make each start wait for ``resume`` before it builds its source, and return an event set when one waits."""
     import ddtrace.internal.openfeature._source_selection as source_selection
@@ -341,8 +352,8 @@ def test_initialize_after_a_cancelled_start_ends_with_a_poller(cdn, api_key, mon
     try:
         assert holding.wait(timeout=5)
         provider.shutdown()
-        # Nothing replaces this event until the held start ends, so it is the one the re-initialization waits on.
-        signal = provider._configuration_source_changed = _SignalingEvent()
+        # Nothing replaces this event until the held start ends, so it is the one the re-initialization checks.
+        signal = provider._configuration_source_changed = _CheckedEvent()
         reinitializing = threading.Thread(target=initialize, args=("reinitialized",))
         reinitializing.start()
         assert signal.waiting.wait(timeout=5)
@@ -506,8 +517,8 @@ def test_failed_teardown_of_a_cancelled_start_keeps_its_claim_beside_a_replaceme
     try:
         assert started.wait(timeout=5)
         provider.shutdown()
-        # Nothing replaces this event until the held start ends, so it is the one the replacement waits on.
-        signal = provider._configuration_source_changed = _SignalingEvent()
+        # Nothing replaces this event until the held start ends, so it is the one the replacement checks.
+        signal = provider._configuration_source_changed = _CheckedEvent()
         replacement = threading.Thread(target=initialize, args=("replacement",))
         replacement.start()
         assert signal.waiting.wait(timeout=5)
@@ -586,8 +597,8 @@ def test_shutdown_wakes_a_start_waiting_for_an_in_flight_start(cdn, api_key, mon
     waiting = None
     try:
         assert holding.wait(timeout=5)
-        # The held start does not replace this event, so it is the one the waiting start blocks on.
-        signal = provider._configuration_source_changed = _SignalingEvent()
+        # The held start does not replace this event, so it is the one the waiting start checks.
+        signal = provider._configuration_source_changed = _CheckedEvent()
         waiting = threading.Thread(target=initialize, args=("waiting",))
         waiting.start()
         assert signal.waiting.wait(timeout=5)
@@ -685,8 +696,8 @@ def test_start_during_a_retired_poller_teardown_waits_for_it(cdn, api_key, monke
         stopping = threading.Thread(target=provider.shutdown)
         stopping.start()
         assert joining.wait(timeout=5)
-        # The teardown in its join does not replace this event, so it is the one the start waits on.
-        signal = provider._configuration_source_changed = _SignalingEvent()
+        # The teardown in its join does not replace this event, so it is the one the start checks.
+        signal = provider._configuration_source_changed = _CheckedEvent()
         reinitializing = threading.Thread(target=lambda: _initialize_quietly(provider))
         reinitializing.start()
         assert signal.waiting.wait(timeout=5)
@@ -1066,4 +1077,42 @@ def test_poller_stopped_from_inside_its_poll_exits_while_another_thread_holds_th
     finally:
         finish.set()
         later.shutdown()
+        provider.shutdown()
+
+
+def test_start_waiting_for_another_threads_start_sleeps_instead_of_blocking(cdn, api_key, monkeypatch):
+    # gevent patches time.sleep, so a start that waits in sleeps lets a green start on the same OS thread run.
+    provider = _provider({"tags": ["a"]})
+    resume = threading.Event()
+    holding = _hold_source_creation(monkeypatch, resume)
+    slept = threading.Event()
+    real_time = provider_module.time
+
+    class _ApplicationTime:
+        monotonic = staticmethod(real_time.monotonic)
+        time = staticmethod(real_time.time)
+
+        @staticmethod
+        def sleep(seconds):
+            slept.set()
+            real_time.sleep(seconds)
+
+    first = threading.Thread(target=lambda: _initialize_quietly(provider))
+    first.start()
+    waiting = None
+    try:
+        assert holding.wait(timeout=5)
+        monkeypatch.setattr(provider_module, "time", _ApplicationTime)
+        waiting = threading.Thread(target=lambda: _initialize_quietly(provider))
+        waiting.start()
+        assert slept.wait(timeout=5)
+        resume.set()
+        waiting.join(timeout=5)
+        assert not waiting.is_alive()
+        assert provider._configuration_source is not None
+    finally:
+        resume.set()
+        first.join(timeout=5)
+        if waiting is not None:
+            waiting.join(timeout=5)
         provider.shutdown()
