@@ -437,7 +437,7 @@ def test_concurrent_futures_with_gevent():
             future = executor.submit(lambda: sleep(0.1) or 42)
             result = future.result()
             assert result == 42
-        sys.exit(0)
+        os._exit(0)
     os.waitpid(pid, 0)
 
 
