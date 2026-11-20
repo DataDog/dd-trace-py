@@ -24,9 +24,8 @@ from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import MCPTransport
+from ddtrace.aiguard.integrations._mcp import client_mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_reference
-from ddtrace.aiguard.integrations._mcp import mcp_server
-from ddtrace.aiguard.integrations._mcp import safe_stdio_args
 from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -70,12 +69,13 @@ _MCP_ATTR = "_dd_ai_guard_mcp"
 _MCP_ADAPTER_MODULE = "langchain_mcp_adapters.tools"
 _mcp_adapter_hook: Optional[Callable[[ModuleType], None]] = None
 
+# langchain-mcp-adapters connection transports; others (websocket) report the unknown transport.
 _MCP_TRANSPORTS: dict[str, MCPTransport] = {
-    "stdio": "stdio",
-    "sse": "sse",
-    "streamable_http": "streamable_http",
-    "streamable-http": "streamable_http",
-    "http": "streamable_http",
+    "stdio": AI_GUARD.MCP_TRANSPORT_STDIO,
+    "sse": AI_GUARD.MCP_TRANSPORT_SSE,
+    "streamable_http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
+    "streamable-http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
+    "http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
 }
 
 
@@ -694,23 +694,15 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, instance: Any, args: An
 
 def _mcp_client_server(connection: Any, server_name: Any) -> Optional[MCPServer]:
     """The mcp_servers entry of a langchain-mcp-adapters connection; never headers, auth, env or unsafe args."""
-    name = server_name if isinstance(server_name, str) and server_name else None
     if not isinstance(connection, dict):
-        return mcp_server("client", AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=name)
+        return client_mcp_server(AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=server_name)
     transport = _MCP_TRANSPORTS.get(str(connection.get("transport")), AI_GUARD.MCP_TRANSPORT_UNKNOWN)
-    url = connection.get("url")
-    command = connection.get("command") if transport == "stdio" else None
-    command = command if isinstance(command, str) and command else None
-    args = connection.get("args")
-    if command is None or not isinstance(args, (list, tuple)) or not all(isinstance(arg, str) for arg in args):
-        args = []
-    return mcp_server(
-        "client",
+    return client_mcp_server(
         transport,
-        name=name,
-        url=url if isinstance(url, str) else None,
-        command=command,
-        args=safe_stdio_args(command, args) if command else [],
+        name=server_name,
+        url=connection.get("url"),
+        command=connection.get("command"),
+        args=connection.get("args"),
     )
 
 
