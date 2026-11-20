@@ -21,6 +21,19 @@ then
     exit 0
 fi
 
+# `ci`, `test` and `docs` PRs do not change anything customers receive, so neither a release note
+# nor the `changelog/no-changelog` label is required. A note may still be added if one is warranted.
+# DEV: The PR title is validated as a conventional commit by the `pr-name` workflow.
+if [[ -f "${GITHUB_EVENT_PATH}" ]];
+then
+    PR_TITLE="$(jq -r '.pull_request?.title // ""' "${GITHUB_EVENT_PATH}")"
+    if [[ "${PR_TITLE}" =~ ^(ci|test|docs)(\(|!|:) ]];
+    then
+        echo "PR type does not require a release note, skipping validation"
+        exit 0
+    fi
+fi
+
 if [[ -f "${GITHUB_EVENT_PATH}" ]];
 then
     # If we have an event, grab the PR base ref from the event data
@@ -45,6 +58,7 @@ then
     exit 0
 else
     echo "Release note not found."
-    echo "Use 'reno new <slug>' to add a new note to 'releasenotes/notes', or add the label 'changelog/no-changelog' to skip this validation"
+    echo "Use 'reno new <slug>' to add a new note to 'releasenotes/notes', or add the label 'changelog/no-changelog' to skip this validation."
+    echo "Release notes are customer-facing, see docs/releasenotes.rst. 'ci', 'test' and 'docs' PRs do not need one."
     exit 1
 fi

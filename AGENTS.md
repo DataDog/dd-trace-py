@@ -94,8 +94,11 @@ Follow the Pull Request Requirements in `docs/contributing.rst` and use
 `.github/PULL_REQUEST_TEMPLATE.md`. Titles follow Conventional Commits (`commitlint.config.js`).
 Include validation, risks, and relevant issues. Before deciding or answering whether a release
 note is needed, invoke `releasenote` (or read `.agents/skills/releasenote/SKILL.md` if skill
-invocation is unavailable), including for internal-only refactors. Follow its decision workflow;
-when no note is needed, explain why and apply `changelog/no-changelog` to the PR.
+invocation is unavailable), including for internal-only refactors. Follow its decision workflow.
+Whether a change is customer-facing is the user's decision: ask the user for the customer-facing
+impact before choosing the commit type or deciding on a note. Propose a decision with evidence
+(files changed, visible effect). Do not pick a commit type, or apply `changelog/no-changelog`, just
+to make CI pass. `ci`, `test` and `docs` PRs need neither a note nor the label.
 
 This repository is public. PR text, commits, and release notes must describe the change itself.
 Keep internal discussions, other teams' tickets, backend/data-pipeline names, and open internal
