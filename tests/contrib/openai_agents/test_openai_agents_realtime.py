@@ -2086,3 +2086,43 @@ def test_realtime_disabled_before_lazy_import():
     assert agents._datadog_patch
     assert not hasattr(OpenAIRealtimeWebSocketModel.connect, "__wrapped__")
     assert not hasattr(OpenAIRealtimeWebSocketModel._handle_ws_event, "__wrapped__")
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("earlier_part", [False, True])
+@pytest.mark.asyncio
+async def test_realtime_incomplete_truncated_snapshot_preserves_audio_not_caption(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, earlier_part
+):
+    monkeypatch.setenv("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "false")
+    model = await connect(socket, {"call_id": "cancelled-prefix"})
+    await socket.feed(created())
+    await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
+    prefix = b"\1\0" * 24000 if earlier_part else b""
+    clipped = b"\2\0" * 480
+    parts = [{"type": "output_audio", "transcript": "Heard."}] if earlier_part else []
+    parts.append({"type": "output_audio", "transcript": "Unfortunately,"})
+    item = output_item(parts=parts)
+    item["status"] = "incomplete"
+    await socket.feed({"type": "response.output_item.done", "response_id": "r1", "output_index": 0, "item": item})
+    response = done(output=[item])
+    response["response"]["status"] = "cancelled"
+    await socket.feed(response)
+    await socket.feed(
+        {"type": "conversation.item.truncated", "item_id": "a1", "content_index": int(earlier_part), "audio_end_ms": 20}
+    )
+    snapshot = retrieved(audio=clipped, transcript="Unfortunately,")
+    snapshot["item"]["status"] = "incomplete"
+    if earlier_part:
+        snapshot["item"]["content"].insert(
+            0, {"type": "output_audio", "audio": base64.b64encode(prefix).decode(), "transcript": "Heard."}
+        )
+    await socket.feed(snapshot)
+    await socket.feed({"type": "output_audio_buffer.cleared", "response_id": "r1"})
+    await model.close()
+    span, spans = llm_span(test_spans)
+    message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
+    assert message["content"] == ("Heard." if earlier_part else "")
+    assert base64.b64decode(message["audio_parts"][0]["content"])[44:] == prefix + clipped
+    for exported in spans:
+        assert "Unfortunately," not in json.dumps(_get_llmobs_data_metastruct(exported)["meta"].get("output"))

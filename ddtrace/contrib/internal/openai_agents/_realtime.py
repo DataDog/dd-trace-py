@@ -734,12 +734,16 @@ class _AgentsRealtimeState(_RealtimeState):
         status = data.get("status")
         stable = status == "completed" or (status == "incomplete" and item.generation_done)
         if item.entry and item.entry.truncated and not item.input_audio:
-            # An unfinished snapshot cannot restore captions invalidated by an
-            # acknowledged interruption. A zero-length part has no heard text.
+            # An incomplete item can retain its generated caption after its audio
+            # was truncated. Only completed items may restore the cut part's
+            # caption; uncut parts keep theirs. Zero-length parts have no heard text.
             transcripts = {
                 index: text
                 for index, text in transcripts.items()
-                if stable and index <= item.last_index and item.caps.get(index) != 0
+                if stable
+                and index <= item.last_index
+                and item.caps.get(index) != 0
+                and (index not in item.caps or status == "completed")
             }
         if stable and (transcripts or (item.entry and item.entry.truncated)):
             item.transcripts = transcripts
