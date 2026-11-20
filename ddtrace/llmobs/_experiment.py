@@ -190,6 +190,7 @@ class EvaluatorResult:
         assessment: Optional[str] = None,
         metadata: Optional[dict[str, JSONType]] = None,
         tags: Optional[dict[str, JSONType]] = None,
+        higher_is_better: Optional[bool] = None,
     ) -> None:
         """Initialize an EvaluatorResult.
 
@@ -198,7 +199,15 @@ class EvaluatorResult:
         :param assessment: Optional categorical assessment (e.g., "pass", "fail", "good", "bad")
         :param metadata: Optional dictionary of additional metadata about the evaluation
         :param tags: Optional dictionary of tags to categorize or label the evaluation
+        :param higher_is_better: For numeric scores, set to ``False`` when a decrease is an improvement,
+            or ``True`` when an increase is an improvement. Omit to use the default experiment comparison.
         """
+        if higher_is_better is not None:
+            if not isinstance(higher_is_better, bool):
+                raise TypeError("higher_is_better must be a boolean")
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError("higher_is_better requires a numeric score")
+        self.higher_is_better = higher_is_better
         self.value = value
         self.reasoning = reasoning
         self.assessment = assessment
@@ -1605,6 +1614,8 @@ def _parse_experiment_result(response: dict) -> ExperimentResult:
                 "status": em.get("status"),
                 "error": em.get("error"),
             }
+            if isinstance(em.get("higher_is_better"), bool):
+                evaluations[label]["higher_is_better"] = em["higher_is_better"]
 
         # Normalise error: the API returns an empty dict {} when there is no error.
         raw_error = meta.get("error") or {}
@@ -1655,6 +1666,8 @@ def _parse_experiment_result(response: dict) -> ExperimentResult:
             "status": sm.get("status"),
             "error": sm.get("error"),
         }
+        if isinstance(sm.get("higher_is_better"), bool):
+            summary_evaluations[label]["higher_is_better"] = sm["higher_is_better"]
 
     run_info = _ExperimentRunInfo(run_interation=0)
     experiment_run = ExperimentRun(run_info, summary_evaluations=summary_evaluations, rows=rows)
@@ -2229,6 +2242,7 @@ class Experiment:
         metadata: Optional[dict[str, JSONType]] = None,
         tags: Optional[dict[str, str]] = None,
         eval_source_type: Optional[str] = None,
+        higher_is_better: JSONType = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
         if eval_value is None:
             metric_type = "categorical"
@@ -2261,6 +2275,8 @@ class Experiment:
             eval_metric["assessment"] = assessment
         if metadata:
             eval_metric["metadata"] = metadata
+        if metric_type == "score" and isinstance(higher_is_better, bool):
+            eval_metric["higher_is_better"] = higher_is_better
         if eval_source_type:
             eval_metric["eval_source_type"] = eval_source_type
         return eval_metric
@@ -2294,6 +2310,7 @@ class Experiment:
                     assessment=str(eval_data.get("assessment"))
                     if isinstance(eval_data.get("assessment"), str)
                     else None,
+                    higher_is_better=eval_data.get("higher_is_better"),
                     metadata=cast(dict[str, JSONType], eval_data.get("metadata"))
                     if isinstance(eval_data.get("metadata"), dict)
                     else None,
@@ -2322,6 +2339,7 @@ class Experiment:
                 assessment=str(summary_eval_data.get("assessment"))
                 if isinstance(summary_eval_data.get("assessment"), str)
                 else None,
+                higher_is_better=summary_eval_data.get("higher_is_better"),
                 metadata=cast(dict[str, JSONType], summary_eval_data.get("metadata"))
                 if isinstance(summary_eval_data.get("metadata"), dict)
                 else None,
@@ -2357,6 +2375,7 @@ class Experiment:
                     assessment=str(eval_data.get("assessment"))
                     if isinstance(eval_data.get("assessment"), str)
                     else None,
+                    higher_is_better=eval_data.get("higher_is_better"),
                     metadata=cast(dict[str, JSONType], eval_data.get("metadata"))
                     if isinstance(eval_data.get("metadata"), dict)
                     else None,
@@ -2397,6 +2416,8 @@ class Experiment:
     ) -> tuple[JSONType, dict[str, JSONType]]:
         extra_return_values: dict[str, JSONType] = {}
         if isinstance(eval_result, EvaluatorResult):
+            if eval_result.higher_is_better is not None:
+                extra_return_values["higher_is_better"] = eval_result.higher_is_better
             if eval_result.reasoning:
                 extra_return_values["reasoning"] = eval_result.reasoning
             if eval_result.assessment:
@@ -3286,6 +3307,7 @@ class Experiment:
                         assessment=str(summary_eval_data.get("assessment"))
                         if isinstance(summary_eval_data.get("assessment"), str)
                         else None,
+                        higher_is_better=summary_eval_data.get("higher_is_better"),
                         metadata=cast(dict[str, JSONType], summary_eval_data.get("metadata"))
                         if isinstance(summary_eval_data.get("metadata"), dict)
                         else None,
@@ -3336,6 +3358,7 @@ class Experiment:
         assessment: Optional[str] = None,
         metadata: Optional[dict[str, JSONType]] = None,
         tags: Optional[dict[str, str]] = None,
+        higher_is_better: Optional[bool] = None,
     ) -> None:
         """Submit an evaluation metric for a distributed experiment.
 
@@ -3349,6 +3372,7 @@ class Experiment:
         :param assessment: Optional assessment string
         :param metadata: Optional metadata dict
         :param tags: Optional tags dict
+        :param higher_is_better: Whether an increase in a numeric score is an improvement
         """
         if not self._is_distributed:
             raise ValueError("this method is only used for distributed experiments")
@@ -3381,6 +3405,7 @@ class Experiment:
             source="summary" if is_summary_eval else "custom",
             reasoning=reasoning,
             assessment=assessment,
+            higher_is_better=higher_is_better,
             metadata=metadata,
             tags=tags,
         )
