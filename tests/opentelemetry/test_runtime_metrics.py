@@ -150,6 +150,45 @@ def test_runtime_metrics_wait_for_the_application_to_import_opentelemetry():
 
 
 @requires_exporter
+@pytest.mark.parametrize(
+    "code",
+    [
+        "import opentelemetry",
+        # Enabled again once the meter provider is set up, which also registers its exit handler.
+        "import opentelemetry\n"
+        "from ddtrace.runtime import RuntimeMetrics\n"
+        "RuntimeMetrics.disable()\n"
+        "RuntimeMetrics.enable()",
+    ],
+    ids=["enabled_at_startup", "enabled_again"],
+)
+def test_runtime_metrics_exported_when_the_application_exits(python_process, code):
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+
+    from tests.opentelemetry.utils import _capture_http_requests
+    from tests.opentelemetry.utils import metric_names
+
+    env = os.environ.copy()
+    env.update(OTLP_RUNTIME_METRICS_ENV)
+    # The application exits before its first export interval, so only the export at shutdown can reach the server.
+    env["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = "http://127.0.0.1:14322/v1/metrics"
+    env["OTEL_METRIC_EXPORT_INTERVAL"] = "60000"
+    with _capture_http_requests(14322, ExportMetricsServiceRequest) as requests:
+        _, err, status, _ = python_process(code, ddtrace_run=True, env=env, timeout=60)
+
+    assert status == 0, err
+    assert {
+        "cpython.gc.collections",
+        "cpython.gc.collected_objects",
+        "cpython.gc.uncollectable_objects",
+        "process.cpu.time",
+        "process.memory.usage",
+        "process.thread.count",
+        "process.context_switches",
+    } <= metric_names(requests)
+
+
+@requires_exporter
 @pytest.mark.subprocess(ddtrace_run=True, env=OTLP_RUNTIME_METRICS_ENV)
 def test_runtime_metrics_disable_stops_otlp_export():
     from opentelemetry.metrics import get_meter_provider
