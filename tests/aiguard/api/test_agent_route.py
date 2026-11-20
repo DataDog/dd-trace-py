@@ -7,6 +7,7 @@ import pytest
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import Message
 from ddtrace.aiguard._api_client import _agent_route
+from ddtrace.aiguard._api_client import _AgentTransport
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._initialization import load_ai_guard
 from ddtrace.internal.native import ConnectionFailedError
@@ -63,7 +64,7 @@ def test_evaluation_shares_pending_discovery(pending_probe, tracer):
 
     def evaluate():
         try:
-            client = AIGuardClient("/ai_guard/proxy/api/v2/ai-guard", agent_transport=True)
+            client = AIGuardClient(transport=_AgentTransport())
             result["evaluation"] = client.evaluate([Message(role="user", content="hi")])
         except Exception as error:
             result["error"] = error
@@ -184,7 +185,7 @@ def test_background_thread_failure_preserves_listener_installation(error):
         load_ai_guard()
         openai_listen.assert_called_once()
         client = openai_listen.call_args.args[0]
-        assert client._resolve_base_url() == "http://agent:8126"
+        assert client._transport.resolve_base_url() == "http://agent:8126"
 
 
 @pytest.mark.parametrize("failure", [None, ConnectionFailedError("Agent unavailable")])

@@ -3,6 +3,7 @@ import pytest
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._api_client import _agent_route
+from ddtrace.aiguard._api_client import _AgentTransport
 from ddtrace.aiguard._initialization import load_ai_guard
 from tests.aiguard.utils import override_ai_guard_config
 
@@ -42,4 +43,4 @@ def ai_guard_client(tracer) -> AIGuardClient:
 def agent_transport_client(tracer) -> AIGuardClient:
     """Create a client that reaches AI Guard through the Agent proxy route."""
     with override_ai_guard_config(_AI_GUARD_CONFIG):
-        return AIGuardClient("/ai_guard/proxy/api/v2/ai-guard", base_url="http://agent:8126")
+        return AIGuardClient(transport=_AgentTransport(base_url="http://agent:8126"))

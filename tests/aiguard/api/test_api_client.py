@@ -21,6 +21,8 @@ from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._api_client import _agent_route
+from ddtrace.aiguard._api_client import _AgentTransport
+from ddtrace.aiguard._api_client import _TransportResponse
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native import ConnectionFailedError
@@ -214,7 +216,7 @@ def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_clie
     mock_response = Mock()
     mock_response.status = 500
     mock_response.get_json.return_value = {"errors": errors}
-    mock_execute_request.return_value = mock_response
+    mock_execute_request.return_value = _TransportResponse(mock_response)
 
     with pytest.raises(AIGuardClientError) as exc_info:
         ai_guard_client.evaluate(TOOL_CALL)
@@ -234,7 +236,7 @@ def test_evaluate_http_error_empty_json_body(mock_execute_request, telemetry_moc
     mock_response = Mock()
     mock_response.status = 500
     mock_response.get_json.return_value = None
-    mock_execute_request.return_value = mock_response
+    mock_execute_request.return_value = _TransportResponse(mock_response)
 
     with pytest.raises(AIGuardClientError) as exc_info:
         ai_guard_client.evaluate(TOOL_CALL)
@@ -255,7 +257,7 @@ def test_evaluate_invalid_json(mock_execute_request, telemetry_mock, ai_guard_cl
     mock_response = Mock()
     mock_response.status = 200
     mock_response.get_json.side_effect = Exception("Invalid JSON")
-    mock_execute_request.return_value = mock_response
+    mock_execute_request.return_value = _TransportResponse(mock_response)
 
     with pytest.raises(AIGuardClientError) as exc_info:
         ai_guard_client.evaluate(TOOL_CALL)
@@ -273,7 +275,7 @@ def test_evaluate_invalid_json_error_status(mock_execute_request, telemetry_mock
     mock_response = Mock()
     mock_response.status = 502
     mock_response.get_json.side_effect = Exception("Invalid JSON")
-    mock_execute_request.return_value = mock_response
+    mock_execute_request.return_value = _TransportResponse(mock_response)
 
     with pytest.raises(AIGuardClientError) as exc_info:
         ai_guard_client.evaluate(TOOL_CALL)
@@ -308,7 +310,7 @@ def test_evaluate_malformed_response(mock_execute_request, telemetry_mock, ai_gu
     mock_response = Mock()
     mock_response.status = 200
     mock_response.get_json.return_value = {"invalid": "structure"}
-    mock_execute_request.return_value = mock_response
+    mock_execute_request.return_value = _TransportResponse(mock_response)
 
     with pytest.raises(AIGuardClientError) as exc_info:
         ai_guard_client.evaluate(TOOL_CALL)
@@ -956,8 +958,8 @@ def test_agent_transport_reaches_the_proxy_route(agent_url, expected_base, adver
                 client = new_ai_guard_client()
                 client.evaluate([Message(role="user", content="hi")])
 
-    assert "DD-API-KEY" not in client._headers
-    assert "DD-APPLICATION-KEY" not in client._headers
+    assert "DD-API-KEY" not in client._transport._headers
+    assert "DD-APPLICATION-KEY" not in client._transport._headers
     assert len(recording_connection.instances) == 1
     sent = recording_connection.instances[0].requests[0]
     assert recording_connection.instances[0].base_url == expected_base
@@ -992,7 +994,7 @@ def test_agent_transport_uses_native_url_joining(prefix, tracer):
         thread.start()
         try:
             base_url = f"http://127.0.0.1:{server.server_address[1]}{prefix}"
-            client = AIGuardClient("/ai_guard/proxy/api/v2/ai-guard", base_url=base_url)
+            client = AIGuardClient(transport=_AgentTransport(base_url=base_url))
             assert client.evaluate([Message(role="user", content="hi")])["action"] == "ALLOW"
         finally:
             server.shutdown()
@@ -1056,6 +1058,22 @@ def test_unversioned_404_sends_the_client_back_to_discovery(recording_connection
                     client.evaluate(messages)
 
 
+def test_unversioned_404_with_undecodable_body_sends_the_client_back_to_discovery(recording_connection):
+    recording_connection.status = 404
+    recording_connection.body = b"<html>not found</html>"
+    messages = [Message(role="user", content="hi")]
+
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}):
+            with patch.object(agent_config, "trace_agent_url", "http://agent:8126"):
+                client = new_ai_guard_client()
+                with pytest.raises(AIGuardClientError, match="no longer serves"):
+                    client.evaluate(messages)
+
+                with pytest.raises(AIGuardClientError, match="no longer advertises"):
+                    client.evaluate(messages)
+
+
 def test_explicit_agent_404_does_not_disable_discovered_clients(recording_connection, tracer):
     messages = [Message(role="user", content="hi")]
     with (
@@ -1065,7 +1083,7 @@ def test_explicit_agent_404_does_not_disable_discovered_clients(recording_connec
     ):
         discovered_client = new_ai_guard_client()
         assert _agent_route.resolve()[0] == "http://discovered-agent:8126"
-        pinned_client = AIGuardClient("/ai_guard/proxy/api/v2/ai-guard", base_url="http://pinned-agent:8126")
+        pinned_client = AIGuardClient(transport=_AgentTransport(base_url="http://pinned-agent:8126"))
         recording_connection.status = 404
         recording_connection.body = b'{"errors": ["not found"]}'
         with pytest.raises(AIGuardClientError, match="service call failed"):
@@ -1127,8 +1145,8 @@ def test_one_key_still_sends_that_credential_header(api_key, app_key):
     """Direct construction with a single key keeps sending the header it always sent."""
     client = AIGuardClient("https://api.example.com/ai-guard", api_key, app_key)
 
-    assert client._headers.get("DD-API-KEY") == (api_key or None)
-    assert client._headers.get("DD-APPLICATION-KEY") == (app_key or None)
+    assert client._transport._headers.get("DD-API-KEY") == (api_key or None)
+    assert client._transport._headers.get("DD-APPLICATION-KEY") == (app_key or None)
 
 
 def test_credentials_win_over_the_agent_route():
@@ -1139,8 +1157,8 @@ def test_credentials_win_over_the_agent_route():
 
     mock_info.assert_not_called()
     assert client._endpoint == "https://app.datadoghq.com/api/v2/ai-guard"
-    assert client._headers["DD-API-KEY"] == "test-api-key"
-    assert client._headers["DD-APPLICATION-KEY"] == "test-app-key"
+    assert client._transport._headers["DD-API-KEY"] == "test-api-key"
+    assert client._transport._headers["DD-APPLICATION-KEY"] == "test-app-key"
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_gauge_metric")

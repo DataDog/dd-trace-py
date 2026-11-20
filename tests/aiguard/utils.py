@@ -10,6 +10,7 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard._api_client import Message
+from ddtrace.aiguard._api_client import _TransportResponse
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.utils import TracerSpanContainer
@@ -53,7 +54,7 @@ def mock_evaluate_response(
     redaction_replacements: Optional[Any] = None,
     extra_tags: Optional[Any] = None,
     extra_metastruct: Optional[Any] = None,
-) -> Mock:
+) -> _TransportResponse:
     mock_response = Mock()
     mock_response.status = 200
     attributes = {
@@ -73,7 +74,7 @@ def mock_evaluate_response(
     if extra_metastruct is not None:
         attributes["extra_metastruct"] = extra_metastruct
     mock_response.get_json.return_value = {"data": {"attributes": attributes}}
-    return mock_response
+    return _TransportResponse(mock_response)
 
 
 def assert_mock_execute_request_call(
