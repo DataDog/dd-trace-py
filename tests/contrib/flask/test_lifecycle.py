@@ -31,25 +31,20 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.roots = []
         self.scopes = []
 
-        def starting(ctx):
-            self.phases.append("starting")
-            self.assertIsNone(ctx.get_item("req_span"))
-            ctx.event.tags["lifecycle.starting"] = "observed"
-
         def started(ctx):
+            if ctx.event.component != "flask":
+                return
             self.phases.append("started")
             self.roots.append(ctx.get_item("req_span"))
             self.scopes.append(ctx)
-            self.assertEqual(self.roots[-1].get_tag("lifecycle.starting"), "observed")
             self.assertFalse(self.roots[-1].finished)
+            ctx.event.additional_tags["lifecycle.ended"] = "observed"
 
-        def finishing(ctx):
-            self.phases.append("finishing")
-            self.assertFalse(ctx.get_item("req_span").finished)
-            ctx.event.additional_tags["lifecycle.finishing"] = "observed"
+        def ended(ctx, *args):
+            if ctx.event.component == "flask":
+                self.phases.append("ended")
 
-        for phase, handler in (("starting", starting), ("started", started), ("finishing", finishing)):
-            name = f"span.{phase}.flask.request"
+        for name, handler in (("context.started.web.request", started), ("context.ended.web.request", ended)):
             core.on(name, handler)
             self.addCleanup(core.reset_listeners, name, handler)
 
@@ -80,7 +75,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         with self.tracer.trace("caller") as caller:
             response = self.open_response("/stream")
             self.assertEqual(chunks, [])
-            self.assertEqual(self.phases, ["starting", "started"])
+            self.assertEqual(self.phases, ["started"])
             self.assertIs(self.tracer.current_span(), caller)
             self.assertEqual(next(response), b"first")
             response_span = self.scopes[0].get_item("response_span")
@@ -89,10 +84,10 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
             self.assertEqual(list(response), [b"second"])
             response.close()
             self.assertIs(self.tracer.current_span(), caller)
-        self.assertEqual(self.phases, ["starting", "started", "finishing"])
+        self.assertEqual(self.phases, ["started", "ended"])
         self.assertTrue(self.roots[0].finished)
         self.assertTrue(response_span.finished)
-        self.assertEqual(self.roots[0].get_tag("lifecycle.finishing"), "observed")
+        self.assertEqual(self.roots[0].get_tag("lifecycle.ended"), "observed")
 
     def test_close_before_first_chunk(self):
         closed = []
@@ -108,7 +103,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         response.close()
         self.assertEqual(closed, [True])
         self.assertTrue(self.roots[0].finished)
-        self.assertEqual(self.phases.count("finishing"), 1)
+        self.assertEqual(self.phases.count("ended"), 1)
 
     def test_stream_error_and_explicit_close_error_complete_once(self):
         stream_error = ValueError("stream failure")
@@ -136,7 +131,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.assertEqual(self.roots[0].error, 0)
         self.assertTrue(self.roots[0].finished)
         self.assertEqual(self.scopes[0].get_item("response_span").error, 1)
-        self.assertEqual(self.phases.count("finishing"), 1)
+        self.assertEqual(self.phases.count("ended"), 1)
 
     def test_close_error_finishes_response_and_request(self):
         def close():
@@ -154,7 +149,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.assertTrue(self.roots[0].finished)
         self.assertEqual(self.roots[0].error, 0)
         self.assertEqual(self.scopes[0].get_item("response_span").error, 1)
-        self.assertEqual(self.phases.count("finishing"), 1)
+        self.assertEqual(self.phases.count("ended"), 1)
 
     def test_application_error_finishes_request(self):
         self.app.config["PROPAGATE_EXCEPTIONS"] = True
@@ -167,7 +162,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
             self.open_response()
         self.assertTrue(self.roots[0].finished)
         self.assertEqual(self.roots[0].error, 1)
-        self.assertEqual(self.phases.count("finishing"), 1)
+        self.assertEqual(self.phases.count("ended"), 1)
 
     def test_application_stop_iteration_is_not_an_error(self):
         def app(environ, start_response):
@@ -178,7 +173,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
             self.open_response(app=middleware)
         self.assertTrue(self.roots[0].finished)
         self.assertEqual(self.roots[0].error, 0)
-        self.assertEqual(self.phases.count("finishing"), 1)
+        self.assertEqual(self.phases.count("ended"), 1)
         self.assertTrue(all(span.finished for span in self.get_spans()))
 
     def test_interleaved_requests_keep_independent_contexts(self):
@@ -206,7 +201,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
                 ("first", self.scopes[0].get_item("response_span").span_id),
             ],
         )
-        self.assertEqual(self.phases.count("finishing"), 2)
+        self.assertEqual(self.phases.count("ended"), 2)
         self.assertTrue(all(root.finished for root in self.roots))
 
     def test_start_response_preserves_write_callable(self):
@@ -276,7 +271,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         response.close()
         self.assertEqual(closed, ["/"])
         self.assertTrue(self.roots[0].finished)
-        self.assertEqual(self.phases.count("finishing"), 1)
+        self.assertEqual(self.phases.count("ended"), 1)
 
     def test_application_return_precedes_stream_completion_once(self) -> None:
         returns = []
@@ -305,7 +300,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.assertIs(core.current, caller_context)
         self.assertEqual(chunks, [])
         self.assertEqual(returns, [(self.scopes[0], (None, None, None), False, True)])
-        self.assertEqual(self.phases, ["starting", "started"])
+        self.assertEqual(self.phases, ["started"])
         self.assertFalse(self.roots[0].finished)
 
         self.assertEqual(next(response), b"first")
@@ -320,7 +315,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.assertIs(core.current, caller_context)
         self.assertEqual(chunks, ["first", "second"])
         self.assertEqual(len(returns), 1)
-        self.assertEqual(self.phases, ["starting", "started", "finishing"])
+        self.assertEqual(self.phases, ["started", "ended"])
         self.assertTrue(self.roots[0].finished)
 
     def test_application_failure_reports_return_once(self) -> None:
@@ -343,7 +338,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.assertIs(raised.exception, failure)
         self.assertEqual(returns, [(self.scopes[0], ValueError, failure, True)])
         self.assertTrue(self.roots[0].finished)
-        self.assertEqual(self.phases.count("finishing"), 1)
+        self.assertEqual(self.phases.count("ended"), 1)
 
     def test_success_inside_handled_exception_reports_no_application_error(self) -> None:
         returns: list[ExcInfoType] = []
@@ -388,9 +383,10 @@ def test_preserved_client_streaming(
     failure = RuntimeError("stream failure")
 
     def started(ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
-        contexts.append(ctx)
+        if ctx.event.component == "flask":
+            contexts.append(ctx)
 
-    core.on("span.started.flask.request", started)
+    core.on("context.started.web.request", started)
 
     @app.route("/stream")
     def stream() -> flask.Response:
@@ -452,7 +448,7 @@ def test_preserved_client_streaming(
             assert core.current is caller_context
             assert tracer.current_span() is caller
     finally:
-        core.reset_listeners("span.started.flask.request", started)
+        core.reset_listeners("context.started.web.request", started)
 
 
 @pytest.fixture

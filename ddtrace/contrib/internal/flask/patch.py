@@ -113,7 +113,6 @@ werkzeug_version = parse_version(werkzeug_version_str)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
-    _request_context_name = "flask.request"
     _request_call_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_call_name = "flask.application"
     _response_call_name = "flask.response"

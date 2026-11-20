@@ -13,11 +13,6 @@ WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     ),
 )
 
-
-FLASK_REQUEST_SUBSCRIBERS = SubscriberBundle(
-    module="ddtrace._trace.subscribers.flask",
-    subscribers=("FlaskRequestSubscriber",),
-)
 SPAN_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers._base",
     subscribers=("TracingSubscriber",),
@@ -82,7 +77,6 @@ MANUAL_SUBSCRIBER_BUNDLES = (
 subscriber_bundles = (
     WEB_FRAMEWORK_SUBSCRIBERS,
     SPAN_EXCEPTION_SUBSCRIBERS,
-    FLASK_REQUEST_SUBSCRIBERS,
     *MANUAL_SUBSCRIBER_BUNDLES,
 )
 
