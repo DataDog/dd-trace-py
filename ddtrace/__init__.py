@@ -58,15 +58,16 @@ else:
 
     from wrapt.importer import when_imported as _when_imported
 
-    from ddtrace._trace._registration import FLASK_REQUEST_SUBSCRIBERS as _FLASK_REQUEST_SUBSCRIBERS
-    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS as _WEB_FRAMEWORK_SUBSCRIBERS
-    from ddtrace._trace._registration import register_subscribers as _register_subscribers
-
     # Manual WSGI/Flask instrumentation still needs request listeners. Wait for
     # the package to finish loading so subscriber imports see ready dependencies.
-    _when_imported("ddtrace._trace.subscribers")(
-        lambda _: _register_subscribers((_WEB_FRAMEWORK_SUBSCRIBERS, _FLASK_REQUEST_SUBSCRIBERS))
-    )
+    def _register_manual_request_subscribers(_module: object) -> None:
+        from ddtrace._trace._registration import FLASK_REQUEST_SUBSCRIBERS
+        from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+        from ddtrace._trace._registration import register_subscribers
+
+        register_subscribers((WEB_FRAMEWORK_SUBSCRIBERS, FLASK_REQUEST_SUBSCRIBERS))
+
+    _when_imported("ddtrace._trace.subscribers")(_register_manual_request_subscribers)
 
 # Initialize DSM support and register DSM handlers (if enabled)
 import ddtrace.internal.datastreams as _  # noqa: E402, F401

@@ -1,6 +1,28 @@
 import pytest
 
 
+@pytest.mark.subprocess(
+    env={
+        "_DD_GLOBAL_TRACER_INIT": "false",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": None,
+    }
+)
+def test_deferred_global_initialization_keeps_registration_imports_lazy() -> None:
+    import sys
+
+    import ddtrace  # noqa: F401
+
+    for module in (
+        "ddtrace.trace",
+        "ddtrace._trace._registration",
+        "ddtrace._trace.subscribers",
+        "ddtrace.internal.core",
+        "ddtrace.internal.core.subscriber",
+    ):
+        assert module not in sys.modules, module
+
+
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
 def test_tracing_subscriber_definitions_do_not_register_listeners() -> None:
     from importlib import import_module
