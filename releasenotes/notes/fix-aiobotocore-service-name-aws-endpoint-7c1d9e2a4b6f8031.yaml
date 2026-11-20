@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    aiobotocore: Fixes an issue where spans were tagged with the ``DD_SERVICE`` value instead of ``aws.<endpoint>``
+    under the default (v0) span attribute schema. The service name now matches the ``botocore`` integration. Use
+    ``DD_AIOBOTOCORE_SERVICE`` to set a custom service name.

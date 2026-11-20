@@ -55,7 +55,7 @@ class TestPsycopgPatch(PatchTestCase.Base):
         # Note: tried with @run_in_subprocess but that fails to reproduce the error in the affected version
         # (v3.10.2) for some reason while running the separate script works.
         result = subprocess.run(
-            [sys.executable, "-m", "ddtrace.commands.ddtrace_run", "python", fixture_path],
+            [sys.executable, "-m", "ddtrace_commands.ddtrace_run", "python", fixture_path],
             capture_output=True,
             text=True,
             env=env,

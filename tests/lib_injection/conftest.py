@@ -127,6 +127,17 @@ def test_venv(ddtrace_injection_artifact):
             python_executable = os.path.join(venv_dir, "bin", "python")
             pip_executable = os.path.join(venv_dir, "bin", "pip")
 
+            # Use the suite's pinned pip instead of the version bundled by the target interpreter.
+            pip_install_cmd = [
+                sys.executable,
+                "-m",
+                "pip",
+                "--python",
+                python_executable,
+                "install",
+                "--no-cache-dir",
+            ]
+
             # Construct the base environment needed to run things in this venv
             base_env = {
                 **os.environ,
@@ -136,7 +147,7 @@ def test_venv(ddtrace_injection_artifact):
             }
 
             if DDTRACE_CORE_DEPENDENCIES:
-                core_install_cmd = [pip_executable, "install", "--no-cache-dir"] + DDTRACE_CORE_DEPENDENCIES
+                core_install_cmd = pip_install_cmd + DDTRACE_CORE_DEPENDENCIES
                 subprocess.run(
                     core_install_cmd,
                     timeout=300,
@@ -157,7 +168,7 @@ def test_venv(ddtrace_injection_artifact):
                         install_specs.append("legacy-cgi")
 
                 if install_specs:
-                    test_install_cmd = [pip_executable, "install", "--no-cache-dir"] + install_specs
+                    test_install_cmd = pip_install_cmd + install_specs
                     subprocess.run(
                         test_install_cmd,
                         timeout=300,

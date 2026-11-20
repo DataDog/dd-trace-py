@@ -10,15 +10,15 @@ tests/lib_injection/                @DataDog/apm-core-python
 tests/internal                      @DataDog/apm-core-python
 
 # Framework Integrations
-ddtrace/ext/                        @DataDog/python-guild @DataDog/apm-idm-python
-ddtrace/contrib/                    @DataDog/python-guild @DataDog/apm-idm-python
-ddtrace/contrib/_events/            @DataDog/python-guild @DataDog/apm-idm-python
+ddtrace/ext/                        @DataDog/apm-python-guild @DataDog/apm-idm-python
+ddtrace/contrib/                    @DataDog/apm-python-guild @DataDog/apm-idm-python
+ddtrace/contrib/_events/            @DataDog/apm-python-guild @DataDog/apm-idm-python
 /templates/integration/             @DataDog/apm-idm-python
-ddtrace/internal/schema/            @DataDog/python-guild @DataDog/apm-idm-python
-ddtrace/_monkey.py                  @DataDog/python-guild @DataDog/apm-idm-python
-tests/contrib/                      @DataDog/python-guild @DataDog/apm-idm-python
-tests/internal/peer_service         @DataDog/python-guild @DataDog/apm-idm-python
-tests/internal/service_name         @DataDog/python-guild @DataDog/apm-idm-python
+ddtrace/internal/schema/            @DataDog/apm-python-guild @DataDog/apm-idm-python
+ddtrace/_monkey.py                  @DataDog/apm-python-guild @DataDog/apm-idm-python
+tests/contrib/                      @DataDog/apm-python-guild @DataDog/apm-idm-python
+tests/internal/peer_service         @DataDog/apm-python-guild @DataDog/apm-idm-python
+tests/internal/service_name         @DataDog/apm-python-guild @DataDog/apm-idm-python
 tests/errortracking/                @DataDog/apm-core-python
 tests/contrib/grpc                  @DataDog/apm-idm-python
 tests/integration/                  @DataDog/apm-core-python
@@ -31,7 +31,7 @@ ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-core-python @DataDog/apm-python
 tests/requirements_locks/           @DataDog/apm-python
-.uv/                                @DataDog/python-guild
+.uv/                                @DataDog/apm-python-guild
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-core-python @DataDog/apm-python
@@ -40,17 +40,17 @@ ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 
 # Guild
 # Repository tooling defaults. Domain-specific rules below take precedence.
-AGENTS.md                           @DataDog/python-guild
-.agents/                            @DataDog/python-guild
-.claude/                            @DataDog/python-guild
-.llm-validation/                    @DataDog/python-guild
-.cursor/                            @DataDog/python-guild
-.sg/                                @DataDog/python-guild
-hooks/                              @DataDog/python-guild
-scripts/**                            @DataDog/python-guild
-tests/vendor/                       @DataDog/python-guild
-/ci/                                @DataDog/python-guild
-/docker/                            @DataDog/python-guild
+AGENTS.md                           @DataDog/apm-python-guild
+.agents/                            @DataDog/apm-python-guild
+.claude/                            @DataDog/apm-python-guild
+.llm-validation/                    @DataDog/apm-python-guild
+.cursor/                            @DataDog/apm-python-guild
+.sg/                                @DataDog/apm-python-guild
+hooks/                              @DataDog/apm-python-guild
+scripts/**                            @DataDog/apm-python-guild
+tests/vendor/                       @DataDog/apm-python-guild
+/ci/                                @DataDog/apm-python-guild
+/docker/                            @DataDog/apm-python-guild
 
 # Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
 benchmarks/                         @DataDog/apm-core-python
@@ -61,76 +61,77 @@ scripts/profiles/                   @DataDog/profiling-python
 scripts/run-benchmarks              @DataDog/apm-core-python
 
 # Root level config files
-conftest.py                         @DataDog/python-guild
-docker-compose.base.yml             @DataDog/python-guild
-docker-compose.gpu.yml              @DataDog/python-guild
-docker-compose.podman.yml           @DataDog/python-guild
-docker-compose.yml                  @DataDog/python-guild
-repository.datadog.yml              @DataDog/python-guild
-sgconfig.yml                        @DataDog/python-guild
-static-analysis.datadog.yml         @DataDog/python-guild
-.gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
-.github/                            @DataDog/python-guild  @DataDog/apm-core-python
-.gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
-.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
-/README.md                          @DataDog/python-guild  @DataDog/apm-core-python
-mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+conftest.py                         @DataDog/apm-python-guild
+docker-compose.base.yml             @DataDog/apm-python-guild
+docker-compose.gpu.yml              @DataDog/apm-python-guild
+docker-compose.podman.yml           @DataDog/apm-python-guild
+docker-compose.yml                  @DataDog/apm-python-guild
+repository.datadog.yml              @DataDog/apm-python-guild
+sgconfig.yml                        @DataDog/apm-python-guild
+static-analysis.datadog.yml         @DataDog/apm-python-guild
+.gitlab-ci.yml                      @DataDog/apm-python-guild  @DataDog/apm-core-python
+.github/                            @DataDog/apm-python-guild  @DataDog/apm-core-python
+.gitlab/                            @DataDog/apm-python-guild  @DataDog/apm-core-python
+.readthedocs.yml                    @DataDog/apm-python-guild  @DataDog/apm-core-python
+/README.md                          @DataDog/apm-python-guild  @DataDog/apm-core-python
+mypy.ini                            @DataDog/apm-python-guild  @DataDog/apm-core-python
 /frozen-paths.txt                   @DataDog/apm-core-python
-pyproject.toml                      @DataDog/python-guild
-setup.cfg                           @DataDog/python-guild
-setup.py                            @DataDog/python-guild
-/.clang-format                      @DataDog/python-guild
-/.codespellignorelines               @DataDog/python-guild
-/.coveragerc                        @DataDog/python-guild
-/.gitconfig                         @DataDog/python-guild
-/.gitignore                         @DataDog/python-guild
-/code-coverage.datadog.yml          @DataDog/python-guild
-/commitlint.config.js               @DataDog/python-guild
-/LICENSE                            @DataDog/python-guild
-/LICENSE.Apache                     @DataDog/python-guild
-/LICENSE.BSD3                       @DataDog/python-guild
-/MANIFEST.in                        @DataDog/python-guild
-/min_compatible_versions.csv        @DataDog/python-guild
-/NOTICE                             @DataDog/python-guild
-/requirements.csv                   @DataDog/python-guild
-/SECURITY.md                        @DataDog/python-guild
+pyproject.toml                      @DataDog/apm-python-guild
+setup.cfg                           @DataDog/apm-python-guild
+setup.py                            @DataDog/apm-python-guild
+/.clang-format                      @DataDog/apm-python-guild
+/.codespellignorelines               @DataDog/apm-python-guild
+/.coveragerc                        @DataDog/apm-python-guild
+/.gitconfig                         @DataDog/apm-python-guild
+/.gitignore                         @DataDog/apm-python-guild
+/code-coverage.datadog.yml          @DataDog/apm-python-guild
+/commitlint.config.js               @DataDog/apm-python-guild
+/LICENSE                            @DataDog/apm-python-guild
+/LICENSE.Apache                     @DataDog/apm-python-guild
+/LICENSE.BSD3                       @DataDog/apm-python-guild
+/MANIFEST.in                        @DataDog/apm-python-guild
+/min_compatible_versions.csv        @DataDog/apm-python-guild
+/NOTICE                             @DataDog/apm-python-guild
+/requirements.csv                   @DataDog/apm-python-guild
+/SECURITY.md                        @DataDog/apm-python-guild
 # ddtrace files
-ddtrace/_logger.py                  @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/auto.py                     @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/bootstrap/                  @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/commands/                   @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/internal/_file_queue.py     @DataDog/python-guild
-ddtrace/internal/_unpatched.py      @DataDog/python-guild
-ddtrace/__init__.py                 @DataDog/python-guild
-ddtrace/py.typed                    @DataDog/python-guild
-ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/internal/endpoints.py       @DataDog/python-guild  @DataDog/asm-python
-ddtrace/internal/settings/_config.py          @DataDog/python-guild  @DataDog/apm-sdk-capabilities
-ddtrace/vendor/                     @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/version.py                  @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/_logger.py                  @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace/auto.py                     @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace/bootstrap/                  @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace/commands/                   @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace_commands/                   @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace/internal/_file_queue.py     @DataDog/apm-python-guild
+ddtrace/internal/_unpatched.py      @DataDog/apm-python-guild
+ddtrace/__init__.py                 @DataDog/apm-python-guild
+ddtrace/py.typed                    @DataDog/apm-python-guild
+ddtrace/internal/compat.py          @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace/internal/endpoints.py       @DataDog/apm-python-guild  @DataDog/asm-python
+ddtrace/internal/settings/_config.py          @DataDog/apm-python-guild  @DataDog/apm-sdk-capabilities
+ddtrace/vendor/                     @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace/version.py                  @DataDog/apm-python-guild  @DataDog/apm-core-python
 # tests files
-tests/commands/                     @DataDog/python-guild  @DataDog/apm-core-python
-tests/contrib/django/django1_app/urls.py @DataDog/python-guild
-tests/contrib/flask/app.py         @DataDog/python-guild
-tests/contrib/suitespec.yml         @DataDog/python-guild
-tests/smoke_test.py                 @DataDog/python-guild
-tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
-tests/suitespec.yml                 @DataDog/python-guild
-tests/utils.py                      @DataDog/python-guild
-tests/_ddtest_conftest_helpers.py   @DataDog/python-guild
-tests/_ddtest_env_helpers.py        @DataDog/python-guild
-tests/__init__.py                   @DataDog/python-guild
-tests/README.md                     @DataDog/python-guild
-tests/ddtrace_run.py                @DataDog/python-guild
-tests/subprocesstest.py             @DataDog/python-guild
-tests/webclient.py                  @DataDog/python-guild
-tests/wait-for-services.py          @DataDog/python-guild
-tests/cache/                        @DataDog/python-guild
-tests/meta/                         @DataDog/python-guild
-tests/test_module/                  @DataDog/python-guild
-tests/submod/                       @DataDog/python-guild
+tests/commands/                     @DataDog/apm-python-guild  @DataDog/apm-core-python
+tests/contrib/django/django1_app/urls.py @DataDog/apm-python-guild
+tests/contrib/flask/app.py         @DataDog/apm-python-guild
+tests/contrib/suitespec.yml         @DataDog/apm-python-guild
+tests/smoke_test.py                 @DataDog/apm-python-guild
+tests/suitespec.py                  @DataDog/apm-python-guild  @DataDog/apm-core-python
+tests/suitespec.yml                 @DataDog/apm-python-guild
+tests/utils.py                      @DataDog/apm-python-guild
+tests/_ddtest_conftest_helpers.py   @DataDog/apm-python-guild
+tests/_ddtest_env_helpers.py        @DataDog/apm-python-guild
+tests/__init__.py                   @DataDog/apm-python-guild
+tests/README.md                     @DataDog/apm-python-guild
+tests/ddtrace_run.py                @DataDog/apm-python-guild
+tests/subprocesstest.py             @DataDog/apm-python-guild
+tests/webclient.py                  @DataDog/apm-python-guild
+tests/wait-for-services.py          @DataDog/apm-python-guild
+tests/cache/                        @DataDog/apm-python-guild
+tests/meta/                         @DataDog/apm-python-guild
+tests/test_module/                  @DataDog/apm-python-guild
+tests/submod/                       @DataDog/apm-python-guild
 # docs and scripts
-docs/                               @DataDog/python-guild
+docs/                               @DataDog/apm-python-guild
 
 
 # Test Visibility and related
@@ -199,6 +200,7 @@ ddtrace/aiguard/                    @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
 ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
+ddtrace/contrib/_events/subprocess.py        @DataDog/asm-python
 ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/asm-python
 ddtrace/contrib/internal/urllib              @DataDog/asm-python
 ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
@@ -229,12 +231,17 @@ ddtrace/internal/settings/profiling.py            @DataDog/profiling-python
 ddtrace/internal/settings/profiling.pyi           @DataDog/profiling-python
 ddtrace/internal/datadog/profiling                @DataDog/profiling-python
 tests/profiling                                   @DataDog/profiling-python
-.github/workflows/profiling-native.yml            @DataDog/profiling-python
 .github/workflows/prof-correctness.yml            @DataDog/profiling-python
-.gitlab/tests/profiling.yml                       @DataDog/profiling-python
 .github/workflows/pytorch_gpu_tests.yml           @DataDog/profiling-python
 .github/PULL_REQUEST_TEMPLATE/profiler_change.md  @DataDog/profiling-python
 src/native_heap_gotter/                           @DataDog/profiling-python
+scripts/check_profiling_native_coverage.py        @DataDog/profiling-python
+benchmarks/code_provenance/                       @DataDog/profiling-python
+benchmarks/exception_profiler_monitoring/         @DataDog/profiling-python
+tests/commands/ddtrace_run_profiling.py           @DataDog/apm-python-guild @DataDog/apm-core-python @DataDog/profiling-python
+.gitlab/native.yml                                @DataDog/apm-python-guild @DataDog/apm-core-python @DataDog/profiling-python
+.gitlab/scripts/upload-debug-symbols-to-backend.sh @DataDog/apm-python-guild @DataDog/apm-core-python @DataDog/profiling-python
+docs/debug_symbols.rst                            @DataDog/apm-python-guild @DataDog/profiling-python
 
 # Native build tooling (abseil dependency, shared by ASM + Profiling native code)
 /cmake/                                            @DataDog/asm-python @DataDog/profiling-python
@@ -243,15 +250,18 @@ src/native_heap_gotter/                           @DataDog/profiling-python
 # Crashtracker
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/internal/settings/crashtracker.py   @DataDog/profiling-python @DataDog/apm-core-python
-ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/internal/settings/crashtracker.pyi  @DataDog/profiling-python @DataDog/apm-core-python
 tests/crashtracker/                          @DataDog/profiling-python
 src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # APM Integrations
-.agents/skills/apm-integrations/     @DataDog/python-guild @DataDog/apm-idm-python
+.agents/skills/apm-integrations/     @DataDog/apm-python-guild @DataDog/apm-idm-python
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
+# Shared integration event contracts also need their product owners.
+ddtrace/contrib/_events/llm.py                               @DataDog/apm-python-guild @DataDog/apm-idm-python @DataDog/ml-observability
+ddtrace/contrib/_events/aws_sdk_bedrock_runtime.py            @DataDog/ml-observability
 ddtrace/contrib/internal/aws_sdk_bedrock_runtime/              @DataDog/ml-observability
 tests/contrib/aws_sdk_bedrock_runtime/                        @DataDog/ml-observability
 ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
@@ -341,10 +351,11 @@ tests/openfeature/                        @DataDog/feature-flagging-and-experime
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities
 ddtrace/_trace/                                    @DataDog/apm-sdk-capabilities
-ddtrace/_trace/subscribers/                        @DataDog/apm-sdk-capabilities @DataDog/python-guild @DataDog/apm-idm-python
+# Tracing subscribers
+ddtrace/_trace/subscribers/                        @DataDog/apm-python-guild @DataDog/apm-idm-python
 ddtrace/_trace/span.py                             @DataDog/apm-sdk-capabilities @DataDog/apm-core-python
 # File commonly updated for integrations, widen ownership to help with PR review
-ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities @DataDog/python-guild @DataDog/apm-idm-python
+ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities @DataDog/apm-python-guild @DataDog/apm-idm-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry/thread_context.py   @DataDog/apm-sdk-capabilities @DataDog/asm-python @DataDog/profiling-python
@@ -371,6 +382,8 @@ tests/test_sampling.py                             @DataDog/apm-sdk-capabilities
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities
 tests/opentelemetry/                               @DataDog/apm-sdk-capabilities
 tests/tracer/                                      @DataDog/apm-sdk-capabilities
+# This file covers both core subscriber machinery and tracing subscriber behavior.
+tests/internal/test_subscribers.py                 @DataDog/apm-core-python @DataDog/apm-python-guild @DataDog/apm-idm-python
 tests/tracer/test_otel_thread_context.py            @DataDog/apm-sdk-capabilities @DataDog/apm-core-python @DataDog/asm-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
@@ -415,27 +428,27 @@ tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-
 # ASM (order matters)
 tests/**/*appsec*                       @DataDog/asm-python
 tests/**/*iast*                         @DataDog/asm-python
-tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities @DataDog/asm-python
 
 # Cross-product interaction tests (order matters)
 # tests/standalone/ covers products that interact rather than one product, so no single
 # product team owns it; the guild owns it like the other shared test tooling above. Kept
 # below the ASM globs so a future tests/**/* rule naming a product cannot claim it.
-tests/standalone/                       @DataDog/python-guild
+tests/standalone/                       @DataDog/apm-python-guild
 
 # Package-split API inventories
-.agents/skills/package-split/           @DataDog/python-guild @DataDog/apm-core-python
-scripts/package-split                   @DataDog/python-guild @DataDog/apm-core-python
-scripts/package_split/                  @DataDog/python-guild @DataDog/apm-core-python
-tests/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
+.agents/skills/package-split/           @DataDog/apm-python-guild @DataDog/apm-core-python
+scripts/package-split                   @DataDog/apm-python-guild @DataDog/apm-core-python
+scripts/package_split/                  @DataDog/apm-python-guild @DataDog/apm-core-python
+tests/package_split/                    @DataDog/apm-python-guild @DataDog/apm-core-python
 
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
 .gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
+docs/contributing-fuzzing.rst     @DataDog/chaos-engineering @DataDog/profiling-python
 docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-python
 
 # Supported versions
-supported_versions.json                         @DataDog/python-guild @DataDog/apm-idm-python @DataDog/ml-observability
+supported_versions.json                         @DataDog/apm-python-guild @DataDog/apm-idm-python @DataDog/ml-observability
 scripts/integration_registry/                   @DataDog/apm-idm-python
 scripts/integration_registry/registry.yaml      @DataDog/apm-idm-python @DataDog/ml-observability
 

@@ -43,6 +43,15 @@ variables:
   # Use Depot as the default PyPI mirror for Python packages.
   PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
   UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
+  # Also use the wheels that .gitlab/third-party-wheels.yml builds for packages that have no
+  # PyPI wheel for some Python versions or platforms. This index has only those wheels and
+  # does not mirror PyPI, thus it must be an extra index.
+  PIP_EXTRA_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
+  UV_EXTRA_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/dd-trace-py-wheels/@current/simple/"
+  # By default, uv uses only the first index that has a package, and uv examines the extra
+  # index first. Thus, uv would not find the PyPI wheels of a package that the extra index
+  # has for one Python version only. This strategy compares the versions of all indexes.
+  UV_INDEX_STRATEGY: "unsafe-best-match"
 
 default:
   interruptible: true
@@ -87,6 +96,7 @@ include:
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
+  - local: ".gitlab/third-party-wheels.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
   - local: ".gitlab/debugging-exploration.yml"
@@ -643,13 +653,14 @@ test_resolve_base_branch:
   script:
     - .gitlab/scripts/resolve-base-branch.test.sh
 
-# Exercises the delayed diagnostics and process cleanup without macOS or sccache.
+# Exercises cache startup, build logging, and process cleanup without a real compiler cache.
 test_sccache_watchdog:
   extends: .ci_utils
   stage: tests
   needs: []
   timeout: 5m
   script:
+    - python3 .gitlab/scripts/test_setup_sccache.py -v
     - python3 .gitlab/scripts/test_sccache_watchdog.py -v
 
 # Fails when test jobs stop collecting core dumps and backtraces on crash.
@@ -732,8 +743,9 @@ deploy_to_di_backend:manual:
     UPSTREAM_PACKAGE_JOB: build
 
 # Trigger profiling correctness tests with just-built wheels.
-# Runs the eight 3.14/3.15 migration scenarios in prof-correctness against the
-# wheels uploaded to S3 for this commit (Python-only; see downstream-python.yml).
+# Runs selected 3.14/3.15 prof-correctness scenarios against the wheels uploaded
+# to S3 for this commit (Python-only; see downstream-python.yml). Soft for now
+# (allow_failure); do not block merge until a later PR promotes these checks.
 prof-correctness:
   stage: tests
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
@@ -741,6 +753,7 @@ prof-correctness:
   needs:
     - job: "upload all"
   timeout: 60m
+  allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
@@ -839,9 +852,13 @@ lib_injection_tests:
   tags: [ "arch:amd64" ]
   image: ${PROFILING_NATIVE_IMAGE}
   timeout: 15m
+  id_tokens:
+    DD_STS_OIDC_TOKEN:
+      aud: dd-sts
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
+    CTEST_JUNIT_DIR: "${CI_PROJECT_DIR}/native-junit"
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
@@ -857,6 +874,13 @@ lib_injection_tests:
     # Disable leak detection for "safety" - Valgrind jobs already cover leak detection.
     - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
+  after_script:
+    - |
+      if ls native-junit/*.xml >/dev/null 2>&1; then
+        DD_API_KEY=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab" | python3 -c 'import json, sys; print(json.load(sys.stdin)["api_key"])') && export DD_API_KEY
+        curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o /tmp/datadog-ci https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64 && chmod +x /tmp/datadog-ci
+        /tmp/datadog-ci junit upload --service dd-trace-py --env ci native-junit/ || echo "JUnit upload failed (ignored)"
+      fi
 
 # Run on PRs where files in the native Profiling build graph changed.
 # build_standalone.sh compiles Rust (setup.py build_rust) then builds C++ tests

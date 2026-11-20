@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
 from dataclasses import field
+import functools
 import inspect
 import math
 import sys
@@ -12,6 +13,7 @@ from typing import Callable
 from typing import Iterator
 from typing import Literal
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 import urllib.parse
@@ -81,6 +83,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
+from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
@@ -232,6 +235,22 @@ from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
+
+_F = TypeVar("_F", bound=Callable[..., None])
+
+# Product start and the Remote Config handler can both call LLMObs.enable() at boot, on different threads.
+# Without this lock both pass the enabled check, and the second instance registers a second set of span hooks.
+_LIFECYCLE_LOCK = forksafe.RLock()
+
+
+def _serialized(func: _F) -> _F:
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        with _LIFECYCLE_LOCK:
+            return func(*args, **kwargs)
+
+    return cast(_F, wrapper)
+
 
 _STANDARD_INTEGRATION_SPAN_NAMES = (
     CLAUDE_AGENT_SDK_APM_SPAN_NAME,
@@ -659,6 +678,10 @@ class LLMObs(Service):
             routing = get_routing_context()
             if routing is not None:
                 span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
+            # Read at start: a streamed span finishes after the core context of its request has exited.
+            gateway = core.find_item(GATEWAY)
+            if gateway is not None:
+                span._set_ctx_item(GATEWAY, gateway)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -836,6 +859,12 @@ class LLMObs(Service):
             parent_agent_version = span._get_ctx_item(PARENT_AGENT_VERSION)
             if parent_agent_version:
                 llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = parent_agent_version
+
+        # Write the gateway on the llm spans of a gateway request. This runs after the integration and annotate
+        # writes, and _normalize_llmobs_meta keeps _dd safe from the span processor.
+        gateway = span._get_ctx_item(GATEWAY) if span_kind == "llm" else None
+        if gateway:
+            _annotate_llmobs_span_data(span, gateway=gateway)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         # Before the user processor and _normalize_llmobs_meta, either of which can strip values
@@ -1042,6 +1071,7 @@ class LLMObs(Service):
         forksafe.unregister(self._child_after_fork)
 
     @classmethod
+    @_serialized
     def enable(
         cls,
         ml_app: Optional[str] = None,
@@ -2011,6 +2041,7 @@ class LLMObs(Service):
         return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
+    @_serialized
     def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
@@ -2032,6 +2063,21 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    @_serialized
+    def _reconcile_enabled(cls) -> None:
+        """Enable or disable LLMObs to match config._llmobs_enabled.
+
+        Product start and the Remote Config handler both go through here. The check and the change
+        happen under the lock, so neither can act on a value the other has already changed.
+        """
+        if config._llmobs_enabled and not cls.enabled:
+            log.debug("Enabling LLMObs to match configuration (ml_app=%r)", config._llmobs_ml_app)
+            cls.enable(ml_app=config._llmobs_ml_app, _auto=True)
+        elif not config._llmobs_enabled and cls.enabled:
+            log.debug("Disabling LLMObs to match configuration")
+            cls.disable(_auto=True)
 
     @classmethod
     @contextmanager
