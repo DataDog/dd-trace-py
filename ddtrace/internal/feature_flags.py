@@ -25,16 +25,19 @@ class FeatureFlagProvider(Protocol):
 
 
 _implementation: t.Optional[FeatureFlagProvider] = None
+_plugins: t.Optional[list[t.Any]] = None
 
 
 def _get_implementation() -> FeatureFlagProvider:
-    global _implementation
+    global _implementation, _plugins
 
-    # Only a successful load is cached, so a failed discovery or import is retried on the next call.
+    # Discovery is cached so a missing provider doesn't rescan package metadata on every call; a
+    # provider installed later needs a restart. Only a successful load is cached, so a failed
+    # import is retried on the next call.
     if _implementation is None:
-        for plugin in get_entry_points(GROUP):
-            if not is_trusted(plugin):
-                continue
+        if _plugins is None:
+            _plugins = [plugin for plugin in get_entry_points(GROUP) if is_trusted(plugin)]
+        for plugin in _plugins:
             try:
                 _implementation = plugin.load()
                 break

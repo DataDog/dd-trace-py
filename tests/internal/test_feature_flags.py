@@ -9,6 +9,7 @@ from ddtrace.internal import feature_flags
 @pytest.fixture(autouse=True)
 def _reset_provider(monkeypatch):
     monkeypatch.setattr(feature_flags, "_implementation", None)
+    monkeypatch.setattr(feature_flags, "_plugins", None)
 
 
 def _make_entry_point(dist_name, module_path, implementation):
@@ -73,3 +74,11 @@ def test_openfeature_provider_is_registered():
     from ddtrace.internal.openfeature import _feature_flags
 
     assert feature_flags._get_implementation() is _feature_flags
+
+
+def test_missing_provider_is_discovered_once():
+    with patch("ddtrace.internal.feature_flags.get_entry_points", return_value=[]) as discover:
+        for _ in range(10):
+            with pytest.raises(LookupError):
+                feature_flags.set_domain_provider("domain")
+    assert discover.call_count == 1

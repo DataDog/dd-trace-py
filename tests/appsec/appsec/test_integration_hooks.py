@@ -48,14 +48,16 @@ def test_httplib_patch_wraps_request_outside_the_integration():
     from ddtrace.internal.appsec.integration_hooks.httplib import _wrap_request as appsec_wrap_request
 
     unpatch()
+    original = vars(http.client.HTTPConnection)["request"]
     try:
         patch()
         assert _wrapper_of(http.client.HTTPConnection, "request") is appsec_wrap_request
         assert vars(http.client.HTTPConnection)["request"].__wrapped__._self_wrapper is httplib_wrap_request
     finally:
         unpatch()
-    # AppSec unwraps first, so unpatching removes both layers.
-    assert _wrapper_of(http.client.HTTPConnection, "request") is None
+    # AppSec unwraps first, so unpatching removes both layers. Compare identity: a layer left behind
+    # by unwrapping a nested wrapper is a BoundFunctionWrapper, which isn't a FunctionWrapper.
+    assert vars(http.client.HTTPConnection)["request"] is original
 
 
 @pytest.mark.parametrize("enabled", [True, False])
