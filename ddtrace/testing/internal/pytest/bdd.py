@@ -7,10 +7,10 @@ import typing as t
 
 import pytest
 
-import ddtrace
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tracer_api.context import get_tracer
 
 
 if t.TYPE_CHECKING:
@@ -66,7 +66,7 @@ class BddTestOptPlugin:
     def pytest_bdd_before_step(
         self, request: FixtureRequest, feature: Feature, scenario: Scenario, step: Step, step_func: t.Callable
     ) -> None:
-        tracer = ddtrace.tracer
+        tracer = get_tracer()
         if tracer is None:
             return
 

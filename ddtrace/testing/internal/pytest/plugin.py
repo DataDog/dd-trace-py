@@ -74,6 +74,9 @@ from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integrations
+from ddtrace.testing.internal.tracer_api.context import enable_log_correlation
+from ddtrace.testing.internal.tracer_api.context import enable_selenium_integration
+from ddtrace.testing.internal.tracer_api.context import get_tracer
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import CoverageData
@@ -447,20 +450,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         if self.enable_ddtrace_trace_filter:
             install_global_trace_filter(self.manager.writer)
-            try:
-                import ddtrace
-            except ImportError:
-                log.debug("ddtrace is not available, skipping logging patch")
-            else:
-                if ddtrace.config._logs_injection or self.enable_log_submission:
-                    try:
-                        from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
-
-                        _patch_logging()
-                    except ImportError:
-                        log.warning(
-                            "Could not import ddtrace logging patch; log records will not carry trace/span IDs."
-                        )
+            enable_log_correlation(force=self.enable_log_submission)
 
         if self.enable_log_submission:
             from ddtrace.testing.internal.logs import LogsHandler
@@ -477,14 +467,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         if self.enable_all_ddtrace_integrations:
             enable_all_ddtrace_integrations()
         elif self.enable_ddtrace_trace_filter:
-            # Patch Selenium so browser tests get test visibility tags (test.is_browser, test.browser.*).
-            # We create a root span with type=test in trace_context(); Selenium integration checks for that span.
-            try:
-                from ddtrace.contrib.internal.selenium.patch import patch as patch_selenium
-
-                patch_selenium()
-            except Exception:
-                log.debug("Could not patch Selenium for test visibility", exc_info=True)
+            enable_selenium_integration()
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         original_exitstatus = session.exitstatus
@@ -2154,9 +2137,7 @@ def _get_test_custom_tags(item: pytest.Item) -> dict[str, str]:
 @pytest.fixture(scope="session")
 def ddtracer():
     """Return the current tracer instance."""
-    import ddtrace
-
-    return ddtrace.tracer
+    return get_tracer()
 
 
 @pytest.fixture(scope="function")
