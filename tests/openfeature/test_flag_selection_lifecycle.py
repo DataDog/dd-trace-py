@@ -987,3 +987,28 @@ def test_second_shutdown_during_the_poll_that_stopped_its_poller_releases_the_cl
         if second.is_alive():
             second.join(timeout=5)
         provider.shutdown()
+
+
+def test_lifecycle_events_stay_unpatched_when_the_application_patches_threading(cdn, api_key, monkeypatch):
+    # gevent patches the application's threading; a callback on the poller thread can set these events.
+    from ddtrace.internal import threads
+    import ddtrace.internal.openfeature._provider as provider_module
+
+    class _ApplicationEvent(threading.Event):
+        pass
+
+    class _ApplicationThreading:
+        Event = _ApplicationEvent
+
+        def __getattr__(self, name):
+            return getattr(threading, name)
+
+    monkeypatch.setattr(threads, "_app_threading", _ApplicationThreading())
+    provider = _provider({"tags": ["a"]})
+    try:
+        provider.initialize(EvaluationContext())
+        provider.shutdown()
+        assert not isinstance(provider._configuration_source_changed, _ApplicationEvent)
+        assert not isinstance(provider_module._lifecycle_ended, _ApplicationEvent)
+    finally:
+        provider.shutdown()

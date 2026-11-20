@@ -81,6 +81,7 @@ from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import Event
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import current_thread
+from ddtrace.internal.threads import original_Event
 
 
 # Handle different import paths between openfeature-sdk versions.
@@ -234,8 +235,9 @@ class DataDogProvider(AbstractProvider):
         self._starting_configuration_source = False
         # The thread of the start in progress, and the shutdown count when it began.
         self._configuration_source_starter: typing.Any = None
-        # Set, and replaced, when a start ends or a shutdown happens, so waiting starts check again.
-        self._configuration_source_changed = Event()
+        # Set, and replaced, when a start ends or a shutdown happens, so waiting starts check again. Unpatched, like
+        # _lifecycle_ended: a shutdown from a callback on the poller thread sets it.
+        self._configuration_source_changed = original_Event()
         # Counts shutdowns, so a start or a waiting start can tell that one happened after it began.
         self._configuration_source_shutdowns = 0
         self._stopping_configuration_source = False
@@ -652,7 +654,7 @@ class DataDogProvider(AbstractProvider):
 
     def _wake_configuration_source_waiters(self) -> None:
         """Wake starts waiting for a change. Call with the lifecycle lock held."""
-        woken, self._configuration_source_changed = self._configuration_source_changed, Event()
+        woken, self._configuration_source_changed = self._configuration_source_changed, original_Event()
         woken.set()
 
     @staticmethod
@@ -1137,7 +1139,7 @@ _lifecycle_lock = Lock()
 # Set in a forked child whose forking thread was inside a start or teardown, whose claims the child cannot see yet.
 _recount_when_idle = False
 # Replaced, and set, when a start or teardown ends, so a waiting fork checks again.
-_lifecycle_ended = Event()
+_lifecycle_ended = original_Event()
 
 
 class _LifecycleOperation:
@@ -1173,7 +1175,7 @@ def _lifecycle_operation(provider: DataDogProvider, teardown: bool) -> typing.It
                 # The forking thread's last operation in this child has ended: every claim is now on a poller.
                 _recount_when_idle = False
                 recount_process_selection(_claims_held_by_providers())
-            ended, _lifecycle_ended = _lifecycle_ended, Event()
+            ended, _lifecycle_ended = _lifecycle_ended, original_Event()
         ended.set()
 
 
@@ -1218,7 +1220,7 @@ def _reset_provider_state_in_child() -> typing.Iterator[None]:
     """
     global _lifecycle_lock, _lifecycle_ended, _recount_when_idle
     _lifecycle_lock = Lock()
-    _lifecycle_ended = Event()
+    _lifecycle_ended = original_Event()
     me = current_thread()
     providers = list(_providers_with_plain_locks)
     reset = False
@@ -1226,7 +1228,7 @@ def _reset_provider_state_in_child() -> typing.Iterator[None]:
         provider._exposure_cache_lock._at_fork_reinit()  # type: ignore[attr-defined]
         provider._initialization_lock._at_fork_reinit()  # type: ignore[attr-defined]
         # A parent thread may have held the event's internal lock at the fork, and no parent waiter survives.
-        provider._configuration_source_changed = Event()
+        provider._configuration_source_changed = original_Event()
         starter = getattr(provider, "_configuration_source_starter", None)
         if starter is None or starter[0] is not me:
             # A start reserved on a parent thread but not yet building its source holds no claim.
