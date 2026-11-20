@@ -603,3 +603,56 @@ def test_conversation_id_capture_disabled_by_default(mcp_setup, mcp_llmobs, test
     assert len(result.content) == 1
     (server_span,) = _server_tool_spans(test_spans)
     assert get_llmobs_session_id(server_span) is None
+
+
+def test_intent_capture_lowlevel_server_validation(mcp_setup, mcp_llmobs, test_spans):
+    """Low-level servers validate calls against the listed tool objects, which must keep the tool's own schema."""
+    from mcp.server.lowlevel import Server
+    from mcp.shared.memory import create_connected_server_and_client_session
+    import mcp.types as types
+
+    server = Server("LowLevelServer")
+
+    @server.list_tools()
+    async def list_tools():
+        schema = {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]}
+        return [types.Tool(name="echo", inputSchema=schema)]
+
+    @server.call_tool()
+    async def call_tool(name, arguments):
+        return [types.TextContent(type="text", text=",".join(sorted(arguments)))]
+
+    async def run_test():
+        async with create_connected_server_and_client_session(server) as client:
+            tools = await client.list_tools()
+            result = await client.call_tool("echo", {"a": "x", "telemetry": {"intent": "Testing low-level servers"}})
+            return tools, result
+
+    with override_config("mcp", dict(capture_intent=True, capture_session=True)):
+        tools, result = asyncio.run(run_test())
+
+    assert "telemetry" in tools.tools[0].inputSchema["properties"]
+    assert not result.isError
+    assert result.content[0].text == "a"
+    (server_span,) = _server_tool_spans(test_spans)
+    assert _get_llmobs_data_metastruct(server_span)["meta"]["intent"] == "Testing low-level servers"
+
+
+def test_own_telemetry_argument_kept_with_capture_disabled(mcp_setup, mcp_llmobs, test_spans):
+    from mcp.server.fastmcp import FastMCP
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    server = FastMCP(name="TelemetryServer")
+
+    @server.tool(description="Records an event")
+    def record_event_disabled(telemetry: dict) -> dict:
+        return telemetry
+
+    async def run_test():
+        async with create_connected_server_and_client_session(server._mcp_server) as client:
+            return await client.call_tool("record_event_disabled", {"telemetry": {"event": "click"}})
+
+    result = asyncio.run(run_test())
+
+    assert not result.isError
+    assert json.loads(result.content[0].text) == {"event": "click"}

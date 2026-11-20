@@ -126,24 +126,36 @@ class MCPIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
 
-        for tool in _get_attr(response, "tools", None) or []:
+        tools = _get_attr(response, "tools", None)
+        if not isinstance(tools, list):
+            return
+        for index, tool in enumerate(tools):
             input_schema = _get_attr(tool, "inputSchema", None)
             if not isinstance(input_schema, dict):
                 continue
-            own_telemetry = (input_schema.get("properties") or {}).get(TELEMETRY_KEY)
-            if own_telemetry is not None and own_telemetry != dd_trace_input_schema():
+            if TELEMETRY_KEY in (input_schema.get("properties") or {}):
                 self._tools_with_own_telemetry.add(str(_get_attr(tool, "name", "")))
                 continue
-            if not input_schema.get("type"):
-                input_schema["type"] = "object"
-            if "properties" not in input_schema:
-                input_schema["properties"] = {}
-            if "required" not in input_schema:
-                input_schema["required"] = []
-
-            input_schema["properties"][TELEMETRY_KEY] = dd_trace_input_schema()
-            if config.mcp.capture_intent:
-                input_schema["required"].append(INTENT_KEY)
+            schema = {
+                **input_schema,
+                "type": input_schema.get("type") or "object",
+                "properties": {**(input_schema.get("properties") or {}), TELEMETRY_KEY: dd_trace_input_schema()},
+                "required": [
+                    *(input_schema.get("required") or []),
+                    *([INTENT_KEY] if config.mcp.capture_intent else []),
+                ],
+            }
+            # Servers can validate calls against the listed tool objects, which must keep the tool's own schema
+            try:
+                tools[index] = (
+                    {**tool, "inputSchema": schema}
+                    if isinstance(tool, dict)
+                    else tool.model_copy(update={"inputSchema": schema})
+                )
+            except Exception:
+                log.debug(
+                    "Error adding the telemetry argument to MCP tool %s", _get_attr(tool, "name", ""), exc_info=True
+                )
 
     def _parse_mcp_text_content(self, item: Any) -> dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""
@@ -268,7 +280,7 @@ class MCPIntegration(BaseLLMIntegration):
         """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
         """
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or not (config.mcp.capture_intent or config.mcp.capture_session):
             return
 
         params = _get_attr(request, "params", None)

@@ -412,3 +412,23 @@ def test_tool_with_own_telemetry_argument_is_unchanged(mcp_llmobs, test_spans):
     assert len(result.content) == 1
     server_span = _only(_pop_spans(test_spans), "server_tool_call")
     assert get_llmobs_session_id(server_span) is None
+
+
+def test_own_telemetry_argument_kept_with_capture_disabled(mcp_llmobs, test_spans):
+    from mcp import Client
+    from mcp.server.mcpserver import MCPServer
+
+    server = MCPServer(name="TelemetryServer")
+
+    @server.tool(description="Records an event")
+    def record_event_disabled(telemetry: dict) -> dict:
+        return telemetry
+
+    async def run():
+        async with Client(server, mode="legacy") as client:
+            return await client.call_tool("record_event_disabled", {"telemetry": {"event": "click"}})
+
+    result = asyncio.run(run())
+
+    assert not result.is_error
+    assert json.loads(result.content[0].text) == {"event": "click"}
