@@ -134,7 +134,7 @@ def _after_data_streams_call(ctx, endpoint_name, operation, params, result) -> N
     try:
         if operation == "ReceiveMessage":
             core.dispatch("botocore.sqs.ReceiveMessage.post", (ctx, params, result, False, extract_DD_json))
-        elif operation == "GetRecords":
+        elif operation == "GetRecords" and (params.get("StreamARN") or params.get("StreamName")):
             dispatch_received_records(ctx, params, result, False)
     except Exception:
         log.debug("Unable to set data streams checkpoint for %s.%s", endpoint_name, operation, exc_info=True)

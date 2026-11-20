@@ -1,4 +1,10 @@
+import botocore.session
 import pytest
+
+
+def _kinesis_get_records_accepts_stream_arn():
+    model = botocore.session.get_session().get_service_model("kinesis")
+    return "StreamARN" in model.operation_model("GetRecords").input_shape.members
 
 
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=None)
@@ -91,6 +97,10 @@ def test_data_streams_sns_to_sqs():
     assert in_entries[0][1] == out_entries[0][0]
 
 
+@pytest.mark.skipif(
+    not _kinesis_get_records_accepts_stream_arn(),
+    reason="GetRecords names no stream before botocore added StreamARN, so no consume checkpoint can be set",
+)
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=None)
 def test_data_streams_kinesis_put_and_get():
     import asyncio
@@ -142,6 +152,42 @@ def test_data_streams_kinesis_put_and_get():
     assert out_entries[0][2].payload_size.count == 3
     assert in_entries[0][1] == out_entries[0][0]
     assert in_entries[0][2].payload_size.count == 3
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=b"")
+def test_data_streams_kinesis_get_records_without_stream_sets_no_consume_checkpoint():
+    import asyncio
+    import json
+
+    from ddtrace.contrib.internal.aiobotocore.patch import patch
+    from ddtrace.internal.datastreams import data_streams_processor
+    from tests.contrib.aiobotocore.utils import aiobotocore_client
+    from tests.datastreams.utils import pathway_stats_merged
+
+    patch()
+    stream_name = "aiobotocore-dsm-no-stream"
+
+    async def run():
+        async with aiobotocore_client("kinesis", None) as kinesis:
+            await kinesis.create_stream(StreamName=stream_name, ShardCount=1)
+            shard_id = (await kinesis.describe_stream(StreamName=stream_name))["StreamDescription"]["Shards"][0][
+                "ShardId"
+            ]
+            await kinesis.put_record(StreamName=stream_name, Data=json.dumps({"id": 1}), PartitionKey="1")
+            iterator = (
+                await kinesis.get_shard_iterator(
+                    StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON"
+                )
+            )["ShardIterator"]
+            records = (await kinesis.get_records(ShardIterator=iterator))["Records"]
+            await kinesis.delete_stream(StreamName=stream_name)
+            return records
+
+    records = asyncio.run(run())
+
+    assert len(records) == 1
+    tags = {tags for (tags, _, _) in pathway_stats_merged(data_streams_processor())}
+    assert tags == {"direction:out,topic:%s,type:kinesis" % stream_name}, tags
 
 
 @pytest.mark.subprocess(err=None)
