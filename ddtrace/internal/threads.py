@@ -109,32 +109,40 @@ class BootGate:
     """
 
     def __init__(self) -> None:
-        self._condition = _threading.Condition()
         self._open = True
+        # Held targets wait on queues from _queue, which green-thread libraries do not patch: once eventlet patches
+        # threading before ddtrace loads, a lock released from another OS thread never wakes its waiter.
+        self._wakeups: list[SimpleQueue[None]] = []
 
     def is_open(self) -> bool:
         return self._open
 
     def wait(self, target: "_GatedTarget") -> None:
         """Wait until the gate opens or the target is released."""
-        with self._condition:
+        # Register before checking, so that open() and release() either see the queue or are seen by the check.
+        wakeup: SimpleQueue[None] = SimpleQueue()
+        target.wakeup = wakeup
+        self._wakeups.append(wakeup)
+        try:
             while not (self._open or target.released):
-                self._condition.wait()
+                wakeup.get()
+        finally:
+            self._wakeups.remove(wakeup)
+            target.wakeup = None
 
     def release(self, target: "_GatedTarget") -> None:
         """Let a single held target through, e.g. to join its thread, while the gate stays closed."""
-        with self._condition:
-            target.released = True
-            self._condition.notify_all()
+        target.released = True
+        if (wakeup := target.wakeup) is not None:
+            wakeup.put(None)
 
     def close(self) -> None:
-        with self._condition:
-            self._open = False
+        self._open = False
 
     def open(self) -> None:
-        with self._condition:
-            self._open = True
-            self._condition.notify_all()
+        self._open = True
+        for wakeup in list(self._wakeups):
+            wakeup.put(None)
 
     @contextmanager
     def held(self) -> t.Iterator[None]:
@@ -158,6 +166,7 @@ class _GatedTarget:
         self._one_shot = one_shot
         self.stop_requested = False
         self.released = False
+        self.wakeup: t.Optional[SimpleQueue[None]] = None
 
     def __call__(self) -> object:
         if not boot_gate.is_open():

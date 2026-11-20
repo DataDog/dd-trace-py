@@ -459,6 +459,60 @@ def test_fork_with_boot_gate_closed_keeps_it_closed():
 
 
 @pytest.mark.subprocess(timeout=30)
+def test_boot_gate_wakes_threads_when_threading_is_patched_before_ddtrace_loads():
+    """Like eventlet.monkey_patch() before import ddtrace.auto: threading locks cannot wake another OS thread."""
+    from _queue import SimpleQueue
+    import _thread
+    import threading
+
+    real_allocate_lock = threading._allocate_lock
+
+    class GreenLock:
+        """A release from an OS thread other than the creator's is lost, as with eventlet locks."""
+
+        def __init__(self):
+            self._lock = real_allocate_lock()
+            self._creator = _thread.get_ident()
+
+        def acquire(self, blocking=True, timeout=-1):
+            return self._lock.acquire(blocking, timeout)
+
+        def release(self):
+            if _thread.get_ident() == self._creator:
+                self._lock.release()
+
+        def locked(self):
+            return self._lock.locked()
+
+        __enter__ = acquire
+
+        def __exit__(self, *exc_info):
+            self.release()
+
+    threading._allocate_lock = GreenLock
+
+    from ddtrace.internal import threads
+
+    ran = SimpleQueue()
+    threads.boot_gate.close()
+
+    held = threads.PeriodicThread(60, lambda: ran.put("held"), name="test-held-when-patched", no_wait_at_start=True)
+    joined = threads.Thread(target=lambda: ran.put("joined"), name="test-joined-when-patched")
+    held.start()
+    joined.start()
+
+    # Joining releases the joined thread, and opening the gate the others, from the main OS thread.
+    joined.join()
+    assert ran.get(timeout=10) == "joined"
+
+    threads.boot_gate.open()
+    assert ran.get(timeout=10) == "held"
+
+    held.stop()
+    held.join()
+
+
+@pytest.mark.subprocess(timeout=30)
 def test_stopped_periodic_thread_is_freed_without_gc():
     import gc
     import weakref
