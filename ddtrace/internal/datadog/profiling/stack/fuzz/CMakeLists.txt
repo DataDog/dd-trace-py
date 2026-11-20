@@ -33,7 +33,7 @@ function(add_fuzz_target TARGET_NAME)
     target_include_directories(
         ${TARGET_NAME} SYSTEM
         PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
-                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
+                ../../../../../../src/profiling_ffi/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
 
     # Ensure echion headers take the fuzz hook in vm.h
     target_compile_definitions(${TARGET_NAME} PRIVATE ECHION_FUZZING)
@@ -74,8 +74,8 @@ function(add_fuzz_target TARGET_NAME)
         target_link_libraries(${TARGET_NAME} PRIVATE ${Python3_LIBRARIES})
     endif()
 
-    # Set RPATH so the fuzz binary can find dd_wrapper, libpython, and _native at runtime. $ORIGIN allows finding shared
-    # libraries co-located with the binary (e.g. in /fuzzer/builds/).
+    # Set RPATH so the fuzz binary can find dd_wrapper, libpython, and _profiling_ffi at runtime. $ORIGIN allows finding
+    # shared libraries co-located with the binary (e.g. in /fuzzer/builds/).
     if(LIB_INSTALL_DIR)
         set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "$ORIGIN;${LIB_INSTALL_DIR}"
                                                         INSTALL_RPATH "$ORIGIN;${LIB_INSTALL_DIR}")

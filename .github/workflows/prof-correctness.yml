@@ -11,7 +11,7 @@ on:
       - ddtrace/internal/datadog/profiling/**
       - ddtrace/internal/profiling/**
       - ddtrace/profiling/**
-      - src/native/**
+      - src/profiling_ffi/**
   workflow_dispatch:
     inputs:
       commit_sha:

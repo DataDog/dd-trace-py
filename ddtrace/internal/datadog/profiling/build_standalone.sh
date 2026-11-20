@@ -111,7 +111,7 @@ cmake_args=(
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
   -DDD_WRAPPER_DIR=$(realpath $MY_DIR)/lib
   -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)")
-  -DNATIVE_EXTENSION_LOCATION=$(realpath $MY_DIR)/../../native
+  -DPROFILING_FFI_LOCATION=$(realpath $MY_DIR)
   -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 )
 
@@ -387,11 +387,11 @@ add_target() {
   esac
 }
 
-#Build rust dependencies
+#Build the profiling FFI library (libdatadog's ddog_prof_* API) and its headers
 build_rust() {
     echo "Building Rust dependencies"
-    pip3 install cmake setuptools_rust cython
-    DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
+    pip3 install cmake cython
+    DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_profiling_ffi --inplace
 }
 
 ### ENTRYPOINT

@@ -105,7 +105,6 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/internal/settings/_config.py
-    - src/native/*
 suites:
   span:
     paths:
@@ -422,7 +421,6 @@ suites:
     type: 'microbenchmark'
   rand:
     paths:
-      - 'src/native/rand.rs'
       - benchmarks/rand/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -468,7 +466,6 @@ suites:
       - ddtrace/internal/openfeature/_native.py
       - ddtrace/internal/openfeature/_provider.py
       - ddtrace/internal/openfeature/_split_features.py
-      - 'src/native/ffe.rs'
       - benchmarks/openfeature_flagevaluation/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1

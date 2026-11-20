@@ -765,7 +765,7 @@ prof-correctness:
         - .gitlab/scripts/gh-retry.sh
         - ddtrace/internal/datadog/profiling/**/*
         - ddtrace/profiling/**/*
-        - src/native/**/*
+        - src/profiling_ffi/**/*
     - when: manual
       allow_failure: true
   id_tokens:
@@ -914,11 +914,10 @@ profiling_native:
         - ddtrace/internal/datadog/profiling/**/*.supp
         - ddtrace/profiling/**/CMakeLists.txt
         # Rust source (build_standalone.sh compiles Rust first; CMake links
-        # against generated FFI headers from src/native/target/.../include/)
-        - src/native/**/*.rs
-        - src/native/**/*.toml
-        - src/native/**/*.txt
-        - src/native/**/Cargo.lock
+        # against generated FFI headers from src/profiling_ffi/target/.../include/)
+        - src/profiling_ffi/**/*.rs
+        - src/profiling_ffi/**/*.toml
+        - src/profiling_ffi/**/Cargo.lock
         # Standalone heap-gotter cdylib crate (opt-in build via setup.py)
         - src/native_heap_gotter/**/*.rs
         - src/native_heap_gotter/**/*.toml
