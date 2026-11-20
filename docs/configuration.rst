@@ -953,7 +953,7 @@ AI Guard
        no call check. The non-streaming tool runner calls ``messages.parse``, which is not instrumented,
        so its MCP tool calls are checked without the conversation that requested them.
 
-       LangChain tool calls to MCP tools loaded with langchain-mcp-adapters (0.2.0 or later) are
+       LangChain tool calls to MCP tools loaded with ``langchain-mcp-adapters`` (0.2.0 or later) are
        evaluated with their MCP server: its configured name, transport, the scheme, host and port of
        its URL or, for stdio servers, the command and package or module name, and the tools called
        through it. Calls made outside an agent are evaluated before the MCP request is sent. Headers,
