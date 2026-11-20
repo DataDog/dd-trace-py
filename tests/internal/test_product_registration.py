@@ -51,8 +51,6 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
     assert "ddtrace._trace.trace_handlers" not in sys.modules
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
-    assert not core.has_listeners("context.started.flask.request")
-    assert not core.has_listeners("context.ended.flask.request")
     assert not core.has_listeners("web.response")
     assert not core.has_listeners("context.exception")
 
@@ -60,8 +58,6 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
 
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("context.started.flask.request")
-    assert core.has_listeners("context.ended.flask.request")
     assert core.has_listeners("web.response")
     assert core.has_listeners("context.exception")
 
@@ -71,7 +67,6 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     import sys
 
     from ddtrace._trace import product  # noqa: F401
-    from ddtrace._trace._registration import FLASK_REQUEST_SUBSCRIBERS
     from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
     from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
     from ddtrace._trace._registration import subscriber_bundles
@@ -80,8 +75,6 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
     assert subscriber_bundles[:2] == (WEB_FRAMEWORK_SUBSCRIBERS, SPAN_EXCEPTION_SUBSCRIBERS)
     assert all(bundle.module not in sys.modules for bundle in subscriber_bundles)
-    assert "ddtrace._trace.subscribers.flask" not in sys.modules
-    assert subscriber_bundles[2] is FLASK_REQUEST_SUBSCRIBERS
 
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
@@ -92,14 +85,11 @@ def test_tracing_product_start_registers_unloaded_subscribers() -> None:
     from ddtrace.internal import core
 
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
-    assert "ddtrace._trace.subscribers.flask" not in sys.modules
     assert not core.has_listeners("context.started.web.request")
     product.start()
     product.start()
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("context.started.flask.request")
-    assert core.has_listeners("context.ended.flask.request")
     assert core.has_listeners("web.response")
     assert core.has_listeners("context.exception")
 
@@ -133,7 +123,5 @@ def test_subscriber_package_import_activates_manual_request_bundles() -> None:
 
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("context.started.flask.request")
-    assert core.has_listeners("context.ended.flask.request")
     assert core.has_listeners("web.response")
     assert not core.has_listeners("context.exception")

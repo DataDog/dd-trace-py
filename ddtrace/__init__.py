@@ -61,11 +61,10 @@ else:
     # Manual WSGI/Flask instrumentation still needs request listeners. Wait for
     # the package to finish loading so subscriber imports see ready dependencies.
     def _register_manual_request_subscribers(_module: object) -> None:
-        from ddtrace._trace._registration import FLASK_REQUEST_SUBSCRIBERS
         from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
         from ddtrace._trace._registration import register_subscribers
 
-        register_subscribers((WEB_FRAMEWORK_SUBSCRIBERS, FLASK_REQUEST_SUBSCRIBERS))
+        register_subscribers((WEB_FRAMEWORK_SUBSCRIBERS,))
 
     _when_imported("ddtrace._trace.subscribers")(_register_manual_request_subscribers)
 

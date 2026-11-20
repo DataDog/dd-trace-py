@@ -213,8 +213,6 @@ class _DDWSGIMiddlewareBase:
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    _request_context_name: Optional[str] = None
-
     def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> _WSGIResponseIterable:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
@@ -244,7 +242,7 @@ class _DDWSGIMiddlewareBase:
             activate_distributed_headers=True,
             measured=False,
         )
-        ctx = core.context_with_event(event, context_name_override=self._request_context_name, dispatch_end_event=False)
+        ctx = core.context_with_event(event, dispatch_end_event=False)
         # Span processors consume these values synchronously during subscriber span creation.
         ctx.set_items(
             {

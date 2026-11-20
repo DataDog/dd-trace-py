@@ -25,8 +25,10 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 
-class WebFrameworkRequestSubscriberBase(TracingSubscriber[WebFrameworkRequestEvent]):
-    """Shared request ownership, including responses that outlive the application call."""
+class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent]):
+    """Shared tracing and deferred request ownership for web framework integrations."""
+
+    event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
     def _on_context_ended(
@@ -54,12 +56,6 @@ class WebFrameworkRequestSubscriberBase(TracingSubscriber[WebFrameworkRequestEve
                 response_span.finish()
         finally:
             super()._on_context_ended(ctx, (None, None, None))
-
-
-class WebFrameworkRequestSubscriber(WebFrameworkRequestSubscriberBase):
-    """Shared tracing logic for web framework integrations."""
-
-    event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:

@@ -67,8 +67,8 @@ subscriber package finishes loading through contrib; product startup activates i
 the product manager.
 All subscriber classes require explicit registration; class definitions only collect handlers.
 The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
-including explicitly deferred global tracer creation. Deferred initialization activates web and Flask request
-bundles after the subscriber package finishes loading; span exception activation still requires product startup.
+including explicitly deferred global tracer creation. Deferred initialization activates the web request
+bundle after the subscriber package finishes loading; span exception activation still requires product startup.
 The generic span bundle registers `TracingSubscriber` directly. Custom subclasses must
 call `register()` or be included in a bundle activated by their owning product.
 Ray's SDK-dependent bundle is activated by a tracing-owned import hook after its integration patch
@@ -83,7 +83,8 @@ request finishes: connection tasks can remain alive across keep-alive requests.
 Do not retain exception objects in deferred callbacks; record errors synchronously
 and allow cancellation to complete without requiring a response or tagging it as an error.
 
-Flask and WSGI defer their shared request context through response iteration.
+Flask and WSGI use the same web request subscriber and defer their shared request context
+through response iteration.
 The iterable reports completion without owning spans; `WebFrameworkResponseEvent`
 lets tracing create the response child. Request metadata is applied before public span modifiers;
 deferred WSGI completion applies response-only metadata to preserve overrides and redactions.
