@@ -9,6 +9,7 @@ import pytest
 from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_server_id
 from ddtrace.aiguard.integrations._mcp import mcp_url_origin
+from ddtrace.aiguard.integrations._mcp import safe_stdio_args
 
 
 @pytest.mark.parametrize(
@@ -147,3 +148,15 @@ def test_stdio_command_path_vector():
 def test_stdio_command_without_program_name_uses_the_next_key():
     assert mcp_server("client", "stdio", command="/usr/bin/") is None
     assert mcp_server("client", "stdio", command="/usr/bin/", name="atlassian")["id"] == mcp_server_id(name="atlassian")
+
+
+def test_stdio_drive_relative_command_keeps_its_drive_prefix():
+    """Cross-tracer vector: no drive-letter handling, so c:npx is not taken for npx and no argument is sent."""
+    server = mcp_server("client", "stdio", command="C:npx", args=safe_stdio_args("C:npx", ["-y", "private-value"]))
+    assert server == {
+        "id": "mcp_728353ed9e10df60",
+        "managed_by": "client",
+        "transport": "stdio",
+        "command": "c:npx",
+        "tools": {},
+    }

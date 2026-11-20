@@ -251,9 +251,8 @@ _PYTHON_MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*
 def stdio_program(command: str) -> str:
     """Program name of a stdio command: its last path segment on a slash or a backslash, lowercase, no .exe/.cmd.
 
-    A full path can hold the user name and changes from machine to machine, so it is never sent nor hashed.
+    A full path can hold the user name, so it is never sent; no drive-letter rule, so all tracers and OSes agree.
     """
-    command = re.sub(r"^[A-Za-z]:", "", command)
     program = command[max(command.rfind("/"), command.rfind("\\")) + 1 :].lower()
     for suffix in (".exe", ".cmd"):
         if program.endswith(suffix):
