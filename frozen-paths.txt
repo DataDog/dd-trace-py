@@ -13,3 +13,17 @@ ddtrace/internal/utils/paths.py=5c45881809464d6ac424ccb2d3de5b7740d284e02f992c6b
 ddtrace/internal/utils/obfuscation.py=63865aa2f9639dd32ff77f0225356b0ec7dd5a374c4412f489c55e0ce84f1efc
 ddtrace/internal/compat.py=96128d1b80b75fe10dc995719afb24d0714b7dbc44580633d1c4f82a72595f2c
 ddtrace/internal/assembly.py=d2d10bda9935ce335ee019d9ef0912d64cfa0588716b45b23758429364f9ffe5
+ddtrace/internal/coverage/__init__.py=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+ddtrace/internal/coverage/coverage_lines.py=33a9c32584aef44fff66a1037ed97377e650332b799c689de73a341636140aa5
+ddtrace/internal/coverage/import_instrumentation_py3_12.py=f7b2af583ddb04482099c338e644220aa81fe026321a50b277891d6d0ce08d85
+ddtrace/internal/coverage/installer.py=5a9afa09ff00ee6460b9dc0d5bf0a141b8cd3c55750420a4d440f9ed7855e1f1
+ddtrace/internal/coverage/instrumentation_py3_16.py=7f5949eb0049cb26f1f8b77838179add2932ed0414e23a368505912270ffb675
+ddtrace/internal/coverage/instrumentation_py3_9.py=e5c972c60d40fc04708825d735b2cff481b205a621dfc595967a74df8b0e3d2a
+ddtrace/internal/coverage/report.py=b2cce62438b35326e3837464dde707fd6deb39b24d9ef9b8e2c5ebb64b0f7825
+# Not frozen yet, to avoid blocking open PRs on main. Freeze once the blocker lands:
+#   ddtrace/internal/utils/time.py, ddtrace/internal/logger.py: after the changes in #21968 and #21789 merge
+#   ddtrace/internal/settings/env.py: after the env registry injection branch (gnufede/env-registry-injection) merges
+#   ddtrace/internal/module.py: after #21428 and #21431 merge
+#   ddtrace/internal/coverage/{instrumented_mode,util}.py: after #21405 merges
+#   remaining ddtrace/internal/coverage/*.py and ddtrace/internal/bytecode_injection/core.py: when the coverage
+#   draft PRs (#20360, #21294, #21331, #21361, #21362, #21385, #21891) are merged, closed or rebased
