@@ -10,9 +10,9 @@ from typing import Callable
 from typing import Iterable
 from typing import Optional
 
+from ddtrace._trace.events import WebFrameworkResponseEvent
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkResponseEvent
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context

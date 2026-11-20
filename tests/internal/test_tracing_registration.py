@@ -23,6 +23,27 @@ def test_deferred_global_initialization_keeps_registration_imports_lazy() -> Non
         assert module not in sys.modules, module
 
 
+@pytest.mark.subprocess(
+    env={
+        "_DD_GLOBAL_TRACER_INIT": "false",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": None,
+    }
+)
+def test_web_response_contract_does_not_import_contrib() -> None:
+    import sys
+
+    from ddtrace._trace.events import WebFrameworkResponseEvent
+    from ddtrace.internal import core
+
+    assert WebFrameworkResponseEvent.event_name == "web.response"
+    assert not any(name == "ddtrace.contrib" or name.startswith("ddtrace.contrib.") for name in tuple(sys.modules))
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    assert "ddtrace.trace" not in sys.modules
+    assert not core.has_listeners("web.response")
+    assert not core.has_listeners("context.started.web.request")
+
+
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
 def test_tracing_subscriber_definitions_do_not_register_listeners() -> None:
     from importlib import import_module

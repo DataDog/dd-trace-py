@@ -85,8 +85,10 @@ and allow cancellation to complete without requiring a response or tagging it as
 
 Flask and WSGI use the same web request subscriber and defer their shared request context
 through response iteration.
-The iterable reports completion without owning spans; `WebFrameworkResponseEvent`
-lets tracing create the response child. Request metadata is applied before public span modifiers;
+The iterable reports completion without owning spans; the tracing-owned
+`ddtrace._trace.events.WebFrameworkResponseEvent` lets tracing create the response child.
+Keep new tracing lifecycle contracts outside contrib so subscriber initialization does not
+add tracing-to-integration imports. Request metadata is applied before public span modifiers;
 deferred WSGI completion applies response-only metadata to preserve overrides and redactions.
 Keep application-return security cleanup
 separate from response completion: AppSec and IAST consume

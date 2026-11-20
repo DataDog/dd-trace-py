@@ -181,8 +181,9 @@ Flask and WSGI use the shared web request subscriber and one deferred
 `WebFrameworkRequestEvent` context. Application
 return emits `wsgi.application.returned` while that context is still current, so
 AppSec and IAST finalize at their existing boundary before response iteration.
-`WebFrameworkResponseEvent` describes the returned response; tracing creates its
-response child span. WSGI completion applies only response metadata so application request-tag
+`WebFrameworkResponseEvent` in `ddtrace._trace.events` describes the returned response;
+tracing creates its response child span. This tracing-owned contract uses a base
+`TracingEvent` context rather than importing integration-owned request event types. WSGI completion applies only response metadata so application request-tag
 overrides and redactions survive streaming and cleanup. The response iterable reports exhaustion, failure, and early
 closure by completing the request context. Tracing finishes the response span
 before the request span, preserving response-only error attribution for streaming
