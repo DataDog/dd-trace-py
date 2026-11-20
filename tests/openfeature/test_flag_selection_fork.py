@@ -1,11 +1,8 @@
 """Flag selection in forked children: the claim, inherited lifecycle bookkeeping, once-per-process diagnostics."""
 
-import json
 import threading
-import time
 from unittest import mock
 
-from openfeature.evaluation_context import EvaluationContext
 import pytest
 
 from ddtrace.internal.openfeature import _flag_selection
@@ -14,9 +11,6 @@ from ddtrace.internal.openfeature._flag_selection import claim_process_selection
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.openfeature.flag_selection_helpers import _create_source
 from tests.openfeature.flag_selection_helpers import _FakeResponse
-from tests.openfeature.flag_selection_helpers import _initialize_quietly
-from tests.openfeature.flag_selection_helpers import _on_recovery
-from tests.openfeature.flag_selection_helpers import _poll_without_configuration
 from tests.openfeature.flag_selection_helpers import _provider
 from tests.openfeature.flag_selection_helpers import _ufc_body
 
@@ -69,48 +63,20 @@ def test_once_per_process_guards_reset_in_a_forked_child():
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
 
 
-def _child_dropped_counts(flag_selection):
-    """Start a source for ``flag_selection``, fork, and return the dropped counts the child records."""
-    import os
-
-    with (
-        mock.patch.object(_flag_selection, "log"),
-        mock.patch.object(_flag_selection, "telemetry_writer"),
-    ):
-        _create_source(flag_selection)
-
-    read_fd, write_fd = os.pipe()
-    pid = os.fork()
-    if pid == 0:
-        os.close(read_fd)
-        with (
-            mock.patch.object(_flag_selection, "log") as log,
-            mock.patch.object(_flag_selection, "telemetry_writer") as telemetry_writer,
-        ):
-            _flag_selection.count_inherited_drop()
-            _flag_selection.count_inherited_drop()
-        calls = telemetry_writer.add_count_metric.call_args_list
-        result = {"counts": [list(c.args[1:2]) + [dict(c.args[3])] for c in calls]}
-        result["logged"] = log.error.call_count + log.warning.call_count
-        os.write(write_fd, json.dumps(result).encode())
-        os._exit(0)
-
-    os.close(write_fd)
-    with os.fdopen(read_fd) as reader:
-        output = reader.read()
-    _, status = os.waitpid(pid, 0)
-    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
-    return json.loads(output)
-
-
+@pytest.mark.subprocess(err=None)
 def test_forked_child_counts_an_inherited_dropped_selection_once():
+    from tests.openfeature.flag_selection_helpers import _child_dropped_counts
+
     assert _child_dropped_counts({"tags": ["t" * 201]}) == {
         "counts": [["flag_selection.dropped", {"reason": "invalid_tag"}]],
         "logged": 0,
     }
 
 
+@pytest.mark.subprocess(err=None)
 def test_forked_child_does_not_count_a_sent_selection():
+    from tests.openfeature.flag_selection_helpers import _child_dropped_counts
+
     assert _child_dropped_counts({"tags": ["a"]}) == {"counts": [], "logged": 0}
 
 
@@ -181,66 +147,96 @@ def test_forked_child_drops_a_start_reservation_from_the_parent():
     provider._retired_configuration_sources = []
 
 
-def test_fork_while_a_poller_stopped_from_inside_its_poll_finishes_it_releases_the_claim(cdn, api_key, monkeypatch):
-    provider = _provider({"tags": ["a"]}, timeout=0.3)
-    other = canonicalize_flag_selection({"tags": ["b"]})
-    _poll_without_configuration(provider, cdn, monkeypatch)
-    stopped, finish = threading.Event(), threading.Event()
+@pytest.mark.subprocess(err=None)
+def test_fork_while_a_poller_stopped_from_inside_its_poll_finishes_it_releases_the_claim():
+    import threading
+    import time
 
-    def shut_down_and_hold(*args, **kwargs):
-        provider.shutdown()
-        stopped.set()
-        finish.wait(timeout=5)
+    import pytest
 
-    def released():
-        # The thread module restarts the stopped poller after the fork only to run its exit, which releases the claim.
-        deadline = time.monotonic() + 5
-        while _flag_selection._claim_count and time.monotonic() < deadline:
-            threading.Event().wait(0.01)
-        return _flag_selection._claim_count == 0 and claim_process_selection(other) == other
+    from ddtrace.internal.openfeature import _flag_selection
+    from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
+    from ddtrace.internal.openfeature._flag_selection import claim_process_selection
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
+    from tests.openfeature.flag_selection_helpers import _forked_child_status
+    from tests.openfeature.flag_selection_helpers import _on_recovery
+    from tests.openfeature.flag_selection_helpers import _poll_without_configuration
+    from tests.openfeature.flag_selection_helpers import _provider
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
 
-    # The fork joins the poller before it forks, so the poll ends while the fork waits for it.
-    ending = threading.Timer(0.3, finish.set)
-    try:
-        _on_recovery(provider, cdn, monkeypatch, shut_down_and_hold)
-        assert stopped.wait(timeout=5)
-        ending.start()
-        assert _forked_child_status(released) == 0
-        assert released()
-    finally:
-        finish.set()
-        ending.cancel()
-        provider.shutdown()
+    with pytest.MonkeyPatch.context() as monkeypatch, _serving_cdn(monkeypatch) as cdn, _agentless_api_key():
+        provider = _provider({"tags": ["a"]}, timeout=0.3)
+        other = canonicalize_flag_selection({"tags": ["b"]})
+        _poll_without_configuration(provider, cdn, monkeypatch)
+        stopped, finish = threading.Event(), threading.Event()
+
+        def shut_down_and_hold(*args, **kwargs):
+            provider.shutdown()
+            stopped.set()
+            finish.wait(timeout=5)
+
+        def released():
+            # The thread module restarts the stopped poller after the fork only to run its exit, which releases the
+            # claim.
+            deadline = time.monotonic() + 5
+            while _flag_selection._claim_count and time.monotonic() < deadline:
+                threading.Event().wait(0.01)
+            return _flag_selection._claim_count == 0 and claim_process_selection(other) == other
+
+        # The fork joins the poller before it forks, so the poll ends while the fork waits for it.
+        ending = threading.Timer(0.3, finish.set)
+        try:
+            _on_recovery(provider, cdn, monkeypatch, shut_down_and_hold)
+            assert stopped.wait(timeout=5)
+            ending.start()
+            assert _forked_child_status(released) == 0
+            assert released()
+        finally:
+            finish.set()
+            ending.cancel()
+            provider.shutdown()
 
 
-def test_child_forked_while_running_keeps_the_claim_until_its_own_shutdown(cdn, api_key):
-    import os
-    import warnings
+@pytest.mark.subprocess(err=None)
+def test_child_forked_while_running_keeps_the_claim_until_its_own_shutdown():
+    from openfeature.evaluation_context import EvaluationContext
+    import pytest
 
-    provider = _provider({"tags": ["a"]})
-    other = canonicalize_flag_selection({"tags": ["b"]})
-    try:
-        provider.initialize(EvaluationContext())
-        with warnings.catch_warnings():
-            # CPython 3.12+ warns when a multi-threaded process forks.
-            warnings.simplefilter("ignore", DeprecationWarning)
-            pid = os.fork()
-        if pid == 0:
-            try:
-                kept = provider._configuration_source is not None and claim_process_selection(other).tags == ("a",)
-                _flag_selection.release_process_selection()
-                provider.shutdown()
-                released = provider._configuration_source is None and claim_process_selection(other) == other
-                os._exit(0 if kept and released else 1)
-            except BaseException:
-                os._exit(2)
+    from ddtrace.internal.openfeature import _flag_selection
+    from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
+    from ddtrace.internal.openfeature._flag_selection import claim_process_selection
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
+    from tests.openfeature.flag_selection_helpers import _provider
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
 
-        _, status = os.waitpid(pid, 0)
-        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
-        assert claim_process_selection(other).tags == ("a",)
-        _flag_selection.release_process_selection()
-    finally:
-        provider.shutdown()
+    with pytest.MonkeyPatch.context() as monkeypatch, _serving_cdn(monkeypatch), _agentless_api_key():
+        import os
+        import warnings
+
+        provider = _provider({"tags": ["a"]})
+        other = canonicalize_flag_selection({"tags": ["b"]})
+        try:
+            provider.initialize(EvaluationContext())
+            with warnings.catch_warnings():
+                # CPython 3.12+ warns when a multi-threaded process forks.
+                warnings.simplefilter("ignore", DeprecationWarning)
+                pid = os.fork()
+            if pid == 0:
+                try:
+                    kept = provider._configuration_source is not None and claim_process_selection(other).tags == ("a",)
+                    _flag_selection.release_process_selection()
+                    provider.shutdown()
+                    released = provider._configuration_source is None and claim_process_selection(other) == other
+                    os._exit(0 if kept and released else 1)
+                except BaseException:
+                    os._exit(2)
+
+            _, status = os.waitpid(pid, 0)
+            assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+            assert claim_process_selection(other).tags == ("a",)
+            _flag_selection.release_process_selection()
+        finally:
+            provider.shutdown()
 
 
 def _parent_operation(provider, teardown, source=None, reserved=(), started=False):
@@ -337,211 +333,191 @@ def test_forked_child_leaves_pollers_a_teardown_had_not_reserved():
     _flag_selection.release_process_selection()
 
 
-def _forked_child_status(check):
-    """Fork, run ``check`` in the child, and return the child's exit status: 0 when ``check`` returns True."""
+@pytest.mark.subprocess(
+    err=None,
+    parametrize={"POLLER_STARTED": ["claimed", "poller-started"], "WAIT_EXPIRES": ["finishes", "wait-expires"]},
+)
+def test_fork_during_a_start_leaves_the_child_a_correct_claim():
     import os
-    import tempfile
-    import traceback
-    import warnings
+    import threading
 
-    with tempfile.NamedTemporaryFile(prefix="fork-child-", delete=False) as report:
-        path = report.name
-    with warnings.catch_warnings():
-        # CPython 3.12+ warns when a multi-threaded process forks.
-        warnings.simplefilter("ignore", DeprecationWarning)
-        pid = os.fork()
-    if pid == 0:
-        try:
-            os._exit(0 if check() else 1)
-        except BaseException:
-            with open(path, "w") as out:
-                out.write(traceback.format_exc())
-            os._exit(2)
-    _, status = os.waitpid(pid, 0)
-    with open(path) as written:
-        raised = written.read()
-    os.unlink(path)
-    # The child's stderr does not reach every test runner's capture, so its traceback is reported from here.
-    assert not raised, raised
-    return os.WEXITSTATUS(status) if os.WIFEXITED(status) else -1
+    import pytest
 
+    from ddtrace.internal.openfeature import _flag_selection
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
+    from tests.openfeature.flag_selection_helpers import _child_selection_released
+    from tests.openfeature.flag_selection_helpers import _fork_during
+    from tests.openfeature.flag_selection_helpers import _initialize_quietly
+    from tests.openfeature.flag_selection_helpers import _poller_runs
+    from tests.openfeature.flag_selection_helpers import _provider
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
 
-def _poller_runs(source, timeout):
-    """Whether the source's poller thread runs within ``timeout``.
+    wait_expires = os.environ["WAIT_EXPIRES"] == "wait-expires"
+    poller_started = os.environ["POLLER_STARTED"] == "poller-started"
 
-    In a forked child the thread module restarts inherited periodic threads after a 100 ms quiet period.
-    """
-    from ddtrace.internal._threads import periodic_threads
+    with pytest.MonkeyPatch.context() as monkeypatch, _serving_cdn(monkeypatch), _agentless_api_key():
+        import ddtrace.internal.openfeature._source_selection as source_selection
 
-    deadline = time.monotonic() + timeout
-    while True:
-        if any(thread is source._worker for thread in list(periodic_threads.values())):
-            return True
-        if time.monotonic() >= deadline:
-            return False
-        threading.Event().wait(0.02)
+        provider = _provider({"tags": ["a"]})
+        create = source_selection.create_agentless_source
+        holding = threading.Event()
+        resume = threading.Event()
+        created = []
 
+        def create_then_hold(*args, **kwargs):
+            source = create(*args, **kwargs)
+            created.append(source)
+            if not poller_started:
+                holding.set()
+                resume.wait(timeout=5)
+                return source
+            start = source.start
 
-def _child_selection_released(provider):
-    """Stop the inherited provider's poller in the child and check that the next claim takes a new selection.
+            def start_then_hold():
+                start()
+                holding.set()
+                resume.wait(timeout=5)
 
-    Only the poller is stopped: the fork may land while the initializing thread is still starting the writers.
-    """
-    other = canonicalize_flag_selection({"tags": ["b"]})
-    provider._stop_configuration_source()
-    released = _flag_selection._claim_count == 0 and claim_process_selection(other) == other
-    _flag_selection.release_process_selection()
-    return released
-
-
-def _fork_during(hold_released_by, monkeypatch, wait_expires, check):
-    """Fork while a start or teardown is held, letting it finish during the fork's wait unless the wait expires."""
-    import ddtrace.internal.openfeature._provider as provider_module
-
-    if wait_expires:
-        monkeypatch.setattr(provider_module, "_FORK_WAIT_SECONDS", 0.05)
-        status = _forked_child_status(check)
-        hold_released_by.set()
-    else:
-        # The fork is already waiting when the held operation is let go; a slow runner must not make it give up.
-        monkeypatch.setattr(provider_module, "_FORK_WAIT_SECONDS", 5.0)
-        threading.Timer(0.2, hold_released_by.set).start()
-        status = _forked_child_status(check)
-    return status
-
-
-@pytest.mark.parametrize("wait_expires", [False, True], ids=["finishes", "wait-expires"])
-@pytest.mark.parametrize("poller_started", [False, True], ids=["claimed", "poller-started"])
-def test_fork_during_a_start_leaves_the_child_a_correct_claim(cdn, api_key, monkeypatch, wait_expires, poller_started):
-    import ddtrace.internal.openfeature._source_selection as source_selection
-
-    provider = _provider({"tags": ["a"]})
-    create = source_selection.create_agentless_source
-    holding = threading.Event()
-    resume = threading.Event()
-    created = []
-
-    def create_then_hold(*args, **kwargs):
-        source = create(*args, **kwargs)
-        created.append(source)
-        if not poller_started:
-            holding.set()
-            resume.wait(timeout=5)
+            source.start = start_then_hold
             return source
-        start = source.start
 
-        def start_then_hold():
-            start()
-            holding.set()
-            resume.wait(timeout=5)
-
-        source.start = start_then_hold
-        return source
-
-    monkeypatch.setattr(source_selection, "create_agentless_source", create_then_hold)
-    starting = threading.Thread(target=lambda: _initialize_quietly(provider))
-    starting.start()
-
-    def check():
-        if wait_expires:
-            # The start was still inside source.start() or before it: none of its pollers runs and its claim is gone.
-            unowned = poller_started and _poller_runs(created[0], 0.4)
-            reset = provider._configuration_source is None and not provider._configuration_source_operations
-            return reset and not unowned and _child_selection_released(provider)
-        stored = provider._configuration_source is created[0] and _flag_selection._claim_count == 1
-        running = not poller_started or _poller_runs(created[0], 2.0)
-        return stored and running and _child_selection_released(provider)
-
-    try:
-        assert holding.wait(timeout=5)
-        assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
-    finally:
-        resume.set()
-        starting.join(timeout=5)
-        provider.shutdown()
-
-
-@pytest.mark.parametrize("wait_expires", [False, True], ids=["finishes", "wait-expires"])
-def test_fork_during_a_teardown_leaves_the_child_a_correct_claim(cdn, api_key, monkeypatch, wait_expires):
-    provider = _provider({"tags": ["a"]})
-    joined = threading.Event()
-    resume = threading.Event()
-    stopping = None
-    try:
-        provider.initialize(EvaluationContext())
-        source = provider._configuration_source
-        join = source.join
-
-        def join_then_hold(*args, **kwargs):
-            join(*args, **kwargs)
-            joined.set()
-            resume.wait(timeout=5)
-
-        monkeypatch.setattr(source, "join", join_then_hold)
-        stopping = threading.Thread(target=provider.shutdown)
-        stopping.start()
-        assert joined.wait(timeout=5)
+        monkeypatch.setattr(source_selection, "create_agentless_source", create_then_hold)
+        starting = threading.Thread(target=lambda: _initialize_quietly(provider))
+        starting.start()
 
         def check():
-            done = provider._configuration_source is None and not provider._stopping_configuration_source
-            return done and not _poller_runs(source, 0.4) and _child_selection_released(provider)
+            if wait_expires:
+                # The start was still inside source.start() or before it: none of its pollers runs and its claim is
+                # gone.
+                unowned = poller_started and _poller_runs(created[0], 0.4)
+                reset = provider._configuration_source is None and not provider._configuration_source_operations
+                return reset and not unowned and _child_selection_released(provider)
+            stored = provider._configuration_source is created[0] and _flag_selection._claim_count == 1
+            running = not poller_started or _poller_runs(created[0], 2.0)
+            return stored and running and _child_selection_released(provider)
 
-        assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
-    finally:
-        resume.set()
-        if stopping is not None:
-            stopping.join(timeout=5)
-        provider.shutdown()
+        try:
+            assert holding.wait(timeout=5)
+            assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
+        finally:
+            resume.set()
+            starting.join(timeout=5)
+            provider.shutdown()
 
 
-@pytest.mark.parametrize("wait_expires", [False, True], ids=["finishes", "wait-expires"])
-def test_fork_during_a_cancelled_start_leaves_the_child_a_correct_claim(cdn, api_key, monkeypatch, wait_expires):
-    import ddtrace.internal.openfeature._source_selection as source_selection
+@pytest.mark.subprocess(err=None, parametrize={"WAIT_EXPIRES": ["finishes", "wait-expires"]})
+def test_fork_during_a_teardown_leaves_the_child_a_correct_claim():
+    import os
+    import threading
 
-    provider = _provider({"tags": ["a"]})
-    create = source_selection.create_agentless_source
-    started = threading.Event()
-    resume_start = threading.Event()
-    joined = threading.Event()
-    resume = threading.Event()
-    created = []
+    from openfeature.evaluation_context import EvaluationContext
+    import pytest
 
-    def create_then_hold(*args, **kwargs):
-        source = create(*args, **kwargs)
-        created.append(source)
-        start, join = source.start, source.join
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
+    from tests.openfeature.flag_selection_helpers import _child_selection_released
+    from tests.openfeature.flag_selection_helpers import _fork_during
+    from tests.openfeature.flag_selection_helpers import _poller_runs
+    from tests.openfeature.flag_selection_helpers import _provider
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
 
-        def start_then_hold():
-            start()
-            started.set()
-            resume_start.wait(timeout=5)
+    wait_expires = os.environ["WAIT_EXPIRES"] == "wait-expires"
 
-        def join_then_hold(*args, **kwargs):
-            join(*args, **kwargs)
-            joined.set()
-            resume.wait(timeout=5)
+    with pytest.MonkeyPatch.context() as monkeypatch, _serving_cdn(monkeypatch), _agentless_api_key():
+        provider = _provider({"tags": ["a"]})
+        joined = threading.Event()
+        resume = threading.Event()
+        stopping = None
+        try:
+            provider.initialize(EvaluationContext())
+            source = provider._configuration_source
+            join = source.join
 
-        source.start = start_then_hold
-        source.join = join_then_hold
-        return source
+            def join_then_hold(*args, **kwargs):
+                join(*args, **kwargs)
+                joined.set()
+                resume.wait(timeout=5)
 
-    monkeypatch.setattr(source_selection, "create_agentless_source", create_then_hold)
-    starting = threading.Thread(target=lambda: _initialize_quietly(provider))
-    starting.start()
-    try:
-        assert started.wait(timeout=5)
-        # The shutdown cancels the start, which then joins its poller and releases its claim itself.
-        provider.shutdown()
-        resume_start.set()
-        assert joined.wait(timeout=5)
+            monkeypatch.setattr(source, "join", join_then_hold)
+            stopping = threading.Thread(target=provider.shutdown)
+            stopping.start()
+            assert joined.wait(timeout=5)
 
-        def check():
-            gone = provider._configuration_source is None and not provider._configuration_source_operations
-            return gone and not _poller_runs(created[0], 0.4) and _child_selection_released(provider)
+            def check():
+                done = provider._configuration_source is None and not provider._stopping_configuration_source
+                return done and not _poller_runs(source, 0.4) and _child_selection_released(provider)
 
-        assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
-    finally:
-        resume_start.set()
-        resume.set()
-        starting.join(timeout=5)
-        provider.shutdown()
+            assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
+        finally:
+            resume.set()
+            if stopping is not None:
+                stopping.join(timeout=5)
+            provider.shutdown()
+
+
+@pytest.mark.subprocess(err=None, parametrize={"WAIT_EXPIRES": ["finishes", "wait-expires"]})
+def test_fork_during_a_cancelled_start_leaves_the_child_a_correct_claim():
+    import os
+    import threading
+
+    import pytest
+
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
+    from tests.openfeature.flag_selection_helpers import _child_selection_released
+    from tests.openfeature.flag_selection_helpers import _fork_during
+    from tests.openfeature.flag_selection_helpers import _initialize_quietly
+    from tests.openfeature.flag_selection_helpers import _poller_runs
+    from tests.openfeature.flag_selection_helpers import _provider
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
+
+    wait_expires = os.environ["WAIT_EXPIRES"] == "wait-expires"
+
+    with pytest.MonkeyPatch.context() as monkeypatch, _serving_cdn(monkeypatch), _agentless_api_key():
+        import ddtrace.internal.openfeature._source_selection as source_selection
+
+        provider = _provider({"tags": ["a"]})
+        create = source_selection.create_agentless_source
+        started = threading.Event()
+        resume_start = threading.Event()
+        joined = threading.Event()
+        resume = threading.Event()
+        created = []
+
+        def create_then_hold(*args, **kwargs):
+            source = create(*args, **kwargs)
+            created.append(source)
+            start, join = source.start, source.join
+
+            def start_then_hold():
+                start()
+                started.set()
+                resume_start.wait(timeout=5)
+
+            def join_then_hold(*args, **kwargs):
+                join(*args, **kwargs)
+                joined.set()
+                resume.wait(timeout=5)
+
+            source.start = start_then_hold
+            source.join = join_then_hold
+            return source
+
+        monkeypatch.setattr(source_selection, "create_agentless_source", create_then_hold)
+        starting = threading.Thread(target=lambda: _initialize_quietly(provider))
+        starting.start()
+        try:
+            assert started.wait(timeout=5)
+            # The shutdown cancels the start, which then joins its poller and releases its claim itself.
+            provider.shutdown()
+            resume_start.set()
+            assert joined.wait(timeout=5)
+
+            def check():
+                gone = provider._configuration_source is None and not provider._configuration_source_operations
+                return gone and not _poller_runs(created[0], 0.4) and _child_selection_released(provider)
+
+            assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
+        finally:
+            resume_start.set()
+            resume.set()
+            starting.join(timeout=5)
+            provider.shutdown()

@@ -108,32 +108,15 @@ def poller(monkeypatch):
 @pytest.fixture
 def cdn(monkeypatch):
     """Serve every agentless poll from a swappable responder and record request targets."""
-    import ddtrace.internal.openfeature._agentless_source as source_mod
-    from ddtrace.internal.openfeature._config import _set_ffe_config
-    from tests.openfeature.flag_selection_helpers import _FakeConn
-    from tests.openfeature.flag_selection_helpers import _FakeResponse
-    from tests.openfeature.flag_selection_helpers import _ufc_body
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
 
-    class _Cdn:
-        requests: list = []
-
-        def __init__(self):
-            self.respond = lambda target: _FakeResponse(200, _ufc_body())
-
-    server = _Cdn()
-    monkeypatch.setattr(
-        source_mod,
-        "get_connection",
-        lambda url, timeout=None: _FakeConn(lambda target: server.respond(target), server.requests),
-    )
-    _set_ffe_config(None)
-    yield server
-    _set_ffe_config(None)
+    with _serving_cdn(monkeypatch) as server:
+        yield server
 
 
 @pytest.fixture
 def api_key():
-    from tests.utils import override_global_config
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
 
-    with override_global_config({"_dd_api_key": "secret", "_dd_site": "datadoghq.com", "env": None}):
+    with _agentless_api_key():
         yield
