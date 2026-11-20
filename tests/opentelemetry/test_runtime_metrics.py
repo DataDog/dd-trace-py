@@ -20,6 +20,7 @@ OTLP_RUNTIME_METRICS_ENV = {
     "DD_METRICS_OTEL_ENABLED": "true",
     "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://127.0.0.1:14321/v1/metrics",
+    "DD_DOGSTATSD_URL": "udp://127.0.0.1:18125",
 }
 
 
@@ -30,17 +31,16 @@ def test_runtime_metrics_exported_over_otlp():
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 
     from ddtrace.internal.runtime import get_runtime_id
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.runtime import RuntimeMetrics
     from tests.opentelemetry.utils import _capture_http_requests
+    from tests.opentelemetry.utils import capture_dogstatsd_packets
 
-    assert RuntimeWorker.enabled
-    assert RuntimeWorker._instance is None, "The DogStatsD runtime metrics worker must not run"
-
-    with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
-        assert get_meter_provider().force_flush()
-    # Leave nothing to export at exit, once the capturing server is gone.
-    RuntimeMetrics.disable()
+    with capture_dogstatsd_packets(18125) as dogstatsd_packets:
+        with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
+            assert get_meter_provider().force_flush()
+        # Leave nothing to export at exit, once the capturing server is gone. A DogStatsD worker would flush here.
+        RuntimeMetrics.disable()
+    assert not [packet for packet in dogstatsd_packets if b"runtime.python." in packet], dogstatsd_packets
 
     points = {}
     monotonic = {}
@@ -86,10 +86,13 @@ def test_runtime_metrics_exported_over_otlp():
 def test_runtime_metrics_wait_for_the_application_to_import_opentelemetry():
     import sys
 
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.runtime import RuntimeMetrics
+    from tests.opentelemetry.utils import capture_dogstatsd_packets
 
-    assert RuntimeWorker.enabled
-    assert RuntimeWorker._instance is None, "The DogStatsD runtime metrics worker must not run"
+    # A DogStatsD worker would flush when the runtime metrics are disabled.
+    with capture_dogstatsd_packets(18125) as dogstatsd_packets:
+        RuntimeMetrics.disable()
+    assert not [packet for packet in dogstatsd_packets if b"runtime.python." in packet], dogstatsd_packets
     assert "ddtrace.internal.runtime.otlp_runtime_metrics" not in sys.modules
     assert "opentelemetry" not in sys.modules
 
@@ -249,44 +252,52 @@ def test_runtime_metrics_after_fork_with_an_application_reader():
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report its own usage"
 
 
-# The DogStatsD client also logs the packets it drops when nothing listens on the DogStatsD port.
 @requires_exporter
 @pytest.mark.subprocess(
     env=OTLP_RUNTIME_METRICS_ENV,
-    err=lambda err: "Runtime metrics are sent to DogStatsD: use ddtrace-run or import ddtrace.auto to export them over "
-    "OTLP.\n" in err,
+    err="Runtime metrics are sent to DogStatsD: use ddtrace-run or import ddtrace.auto to export them over OTLP.\n",
 )
 def test_runtime_metrics_enabled_without_the_bootstrap_are_sent_to_dogstatsd():
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.runtime import RuntimeMetrics
+    from tests.opentelemetry.utils import capture_dogstatsd_packets
 
-    RuntimeMetrics.enable()
-    assert RuntimeWorker._instance is not None, (
-        "Without the bootstrap, nothing sets up the OpenTelemetry meter provider"
-    )
+    # Without the bootstrap, nothing sets up the OpenTelemetry meter provider. The DogStatsD worker flushes when the
+    # runtime metrics are disabled.
+    with capture_dogstatsd_packets(18125) as dogstatsd_packets:
+        RuntimeMetrics.enable()
+        RuntimeMetrics.disable()
+    assert [packet for packet in dogstatsd_packets if b"runtime.python." in packet]
 
 
-# The DogStatsD client also logs the packets it drops when nothing listens on the DogStatsD port.
 @requires_no_exporter
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=OTLP_RUNTIME_METRICS_ENV,
-    err=lambda err: "Runtime metrics are sent to DogStatsD: exporting them over OTLP requires opentelemetry-" in err,
+    err=lambda err: err.startswith(
+        "Runtime metrics are sent to DogStatsD: exporting them over OTLP requires opentelemetry-"
+    ),
 )
 def test_runtime_metrics_fall_back_to_dogstatsd_without_otel_sdk():
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.runtime import RuntimeMetrics
+    from tests.opentelemetry.utils import capture_dogstatsd_packets
 
-    assert RuntimeWorker.enabled
-    assert RuntimeWorker._instance is not None, "Runtime metrics must be sent to DogStatsD without OpenTelemetry"
+    # The DogStatsD worker flushes when the runtime metrics are disabled.
+    with capture_dogstatsd_packets(18125) as dogstatsd_packets:
+        RuntimeMetrics.disable()
+    assert [packet for packet in dogstatsd_packets if b"runtime.python." in packet]
 
 
-# err=None: the DogStatsD client logs the packets it drops when nothing listens on the DogStatsD port.
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_RUNTIME_METRICS_ENABLED": "true"}, err=None)
+@pytest.mark.subprocess(
+    ddtrace_run=True, env={"DD_RUNTIME_METRICS_ENABLED": "true", "DD_DOGSTATSD_URL": "udp://127.0.0.1:18125"}
+)
 def test_runtime_metrics_sent_to_dogstatsd_by_default():
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.runtime import RuntimeMetrics
+    from tests.opentelemetry.utils import capture_dogstatsd_packets
 
-    assert RuntimeWorker.enabled
-    assert RuntimeWorker._instance is not None
+    # The DogStatsD worker flushes when the runtime metrics are disabled.
+    with capture_dogstatsd_packets(18125) as dogstatsd_packets:
+        RuntimeMetrics.disable()
+    assert [packet for packet in dogstatsd_packets if b"runtime.python." in packet]
 
 
 @pytest.mark.parametrize(
