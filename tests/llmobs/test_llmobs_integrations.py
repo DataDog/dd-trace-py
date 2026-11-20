@@ -103,7 +103,7 @@ class _NotGiven:
     "temperature,expected",
     [(0, 0), (0.0, 0.0), (0.7, 0.7), (None, None), (_NotGiven(), None)],
 )
-def test_anthropic_records_temperature_including_zero(temperature, expected, mock_integration_config):
+def test_anthropic_temperature_metadata_skips_not_given(temperature, expected, mock_integration_config):
     from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
 
     span = mock.MagicMock()
