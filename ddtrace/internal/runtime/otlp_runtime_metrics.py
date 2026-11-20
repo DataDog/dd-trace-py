@@ -27,7 +27,7 @@ from ddtrace.internal.runtime import get_runtime_id
 
 from .. import forksafe
 from ..logger import get_logger
-from . import runtime_metrics
+from . import gc_at_fork
 from .metric_collectors import _ProcessMetrics
 
 
@@ -79,7 +79,7 @@ def start() -> None:
     """Start reporting the runtime metrics through the OpenTelemetry metrics API."""
     global _enabled, _instruments_created
 
-    runtime_metrics.record_gc_stats_at_fork()
+    gc_at_fork.record()
     if not _instruments_created:
         _create_instruments(get_meter(METER_NAME))
         _instruments_created = True
@@ -172,7 +172,7 @@ def _gc_callback(stat: str) -> Callable[[CallbackOptions], list[Observation]]:
             return []
         runtime_id = get_runtime_id()
         # A forked child reports the GC statistics since the fork.
-        at_fork = runtime_metrics.gc_stats_at_fork
+        at_fork = gc_at_fork.stats
         return [
             Observation(
                 row.get(stat, 0) - (at_fork[generation].get(stat, 0) if generation < len(at_fork) else 0),
