@@ -156,3 +156,37 @@ class TestCIVisibilitySessionSettings:
                 test_operation_name="test_operation_name",
                 workspace_path=Path("/absolute/path/to/root_dir"),
             )
+
+
+@pytest.mark.parametrize("consumer", ["module", "root-module", "source", "coverage"])
+@pytest.mark.parametrize("root_is_alias", [False, True])
+def test_legacy_checkout_symlink_paths(tmp_path, civisibility_settings, consumer, root_is_alias):
+    from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+    from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+    from ddtrace.internal.coverage.coverage_lines import CoverageLines
+
+    checkout = tmp_path / "checkout"
+    (checkout / "tests").mkdir(parents=True)
+    (checkout / "tests/test_example.py").write_text("def test_example(): pass\n")
+    alias = tmp_path / "workspace"
+    alias.symlink_to(checkout, target_is_directory=True)
+    workspace = alias if root_is_alias else checkout
+    collected_root = checkout if root_is_alias else alias
+    source = collected_root / "tests/test_example.py"
+    settings = dataclasses.replace(civisibility_settings, workspace_path=workspace)
+
+    if consumer in ("module", "root-module"):
+        module_path = collected_root if consumer == "root-module" else source.parent
+        module = TestVisibilityModule("tests", settings, module_path=module_path)
+        assert module._get_hierarchy_tags()[test.MODULE_PATH] == ("" if consumer == "root-module" else "tests")
+    elif consumer == "source":
+        item = TestVisibilityTest("test_example", settings, source_file_info=TestSourceFileInfo(source, 3, 4))
+        item._set_default_tags()
+        assert item.get_tag(test.SOURCE_FILE) == "tests/test_example.py"
+    else:
+        lines = CoverageLines.from_list([1, 3])
+        coverage = TestVisibilityCoverageData()
+        coverage.add_covered_files({source: lines})
+        assert coverage.build_payload(workspace) == {
+            "files": [{"filename": "/tests/test_example.py", "bitmap": lines.to_bytes()}]
+        }
