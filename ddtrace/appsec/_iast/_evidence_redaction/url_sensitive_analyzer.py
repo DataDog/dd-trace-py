@@ -1,8 +1,8 @@
 import re
 from typing import Optional
-from typing import Protocol
 from typing import Union
 
+from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 
@@ -12,12 +12,7 @@ AUTHORITY_PATTERN = re.compile(r"(?<![a-z0-9+.\-])[a-z][a-z0-9+.\-]*://([^@/?#]+
 QUERY_FRAGMENT_PATTERN = re.compile(r"[?#&]([^=&;?#]+)=([^?#&]+)", re.IGNORECASE)
 
 
-class _UrlEvidence(Protocol):
-    @property
-    def value(self) -> Optional[str]: ...
-
-
-def find_authority(ranges: list[dict[str, int]], evidence: _UrlEvidence) -> None:
+def find_authority(ranges: list[dict[str, int]], evidence: Evidence) -> None:
     if evidence.value is None:
         return
     regex_result = AUTHORITY_PATTERN.search(evidence.value)
@@ -30,7 +25,7 @@ def find_authority(ranges: list[dict[str, int]], evidence: _UrlEvidence) -> None
         regex_result = AUTHORITY_PATTERN.search(evidence.value, regex_result.end())
 
 
-def find_query_fragment(ranges: list[dict[str, int]], evidence: _UrlEvidence) -> None:
+def find_query_fragment(ranges: list[dict[str, int]], evidence: Evidence) -> None:
     if evidence.value is None:
         return
     regex_result = QUERY_FRAGMENT_PATTERN.search(evidence.value)
@@ -43,7 +38,7 @@ def find_query_fragment(ranges: list[dict[str, int]], evidence: _UrlEvidence) ->
 
 
 def find_query_string_matches(
-    ranges: list[dict[str, int]], evidence: _UrlEvidence, query_string_pattern: Optional[re.Pattern[bytes]]
+    ranges: list[dict[str, int]], evidence: Evidence, query_string_pattern: Optional[re.Pattern[bytes]]
 ) -> None:
     """
     Find sensitive data in query string using the query string obfuscation pattern.
@@ -89,7 +84,7 @@ def find_query_string_matches(
 
 
 def url_sensitive_analyzer(
-    evidence: _UrlEvidence,
+    evidence: Evidence,
     name_pattern: Optional[re.Pattern[str]] = None,
     value_pattern: Optional[re.Pattern[str]] = None,
     query_string_pattern: Optional[re.Pattern[bytes]] = None,
