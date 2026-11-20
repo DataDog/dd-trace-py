@@ -56,7 +56,3 @@ start-finish-traceid128:
   <<: *base
   finishspan: true
   traceid128: true
-start-finish-telemetry:
-  <<: *base
-  finishspan: true
-  telemetry: true

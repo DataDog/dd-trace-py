@@ -473,6 +473,9 @@ typedef struct periodic_thread
 
     std::atomic<bool> _stopping;
     std::atomic<bool> _skip_shutdown;
+    // Set once the worker stops other than for a fork or an error, so
+    // _after_fork does not restart it.
+    std::atomic<bool> _finished;
 
     module_state* _state;
 
@@ -486,11 +489,10 @@ typedef struct periodic_thread
     // stopped_event->set() completes.
     std::shared_ptr<Event> _stopped;
     std::unique_ptr<Event> _request;
-    std::unique_ptr<Event> _served;
 
     std::unique_ptr<std::mutex> _awake_mutex;
     // Guards all reads and writes of _thread. Held only for the check/assign/
-    // detach sequence — never while blocking on _started, _stopped, or _served.
+    // detach sequence — never while blocking on _started or _stopped.
     std::unique_ptr<std::mutex> _thread_mutex;
 
     std::unique_ptr<std::thread> _thread;
@@ -569,6 +571,7 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
     self->_stopping = false;
     self->_skip_shutdown = false;
+    self->_finished = false;
 
     // Look up this interpreter's module state. PyState_FindModule does not work
     // for multi-phase init modules (slots != NULL), so we use
@@ -586,7 +589,6 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     self->_started = std::make_unique<Event>();
     self->_stopped = std::make_shared<Event>();
     self->_request = std::make_unique<Event>();
-    self->_served = std::make_unique<Event>();
 
     self->_awake_mutex = std::make_unique<std::mutex>();
     self->_thread_mutex = std::make_unique<std::mutex>();
@@ -627,9 +629,10 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 // If reset_next_call_time is true (normal start), _next_call_time is initialised
 // to now + interval before starting; otherwise it is left untouched (important
 // for cases where the thread is being restarted after a fork to preserve the
-// existing next trigger time).
+// existing next trigger time). If even_if_stopping is true, a stopping thread
+// is started too, and then only runs on_shutdown.
 static PyObject*
-_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false)
+_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false, bool even_if_stopping = false)
 {
     // PyRef is constructed before the lock — it only requires the
     // GIL (held here), not _thread_mutex. This keeps self alive across the
@@ -653,7 +656,7 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
             return NULL;
         }
 
-        if (self->_stopping)
+        if (self->_stopping && !even_if_stopping)
             Py_RETURN_NONE;
 
         if (reset_next_call_time)
@@ -760,20 +763,16 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
 
                         self->_next_call_time = std::chrono::steady_clock::now() +
                                                 std::chrono::milliseconds((long long)(self->interval * 1000));
-
-                        // If this came from a request mark it as served
-                        self->_served->set();
                     }
-
-                    // Set request served in case any threads are waiting while a thread is
-                    // stopping.
-                    self->_served->set();
 
                     if (!state->is_finalizing()) {
                         // Run the shutdown callback if there was no error and we are not
                         // at Python shutdown.
-                        if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
-                            PeriodicThread__on_shutdown(self);
+                        if (!error && !self->_skip_shutdown) {
+                            self->_finished = true;
+                            if (self->_on_shutdown != Py_None)
+                                PeriodicThread__on_shutdown(self);
+                        }
 
                         // Remove the thread from the mapping of active threads.
                         if (PyDict_DelItem(state->periodic_threads, self->ident) < 0)
@@ -843,49 +842,29 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 }
 
 // ----------------------------------------------------------------------------
+// Request a run of the target as soon as possible and return without waiting
+// for it.
+//
+// NOTE: awake() must never block. It can be called in-line with user code from
+// instrumentation. This poses a risk if any of the application threads fork.
+// Requests coalesce: any number of awake() calls before the worker wakes up
+// result in a single run. A request made before start(), or while the thread is
+// paused for a fork, is served once the worker (re)starts. After a permanent
+// stop it is a no-op.
 static PyObject*
 PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    {
-        std::lock_guard<std::mutex> _lock(*self->_thread_mutex);
-        if (self->_thread == nullptr) {
-            PyErr_SetString(PyExc_RuntimeError, "Thread not started");
-            return NULL;
-        }
-    }
+    // Publish the request under _awake_mutex. stop() and _before_fork() set
+    // _stopping and their stop reason under the same mutex, so the worker
+    // never sees our AWAKE between those two writes, where it would consume it
+    // as part of the stop (and lose it across a fork pause). Every critical
+    // section on _awake_mutex runs with the GIL held and never releases it, so
+    // only the GIL holder can own the mutex, and no thread can still own it in
+    // a forked child.
+    std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
-    // GIL-fast-path: if the worker is permanently stopped (not fork-paused),
-    // awake() is a best-effort no-op. Surfacing a RuntimeError here would
-    // make a timing-dependent race (stop() vs in-flight awake()) visible
-    // to callers, which is worse than silently doing nothing.
-    if (self->_stopping && !self->_skip_shutdown) {
-        Py_RETURN_NONE;
-    }
-
-    bool stopped = false;
-    {
-        AllowThreads _(self->_state);
-
-        // Set up the wait under _awake_mutex. stop() also takes this mutex,
-        // so either we observe its _stopping write here, or our set(AWAKE)
-        // is ordered before its set(STOP) and the worker's cleanup
-        // _served->set() (loop exit) wakes us.
-        {
-            std::lock_guard<std::mutex> lock(*self->_awake_mutex);
-
-            if (self->_stopping && !self->_skip_shutdown) {
-                stopped = true;
-            } else {
-                self->_served->clear();
-                self->_request->set(REQUEST_REASON_AWAKE);
-            }
-        }
-
-        // Wait *outside* the mutex so a periodic callback that calls
-        // stop() on itself (Timer._periodic) does not deadlock against us.
-        if (!stopped)
-            self->_served->wait();
-    }
+    if (!(self->_stopping && !self->_skip_shutdown))
+        self->_request->set(REQUEST_REASON_AWAKE);
 
     Py_RETURN_NONE;
 }
@@ -902,11 +881,9 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
         }
     }
 
-    // Order _stopping + set(STOP) against awake()'s setup of (clear _served,
-    // set AWAKE). Without this, awake() could clear _served after the worker
-    // has already exited and set it on cleanup, then wait forever.
+    // Publish _stopping and the STOP reason atomically with respect to awake()
+    // (see PeriodicThread_awake).
     {
-        AllowThreads _(self->_state);
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
         self->_stopping = true;
@@ -1012,8 +989,22 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         }
     }
 
+    // A worker that was already stopping when the fork joined it, e.g. running
+    // on_shutdown after a stop() during periodic(), has finished. Do not restart it.
+    const bool finished = self->_finished;
+    if (finished)
+        should_restart = false;
+
     // Always reset fork-specific state regardless of restart decision.
-    self->_stopping = false;
+    {
+        // Otherwise, a pending STOP request means stop() was called while the
+        // thread was paused for the fork, e.g. by an atexit hook before
+        // ThreadRestartTimer fired. Keep such a thread stopping so it does not
+        // resume periodic().
+        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+        const bool stop_requested = self->_request->consume(REQUEST_REASON_STOP) != 0;
+        self->_stopping = finished || stop_requested;
+    }
     self->_skip_shutdown = false;
     // During prefork, _before_fork() sets REQUEST_REASON_FORK_STOP to wake
     // the thread promptly. Clear it so it does not trigger a spurious
@@ -1035,13 +1026,14 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
 
         self->_started->clear();
         self->_stopped->clear();
-        self->_served->clear();
 
         // Use _PeriodicThread_do_start instead of PeriodicThread_start to
         // preserve _next_call_time from before the fork. This ensures that
         // a restarted thread fires at the same time it would have without
-        // the fork, rather than being pushed back by a full interval.
-        PyObject* started = _PeriodicThread_do_start(self);
+        // the fork, rather than being pushed back by a full interval. A
+        // stopping thread is started too, so that it runs on_shutdown as
+        // stop() would have, and join() returns once it has.
+        PyObject* started = _PeriodicThread_do_start(self, false, true);
         if (started == NULL)
             return NULL;
         Py_DECREF(started);
@@ -1059,7 +1051,6 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     // Synchronize with awake() so there is no window where _stopping is visible
     // before the fork-stop wake reason is published.
     {
-        AllowThreads _(self->_state);
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
         // Equivalent to PeriodicThread_stop(), with an explicit fork-stop
@@ -1114,7 +1105,6 @@ PeriodicThread_dealloc(PeriodicThread* self)
     self->_started = nullptr;
     self->_stopped = nullptr;
     self->_request = nullptr;
-    self->_served = nullptr;
 
     self->_awake_mutex = nullptr;
     self->_thread_mutex = nullptr;

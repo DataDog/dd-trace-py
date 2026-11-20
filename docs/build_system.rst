@@ -88,7 +88,7 @@ with an editable or `PYTHONPATH` install would not find the one in the repositor
 
 .. code-block:: bash
 
-    python -m ddtrace.commands.ddtrace_run python my_traced_app.py
+    python -m ddtrace_commands.ddtrace_run python my_traced_app.py
 
 Using `sccache` to Speed Up Builds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -351,11 +351,18 @@ What the packaging must guarantee
 If the library cannot be loaded, or is not 2.x, AppSec logs a warning and disables itself; the rest of the tracer is
 unaffected. The version actually loaded is reported in telemetry, so a mismatch is visible.
 
-Linux only: elsewhere the runtime has no system library to fall back to, so the build fails rather than produce a package
-whose AppSec cannot load.
+Linux and FreeBSD only: elsewhere the runtime has no system library to fall back to, so the build fails rather than
+produce a package that AppSec cannot load.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With ``DD_USE_SCCACHE=1``, setup reports each cache-server health-check attempt,
+its duration, and any failure on stderr before falling back to compilation without caching.
+The ``ext_hashes`` command skips this check because hashing does not compile anything.
+CI wheel builds retain the complete output in ``debugwheelhouse/build_*.log`` and
+stream cache health messages to the job log. On stalled macOS ``amd64`` jobs, the watchdog
+also prints the latest build log's last 100 lines before collecting process samples.
 
 The build system compiles many native extensions (CMake C++, Cython, Rust). In CI,
 ``ext_cache.py`` caches compiled ``.so`` files between runs. On a warm run (extensions

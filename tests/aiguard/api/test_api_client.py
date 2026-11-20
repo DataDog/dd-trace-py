@@ -4,11 +4,13 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.aiguard import MCP
 from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard import ContentPart
 from ddtrace.aiguard import Function
 from ddtrace.aiguard import ImageURL
+from ddtrace.aiguard import MCPServer
 from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
@@ -16,6 +18,7 @@ from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.settings.aiguard import ENV_TIMEOUT
 from ddtrace.internal.settings.aiguard import AIGuardConfig
 from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.aiguard.utils import assert_ai_guard_span
@@ -101,6 +104,9 @@ def assert_telemetry(mocked, metric, tags, source=AI_GUARD.SOURCE_SDK, integrati
     default here to a direct SDK call; extra carries the tags the error metric appends after them.
     """
     metrics = [(args[0].value,) + args[1:] for args, kwargs in mocked.call_args_list]
+    if metric == "requests":
+        # Every evaluation that was not skipped by a middleware reports skipped=false.
+        tags = tuple(tags) + (("skipped", "false"),)
     expected_tags = tuple(tags) + (("source", source), ("integration", integration)) + tuple(extra)
     assert ("ai_guard", metric, 1, expected_tags) in metrics
 
@@ -302,6 +308,18 @@ def test_evaluate_malformed_response(mock_execute_request, telemetry_mock, ai_gu
     assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
 
 
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_without_registered_tracer(mock_execute_request, ai_guard_client):
+    """With no tracer on the core registry the verdict can't be reported, so evaluate fails before the request."""
+    with patch("ddtrace.aiguard._api_client.core") as core_mock:
+        core_mock.root.get_item.return_value = None
+        with pytest.raises(AIGuardClientError, match="requires the global tracer"):
+            ai_guard_client.evaluate(TOOL_CALL)
+
+    core_mock.root.get_item.assert_called_once_with("tracer")
+    mock_execute_request.assert_not_called()
+
+
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_client):
@@ -355,19 +373,24 @@ def test_evaluate_custom_tags_ignore_reserved_ai_guard_keys(mock_execute_request
     assert span.get_tag("customer.tenant") == "acme"
 
 
+@pytest.mark.parametrize("max_messages", [0, 1, 16])
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, max_messages):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = []
-    for i in range(aiguard_config._ai_guard_max_messages_length + 1):
-        messages.append(Message(role="user", content="Tell me 10 things I should know about DataDog"))
-    ai_guard_client.evaluate(messages)
+    for i in range(max_messages + 1):
+        messages.append(Message(role="user", content=f"Message {i}"))
+    with override_ai_guard_config(dict(_ai_guard_max_messages_length=max_messages)):
+        evaluation = ai_guard_client.evaluate(messages)
 
     span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
-    assert len(meta["messages"]) == aiguard_config._ai_guard_max_messages_length
+    assert len(meta["messages"]) == max_messages
+    assert meta["messages"] == messages[1:]
+    assert_mock_execute_request_call(mock_execute_request, ai_guard_client, messages)
+    assert evaluation["messages"] is messages
     assert_telemetry(telemetry_mock, "truncated", (("type", "messages"),))
 
 
@@ -760,7 +783,7 @@ def test_configured_timeout_reaching_the_transport(raw_timeout, expected_timeout
         def request(self, *args, **kwargs):
             raise ConnectionFailedError("refused")
 
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         timeout = AIGuardConfig()._ai_guard_timeout
 
     with override_ai_guard_config(
@@ -781,18 +804,18 @@ def test_configured_timeout_reaching_the_transport(raw_timeout, expected_timeout
 
 @pytest.mark.parametrize("raw_timeout", ["999", "500", "0", "-1"])
 def test_timeout_flooring_to_zero_warns_and_uses_the_default(raw_timeout):
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         with patch("ddtrace.internal.settings.aiguard.log") as log:
             config = AIGuardConfig()
 
     assert config._ai_guard_timeout == 10_000
     log.warning.assert_called_once()
-    assert AI_GUARD.ENV_TIMEOUT in log.warning.call_args[0]
+    assert ENV_TIMEOUT in log.warning.call_args[0]
 
 
 @pytest.mark.parametrize("raw_timeout", ["1000", "1500"])
 def test_timeout_of_at_least_one_second_is_kept_without_warning(raw_timeout):
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         with patch("ddtrace.internal.settings.aiguard.log") as log:
             config = AIGuardConfig()
 
@@ -809,3 +832,52 @@ def test_event_tag_in_root_span(mock_execute_request, ai_guard_client, tracer):
         ai_guard_client.evaluate(PROMPT, Options(block=False))
 
     assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"
+
+
+@pytest.mark.parametrize("mcp_servers", [None, []], ids=["none", "empty"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_omits_empty_mcp_servers(mock_execute_request, ai_guard_client, mcp_servers, test_spans):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    ai_guard_client.evaluate([Message(role="user", content="hi")], mcp_servers=mcp_servers)
+
+    assert set(mock_execute_request.call_args.args[1]["data"]["attributes"]) == {"messages", "meta"}
+    assert "mcp_servers" not in find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sends_mcp_servers(mock_execute_request, ai_guard_client, test_spans):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    server = MCPServer(
+        id="mcp_b77bc22583ac5006",
+        managed_by="client",
+        transport="streamable_http",
+        tools={"wiki_search": "search"},
+        url="https://mcp.example.com",
+    )
+    tool_call = ToolCall(id="call_1", function=Function(name="wiki_search", arguments="{}"))
+    tool_call["mcp"] = MCP(server_id=server["id"])
+    messages = [Message(role="user", content="hi"), Message(role="assistant", tool_calls=[tool_call])]
+
+    ai_guard_client.evaluate(messages, mcp_servers=[server])
+
+    attributes = mock_execute_request.call_args.args[1]["data"]["attributes"]
+    assert attributes["mcp_servers"] == [server]
+    assert attributes["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": "mcp_b77bc22583ac5006"}
+
+    meta = find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)
+    assert meta["mcp_servers"] == [server]
+    assert meta["mcp_servers"][0] is not server
+    assert meta["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": "mcp_b77bc22583ac5006"}
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_extra_metastruct_cannot_override_mcp_servers(mock_execute_request, ai_guard_client, test_spans):
+    server = MCPServer(id="mcp_1", managed_by="provider", transport="streamable_http", tools={}, name="deepwiki")
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ALLOW", extra_metastruct=[{"key": "mcp_servers", "value": []}]
+    )
+
+    ai_guard_client.evaluate([Message(role="user", content="hi")], mcp_servers=[server])
+
+    assert find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)["mcp_servers"] == [server]

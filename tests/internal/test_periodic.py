@@ -4,6 +4,7 @@ import os
 import platform
 from threading import Barrier
 from threading import Event
+from threading import RLock
 from threading import Thread
 from time import monotonic
 from time import sleep
@@ -273,8 +274,8 @@ def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
       5. The worker cannot finish the callback and cannot reach
          the wake-completion path — both threads wait forever.
 
-    The middle-ground fix has awake() release _awake_mutex before waiting on
-    _served, so a worker-thread stop() can take the mutex freely.
+    awake() now holds _awake_mutex only to publish the request and never
+    waits for the worker, so a worker-thread stop() can take the mutex freely.
     """
 
     def _target():
@@ -410,11 +411,13 @@ def test_periodic_service_stop_cancels_worker_start_deferred_by_fork() -> None:
 
 
 def test_awakeable_periodic_service():
+    ran = Event()
     queue = []
 
     class AwakeMe(periodic.AwakeablePeriodicService):
         def periodic(self):
             queue.append(len(queue))
+            ran.set()
 
     interval = 1
 
@@ -422,10 +425,13 @@ def test_awakeable_periodic_service():
 
     awake_me.start()
 
-    # Manually awake the service
+    # Each awake request is served by a run of the target. awake() does not
+    # wait for it, so we wait for each run before making the next request.
     n = 10
-    for _ in range(10):
+    for _ in range(n):
+        ran.clear()
         awake_me.awake()
+        assert ran.wait(timeout=2)
 
     assert queue == list(range(n))
 
@@ -433,8 +439,123 @@ def test_awakeable_periodic_service():
     sleep(1.1 * interval)
 
     awake_me.stop()
+    awake_me.join()
 
     assert queue == list(range(n + 1))
+
+
+def test_awake_requests_coalesce():
+    """Requests made before the worker wakes up are served by a single run."""
+    release = Event()
+    entered = Event()
+    calls = []
+
+    def target():
+        calls.append(1)
+        entered.set()
+        release.wait(timeout=5)
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    t.awake()
+    assert entered.wait(timeout=2)
+
+    # The target is busy: these must all return immediately and coalesce
+    # into a single follow-up run.
+    for _ in range(10):
+        t.awake()
+
+    release.set()
+    sleep(0.2)
+    t.stop()
+    t.join()
+
+    assert len(calls) == 2
+
+
+def test_awake_does_not_block_while_target_runs():
+    release = Event()
+    entered = Event()
+
+    def target():
+        entered.set()
+        release.wait(timeout=5)
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    t.awake()
+    assert entered.wait(timeout=2)
+
+    done = Event()
+    awaker = Thread(target=lambda: (t.awake(), done.set()))
+    awaker.start()
+    try:
+        assert done.wait(timeout=1), "awake() blocked while the target was running"
+    finally:
+        release.set()
+        awaker.join(timeout=2)
+        t.stop()
+        t.join()
+
+
+def test_awake_while_holding_lock_needed_by_target():
+    """Regression: awake() from a thread holding a lock that the target needs.
+
+    The DI signal queue calls its on_full callback, which awakes the uploader,
+    while holding the queue lock, and the uploader takes that lock to flush. A
+    blocking awake() deadlocked both threads.
+    """
+    lock = RLock()
+    flushed = Event()
+
+    def target():
+        with lock:
+            flushed.set()
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    try:
+        with lock:
+            t.awake()
+        assert flushed.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_awake_from_target_does_not_deadlock():
+    calls = []
+    ran_twice = Event()
+
+    def target():
+        calls.append(1)
+        if len(calls) == 1:
+            t.awake()
+        else:
+            ran_twice.set()
+
+    t = periodic.PeriodicThread(60.0, target, no_wait_at_start=True)
+    t.start()
+    try:
+        assert ran_twice.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_awake_before_start_is_served_on_start():
+    ran = Event()
+
+    t = periodic.PeriodicThread(60.0, ran.set)
+    t.awake()
+    assert not ran.is_set()
+
+    t.start()
+    try:
+        assert ran.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
 
 
 @pytest.mark.subprocess
@@ -741,6 +862,221 @@ def test_periodic_service_no_immediate_run_after_fork():
     finally:
         service.stop()
         service.join()
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_periodic_service_stopped_before_restart_after_fork_stays_stopped():
+    """A service stopped before its thread restarts after a fork must not resume periodic().
+
+    An exit handler can stop a service right after a fork, before ThreadRestartTimer restarts its thread. The
+    restarted thread used to run periodic() at once and keep running, so the profiler scheduler could flush
+    alongside the final flush at exit and hang under gevent.
+    """
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal import threads
+    from ddtrace.internal._threads import periodic_threads
+
+    # Widen the window between the fork and the restart so that stop() always lands in it.
+    threads.ThreadRestartTimer.__timeout__ = int(1e9)
+
+    periodic_ran = Event()
+    shutdown_ran = Event()
+
+    class Service(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+        def on_shutdown(self):
+            shutdown_ran.set()
+
+    # A long interval, so that periodic() only runs if the thread resumes after stop().
+    svc = Service(60)
+    svc.start()
+    worker = svc._worker
+
+    def stop_and_check():
+        svc.stop()
+        svc.join()
+        # The restart only runs on_shutdown(), as a regular stop() would, and the thread exits.
+        assert shutdown_ran.wait(timeout=5), "on_shutdown() did not run"
+        assert not periodic_ran.wait(timeout=0.5), "periodic() ran after stop()"
+        assert worker not in periodic_threads.values(), "the thread is still running"
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            stop_and_check()
+        except AssertionError as e:
+            print(e)
+            os._exit(1)
+        os._exit(0)
+
+    stop_and_check()
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0, "check failed in the child"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_periodic_service_fork_during_on_shutdown_does_not_restart():
+    """A fork while on_shutdown() runs must not restart the thread, nor run on_shutdown() again.
+
+    stop() during periodic() leaves the stop request pending while the thread runs on_shutdown(). A fork then joins
+    the thread, and the restart must treat it as finished rather than as stopped while paused for the fork.
+    """
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal._threads import periodic_threads
+
+    in_periodic = Event()
+    release_periodic = Event()
+    in_shutdown = Event()
+    release_shutdown = Event()
+    counts = {"periodic": 0, "shutdown": 0}
+
+    class Service(periodic.PeriodicService):
+        def periodic(self):
+            counts["periodic"] += 1
+            in_periodic.set()
+            release_periodic.wait()
+
+        def on_shutdown(self):
+            counts["shutdown"] += 1
+            in_shutdown.set()
+            # Stay in on_shutdown() until the fork stops the thread.
+            release_shutdown.wait(timeout=5)
+
+    svc = Service(0.05)
+    svc.start()
+    worker = svc._worker
+    assert in_periodic.wait(timeout=5)
+    svc.stop()
+    release_periodic.set()
+    assert in_shutdown.wait(timeout=5)
+
+    before_fork = worker._before_fork
+
+    def _before_fork():
+        before_fork()
+        release_shutdown.set()
+
+    worker._before_fork = _before_fork
+
+    def check():
+        assert release_shutdown.is_set(), "the fork did not stop the thread"
+        # Wait past ThreadRestartTimer so that a restart, if any, has run.
+        sleep(1)
+        assert counts == {"periodic": 1, "shutdown": 1}, counts
+        assert worker not in periodic_threads.values(), "the thread is still running"
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            check()
+        except AssertionError as e:
+            print(e)
+            os._exit(1)
+        os._exit(0)
+
+    check()
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0, "check failed in the child"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_periodic_service_fork_during_restart_for_shutdown_stays_stopped():
+    """A second fork while the restarted thread runs on_shutdown() must not resume periodic()."""
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal import threads
+    from ddtrace.internal._threads import periodic_threads
+
+    # Widen the window between the fork and the restart so that stop() always lands in it.
+    threads.ThreadRestartTimer.__timeout__ = int(1e9)
+
+    in_shutdown = Event()
+    release_shutdown = Event()
+    counts = {"periodic": 0, "shutdown": 0}
+
+    class Service(periodic.PeriodicService):
+        def periodic(self):
+            counts["periodic"] += 1
+
+        def on_shutdown(self):
+            counts["shutdown"] += 1
+            in_shutdown.set()
+            # Stay in on_shutdown() until the second fork stops the thread.
+            release_shutdown.wait(timeout=5)
+
+    svc = Service(0.05)
+    svc.start()
+    worker = svc._worker
+
+    def fork_and_exit_child():
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        os.waitpid(pid, 0)
+
+    fork_and_exit_child()
+    svc.stop()
+
+    before_fork = worker._before_fork
+
+    def _before_fork():
+        before_fork()
+        release_shutdown.set()
+
+    worker._before_fork = _before_fork
+
+    # The restart after the first fork only runs on_shutdown(). Fork again while it does.
+    assert in_shutdown.wait(timeout=5)
+    ran = counts["periodic"]
+    fork_and_exit_child()
+    assert release_shutdown.is_set(), "the second fork did not stop the thread"
+
+    # Wait past ThreadRestartTimer so that a restart, if any, has run.
+    sleep(1.5)
+    assert counts == {"periodic": ran, "shutdown": 1}, counts
+    assert worker not in periodic_threads.values(), "the thread is still running"
+
+
+def test_periodic_thread_restarts_after_fork_if_target_raised():
+    """A thread whose target raised is still restarted after a fork, as ThreadRestartTimer relies on."""
+    calls = []
+    raised = Event()
+    restarted = Event()
+
+    def _run_periodic():
+        calls.append(None)
+        if len(calls) == 1:
+            raised.set()
+            raise RuntimeError("boom")
+        restarted.set()
+
+    t = periodic.PeriodicThread(60, _run_periodic)
+    t.start()
+    t.awake()
+    assert raised.wait(timeout=1)
+    t.join()
+
+    t._after_fork(force=True)
+    t.awake()
+    assert restarted.wait(timeout=1), "the thread was not restarted"
+
+    t.stop()
+    t.join()
 
 
 def test_periodic_thread_preserves_awake_during_restart_window():
@@ -1236,8 +1572,7 @@ def test_concurrent_start_stop():
 def test_concurrent_awake():
     """N threads call awake() on the same PeriodicThread simultaneously.
 
-    Exercises the _awake_mutex / _request / _served Event trio under
-    concurrent writers.
+    Exercises _awake_mutex and the _request Event under concurrent writers.
     """
     barrier = Barrier(_N_THREADS)
     errors = []
@@ -1318,3 +1653,61 @@ def test_concurrent_stop_join():
         th.join()
 
     assert not errors, f"errors in concurrent stop/join: {errors}"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_timer_usable_in_child_when_forked_while_lock_held():
+    """A fork while another thread holds the Timer's worker lock must not leave the child unable to use the timer."""
+    import os
+    from threading import Event
+    from threading import Thread
+
+    from ddtrace.internal import periodic
+
+    fired = Event()
+
+    class T(periodic.Timer):
+        def timeout(self):
+            fired.set()
+
+    timer = T(0.1)
+
+    held = Event()
+    release = Event()
+
+    def hold():
+        with timer._worker_lock:
+            held.set()
+            release.wait(timeout=10)
+
+    holder = Thread(target=hold)
+    holder.start()
+    assert held.wait(timeout=5)
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            # The holding thread does not exist in the child: the lock must
+            # have been replaced rather than inherited locked.
+            assert timer._worker_lock.acquire(timeout=2), "worker lock inherited locked"
+            timer._worker_lock.release()
+
+            timer.start()
+            assert fired.wait(timeout=5), "timer did not fire in the child"
+            fired.clear()
+            timer.reset()
+            assert fired.wait(timeout=5), "timer did not fire after reset in the child"
+            timer.stop()
+        except BaseException:
+            import traceback
+
+            traceback.print_exc()
+            os._exit(1)
+        os._exit(0)
+
+    release.set()
+    holder.join()
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child exited with status {status}"

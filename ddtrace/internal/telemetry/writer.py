@@ -3,6 +3,9 @@ import itertools
 import logging
 import os
 import traceback
+from types import CodeType
+from types import FrameType
+from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -52,6 +55,25 @@ if TYPE_CHECKING:
 
 
 log = get_logger(__name__)
+
+_PASSTHROUGH_CODES: set[CodeType] = set()
+
+
+def _forwards_the_call(frame: FrameType) -> bool:
+    """A registered wrapper, or wrapt's pure-Python fallback frame that sits between a wrapper and its caller."""
+    module_name = frame.f_globals.get("__name__") or ""
+    return frame.f_code in _PASSTHROUGH_CODES or module_name == "wrapt" or module_name.startswith("wrapt.")
+
+
+def _blamed_code(root_traceback: TracebackType) -> CodeType:
+    """The innermost frame's code, or the code of the first caller outside the pass-through wrappers it went through."""
+    frames = [frame for frame, _ in traceback.walk_tb(root_traceback)]
+    index = len(frames) - 1
+    if frames[index].f_code in _PASSTHROUGH_CODES:
+        while index > 0 and _forwards_the_call(frames[index]):
+            index -= 1
+    return frames[index].f_code
+
 
 # Agentless intake endpoints (base URLs). The agent path is the trace agent URL.
 AGENTLESS_ENDPOINT_DATAD0G = "https://all-http-intake.logs.datad0g.com"
@@ -1214,7 +1236,7 @@ class TelemetryWriter:
             lineno = traceback.tb_frame.f_code.co_firstlineno
             filename = traceback.tb_frame.f_code.co_filename
 
-            if "ddtrace/" in filename:
+            if "ddtrace/" in _blamed_code(root_traceback).co_filename:
                 self.add_error_log("Unhandled exception from ddtrace code", (tp, None, root_traceback))
 
             dir_parts = filename.split(os.path.sep)
@@ -1249,3 +1271,7 @@ class TelemetryWriter:
     def uninstall_excepthook(self) -> None:
         """Unregister the telemetry excepthook."""
         excepthook.unregister(self._telemetry_excepthook)
+
+    def add_passthrough_wrapper(self, wrapper: Callable[..., Any]) -> None:
+        """Look past this forwarding wrapper to its caller when deciding if an unhandled exception is from ddtrace."""
+        _PASSTHROUGH_CODES.add(wrapper.__code__)

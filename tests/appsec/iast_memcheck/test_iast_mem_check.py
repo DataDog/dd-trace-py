@@ -15,7 +15,7 @@ from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_i
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
-from ddtrace.appsec._shared._stacktrace import get_info_frame
+from ddtrace.internal.security._stacktrace import get_info_frame
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 

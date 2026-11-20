@@ -2,11 +2,7 @@ from collections.abc import AsyncIterator
 from collections.abc import Iterator
 import json
 
-from langchain.agents import AgentExecutor
-from langchain.agents import AgentType
-from langchain.agents import create_openai_functions_agent
-from langchain.agents import initialize_agent
-from langchain.agents.output_parsers.openai_functions import OpenAIFunctionsAgentOutputParser
+import langchain
 from langchain_community.tools.shell.tool import ShellTool
 from langchain_core.agents import AgentActionMessageLog
 from langchain_core.language_models import BaseChatModel
@@ -28,12 +24,53 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.utils.wrappers import iswrapped
 from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
 from tests.appsec.iast.iast_utils import _iast_patched_module
+from tests.utils import override_global_config
+
+
+if parse_version(langchain.__version__) >= (1, 0, 0):
+    from langchain_classic.agents import AgentExecutor
+    from langchain_classic.agents import AgentType
+    from langchain_classic.agents import create_openai_functions_agent
+    from langchain_classic.agents import initialize_agent
+    from langchain_classic.agents.output_parsers.openai_functions import OpenAIFunctionsAgentOutputParser
+else:
+    from langchain.agents import AgentExecutor
+    from langchain.agents import AgentType
+    from langchain.agents import create_openai_functions_agent
+    from langchain.agents import initialize_agent
+    from langchain.agents.output_parsers.openai_functions import OpenAIFunctionsAgentOutputParser
 
 
 TEST_FILE = "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
 mod = _iast_patched_module("langchain_experimental.llm_bash.bash")
+
+
+@pytest.mark.parametrize("iast_enabled", [False, True])
+def test_prompt_patch_unpatch_does_not_stack_wrappers(iast_span_defaults, iast_enabled):  # noqa: F811
+    from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
+    from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
+
+    methods = [(owner, method) for owner in (PromptTemplate, ChatPromptTemplate) for method in ("format", "aformat")]
+    originals = [getattr(owner, method).__wrapped__ for owner, method in methods]
+    try:
+        for _ in range(2):
+            with override_global_config(dict(_iast_enabled=iast_enabled)):
+                langchain_unpatch()
+            for owner, method in methods:
+                assert not iswrapped(owner, method)
+            with override_global_config(dict(_iast_enabled=False)):
+                langchain_patch()
+                langchain_unpatch()
+            langchain_patch()
+            for (owner, method), original in zip(methods, originals):
+                assert getattr(owner, method).__wrapped__ is original
+    finally:
+        langchain_unpatch()
+        langchain_patch()
 
 
 def test_prompt_template_format(iast_span_defaults):  # noqa: F811
@@ -50,18 +87,20 @@ async def test_prompt_template_aformat(iast_span_defaults):  # noqa: F811
     assert is_pyobject_tainted(result)
 
 
-def test_chat_prompt_template_format(iast_span_defaults):  # noqa: F811
+@pytest.mark.parametrize("tainted", [False, True])
+def test_chat_prompt_template_format(iast_span_defaults, tainted):  # noqa: F811
     template = ChatPromptTemplate.from_messages([("system", "You are a helpful assistant."), ("user", "{prompt}")])
-    prompt = prepare_tainted_prompt()
+    prompt = prepare_tainted_prompt() if tainted else "A trusted prompt"
     result = template.format(prompt=prompt)
-    assert is_pyobject_tainted(result)
+    assert is_pyobject_tainted(result) is tainted
 
 
-async def test_chat_prompt_template_aformat(iast_span_defaults):  # noqa: F811
+@pytest.mark.parametrize("tainted", [False, True])
+async def test_chat_prompt_template_aformat(iast_span_defaults, tainted):  # noqa: F811
     template = ChatPromptTemplate.from_messages([("system", "You are a helpful assistant."), ("user", "{prompt}")])
-    prompt = prepare_tainted_prompt()
+    prompt = prepare_tainted_prompt() if tainted else "A trusted prompt"
     result = await template.aformat(prompt=prompt)
-    assert is_pyobject_tainted(result)
+    assert is_pyobject_tainted(result) is tainted
 
 
 def test_openai_functions_agent_output_parser(iast_span_defaults):  # noqa: F811

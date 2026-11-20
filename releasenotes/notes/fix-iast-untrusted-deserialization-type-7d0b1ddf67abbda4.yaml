@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes an issue where untrusted deserialization vulnerabilities are reported
+    with an unrecognized vulnerability type and are not displayed correctly in Datadog.

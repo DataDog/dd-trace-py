@@ -271,6 +271,9 @@ def llmobs(
     mock_llmobs_eval_metric_writer,
     mock_llmobs_evaluator_runner,
 ):
+    # A failed test that enables LLMObs without disabling it can leave this process-wide service
+    # attached to that test's tracer and mocked evaluator runner. Start each fixture lifecycle cleanly.
+    llmobs_service.disable()
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
     global_config = default_global_config()

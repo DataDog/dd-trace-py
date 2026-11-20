@@ -222,6 +222,11 @@ def _release_storage_var(name: str, var: StorageVar) -> None:
 # function return value. The wrapped function can be accessed via the
 # __wrapped__ attribute. Context-specific values can be stored and retrieved
 # with the set and get methods.
+#
+# The stored values live only while the wrapped call runs. When the call ends,
+# __return__ or __exit__ empties the storage. Read every value before you call
+# super().__return__ or super().__exit__. Reading or writing the storage after
+# that, for example from a callback or a copied Context, is not supported.
 
 CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
@@ -518,13 +523,16 @@ class BaseWrappingContext(ABC):
 
         return self
 
-    def _pop_storage(self) -> dict[str, t.Any]:
+    def _pop_storage(self) -> None:
+        """End the storage of the current call and make the storage of the enclosing call current again."""
         storage = t.cast(t.Optional[WrappingContextStorage], self._storage.get())
         if storage is None:
-            return {}
+            return
         self._storage.set(storage.pop(_STORAGE_PREV))
-        del storage[_STORAGE_OWNER]
-        return storage
+        # Code can copy the current Context during the call, for example when it creates a gRPC channel.
+        # The copy keeps this dict alive after the call ends. Empty the dict, because it holds the frame
+        # of the call, and the frame holds the local variables.
+        storage.clear()
 
     def __return__(self, value: T) -> T:
         self._pop_storage()
@@ -1241,12 +1249,17 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             i += len(return_code)
                     i += 1
 
-                # Search for the GEN_START instruction, which needs to stay on top.
+                # Search for the GEN_START instruction, which needs to stay on top. It takes the
+                # first line of the function: bytecode would otherwise fold the head below, which
+                # is on that line, into the line-less range of GEN_START.
                 i = 0
                 if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)):
                     for i, instr in enumerate(bc, 1):
                         if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                            instr.lineno = code.co_firstlineno
                             break
+                    else:
+                        i = 0
 
                 *bc[i:i], except_label = CONTEXT_HEAD.bind(
                     {"context": _CONTEXT_PLACEHOLDER}, lineno=code.co_firstlineno
@@ -1281,6 +1294,12 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             break
 
                     bc[i : i + len(CONTEXT_HEAD) - 1] = []
+
+                    gen_start = bc[i - 1] if i else None
+                    if isinstance(gen_start, bytecode.Instr) and gen_start.name == "GEN_START":
+                        first = next((instr for instr in bc[i:] if isinstance(instr, bytecode.Instr)), None)
+                        if first is None or first.lineno != gen_start.lineno:
+                            gen_start.lineno = None
 
                     # Remove all the return handlers
                     i = 0

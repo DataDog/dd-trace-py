@@ -5,31 +5,34 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from functools import singledispatch
-import threading
-from threading import Thread
 import time
 from types import FrameType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import Optional
 from typing import Protocol
 from typing import cast
-from uuid import uuid4
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
-from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._safety import get_args
+from ddtrace.debugging._sampling import DebuggerSampler
+from ddtrace.debugging._sampling import Decision
 from ddtrace.debugging._session import Session
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
-from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.utils.time import Time
+
+
+if TYPE_CHECKING:
+    from threading import Thread
 
 
 class TraceContextProtocol(Protocol):
@@ -55,8 +58,19 @@ class SignalState(str, Enum):
     SKIP_RATE_GLOBAL = "SKIP_RATE_GLOBAL"
     SKIP_RATE_PROBE = "SKIP_RATE_PROBE"
     SKIP_BUDGET = "SKIP_BUDGET"
+    SKIP_CAPPED = "SKIP_CAPPED"
     COND_ERROR = "COND_ERROR"
+    EVAL_ERROR = "EVAL_ERROR"
     DONE = "DONE"
+
+
+# How a firing the sampler turned away, at the gate or at admission, is recorded
+# on its signal, so that the collector reports why it was skipped.
+_SAMPLING_SKIP_STATES = {
+    Decision.DROP_SAMPLED: SignalState.SKIP_RATE_GLOBAL,
+    Decision.DROP_CAPPED: SignalState.SKIP_CAPPED,
+    Decision.DROP_RATE: SignalState.SKIP_RATE_PROBE,
+}
 
 
 class SignalTrack(str, Enum):
@@ -75,10 +89,10 @@ class Signal(abc.ABC):
     Probes with an evaluation timing will trigger the following logic:
 
     - If the timing is on ENTRY, the probe will trigger on entry and on exit,
-      but the condition and rate limiter will only be evaluated on entry.
+      but the sampling checks and the condition will only be evaluated on entry.
 
     - If the timing is on EXIT, the probe will trigger on exit only, and the
-      condition and rate limiter will be evaluated on exit.
+      sampling checks and the condition will be evaluated on exit.
 
     - IF the timing is DEFAULT, the probe will trigger on the default timing for
       the signal.
@@ -91,12 +105,12 @@ class Signal(abc.ABC):
 
     probe: Probe
     frame: FrameType
-    thread: Thread
+    thread: "Thread"
     trace_context: Optional[TraceContextProtocol] = None
     state: str = SignalState.NONE
     errors: list[EvaluationError] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
-    uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
+    uuid: str = field(default_factory=uuid4, init=False)
     _eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -114,25 +128,20 @@ class Signal(abc.ABC):
             # The probe has no condition, so it should always trigger.
             return True
 
-        condition = probe.condition
-        if condition is None:
-            return True
-
         # RFC: skip at probe entry when error rate has been exceeded previously
         if Time.monotonic() < probe._error_throttled_until:
             self.state = SignalState.SKIP_COND_ERROR
             return False
 
+        condition = probe.condition
+        if condition is None:
+            return True
+
         t_start = Time.monotonic()
         try:
             result = bool(condition.eval(scope))
         except DDExpressionEvaluationError as e:
-            self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
-            if probe.condition_error_limiter.limit() is RateLimitExceeded:
-                probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
-                self.state = SignalState.SKIP_COND_ERROR
-            else:
-                self.state = SignalState.COND_ERROR
+            self._record_evaluation_error(e.dsl, e.error)
             return False
         finally:
             self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
@@ -140,19 +149,10 @@ class Signal(abc.ABC):
         # RFC: treat evaluation overruns as guardrail input — feed into the error throttle
         eval_timeout_ms = di_config.evaluation_timeout_ms
         if self._eval_duration_ms > eval_timeout_ms:
-            self.errors.append(
-                EvaluationError(
-                    expr=condition.dsl,
-                    message=(
-                        f"Condition evaluation exceeded budget: {self._eval_duration_ms:.1f}ms > {eval_timeout_ms}ms"
-                    ),
-                )
+            self._record_evaluation_error(
+                condition.dsl,
+                f"Condition evaluation exceeded budget: {self._eval_duration_ms:.1f}ms > {eval_timeout_ms}ms",
             )
-            if probe.condition_error_limiter.limit() is RateLimitExceeded:
-                probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
-                self.state = SignalState.SKIP_COND_ERROR
-                return False
-            self.state = SignalState.COND_ERROR
             return False
 
         if result:
@@ -161,18 +161,14 @@ class Signal(abc.ABC):
         self.state = SignalState.SKIP_COND
         return False
 
-    def _rate_limit_exceeded(self) -> bool:
-        """Evaluate the probe rate limiter."""
-        probe = self.probe
-        if not isinstance(probe, RateLimitMixin):
-            # We don't have a rate limiter, so no rate was exceeded.
-            return False
-
-        exceeded = self.session is None and probe.limiter.limit() is RateLimitExceeded
-        if exceeded:
-            self.state = SignalState.SKIP_RATE_PROBE
-
-        return exceeded
+    def _record_evaluation_error(self, expr: str, message: str, state: SignalState = SignalState.COND_ERROR) -> None:
+        probe = cast(ProbeConditionMixin, self.probe)
+        self.errors.append(EvaluationError(expr=expr, message=message))
+        if probe.condition_error_limiter.limit() is RateLimitExceeded:
+            probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
+            self.state = SignalState.SKIP_COND_ERROR
+        else:
+            self.state = state
 
     def _session_check(self) -> bool:
         # Check that we emit signals from probes with a session ID only if the
@@ -193,6 +189,21 @@ class Signal(abc.ABC):
                 self.state = SignalState.SKIP_BUDGET
                 return True
         return False
+
+    def _skipped_by(self, decision: Decision) -> bool:
+        if decision is Decision.FIRE:
+            return False
+
+        self.state = _SAMPLING_SKIP_STATES[decision]
+        return True
+
+    def _gated_out(self) -> bool:
+        """Ask the sampler's gate, before any work towards evaluating the probe."""
+        return self._skipped_by(DebuggerSampler.evaluate(self.probe))
+
+    def _sampled_out(self) -> bool:
+        """Ask the sampler for admission, right before capturing."""
+        return self._skipped_by(DebuggerSampler.admit(self.probe))
 
     @property
     def session(self) -> Optional[Session]:
@@ -222,11 +233,14 @@ class Signal(abc.ABC):
         if self._timing is not ProbeEvalTiming.ENTRY:
             return
 
+        if self._gated_out():
+            return
+
         scope = ChainMap(self.args, self.frame.f_globals)
         if not self._eval_condition(scope):
             return
 
-        if self._rate_limit_exceeded():
+        if self._sampled_out():
             return
 
         if self._budget_exceeded():
@@ -242,6 +256,9 @@ class Signal(abc.ABC):
             # The signal has already been handled and move to a final state
             return
 
+        if self._timing is ProbeEvalTiming.EXIT and self._gated_out():
+            return
+
         frame = self.frame
         extra: dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
 
@@ -253,12 +270,12 @@ class Signal(abc.ABC):
         scope = ChainMap(extra, frame.f_locals, frame.f_globals)
 
         if self._timing is ProbeEvalTiming.EXIT:
-            # We only evaluate the condition and the rate limiter on exit if it
+            # We only evaluate the condition and admit the capture on exit if it
             # is a probe with timing on exit
             if not self._eval_condition(scope):
                 return
 
-            if self._rate_limit_exceeded():
+            if self._sampled_out():
                 return
 
             if self._budget_exceeded():
@@ -266,10 +283,14 @@ class Signal(abc.ABC):
 
         self.exit(retval, cast(ExcInfoType, exc_info), duration or 0, scope)
 
-        self.state = SignalState.DONE
+        if self.state is SignalState.NONE:
+            self.state = SignalState.DONE
 
-    def do_line(self, global_limiter: Optional[RateLimiter] = None) -> None:
+    def do_line(self) -> None:
         if not self._session_check():
+            return
+
+        if self._gated_out():
             return
 
         frame = self.frame
@@ -278,11 +299,7 @@ class Signal(abc.ABC):
         if not self._eval_condition(scope):
             return
 
-        if global_limiter is not None and global_limiter.limit() is RateLimitExceeded:
-            self.state = SignalState.SKIP_RATE_GLOBAL
-            return
-
-        if self._rate_limit_exceeded():
+        if self._sampled_out():
             return
 
         if self._budget_exceeded():
@@ -290,11 +307,12 @@ class Signal(abc.ABC):
 
         self.line(scope)
 
-        self.state = SignalState.DONE
+        if self.state is SignalState.NONE:
+            self.state = SignalState.DONE
 
     @staticmethod
     def from_probe(
-        probe: Probe, frame: FrameType, thread: Thread, trace_context: Optional[Any], meter: Metrics.Meter
+        probe: Probe, frame: FrameType, thread: "Thread", trace_context: Optional[Any], meter: Metrics.Meter
     ) -> "Signal":
         return probe_to_signal(probe, frame, thread, trace_context, meter)
 
@@ -303,7 +321,7 @@ class Signal(abc.ABC):
 def probe_to_signal(
     probe: Probe,
     frame: FrameType,
-    thread: threading.Thread,
+    thread: "Thread",
     trace_context: Optional[Any],
     meter: Metrics.Meter,
 ) -> Signal:

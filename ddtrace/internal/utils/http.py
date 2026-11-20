@@ -1,18 +1,22 @@
-from collections.abc import Generator  # noqa:F401
+import codecs
+from collections.abc import Generator
 from collections.abc import Mapping
 from contextlib import contextmanager
+from contextlib import suppress
 from dataclasses import dataclass
 from email.encoders import encode_noop
+import encodings
+import encodings.aliases
 from enum import Enum
 from json import loads
 import logging
 import re
-from re import Pattern  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import ContextManager  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from re import Pattern
+from typing import Any
+from typing import Callable
+from typing import ContextManager
+from typing import Optional
+from typing import Union
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
@@ -47,6 +51,78 @@ class MediaType(Enum):
     MULTIPART = "multipart"
     PLAIN = "plain"
     UNKNOWN = "unknown"
+
+
+def is_utf8_charset(charset: str) -> bool:
+    """Whether a charset name designates UTF-8."""
+    return charset.lower().replace("-", "").replace("_", "") == "utf8"
+
+
+_SLOW_CHARSETS = frozenset(("punycode", "idna"))
+_SLOW_CHARSET_MAX_SIZE = 4096
+
+
+@cached()
+def _known_charsets() -> frozenset[str]:
+    import pkgutil
+
+    modules = frozenset(module.name for module in pkgutil.iter_modules(encodings.__path__))
+    return frozenset(encodings.aliases.aliases) | frozenset(encodings.aliases.aliases.values()) | modules
+
+
+_CHARSET_SEPARATORS = re.compile(r"[^A-Za-z0-9.]+")
+
+
+def _normalized_charset(charset: str) -> str:
+    return _CHARSET_SEPARATORS.sub("_", charset).strip("_").lower()
+
+
+def inspectable_charset(charset: Any, size: int = 0) -> str:
+    """Return the text codec to decode a body of size bytes with, or utf-8 when it is unusable or too slow."""
+    if not isinstance(charset, str) or not charset:
+        return "utf-8"
+    # Only look up known names: codecs.lookup caches every name it is given forever.
+    normalized = _normalized_charset(charset)
+    known = _known_charsets()
+    name = normalized if normalized in known else normalized.replace(".", "_")
+    if name not in known:
+        return "utf-8"
+    try:
+        info = codecs.lookup(name)
+    except Exception:
+        return "utf-8"
+    if not getattr(info, "_is_text_encoding", True):
+        return "utf-8"
+    if info.name in _SLOW_CHARSETS and size > _SLOW_CHARSET_MAX_SIZE:
+        return "utf-8"
+    return info.name
+
+
+def is_slow_charset(charset: str) -> bool:
+    """Whether a codec name returned by inspectable_charset has a slow decoder."""
+    return charset in _SLOW_CHARSETS
+
+
+def is_punycode_charset(charset: Any) -> bool:
+    """Whether a declared charset value designates punycode."""
+    return isinstance(charset, str) and _normalized_charset(charset) == "punycode"
+
+
+def parse_json_bytes(data: Union[bytes, bytearray], charset: str, punycode: bool = False) -> Any:
+    """Parse a JSON body with its charset, then from its bytes, or raise ValueError.
+
+    With punycode, also try the literal part that punycode keeps before its last hyphen.
+    """
+    utf8 = is_utf8_charset(charset)
+    attempts: list[Callable[[], Any]] = [lambda: loads(data if utf8 else data.decode(charset))]
+    if not utf8:
+        attempts.append(lambda: loads(data))
+    if punycode and b"-" in data:
+        attempts.append(lambda: loads(bytes(data).rpartition(b"-")[0]))
+    for attempt in attempts:
+        with suppress(Exception):
+            return attempt()
+    raise ValueError("not a JSON body")
 
 
 def classify_media_type(content_type: Optional[str]) -> MediaType:
@@ -103,6 +179,29 @@ def strip_query_string(url: str) -> str:
     if not f:
         return h
     return h + fs + f
+
+
+_DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
+
+def url_origin(url: str) -> Optional[str]:
+    """Reduce url to scheme://host[:port], dropping userinfo, path, query and fragment, which can hold credentials.
+
+    Scheme and host are lowercased and a default port dropped. Returns None without scheme or host.
+    """
+    try:
+        parts = parse.urlsplit(url)
+        host = parts.hostname
+        port = parts.port
+    except (TypeError, ValueError):
+        return None
+    if not parts.scheme or not host:
+        return None
+    scheme = parts.scheme.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    netloc = host if port is None or _DEFAULT_PORTS.get(scheme) == port else f"{host}:{port}"
+    return f"{scheme}://{netloc}"
 
 
 def _redact_query_string_match(match: re.Match[bytes]) -> bytes:
@@ -377,7 +476,7 @@ class Response:
         self.msg = msg
 
     @classmethod
-    def from_http_response(cls, resp):
+    def from_http_response(cls, resp: Any) -> "Response":
         """
         Build a ``Response`` from the provided ``HTTPResponse`` object.
 

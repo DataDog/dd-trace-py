@@ -474,6 +474,43 @@ def _on_iast_fastapi_patch():
         iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
 
 
+def _on_aiohttp_request_start(ctx, request, max_body_size):
+    if not is_iast_request_enabled():
+        return
+    try:
+        # The event comes from aiohttp's middleware, so aiohttp and multidict are importable here.
+        from ddtrace.appsec._iast._aiohttp import taint_request_sources
+
+        taint_request_sources(ctx, request)
+    except Exception:
+        iast_propagation_listener_log_log("Unexpected exception while tainting aiohttp request", exc_info=True)
+
+
+def _aiohttp_response_sends_body(method: str, status: int) -> bool:
+    if method == "HEAD" or status in (204, 304) or 100 <= status < 200:
+        return False
+    return not (method == "CONNECT" and 200 <= status < 300)
+
+
+def _on_aiohttp_response(request, response):
+    if not is_iast_request_enabled() or get_iast_stacktrace_reported():
+        return
+    try:
+        from .taint_sinks.stacktrace_leak import has_stacktrace_marker
+        from .taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
+
+        if not _aiohttp_response_sends_body(request.method, response.status):
+            return
+        body = getattr(response, "body", None)
+        if isinstance(body, (bytes, bytearray)) and has_stacktrace_marker(body):
+            if iast_check_stacktrace_leak(body.decode("utf-8", errors="ignore")):
+                set_iast_stacktrace_reported(True)
+    except Exception:
+        iast_propagation_listener_log_log(
+            "Unexpected exception checking aiohttp response for stacktrace leak", exc_info=True
+        )
+
+
 def _on_pre_tracedrequest_iast(ctx):
     current_span = span_from_context(ctx)
     _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))

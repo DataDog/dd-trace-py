@@ -1,4 +1,6 @@
+import asyncio
 import json
+import time
 from typing import Any
 from unittest.mock import patch
 
@@ -27,12 +29,15 @@ from tests.aiguard.utils import override_ai_guard_config
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
 
-# langchain 1.0 removed the legacy ``AgentExecutor`` / ``create_openai_functions_agent``
-# API in favor of ``create_agent`` (langgraph-based). Tests are split accordingly.
-requires_legacy_agents = pytest.mark.skipif(
-    LANGCHAIN_VERSION >= (1, 0, 0),
-    reason="legacy AgentExecutor / create_openai_functions_agent API removed in langchain 1.0",
-)
+# LangChain v1 moved the legacy agent API into langchain-classic.
+if LANGCHAIN_VERSION >= (1, 0, 0):
+    from langchain_classic.agents import AgentExecutor
+    from langchain_classic.agents import create_openai_functions_agent
+else:
+    from langchain.agents import AgentExecutor
+    from langchain.agents import create_openai_functions_agent
+
+
 requires_create_agent = pytest.mark.skipif(
     LANGCHAIN_VERSION < (1, 0, 0),
     reason="create_agent API introduced in langchain 1.0",
@@ -90,6 +95,20 @@ def _assert_evaluated_response(mock_execute_request, content: str) -> None:
     response_eval = _evaluated_messages(mock_execute_request, 1)
     assert response_eval[-1]["role"] == "assistant"
     assert content in response_eval[-1]["content"]
+
+
+# Arguments a provider returned truncated; langchain reports the call in invalid_tool_calls.
+INVALID_TOOL_ARGS = '{"city": "Par'
+
+# invalid_tool_calls only exists on newer langchain-core releases.
+requires_invalid_tool_calls = pytest.mark.skipif(
+    "invalid_tool_calls" not in (getattr(AIMessage, "model_fields", None) or getattr(AIMessage, "__fields__", {})),
+    reason="AIMessage.invalid_tool_calls is not available",
+)
+
+
+def _invalid_tool_call() -> dict:
+    return {"id": "bad", "name": "weather", "args": INVALID_TOOL_ARGS, "error": None}
 
 
 # Tool-call prompt whose recorded responses (tests/cassettes/openai) ask for add(a=1, b=1).
@@ -353,14 +372,67 @@ def test_text_and_tool_call_response_evaluated_as_one_turn(
     assert response_span.get_tag(AI_GUARD.TOOL_NAME_TAG) == "add"
 
 
-@requires_legacy_agents
+@requires_invalid_tool_calls
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_agent_action_evaluated_once(mock_execute_request, langchain_openai, openai_url):
-    """The legacy function_call path: Agent.plan does not repeat the response evaluation of the same call."""
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
+def test_invalid_tool_call_only_response_block(
+    mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision
+):
+    """A reply whose only tool call failed to parse still carries model output, so it is evaluated."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+    mock_openai_request.return_value = ChatResult(
+        generations=[ChatGeneration(message=AIMessage(content="", invalid_tool_calls=[_invalid_tool_call()]))]
+    )
 
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        llm.invoke([HumanMessage(content="Weather in Paris?")])
+
+    response = _evaluated_messages(mock_execute_request, 1)
+    assert response[-1]["role"] == "assistant"
+    assert response[-1]["tool_calls"][0]["function"] == {"name": "weather", "arguments": INVALID_TOOL_ARGS}
+
+
+@requires_invalid_tool_calls
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_valid_and_invalid_tool_calls_evaluated_as_one_turn(
+    mock_execute_request, mock_openai_request, langchain_openai, openai_url
+):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    mock_openai_request.return_value = ChatResult(
+        generations=[
+            ChatGeneration(
+                message=AIMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="ok", name="add", args={"a": 1, "b": 1})],
+                    invalid_tool_calls=[_invalid_tool_call()],
+                )
+            )
+        ]
+    )
+
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    llm.invoke([HumanMessage(content="Add 1 and 1, then check the weather in Paris.")])
+
+    assert mock_execute_request.call_count == 2
+    response = _evaluated_messages(mock_execute_request, 1)
+    assert [call["function"] for call in response[-1]["tool_calls"]] == [
+        {"name": "add", "arguments": '{"a": 1, "b": 1}'},
+        {"name": "weather", "arguments": INVALID_TOOL_ARGS},
+    ]
+
+
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_agent_action_evaluated_once(mock_execute_request, mock_openai_request, langchain_openai, openai_url):
+    """The legacy function_call path: Agent.plan does not repeat the response evaluation of the same call."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    mock_openai_request.side_effect = [
+        _mock_openai_tool_response("add", {"a": 1, "b": 1}),
+        ChatResult(generations=[ChatGeneration(message=AIMessage(content="2"))]),
+    ]
 
     agent_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
     llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
@@ -374,13 +446,53 @@ def test_agent_action_evaluated_once(mock_execute_request, langchain_openai, ope
     assert final_answer == {"role": "assistant", "content": result["output"]}
 
 
-@requires_legacy_agents
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_mode", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("rewritten", [False, True], ids=["failed-response", "rewritten-action"])
+@patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_agent_action_is_checked_before_tool_execution(
+    mock_execute_request, mock_generate, mock_agenerate, langchain_openai, openai_url, async_mode, rewritten
+):
+    mock_execute_request.side_effect = [
+        mock_evaluate_response("ALLOW"),
+        mock_evaluate_response("ALLOW") if rewritten else ConnectionError("AI Guard unreachable"),
+        mock_evaluate_response("DENY"),
+    ]
+    response = _mock_openai_tool_response("add", {"a": 1, "b": 1})
+    mock_generate.return_value = response
+    mock_agenerate.return_value = response
+    prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    agent = create_openai_functions_agent(llm, [add], prompt)
+    if rewritten:
+
+        def rewrite_action(action):
+            action.tool_input = {"a": 1, "b": 99}
+            return action
+
+        agent = agent | rewrite_action
+    executor = AgentExecutor(agent=agent, tools=[add])
+    executor.agent.stream_runnable = False
+    tracker = ToolTrackingHandler()
+    with pytest.raises(AIGuardAbortError):
+        if async_mode:
+            await executor.ainvoke({"input": "1 + 1"}, config={"callbacks": [tracker]})
+        else:
+            executor.invoke({"input": "1 + 1"}, config={"callbacks": [tracker]})
+
+    assert tracker.tool_calls == []
+    assert mock_execute_request.call_count == 3
+    assert _tool_call_evaluations(mock_execute_request)[-1] == {
+        "name": "add",
+        "arguments": '{"a": 1, "b": 99}' if rewritten else '{"a": 1, "b": 1}',
+    }
+
+
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_url, decision):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
@@ -410,14 +522,10 @@ def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
 
 
-@requires_legacy_agents
 @pytest.mark.asyncio
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_agent_action_async_block(mock_execute_request, langchain_openai, openai_url, decision):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
@@ -447,14 +555,10 @@ async def test_agent_action_async_block(mock_execute_request, langchain_openai, 
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
 
 
-@requires_legacy_agents
 @pytest.mark.asyncio
 @patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_agent_action_intermediate_steps(mock_execute_request, mock_openai_request, langchain_openai, openai_url):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     def ai_guard_mock(*args, **kwargs):
         messages = args[1]["data"]["attributes"]["messages"]
         last_message = messages[-1]
@@ -679,9 +783,10 @@ def test_create_agent_edited_tool_call_is_reevaluated(mock_execute_request, lang
 
 
 @requires_create_agent
+@pytest.mark.parametrize("broken_agent_import", [None, "langchain.agents", "langchain_classic.agents"], indirect=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_create_agent_tool_call_evaluated_when_response_evaluation_fails(
-    mock_execute_request, langchain_openai, openai_url
+    mock_execute_request, langchain_openai, openai_url, broken_agent_import
 ):
     """A response evaluation that fails open leaves the tool call to be evaluated before it runs."""
     from langchain.agents import create_agent
@@ -695,9 +800,11 @@ def test_create_agent_tool_call_evaluated_when_response_evaluation_fails(
     llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
     agent = create_agent(model=llm, tools=[add])
 
+    tracker = ToolTrackingHandler()
     with pytest.raises(AIGuardAbortError):
-        agent.invoke({"messages": [HumanMessage(content=TOOL_PROMPT)]})
+        agent.invoke({"messages": [HumanMessage(content=TOOL_PROMPT)]}, config={"callbacks": [tracker]})
 
+    assert tracker.tool_calls == []
     assert mock_execute_request.call_count == 3
     assert _evaluated_messages(mock_execute_request, 2)[-1]["tool_calls"][0]["function"]["name"] == "add"
 
@@ -858,6 +965,23 @@ def test_message_conversion():
 
     assert result[7]["role"] == "assistant"
     assert result[7]["content"] == "One plus one is two"
+
+
+@requires_invalid_tool_calls
+def test_message_conversion_keeps_invalid_tool_calls():
+    """Some providers send unparsable calls back in the next request, so history must carry them."""
+    message = AIMessage(
+        content="",
+        tool_calls=[ToolCall(id="ok", name="add", args={"a": 1, "b": 1})],
+        invalid_tool_calls=[_invalid_tool_call()],
+    )
+
+    result = _convert_messages([HumanMessage(content="hi"), message])
+
+    assert [call["function"] for call in result[1]["tool_calls"]] == [
+        {"name": "add", "arguments": '{"a": 1, "b": 1}'},
+        {"name": "weather", "arguments": INVALID_TOOL_ARGS},
+    ]
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
@@ -1572,6 +1696,63 @@ async def test_streamed_async_response_evaluated_for_any_provider(mock_execute_r
     assert "".join(chunk.content for chunk in chunks) == "hello"
     _assert_evaluated_response(mock_execute_request, "hello")
     assert handler.tokens and set(handler.tokens) == {2}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"], ids=["allow", "deny"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_streamed_async_response_evaluated_off_event_loop(mock_execute_request, langchain, decision):
+    """A slow astream() response evaluation must not stall other asyncio tasks; a block still propagates."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    ticks = 0
+
+    async def ticker():
+        nonlocal ticks
+        while True:
+            ticks += 1
+            await asyncio.sleep(0.005)
+
+    ticks_during_response_eval = []
+
+    def execute_request(*args, **kwargs):
+        if mock_execute_request.call_count == 1:  # prompt evaluation
+            return mock_evaluate_response("ALLOW")
+        start = ticks
+        time.sleep(0.3)
+        ticks_during_response_eval.append(ticks - start)
+        return mock_evaluate_response(decision)
+
+    mock_execute_request.side_effect = execute_request
+    handler = _EvaluationOrderHandler(mock_execute_request)
+    ticker_task = asyncio.create_task(ticker())
+    chunks = []
+    try:
+        with _stream_evaluation_on():
+            stream = FakeListChatModel(responses=["hello"]).astream(input="hi", config={"callbacks": [handler]})
+            if decision == "ALLOW":
+                chunks = [chunk async for chunk in stream]
+            else:
+                with pytest.raises(AIGuardAbortError):
+                    async for chunk in stream:
+                        chunks.append(chunk)
+    finally:
+        ticker_task.cancel()
+        await asyncio.gather(ticker_task, return_exceptions=True)
+
+    if decision == "ALLOW":
+        assert "".join(chunk.content for chunk in chunks) == "hello"
+        assert handler.tokens and set(handler.tokens) == {2}
+        assert handler.ends == [2]
+        assert handler.errors == []
+    else:
+        assert chunks == []
+        assert handler.tokens == []
+        assert handler.ends == []
+        assert len(handler.errors) == 1
+    assert mock_execute_request.call_count == 2
+    # The ticker kept running while the blocking evaluation slept in its worker thread.
+    assert ticks_during_response_eval and ticks_during_response_eval[0] > 1
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

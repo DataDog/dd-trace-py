@@ -13,10 +13,14 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.exception import ContextExceptionEvent
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
+from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
@@ -110,14 +114,14 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     return span
 
 
-class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType]):
+class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType], auto_register=False):
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
     override on_started/on_ended for their specific logic.
 
     Example:
-        class MySpanSubscriber(SpanTracingSubscriber):
+        class MySpanSubscriber(TracingSubscriber):
             event_names = ("my.span",)
 
             @classmethod
@@ -151,3 +155,41 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         finally:
             if getattr(ctx.event, "_end_span", True):
                 _finish_span(ctx, exc_info)
+
+
+class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[TracingEventType]):
+    """TracingSubscriber that dispatches span lifecycle events with (ctx,), suffixed with the context
+    identifier, so other products can take part in the span it owns:
+    - span.starting.<identifier>: before the span is created, the event can still be changed
+    - span.started.<identifier>: after the span is created and on_started handlers ran
+    - span.finishing.<identifier>: before on_ended handlers run and the span is finished
+    """
+
+    @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
+        core.dispatch(f"{SpanLifecycleEvents.SPAN_STARTING.value}.{ctx.identifier}", (ctx,))
+        super()._on_context_started(ctx)
+        core.dispatch(f"{SpanLifecycleEvents.SPAN_STARTED.value}.{ctx.identifier}", (ctx,))
+
+    @classmethod
+    def _on_context_ended(
+        cls,
+        ctx: core.ExecutionContext[TracingEventType],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        try:
+            core.dispatch(f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{ctx.identifier}", (ctx,))
+        finally:
+            super()._on_context_ended(ctx, exc_info)
+
+
+class SpanExceptionSubscriber(Subscriber):
+    auto_register = False
+    event_names = (ContextExceptionEvent.event_name,)
+
+    @classmethod
+    def on_event(cls, event: ContextExceptionEvent) -> None:
+        span = find_span_on_context(event.context)
+        exc_type, exc_value, traceback = event.exc_info
+        if span is not None and exc_type is not None and exc_value is not None and traceback is not None:
+            span.set_exc_info(exc_type, exc_value, traceback)

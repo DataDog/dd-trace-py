@@ -5,10 +5,12 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.contrib.internal.langchain.constants import CHAIN_INPUTS_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -23,8 +25,8 @@ from ddtrace.llmobs._integrations.utils import LANGCHAIN_ROLE_MAPPING
 from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import set_prompt_tracking_tags
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_llmobs_span_links
@@ -34,7 +36,6 @@ from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import _SpanLink
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -136,7 +137,7 @@ class LangChainIntegration(BaseLLMIntegration):
     _instances: WeakKeyDictionary = WeakKeyDictionary()
     """Maps span to instances."""
 
-    def record_instance(self, instance, span: Span):
+    def record_instance(self, instance, span: _LLMObsSpan):
         if not self.llmobs_enabled:
             return
 
@@ -150,7 +151,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if parent_instance is None or not _is_chain_instance(parent_instance):
             return
 
-        spans: dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
+        spans: dict[int, _LLMObsSpan] = getattr(parent_instance, "_datadog_spans", {})
         spans[id(instance)] = span
 
         try:
@@ -158,9 +159,22 @@ class LangChainIntegration(BaseLLMIntegration):
         except Exception:
             parent_instance.__dict__["_datadog_spans"] = spans
 
+    def _on_request_span_started(
+        self,
+        span: _LLMObsSpan,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        self.record_instance(instance, span)
+        # The prompt template is stored on invoke/ainvoke and never cleared, so a stream on the same
+        # model would otherwise be tagged with a prompt from an earlier, unrelated invoke.
+        if operation in ("llm", "chat") and not span.get_tag("langchain.request.stream"):
+            self.llmobs_set_prompt_tag(instance, span)
+
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -254,7 +268,7 @@ class LangChainIntegration(BaseLLMIntegration):
             model_provider=span.get_tag(PROVIDER),
         )
 
-    def _set_links(self, span: Span) -> None:
+    def _set_links(self, span: _LLMObsSpan) -> None:
         """
         Sets span links for the given LangChain span, by doing the following:
         1. Determine the invoker spans, and if the invoker spans are from the output of those spans or inputs.
@@ -276,7 +290,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._clear_instance_recordings(instance)
 
-    def _get_invoker_spans(self, instance, parent_span: Span) -> tuple[list[Span], bool]:
+    def _get_invoker_spans(self, instance, parent_span: _LLMObsSpan) -> tuple[list[_LLMObsSpan], bool]:
         """
         Gets a list of invoker spans, and whether the current instance is from the output of the invoker spans.
         Will return:
@@ -326,7 +340,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return [chain_spans[id(invoker_steps)]], True
 
-    def _set_input_links(self, span: Span, invoker_spans: list[Span], from_output: bool):
+    def _set_input_links(self, span: _LLMObsSpan, invoker_spans: list[_LLMObsSpan], from_output: bool):
         """Sets the input links for the given span (to: input)"""
         self._set_span_links(
             span=span,
@@ -335,7 +349,9 @@ class LangChainIntegration(BaseLLMIntegration):
             link_to="input",
         )
 
-    def _set_output_links(self, span: Span, parent_span: Span, invoker_spans: list[Span], from_output: bool) -> None:
+    def _set_output_links(
+        self, span: _LLMObsSpan, parent_span: _LLMObsSpan, invoker_spans: list[_LLMObsSpan], from_output: bool
+    ) -> None:
         """
         Sets the output links for the parent span of the given span (to: output)
         This is done by removing span links of previous steps in the chain from the parent span (if it is a chain).
@@ -353,7 +369,11 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
     def _get_popped_span_link_indices(
-        self, parent_span: Span, parent_links: list[_SpanLink], invoker_spans: list[Span], from_output: bool
+        self,
+        parent_span: _LLMObsSpan,
+        parent_links: list[_SpanLink],
+        invoker_spans: list[_LLMObsSpan],
+        from_output: bool,
     ) -> list[int]:
         """
         Returns a list of indices to pop from the parent span links list
@@ -376,8 +396,8 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def _set_span_links(
         self,
-        span: Span,
-        from_spans: list[Span],
+        span: _LLMObsSpan,
+        from_spans: list[_LLMObsSpan],
         link_from: str,
         link_to: str,
         popped_span_link_indices: Optional[list[int]] = None,
@@ -437,7 +457,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return f"{module_name}.{variable_name}"
 
-    def _llmobs_set_metadata(self, span: Span, kwargs: dict[str, Any]) -> None:
+    def _llmobs_set_metadata(self, span: _LLMObsSpan, kwargs: dict[str, Any]) -> None:
         identifying_params = kwargs.pop("_dd.identifying_params", None)
         if not identifying_params:
             return
@@ -470,7 +490,7 @@ class LangChainIntegration(BaseLLMIntegration):
         return metadata
 
     def _llmobs_set_tags_from_llm(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], completions: Any, is_workflow: bool = False
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], completions: Any, is_workflow: bool = False
     ) -> None:
         input_key = "input_value" if is_workflow else "input_messages"
         output_key = "output_value" if is_workflow else "output_messages"
@@ -519,7 +539,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_from_chat_model(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         chat_completions: Any,
@@ -679,11 +699,11 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return input_messages
 
-    def _llmobs_set_meta_tags_from_chain(self, span: Span, args, kwargs, outputs: Any) -> None:
+    def _llmobs_set_meta_tags_from_chain(self, span: _LLMObsSpan, args, kwargs, outputs: Any) -> None:
         if span.get_tag("langchain.request.stream"):
             inputs = get_argument_value(args, kwargs, 0, "input")
         else:
-            inputs = kwargs
+            inputs = kwargs.get(CHAIN_INPUTS_KEY)
         formatted_inputs = ""
         if inputs is not None:
             formatted_inputs = format_langchain_io(inputs)
@@ -694,7 +714,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def _llmobs_set_meta_tags_from_embedding(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         output_embedding: Union[list[float], list[list[float]], None],
@@ -752,7 +772,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def _llmobs_set_meta_tags_from_similarity_search(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         output_documents: Union[list[Any], None],
@@ -790,7 +810,9 @@ class LangChainIntegration(BaseLLMIntegration):
             output_value=f"[{len(output_documents)} document(s) retrieved]",
         )
 
-    def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: dict[str, Any], tool_output: object) -> None:
+    def _llmobs_set_meta_tags_from_tool(
+        self, span: _LLMObsSpan, tool_inputs: dict[str, Any], tool_output: object
+    ) -> None:
         metadata = {}
         formatted_input = ""
         if tool_inputs is not None:
@@ -816,7 +838,7 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_meta_tags_from_runnable_lambda(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Any
     ) -> None:
         inputs = get_argument_value(args, kwargs, 0, "inputs")
 
@@ -829,7 +851,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def _set_base_span_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         interface_type: str = "",
         provider: Optional[str] = None,
         model: Optional[str] = None,
@@ -995,7 +1017,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if template:
             object.__setattr__(instance, "_dd.prompt_template", template)
 
-    def llmobs_set_prompt_tag(self, instance, span: Span):
+    def llmobs_set_prompt_tag(self, instance, span: _LLMObsSpan):
         """
         On llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span.
         Since child spans may need to read the tagged data, we must tag before calling the wrapped function.

@@ -1,17 +1,20 @@
 import json
 from typing import Any
-from typing import Optional
 
+from ddtrace.contrib.internal.google_genai._utils import (
+    GOOGLE_GENAI_DEFAULT_MODEL_ROLE as GOOGLE_GENAI_DEFAULT_MODEL_ROLE,
+)
+from ddtrace.contrib.internal.google_genai._utils import (
+    extract_provider_and_model_name as extract_provider_and_model_name,
+)
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
-from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -19,66 +22,6 @@ from ddtrace.llmobs.types import ToolResult
 
 
 log = get_logger(__name__)
-
-
-# Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,
-# we use "assistant" as the default role for model messages
-GOOGLE_GENAI_DEFAULT_MODEL_ROLE = "assistant"
-
-# https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
-# GeminiAPI: only exports google provided models
-# VertexAI: can map provided models to provider based on prefix, a best effort mapping
-# as huggingface exports hundreds of custom provided models
-KNOWN_MODEL_PREFIX_TO_PROVIDER = {
-    "gemini": "google",
-    "imagen": "google",
-    "veo": "google",
-    "text-embedding": "google",
-    "jamba": "ai21",
-    "claude": "anthropic",
-    "llama": "meta",
-    "mistral": "mistral",
-    "codestral": "mistral",
-    "deepseek": "deepseek",
-    "olmo": "ai2",
-    "tulu": "ai2",
-    "molmo": "ai2",
-    "specter": "ai2",
-    "cosmoo": "ai2",
-    "qodo": "qodo",
-    "mars": "camb.ai",
-}
-
-
-def extract_provider_and_model_name(
-    kwargs: Optional[dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
-) -> tuple[str, str]:
-    """
-    Function to extract provider and model name from either kwargs or instance attributes.
-    Args:
-        kwargs: Dictionary containing model information (used for google_genai)
-        instance: Model instance with attributes (used for vertexai)
-        model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name", used for vertexai)
-
-    Returns:
-        tuple of (provider_name, model_name)
-    """
-    model_path = ""
-    if kwargs is not None:
-        model_path = kwargs.get("model", "")
-    elif instance is not None and model_name_attr is not None:
-        model_path = _get_attr(instance, model_name_attr, "")
-
-    if not model_path or not isinstance(model_path, str):
-        return UNKNOWN_MODEL_PROVIDER, UNKNOWN_MODEL_NAME
-
-    model_name = model_path.split("/")[-1] if "/" in model_path else model_path
-
-    for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
-        if model_name.lower().startswith(prefix):
-            provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
-            return provider_name, model_name
-    return UNKNOWN_MODEL_PROVIDER, model_name if model_name else UNKNOWN_MODEL_NAME
 
 
 def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:

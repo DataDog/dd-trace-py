@@ -8,8 +8,6 @@ suites:
     paths:
       - '@errortracking'
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - tests/errortracking/*
     matrix:
       command: pytest {cmdargs} tests/errortracking/

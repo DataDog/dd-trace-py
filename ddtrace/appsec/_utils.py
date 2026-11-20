@@ -10,7 +10,6 @@ from typing import Optional
 from typing import TypedDict
 from typing import Union
 
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
@@ -281,24 +280,6 @@ def _hash_user_id(user_id: str) -> str:
     return f"anon_{hashlib.sha256(user_id.encode()).hexdigest()[:32]}"
 
 
-def _safe_userid(user_id: Any) -> Optional[Any]:
-    try:
-        _ = int(user_id)
-        return user_id
-    except ValueError:
-        try:
-            # Import uuid lazily because this also imports threading via the
-            # platform module
-            import uuid
-
-            _ = uuid.UUID(user_id)
-            return user_id
-        except ValueError:
-            pass
-
-    return None
-
-
 class _UserExtraInfo(TypedDict, total=False):
     login: Optional[str]
     email: Optional[str]
@@ -339,7 +320,7 @@ class _UserInfoRetriever:
         return user_login
 
     def get_username(self) -> Optional[str]:
-        username = getattr(self.user, asm_config._user_model_name_field, None)
+        username = getattr(self.user, asm_config._user_model_login_field, None)
         if username is not None:
             return str(username)
 
@@ -448,7 +429,3 @@ def unpatching_popen() -> typing.Iterator[None]:
         else:
             # If it was False, keep it False (normal production scenario)
             asm_config._bypass_instrumentation_for_waf = False
-
-
-def is_inferred_span(span: SpanData) -> bool:
-    return span.name in INFERRED_SPAN_NAMES

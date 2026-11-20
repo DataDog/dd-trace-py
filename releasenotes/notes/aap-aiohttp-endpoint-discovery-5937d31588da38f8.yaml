@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    App and API Protection: API Security endpoint discovery now reports the routes of aiohttp web
+    applications traced with ``ddtrace.contrib.aiohttp.trace_app``, including the routes of their
+    sub-applications, when the application starts. Set ``DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED=false``
+    to disable it.

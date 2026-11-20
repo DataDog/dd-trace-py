@@ -100,6 +100,48 @@ def test_eject_hook():
     hook.assert_not_called()
 
 
+def test_inject_hook_on_function_declaration():
+    hook = mock.Mock()
+    line = injection_target.__code__.co_firstlineno
+
+    inject_hook(injection_target, hook, line, 42)
+    injection_target(1, 2)
+    hook.assert_called_once_with(42)
+
+    eject_hook(injection_target, hook, line, 42)
+    injection_target(1, 2)
+    hook.assert_called_once_with(42)
+
+
+@pytest.mark.skipif(is_at_least_py(3, 15), reason="sys.monitoring emits no LINE event for the RESUME line")
+def test_inject_hook_on_one_line_function():
+    namespace = {}
+    exec("def target(): return 42\n", namespace)
+    target = namespace["target"]
+    hook = mock.Mock()
+    line = target.__code__.co_firstlineno
+
+    inject_hook(target, hook, line, 42)
+    assert target() == 42
+    hook.assert_called_once_with(42)
+
+    eject_hook(target, hook, line, 42)
+    assert target() == 42
+    hook.assert_called_once_with(42)
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 15), reason="the bytecode backend supports one-line functions")
+def test_inject_hook_on_one_line_function_unsupported():
+    # See ddtrace/internal/bytecode_injection/README.md for why this is rejected.
+    namespace = {}
+    exec("def target(): return 42\n", namespace)
+    target = namespace["target"]
+
+    with pytest.raises(InvalidLine):
+        inject_hook(target, mock.Mock(), target.__code__.co_firstlineno, 42)
+    assert target() == 42
+
+
 def test_inject_hooks():
     n = 2
     hooks = [mock.Mock("hook%d" % _) for _ in range(n)]
@@ -369,3 +411,65 @@ def test_line_hooks_isolated_across_code_replace_clone():
     hook.assert_not_called()
 
     eject_hook(target, hook, lo, 42)
+
+
+@pytest.mark.parametrize("bulk", [True, False])
+def test_eject_hook_pending_lazy_wrapping_context(bulk):
+    """Hooks injected into a function with a pending lazy wrapper can be ejected before its first call."""
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    def target(x):
+        y = x + 1
+        return y
+
+    (wc := LazyWrappingContext(target)).wrap()
+
+    hook = mock.Mock()
+    lo = min(linenos(target))
+
+    if bulk:
+        assert inject_hooks(target, [(hook, lo, 42)]) == []
+        assert eject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        inject_hook(target, hook, lo, 42)
+        eject_hook(target, hook, lo, 42)
+
+    # Resolving the lazy wrapper must not resurrect the ejected hook.
+    assert target(1) == 2
+    hook.assert_not_called()
+
+    wc.unwrap()
+
+
+@pytest.mark.parametrize("bulk", [True, False])
+def test_inject_hook_pending_lazy_wrapping_context(bulk):
+    """Hooks injected into a function with a pending lazy wrapper survive its resolution on first call."""
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    def target(x):
+        y = x + 1
+        return y
+
+    (wc := LazyWrappingContext(target)).wrap()
+
+    hook = mock.Mock()
+    lo = min(linenos(target))
+
+    if bulk:
+        assert inject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        inject_hook(target, hook, lo, 42)
+
+    assert target(1) == 2
+    assert target(1) == 2
+    assert hook.call_count == 2
+
+    if bulk:
+        assert eject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        eject_hook(target, hook, lo, 42)
+
+    assert target(1) == 2
+    assert hook.call_count == 2
+
+    wc.unwrap()

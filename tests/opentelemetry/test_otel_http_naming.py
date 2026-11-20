@@ -2,12 +2,12 @@ from unittest import mock
 
 import pytest
 
+from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.otel.http import tags
 from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.otel.http.resource import RESOURCE_SET_BY_USER
 from ddtrace._trace.otel.http.resource import otel_http_resource
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
-from ddtrace._trace.otel.http.resource import set_instrumentation_resource
 from ddtrace._trace.otel.http.resource import set_otel_http_resource
 from ddtrace._trace.otel.http.tags import OTHER_HTTP_METHOD
 from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
@@ -459,16 +459,11 @@ def test_otel_span_attributes_success_preserves_exception(tracer, integration_co
     assert span.get_tag(ERROR_TYPE) == "builtins.ValueError"
 
 
-def test_otel_span_attributes_sets_user_agent_and_client_addresses(tracer, integration_config):
+def test_otel_span_attributes_sets_user_agent(tracer, integration_config):
     with tracer.trace("request") as span:
-        attributes = OTelHTTPSpanAttributes(span, integration_config)
-
-        attributes.set_user_agent("test-agent")
-        attributes.set_client_addresses("203.0.113.10", "10.0.0.5")
+        OTelHTTPSpanAttributes(span, integration_config).set_user_agent("test-agent")
 
     assert span.get_tag(otel_http.USER_AGENT_ORIGINAL) == "test-agent"
-    assert span.get_tag(otel_http.CLIENT_ADDRESS) == "203.0.113.10"
-    assert span.get_tag(otel_http.NETWORK_PEER_ADDRESS) == "10.0.0.5"
 
 
 def test_otel_span_attributes_refines_server_resource_with_route(tracer, integration_config):
@@ -614,3 +609,20 @@ def test_set_http_meta_http_span_without_kind_keeps_legacy_tags(tracer, integrat
             )
 
     assert span.get_tag(otel_http.URL_FULL) is None
+
+
+def test_set_url_tags_otel_server_query_falls_back_to_the_url_unless_tagged_separately(tracer):
+    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
+    url = "https://example.com/users?page=2"
+
+    with tracer.trace("web.request") as from_url:
+        set_url_tags_otel_server(integration_config, from_url, url, None)
+    assert from_url.get_tag(otel_http.URL_QUERY) == "page=2"
+
+    with tracer.trace("web.request") as separate:
+        set_url_tags_otel_server(integration_config, separate, url, None, query_tagged_separately=True)
+    assert separate.get_tag(otel_http.URL_QUERY) is None
+
+    with tracer.trace("web.request") as explicit:
+        set_url_tags_otel_server(integration_config, explicit, url, "page=3", query_tagged_separately=True)
+    assert explicit.get_tag(otel_http.URL_QUERY) == "page=3"

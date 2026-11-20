@@ -96,3 +96,28 @@ def run_subcommunicatenoshell():
     subp.wait()
     ret = subp.returncode
     return str(ret), 200
+
+
+@app.route("/items", methods=["PROPFIND"])
+def items():
+    return "items"
+
+
+@app.route("/redirect")
+def redirect():
+    return "", 302
+
+
+@app.route("/missing")
+def missing():
+    return "", 404
+
+
+@app.route("/broken")
+def broken():
+    return "", 500
+
+
+@app.route("/boom")
+def boom():
+    raise ValueError("request failed")

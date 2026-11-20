@@ -5,13 +5,13 @@ from typing import Literal
 from typing import Optional
 
 from ddtrace.appsec import _constants
-from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import Constant_Class
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.security._deduplications import deduplication
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -56,10 +56,7 @@ def _safe_metric(
     return decorator
 
 
-@deduplication
-def report_error(msg: str, version: str, action: str, error_level: bool = True) -> None:
-    """used for waf configuration errors"""
-    # Two independent operations: log + metric. Each must not block the other.
+def _send_waf_error_log(msg: str, version: str, error_level: bool) -> None:
     try:
         log_tags = {
             "waf_version": asm_config._ddwaf_version,
@@ -70,6 +67,19 @@ def report_error(msg: str, version: str, action: str, error_level: bool = True) 
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:error"}
         logger.warning(WARNING_TAGS.TELEMETRY_LOGS, extra=extra, exc_info=True)
+
+
+@deduplication
+def log_waf_error(msg: str, version: str, error_level: bool = True) -> None:
+    """Send a WAF error to telemetry logs without counting it as a configuration error."""
+    _send_waf_error_log(msg, version, error_level)
+
+
+@deduplication
+def report_error(msg: str, version: str, action: str, error_level: bool = True) -> None:
+    """used for waf configuration errors"""
+    # Two independent operations: log + metric. Each must not block the other.
+    _send_waf_error_log(msg, version, error_level)
     try:
         tags = (
             ("waf_version", asm_config._ddwaf_version),

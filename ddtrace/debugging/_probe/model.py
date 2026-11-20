@@ -108,7 +108,13 @@ class Probe(abc.ABC):
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
 
-    def is_global_rate_limited(self) -> bool:
+        # A new version may fix the expression that tripped the error throttle.
+        probe: Probe = self
+        if isinstance(probe, ProbeConditionMixin):
+            probe._reset_error_throttle()
+
+    def is_sampled(self) -> bool:
+        """Whether this probe takes part in coordinated sampling."""
         return False
 
     def __hash__(self) -> int:
@@ -151,6 +157,9 @@ class ProbeConditionMixin(AbstractProbeMixIn):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        self._reset_error_throttle()
+
+    def _reset_error_throttle(self) -> None:
         self.condition_error_limiter = RateLimiter(
             limit_rate=self.condition_error_rate,
             tau=1.0 / self.condition_error_rate if self.condition_error_rate else 1.0,
@@ -158,6 +167,7 @@ class ProbeConditionMixin(AbstractProbeMixIn):
             call_once=True,
             raise_on_exceed=False,
         )
+        self._error_throttled_until = 0.0
 
 
 @dataclass
@@ -292,13 +302,13 @@ class LogProbeMixin(AbstractProbeMixIn):
 
 @dataclass(eq=False)
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
         return self.take_snapshot or bool(self.capture_expressions)
 
 
 @dataclass(eq=False)
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
         return self.take_snapshot or bool(self.capture_expressions)
 
 

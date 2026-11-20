@@ -10,6 +10,8 @@ import llama_index.core as llama_core
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.llama_index._constants import TAG_MODEL
+from ddtrace.contrib.internal.llama_index._constants import TAG_PROVIDER
 from ddtrace.contrib.internal.llama_index._streaming import handle_streamed_response
 from ddtrace.contrib.internal.llama_index._utils import build_agent_call_tool_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_agent_run_request_kwargs
@@ -21,8 +23,8 @@ from ddtrace.contrib.internal.llama_index._utils import build_text_embedding_bat
 from ddtrace.contrib.internal.llama_index._utils import get_model_provider
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations import LlamaIndexIntegration
 
 
 log = get_logger(__name__)
@@ -41,11 +43,6 @@ config._add("llama_index", {})
 _originals: dict[tuple[type, str], Any] = {}
 _wrapped_classes: set[type] = set()
 _DD_WRAPPED = "__dd_wrapped__"
-
-
-def _get_integration() -> LlamaIndexIntegration:
-    """Retrieve the integration instance stored on the ``llama_index.core`` module by ``patch()``."""
-    return llama_core._datadog_integration
 
 
 # LlamaIndex LLM methods (chat, complete, etc.) are overridden on concrete subclasses,
@@ -82,17 +79,23 @@ def _create_event(
     cardinality low.  For non-LLM operations (query, retrieval, embedding,
     agent) the resource is the class name.
     """
-    integration = _get_integration()
     resource = model if (model and not operation) else instance.__class__.__name__
     provider = get_model_provider(instance)
+    # Operations without a model omit the model tag. Provider detection always
+    # returns a string, falling back to "unknown" when no provider is found.
+    tags = {}
+    if model is not None:
+        tags[TAG_MODEL] = model
+    if provider is not None:
+        tags[TAG_PROVIDER] = provider
     return LlmRequestEvent(
-        component="llama_index",
-        integration_config=integration.integration_config,
-        service=int_service(None, integration.integration_config),
+        component=config.llama_index.integration_name,
+        integration_config=config.llama_index,
+        service=int_service(None, config.llama_index),
         resource=resource,
         provider=provider,
         model=model,
-        llmobs_integration=integration,
+        tags=tags,
         submit_to_llmobs=True,
         request_kwargs=request_kwargs,
         instance=instance,
@@ -123,7 +126,7 @@ def _llm_wrapper(build_kwargs_fn, always_stream, operation):
                 ctx.dispatch_ended_event(*sys.exc_info())
                 raise
             if always_stream or isinstance(resp, Generator):
-                return handle_streamed_response(_get_integration(), resp, args, request_kwargs, ctx)
+                return handle_streamed_response(resp, args, request_kwargs, ctx)
             event.response = resp
             ctx.dispatch_ended_event()
             return resp
@@ -147,7 +150,7 @@ def _llm_wrapper_async(build_kwargs_fn, always_stream, operation):
                 ctx.dispatch_ended_event(*sys.exc_info())
                 raise
             if always_stream or inspect.isasyncgen(resp):
-                return handle_streamed_response(_get_integration(), resp, args, request_kwargs, ctx)
+                return handle_streamed_response(resp, args, request_kwargs, ctx)
             event.response = resp
             ctx.dispatch_ended_event()
             return resp
@@ -289,9 +292,6 @@ def patch():
         return
     llama_core._datadog_patch = True
 
-    integration = LlamaIndexIntegration(integration_config=config.llama_index)
-    llama_core._datadog_integration = integration
-
     # LlamaIndex LLM methods (chat, complete, etc.) are abstract on BaseLLM —
     # concrete subclasses override them entirely, so we must wrap each subclass.
     base = llama_core.base
@@ -319,11 +319,17 @@ def patch():
     _originals[(BaseLLM, "__init__")] = BaseLLM.__init__
     BaseLLM.__init__ = _patched_init(BaseLLM.__init__)
 
+    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(config.llama_index.integration_name)
+
 
 def unpatch():
     if not getattr(llama_core, "_datadog_patch", False):
         return
     llama_core._datadog_patch = False
+
+    integration_hooks.on_unpatch(config.llama_index.integration_name)
 
     for (cls, method_name), original in _originals.items():
         try:
@@ -332,6 +338,3 @@ def unpatch():
             log.debug("Failed to unwrap %s.%s", cls.__name__, method_name, exc_info=True)
     _originals.clear()
     _wrapped_classes.clear()
-
-    if hasattr(llama_core, "_datadog_integration"):
-        delattr(llama_core, "_datadog_integration")

@@ -26,6 +26,11 @@ _FUNC_TO_URL_ARGUMENT = {
     "http.client": (1, "url"),
     "urllib3._request_methods": (1, "url"),
     "webbrowser": (0, "url"),
+    "aiohttp.client": (0, "url"),
+}
+
+_MODULE_FUNCTION_TO_URL_ARGUMENT = {
+    ("aiohttp.client", "request"): (1, "url"),
 }
 
 
@@ -46,7 +51,9 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
         _set_metric_iast_instrumented_sink(VULN_SSRF)
         IS_REPORTED_INTRUMENTED_SINK_METRIC = True
 
-    arg_pos, kwarg_name = _FUNC_TO_URL_ARGUMENT.get(module_name, (None, None))
+    arg_pos, kwarg_name = _MODULE_FUNCTION_TO_URL_ARGUMENT.get(
+        (module_name, func_name), _FUNC_TO_URL_ARGUMENT.get(module_name, (None, None))
+    )
     if arg_pos is None:
         iast_propagation_sink_point_debug_log(
             f"{module_name}.{func_name} not found in list of functions supported for SSRF"
@@ -57,9 +64,7 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
         kw = kwarg_name if kwarg_name else ""
         report_ssrf = get_argument_value(list(args), kwargs, arg_pos, kw)
     except ArgumentError:
-        iast_propagation_sink_point_debug_log(
-            f"Failed to get URL argument from _FUNC_TO_URL_ARGUMENT dict for function {module_name}.{func_name}"
-        )
+        iast_propagation_sink_point_debug_log(f"Failed to get the URL argument of {module_name}.{func_name} for SSRF")
         return
     if report_ssrf and isinstance(report_ssrf, IAST.TEXT_TYPES):
         if is_iast_request_enabled():
@@ -80,4 +85,4 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
                 # Report Telemetry Metrics
                 increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
             except Exception as e:
-                iast_error("propagation::sink_point::Error in _iast_report_ssrf", e)
+                iast_error("propagation::sink_point::Error in _iast_report_ssrf", exc=e)

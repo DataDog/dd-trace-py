@@ -11,7 +11,6 @@ from typing import Protocol
 from urllib import parse
 
 from ddtrace import config
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
@@ -19,6 +18,11 @@ from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
+from ddtrace._trace.http_tags import set_instrumentation_resource
+from ddtrace._trace.http_tags import set_url_tags_server
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
@@ -31,8 +35,12 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.azure_cosmos.utils import normalize_resource_uri as _normalize_cosmos_resource_uri
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import PUBSUB_SUBSCRIPTION_NAME
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import PUBSUB_TOPIC_NAME
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import subscription_path as _pubsub_subscription_path
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import topic_path as _pubsub_topic_path
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
@@ -46,7 +54,6 @@ from ddtrace.contrib.internal.ray.constants import RAY_APP_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
-from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
@@ -74,7 +81,10 @@ from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.inferred_spans import PUBSUB_PUSH_SPAN_NAME
+from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
@@ -86,6 +96,7 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
+_DJANGO_OTEL_ROUTE_APPLIED = "_dd.django_otel_route_applied"
 _WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 _WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
@@ -263,7 +274,7 @@ def _on_web_framework_finish_request(
             status_code = int(status_code)
         except ValueError:
             pass
-        span.resource = f"{method} {status_code}"
+        set_instrumentation_resource(span, f"{method} {status_code}")
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
@@ -285,9 +296,15 @@ def _on_web_framework_finish_request(
 
 
 def _set_inferred_proxy_tags(span: Span, status_code):
-    if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
+    if span._parent and is_inferred_span(span._parent):
         inferred_span = span._parent
-        status_code = status_code or span._get_attribute("http.status_code")
+        # Proxy spans keep Datadog status attributes; only the source lookup follows active semantics.
+        if not status_code and config._otel_trace_semantics_enabled:
+            # The OTel status attribute is numeric, but the proxy's Datadog attribute is a string.
+            otel_status = span._get_attribute(otel_http.RESPONSE_STATUS_CODE)
+            status_code = str(otel_status) if otel_status else None
+        else:
+            status_code = status_code or span._get_attribute(http.STATUS_CODE)
         if status_code:
             inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
@@ -301,7 +318,11 @@ def _set_inferred_proxy_tags(span: Span, status_code):
 
 
 def _set_pubsub_receive_attributes(
-    span: Span, project_id: str, subscription_id: str, message_id: Optional[str] = None
+    span: Span,
+    project_id: str,
+    subscription_id: str,
+    message_id: Optional[str] = None,
+    subscription_path: Optional[str] = None,
 ) -> None:
     """Set common span attributes for Pub/Sub receive operations (pull and push)."""
     span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
@@ -313,6 +334,10 @@ def _set_pubsub_receive_attributes(
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
     if message_id:
         span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
+    # The topic of a received message is not known here (neither the subscriber client nor the
+    # push request carries it), so only the subscription identity is tagged.
+    if subscription := _pubsub_subscription_path(subscription_path):
+        span._set_attribute(PUBSUB_SUBSCRIPTION_NAME, subscription)
 
 
 def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContext, headers: Mapping[str, str]) -> None:
@@ -337,7 +362,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContex
     )
 
     span = tracer.start_span(
-        "gcp.pubsub.receive",
+        PUBSUB_PUSH_SPAN_NAME,
         service=config._get_service(),
         resource=subscription_id,
         span_type=SpanTypes.WORKER,
@@ -345,7 +370,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContex
         child_of=propagated_context if not config.google_cloud_pubsub.propagation_as_span_links else None,
     )
 
-    _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id)
+    _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id, subscription_name)
     span._set_attribute(_INFERRED_SPAN_KEY, 1)
 
     if propagated_context and config.google_cloud_pubsub.propagation_as_span_links:
@@ -423,7 +448,7 @@ def _on_traced_request_context_started_flask(ctx):
     # span before start_response so timed-out workers keep the route resource.
     req_span = ctx.find_item("req_span")
     if req_span is not None and req_span is not current_span:
-        _set_flask_request_route_tags(flask_request, req_span)
+        _set_flask_request_route_tags(flask_request, req_span, flask_config)
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
@@ -551,7 +576,7 @@ def _set_flask_request_tags(request, span, flask_config):
         if span.name.split(".")[-1] == "request":
             span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
-        _set_flask_request_route_tags(request, span)
+        _set_flask_request_route_tags(request, span, flask_config)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
@@ -563,15 +588,21 @@ def _set_flask_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
-def _set_flask_request_route_tags(request, span):
+def _set_flask_request_route_tags(request, span, flask_config):
     try:
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = " ".join((request.method, request.endpoint))
+            set_instrumentation_resource(span, " ".join((request.method, request.endpoint)))
             span._set_attribute(FLASK_ENDPOINT, request.endpoint)
 
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = " ".join((request.method, request.url_rule.rule))
+            # Only the request span is a server span; the flask.application span keeps the Datadog resource.
+            if config._otel_trace_semantics_enabled and span.name.split(".")[-1] == "request":
+                set_method_tag(span, request.method)
+                set_otel_resource_for_method(span, request.method, request.url_rule.rule)
+                span._set_attribute(http.ROUTE, request.url_rule.rule)
+            else:
+                set_instrumentation_resource(span, " ".join((request.method, request.url_rule.rule)))
             span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
             # Side-channel tag for backend resource remapping; resource itself stays app-local.
             if request.script_root:
@@ -595,7 +626,7 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
     #      we still want `GET /product/<int:product_id>` grouped together,
     #      even if it is a 404
     if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
-        span.resource = " ".join((request.method, code))
+        set_instrumentation_resource(span, " ".join((request.method, code)))
 
     response_cookies = _cookies_from_response_headers(headers)
     _on_web_framework_finish_request(
@@ -642,7 +673,9 @@ def _on_request_span_modifier(
     #   POST /save
     # We will override this below in `traced_dispatch_request` when we have a `
     # RequestContext` and possibly a url rule
-    span.resource = " ".join((request.method, request.path))
+    # OTel span names never use the raw path; the span is named from the method and route later.
+    if not config._otel_trace_semantics_enabled:
+        set_instrumentation_resource(span, " ".join((request.method, request.path)))
 
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
@@ -734,16 +767,40 @@ def _on_django_cache(
         _finish_span(ctx, exc_info)
 
 
-def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
+def _on_django_func_wrapped(args, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
             span_from_context(ctx)._ignore_exception(exc)
+
+    if not config._otel_trace_semantics_enabled or not args:
+        return
+
+    request = args[0]
+    resolver_match = getattr(request, "resolver_match", None)
+    route = getattr(resolver_match, "route", None)
+    if not route:
+        return
+
+    request_spans = getattr(request, "scope", {}).get("datadog", {}).get("request_spans", ())
+    request_span = request_spans[0] if request_spans else span_from_context(ctx)._parent
+    while request_span is not None:
+        if (
+            request_span.span_type == SpanTypes.WEB
+            and request_span.get_tag(COMPONENT) == config.django.integration_name
+        ):
+            if request_span._get_ctx_item(_DJANGO_OTEL_ROUTE_APPLIED) == route:
+                return
+            set_otel_resource_for_method(request_span, request.method, route)
+            request_span._set_attribute(http.ROUTE, route)
+            request_span._set_ctx_item(_DJANGO_OTEL_ROUTE_APPLIED, route)
+            return
+        request_span = request_span._parent
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
         span_from_context(ctx)._set_attribute(tk, tv)
-    _set_url_tag(django_config, span_from_context(ctx), url, query)
+    set_url_tags_server(django_config, span_from_context(ctx), url, query)
 
 
 def _on_django_after_request_headers_post(
@@ -871,28 +928,6 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
     ctx.set_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY, trace_data)
 
 
-def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
-    span = span_from_context(ctx)
-    integration = ctx.get_item("bedrock_integration")
-    integration._tag_proxy_request(ctx)
-
-    span._set_attribute("bedrock.request.model_provider", ctx.get_item("model_provider"))
-    span._set_attribute("bedrock.request.model", ctx.get_item("model_name"))
-
-    if "n" in request_params:
-        ctx.set_item("num_generations", str(request_params["n"]))
-
-
-def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info, response=None):
-    span = span_from_context(ctx)
-    span.set_exc_info(*exc_info)
-    model_name = ctx.get_item("model_name")
-    integration = ctx.get_item("bedrock_integration")
-    if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=response)
-    span.finish()
-
-
 def _propagate_context(ctx, headers):
     distributed_tracing_enabled = ctx.get_item("integration_config").distributed_tracing_enabled
     span = span_from_context(ctx)
@@ -916,31 +951,6 @@ def _on_end_of_traced_method_in_fork(ctx):
     immediately after this method returns
     """
     tracer.flush()
-
-
-def _on_botocore_bedrock_process_response_converse(
-    ctx: core.ExecutionContext,
-    result: list[dict[str, Any]],
-):
-    ctx.get_item("bedrock_integration").llmobs_set_tags(
-        span_from_context(ctx),
-        args=[ctx],
-        kwargs={},
-        response=result,
-    )
-    span_from_context(ctx).finish()
-
-
-def _on_botocore_bedrock_process_response(
-    ctx: core.ExecutionContext,
-    formatted_response: dict[str, Any],
-) -> None:
-    with span_from_context(ctx) as span:
-        model_name = ctx.get_item("model_name")
-        integration = ctx.get_item("bedrock_integration")
-        if "embed" in model_name:
-            return
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
 
 
 def _on_botocore_sqs_recvmessage_post(
@@ -990,24 +1000,6 @@ def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
         span_from_context(ctx)._set_attribute(db.ROWCOUNT, rowcount)
 
 
-def _on_test_visibility_enable(config) -> None:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.enable(config=config)
-
-
-def _on_test_visibility_disable() -> None:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.disable()
-
-
-def _on_test_visibility_is_enabled() -> bool:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    return CIVisibility.enabled
-
-
 def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescription) -> None:
     span._add_span_pointer(
         pointer_kind=span_pointer_description.pointer_kind,
@@ -1044,7 +1036,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
     span = span_from_context(ctx)
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
-    span.resource = f"{req.method} {path}"
+    set_instrumentation_resource(span, f"{req.method} {path}")
     trace_utils.set_http_meta(
         span,
         azure_functions_config,
@@ -1360,6 +1352,11 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
 
     span = _start_span(ctx)
     ctx.set_item("req_span", span)
+    if config._otel_trace_semantics_enabled:
+        record_initial_instrumentation_resource(span, ctx.get_item("resource"))
+        # Replace the raw-path resource before span modifiers or sampling can observe it.
+        if scope.get("type") == "http" and scope.get("method"):
+            set_otel_resource_for_method(span, scope["method"])
 
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}
@@ -1433,6 +1430,8 @@ def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
     span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("topic_id"))
     span._set_attribute(MESSAGING_OPERATION, "send")
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    if topic := _pubsub_topic_path(ctx.get_item("topic_path")):
+        span._set_attribute(PUBSUB_TOPIC_NAME, topic)
 
     if config.google_cloud_pubsub.distributed_tracing_enabled:
         # publish(**attrs) passes extra kwargs as Pub/Sub message attributes.
@@ -1459,6 +1458,7 @@ def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
         ctx.get_item("project_id"),
         ctx.get_item("subscription_id"),
         message.message_id,
+        ctx.get_item("subscription_path"),
     )
 
     propagated_context = ctx.get_item("propagated_context")
@@ -1773,6 +1773,9 @@ def _on_proxy_request_end(
             span._set_attribute("ray.serve.request.type", request_type)
 
         if request_type == "http":
+            if config._otel_trace_semantics_enabled:
+                # Ray omits span.kind for inbound HTTP; OTLP export needs it to report a server span.
+                span._set_attribute(SPAN_KIND, SpanKind.SERVER)
             trace_utils.set_http_meta(
                 span,
                 config.ray,
@@ -1831,10 +1834,6 @@ def listen():
     core.on("botocore.stepfunctions.update_input", _on_botocore_patched_stepfunctions_update_input)
     core.on("botocore.eventbridge.update_messages", _on_botocore_update_messages)
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
-    core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
-    core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
-    core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
-    core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
@@ -1870,9 +1869,6 @@ def listen():
     core.on("inferred_proxy.start", _on_inferred_proxy_start)
     core.on("inferred_proxy.finish", _on_inferred_proxy_finish)
 
-    core.on("test_visibility.enable", _on_test_visibility_enable)
-    core.on("test_visibility.disable", _on_test_visibility_disable)
-    core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
@@ -1916,15 +1912,14 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
-        "django.process_exception",
         "django.func.wrapped",
+        "django.contrib.auth.login",
         # non web frameworks
         "botocore.instrumented_api_call",
         "botocore.instrumented_lib_function",
         "botocore.patched_kinesis_api_call",
         "botocore.patched_sqs_api_call",
         "botocore.patched_stepfunctions_api_call",
-        "botocore.patched_bedrock_api_call",
         "redis.command",
         "redis.execute_pipeline",
         "valkey.command",
@@ -1932,7 +1927,6 @@ def listen():
         "rq.traced_queue_fetch_job",
         "rq.worker.perform_job",
         "rq.job.perform",
-        "rq.job.fetch_many",
         "azure.eventhubs.patched_producer_batch",
         "azure.eventhubs.patched_producer_send",
         "azure.eventhubs.patched_producer_send_batch",
@@ -1969,6 +1963,7 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
+        "django.contrib.auth.login",
         "redis.execute_pipeline",
         "redis.command",
         "azure.durable_functions.patched_activity",

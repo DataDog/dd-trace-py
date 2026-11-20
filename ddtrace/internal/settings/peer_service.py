@@ -1,3 +1,6 @@
+from typing import Optional
+from typing import Union
+
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.settings._config import config
@@ -14,13 +17,15 @@ class PeerServiceConfig:
     enabled_span_kinds = {SpanKind.CLIENT, SpanKind.PRODUCER}
     prioritized_data_sources = ["messaging.kafka.bootstrap.servers", "db.name", "mongodb.db", "rpc.service", "out.host"]
 
-    def __init__(self, set_defaults_enabled=None, peer_service_mapping=None):
+    def __init__(
+        self, set_defaults_enabled: Optional[bool] = None, peer_service_mapping: Optional[dict[str, str]] = None
+    ) -> None:
         self._set_defaults_enabled = set_defaults_enabled
         self._peer_service_mapping = peer_service_mapping
-        self._unparsed_peer_service_mapping = peer_service_mapping
+        self._unparsed_peer_service_mapping: Optional[Union[str, dict[str, str]]] = peer_service_mapping
 
     @property
-    def set_defaults_enabled(self):
+    def set_defaults_enabled(self) -> bool:
         if config._otel_trace_semantics_enabled:
             return False
 
@@ -31,10 +36,11 @@ class PeerServiceConfig:
         return self._set_defaults_enabled
 
     @property
-    def peer_service_mapping(self):
+    def peer_service_mapping(self) -> dict[str, str]:
         if self._peer_service_mapping is None:
-            self._unparsed_peer_service_mapping = _get_config("DD_TRACE_PEER_SERVICE_MAPPING", "")
-            self._peer_service_mapping = parse_tags_str(self._unparsed_peer_service_mapping)
+            mapping = _get_config("DD_TRACE_PEER_SERVICE_MAPPING", "")
+            self._unparsed_peer_service_mapping = mapping
+            self._peer_service_mapping = parse_tags_str(mapping)
 
         return self._peer_service_mapping
 

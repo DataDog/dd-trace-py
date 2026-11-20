@@ -4,7 +4,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal.threads import PeriodicThread
-from ddtrace.internal.threads import RLock
 
 
 class PeriodicService(service.Service):
@@ -73,6 +72,7 @@ class AwakeablePeriodicService(PeriodicService):
     """A service that runs periodically but that can also be awakened on demand."""
 
     def awake(self) -> None:
+        """Request a run of periodic() as soon as possible, without waiting for it."""
         if self._worker:
             self._worker.awake()
 
@@ -113,7 +113,10 @@ class Timer:
 
     def __init__(self, interval: float) -> None:
         self._interval = interval
-        self._worker_lock = RLock()
+        # A timer might be started as a response to a signal coming from user
+        # code running in an application thread, so we need to make sure that
+        # locks are fork-safe.
+        self._worker_lock = forksafe.RLock()
         self._set_worker()
 
     def _set_worker(self) -> None:

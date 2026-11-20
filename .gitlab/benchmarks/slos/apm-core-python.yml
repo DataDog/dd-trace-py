@@ -261,6 +261,15 @@ experiments:
           - name: startup-import_ddtrace_django
             thresholds:
               - execution_time < 10000 ms
+          - name: startup-import_ddtrace_deferred_tracer
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_deferred_tracer_flask
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_deferred_tracer_django
+            thresholds:
+              - execution_time < 10000 ms
           - name: startup-import_ddtrace_auto
             thresholds:
               - execution_time < 10000 ms
@@ -274,6 +283,9 @@ experiments:
             thresholds:
               - execution_time < 10000 ms
           - name: startup-ddtrace_run_appsec
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_llmobs
             thresholds:
               - execution_time < 10000 ms
           - name: startup-ddtrace_run_profiling

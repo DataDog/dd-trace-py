@@ -11,7 +11,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._patch_utils import get_caller_frame_info
+from ddtrace.internal.security._patch_utils import get_caller_frame_info
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -109,6 +109,7 @@ def patch():
     iast_funcs.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)
     iast_funcs.wrap_function("flask", "Response.set_cookie", _iast_response_cookies)
     iast_funcs.wrap_function("starlette.responses", "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("aiohttp.web_response", "StreamResponse.set_cookie", _iast_response_cookies)
 
     iast_funcs.patch()
 
@@ -119,14 +120,8 @@ def patch():
 
 def _iast_response_cookies(wrapped, instance, args, kwargs):
     try:
-        cookie_key = ""
-        cookie_value = ""
-        if len(args) > 1:
-            cookie_key = args[0]
-            cookie_value = args[1]
-        elif len(kwargs.keys()) > 0:
-            cookie_key = kwargs.get("key")
-            cookie_value = kwargs.get("value")
+        cookie_key = args[0] if args else kwargs.get("key", kwargs.get("name"))
+        cookie_value = args[1] if len(args) > 1 else kwargs.get("value")
 
         if cookie_value and cookie_key:
             if is_iast_request_enabled() and CookiesVulnerability.has_quota():
@@ -140,5 +135,5 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
                     cookie_key, kwargs.get("secure") is not True, kwargs.get("httponly") is not True, report_samesite
                 )
     except Exception as e:
-        iast_error("propagation::sink_point::Error in _iast_response_cookies", e)
+        iast_error("propagation::sink_point::Error in _iast_response_cookies", exc=e)
     return wrapped(*args, **kwargs)

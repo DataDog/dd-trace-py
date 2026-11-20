@@ -122,6 +122,10 @@ def _injection_enabled_has_profiler() -> bool:
     return any(tok.strip().lower() == "profiler" for tok in injection_enabled.split(","))
 
 
+def _should_arm(source: t.Mapping[str, str]) -> bool:
+    return source.get("DD_PROFILING_ENABLED", "").strip().lower() == "armed"
+
+
 def _parse_profiling_enabled(raw: str) -> bool:
     # DD_INJECTION_ENABLED=...,profiler,... takes precedence over the env var value.
     if _injection_enabled_has_profiler():
@@ -148,7 +152,7 @@ def _update_git_metadata_tags(tags: dict[str, str]) -> dict[str, str]:
 
 
 def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
-    tags = {
+    updated_tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
             _update_git_metadata_tags(parse_tags_str(env.get("DD_TAGS"))).items(),
@@ -156,7 +160,7 @@ def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
         )
     }
 
-    return tags
+    return updated_tags
 
 
 # The profiling backend accepts at most this many locations per sample.
@@ -182,7 +186,20 @@ class ProfilingConfig(DDConfig):
         parser=_parse_profiling_enabled,
         default=False,
         help_type="Boolean",
-        help="Enable Datadog profiling when using ``ddtrace-run``",
+        help=(
+            "Enable Datadog profiling when using ``ddtrace-run``. "
+            "Experimental: Leave unset to let Remote Configuration start the profiler at runtime. "
+            "Set to ``false`` to prevent Remote Configuration from starting the profiler."
+        ),
+    )
+
+    remote_config_experiment = DDConfig.v(
+        bool,
+        "remote_config_experiment",
+        default=True,
+        help_type="Boolean",
+        help="Enable the profiling remote-config experiment.",
+        private=True,
     )
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
@@ -194,6 +211,17 @@ class ProfilingConfig(DDConfig):
         if not self.enabled and _injection_enabled_has_profiler():
             self.enabled = True
             self._value_source["DD_PROFILING_ENABLED"] = ValueSource.ENV_VAR
+
+        # An explicit DD_PROFILING_ENABLED=false also opts out of the remote config experiment, so that Remote Config
+        # cannot start the profiler.
+        if self.value_source("DD_PROFILING_ENABLED") != ValueSource.DEFAULT and not (
+            self.enabled or _should_arm(self.source)
+        ):
+            self.remote_config_experiment = False
+
+        # The remote config experiment can start the profiler at runtime, so like the armed mode it needs the stack
+        # profiler hooks installed at startup, to see the threads, event loops and greenlets created before that.
+        self.install: bool = self.remote_config_experiment or _should_arm(self.source)
 
     agentless = DDConfig.v(
         bool,
@@ -695,6 +723,7 @@ if not platform_is_supported:
     if config.enabled:
         logger.debug("Profiling is not supported on this platform (%s), disabling", platform_unsupported_msg)
     config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.install = False  # pyright: ignore[reportAttributeAccessIssue]
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
     config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
     config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
@@ -711,6 +740,7 @@ else:
             f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
         )
         config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.install = False  # pyright: ignore[reportAttributeAccessIssue]
 
     # We also need to check if stack module is available, and turn if off
     # if it s not.
@@ -725,6 +755,7 @@ else:
                 "Failed to load stack module (%s), disabling stack profiling" % msg,
             )
         config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.install = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Exception profiling requires sys.monitoring (Python 3.12+) and is not
 # supported on free-threaded builds.  Disable the config so that
@@ -768,6 +799,15 @@ if config.stack.fast_copy and _is_python_embedded():
 # Report configuration after all availability overrides so telemetry
 # reflects the effective state.
 report_configuration(config)
+# The remote config experiment also sets install, so check for the armed mode itself.
+if config.install and _should_arm(config.source):
+    # The parsed value of DD_PROFILING_ENABLED is False in armed mode
+    telemetry_writer.add_configuration(
+        "DD_PROFILING_ENABLED",
+        "armed",
+        config.value_source("DD_PROFILING_ENABLED"),
+        config.config_id("DD_PROFILING_ENABLED"),
+    )
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
