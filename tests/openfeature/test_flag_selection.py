@@ -1131,6 +1131,16 @@ def test_shutdown_from_another_thread_cancels_a_start_in_progress(cdn, api_key, 
         later.shutdown()
 
 
+class _SignalingEvent(threading.Event):
+    def __init__(self):
+        super().__init__()
+        self.waiting = threading.Event()
+
+    def wait(self, timeout=None):
+        self.waiting.set()
+        return super().wait(timeout)
+
+
 def _hold_source_creation(monkeypatch, resume):
     """Make each start wait for ``resume`` before it builds its source, and return an event set when one waits."""
     import ddtrace.internal.openfeature._source_selection as source_selection
@@ -1192,9 +1202,11 @@ def test_initialize_after_a_cancelled_start_ends_with_a_poller(cdn, api_key, mon
     try:
         assert holding.wait(timeout=5)
         provider.shutdown()
+        # Nothing replaces this event until the held start ends, so it is the one the re-initialization waits on.
+        signal = provider._configuration_source_changed = _SignalingEvent()
         reinitializing = threading.Thread(target=initialize, args=("reinitialized",))
         reinitializing.start()
-        threading.Event().wait(0.1)
+        assert signal.waiting.wait(timeout=5)
         resume.set()
         cancelled.join(timeout=5)
         reinitializing.join(timeout=5)
@@ -1355,9 +1367,11 @@ def test_failed_teardown_of_a_cancelled_start_keeps_its_claim_beside_a_replaceme
     try:
         assert started.wait(timeout=5)
         provider.shutdown()
+        # Nothing replaces this event until the held start ends, so it is the one the replacement waits on.
+        signal = provider._configuration_source_changed = _SignalingEvent()
         replacement = threading.Thread(target=initialize, args=("replacement",))
         replacement.start()
-        threading.Event().wait(0.1)
+        assert signal.waiting.wait(timeout=5)
         resume.set()
         cancelled.join(timeout=5)
         replacement.join(timeout=5)
@@ -1433,9 +1447,11 @@ def test_shutdown_wakes_a_start_waiting_for_an_in_flight_start(cdn, api_key, mon
     waiting = None
     try:
         assert holding.wait(timeout=5)
+        # The held start does not replace this event, so it is the one the waiting start blocks on.
+        signal = provider._configuration_source_changed = _SignalingEvent()
         waiting = threading.Thread(target=initialize, args=("waiting",))
         waiting.start()
-        threading.Event().wait(0.1)
+        assert signal.waiting.wait(timeout=5)
         provider.shutdown()
         # The waiting start began before the shutdown, so it ends without waiting for the held start.
         waiting.join(timeout=2)
@@ -1537,9 +1553,11 @@ def test_start_during_a_retired_poller_teardown_waits_for_it(cdn, api_key, monke
         stopping = threading.Thread(target=provider.shutdown)
         stopping.start()
         assert joining.wait(timeout=5)
+        # The teardown in its join does not replace this event, so it is the one the start waits on.
+        signal = provider._configuration_source_changed = _SignalingEvent()
         reinitializing = threading.Thread(target=lambda: _initialize_quietly(provider))
         reinitializing.start()
-        threading.Event().wait(0.1)
+        assert signal.waiting.wait(timeout=5)
         # The teardown owns no current poller, and a start must not add one it does not own.
         assert provider._configuration_source is None
         resume.set()
@@ -2381,16 +2399,6 @@ def test_sent_selection_after_a_dropped_one_waits_for_its_own_poll(cdn, api_key)
             later.initialize(EvaluationContext())
     finally:
         later.shutdown()
-
-
-class _SignalingEvent(threading.Event):
-    def __init__(self):
-        super().__init__()
-        self.waiting = threading.Event()
-
-    def wait(self, timeout=None):
-        self.waiting.set()
-        return super().wait(timeout)
 
 
 def test_provider_starting_while_the_new_selection_is_applied_becomes_ready(cdn, api_key):
