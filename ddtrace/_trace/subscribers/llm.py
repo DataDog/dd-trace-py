@@ -13,7 +13,6 @@ class LlmTracingSubscriber(SpanLifecycleSubscriber["LlmRequestEvent"]):
     subscribers of the SpanLifecycleEvents dispatched for llm.request.
     """
 
-    auto_register = False
     event_names = (LlmRequestEvent.event_name,)
 
     @classmethod

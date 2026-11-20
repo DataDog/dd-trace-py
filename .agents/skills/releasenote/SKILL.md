@@ -12,13 +12,20 @@ allowed-tools:
 
 ## Decide if a note is needed
 
-Required: breaking API change, new feature, bug fix, deprecation, dependency upgrade —
-if it's customer-impacting.
-Not required: CI chores, internal-only/not-yet-released API changes, test-only changes.
+Required: breaking API change, new feature, bug fix, deprecation, dependency upgrade customers
+receive, or any customer-observable behavior/performance/telemetry change — including when the PR
+is a `refactor`, `chore` or `perf`.
+Not required: CI chores, internal-only/not-yet-released API changes, test-only and docs-only changes.
 
-Determine customer impact from the diff, tests, and supplied PR/issue context.
-Ask only when missing product intent prevents that decision. If no note is needed,
-state why and use the `changelog/no-changelog` PR label.
+By PR title type (see `docs/releasenotes.rst`): `fix`/`feat` always need a note (the label is
+rejected); `chore`/`refactor`/`perf` need a note or an explicit `changelog/no-changelog` opt-out;
+`ci`/`test`/`docs` need neither.
+
+Whether a change is customer-facing is the user's call. Ask the user: "What would a customer
+notice after upgrading?" and use the answer, with the diff, to choose the commit type and decide on
+a note. Ask only when the diff and context cannot settle it. Never change the commit type, or apply
+`changelog/no-changelog`, just to make CI pass. If no note is needed, state why and, for
+`chore`/`refactor`/`perf`, use the label.
 
 ## Audience
 
