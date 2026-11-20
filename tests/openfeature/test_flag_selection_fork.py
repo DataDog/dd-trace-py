@@ -525,3 +525,60 @@ def test_fork_during_a_cancelled_start_leaves_the_child_a_correct_claim():
             resume.set()
             starting.join(timeout=5)
             provider.shutdown()
+
+
+@pytest.mark.subprocess(err=None, parametrize={"WAIT_EXPIRES": ["finishes", "wait-expires"]})
+def test_fork_while_an_exited_pollers_claim_is_released_leaves_the_child_a_correct_claim():
+    import os
+    import threading
+
+    import pytest
+
+    from ddtrace.internal.openfeature import _flag_selection
+    from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
+    from ddtrace.internal.openfeature._flag_selection import claim_process_selection
+    import ddtrace.internal.openfeature._provider as provider_module
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
+    from tests.openfeature.flag_selection_helpers import _fork_during
+    from tests.openfeature.flag_selection_helpers import _on_recovery
+    from tests.openfeature.flag_selection_helpers import _poll_without_configuration
+    from tests.openfeature.flag_selection_helpers import _provider
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
+
+    wait_expires = os.environ["WAIT_EXPIRES"] == "wait-expires"
+
+    with pytest.MonkeyPatch.context() as monkeypatch, _serving_cdn(monkeypatch) as cdn, _agentless_api_key():
+        provider = _provider({"tags": ["a"]}, timeout=0.3)
+        other = canonicalize_flag_selection({"tags": ["b"]})
+        source = _poll_without_configuration(provider, cdn, monkeypatch)
+        stopped, releasing, resume = threading.Event(), threading.Event(), threading.Event()
+        release = provider_module.release_process_selection
+
+        def shut_down(*args, **kwargs):
+            provider.shutdown()
+            stopped.set()
+
+        def held_release():
+            # The poller has already left the provider; its claim is not released yet.
+            releasing.set()
+            resume.wait(timeout=5)
+            release()
+
+        def check():
+            return _flag_selection._claim_count == 0 and claim_process_selection(other) == other
+
+        draining = None
+        try:
+            _on_recovery(provider, cdn, monkeypatch, shut_down)
+            assert stopped.wait(timeout=5)
+            source.join(timeout=5)
+            monkeypatch.setattr(provider_module, "release_process_selection", held_release)
+            draining = threading.Thread(target=provider.shutdown)
+            draining.start()
+            assert releasing.wait(timeout=5)
+            assert _fork_during(resume, monkeypatch, wait_expires, check) == 0
+        finally:
+            resume.set()
+            if draining is not None:
+                draining.join(timeout=5)
+            provider.shutdown()

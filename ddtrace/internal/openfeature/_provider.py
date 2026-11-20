@@ -697,8 +697,9 @@ class DataDogProvider(AbstractProvider):
         stopped from inside its own poll is retired without a join; after that poll it waits in
         _exited_configuration_sources for the next provider start or shutdown to release its claim.
         """
-        _release_exited_pollers()
         with _lifecycle_operation(self, teardown=True) as operation:
+            # Inside the operation, so a fork waits for these releases and a child forked during one recounts.
+            _release_exited_pollers()
             with self._configuration_source_lock:
                 self._configuration_source_shutdowns += 1
                 self._wake_configuration_source_waiters()
