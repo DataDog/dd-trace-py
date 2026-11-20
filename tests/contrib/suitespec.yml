@@ -1,6 +1,7 @@
 components:
   aio_pika:
     - ddtrace/contrib/internal/aio_pika/*
+    - ddtrace/internal/datastreams/aio_pika.py
   aiohttp:
     - ddtrace/contrib/aiohttp.py
     - ddtrace/contrib/internal/aiohttp/*
@@ -240,6 +241,7 @@ suites:
       - '@bootstrap'
       - '@contrib'
       - '@aio_pika'
+      - '@datastreams'
       - tests/contrib/aio_pika/*
       - tests/snapshots/tests.contrib.aio_pika.*
     services:

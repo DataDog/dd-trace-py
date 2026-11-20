@@ -17,6 +17,7 @@ class TestAioPikaPatch(PatchTestCase.Base):
     def _targets(self, module):
         targets = [
             module.exchange.Exchange.publish,
+            module.queue.Queue.consume,
             module.queue.consumer,
             module.queue.Queue.get,
             module.queue.QueueIterator.__anext__,

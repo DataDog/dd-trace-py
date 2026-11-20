@@ -232,12 +232,18 @@ async def _traced_publish(
     exchange = str(getattr(instance, "name", ""))
     destination = exchange or str(routing_key)
 
+    # DSM writes its pathway header even when trace propagation is off, so either one needs a copy to inject into.
+    distributed_tracing = _distributed_tracing_enabled()
+    data_streams = config._data_streams_enabled
     headers = None
-    if _distributed_tracing_enabled():
+    outgoing_headers = None
+    if distributed_tracing or data_streams:
         outgoing = _copy_for_injection(message)
         if outgoing is not None:
-            headers = outgoing.headers
+            outgoing_headers = outgoing.headers
             args, kwargs = set_argument_value(args, kwargs, 0, "message", outgoing)
+            if distributed_tracing:
+                headers = outgoing_headers
 
     tags = {_EXCHANGE: exchange, _ROUTING_KEY: str(routing_key), **_semantic_tags("send", destination)}
     message_id = getattr(message, "message_id", None)
@@ -255,7 +261,12 @@ async def _traced_publish(
         distributed_headers=headers,
         tags=tags,
     )
-    with core.context_with_event(event):
+    with core.context_with_event(event) as ctx:
+        if data_streams:
+            core.dispatch(
+                "aio_pika.publish.start",
+                (exchange, str(routing_key), outgoing_headers, getattr(message, "body", None), span_from_context(ctx)),
+            )
         return await wrapped(*args, **kwargs)
 
 
@@ -288,10 +299,46 @@ async def _call_callback(callback: Callable[[Any], Any], message: Any) -> Any:
     return result
 
 
+def _dispatch_receive(queue: Optional[str], message: Any, ctx: Any) -> None:
+    """Notify DSM that the application received message from queue."""
+    if not config._data_streams_enabled:
+        return
+    # Without a known queue (a sync callback, or basic_consume called directly), fall back to the routing key,
+    # which names the queue on the default exchange.
+    queue_name = queue or str(getattr(message, "routing_key", None) or "")
+    core.dispatch("aio_pika.receive.post", (queue_name, message, span_from_context(ctx)))
+
+
+def _bind_queue(callback: Callable[[Any], Awaitable[Any]], queue_name: str) -> Callable[[Any], Awaitable[Any]]:
+    """Return callback carrying the name of the queue it consumes; the AMQP delivery itself has no queue name."""
+
+    @wraps(callback)
+    async def bound(message: Any) -> Any:
+        return await callback(message)
+
+    bound._dd_aio_pika_queue = queue_name  # type: ignore[attr-defined]
+    return bound
+
+
+async def _traced_queue_consume(
+    wrapped: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    callback = get_argument_value(args, kwargs, 0, "callback")
+    # Only coroutine functions are bound: wrapping a sync callback would hide aio-pika's deprecation warning.
+    # The iterator's own callback is left alone so the consumer wrapper can still recognize it.
+    if inspect.iscoroutinefunction(callback) and not _is_iterator_callback(callback):
+        bound = _bind_queue(callback, str(getattr(instance, "name", "")))
+        args, kwargs = set_argument_value(args, kwargs, 0, "callback", bound)
+    return await wrapped(*args, **kwargs)
+
+
 def _traced_callback(callback: Callable[[Any], Any]) -> Callable[[Any], Awaitable[Any]]:
+    queue = getattr(callback, "_dd_aio_pika_queue", None)
+
     @wraps(callback)
     async def traced(message: Any) -> Any:
-        with _mark_processing(message), core.context_with_event(_process_event(message)):
+        with _mark_processing(message), core.context_with_event(_process_event(message)) as ctx:
+            _dispatch_receive(queue, message, ctx)
             return await _call_callback(callback, message)
 
     return traced
@@ -361,6 +408,8 @@ async def _receive(
 
     with core.context_with_event(_receive_event(instance, message, destination)) as ctx:
         span_from_context(ctx).start_ns = start_ns
+        # A later message.process() records no checkpoint, so a pulled message is counted once.
+        _dispatch_receive(destination, message, ctx)
     return message
 
 
@@ -430,6 +479,7 @@ def patch() -> None:
         return
 
     wrap("aio_pika.exchange", "Exchange.publish", _traced_publish)
+    wrap("aio_pika.queue", "Queue.consume", _traced_queue_consume)
     wrap("aio_pika.queue", "consumer", _traced_consumer)
     wrap("aio_pika.queue", "Queue.get", _traced_get)
     wrap("aio_pika.queue", "QueueIterator.__anext__", _traced_anext)
@@ -449,6 +499,7 @@ def unpatch() -> None:
         return
 
     unwrap(aio_pika.exchange.Exchange, "publish")
+    unwrap(aio_pika.queue.Queue, "consume")
     unwrap(aio_pika.queue, "consumer")
     unwrap(aio_pika.queue.Queue, "get")
     unwrap(aio_pika.queue.QueueIterator, "__anext__")
