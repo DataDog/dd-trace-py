@@ -107,6 +107,7 @@ _PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH = (
     "collection_path" in inspect.signature(pytest_hookspec.pytest_ignore_collect).parameters
 )
 _STORE_PASSING_REPORTS_ENV = "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS"
+_ORIGINAL_TEST_FUNCTION_ATTR = "_ddtrace_original_test_function"
 
 
 if t.TYPE_CHECKING:
@@ -385,7 +386,6 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._store_passing_reports = asbool(env.get(_STORE_PASSING_REPORTS_ENV, "false"))
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
-        self.test_functions_by_nodeid: dict[str, t.Callable[..., t.Any]] = {}
         self.is_xdist_worker = False
         # Whether this worker hands the coverage report upload over to the xdist
         # controller, which produces a single combined report for the session.
@@ -933,15 +933,19 @@ class TestOptPlugin(TestOptPluginProtocol):
         the same item, so without this every attempt would wrap the previous attempt's wrapper, and pytest-mpl would
         compare the None returned by the inner wrapper instead of the figure the test returned.
 
+        The function is kept on the item, not by node ID: a test collected more than once, for example with
+        --keep-duplicates, gives items that share a node ID but have their own class instance and bound method.
+
         unittest items are left alone: pytest creates a new TestCase instance and test method for them on every run,
         so they never see an earlier attempt's wrapper, and putting back the first attempt's method would run the
         test body on the first attempt's instance instead of the one that setUp() just prepared.
         """
         if not isinstance(item, pytest.Function) or isinstance(item, TestCaseFunction):
             return
-        current_function = item.obj
-        test_function = self.test_functions_by_nodeid.setdefault(item.nodeid, current_function)
-        if current_function is not test_function:
+        test_function = getattr(item, _ORIGINAL_TEST_FUNCTION_ATTR, None)
+        if test_function is None:
+            setattr(item, _ORIGINAL_TEST_FUNCTION_ATTR, item.obj)
+        elif item.obj is not test_function:
             item.obj = test_function
 
     def _do_one_test_run(
