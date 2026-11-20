@@ -358,3 +358,57 @@ def test_conversation_id_shared_by_parallel_first_calls(mcp_llmobs, test_spans, 
     spans = [span for span in _pop_spans(test_spans) if span.resource == "server_tool_call"]
     assert len(spans) == 2
     assert get_llmobs_session_id(spans[0]) == get_llmobs_session_id(spans[1])
+
+
+def test_conversation_id_source_and_invented_ids(mcp_llmobs, test_spans, run_client):
+    async def run(client):
+        first = await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+        conversation_id = first.content[-1].text.split('"')[1]
+        await client.call_tool(
+            "calculator", {"operation": "add", "a": 1, "b": 2, "telemetry": {"conversation_id": conversation_id}}
+        )
+        invented = await client.call_tool(
+            "calculator", {"operation": "add", "a": 1, "b": 2, "telemetry": {"conversation_id": "made-up"}}
+        )
+        return conversation_id, invented
+
+    with override_config("mcp", dict(capture_session=True)):
+        conversation_id, invented = run_client("legacy", run)
+
+    first_span, echoed_span, invented_span = [
+        span for span in _pop_spans(test_spans) if span.resource == "server_tool_call"
+    ]
+    assert get_llmobs_tags(first_span)["mcp_session_source"] == "generated"
+    assert get_llmobs_tags(echoed_span)["mcp_session_source"] == "echoed"
+    assert get_llmobs_session_id(echoed_span) == conversation_id
+    assert get_llmobs_tags(invented_span)["mcp_session_source"] == "generated"
+    assert get_llmobs_session_id(invented_span) not in ("made-up", None)
+    assert get_llmobs_session_id(invented_span) in invented.content[-1].text
+
+
+def test_tool_with_own_telemetry_argument_is_unchanged(mcp_llmobs, test_spans):
+    from mcp import Client
+    from mcp.server.mcpserver import MCPServer
+
+    server = MCPServer(name="TelemetryServer")
+
+    @server.tool(description="Records an event")
+    def record_event(telemetry: dict) -> dict:
+        return telemetry
+
+    async def run():
+        async with Client(server, mode="legacy") as client:
+            tools = await client.list_tools()
+            result = await client.call_tool("record_event", {"telemetry": {"event": "click"}})
+            return tools, result
+
+    with override_config("mcp", dict(capture_session=True)):
+        tools, result = asyncio.run(run())
+
+    schema = next(t for t in tools.tools if t.name == "record_event").input_schema
+    assert "conversation_id" not in json.dumps(schema)
+    assert not result.is_error
+    assert json.loads(result.content[0].text) == {"event": "click"}
+    assert len(result.content) == 1
+    server_span = _only(_pop_spans(test_spans), "server_tool_call")
+    assert get_llmobs_session_id(server_span) is None

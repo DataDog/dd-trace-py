@@ -1,3 +1,4 @@
+import re
 import time
 from typing import Any
 from typing import Optional
@@ -51,6 +52,9 @@ CONVERSATION_ID_INSTRUCTION = (
     "of every later tool call to this server, including calls you make in parallel."
 )
 NEW_CONVERSATION_ID = "_dd.mcp.new_conversation_id"
+# The shape of IDs this integration generates, so values an agent made up are not used as sessions
+CONVERSATION_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+MCP_SESSION_SOURCE_TAG = "mcp_session_source"
 # Parallel first calls of a conversation arrive together, before the agent has seen any ID
 PENDING_CONVERSATION_ID_SECONDS = 2.0
 
@@ -101,6 +105,8 @@ def get_client_info_tags(client_info: Any) -> dict[str, str]:
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
     _pending_conversation_ids: "weakref.WeakKeyDictionary[Any, tuple[str, float]]" = weakref.WeakKeyDictionary()
+    # Tools that declare their own telemetry argument, which must reach them unchanged
+    _tools_with_own_telemetry: set[str] = set()
 
     def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: MCP spans carry no provider or model tags."""
@@ -123,6 +129,10 @@ class MCPIntegration(BaseLLMIntegration):
         for tool in _get_attr(response, "tools", None) or []:
             input_schema = _get_attr(tool, "inputSchema", None)
             if not isinstance(input_schema, dict):
+                continue
+            own_telemetry = (input_schema.get("properties") or {}).get(TELEMETRY_KEY)
+            if own_telemetry is not None and own_telemetry != dd_trace_input_schema():
+                self._tools_with_own_telemetry.add(str(_get_attr(tool, "name", "")))
                 continue
             if not input_schema.get("type"):
                 input_schema["type"] = "object"
@@ -262,6 +272,8 @@ class MCPIntegration(BaseLLMIntegration):
             return
 
         params = _get_attr(request, "params", None)
+        if _get_attr(params, "name", None) in self._tools_with_own_telemetry:
+            return
         arguments = _get_attr(params, "arguments", None)
         telemetry = _get_attr(arguments, TELEMETRY_KEY, None)
         if isinstance(arguments, dict) and TELEMETRY_KEY in arguments:
@@ -275,12 +287,14 @@ class MCPIntegration(BaseLLMIntegration):
         # Only when MCP has no session of its own, e.g. stdio or the stateless protocol
         if config.mcp.capture_session and not transport_session_id and not get_llmobs_session_id(span):
             conversation_id = _get_attr(telemetry, CONVERSATION_ID_KEY, None) if telemetry else None
-            if isinstance(conversation_id, str) and conversation_id:
+            if isinstance(conversation_id, str) and CONVERSATION_ID_PATTERN.match(conversation_id):
                 self._clear_pending_conversation_id(connection, conversation_id)
+                source = "echoed"
             else:
                 conversation_id = self._new_conversation_id(connection)
                 span._set_ctx_item(NEW_CONVERSATION_ID, conversation_id)
-            _annotate_llmobs_span_data(span, session_id=conversation_id)
+                source = "generated"
+            _annotate_llmobs_span_data(span, session_id=conversation_id, tags={MCP_SESSION_SOURCE_TAG: source})
 
     def _new_conversation_id(self, connection: Any) -> str:
         """Reuse the ID generated for a call on the same connection that the agent has not sent back yet."""
