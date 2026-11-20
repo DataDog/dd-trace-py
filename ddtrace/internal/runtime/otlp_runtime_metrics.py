@@ -119,6 +119,14 @@ def _create_instruments(meter: Meter) -> None:
         description="The total number of objects which were found to be uncollectable inside a generation since "
         "interpreter start.",
     )
+    # The name and attribute of the OpenTelemetry system metrics instrumentation. As the counts drop after each
+    # collection, this is a gauge.
+    meter.create_observable_gauge(
+        "process.runtime.cpython.gc_count",
+        callbacks=[_observe_gc_count],
+        unit="{count}",
+        description="The current collection counts of the garbage collector, by generation.",
+    )
 
     try:
         _process_metrics()
@@ -174,6 +182,16 @@ def _gc_callback(stat: str) -> Callable[[CallbackOptions], list[Observation]]:
         ]
 
     return callback
+
+
+def _observe_gc_count(_options: CallbackOptions) -> list[Observation]:
+    if not _enabled:
+        return []
+    runtime_id = get_runtime_id()
+    return [
+        Observation(count, {"count": str(generation), RUNTIME_ID_ATTRIBUTE: runtime_id})
+        for generation, count in enumerate(gc.get_count())
+    ]
 
 
 def _process_metrics() -> _ProcessMetrics:
