@@ -1375,14 +1375,15 @@ def test_crashtracker_receiver_pythonpath_isolation(monkeypatch):
     import subprocess
     from unittest import mock
 
+    import ddtrace
     import ddtrace.internal.core.crashtracking as crashtracking
 
-    receiver_spec = importlib.util.find_spec("ddtrace.commands._dd_crashtracker_receiver")
+    receiver_spec = importlib.util.find_spec("ddtrace_commands._dd_crashtracker_receiver")
     assert receiver_spec is not None
     assert receiver_spec.origin is not None
     # Reconstruct the SSI layout: bootstrap/ and its parent (injected site-packages) are
     # both on PYTHONPATH so that ddtrace is importable without the bootstrap running.
-    ddtrace_package_dir = os.path.dirname(os.path.dirname(receiver_spec.origin))
+    ddtrace_package_dir = os.path.dirname(ddtrace.__file__)
     bootstrap_dir = os.path.join(ddtrace_package_dir, "bootstrap")
     injected_site_packages = os.path.dirname(ddtrace_package_dir)
     pythonpath = [bootstrap_dir, injected_site_packages]
@@ -1402,6 +1403,7 @@ def test_crashtracker_receiver_pythonpath_isolation(monkeypatch):
         crashtracking._get_args(None)
 
     assert receiver_args is not None, "CrashtrackerReceiverConfig was never called"
+    assert receiver_args[1] == receiver_spec.origin
     assert receiver_env is not None
 
     result = subprocess.run(

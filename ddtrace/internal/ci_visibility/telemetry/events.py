@@ -157,7 +157,7 @@ def record_event_finished_test(
     is_disabled: bool = False,
     is_attempt_to_fix: bool = False,
     has_failed_all_retries: bool = False,
-    ci_provider_name: str = UNSUPPORTED_PROVIDER,
+    ci_provider_name: Optional[str] = UNSUPPORTED_PROVIDER,
     is_auto_injected: bool = False,
 ) -> None:
     log.debug(

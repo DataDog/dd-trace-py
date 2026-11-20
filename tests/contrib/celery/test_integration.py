@@ -1040,6 +1040,7 @@ def test_worker_custom_service_name_schematized():
         "meta.celery.correlation_id",
         "meta.celery.hostname",
         "meta.celery.reply_to",
+        "meta.celery.delivery_info.redelivered",  # None on celery 5.2, "False" on newer releases
     ]
 )
 def test_distributed_tracing_propagation_no_producer_span(

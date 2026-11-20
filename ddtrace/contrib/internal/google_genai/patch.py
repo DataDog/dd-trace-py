@@ -1,6 +1,7 @@
 import sys
 
 from google import genai
+from wrapt.importer import when_imported
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
@@ -21,6 +22,10 @@ from ddtrace.internal.utils.streaming import make_traced_stream
 
 config._add("google_genai", {})
 
+# The Decisions API (google-genai>=3.2.0) lives in a module the SDK imports on first use
+DECISIONS_MODULE = "google.genai._gaos.google_genai"
+DECISION_MODEL_PROVIDER = "google"
+
 
 def _supported_versions():
     return {"google.genai": ">=1.21.1"}
@@ -30,13 +35,14 @@ def get_version() -> str:
     return getattr(genai, "__version__", "")
 
 
-def _request_event(func, instance, kwargs, operation):
-    provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
+def _request_event(func, instance, kwargs, operation, provider_name=None, resource=None):
+    extracted_provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
+    provider_name = provider_name or extracted_provider_name
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.google_genai,
         service=int_service(None, config.google_genai),
-        resource="%s.%s" % (instance.__class__.__name__, func.__name__),
+        resource=resource or "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
         tags={TAG_PROVIDER: provider_name, TAG_MODEL: model_name},
@@ -100,6 +106,39 @@ async def traced_async_embed_content(func, instance, args, kwargs):
         return event.response
 
 
+def traced_decision_create(func, instance, args, kwargs):
+    event = _request_event(func, instance, kwargs, "decision", DECISION_MODEL_PROVIDER, "Decisions.create")
+    with core.context_with_event(event):
+        event.response = func(*args, **kwargs)
+        return event.response
+
+
+async def traced_async_decision_create(func, instance, args, kwargs):
+    event = _request_event(func, instance, kwargs, "decision", DECISION_MODEL_PROVIDER, "AsyncDecisions.create")
+    with core.context_with_event(event):
+        event.response = await func(*args, **kwargs)
+        return event.response
+
+
+def _patch_decisions(module):
+    if not getattr(genai, "_datadog_patch", False) or getattr(module, "_datadog_decisions_patch", False):
+        return
+    if not hasattr(module, "GeminiNextGenDecisions"):
+        return
+    module._datadog_decisions_patch = True
+    wrap(module, "GeminiNextGenDecisions.create", traced_decision_create)
+    wrap(module, "AsyncGeminiNextGenDecisions.create", traced_async_decision_create)
+
+
+def _unpatch_decisions():
+    module = sys.modules.get(DECISIONS_MODULE)
+    if module is None or not getattr(module, "_datadog_decisions_patch", False):
+        return
+    module._datadog_decisions_patch = False
+    unwrap(module.GeminiNextGenDecisions, "create")
+    unwrap(module.AsyncGeminiNextGenDecisions, "create")
+
+
 def patch():
     if getattr(genai, "_datadog_patch", False):
         return
@@ -112,6 +151,7 @@ def patch():
     wrap("google.genai", "models.AsyncModels.generate_content_stream", traced_async_generate_stream)
     wrap("google.genai", "models.Models.embed_content", traced_embed_content)
     wrap("google.genai", "models.AsyncModels.embed_content", traced_async_embed_content)
+    when_imported(DECISIONS_MODULE)(_patch_decisions)
 
     # Let products (LLMObs) attach their own LlmEvents subscribers without this
     # module importing them.
@@ -132,3 +172,4 @@ def unpatch():
     unwrap(genai.models.AsyncModels, "generate_content_stream")
     unwrap(genai.models.Models, "embed_content")
     unwrap(genai.models.AsyncModels, "embed_content")
+    _unpatch_decisions()

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    openfeature: Agentless Feature Flagging configuration requests now include the service name.

@@ -137,14 +137,16 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     _configured_modules: list[str] = config._configured_modules
 
     # Instrumenting a module is adding its file path to INSTRUMENTED_FILE_PATHS
-    def conditionally_instrument_module(self, configured_modules: list[str], module_name: str, module: ModuleType):
+    def conditionally_instrument_module(
+        self, configured_modules: list[str], module_name: str, module: ModuleType
+    ) -> None:
         for enabled_module in configured_modules:
             if module_name.startswith(enabled_module):
                 if (file_path := getattr(module, "__file__", None)) is not None:
                     INSTRUMENTED_FILE_PATHS.add(file_path)
                 break
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         # There might be modules that are already loaded at the time of installation, so we need to instrument them
         # if they have been configured.
@@ -152,7 +154,7 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
         for module_name in existing_modules:
             self.conditionally_instrument_module(self._configured_modules, module_name, sys.modules[module_name])
 
-    def after_import(self, module: ModuleType):
+    def after_import(self, module: ModuleType) -> None:
         module_name = module.__name__
         if module_name in self._instrumented_modules:
             return
