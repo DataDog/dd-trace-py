@@ -13,7 +13,7 @@ idna==3.20
 iniconfig==2.3.1
 markupsafe==2.1.5
 mock==5.2.0
-mysql-connector-python==26.7.0
+mysql-connector-python==26.10.0
 mysqlclient==2.1.1
 numpy==2.2.6
 packaging==26.3

@@ -279,13 +279,15 @@ def test_django_untrusted_serialization_yaml(client, iast_span, tracer):
         url="/iast/untrusted/yaml/?input=a: 1",
     )
 
-    vuln_type = "UNTRUSTED_SERIALIZATION"
+    vuln_type = "UNTRUSTED_DESERIALIZATION"
 
     assert response.status_code == 200
 
     loaded = load_iast_report(root_span)
 
-    line, hash_value = get_line_and_hash("untrusted_serialization_yaml_view", vuln_type, filename=TEST_FILE)
+    line, hash_value = get_line_and_hash(
+        "untrusted_serialization_yaml_view", "UNTRUSTED_SERIALIZATION", filename=TEST_FILE
+    )
 
     assert loaded["sources"] == [
         {
@@ -310,13 +312,15 @@ def test_django_untrusted_serialization_yaml_load(client, iast_span, tracer):
         url="/iast/untrusted/yaml/load/?input=a: 1",
     )
 
-    vuln_type = "UNTRUSTED_SERIALIZATION"
+    vuln_type = "UNTRUSTED_DESERIALIZATION"
 
     assert response.status_code == 200
 
     loaded = load_iast_report(root_span)
 
-    line, hash_value = get_line_and_hash("untrusted_serialization_yaml_load", vuln_type, filename=TEST_FILE)
+    line, hash_value = get_line_and_hash(
+        "untrusted_serialization_yaml_load", "UNTRUSTED_SERIALIZATION", filename=TEST_FILE
+    )
 
     assert loaded["sources"] == [
         {
@@ -357,12 +361,14 @@ def test_django_untrusted_serialization_pickle_smoke(client, iast_span, tracer):
         url="/iast/untrusted/pickle/?input=AQID",
     )
 
-    vuln_type = "UNTRUSTED_SERIALIZATION"
+    vuln_type = "UNTRUSTED_DESERIALIZATION"
 
     assert response.status_code == 200
     loaded = load_iast_report(root_span)
 
-    line, hash_value = get_line_and_hash("untrusted_serialization_pickle", vuln_type, filename=TEST_FILE)
+    line, hash_value = get_line_and_hash(
+        "untrusted_serialization_pickle", "UNTRUSTED_SERIALIZATION", filename=TEST_FILE
+    )
     assert loaded["sources"] == []
 
     assert loaded["vulnerabilities"][0]["type"] == vuln_type
@@ -380,13 +386,13 @@ def test_django_untrusted_serialization_dill_smoke(client, iast_span, tracer):
         url="/iast/untrusted/dill/?input=AQID",
     )
 
-    vuln_type = "UNTRUSTED_SERIALIZATION"
+    vuln_type = "UNTRUSTED_DESERIALIZATION"
 
     assert response.status_code == 200
 
     loaded = load_iast_report(root_span)
 
-    line, hash_value = get_line_and_hash("untrusted_serialization_dill", vuln_type, filename=TEST_FILE)
+    line, hash_value = get_line_and_hash("untrusted_serialization_dill", "UNTRUSTED_SERIALIZATION", filename=TEST_FILE)
     assert loaded["sources"] == []
 
     assert loaded["vulnerabilities"][0]["type"] == vuln_type

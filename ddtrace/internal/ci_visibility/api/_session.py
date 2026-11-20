@@ -1,4 +1,5 @@
 from typing import Any
+from typing import NoReturn
 from typing import Optional
 
 from ddtrace.ext import test
@@ -66,7 +67,7 @@ class TestVisibilitySession(
     def get_session_settings(self) -> TestVisibilitySessionSettings:
         return self._session_settings
 
-    def _set_efd_tags(self):
+    def _set_efd_tags(self) -> None:
         if self._session_settings.efd_settings.enabled:
             self.set_tag(TEST_EFD_ENABLED, True)
         if self._efd_abort_reason is not None:
@@ -75,7 +76,7 @@ class TestVisibilitySession(
         elif self.efd_is_faulty_session():
             self.set_tag(TEST_EFD_ABORT_REASON, "faulty")
 
-    def _set_test_management_tags(self):
+    def _set_test_management_tags(self) -> None:
         self.set_tag(TEST_MANAGEMENT_ENABLED, True)
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
@@ -90,7 +91,7 @@ class TestVisibilitySession(
             self.set_tag(test.ITR_TEST_SKIPPING_TYPE, skipping_level)
             self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
 
-    def _telemetry_record_event_created(self):
+    def _telemetry_record_event_created(self) -> None:
         record_event_created(
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
@@ -98,7 +99,7 @@ class TestVisibilitySession(
             is_unsupported_ci=self._session_settings.is_unsupported_ci,
         )
 
-    def _telemetry_record_event_finished(self):
+    def _telemetry_record_event_finished(self) -> None:
         record_event_finished(
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
@@ -107,29 +108,29 @@ class TestVisibilitySession(
             early_flake_detection_abort_reason="faulty" if self.efd_is_faulty_session() else None,
         )
 
-    def add_coverage_data(self, *args, **kwargs):
+    def add_coverage_data(self, *args: Any, **kwargs: Any) -> NoReturn:
         raise NotImplementedError("Coverage data cannot be added to session.")
 
-    def set_skipped_count(self, skipped_count: int):
+    def set_skipped_count(self, skipped_count: int) -> None:
         self._itr_skipped_count = skipped_count
         self._set_itr_tags(self._session_settings.itr_test_skipping_enabled)
 
-    def set_covered_lines_pct(self, coverage_pct: float):
+    def set_covered_lines_pct(self, coverage_pct: float) -> None:
         self.set_tag(test.TEST_LINES_PCT, coverage_pct)
 
-    def get_session(self):
+    def get_session(self) -> "TestVisibilitySession":
         return self
 
     #
     # EFD (Early Flake Detection) functionality
     #
-    def efd_is_enabled(self):
+    def efd_is_enabled(self) -> bool:
         return self._session_settings.efd_settings.enabled
 
-    def set_efd_abort_reason(self, abort_reason: str):
+    def set_efd_abort_reason(self, abort_reason: str) -> None:
         self._efd_abort_reason = abort_reason
 
-    def efd_is_faulty_session(self):
+    def efd_is_faulty_session(self) -> bool:
         """A session is considered "EFD faulty" if the percentage of tests considered new is greater than the
         given threshold, and the total number of news tests exceeds the threshold.
 
@@ -159,7 +160,7 @@ class TestVisibilitySession(
 
         return self._efd_is_faulty_session
 
-    def efd_has_failed_tests(self):
+    def efd_has_failed_tests(self) -> bool:
         if (not self._session_settings.efd_settings.enabled) or self.efd_is_faulty_session():
             return False
 
@@ -179,10 +180,10 @@ class TestVisibilitySession(
     def atr_max_retries_reached(self) -> bool:
         return self._atr_total_retries >= self._session_settings.atr_settings.max_session_total_retries
 
-    def _atr_count_retry(self):
+    def _atr_count_retry(self) -> None:
         self._atr_total_retries += 1
 
-    def atr_has_failed_tests(self):
+    def atr_has_failed_tests(self) -> bool:
         if not self._session_settings.atr_settings.enabled:
             return False
 
@@ -195,7 +196,7 @@ class TestVisibilitySession(
                         return True
         return False
 
-    def attempt_to_fix_has_failed_tests(self):
+    def attempt_to_fix_has_failed_tests(self) -> bool:
         if not self._session_settings.test_management_settings.enabled:
             return False
 

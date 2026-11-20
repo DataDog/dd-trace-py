@@ -26,10 +26,10 @@ from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -64,7 +64,7 @@ def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, s
 class AnthropicIntegration(BaseLLMIntegration):
     _integration_name = "anthropic"
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Record the request base_url on the span; the contrib sets the APM model tag itself."""
         # Store base_url per-span rather than on the singleton integration so a streaming
         # span that finalizes after concurrent requests still resolves the right provider.
@@ -74,7 +74,7 @@ class AnthropicIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -82,8 +82,13 @@ class AnthropicIntegration(BaseLLMIntegration):
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         parameters = {}
-        if kwargs.get("temperature"):
-            parameters["temperature"] = kwargs.get("temperature")
+        # anthropic>=1.0 passes sampling params through extra_body; explicit kwargs take precedence.
+        extra_body = kwargs.get("extra_body")
+        temperature = kwargs.get("temperature")
+        if temperature is None and isinstance(extra_body, dict):
+            temperature = extra_body.get("temperature")
+        if temperature is not None:
+            parameters["temperature"] = temperature
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         tool_definitions = None
@@ -213,7 +218,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         """Extract output messages from the stored response."""
         return get_messages_from_anthropic_content(_get_attr(response, "role", ""), _get_attr(response, "content", ""))
 
-    def _extract_usage(self, span: Span, usage: dict[str, Any]):
+    def _extract_usage(self, span: _LLMObsSpan, usage: dict[str, Any]):
         if not usage:
             return
         input_tokens = _get_attr(usage, "input_tokens", None)
@@ -252,7 +257,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             metrics[WEB_SEARCH_COUNT_METRIC_KEY] = web_search_requests
         return metrics
 
-    def _get_model_provider(self, span: Span) -> str:
+    def _get_model_provider(self, span: _LLMObsSpan) -> str:
         """Resolve the model provider from the request base_url captured on the span.
 
         Returns "amazon" if the base_url contains "bedrock".

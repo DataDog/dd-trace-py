@@ -89,6 +89,7 @@ class EventsAPIScenario(bm.Scenario):
                     span._set_attribute("http.method", event.method)
                     span._set_attribute("http.status_code", event.status_code)
 
+            SpanContextSubscriber.register()
             for _ in range(loops):
                 with core.context_with_event(
                     BenchmarkTracingEvent(
@@ -121,6 +122,7 @@ class EventsAPIScenario(bm.Scenario):
                 def on_event(cls, event_instance: BenchmarkDispatchEvent) -> None:
                     pass
 
+            DispatchEventSubscriber.register()
             for _ in range(loops):
                 core.dispatch_event(BenchmarkDispatchEvent(url="myurl.com", method="GET", status_code=200))
 

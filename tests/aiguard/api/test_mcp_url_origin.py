@@ -9,6 +9,7 @@ import pytest
 from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_server_id
 from ddtrace.aiguard.integrations._mcp import mcp_url_origin
+from ddtrace.aiguard.integrations._mcp import safe_stdio_args
 
 
 @pytest.mark.parametrize(
@@ -115,3 +116,47 @@ def test_mcp_server_for_idna_deviation_uses_next_key():
     assert "url" not in server
     assert server["id"] == "mcp_4b1df2a2d821278c"
     assert server["id"] != mcp_server_id(url="https://fass.de/mcp")
+
+
+@pytest.mark.parametrize(
+    "command,program",
+    [
+        ("/Users/alice/.nvm/versions/node/v22.1.0/bin/npx", "npx"),
+        ("C:\\Users\\alice\\AppData\\Roaming\\npm\\npx.cmd", "npx"),
+        ("C:/Program Files/nodejs/NPX.CMD", "npx"),
+        ("/usr/bin/Python3.12", "python3.12"),
+        ("uvx.exe", "uvx"),
+        ("node", "node"),
+    ],
+)
+def test_stdio_command_is_reported_and_hashed_as_its_program_name(command, program):
+    """A full path can hold the user name and changes per machine: only the program name is kept."""
+    server = mcp_server("client", "stdio", command=command)
+    assert server["command"] == program
+    assert server["id"] == mcp_server_id(command=program)
+
+
+def test_stdio_command_path_vector():
+    """Cross-tracer vector: the other tracers test the same command and ID."""
+    server = mcp_server(
+        "client", "stdio", command="/Users/alice/.nvm/versions/node/v22.1.0/bin/npx", args=["@acme/docs"]
+    )
+    assert server["id"] == "mcp_ebcb9861e648b910"
+    assert "alice" not in str(server)
+
+
+def test_stdio_command_without_program_name_uses_the_next_key():
+    assert mcp_server("client", "stdio", command="/usr/bin/") is None
+    assert mcp_server("client", "stdio", command="/usr/bin/", name="atlassian")["id"] == mcp_server_id(name="atlassian")
+
+
+def test_stdio_drive_relative_command_keeps_its_drive_prefix():
+    """Cross-tracer vector: no drive-letter handling, so c:npx is not taken for npx and no argument is sent."""
+    server = mcp_server("client", "stdio", command="C:npx", args=safe_stdio_args("C:npx", ["-y", "private-value"]))
+    assert server == {
+        "id": "mcp_728353ed9e10df60",
+        "managed_by": "client",
+        "transport": "stdio",
+        "command": "c:npx",
+        "tools": {},
+    }
