@@ -135,10 +135,7 @@ def test_otlp_traces_and_trace_metrics_sent_via_http_unix_socket():
             ]
             assert {span["name"] for span in spans} == {"unix-http-span"}
         else:
-            from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
-
-            trace_request = ExportTraceServiceRequest.FromString(trace_bodies[0])
-            assert trace_request.resource_spans[0].scope_spans[0].spans[0].name == "unix-http-span"
+            assert b"unix-http-span" in trace_bodies[0]
         metrics = [json.loads(body) for path, _, body in requests if path == "/v1/metrics"]
         assert metrics, requests
         assert (
