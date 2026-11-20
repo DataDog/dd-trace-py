@@ -555,6 +555,8 @@ def test_serverless_exception_replay_uploader_contract(run_python_code_in_subpro
     # datadog_lambda/wrapper.py calls SignalUploader._instance.periodic() after
     # SpanExceptionHandler.enable(). The class-body default of _instance is None, so
     # this checks the live instance that enable() creates.
+    # A reachable agent without debugger endpoints makes periodic() log a warning.
+    # That warning is not part of the contract, so point at an agent that is not listening.
     code = """
 from ddtrace.debugging._exception.replay import SpanExceptionHandler
 from ddtrace.debugging._uploader import SignalUploader
@@ -564,7 +566,10 @@ assert isinstance(SignalUploader._instance, SignalUploader)
 assert SignalUploader._instance.periodic() is None
 """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=_serverless_subprocess_env())
+    stdout, stderr, status, _ = run_python_code_in_subprocess(
+        code,
+        env=_serverless_subprocess_env(DD_TRACE_AGENT_URL="http://127.0.0.1:1"),
+    )
     assert status == 0, stderr.decode()
     assert stdout.decode() == ""
     assert stderr.decode() == ""
