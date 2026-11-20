@@ -48,6 +48,12 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     # Use to add additional tags after the span was created
     additional_tags: dict[str, str] = event_field(default_factory=dict)
 
+    # Address of the connected peer, reported as the network peer IP.
+    peer_ip: Optional[str] = event_field(default=None)
+
+    # Tag the request headers and the peer IP when the span starts, so listeners see them while the handler runs.
+    tag_request_on_start: bool = event_field(default=False)
+
     def __post_init__(self):
         self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.INBOUND

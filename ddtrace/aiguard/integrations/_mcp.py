@@ -7,7 +7,6 @@ from collections.abc import Sequence
 import enum
 import hashlib
 import ipaddress
-import os.path
 import re
 from types import ModuleType
 from typing import Any
@@ -219,11 +218,12 @@ def mcp_server(
     command: Optional[str] = None,
     args: Sequence[str] = (),
 ) -> Optional[MCPServer]:
-    """Build an mcp_servers entry with no tools yet; url is reported as its origin only.
+    """Build an mcp_servers entry with no tools yet; url is reported as its origin, command as its program name.
 
     args must only hold safe identifiers (see safe_stdio_args); they are ignored without command.
     """
     url = mcp_url_origin(url) if url else None
+    command = (stdio_program(command) or None) if command else None
     args = list(args) if command else []
     server_id = mcp_server_id(url=url, connector_id=connector_id, command=command, args=args, name=name)
     if server_id is None:
@@ -248,15 +248,24 @@ _PYTHON = re.compile(r"^python(\d+(\.\d+)?)?$")
 _PYTHON_MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
+def stdio_program(command: str) -> str:
+    """Program name of a stdio command: its last path segment on a slash or a backslash, lowercase, no .exe/.cmd.
+
+    A full path can hold the user name, so it is never sent; no drive-letter rule, so all tracers and OSes agree.
+    """
+    program = command[max(command.rfind("/"), command.rfind("\\")) + 1 :].lower()
+    for suffix in (".exe", ".cmd"):
+        if program.endswith(suffix):
+            program = program[: -len(suffix)]
+    return program
+
+
 def safe_stdio_args(command: str, args: Sequence[str]) -> list[str]:
     """The package or module a stdio launcher runs (npx/bunx/pnpx/uvx <package>, python -m <module>).
 
     Anything else returns no args: arbitrary arguments can hold paths, tokens or other secrets.
     """
-    program = os.path.basename(command).lower()
-    for suffix in (".exe", ".cmd"):
-        if program.endswith(suffix):
-            program = program[: -len(suffix)]
+    program = stdio_program(command)
     if program in _PACKAGE_RUNNERS:
         for arg in args:
             if arg in _RUNNER_FLAGS:
@@ -277,17 +286,24 @@ def mcp_reference(server: MCPServer, tool_name: str, original_name: str) -> MCP:
 def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]) -> Optional[list[MCPServer]]:
     """The servers the tool calls of messages reference, with only the tools they call; None if none.
 
-    Restricting to referenced servers keeps every entry resolvable and every tools map non-empty.
+    Servers sharing an ID become one entry: the first server's fields, with the tools of all of them.
     """
-    by_id = {server["id"]: server for server in servers}
+    by_id: dict[str, MCPServer] = {}
+    tools_by_id: dict[str, dict[str, str]] = {}
+    for server in servers:
+        by_id.setdefault(server["id"], server)
+        known = tools_by_id.setdefault(server["id"], {})
+        for name, original_name in server["tools"].items():
+            known.setdefault(name, original_name)
     called: dict[str, dict[str, str]] = {}
     for message in messages:
         for tool_call in message.get("tool_calls") or []:
             mcp = tool_call.get("mcp")
-            server = by_id.get(mcp["server_id"]) if mcp else None
+            server_id = mcp["server_id"] if mcp else None
+            tools = tools_by_id.get(server_id) if server_id else None
             name = tool_call["function"]["name"]
-            if server is not None and name in server["tools"]:
-                called.setdefault(server["id"], {})[name] = server["tools"][name]
+            if server_id and tools is not None and name in tools:
+                called.setdefault(server_id, {})[name] = tools[name]
     if not called:
         return None
     result = []
