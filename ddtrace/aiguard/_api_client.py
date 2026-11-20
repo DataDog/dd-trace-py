@@ -512,7 +512,7 @@ class AIGuardClient:
                     raise transport_error
 
                 try:
-                    result = response.get_json() or {}  # type: ignore[no-untyped-call]
+                    result = response.get_json() or {}
                 except Exception as e:
                     # A body we cannot decode is a response problem, not a transport one, unless
                     # the status code already explains the failure.

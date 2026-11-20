@@ -5,9 +5,16 @@ from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 from inspect import signature
 import sys
+from typing import Any
+from typing import AsyncGenerator
 from typing import Callable
+from typing import Generator
 from typing import Optional
+from typing import Protocol
+from typing import TypeVar
+from typing import overload
 
+from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -19,8 +26,68 @@ from ddtrace.llmobs._utils import get_llmobs_output_value
 
 log = get_logger(__name__)
 
+F = TypeVar("F", bound=Callable[..., Any])
 
-def _get_llmobs_span_options(name, model_name, func):
+
+class _ModelDecorator(Protocol):
+    """Callable usable either as ``@llm`` or ``@llm(model_name=...)``."""
+
+    @overload
+    def __call__(
+        self,
+        original_func: F,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
+    ) -> F: ...
+
+    @overload
+    def __call__(
+        self,
+        original_func: None = None,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
+    ) -> Callable[[F], F]: ...
+
+
+class _LLMObsDecorator(Protocol):
+    """Callable usable either as ``@workflow`` or ``@workflow(name=...)``."""
+
+    @overload
+    def __call__(
+        self,
+        original_func: F,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
+        version: Optional[str] = None,
+        _automatic_io_annotation: bool = True,
+    ) -> F: ...
+
+    @overload
+    def __call__(
+        self,
+        original_func: None = None,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
+        version: Optional[str] = None,
+        _automatic_io_annotation: bool = True,
+    ) -> Callable[[F], F]: ...
+
+
+def _get_llmobs_span_options(
+    name: Optional[str], model_name: Optional[str], func: Callable[..., Any]
+) -> tuple[str, str]:
     traced_model_name = model_name
     if traced_model_name is None:
         traced_model_name = UNKNOWN_MODEL_NAME
@@ -32,11 +99,13 @@ def _get_llmobs_span_options(name, model_name, func):
     return traced_model_name, span_name
 
 
-def _get_span_inputs(args: OrderedDict) -> dict:
+def _get_span_inputs(args: "OrderedDict[str, Any]") -> dict[str, Any]:
     return {arg: value for arg, value in args.items() if arg != "self"}
 
 
-async def yield_from_async_gen(func, span, args, kwargs):
+async def yield_from_async_gen(
+    func: Callable[..., AsyncGenerator[Any, Any]], span: Span, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> AsyncGenerator[Any, Any]:
     try:
         gen = func(*args, **kwargs)
         next_val = await gen.asend(None)
@@ -62,21 +131,21 @@ async def yield_from_async_gen(func, span, args, kwargs):
         span.finish()
 
 
-def _model_decorator(operation_kind):
+def _model_decorator(operation_kind: str) -> _ModelDecorator:
     def decorator(
-        original_func: Optional[Callable] = None,
+        original_func: Optional[Callable[..., Any]] = None,
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
-    ):
-        def inner(func):
+    ) -> Any:
+        def inner(func: Callable[..., Any]) -> Callable[..., Any]:
             if iscoroutinefunction(func) or isasyncgenfunction(func):
 
                 @wraps(func)
-                def generator_wrapper(*args, **kwargs):
+                def generator_wrapper(*args: Any, **kwargs: Any) -> Any:
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return func(*args, **kwargs)
@@ -94,7 +163,7 @@ def _model_decorator(operation_kind):
                     return yield_from_async_gen(func, span, args, kwargs)
 
                 @wraps(func)
-                async def wrapper(*args, **kwargs):
+                async def wrapper(*args: Any, **kwargs: Any) -> Any:
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return await func(*args, **kwargs)
@@ -129,7 +198,7 @@ def _model_decorator(operation_kind):
             else:
 
                 @wraps(func)
-                def generator_wrapper(*args, **kwargs):
+                def generator_wrapper(*args: Any, **kwargs: Any) -> Generator[Any, Any, None]:
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         yield from func(*args, **kwargs)
@@ -156,7 +225,7 @@ def _model_decorator(operation_kind):
                             span.finish()
 
                 @wraps(func)
-                def wrapper(*args, **kwargs):
+                def wrapper(*args: Any, **kwargs: Any) -> Any:
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return func(*args, **kwargs)
@@ -197,16 +266,16 @@ def _model_decorator(operation_kind):
     return decorator
 
 
-def _llmobs_decorator(operation_kind):
+def _llmobs_decorator(operation_kind: str) -> _LLMObsDecorator:
     def decorator(
-        original_func: Optional[Callable] = None,
+        original_func: Optional[Callable[..., Any]] = None,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         version: Optional[str] = None,
         _automatic_io_annotation: bool = True,
-    ):
+    ) -> Any:
         if version is not None and operation_kind != "agent":
             log.warning(
                 "The `version` argument is only supported on @agent, ignoring it for @%s.",
@@ -214,11 +283,11 @@ def _llmobs_decorator(operation_kind):
             )
         version_kwargs = {"version": version} if operation_kind == "agent" and version is not None else {}
 
-        def inner(func):
+        def inner(func: Callable[..., Any]) -> Callable[..., Any]:
             if iscoroutinefunction(func) or isasyncgenfunction(func):
 
                 @wraps(func)
-                def generator_wrapper(*args, **kwargs):
+                def generator_wrapper(*args: Any, **kwargs: Any) -> Any:
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return func(*args, **kwargs)
@@ -239,7 +308,7 @@ def _llmobs_decorator(operation_kind):
                     return yield_from_async_gen(func, span, args, kwargs)
 
                 @wraps(func)
-                async def wrapper(*args, **kwargs):
+                async def wrapper(*args: Any, **kwargs: Any) -> Any:
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return await func(*args, **kwargs)
@@ -266,7 +335,7 @@ def _llmobs_decorator(operation_kind):
             else:
 
                 @wraps(func)
-                def generator_wrapper(*args, **kwargs):
+                def generator_wrapper(*args: Any, **kwargs: Any) -> Generator[Any, Any, None]:
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         yield from func(*args, **kwargs)
@@ -297,7 +366,7 @@ def _llmobs_decorator(operation_kind):
                                 span.finish()
 
                 @wraps(func)
-                def wrapper(*args, **kwargs):
+                def wrapper(*args: Any, **kwargs: Any) -> Any:
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return func(*args, **kwargs)

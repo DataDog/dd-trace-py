@@ -23,7 +23,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     _OPERATION_TO_SPAN_KIND = {"agent": "agent", "tool": "tool", "code_execute": "tool"}
 
     def _set_base_span_tags(
-        self, span: _LLMObsSpan, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs
+        self, span: _LLMObsSpan, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs: Any
     ) -> None:
         span._set_attribute(COMPONENT, self._integration_name)
         if model:
@@ -89,7 +89,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
 
         self._tag_agent_manifest(span, kwargs, agent_instance)
         new_message = get_argument_value(args, kwargs, 0, "new_message", optional=True) or []
-        new_message_parts: list = getattr(new_message, "parts", [])
+        new_message_parts: list[Any] = getattr(new_message, "parts", [])
         new_message_role: str = getattr(new_message, "role", "")
         message = ""
         for part in new_message_parts:
@@ -183,11 +183,11 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             output_value=output,
         )
 
-    def _get_agent_tools(self, tools):
+    def _get_agent_tools(self, tools: Any) -> list[dict[str, Any]]:
         if not tools or not isinstance(tools, list):
             return []
 
-        agent_tools = []
+        agent_tools: list[dict[str, Any]] = []
         for tool in tools:
             if isfunction(tool):
                 tool_name = tool.__name__

@@ -136,7 +136,7 @@ def find_loader(fullname: str) -> t.Optional["Loader"]:
     return getattr(find_spec(fullname), "loader", None)
 
 
-def is_module_installed(module_name):
+def is_module_installed(module_name: str) -> bool:
     return find_loader(module_name) is not None
 
 
