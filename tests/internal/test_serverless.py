@@ -1,3 +1,9 @@
+import enum
+import inspect
+import os
+import pathlib
+from typing import NamedTuple
+
 import pytest
 
 from ddtrace.internal.serverless import in_aws_lambda_microvm
@@ -91,8 +97,6 @@ def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
-    import os
-
     env = os.environ.copy()
     env.update(
         {
@@ -118,7 +122,7 @@ sys.meta_path = [BlockListFinder()] + sys.meta_path
 import {package}
 """
 
-    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert stdout.decode() == ""
     assert stderr.decode() == ""
     assert status == 0
@@ -160,8 +164,6 @@ def test_serverless_imports(from_, import_, run_python_code_in_subprocess):
     # test ensures that none of those imports break.  If this test fails, then
     # either you will need to retain the import that was removed or you must
     # update datadog-lambda-python to support the new import path.
-    import os
-
     env = os.environ.copy()
     env.update(
         {
@@ -173,7 +175,298 @@ def test_serverless_imports(from_, import_, run_python_code_in_subprocess):
 
     code = f"from {from_} import {import_}"
 
-    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert stdout.decode() == ""
     assert stderr.decode() == ""
     assert status == 0
+
+
+# Symbols datadog-lambda-python calls or mocks, under the path it uses to reach them.
+# Fingerprints come from the live object and omit annotations. A function records
+# classmethod or staticmethod and its parameter list. A class records its bases, an
+# __init__ defined on that class, and NamedTuple fields. An enum member records its
+# value. Any other attribute records whether it is a descriptor or a plain value.
+# Keep the old shape working, or update datadog-lambda-python first and then the entry.
+_SERVERLESS_PRIVATE_API = [
+    # datadog_lambda/asm.py
+    (
+        "ddtrace.contrib.internal.trace_utils",
+        "_get_request_header_client_ip",
+        "function (headers, peer_ip=None, headers_are_case_sensitive=False)",
+    ),
+    ("ddtrace.internal.core", "dispatch", "function (event_id, args=None, allow_raise=False)"),
+    ("ddtrace.internal.core", "set_item", "function (data_key, data_value)"),
+    ("ddtrace.internal.utils", "get_blocked", "function ()"),
+    ("ddtrace.internal.utils.http", "_get_blocked_template", "function (accept_header_value, security_response_id)"),
+    # datadog_lambda/span_pointers.py
+    (
+        "ddtrace._trace._span_pointer",
+        "_SpanPointerDescription",
+        "class(NamedTuple); fields pointer_kind, pointer_direction, pointer_hash, extra_attributes",
+    ),
+    ("ddtrace._trace._span_pointer", "_SpanPointerDirection", "class(Enum)"),
+    ("ddtrace._trace._span_pointer", "_SpanPointerDirection.UPSTREAM", "enum-member 'u'"),
+    (
+        "ddtrace._trace.utils_botocore.span_pointers.dynamodb",
+        "_aws_dynamodb_item_span_pointer_description",
+        "function (operation, pointer_direction, table_name, primary_key)",
+    ),
+    (
+        "ddtrace._trace.utils_botocore.span_pointers.s3",
+        "_aws_s3_object_span_pointer_description",
+        "function (operation, pointer_direction, bucket, key, etag)",
+    ),
+    # datadog_lambda/tracing.py
+    ("ddtrace.trace", "Context._meta", "descriptor"),
+    ("ddtrace.trace", "Context._metrics", "descriptor"),
+    (
+        "ddtrace.trace",
+        "Span._add_span_pointer",
+        "function (self, pointer_kind, pointer_direction, pointer_hash, extra_attributes=None)",
+    ),
+    # datadog_lambda/wrapper.py
+    ("ddtrace.internal.appsec.product", "start", "function ()"),
+    ("ddtrace.debugging._exception.replay", "SpanExceptionHandler", "class()"),
+    ("ddtrace.debugging._exception.replay", "SpanExceptionHandler.enable", "classmethod (cls)"),
+    (
+        "ddtrace.debugging._uploader",
+        "SignalUploader",
+        "class(ddtrace.internal.agent.AgentCheckPeriodicService); __init__(self, interval=None)",
+    ),
+    ("ddtrace.debugging._uploader", "SignalUploader._instance", "attribute None"),
+    ("ddtrace.debugging._uploader", "SignalUploader.periodic", "function (self)"),
+]
+
+
+def _call_signature(obj):
+    signature = inspect.signature(obj)
+    parameters = [parameter.replace(annotation=inspect.Parameter.empty) for parameter in signature.parameters.values()]
+    return str(signature.replace(parameters=parameters, return_annotation=inspect.Signature.empty))
+
+
+def _base_labels(cls):
+    labels = []
+    for base in getattr(cls, "__orig_bases__", cls.__bases__):
+        name = getattr(base, "__name__", None)
+        if not name or name == "object":
+            continue
+        module = getattr(base, "__module__", "")
+        if module == "ddtrace" or module.startswith("ddtrace."):
+            labels.append(f"{module}.{name}")
+        else:
+            labels.append(name)
+    return labels
+
+
+def _describe_serverless_symbol(raw):
+    if isinstance(raw, classmethod):
+        return "classmethod " + _call_signature(raw.__func__)
+    if isinstance(raw, staticmethod):
+        return "staticmethod " + _call_signature(raw.__func__)
+    if isinstance(raw, property):
+        return "property"
+    if inspect.isdatadescriptor(raw):
+        return "descriptor"
+    if inspect.isclass(raw):
+        parts = [f"class({', '.join(_base_labels(raw))})"]
+        if issubclass(raw, enum.Enum):
+            return "; ".join(parts)
+        fields = getattr(raw, "_fields", None)
+        if isinstance(fields, tuple):
+            defaults = getattr(raw, "_field_defaults", {})
+            rendered = [f"{name}={defaults[name]!r}" if name in defaults else name for name in fields]
+            parts.append("fields " + ", ".join(rendered))
+            return "; ".join(parts)
+        init = raw.__dict__.get("__init__")
+        if init is not None:
+            func = init.__func__ if isinstance(init, (classmethod, staticmethod)) else init
+            parts.append("__init__" + _call_signature(func))
+        return "; ".join(parts)
+    if isinstance(raw, enum.Enum):
+        return f"enum-member {raw.value!r}"
+    if callable(raw):
+        return "function " + _call_signature(raw)
+    if raw is None or isinstance(raw, (bool, int, float, str)):
+        return f"attribute {raw!r}"
+    return "attribute"
+
+
+def _source_position(obj):
+    try:
+        _lines, start = inspect.getsourcelines(obj)
+    except (OSError, TypeError):
+        return None
+    file = inspect.getsourcefile(obj)
+    if not file:
+        return None
+    return pathlib.Path(file).resolve(), start
+
+
+def _locate_serverless_symbol(raw, owner):
+    target = raw
+    if isinstance(raw, (classmethod, staticmethod)):
+        target = raw.__func__
+    elif isinstance(raw, property):
+        target = raw.fget
+    found = _source_position(target)
+    if found is None and inspect.isclass(owner):
+        found = _source_position(owner)
+    if found is None:
+        return "built-in"
+    path, line = found
+    import ddtrace
+
+    root = pathlib.Path(ddtrace.__file__).resolve().parent.parent
+    try:
+        shown = path.relative_to(root)
+    except ValueError:
+        shown = pathlib.Path(path.name)
+    return f"{shown}:{line}"
+
+
+def _report_serverless_private_api(probes):
+    import importlib
+
+    for module_name, attr_path in probes:
+        key = f"{module_name}.{attr_path}"
+        try:
+            current = importlib.import_module(module_name)
+            raw = current
+            owner = current
+            parts = attr_path.split(".")
+            for index, attr in enumerate(parts):
+                owner = current
+                raw = inspect.getattr_static(current, attr)
+                # The last component is fingerprinted from the raw descriptor. Calling
+                # getattr would invoke a getter such as Context._meta.
+                if index < len(parts) - 1:
+                    current = getattr(current, attr)
+            description = _describe_serverless_symbol(raw)
+            location = _locate_serverless_symbol(raw, owner)
+            print(f"SERVERLESS_API\tOK\t{key}\t{description}\t{location}")
+        except Exception as exc:
+            message = str(exc).replace("\n", " ")
+            print(f"SERVERLESS_API\tERR\t{key}\t{type(exc).__name__}: {message}")
+
+
+def test_serverless_fingerprint_distinguishes_method_kinds():
+    class Handler:
+        def plain(self, a, b=None):
+            pass
+
+        @classmethod
+        def enable(cls):
+            pass
+
+        @staticmethod
+        def stat():
+            pass
+
+    assert _describe_serverless_symbol(inspect.getattr_static(Handler, "plain")) == "function (self, a, b=None)"
+    assert _describe_serverless_symbol(inspect.getattr_static(Handler, "enable")) == "classmethod (cls)"
+    assert _describe_serverless_symbol(inspect.getattr_static(Handler, "stat")) == "staticmethod ()"
+
+
+def test_serverless_fingerprint_covers_class_shape_and_attributes():
+    class Service:
+        def periodic(self):
+            pass
+
+    class Uploader(Service):
+        _instance = None
+
+        def __init__(self, interval=None):
+            pass
+
+    class Direction(enum.Enum):
+        UPSTREAM = "u"
+
+    class Description(NamedTuple):
+        pointer_kind: str
+        extra: str = "x"
+
+    class Box:
+        @property
+        def meta(self):
+            return {}
+
+        class Desc:
+            def __get__(self, obj, typ=None):
+                return {}
+
+            def __set__(self, obj, value):
+                pass
+
+        metrics = Desc()
+
+    class Empty:
+        pass
+
+    assert _describe_serverless_symbol(Uploader) == "class(Service); __init__(self, interval=None)"
+    assert _describe_serverless_symbol(inspect.getattr_static(Uploader, "periodic")) == "function (self)"
+    assert _describe_serverless_symbol(inspect.getattr_static(Uploader, "_instance")) == "attribute None"
+    assert _describe_serverless_symbol(Direction) == "class(Enum)"
+    assert _describe_serverless_symbol(inspect.getattr_static(Direction, "UPSTREAM")) == "enum-member 'u'"
+    assert _describe_serverless_symbol(Description) == "class(NamedTuple); fields pointer_kind, extra='x'"
+    assert _describe_serverless_symbol(inspect.getattr_static(Box, "meta")) == "property"
+    assert _describe_serverless_symbol(inspect.getattr_static(Box, "metrics")) == "descriptor"
+    assert _describe_serverless_symbol(Empty) == "class()"
+
+
+def test_serverless_symbol_location_names_the_defining_file():
+    location = _locate_serverless_symbol(_call_signature, None)
+    assert location.endswith(f":{_call_signature.__code__.co_firstlineno}")
+    assert "test_serverless.py" in location
+
+
+def test_serverless_private_api(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+            "DD_API_SECURITY_ENABLED": "False",
+        }
+    )
+    probes = [(module, attr_path) for module, attr_path, _expected in _SERVERLESS_PRIVATE_API]
+    helpers = "\n\n".join(
+        inspect.getsource(helper)
+        for helper in (
+            _call_signature,
+            _base_labels,
+            _describe_serverless_symbol,
+            _source_position,
+            _locate_serverless_symbol,
+            _report_serverless_private_api,
+        )
+    )
+    code = f"""
+import enum
+import importlib
+import inspect
+import pathlib
+
+{helpers}
+
+_report_serverless_private_api({probes!r})
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr.decode()
+    assert stderr.decode() == ""
+
+    reported = {}
+    for line in stdout.decode().splitlines():
+        if not line.startswith("SERVERLESS_API\t"):
+            continue
+        kind, key, payload, *rest = line.split("\t")[1:]
+        reported[key] = (kind, payload, rest[0] if rest else "")
+
+    mismatches = []
+    for module, attr_path, expected in _SERVERLESS_PRIVATE_API:
+        key = f"{module}.{attr_path}"
+        kind, payload, location = reported.get(key, ("ERR", "no result", ""))
+        if kind != "OK" or payload != expected:
+            where = f"  [{location}]" if location else ""
+            mismatches.append(f"{key}\n    expected: {expected}\n    actual:   {payload}{where}")
+    assert mismatches == [], "\n".join(mismatches)
