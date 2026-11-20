@@ -65,12 +65,11 @@ bundles. Global initialization uses an import hook to defer activation until the
 subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
 `DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
 the product manager.
-Concrete SDK-independent tracing subscribers use explicit registration rather than class-definition registration.
+All subscriber classes require explicit registration; class definitions only collect handlers.
 The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
 including explicitly deferred global tracer creation. Web request and span exception activation timing
-is unchanged. The generic span bundle registers `TracingSubscriber` directly. Its class declaration
-passes `auto_register=False` to defer only the base class; custom subclasses retain automatic
-registration unless they opt out with the existing class attribute.
+is unchanged. The generic span bundle registers `TracingSubscriber` directly. Custom subclasses must
+call `register()` or be included in a bundle activated by their owning product.
 Ray's SDK-dependent bundle is activated by a tracing-owned import hook after its integration patch
 module finishes loading. Ordinary tracing startup does not import Ray. Repeated product startup
 restores Ray listeners after that module has loaded; the integration does not activate them itself.

@@ -1,0 +1,3 @@
+other:
+  - |
+    perf: Reduces the overhead of importing ``ddtrace`` and starting instrumented applications.
