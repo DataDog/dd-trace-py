@@ -8,3 +8,6 @@
 # changes to the file can land after that PR merges. The check reads base rules
 # as well as merge-result rules, so editing this list cannot bypass a freeze.
 ddtrace/internal/codeowners.py=79ba689aac82d7f54ceb30661ffed6d8bb5ff76697dc3a87eb05718d6301ed9b
+ddtrace/internal/utils/cache.py=33ce5ab0705316457d8b75dc7570f7a0457e0aa9fa1afb67e2895cc2fea98170
+ddtrace/internal/utils/paths.py=5c45881809464d6ac424ccb2d3de5b7740d284e02f992c6bfd5c65801482c761
+ddtrace/internal/utils/obfuscation.py=63865aa2f9639dd32ff77f0225356b0ec7dd5a374c4412f489c55e0ce84f1efc
