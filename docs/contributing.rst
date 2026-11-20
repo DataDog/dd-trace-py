@@ -16,6 +16,8 @@ If you're trying to set up a local development environment, read `this <https://
 
 `Library design documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-design.rst>`_.
 
+`Architectural constraints for fork safety, background threads and layering <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-architecture.rst>`_.
+
 `Fuzzing native code documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-fuzzing.rst>`_.
 
 Thanks for working with us!
@@ -242,6 +244,7 @@ in its output. A Datadog maintainer must add the key to the registry before the 
     :hidden:
 
     contributing-design
+    contributing-architecture
     contributing-integrations
     contributing-testing
     contributing-fuzzing

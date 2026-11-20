@@ -22,6 +22,7 @@ from ddtrace.aiguard.integrations._mcp import ApprovalDecision
 from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_server_id
+from ddtrace.aiguard.integrations._mcp import referenced_mcp_servers
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_output
 from ddtrace.aiguard.integrations._openai_responses import _hosted_mcp_servers
@@ -1532,6 +1533,32 @@ def test_servers_exposing_the_same_tool_name(mock_execute_request, mcp_enabled):
     ]
     server_ids = [m["tool_calls"][0]["mcp"]["server_id"] for m in attributes["messages"] if m.get("tool_calls")]
     assert server_ids == [DEEPWIKI_ID, GMAIL_ID]
+
+
+def test_distinct_entries_with_one_id_merge_into_the_first():
+    """Entries that share an ID keep the first entry's fields and the tools of all of them."""
+    first = mcp_server("client", "streamable_http", name="wiki", url="https://mcp.deepwiki.com/mcp")
+    second = mcp_server("provider", "unknown", name="wiki_admin", url="https://mcp.deepwiki.com/sse")
+    first["tools"] = {"ask_question": "ask_question"}
+    second["tools"] = {"read": "read_wiki", "ask_question": "other"}
+    messages = [
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "c1",
+                    "function": {"name": "ask_question", "arguments": "{}"},
+                    "mcp": {"server_id": first["id"]},
+                },
+                {"id": "c2", "function": {"name": "read", "arguments": "{}"}, "mcp": {"server_id": second["id"]}},
+            ],
+        }
+    ]
+
+    assert first["id"] == second["id"] == DEEPWIKI_ID
+    assert referenced_mcp_servers(messages, [first, second]) == [
+        {**first, "tools": {"ask_question": "ask_question", "read": "read_wiki"}}
+    ]
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

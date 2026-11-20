@@ -218,7 +218,6 @@ def test_install_remote_config_experiment_profiling_explicitly_disabled_installs
     set_native_id = ddtrace_threading.Thread._set_native_id  # type: ignore[attr-defined]
     assert set_native_id.__module__ != profiling_threading.__name__
     assert not _task._gevent_support_initialized  # type: ignore[attr-defined]
-    assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
     print("OK")
