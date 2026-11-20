@@ -26,10 +26,13 @@ def multiply(x, y):
     return x * y
 
 
+# Celery 5.2's RPC backend and remote control use deprecated transient queues.
+# Keep this test focused on RabbitMQ broker instrumentation instead.
 amqp_celery_app = Celery(
     "add_celery",
     broker=AMQP_BROKER_URL,
-    backend="rpc://",
+    backend=BACKEND_URL,
+    worker_enable_remote_control=False,
 )
 
 
