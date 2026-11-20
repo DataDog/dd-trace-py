@@ -28,6 +28,7 @@ from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selec
 from ddtrace.internal.openfeature._flag_selection import claim_process_selection
 from ddtrace.internal.openfeature._flag_selection import report_ignored
 import ddtrace.internal.openfeature._native as native_mod
+from ddtrace.internal.openfeature._source_selection import MissingApiKeyError
 from ddtrace.internal.openfeature._source_selection import create_agentless_source
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -798,12 +799,14 @@ def test_first_apply_under_a_new_selection_notifies_again_once_it_is_recorded():
 
 def test_missing_api_key_takes_no_claim():
     with override_global_config({"_dd_api_key": None, "_dd_site": "datadoghq.com", "env": "prod"}):
-        assert create_agentless_source(_config(), lambda _: None, canonicalize_flag_selection({"tags": ["a"]})) is None
+        with pytest.raises(MissingApiKeyError):
+            create_agentless_source(_config(), lambda _: None, canonicalize_flag_selection({"tags": ["a"]}))
     assert claim_process_selection(canonicalize_flag_selection({"tags": ["z"]})).tags == ("z",)
 
 
 def test_invalid_base_url_takes_no_claim():
-    assert _create_source({"tags": ["a"]}, base_url="ftp://flags.example") is None
+    with pytest.raises(ValueError):
+        _create_source({"tags": ["a"]}, base_url="ftp://flags.example")
     assert claim_process_selection(canonicalize_flag_selection({"tags": ["z"]})).tags == ("z",)
 
 
@@ -977,7 +980,8 @@ def test_log_handler_shutting_the_provider_down_during_start_does_not_deadlock(c
                 provider.shutdown()
                 found.append(provider._configuration_source)
 
-    source_logger = logging.getLogger("ddtrace.internal.openfeature._source_selection")
+    # The provider logs the missing key while the start is reserved.
+    source_logger = logging.getLogger("ddtrace.internal.openfeature._provider")
     handler = _ShutsDownOnError()
     source_logger.addHandler(handler)
 
