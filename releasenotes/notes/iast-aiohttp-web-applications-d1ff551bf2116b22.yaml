@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Code Security (IAST): Adds vulnerability detection for aiohttp web applications traced with
+    ``ddtrace.contrib.aiohttp.trace_app``. Streamed and multipart request bodies are not tainted.
