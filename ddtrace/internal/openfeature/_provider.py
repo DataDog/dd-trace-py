@@ -153,7 +153,6 @@ class DataDogProvider(AbstractProvider):
         self._config_received = Event()
         self._initialization_failed = False
         # Makes the failure decision in initialize() atomic with on_configuration_received().
-        # _reset_provider_locks() reinitializes it in a forked child.
         self._initialization_lock = Lock()
 
         # Read through a fresh config instance so values reflect the environment at
