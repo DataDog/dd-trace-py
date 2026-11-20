@@ -234,6 +234,16 @@ def snapshot_from_other_selection() -> bool:
         return _claim_count > 0 and _loaded is not None and _loaded != claimed
 
 
+def snapshot_from_released_selection(selection: FlagSelection) -> bool:
+    """Whether nobody claims a selection now and the shared snapshot has other flags than ``selection`` would load.
+
+    A selection dropped for its own values loads every flag, as no selection does.
+    """
+    loads = NO_SELECTION if selection.reason is not None else selection
+    with _lock:
+        return _claim_count == 0 and _loaded is not None and _loaded != loads
+
+
 def recording_loaded_selection(
     apply_configuration: typing.Callable[[typing.Any], None],
     selection: FlagSelection,

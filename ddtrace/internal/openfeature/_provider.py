@@ -56,6 +56,7 @@ from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selec
 from ddtrace.internal.openfeature._flag_selection import recount_process_selection
 from ddtrace.internal.openfeature._flag_selection import release_process_selection
 from ddtrace.internal.openfeature._flag_selection import snapshot_from_other_selection
+from ddtrace.internal.openfeature._flag_selection import snapshot_from_released_selection
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
@@ -398,7 +399,15 @@ class DataDogProvider(AbstractProvider):
         # common in pre-fork servers where master receives RC before workers fork).
         # A snapshot loaded for a released, different flag selection does not count, nor does any snapshot
         # while another thread's start, which may not have claimed its selection yet, is still in progress.
-        if started and _get_ffe_snapshot() is not None and not snapshot_from_other_selection():
+        # A source that cannot start polls nothing of its own, so a released selection's snapshot with other flags
+        # never counts for it.
+        no_own_poll = self._configuration_source_error is not None
+        if (
+            started
+            and _get_ffe_snapshot() is not None
+            and not snapshot_from_other_selection()
+            and not (no_own_poll and snapshot_from_released_selection(self._flag_selection))
+        ):
             self._config_received.set()
             self._status = ProviderStatus.READY
             logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")

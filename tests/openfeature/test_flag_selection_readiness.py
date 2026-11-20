@@ -22,6 +22,7 @@ from tests.openfeature.flag_selection_helpers import _not_sent
 from tests.openfeature.flag_selection_helpers import _option_with_url_length
 from tests.openfeature.flag_selection_helpers import _provider
 from tests.openfeature.flag_selection_helpers import _SignalingEvent
+from tests.utils import override_global_config
 
 
 def test_new_selection_after_release_waits_for_its_own_poll(cdn, api_key, caplog):
@@ -216,3 +217,33 @@ def test_any_flag_selection_value_reaches_ready(cdn, api_key, option):
         assert cdn.requests[-1] == "/api/v2/feature-flagging/config/rules-based/server"
     finally:
         provider.shutdown()
+
+
+def test_provider_whose_source_cannot_start_fails_on_a_released_selections_snapshot(cdn, api_key):
+    first = _provider({"tags": ["a"]})
+    replacement = _provider({"tags": ["b"]})
+    try:
+        first.initialize(EvaluationContext())
+        first.shutdown()
+        assert _get_ffe_snapshot() is not None
+        with override_global_config({"_dd_api_key": None, "_dd_site": "datadoghq.com", "env": None}):
+            with pytest.raises(ProviderNotReadyError, match="DD_API_KEY"):
+                replacement.initialize(EvaluationContext())
+        assert replacement._status != ProviderStatus.READY
+    finally:
+        replacement.shutdown()
+        first.shutdown()
+
+
+def test_provider_whose_source_cannot_start_uses_a_released_snapshot_with_its_flags(cdn, api_key):
+    first = _provider({"tags": ["a"]})
+    same = _provider({"tags": ["a"]})
+    try:
+        first.initialize(EvaluationContext())
+        first.shutdown()
+        with override_global_config({"_dd_api_key": None, "_dd_site": "datadoghq.com", "env": None}):
+            same.initialize(EvaluationContext())
+        assert same._status == ProviderStatus.READY
+    finally:
+        same.shutdown()
+        first.shutdown()
