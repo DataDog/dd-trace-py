@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for tracing LiteLLM decision calls (``litellm.decisions``, ``litellm.adecisions``,
+    ``litellm.systemone``, ``litellm.asystemone``, and the matching ``Router`` methods), capturing the request, the
+    answers, the routed provider, and token usage.

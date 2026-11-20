@@ -1,7 +1,10 @@
+import json
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.litellm._constants import DECISION_OPERATIONS
 from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
+from ddtrace.contrib.internal.litellm._constants import SYSTEM_ONE_OPERATIONS
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
 from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
 from ddtrace.contrib.internal.litellm._constants import model_map
@@ -11,6 +14,9 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
+from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -20,10 +26,20 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import LLMOBS_IMAGE_INLINE_MAX_BYTES
+from ddtrace.llmobs._integrations.utils import _capture_inline_image
+from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_decision
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_metadata
+from ddtrace.llmobs._utils import get_llmobs_output_value
+from ddtrace.llmobs._utils import load_data_value
+from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import ImagePart
+from ddtrace.llmobs.types import Message
 
 
 MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature", "tags")
@@ -38,6 +54,10 @@ METADATA_KEYS = (
     "tags",
 )
 PROXY_SERVER_REQUEST_KEYS = ("body", "url", "method")
+SYSTEM_ONE_REQUEST_KEYS = ("model", "state", "questions", "images", "assets", "safety_identifier")
+DECISION_PROVIDER_TAG = "decision_provider"
+OPENAI_DECISION_PROVIDER = "openai"
+SYSTEM_ONE_DECISION_PROVIDER = "typesafe"
 
 
 class LiteLLMIntegration(BaseLLMIntegration):
@@ -56,6 +76,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
+        if operation in DECISION_OPERATIONS:
+            self._llmobs_set_decision_tags(span, args, kwargs, response, operation)
+            return
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
 
@@ -76,6 +99,72 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
+
+    def _llmobs_set_decision_tags(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any], operation: str
+    ) -> None:
+        model_name, model_provider = self._decision_model(args, kwargs, response)
+        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
+        is_llm = span_kind == "llm"
+        system_one = is_system_one_request(kwargs, operation)
+        decision_provider = SYSTEM_ONE_DECISION_PROVIDER if system_one else OPENAI_DECISION_PROVIDER
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+            metrics=self._extract_decision_metrics(response) if is_llm else {},
+            # The router span wraps the llm span of the same decision, so only the llm span carries it.
+            tags={DECISION_PROVIDER_TAG: decision_provider} if is_llm else None,
+        )
+        if system_one:
+            _set_system_one_io(span, kwargs, response)
+        else:
+            openai_set_meta_tags_from_decision(span, kwargs, response)
+        if not is_llm:
+            _use_message_content_as_value(span)
+        self._update_litellm_metadata(span, kwargs, operation)
+
+    def _decision_model(self, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]) -> tuple[str, str]:
+        """Model name and the provider litellm routed the call to, from the response when it has them."""
+        requested = get_argument_value(args, kwargs, 0, "model", True) or ""
+        hidden_params = getattr(response, "_hidden_params", None) or {}
+        provider = hidden_params.get("custom_llm_provider") if isinstance(hidden_params, dict) else None
+        model = hidden_params.get("model") if isinstance(hidden_params, dict) else None
+        mapped_model, mapped_provider = self._model_map.get(requested, ("", ""))
+        provider = provider or mapped_provider or kwargs.get("custom_llm_provider")
+        if not provider and "/" in requested:
+            provider = requested.split("/", 1)[0]
+        model = model or mapped_model or requested
+        if provider and isinstance(model, str) and model.startswith(f"{provider}/"):
+            model = model[len(provider) + 1 :]
+        return str(model or ""), str(provider or UNKNOWN_MODEL_PROVIDER)
+
+    @staticmethod
+    def _extract_decision_metrics(response: Any) -> dict[str, Any]:
+        usage = _get_attr(response, "usage", None)
+        if usage is None:
+            return {}
+        input_tokens = _get_attr(usage, "input_tokens", None)
+        output_tokens = _get_attr(usage, "output_tokens", None)
+        metrics: dict[str, Any] = {}
+        if input_tokens is not None:
+            metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        if output_tokens is not None:
+            metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if input_tokens is not None or output_tokens is not None:
+            total_tokens = _get_attr(usage, "total_tokens", None)
+            metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens or (input_tokens or 0) + (output_tokens or 0)
+        # OpenAI format usage keeps cache counts under input_tokens_details, System One format usage on itself.
+        details = _get_attr(usage, "input_tokens_details", None) or usage
+        cached_tokens = _get_attr(details, "cached_tokens", None)
+        if cached_tokens:
+            metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+        cache_write_tokens = _get_attr(details, "cache_write_tokens", None)
+        if cache_write_tokens:
+            metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+        metrics.update(get_openrouter_cost_metrics(usage))
+        return metrics
 
     def _update_litellm_metadata(self, span: _LLMObsSpan, kwargs: dict[str, Any], operation: str):
         metadata = get_llmobs_metadata(span) or {}
@@ -141,6 +230,12 @@ class LiteLLMIntegration(BaseLLMIntegration):
         return model_name
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        if operation in DECISION_OPERATIONS:
+            model_name, model_provider = self._decision_model(args, kwargs, response)
+            span_kind = self._get_span_kind(span, kwargs, model_name, operation)
+            metrics = self._extract_decision_metrics(response) if span_kind == "llm" else {}
+            self._apply_shadow_metrics(span, metrics, span_kind, model_name=model_name, model_provider=model_provider)
+            return
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
         model_name = self._resolve_model_name(span, response, model_name, model_provider)
@@ -246,3 +341,81 @@ class LiteLLMIntegration(BaseLLMIntegration):
     def _llmobs_gateway(self, request_kwargs: dict[str, Any]) -> Optional[str]:
         # The LiteLLM proxy server sets proxy_server_request on the calls that it makes to litellm.
         return "litellm" if request_kwargs.get("proxy_server_request") else None
+
+
+def is_system_one_request(kwargs: dict[str, Any], operation: str) -> bool:
+    """Whether the caller sent the System One body format: systemone, or the deprecated decisions(state=...)."""
+    if operation in SYSTEM_ONE_OPERATIONS:
+        return True
+    return "state" in kwargs and kwargs.get("input") is None
+
+
+def _set_system_one_io(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
+    """Record the System One request body as the input and the response body, without usage, as the output.
+
+    Only known request fields are kept, since the other keyword arguments can carry credentials. Inline images become
+    image parts and are replaced in the body by a marker. Audio and video clips are not recorded.
+    """
+    body = {k: kwargs[k] for k in SYSTEM_ONE_REQUEST_KEYS if kwargs.get(k) is not None}
+    data = load_data_value(body)  # type: ignore[no-untyped-call]
+    image_parts: list[ImagePart] = []
+    if isinstance(data, dict):
+        for key in ("images", "assets"):
+            if key in data:
+                data[key] = _system_one_media(data[key], image_parts)
+    input_message = Message(role="user", content=safe_json(data) or "")
+    if image_parts:
+        input_message["image_parts"] = image_parts
+    _annotate_llmobs_span_data(span, input_messages=[input_message])
+    if not response:
+        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
+        return
+    output = response.model_dump(mode="json") if hasattr(response, "model_dump") else load_data_value(response)  # type: ignore[no-untyped-call]
+    if isinstance(output, dict):
+        output.pop("usage", None)
+    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(output) or "")])
+
+
+def _system_one_media(value: Any, image_parts: list[ImagePart]) -> Any:
+    """Replace inline image data (data URLs and base64 objects) with a marker; http(s) URLs are kept."""
+    if isinstance(value, str):
+        image_part, marker = _capture_inline_image(value)
+        if image_part:
+            image_parts.append(image_part)
+            return IMAGE_DETECTED_MARKER
+        return marker or value
+    if isinstance(value, dict):
+        data, mime_type = _inline_image_data(value)
+        if data is not None:
+            image_part = format_image_part_with_guard(data, mime_type)
+            if image_part:
+                image_parts.append(image_part)
+                return IMAGE_DETECTED_MARKER
+            return IMAGE_TOO_LARGE_MARKER if len(data) > LLMOBS_IMAGE_INLINE_MAX_BYTES else IMAGE_FALLBACK_MARKER
+        return {k: _system_one_media(v, image_parts) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_system_one_media(v, image_parts) for v in value]
+    return value
+
+
+def _use_message_content_as_value(span: _LLMObsSpan) -> None:
+    """On a non-llm span, record the body itself as the value rather than the list of one message carrying it."""
+    for value, key in ((get_llmobs_input_value(span), "input_value"), (get_llmobs_output_value(span), "output_value")):
+        try:
+            messages = json.loads(value or "")
+            body = json.loads(messages[0]["content"])
+        except (ValueError, TypeError, KeyError, IndexError):
+            continue
+        _annotate_llmobs_span_data(span, **{key: body})
+
+
+def _inline_image_data(value: dict[str, Any]) -> tuple[Optional[str], str]:
+    """Base64 data and MIME type of an inline image object: an image (base64, content_type) or an asset
+    (data_base64, format). Returns (None, "") for anything else.
+    """
+    if isinstance(value.get("data_base64"), str):
+        image_format = str(value.get("format") or "").lower()
+        return value["data_base64"], f"image/{'jpeg' if image_format == 'jpg' else image_format}"
+    if isinstance(value.get("base64"), str):
+        return value["base64"], str(value.get("content_type") or value.get("media_type") or "")
+    return None, ""

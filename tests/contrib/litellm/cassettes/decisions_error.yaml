@@ -1,0 +1,74 @@
+interactions:
+- request:
+    body: '{"model":"not-a-decision-model","input":"I was charged twice for my subscription
+      this month and want the duplicate refunded.","questions":[{"type":"predicate","name":"needs_refund","instructions":"Is
+      the customer asking for a refund?"}]}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '237'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - litellm/1.109.1
+    method: POST
+    uri: https://api.openai.com/v1/decisions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/yWNSw7DIAwFr2J5DT0A5+ieWOA2SIBTPlGjKHcPpdt5TzMncilS0JyYuFZ6Mxp8
+        rgxJPEdYsjRN2rMLNUjWky7ghSuMCfgbagMpcEgfdLKVdgZybuigCYT2QIXt2H7mkHeKwdvCn861
+        2X9c4UaFEprcY1ToRmR8Z8sOo31Jzx6v6wa1kpf/rQAAAA==
+    headers:
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - x-request-id,retry-after,server-timing-total
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a5c0327f7ebafc44-BOS
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json
+      date:
+      - Tue, 17 Nov 2026 16:43:56 GMT
+      openai-processing-ms:
+      - '1'
+      server:
+      - cloudflare
+      server-timing-total:
+      - '1.330'
+      set-cookie:
+      - __cf_bm=0HqiOBKsMIXzdfAX6uD0yGdn89Nxe8Q8wzuuu0xUl4M-1794933836.7154999-1.0.1.1-JUB3jGuneI6MtgI9B3VgUkosJ9H0HyVJXfeSvxjmgudXEHx5pl9k9LBarqTUhLFdyh68u2N7t0h_EmtVxXgKtp7V_n_Pg_bFGeQn2XmrNmUTHcvOVTrXEGCs9UnZ_eBo;
+        HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=api.openai.com;
+        Expires=Tue, 17 Nov 2026 17:13:56 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      vary:
+      - origin, access-control-request-method, access-control-request-headers
+      x-content-type-options:
+      - nosniff
+      x-openai-proxy-wasm:
+      - v0.1
+      x-request-id:
+      - req_726b2bc5a1f04937864ccd6e119f6eaa
+    status:
+      code: 404
+      message: Not Found
+version: 1
