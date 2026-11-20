@@ -50,8 +50,9 @@ def test_runtime_metrics_exported_over_otlp():
                 if scope_metrics.scope.name != "datadog.runtime_metrics":
                     continue
                 for metric in scope_metrics.metrics:
-                    monotonic[metric.name] = metric.sum.is_monotonic
-                    for data_point in metric.sum.data_points:
+                    data = getattr(metric, metric.WhichOneof("data"))
+                    monotonic[metric.name] = getattr(data, "is_monotonic", None)
+                    for data_point in data.data_points:
                         attributes = {
                             attribute.key: getattr(attribute.value, attribute.value.WhichOneof("value"))
                             for attribute in data_point.attributes
@@ -63,6 +64,7 @@ def test_runtime_metrics_exported_over_otlp():
         "cpython.gc.collected_objects": True,
         "cpython.gc.uncollectable_objects": True,
         "process.cpu.time": True,
+        "process.cpu.utilization": None,
         "process.memory.usage": False,
         "process.thread.count": False,
         "process.context_switches": True,
@@ -76,7 +78,8 @@ def test_runtime_metrics_exported_over_otlp():
     }
     assert all(
         point == {"datadog.runtime_id": get_runtime_id()}
-        for point in points["process.memory.usage"] + points["process.thread.count"]
+        for name in ("process.cpu.utilization", "process.memory.usage", "process.thread.count")
+        for point in points[name]
     ), points
     assert all(point["datadog.runtime_id"] == get_runtime_id() for name in points for point in points[name]), points
 
@@ -101,16 +104,22 @@ def test_runtime_metrics_report_the_collected_values():
         {"collections": 2, "collected": 20, "uncollectable": 3},
     ]
     # CPU times (system, user) in nanoseconds, context switches (voluntary, involuntary), threads, RSS in bytes.
+    process_metrics_at_start = (1_500_000_000, 250_000_000, 5, 1, 4, 100_000)
     process_metrics = (2_500_000_000, 1_250_000_000, 7, 3, 4, 123_456)
     with mock.patch("gc.get_stats", return_value=gc_stats):
-        with mock.patch("ddtrace.internal.native.process_metrics", return_value=process_metrics):
-            otlp_runtime_metrics.start()
-            metrics = {
-                metric.name: metric
-                for resource_metrics in reader.get_metrics_data().resource_metrics
-                for scope_metrics in resource_metrics.scope_metrics
-                for metric in scope_metrics.metrics
-            }
+        with mock.patch("ddtrace.internal.native.process_metrics", return_value=process_metrics_at_start) as native:
+            with mock.patch.object(otlp_runtime_metrics, "monotonic", return_value=100.0) as clock:
+                with mock.patch.object(otlp_runtime_metrics, "_available_cpus", return_value=2):
+                    otlp_runtime_metrics.start()
+                    # 2 CPU seconds in 4 seconds, on 2 CPUs.
+                    native.return_value = process_metrics
+                    clock.return_value = 104.0
+                    metrics = {
+                        metric.name: metric
+                        for resource_metrics in reader.get_metrics_data().resource_metrics
+                        for scope_metrics in resource_metrics.scope_metrics
+                        for metric in scope_metrics.metrics
+                    }
 
     def values(name, attribute=None):
         return {data_point.attributes.get(attribute): data_point.value for data_point in metrics[name].data.data_points}
@@ -120,6 +129,7 @@ def test_runtime_metrics_report_the_collected_values():
         "cpython.gc.collected_objects": "{object}",
         "cpython.gc.uncollectable_objects": "{object}",
         "process.cpu.time": "s",
+        "process.cpu.utilization": "1",
         "process.memory.usage": "By",
         "process.thread.count": "{thread}",
         "process.context_switches": "{context_switch}",
@@ -128,6 +138,7 @@ def test_runtime_metrics_report_the_collected_values():
     assert values("cpython.gc.collected_objects", "cpython.gc.generation") == {0: 100, 1: 50, 2: 20}
     assert values("cpython.gc.uncollectable_objects", "cpython.gc.generation") == {0: 1, 1: 0, 2: 3}
     assert values("process.cpu.time", "cpu.mode") == {"user": pytest.approx(1.25), "system": pytest.approx(2.5)}
+    assert values("process.cpu.utilization") == {None: pytest.approx(0.25)}
     assert values("process.context_switches", "process.context_switch.type") == {"voluntary": 7, "involuntary": 3}
     assert values("process.thread.count") == {None: 4}
     assert values("process.memory.usage") == {None: 123_456}
@@ -182,6 +193,7 @@ def test_runtime_metrics_exported_when_the_application_exits(python_process, cod
         "cpython.gc.collected_objects",
         "cpython.gc.uncollectable_objects",
         "process.cpu.time",
+        "process.cpu.utilization",
         "process.memory.usage",
         "process.thread.count",
         "process.context_switches",

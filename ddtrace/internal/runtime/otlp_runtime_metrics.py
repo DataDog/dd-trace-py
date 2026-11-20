@@ -13,7 +13,10 @@ Like the meter provider, this module is only loaded once the application imports
 """
 
 import gc
+import os
+from time import monotonic
 from typing import Callable
+from typing import Optional
 
 from opentelemetry.metrics import CallbackOptions
 from opentelemetry.metrics import Meter
@@ -46,11 +49,32 @@ RUNTIME_ID_ATTRIBUTE = "datadog.runtime_id"
 # A forked child inherits the GC statistics of its parent: it reports those since the fork.
 _gc_stats_at_fork: list[dict[str, int]] = []
 
+# The time and the CPU time of the last measurement of the CPU utilization.
+_cpu_sample: Optional[tuple[float, float]] = None
+
 
 def _reset_after_fork() -> None:
     global _gc_stats_at_fork
 
     _gc_stats_at_fork = gc.get_stats()
+    _reset_cpu_sample()
+
+
+def _reset_cpu_sample() -> None:
+    global _cpu_sample
+
+    try:
+        metrics = _process_metrics()
+    except Exception:
+        _cpu_sample = None
+        return
+    _cpu_sample = (monotonic(), (metrics.cpu_time_user_ns + metrics.cpu_time_sys_ns) * _NS_TO_SEC)
+
+
+def _available_cpus() -> int:
+    if hasattr(os, "sched_getaffinity"):
+        return len(os.sched_getaffinity(0))
+    return os.cpu_count() or 1
 
 
 def start() -> None:
@@ -61,6 +85,7 @@ def start() -> None:
         _create_instruments(get_meter(METER_NAME))
         _instruments_created = True
 
+    _reset_cpu_sample()
     _enabled = True
     log.debug("Runtime metrics are reported through the OpenTelemetry metrics API")
 
@@ -106,6 +131,13 @@ def _create_instruments(meter: Meter) -> None:
         callbacks=[_observe_cpu_time],
         unit="s",
         description="Total CPU seconds broken down by different CPU modes.",
+    )
+    meter.create_observable_gauge(
+        "process.cpu.utilization",
+        callbacks=[_observe_cpu_utilization],
+        unit="1",
+        description="Difference in process.cpu.time since the last measurement, divided by the elapsed time and number "
+        "of CPUs available to the process.",
     )
     meter.create_observable_up_down_counter(
         "process.memory.usage",
@@ -159,6 +191,22 @@ def _observe_cpu_time(_options: CallbackOptions) -> list[Observation]:
         Observation(metrics.cpu_time_user_ns * _NS_TO_SEC, {"cpu.mode": "user", RUNTIME_ID_ATTRIBUTE: runtime_id}),
         Observation(metrics.cpu_time_sys_ns * _NS_TO_SEC, {"cpu.mode": "system", RUNTIME_ID_ATTRIBUTE: runtime_id}),
     ]
+
+
+def _observe_cpu_utilization(_options: CallbackOptions) -> list[Observation]:
+    global _cpu_sample
+
+    if not _enabled:
+        return []
+    metrics = _process_metrics()
+    now = monotonic()
+    cpu_time = (metrics.cpu_time_user_ns + metrics.cpu_time_sys_ns) * _NS_TO_SEC
+    last_sample, _cpu_sample = _cpu_sample, (now, cpu_time)
+    if last_sample is None or now <= last_sample[0]:
+        return []
+    last_time, last_cpu_time = last_sample
+    utilization = (cpu_time - last_cpu_time) / (now - last_time) / _available_cpus()
+    return [Observation(utilization, {RUNTIME_ID_ATTRIBUTE: get_runtime_id()})]
 
 
 def _observe_memory_usage(_options: CallbackOptions) -> list[Observation]:

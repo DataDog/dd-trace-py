@@ -5,5 +5,5 @@ features:
     ``ddtrace-run`` or ``ddtrace.auto``, and ``opentelemetry-exporter-otlp`` 1.16.0 or higher is installed, runtime
     metrics are exported over OTLP under their OpenTelemetry semantic convention names (``cpython.gc.*`` and
     ``process.*``) instead of being sent to DogStatsD, once the application imports ``opentelemetry``. The
-    ``runtime.python.gc.count.*``, ``runtime.python.gc.pause.*`` and ``runtime.python.cpu.percent`` metrics, which have
-    no OpenTelemetry equivalent, are not exported over OTLP.
+    ``runtime.python.gc.count.*`` and ``runtime.python.gc.pause.*`` metrics, which have no OpenTelemetry equivalent, are
+    not exported over OTLP.
