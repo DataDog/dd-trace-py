@@ -24,7 +24,7 @@ use native_proc_macro::ConvertToPyO3Enum;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::shared_runtime::{ensure_after_fork_child, SharedRuntimePy};
+use crate::shared_runtime::SharedRuntimePy;
 
 /// An opaque, registered metric context handle returned by
 /// [`TelemetryWorkerPy::register_metric_context`] and passed back to
@@ -162,7 +162,7 @@ impl TelemetryWorkerPy {
         install_type: Option<String>,
         install_time: Option<String>,
     ) -> PyResult<Self> {
-        let shared_runtime = runtime.as_arc()?;
+        let shared_runtime = runtime.as_arc().clone();
 
         let mut builder = TelemetryWorkerBuilder::new(
             hostname.clone(),
@@ -225,15 +225,11 @@ impl TelemetryWorkerPy {
             });
         }
 
-        // Keep this worker alive across native libc forks. The SharedRuntime's pthread_atfork
-        // child handler marks the runtime for restart; native-only forks still restart the worker
-        // with the runtime. Python-managed forks abandon the inherited runtime instead of calling
-        // after_fork_child(), so this flag is not consulted there. The first Python-facing
-        // telemetry operation lazily restarts the runtime and resets workers; deferring the restart
-        // avoids starting Tokio threads in transient fork+exec children.
+        // Spawning the worker on shared runtime with `restart_on_fork = false` so that children
+        // can safely drop it fully without emitting app-closing.
         let (handle, worker) = builder.build_worker::<NativeCapabilities>(None);
         let worker_handle = shared_runtime
-            .spawn_worker(worker, true)
+            .spawn_worker(worker, false)
             .map_err(|e| PyValueError::new_err(format!("failed to spawn telemetry worker: {e}")))?;
 
         Ok(TelemetryWorkerPy {
@@ -245,7 +241,6 @@ impl TelemetryWorkerPy {
 
     /// Send the app-started lifecycle event. Call ONCE, on the origin process.
     fn start(&self) -> PyResult<()> {
-        self.ensure_runtime_after_fork()?;
         self.handle
             .send_start()
             .map_err(|e| PyValueError::new_err(format!("failed to start telemetry worker: {e}")))
@@ -262,7 +257,6 @@ impl TelemetryWorkerPy {
         // Currently a no-op (see doc comment above); kept for API compatibility.
         let _ = send_app_closing;
 
-        self.ensure_runtime_after_fork()?;
         // Take the registration handle; if already stopped, nothing to do.
         let worker_handle = self
             .worker_handle
@@ -290,7 +284,6 @@ impl TelemetryWorkerPy {
     /// reached the agent by the time this returns. This makes test assertions (and
     /// shutdown flushes) deterministic instead of racing the async send.
     fn flush(&self, py: Python<'_>) -> PyResult<()> {
-        self.ensure_runtime_after_fork()?;
         // Aggregate the current interval's metric points into series FIRST
         // (FlushMetricAggr), otherwise FlushData would send no metrics — the
         // worker normally does this on its own 10s cadence, but a forced flush
@@ -325,7 +318,6 @@ impl TelemetryWorkerPy {
         config_id: Option<String>,
         seq_id: u64,
     ) -> PyResult<()> {
-        self.ensure_runtime_after_fork()?;
         drop_on_err(
             "configuration",
             self.handle
@@ -350,7 +342,6 @@ impl TelemetryWorkerPy {
         auto_enabled: Option<bool>,
         error: Option<String>,
     ) -> PyResult<()> {
-        self.ensure_runtime_after_fork()?;
         drop_on_err(
             "integration",
             self.handle
@@ -369,7 +360,6 @@ impl TelemetryWorkerPy {
         version: Option<String>,
         metadata: Option<Vec<(String, String)>>,
     ) -> PyResult<()> {
-        self.ensure_runtime_after_fork()?;
         let metadata: Option<Vec<DependencyMetadata>> = metadata.map(|items| {
             items
                 .into_iter()
@@ -398,7 +388,6 @@ impl TelemetryWorkerPy {
         stack_trace: Option<String>,
         tags: Option<String>,
     ) -> PyResult<()> {
-        self.ensure_runtime_after_fork()?;
         drop_on_err(
             "log",
             self.handle.try_send_msg(TelemetryActions::AddLog((
@@ -430,7 +419,6 @@ impl TelemetryWorkerPy {
         tags: Vec<String>,
         common: bool,
     ) -> MetricContextPy {
-        let _ = self.ensure_runtime_after_fork();
         let parsed_tags = parse_tag_list(&tags);
         let key = self.handle.register_metric_context(
             name,
@@ -445,9 +433,6 @@ impl TelemetryWorkerPy {
     /// Add `value` to a metric context previously returned by [`register_metric_context`].
     /// Cheap hot path: the point is published to the worker's lock-free ring buffer.
     fn add_point(&self, context: &MetricContextPy, value: f64) {
-        if self.ensure_runtime_after_fork().is_err() {
-            return;
-        }
         drop_on_err(
             "metric point",
             self.handle.add_point(value, &context.0, Vec::new()),
@@ -457,9 +442,6 @@ impl TelemetryWorkerPy {
     /// Like [`add_point`], but allowing for explicit tags as well. To be used when the
     /// cardinality of tags is unknown.
     fn add_point_with_tags(&self, context: &MetricContextPy, value: f64, tags: Vec<String>) {
-        if self.ensure_runtime_after_fork().is_err() {
-            return;
-        }
         drop_on_err(
             "metric point",
             self.handle
@@ -474,7 +456,6 @@ impl TelemetryWorkerPy {
         enabled: bool,
         version: Option<String>,
     ) -> PyResult<()> {
-        self.ensure_runtime_after_fork()?;
         drop_on_err(
             "product change",
             self.handle.add_product_change(product, enabled, version),
@@ -499,7 +480,6 @@ impl TelemetryWorkerPy {
         response_body_type: Option<Vec<String>>,
         response_code: Option<Vec<u32>>,
     ) -> PyResult<()> {
-        self.ensure_runtime_after_fork()?;
         // ``method`` and ``path`` are Option in libdatadog, but the backend always expects string.
         let endpoint = data::Endpoint {
             method: Some(parse_method(&method)),
@@ -538,13 +518,8 @@ fn parse_method(method: &str) -> data::Method {
 }
 
 impl TelemetryWorkerPy {
-    fn ensure_runtime_after_fork(&self) -> PyResult<()> {
-        ensure_after_fork_child(&self.shared_runtime)
-    }
-
-    pub(crate) fn clone_handle(&self) -> PyResult<TelemetryWorkerHandle<NativeCapabilities>> {
-        self.ensure_runtime_after_fork()?;
-        Ok(self.handle.clone())
+    pub(crate) fn clone_handle(&self) -> TelemetryWorkerHandle<NativeCapabilities> {
+        self.handle.clone()
     }
 }
 
