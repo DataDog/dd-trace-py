@@ -5,8 +5,12 @@ import importlib.util
 import io
 import os
 import pathlib
+import signal
 import subprocess
 import sys
+import tempfile
+import threading
+import time
 import types
 from unittest import mock
 
@@ -64,7 +68,7 @@ def _run(runner, run_tests_mod, monkeypatch, environments, exit_codes):
         executed.append(command[1])
         return subprocess.CompletedProcess(command, exit_codes[command[1]])
 
-    monkeypatch.setattr(run_tests_mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(run_tests_mod, "_run_in_process_group", fake_run)
     return runner._run_environments(environments, {}, ["--", "--ddtrace"], rebuild=False), executed
 
 
@@ -119,7 +123,37 @@ def test_environment_announcement_is_flushed_before_the_environment_runs(runner,
         flushed_at_run.append(stdout.flushed)
         return subprocess.CompletedProcess(command, 0)
 
-    monkeypatch.setattr(run_tests_mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(run_tests_mod, "_run_in_process_group", fake_run)
     assert runner._run_environments([_environment("aaa")], {}, ["--", "--ddtrace"], rebuild=False)
 
     assert "Running test environment: aaa" in flushed_at_run[0]
+
+
+def test_stop_signal_reaches_the_child_process_group(run_tests_mod: types.ModuleType) -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        ready = pathlib.Path(directory) / "ready"
+        child = "\n".join(
+            [
+                "import signal, sys, time",
+                "signal.signal(signal.SIGTERM, lambda *_: sys.exit(42))",
+                f"open({str(ready)!r}, 'w').close()",
+                "time.sleep(5)",
+            ]
+        )
+
+        def _notify() -> None:
+            deadline = time.monotonic() + 5
+            while not ready.exists():
+                if time.monotonic() >= deadline:
+                    return
+                time.sleep(0.01)
+            os.kill(os.getpid(), signal.SIGTERM)
+
+        threading.Thread(target=_notify, daemon=True).start()
+        result = run_tests_mod._run_in_process_group(
+            [sys.executable, "-c", child],
+            env=os.environ.copy(),
+            cwd=pathlib.Path.cwd(),
+        )
+
+    assert result.returncode == 42
