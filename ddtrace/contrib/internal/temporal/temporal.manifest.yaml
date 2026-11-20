@@ -1,0 +1,13 @@
+_v: 1
+name: temporal
+display_name: Temporal
+description: Instruments Temporal workflow execution and activity dispatch across clients and workers, including
+  signals, queries, updates, child workflows, and Nexus operations with distributed context propagation.
+packages:
+- name: temporalio
+category:
+- rpc.client
+- rpc.server
+systems:
+- temporal
+creation_date: '2026-09-17'
