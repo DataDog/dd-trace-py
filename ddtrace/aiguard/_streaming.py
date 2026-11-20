@@ -20,13 +20,12 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 
-import wrapt
-
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
+from ddtrace.internal.wrapt_typing import ObjectProxy
 
 
 logger = ddlogger.get_logger(__name__)
@@ -97,7 +96,7 @@ def _reconstruct_and_evaluate(reconstruct: ReconstructFn, evaluate: EvaluateFn, 
         evaluate(response)  # raises AIGuardAbortError on block
 
 
-class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt ships no stubs
+class BufferedAIGuardStream(ObjectProxy):
     """Sync buffer-then-evaluate proxy for a contrib TracedStream.
 
     On first use (``__iter__``, ``__next__``, ``__enter__``, ``text_stream``,
@@ -227,7 +226,7 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
         return self.__wrapped__.until_done()
 
 
-class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt ships no stubs
+class BufferedAIGuardAsyncStream(ObjectProxy):
     """Async mirror of BufferedAIGuardStream for TracedAsyncStream."""
 
     def __init__(

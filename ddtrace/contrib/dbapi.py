@@ -5,8 +5,6 @@ Generic dbapi tracing code.
 from collections.abc import Mapping
 from typing import Optional
 
-import wrapt
-
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbQueryEvent
@@ -17,6 +15,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
+from ddtrace.internal.wrapt_typing import ObjectProxy
 from ddtrace.trace import tracer
 
 from ..constants import _SPAN_MEASURED_KEY
@@ -47,7 +46,7 @@ def get_version() -> str:
     return ""
 
 
-class TracedCursor(wrapt.ObjectProxy):
+class TracedCursor(ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(
@@ -265,7 +264,7 @@ class FetchTracedCursor(TracedCursor):
         )
 
 
-class TracedConnection(wrapt.ObjectProxy):
+class TracedConnection(ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
     def __init__(self, conn, pin=None, cfg=None, cursor_cls=None, db_tags: Optional[Mapping[str, str]] = None):

@@ -1,5 +1,4 @@
 import grpc
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -16,6 +15,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.wrapt_typing import ObjectProxy
 from ddtrace.trace import tracer
 
 
@@ -62,7 +62,7 @@ def _wrap_response_iterator(response_iterator, server_context, span):
         span.finish()
 
 
-class _TracedRpcMethodHandler(wrapt.ObjectProxy):
+class _TracedRpcMethodHandler(ObjectProxy):
     def __init__(self, handler_call_details, wrapped):
         super().__init__(wrapped)
         self._handler_call_details = handler_call_details

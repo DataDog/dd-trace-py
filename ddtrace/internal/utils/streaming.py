@@ -11,10 +11,9 @@ import sys
 from typing import Optional
 from typing import Union
 
-import wrapt
-
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.wrapt_typing import ObjectProxy
 
 
 log = get_logger(__name__)
@@ -201,7 +200,7 @@ class AsyncStreamHandler(BaseStreamHandler):
         raise NotImplementedError("process_chunk must be implemented by the subclass")
 
 
-class TracedStream(wrapt.ObjectProxy):
+class TracedStream(ObjectProxy):
     """
     The TracedStream and AsyncTracedStream classes are wrappers around the underlying stream object that deal with
     iterating over the stream and calling the stream handler to process chunks, handle exceptions, and finalize the
@@ -329,7 +328,7 @@ class TracedStream(wrapt.ObjectProxy):
         return self._self_handler
 
 
-class TracedAsyncStream(wrapt.ObjectProxy):
+class TracedAsyncStream(ObjectProxy):
     """
     Async version of TracedStream.
     """

@@ -4,8 +4,6 @@ from typing import Callable
 from typing import Generator
 from typing import Optional
 
-import wrapt
-
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -20,10 +18,11 @@ from ddtrace.ext import db
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.internal.wrapt_typing import ObjectProxy
 from ddtrace.trace import tracer
 
 
-class _TracedAwaitable(wrapt.ObjectProxy):
+class _TracedAwaitable(ObjectProxy):
     def __init__(self, original: Any, wrap_result: Callable[[Any], Any]) -> None:
         super().__init__(original)
 
@@ -61,7 +60,7 @@ def _wrap_context_manager(context: Any, wrap_result: Callable[[Any], Any]) -> An
     return context
 
 
-class AIOTracedCursor(wrapt.ObjectProxy):
+class AIOTracedCursor(ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(self, cursor, pin):
@@ -132,7 +131,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         return self.__wrapped__.__aiter__()
 
 
-class AIOTracedConnection(wrapt.ObjectProxy):
+class AIOTracedConnection(ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
     def __init__(
