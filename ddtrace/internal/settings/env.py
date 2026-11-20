@@ -12,17 +12,22 @@ Reads also honor ``CONFIGURATION_ALIASES`` from the registry: a read for a
 canonical name falls back to its registered legacy aliases if the canonical
 is unset. Aliases registered here must be pure renames (same value space) —
 translations like OTEL→DD belong in ``_otel_remapper.py`` instead.
+
+This module does not import the registry. The owner of the registry hands it over
+with :func:`register_supported_configurations` (dd-trace-py does so at the top of
+``ddtrace/__init__.py``). Until that happens, no key is validated (so nothing is
+logged) and no aliases are applied, i.e. reads look up the exact key in
+``os.environ``. The first registration wins; later calls are ignored.
 """
 
+from collections.abc import Iterable
 from collections.abc import Iterator
+from collections.abc import Mapping
 from collections.abc import MutableMapping
+from collections.abc import Sequence
 import logging
 import os
 from typing import Optional
-
-from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
-from ddtrace.internal.settings._supported_configurations import DEPRECATED_CONFIGURATIONS
-from ddtrace.internal.settings._supported_configurations import SUPPORTED_CONFIGURATIONS
 
 
 # Use stdlib logging here instead of ddtrace.internal.logger.get_logger.
@@ -30,8 +35,32 @@ from ddtrace.internal.settings._supported_configurations import SUPPORTED_CONFIG
 # get_logger() would create a circular import at module-load time.
 logger = logging.getLogger(__name__)
 
-_ALIAS_TARGETS: frozenset[str] = frozenset(alias for aliases in CONFIGURATION_ALIASES.values() for alias in aliases)
+_SUPPORTED_CONFIGURATIONS: Optional[frozenset[str]] = None
+_DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset()
+_CONFIGURATION_ALIASES: Mapping[str, Sequence[str]] = {}
+_ALIAS_TARGETS: frozenset[str] = frozenset()
 _warned_keys: set[str] = set()
+
+
+def register_supported_configurations(
+    supported: Iterable[str],
+    aliases: Mapping[str, Sequence[str]],
+    deprecated: Iterable[str],
+) -> bool:
+    """Register the supported-configurations registry. The first registration wins.
+
+    Returns True if this call installed the registry, False if one was already registered.
+    """
+    global _SUPPORTED_CONFIGURATIONS, _DEPRECATED_CONFIGURATIONS, _CONFIGURATION_ALIASES, _ALIAS_TARGETS
+
+    if _SUPPORTED_CONFIGURATIONS is not None:
+        return False
+    _DEPRECATED_CONFIGURATIONS = frozenset(deprecated)
+    _CONFIGURATION_ALIASES = aliases
+    _ALIAS_TARGETS = frozenset(alias for names in aliases.values() for alias in names)
+    # Assigned last: it is the "registered" marker checked by _validate_key.
+    _SUPPORTED_CONFIGURATIONS = frozenset(supported)
+    return True
 
 
 def _get_env_value(key: str) -> Optional[str]:
@@ -49,16 +78,19 @@ def _validate_key(key: str) -> None:
     Keys that are registered aliases of a supported configuration are also accepted.
     Each unsupported key is warned about at most once per process.
     """
+    if _SUPPORTED_CONFIGURATIONS is None:
+        return
+
     if not (key.startswith("DD_") or key.startswith("_DD_") or key.startswith("OTEL_") or key.startswith("DATADOG_")):
         return
 
     if key in _warned_keys:
         return
 
-    if key not in SUPPORTED_CONFIGURATIONS and key not in _ALIAS_TARGETS:
+    if key not in _SUPPORTED_CONFIGURATIONS and key not in _ALIAS_TARGETS:
         _warned_keys.add(key)
         logger.debug("Unsupported Datadog configuration variable accessed: %s", key)
-    elif key in DEPRECATED_CONFIGURATIONS:
+    elif key in _DEPRECATED_CONFIGURATIONS:
         _warned_keys.add(key)
         logger.debug("Deprecated Datadog configuration variable accessed: %s", key)
 
@@ -78,7 +110,7 @@ class EnvConfig(MutableMapping[str, str]):
         _validate_key(key)
         if (value := _get_env_value(key)) is not None:
             return value
-        for alias in CONFIGURATION_ALIASES.get(key, ()):
+        for alias in _CONFIGURATION_ALIASES.get(key, ()):
             if (value := _get_env_value(alias)) is not None:
                 return value
         raise KeyError(key)
@@ -95,7 +127,7 @@ class EnvConfig(MutableMapping[str, str]):
             _validate_key(key)
             if _get_env_value(key) is not None:
                 return True
-            return any(_get_env_value(alias) is not None for alias in CONFIGURATION_ALIASES.get(key, ()))
+            return any(_get_env_value(alias) is not None for alias in _CONFIGURATION_ALIASES.get(key, ()))
         return key in os.environ
 
     def __iter__(self) -> Iterator[str]:
