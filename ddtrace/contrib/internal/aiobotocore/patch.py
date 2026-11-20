@@ -36,6 +36,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.wrapt_typing import ObjectProxy
 from ddtrace.trace import tracer
 
 
@@ -93,7 +94,7 @@ def unpatch():
         # patch state, so any retained registration goes inert after unpatch.
 
 
-class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
+class WrappedClientResponseContentProxy(ObjectProxy):
     def __init__(self, body, parent_span):
         super().__init__(body)
         self._self_parent_span = parent_span

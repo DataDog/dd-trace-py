@@ -8,7 +8,6 @@ from typing import cast
 import elevenlabs
 import elevenlabs.conversational_ai.conversation as conversation
 from websockets.exceptions import ConnectionClosedOK
-import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.elevenlabs._state import _CURRENT_STATE
@@ -17,6 +16,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.wrapt_typing import ObjectProxy
 from ddtrace.trace import tracer
 
 
@@ -43,7 +43,7 @@ def _observe(state: ConversationState, direction: str, raw: Any) -> None:
         log.debug("Could not capture ElevenLabs conversation event", exc_info=True)
 
 
-class _Socket(wrapt.ObjectProxy):  # type: ignore[misc]
+class _Socket(ObjectProxy):
     def __init__(self, socket: Any, state: ConversationState) -> None:
         super().__init__(socket)
         self._self_state = state
@@ -71,7 +71,7 @@ class _Socket(wrapt.ObjectProxy):  # type: ignore[misc]
         return raw
 
 
-class _AsyncSocket(wrapt.ObjectProxy):  # type: ignore[misc]
+class _AsyncSocket(ObjectProxy):
     def __init__(self, socket: Any, state: ConversationState) -> None:
         super().__init__(socket)
         self._self_state = state
@@ -99,7 +99,7 @@ class _AsyncSocket(wrapt.ObjectProxy):  # type: ignore[misc]
         return raw
 
 
-class _Connect(wrapt.ObjectProxy):  # type: ignore[misc]
+class _Connect(ObjectProxy):
     def __init__(self, connection: Any, state: ConversationState) -> None:
         super().__init__(connection)
         self._self_state = state
@@ -111,7 +111,7 @@ class _Connect(wrapt.ObjectProxy):  # type: ignore[misc]
         return self.__wrapped__.__exit__(*args)
 
 
-class _AsyncConnect(wrapt.ObjectProxy):  # type: ignore[misc]
+class _AsyncConnect(ObjectProxy):
     def __init__(self, connection: Any, state: ConversationState) -> None:
         super().__init__(connection)
         self._self_state = state
@@ -123,7 +123,7 @@ class _AsyncConnect(wrapt.ObjectProxy):  # type: ignore[misc]
         return await self.__wrapped__.__aexit__(*args)
 
 
-class _Websockets(wrapt.ObjectProxy):  # type: ignore[misc]
+class _Websockets(ObjectProxy):
     def connect(self, *args: Any, **kwargs: Any) -> Any:
         connection = self.__wrapped__.connect(*args, **kwargs)
         state = _CURRENT_STATE.get()

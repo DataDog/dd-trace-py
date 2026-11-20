@@ -10,6 +10,7 @@ import wrapt
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.settings.profiling import config
+from ddtrace.internal.wrapt_typing import ObjectProxy
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 
@@ -28,7 +29,7 @@ _FILE_PLACEHOLDER = "<native>"
 _DEVICE_FRAME_FILE_NAME = "<torch>"
 
 
-class _WrappedTorchProfiler(wrapt.ObjectProxy):
+class _WrappedTorchProfiler(ObjectProxy):
     def __init__(
         self,
         wrapped: Any,

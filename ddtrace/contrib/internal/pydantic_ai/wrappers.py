@@ -1,9 +1,8 @@
 import sys
 
-import wrapt
-
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.wrapt_typing import ObjectProxy
 
 
 _FINISHED = "pydantic_ai.finished"
@@ -23,7 +22,7 @@ def finish_request(ctx, response=None):
     ctx.dispatch_ended_event()
 
 
-class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
+class TracedPydanticAsyncContextManager(ObjectProxy):
     def __init__(self, wrapped, ctx):
         super().__init__(wrapped)
         self._dd_ctx = ctx
@@ -43,7 +42,7 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
             finish_request(self._dd_ctx, None if exc_type else self._agent_run)
 
 
-class TracedPydanticRunStream(wrapt.ObjectProxy):
+class TracedPydanticRunStream(ObjectProxy):
     def __init__(self, wrapped, ctx):
         super().__init__(wrapped)
         self._dd_ctx = ctx
@@ -65,7 +64,7 @@ class TracedPydanticRunStream(wrapt.ObjectProxy):
             finish_request(self._dd_ctx)
 
 
-class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
+class TracedPydanticStreamedRunResult(ObjectProxy):
     def __init__(self, wrapped, ctx):
         super().__init__(wrapped)
         self._dd_ctx = ctx
@@ -96,7 +95,7 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
         return result
 
 
-class TracedPydanticGenerator(wrapt.ObjectProxy):
+class TracedPydanticGenerator(ObjectProxy):
     def __init__(self, wrapped, ctx, delta=False):
         super().__init__(wrapped)
         self._self_dd_ctx = ctx

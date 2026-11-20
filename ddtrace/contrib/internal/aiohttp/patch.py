@@ -2,7 +2,6 @@ from collections.abc import MutableMapping
 from typing import Optional
 
 import aiohttp
-import wrapt
 from yarl import URL
 
 from ddtrace._trace.events import TracingEvent
@@ -18,6 +17,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.wrapt_typing import ObjectProxy
 
 
 log = get_logger(__name__)
@@ -40,7 +40,7 @@ def _supported_versions() -> dict[str, str]:
     return {"aiohttp": ">=3.7"}
 
 
-class _WrappedConnectorClass(wrapt.ObjectProxy):
+class _WrappedConnectorClass(ObjectProxy):
     def __init__(self, obj):
         super().__init__(obj)
 

@@ -1,6 +1,7 @@
 import wrapt
 
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.wrapt_typing import ObjectProxy
 
 
 def get_psycopg2_extensions(psycopg_module):
@@ -65,7 +66,7 @@ def _extensions_adapt(func, _, args, kwargs):
     return adapt
 
 
-class AdapterWrapper(wrapt.ObjectProxy):
+class AdapterWrapper(ObjectProxy):
     def prepare(self, *args, **kwargs):
         func = self.__wrapped__.prepare
         if not args:
