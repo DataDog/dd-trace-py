@@ -470,3 +470,101 @@ _report_serverless_private_api({probes!r})
             where = f"  [{location}]" if location else ""
             mismatches.append(f"{key}\n    expected: {expected}\n    actual:   {payload}{where}")
     assert mismatches == [], "\n".join(mismatches)
+
+
+# Fingerprints cannot see how datadog-lambda calls the native Context constructor or
+# how it reads the objects that ddtrace hands back. These subprocess checks run the
+# same calls and reads that datadog_lambda/tracing.py, asm.py and wrapper.py make.
+def _serverless_subprocess_env(**extra):
+    env = os.environ.copy()
+    env.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+            "DD_API_SECURITY_ENABLED": "False",
+        }
+    )
+    env.update(extra)
+    return env
+
+
+def test_serverless_context_contract(run_python_code_in_subprocess):
+    code = """
+from ddtrace.trace import Context
+
+trace_id = 0x0123456789ABCDEF0123456789ABCDEF
+span_id = 0x0123456789ABCDEF
+context = Context(
+    trace_id=trace_id,
+    span_id=span_id,
+    sampling_priority=1.0,
+    meta={"_dd.p.dm": "-0"},
+    metrics={"_dd.top_level": 1.0},
+)
+assert context.trace_id == trace_id
+assert context.span_id == span_id
+assert context.sampling_priority == 1.0
+
+copied_meta = context._meta.copy()
+copied_metrics = context._metrics.copy()
+assert copied_meta["_dd.p.dm"] == "-0"
+assert copied_metrics["_dd.top_level"] == 1.0
+
+context.span_id = 42
+assert context.span_id == 42
+
+Context(trace_id=1, span_id=2, sampling_priority=1)
+Context(trace_id=1, span_id=2, sampling_priority=1, meta=copied_meta)
+Context(trace_id=1, span_id=2, sampling_priority=1, meta=copied_meta, metrics=copied_metrics)
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=_serverless_subprocess_env())
+    assert status == 0, stderr.decode()
+    assert stdout.decode() == ""
+    assert stderr.decode() == ""
+
+
+def test_serverless_blocked_response_contract(run_python_code_in_subprocess):
+    # datadog_lambda/asm.py reads the object from get_blocked() with dict-style get().
+    # The listener registered by ddtrace.appsec returns a Block_config, so this one does too.
+    code = """
+from ddtrace.appsec._utils import Block_config
+from ddtrace.internal import core
+from ddtrace.internal.utils import get_blocked
+
+assert get_blocked() is None
+
+blocked_config = Block_config(type="none", status_code=401, security_response_id="abc123")
+core.on("asm.get_blocked", lambda: blocked_config, "block_config")
+
+blocked = get_blocked()
+assert blocked
+assert blocked.get("type", "auto") == "none"
+assert blocked.get("content-type", "application/json") == "application/json"
+assert blocked.get("block_id", "default") == "abc123"
+assert blocked.get("status_code", 403) == 401
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=_serverless_subprocess_env())
+    assert status == 0, stderr.decode()
+    assert stdout.decode() == ""
+    assert stderr.decode() == ""
+
+
+def test_serverless_exception_replay_uploader_contract(run_python_code_in_subprocess):
+    # datadog_lambda/wrapper.py calls SignalUploader._instance.periodic() after
+    # SpanExceptionHandler.enable(). The class-body default of _instance is None, so
+    # this checks the live instance that enable() creates.
+    code = """
+from ddtrace.debugging._exception.replay import SpanExceptionHandler
+from ddtrace.debugging._uploader import SignalUploader
+
+SpanExceptionHandler.enable()
+assert isinstance(SignalUploader._instance, SignalUploader)
+assert SignalUploader._instance.periodic() is None
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=_serverless_subprocess_env())
+    assert status == 0, stderr.decode()
+    assert stdout.decode() == ""
+    assert stderr.decode() == ""
