@@ -340,7 +340,7 @@ class _ProfiledLock:
             # If we can't get the task frame, we use the caller frame.
             frame: Optional[FrameType] = task_frame or _caller_frame()
             if frame is None:
-                # Without a Python frame, sys._getframe(0) raised here and the sample was dropped.
+                # No complete Python frame to attribute this sample to.
                 return
             handle.push_pyframes(frame)
 
