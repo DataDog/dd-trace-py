@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    data streams monitoring: Reduces the CPU overhead of tracking produced and consumed messages by caching
+    pathway hashes and computing hashes and encoding pathway contexts natively.
