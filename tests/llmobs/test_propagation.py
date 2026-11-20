@@ -1725,3 +1725,30 @@ def test_activating_empty_headers_clears_the_previous_request_context(llmobs):
     with llmobs.workflow("second") as second:
         assert get_llmobs_parent_id(second) == ROOT_PARENT_ID
         assert get_llmobs_trace_id(second) != get_llmobs_trace_id(first)
+
+
+def test_inject_baggage_sends_this_requests_sampling_decision(llmobs):
+    """Another LLMObs trace under the same APM trace can rewrite the shared _meta decision during this
+    injection; baggage must carry the decision this request computed.
+    """
+
+    def other_injection(meta, *args):
+        meta[PROPAGATED_SAMPLING_DECISION] = "0"
+
+    with llmobs.workflow("w") as span:
+        with mock.patch("ddtrace.llmobs._llmobs._stamp_agent_attribution", side_effect=other_injection):
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+        decision = get_llmobs_sampling_decision(span)
+    assert decision == "1"
+    assert _extract_baggage(headers)["llmobs.sampling_decision"] == "1"
+
+
+def test_inject_baggage_does_not_send_a_stale_sampling_decision(llmobs):
+    """With no decision of its own, the request sends none, not one left in _meta by another trace."""
+    llmobs._instance._activate_llmobs_distributed_context({}, _extract_baggage_only_context(_HEX_TRACE_ID))
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        span.context._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    assert "llmobs.sampling_decision" not in _extract_baggage(headers)

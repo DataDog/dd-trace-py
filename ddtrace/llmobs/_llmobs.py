@@ -3900,10 +3900,11 @@ class LLMObs(Service):
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
         if sample_rate is not None:
             span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
-        if sampling_decision is not None:
-            span_context._meta[PROPAGATED_SAMPLING_DECISION] = (
-                sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
-            )
+        # Kept local for the baggage below: span_context._meta is shared by the whole APM trace, so
+        # reading it back can return another LLMObs trace's decision.
+        decision = sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
+        if decision is not None:
+            span_context._meta[PROPAGATED_SAMPLING_DECISION] = decision
 
         # Propagate the nearest agent so spans in the downstream process attribute correctly.
         # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
@@ -3921,7 +3922,7 @@ class LLMObs(Service):
             BAGGAGE_ML_APP_KEY: ml_app,
             BAGGAGE_SESSION_ID_KEY: span_context._meta.get(PROPAGATED_SESSION_ID_KEY),
             BAGGAGE_SAMPLE_RATE_KEY: sample_rate,
-            BAGGAGE_SAMPLING_DECISION_KEY: span_context._meta.get(PROPAGATED_SAMPLING_DECISION),
+            BAGGAGE_SAMPLING_DECISION_KEY: decision,
             BAGGAGE_PARENT_AGENT_ID_KEY: parent_agent_span_id,
             BAGGAGE_PARENT_AGENT_NAME_KEY: (
                 _truncate_to_encoded_bytes(parent_agent_name, BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES)
