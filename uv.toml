@@ -1,0 +1,4 @@
+# LOCAL PROTOTYPE ONLY: resolve ddtrace-internal/ddtrace-coverage dev builds from the wheel dir
+# (the repo is mounted at /home/bits/project in the testrunner container).
+[pip]
+find-links = ["/home/bits/project/.cache/split-wheels"]
