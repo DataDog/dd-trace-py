@@ -14,7 +14,6 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 
 
@@ -452,14 +451,13 @@ class AsyncPgTestCase(AsyncioTestCase):
         self.conn = None
         patch()
 
-    async def tearDown(self):
-        super().tearDown()
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
         if self.conn and not self.conn.is_closed():
             await self.conn.close()
 
         unpatch()
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_asyncpg_dbm_propagation_enabled(self):
         conn = await self._get_conn()
@@ -473,7 +471,6 @@ class AsyncPgTestCase(AsyncioTestCase):
 
         assert query_span.get_tag("_dd.dbm_trace_injected") == "true"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -509,7 +506,6 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -546,7 +542,6 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",

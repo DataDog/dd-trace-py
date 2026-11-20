@@ -73,8 +73,8 @@ def info(url: t.Optional[str] = None, *, raise_on_404: bool = False) -> t.Option
         log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
         return None
 
-    result: dict[str, t.Any] = json.loads(data)
-    return result
+    info: dict[str, t.Any] = json.loads(data)
+    return info
 
 
 def is_reachable(url=None):

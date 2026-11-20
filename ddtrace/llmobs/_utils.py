@@ -22,7 +22,9 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.formats import safe_json as safe_json
 from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
@@ -69,7 +71,6 @@ from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import _ToolField
-from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:
@@ -256,7 +257,7 @@ class AnnotationContext:
         self._deregister_annotator()
 
 
-def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
+def _get_nearest_llmobs_ancestor(span: _LLMObsSpan) -> Optional[_LLMObsSpan]:
     """Return the nearest LLMObs-type ancestor span of a given span."""
     parent = span._parent
     while parent:
@@ -264,20 +265,6 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
             return parent
         parent = parent._parent
     return None
-
-
-def _unserializable_default_repr(obj):
-    try:
-        # Pydantic v2
-        if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            return obj.model_dump(mode="json")
-        # Pydantic v1
-        if hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
-            return obj.dict()
-        return str(obj)
-    except Exception:
-        log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
-        return f"[Unserializable object: {repr(obj)}]"
 
 
 _MAX_NESTED_META_DEPTH = 12
@@ -328,23 +315,6 @@ def _sanitize_span_event_data(obj: Any) -> Any:
     return _walk(obj, 0, "")
 
 
-def safe_json(obj, ensure_ascii=True):
-    if isinstance(obj, str):
-        return obj
-    try:
-        # Pydantic v2
-        if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            obj = obj.model_dump(mode="json")
-        # Pydantic v1
-        elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
-            obj = obj.dict()
-        return json.dumps(
-            obj, ensure_ascii=ensure_ascii, sort_keys=True, skipkeys=True, default=_unserializable_default_repr
-        )
-    except Exception:
-        log.error("Failed to serialize object to JSON.", exc_info=True)
-
-
 def load_data_value(value):
     if isinstance(value, (list, tuple, set)):
         return [load_data_value(item) for item in value]
@@ -384,7 +354,7 @@ def format_tool_call_arguments(tool_args: str) -> str:
     return formatted_tool_args
 
 
-def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
+def add_span_link(span: _LLMObsSpan, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
     current_span_links: list[_SpanLink] = get_llmobs_span_links(span) or []
     current_span_links.append(
         _SpanLink(
@@ -396,7 +366,7 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
     _annotate_llmobs_span_data(span, span_links=current_span_links)
 
 
-def _get_parent_prompt(span: Span) -> Optional[Prompt]:
+def _get_parent_prompt(span: _LLMObsSpan) -> Optional[Prompt]:
     """Check the nearest LLMObs ancestor's _store for a prompt to inherit.
     We check span._store instead of meta_struct because span._store is guaranteed to exist on the parent,
     while meta_struct is scrubbed at span finish time.
@@ -483,7 +453,9 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optiona
     if active is None:
         return None, None, None
 
-    if isinstance(active, Span):
+    if isinstance(active, SpanData):
+        # Span is the only SpanData type, so this is an LLMObs span; a Protocol cannot be checked at runtime.
+        active = cast(_LLMObsSpan, active)
         # Read the meta_struct once: this runs on every span activation (hot path).
         data = _get_llmobs_data_metastruct(active)
         kind = data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
@@ -785,6 +757,7 @@ def _annotate_llmobs_span_data(
     session_id: Optional[str] = None,
     span_links: Optional[list[_SpanLink]] = None,
     agent_manifest: Optional[dict[str, Any]] = None,
+    gateway: Optional[str] = None,
     config: Optional[dict[str, Any]] = None,
     expected_output: Optional[Any] = None,
     experiment_input: Optional[str] = None,
@@ -843,16 +816,23 @@ def _annotate_llmobs_span_data(
             # Metadata keys are serialized as strings, so coerce non-string keys here. Values are
             # left as-is for in-process consumers; _sanitize_span_event_data handles them at finish.
             meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
-        if agent_manifest is not None or cost_tags is not None:
+        if agent_manifest is not None or cost_tags is not None or gateway is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
-            metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            existing_dd = meta[LLMOBS_STRUCT.METADATA].get(LLMOBS_STRUCT.METADATA_DD)
+            # Copy: metadata keeps the caller's _dd by reference, and other spans can share it. A value that is not
+            # a dict is replaced, because _dd is reserved.
+            metadata_dd = dict(existing_dd) if isinstance(existing_dd, dict) else {}
+            meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD] = metadata_dd
             if agent_manifest is not None:
                 metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
             if cost_tags is not None:
-                existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
+                existing_cost_tags = list(metadata_dd.get(LLMOBS_STRUCT.COST_TAGS) or [])
                 for cost_tag in cost_tags:
                     if cost_tag not in existing_cost_tags:
                         existing_cost_tags.append(cost_tag)
+                metadata_dd[LLMOBS_STRUCT.COST_TAGS] = existing_cost_tags
+            if gateway is not None:
+                metadata_dd[LLMOBS_STRUCT.GATEWAY] = gateway
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
@@ -971,8 +951,8 @@ class LinkTracker:
     def __init__(self) -> None:
         self._tool_calls: dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
         self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
-        self._active_guardrail_spans: set[Span] = set()
-        self._last_llm_span: Optional[Span] = None
+        self._active_guardrail_spans: set[_LLMObsSpan] = set()
+        self._last_llm_span: Optional[_LLMObsSpan] = None
 
     def on_llm_tool_choice(
         self,
@@ -1004,7 +984,7 @@ class LinkTracker:
         self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
 
     def on_tool_call(
-        self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, tool_id: Optional[str] = None
+        self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: _LLMObsSpan, tool_id: Optional[str] = None
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
@@ -1037,7 +1017,7 @@ class LinkTracker:
         self._tool_calls[tool_id].tool_kind = tool_kind
         self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)
 
-    def on_tool_call_output_used(self, tool_id: str, llm_span: Span) -> None:
+    def on_tool_call_output_used(self, tool_id: str, llm_span: _LLMObsSpan) -> None:
         """
         Called when an LLM span finishes. This is used to link the output of a tool call to the input of an
         LLM span.
@@ -1057,7 +1037,7 @@ class LinkTracker:
             "input",
         )
 
-    def on_llm_span_finish(self, span: Span) -> None:
+    def on_llm_span_finish(self, span: _LLMObsSpan) -> None:
         """
         Called when an LLM span event is created. If the LLM span is the first LLM span,
         it will consume all active guardrail links.
@@ -1077,7 +1057,7 @@ class LinkTracker:
                 spans_to_remove.add(guardrail_span)
         self._active_guardrail_spans -= spans_to_remove
 
-    def on_guardrail_span_start(self, span: Span) -> None:
+    def on_guardrail_span_start(self, span: _LLMObsSpan) -> None:
         """
         Called when a guardrail span starts. This is used to track the active guardrail
         spans and link the output of the last LLM span to the input of the guardrail span.
@@ -1115,7 +1095,7 @@ _TOKEN_METRIC_KEYS = (
 )
 
 
-def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
+def set_gen_ai_apm_tags(span: _LLMObsSpan, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
     """Write the scalar gen_ai.* attributes onto the APM span from its LLMObs meta_struct.
 
     Must run before _normalize_llmobs_meta, which pops model_name and model_provider for every

@@ -165,3 +165,17 @@ def test_dispatcher_wrapped_by_other_instrumentation_is_still_traced_and_kept(mo
     finally:
         unpatch()
     assert getattr(module, dispatch_name) is other_wrapper
+
+
+# Older google-adk releases print deprecation warnings from their google-cloud dependencies on import.
+@pytest.mark.subprocess(out=None, err=None)
+def test_patch_module_does_not_import_llmobs():
+    # patch() loads the LLMObs hooks through the ddtrace.integration_hooks entry point,
+    # but importing the contrib itself must not pull in the product.
+    import sys
+
+    import google.adk  # noqa: F401
+
+    import ddtrace.contrib.internal.google_adk.patch  # noqa: F401
+
+    assert "ddtrace.llmobs" not in sys.modules, [m for m in sys.modules if m.startswith("ddtrace.llmobs")]

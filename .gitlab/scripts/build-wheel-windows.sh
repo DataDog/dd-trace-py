@@ -30,6 +30,7 @@ setup_env
 # scheduled on this VM (same project dir), which then finds two wheels.
 # Remove containers left by a previous job before building.
 CONTAINER_LABEL="dd-trace-py.build-windows"
+# The job's after_script in .gitlab/package.yml removes this job's containers by this label.
 JOB_LABEL="dd-trace-py.job-id"
 stale_containers=$(docker ps -aq --filter "label=${CONTAINER_LABEL}")
 if [[ -n "${stale_containers}" ]]; then

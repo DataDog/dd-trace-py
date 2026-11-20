@@ -71,14 +71,22 @@ extract_test_artifacts:
     # not on the filesystem of the checkout, so uv copies every file into each venv.
     UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
   before_script:
+    - |
+      # These suites need LiteLLM versions that the internal index does not permit.
+      # Unset the variables here because forwarded pipeline variables override job variables.
+      case "${TEST_SUITE:-}" in
+        llmobs::litellm|llmobs::crewai|aiguard::ai_guard_litellm_guardrail)
+          unset PIP_INDEX_URL UV_DEFAULT_INDEX
+          ;;
+      esac
     - !reference [.testrunner, before_script]
     - |
       # The native IAST suite compiles repository C++ sources and does not import ddtrace.
-      # Other test jobs remove the checkout package so Python imports use the wheel.
+      # Other test jobs remove the checkout packages so Python imports use the wheel.
       if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" ]]; then
-        rm -r "$CI_PROJECT_DIR/ddtrace"
+        rm -r "$CI_PROJECT_DIR/ddtrace" "$CI_PROJECT_DIR/ddtrace_commands"
       fi
-    # Keep repository test helpers importable; ddtrace itself resolves from the installed wheel.
+    # Keep repository test helpers importable; library packages resolve from the installed wheel.
     - export PYTHONPATH="$CI_PROJECT_DIR"
     - unset DD_SERVICE
     - unset DD_ENV

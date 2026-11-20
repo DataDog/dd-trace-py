@@ -26,9 +26,14 @@ components:
     - setup.cfg
     - pyproject.toml
   bootstrap:
+    - ddtrace_commands/*
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py
+  package_split:
+    - scripts/package-split
+    - scripts/package_split/*
+    - tests/package_split/*
   crashtracker:
     - ddtrace/internal/core/crashtracking.py
     - ddtrace/internal/settings/crashtracker.py
@@ -155,6 +160,15 @@ components:
   vendor:
     - ddtrace/vendor/*
 suites:
+  package_split:
+    paths:
+      - '@package_split'
+    matrix:
+      command: pytest -v {cmdargs} tests/package_split/
+      variants:
+        - name: package_split
+          python: ['3.12']
+          dependencies: [pytest-randomly]
   smoke_test:
     type: helper
     paths:
@@ -267,7 +281,7 @@ suites:
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   integration_testagent:
-    venvs_per_job: 4
+    venvs_per_job: 6
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
@@ -293,6 +307,12 @@ suites:
         - name: integration-snapshot-civisibility
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
+        - name: integration-snapshot-native-buffer
+          dependencies: [msgpack, pytest-randomly]
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
+          env:
+            DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
+            _DD_TRACE_NATIVE_BUFFER_ENABLED: 'true'
   internal:
     venvs_per_job: 6
     retry: 2

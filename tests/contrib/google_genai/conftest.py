@@ -55,7 +55,7 @@ def genai_client(request, genai):
 
 @pytest.fixture
 def genai_client_vcr(genai):
-    return genai.Client(http_options={"base_url": "http://127.0.0.1:9126/vcr/genai"})
+    return genai.Client(http_options={"base_url": "http://127.0.0.1:9126/vcr/genai", "api_version": "v1beta"})
 
 
 @pytest.fixture

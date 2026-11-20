@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where a background thread, such as the profiler's scheduler, could keep running after
+    it was stopped shortly after a fork.

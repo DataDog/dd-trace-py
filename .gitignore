@@ -238,3 +238,10 @@ ddtrace/profiling/collector/build-test/
 # file created when running scripts/lint
 uv.lock
 benchmark-artifacts/
+profile-artifacts/
+
+# package-split inventory output (including per-scope --output dirs)
+.package-split*/
+
+# Dependency direction report written by scripts/import-analysis/layers.py analyze
+/layers.json

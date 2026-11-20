@@ -955,7 +955,7 @@ def test_removing_config_restores_env_settings(
 @pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
 @pytest.mark.subprocess(
     env={
-        "DD_PROFILING_ENABLED": "false",
+        "DD_PROFILING_ENABLED": None,
         "DD_REMOTE_CONFIGURATION_ENABLED": "true",
         "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
     },
@@ -994,13 +994,13 @@ def test_profiler_started_off_main_thread_flushes_on_sigterm() -> None:
 
 @pytest.mark.subprocess(
     env={
-        "DD_PROFILING_ENABLED": "false",
+        "DD_PROFILING_ENABLED": None,
         "DD_REMOTE_CONFIGURATION_ENABLED": "true",
         "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
     },
     err=None,
 )
-def test_product_subscribes_to_debug_and_apm_profiling() -> None:
+def test_product_subscribes_to_apm_profiling() -> None:
     from unittest import mock
 
     from ddtrace.internal.native import RemoteConfigProduct
@@ -1008,7 +1008,7 @@ def test_product_subscribes_to_debug_and_apm_profiling() -> None:
     from ddtrace.internal.profiling import remoteconfig
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    products = [RemoteConfigProduct.Debug, RemoteConfigProduct.ApmProfiling]
+    products = [RemoteConfigProduct.ApmProfiling]
 
     with (
         mock.patch.object(remoteconfig_poller, "register_callback") as register_callback,
@@ -1017,9 +1017,7 @@ def test_product_subscribes_to_debug_and_apm_profiling() -> None:
         product.start()
 
     assert [c.args[0] for c in register_callback.call_args_list] == products
-    callbacks = [c.args[1] for c in register_callback.call_args_list]
-    assert isinstance(callbacks[0], remoteconfig.ProfilingRCCallback)
-    assert callbacks[0] is callbacks[1]
+    assert isinstance(register_callback.call_args_list[0].args[1], remoteconfig.ProfilingRCCallback)
     assert [c.args[0] for c in enable_product.call_args_list] == products
 
     with (
@@ -1049,7 +1047,6 @@ def test_profiler_starts_with_remote_config_disabled() -> None:
     from ddtrace.profiling import bootstrap
 
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
-    assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
     print("OK")
@@ -1080,7 +1077,6 @@ def test_profiler_starts_when_remote_config_fails_to_start() -> None:
 
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
     # The profiling product depends on remote-configuration, so it does not subscribe to Remote Config.
-    assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
     print("OK")

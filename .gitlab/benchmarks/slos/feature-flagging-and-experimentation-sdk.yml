@@ -52,3 +52,15 @@ experiments:
           - name: openfeatureflagevaluation-hook-plus-drain-scale
             thresholds:
               - execution_time < 0.120 ms
+          - name: openfeatureflagevaluation-provider-resolution-split-features-stress
+            thresholds:
+              - execution_time < 0.242 ms
+          - name: openfeatureflagevaluation-provider-resolution-split-features-typical
+            thresholds:
+              - execution_time < 0.076 ms
+          - name: openfeatureflagevaluation-provider-resolution-stress
+            thresholds:
+              - execution_time < 0.228 ms
+          - name: openfeatureflagevaluation-provider-resolution-typical
+            thresholds:
+              - execution_time < 0.060 ms

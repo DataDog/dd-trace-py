@@ -35,8 +35,12 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.azure_cosmos.utils import normalize_resource_uri as _normalize_cosmos_resource_uri
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import PUBSUB_SUBSCRIPTION_NAME
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import PUBSUB_TOPIC_NAME
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import subscription_path as _pubsub_subscription_path
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import topic_path as _pubsub_topic_path
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
@@ -314,7 +318,11 @@ def _set_inferred_proxy_tags(span: Span, status_code):
 
 
 def _set_pubsub_receive_attributes(
-    span: Span, project_id: str, subscription_id: str, message_id: Optional[str] = None
+    span: Span,
+    project_id: str,
+    subscription_id: str,
+    message_id: Optional[str] = None,
+    subscription_path: Optional[str] = None,
 ) -> None:
     """Set common span attributes for Pub/Sub receive operations (pull and push)."""
     span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
@@ -326,6 +334,10 @@ def _set_pubsub_receive_attributes(
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
     if message_id:
         span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
+    # The topic of a received message is not known here (neither the subscriber client nor the
+    # push request carries it), so only the subscription identity is tagged.
+    if subscription := _pubsub_subscription_path(subscription_path):
+        span._set_attribute(PUBSUB_SUBSCRIPTION_NAME, subscription)
 
 
 def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContext, headers: Mapping[str, str]) -> None:
@@ -358,7 +370,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContex
         child_of=propagated_context if not config.google_cloud_pubsub.propagation_as_span_links else None,
     )
 
-    _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id)
+    _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id, subscription_name)
     span._set_attribute(_INFERRED_SPAN_KEY, 1)
 
     if propagated_context and config.google_cloud_pubsub.propagation_as_span_links:
@@ -916,28 +928,6 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
     ctx.set_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY, trace_data)
 
 
-def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
-    span = span_from_context(ctx)
-    integration = ctx.get_item("bedrock_integration")
-    integration._tag_proxy_request(ctx)
-
-    span._set_attribute("bedrock.request.model_provider", ctx.get_item("model_provider"))
-    span._set_attribute("bedrock.request.model", ctx.get_item("model_name"))
-
-    if "n" in request_params:
-        ctx.set_item("num_generations", str(request_params["n"]))
-
-
-def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info, response=None):
-    span = span_from_context(ctx)
-    span.set_exc_info(*exc_info)
-    model_name = ctx.get_item("model_name")
-    integration = ctx.get_item("bedrock_integration")
-    if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=response)
-    span.finish()
-
-
 def _propagate_context(ctx, headers):
     distributed_tracing_enabled = ctx.get_item("integration_config").distributed_tracing_enabled
     span = span_from_context(ctx)
@@ -961,31 +951,6 @@ def _on_end_of_traced_method_in_fork(ctx):
     immediately after this method returns
     """
     tracer.flush()
-
-
-def _on_botocore_bedrock_process_response_converse(
-    ctx: core.ExecutionContext,
-    result: list[dict[str, Any]],
-):
-    ctx.get_item("bedrock_integration").llmobs_set_tags(
-        span_from_context(ctx),
-        args=[ctx],
-        kwargs={},
-        response=result,
-    )
-    span_from_context(ctx).finish()
-
-
-def _on_botocore_bedrock_process_response(
-    ctx: core.ExecutionContext,
-    formatted_response: dict[str, Any],
-) -> None:
-    with span_from_context(ctx) as span:
-        model_name = ctx.get_item("model_name")
-        integration = ctx.get_item("bedrock_integration")
-        if "embed" in model_name:
-            return
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
 
 
 def _on_botocore_sqs_recvmessage_post(
@@ -1033,24 +998,6 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, config_integration, a
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
         span_from_context(ctx)._set_attribute(db.ROWCOUNT, rowcount)
-
-
-def _on_test_visibility_enable(config) -> None:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.enable(config=config)
-
-
-def _on_test_visibility_disable() -> None:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.disable()
-
-
-def _on_test_visibility_is_enabled() -> bool:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    return CIVisibility.enabled
 
 
 def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescription) -> None:
@@ -1483,6 +1430,8 @@ def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
     span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("topic_id"))
     span._set_attribute(MESSAGING_OPERATION, "send")
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    if topic := _pubsub_topic_path(ctx.get_item("topic_path")):
+        span._set_attribute(PUBSUB_TOPIC_NAME, topic)
 
     if config.google_cloud_pubsub.distributed_tracing_enabled:
         # publish(**attrs) passes extra kwargs as Pub/Sub message attributes.
@@ -1509,6 +1458,7 @@ def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
         ctx.get_item("project_id"),
         ctx.get_item("subscription_id"),
         message.message_id,
+        ctx.get_item("subscription_path"),
     )
 
     propagated_context = ctx.get_item("propagated_context")
@@ -1884,10 +1834,6 @@ def listen():
     core.on("botocore.stepfunctions.update_input", _on_botocore_patched_stepfunctions_update_input)
     core.on("botocore.eventbridge.update_messages", _on_botocore_update_messages)
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
-    core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
-    core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
-    core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
-    core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
@@ -1923,9 +1869,6 @@ def listen():
     core.on("inferred_proxy.start", _on_inferred_proxy_start)
     core.on("inferred_proxy.finish", _on_inferred_proxy_finish)
 
-    core.on("test_visibility.enable", _on_test_visibility_enable)
-    core.on("test_visibility.disable", _on_test_visibility_disable)
-    core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
@@ -1977,7 +1920,6 @@ def listen():
         "botocore.patched_kinesis_api_call",
         "botocore.patched_sqs_api_call",
         "botocore.patched_stepfunctions_api_call",
-        "botocore.patched_bedrock_api_call",
         "redis.command",
         "redis.execute_pipeline",
         "valkey.command",

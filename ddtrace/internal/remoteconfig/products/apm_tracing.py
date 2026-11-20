@@ -7,6 +7,7 @@ from ddtrace.internal.core.event_hub import on
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.native import RemoteConfigProduct
+from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 
@@ -21,12 +22,12 @@ APMCapabilities = (RemoteConfigCapabilities.ApmTracingMulticonfig,)
 
 
 def config_key(payload: Payload) -> int:
-    content = t.cast(dict, payload.content)
+    content = t.cast(dict[str, t.Any], payload.content)
 
-    service_target = t.cast(t.Optional[dict], content.get("service_target"))
+    service_target = t.cast(t.Optional[dict[str, t.Any]], content.get("service_target"))
     service = t.cast(str, service_target.get("service")) if service_target is not None else None
     env = t.cast(str, service_target.get("env")) if service_target is not None else None
-    cluster_target = t.cast(t.Optional[dict], content.get("k8s_target_v2"))
+    cluster_target = t.cast(t.Optional[dict[str, t.Any]], content.get("k8s_target_v2"))
 
     # Precedence ordering goes from most specific to least specific:
     # 1. Service, 2. Env, 3. Cluster target, 4. Wildcard `*`
@@ -48,8 +49,8 @@ def is_well_formed(content: t.Any) -> bool:
 
 
 def targets_this_process(payload: Payload) -> bool:
-    content = t.cast(dict, payload.content)
-    service_target = t.cast(t.Optional[dict], content.get("service_target"))
+    content = t.cast(dict[str, t.Any], payload.content)
+    service_target = t.cast(t.Optional[dict[str, t.Any]], content.get("service_target"))
     service = t.cast(str, service_target.get("service")) if service_target is not None else None
     env = t.cast(str, service_target.get("env")) if service_target is not None else None
 
@@ -77,7 +78,7 @@ class APMTracingCallback(RCCallback):
         self._config_map: dict[str, Payload] = {}
 
     @staticmethod
-    def _get_chained_lib_config(config_map: t.Mapping[str, Payload]) -> t.ChainMap:
+    def _get_chained_lib_config(config_map: t.Mapping[str, Payload]) -> t.ChainMap[str, t.Any]:
         """Get merged library configuration from all configs, ordered by precedence."""
         # Higher config_key first; on ties, higher insertion index (newer) first.
         ordered = sorted(
@@ -86,16 +87,18 @@ class APMTracingCallback(RCCallback):
             reverse=True,
         )
         lib_configs = [
-            t.cast(dict, p.content["lib_config"])
+            t.cast(dict[str, t.Any], p.content["lib_config"])
             for _, p in ordered
             if p.content is not None and "lib_config" in p.content
         ]
         return ChainMap(*lib_configs)
 
-    def _process_payloads(self, payloads: t.Sequence[Payload]) -> t.ChainMap:
+    def _process_payloads(self, payloads: t.Sequence[Payload]) -> t.ChainMap[str, t.Any]:
         config_map = self._config_map
         for payload in payloads:
-            if payload.metadata is None:
+            # Retain validation for malformed payloads supplied by callback callers.
+            metadata = t.cast(t.Optional[ConfigMetadata], payload.metadata)
+            if metadata is None:
                 log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
                 continue
 
@@ -131,15 +134,15 @@ class APMTracingCallback(RCCallback):
         dispatch("apm-tracing.rc", (dict(chain), config))
 
 
-def post_preload():
+def post_preload() -> None:
     pass
 
 
 def enabled() -> bool:
-    return config._remote_config_enabled
+    return t.cast(bool, config._remote_config_enabled)
 
 
-def start():
+def start() -> None:
     from ddtrace.internal.products import manager
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
@@ -158,11 +161,11 @@ def start():
             on("apm-tracing.rc", rc_handler, name)
 
 
-def restart(join=False):
+def restart(join: bool = False) -> None:
     pass
 
 
-def stop(join=False):
+def stop(join: bool = False) -> None:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     remoteconfig_poller.unregister_callback(RemoteConfigProduct.ApmTracing)

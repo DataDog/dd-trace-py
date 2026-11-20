@@ -1041,14 +1041,11 @@ def _openai_parse_input_response_messages(
 
                     content_part_type = _get_attr(content_part, "type", None)
                     if content_part_type == INPUT_TYPE_IMAGE:
-                        raw_url = _get_attr(content_part, "image_url", None)
-                        # Unwrap the chat-shaped nested object too: the SDK does not enforce
-                        # the Responses shape at runtime and a dict here would leak inline.
-                        image_part, marker = _capture_inline_image(_get_attr(raw_url, "url", None) or raw_url)
+                        image_part, image_text = _openai_image_part(content_part)
                         if image_part:
                             image_parts.append(image_part)
                         else:
-                            processed_item_content += marker or _extract_image_reference(content_part)
+                            processed_item_content += image_text
                     elif content_part_type == INPUT_TYPE_FILE:
                         processed_item_content += _extract_file_reference(content_part)
             else:
@@ -1290,6 +1287,19 @@ def _extract_image_reference(obj: Any) -> str:
     return reference
 
 
+def _openai_image_part(part: Any) -> tuple[Optional[ImagePart], str]:
+    """Image part for an OpenAI input_image part, and the text that stands for it: a marker, or the image URL.
+
+    The chat-shaped nested image_url.url is unwrapped too: the SDK does not enforce the string shape at runtime, and a
+    dict here would leak the payload inline.
+    """
+    url = _get_attr(part, "image_url", None)
+    image_part, marker = _capture_inline_image(_get_attr(url, "url", None) or url)
+    if image_part:
+        return image_part, IMAGE_DETECTED_MARKER
+    return None, marker or _extract_image_reference(part)
+
+
 def _extract_file_reference(obj: Any) -> str:
     """Extract file reference with fallback priority: file_url → file_id → filename → [file]."""
     return (
@@ -1474,31 +1484,64 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
+OPENAI_DECISION_REQUEST_KEYS = (
+    "model",
+    "input",
+    "questions",
+    "prompt_cache_key",
+    "prompt_cache_options",
+    "safety_identifier",
+)
+
+
 def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
-    """Extract input, questions, and answers from a decisions api call."""
-    metadata: dict[str, Any] = {}
-    questions = kwargs.get("questions")
-    if isinstance(questions, (list, tuple)):
-        metadata["questions"] = [load_data_value(q) for q in questions]
-    _annotate_llmobs_span_data(
-        span,
-        input_messages=openai_get_input_messages_from_response_input(kwargs.get("input")),
-        metadata=metadata,
+    """Record the decisions request body as the input and the response body, without usage, as the output.
+
+    The questions decide what the model answers, so they stay with the input instead of in metadata. Inline images are
+    captured as image parts and replaced in the body by a marker. Only known request fields are taken from extra_body,
+    since its other fields can carry credentials.
+    """
+    extra_body = kwargs.get("extra_body")
+    sources = (kwargs, extra_body) if isinstance(extra_body, dict) else (kwargs,)
+    body = {}
+    for source in sources:
+        body.update(
+            {k: v for k, v in source.items() if k in OPENAI_DECISION_REQUEST_KEYS and not _is_openai_sentinel(v)}
+        )
+    image_parts: list[ImagePart] = []
+    input_message = Message(
+        role="user", content=safe_json(_openai_decision_body(load_data_value(body), image_parts)) or ""
     )
+    if image_parts:
+        input_message["image_parts"] = image_parts
+    _annotate_llmobs_span_data(span, input_messages=[input_message])
     if not response:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
-    answers = [_openai_decision_answer_to_dict(answer) for answer in _get_attr(response, "answers", None) or []]
-    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(answers) or "")])
+    if hasattr(response, "model_dump"):
+        output = response.model_dump(mode="json", exclude_unset=True)
+    else:
+        output = load_data_value(response)
+    if isinstance(output, dict):
+        output.pop("usage", None)
+    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(output) or "")])
 
 
-def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
-    if hasattr(answer, "model_dump"):
-        return answer.model_dump(mode="json", exclude_none=True)
-    if isinstance(answer, dict):
-        return {k: v for k, v in answer.items() if v is not None}
-    return {}
+def _openai_decision_body(value: Any, image_parts: list[ImagePart]) -> Any:
+    """Replace inline images in input_image parts with a marker; input_json data is caller data, so it is kept as is."""
+    if isinstance(value, dict):
+        if value.get("type") == "input_json":
+            return value
+        if value.get("type") == "input_image":
+            image_part, image_text = _openai_image_part(value)
+            if image_part:
+                image_parts.append(image_part)
+            return {**value, "image_url": image_text}
+        return {k: _openai_decision_body(v, image_parts) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_openai_decision_body(v, image_parts) for v in value]
+    return value
 
 
 # OpenAI hosted MCP tool fields that carry no credential; headers, authorization and the URL path,
@@ -1595,18 +1638,6 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
             tool_definition["schema"] = {}
         tool_definitions.append(tool_definition)
     return tool_definitions
-
-
-def openai_construct_completion_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, str]:
-    """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
-    if not streamed_chunks:
-        return {"text": ""}
-    completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
-    if getattr(streamed_chunks[-1], "finish_reason", None):
-        completion["finish_reason"] = streamed_chunks[-1].finish_reason
-    if hasattr(streamed_chunks[0], "usage"):
-        completion["usage"] = streamed_chunks[0].usage
-    return completion
 
 
 class OaiSpanAdapter:
