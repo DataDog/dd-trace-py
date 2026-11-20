@@ -1,4 +1,0 @@
----
-other:
-  - |
-    tracing: The native trace buffer is now the default trace writer. Set ``_DD_TRACE_NATIVE_BUFFER_ENABLED=false`` to use the previous writer.
