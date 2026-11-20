@@ -3902,7 +3902,7 @@ class LLMObs(Service):
             span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
         # Kept local for the baggage below: span_context._meta is shared by the whole APM trace, so
         # reading it back can return another LLMObs trace's decision.
-        decision = sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
+        decision: Optional[str] = getattr(sampling_decision, "value", sampling_decision)
         if decision is not None:
             span_context._meta[PROPAGATED_SAMPLING_DECISION] = decision
 
