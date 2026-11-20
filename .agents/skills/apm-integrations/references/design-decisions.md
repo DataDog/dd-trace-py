@@ -92,6 +92,15 @@ Set response classification before fallible header collection; header failures m
 discard a known status or alter its error classification.
 Completion stays at the synchronous route callback boundary, before response iteration.
 
+By default, WebFrameworkRequestSubscriber tags request metadata only when the request ends.
+Products that read it while the handler runs, such as AI Guard's client IP and anomaly-detection
+tags, then see nothing. An integration opts into request-start tagging by setting
+`tag_request_on_start=True` and passing the connection's `peer_ip` (aiohttp uses
+`request.remote`). The subscriber then calls `set_http_meta` with the request headers and the
+peer IP when the span starts, and leaves both out of the end-of-request call. With AppSec
+enabled, its own request-start call runs afterwards and replaces the request headers it records
+with its cookie-free copy before the WAF runs.
+
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,

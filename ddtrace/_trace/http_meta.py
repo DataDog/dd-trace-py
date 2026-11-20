@@ -51,6 +51,7 @@ IP_PATTERNS = (
     "cf-connecting-ip",
     "cf-connecting-ipv6",
 )
+_IP_HEADERS = frozenset(IP_PATTERNS)
 
 
 # Possible User Agent header.
@@ -215,6 +216,15 @@ def _parse_ip_header(ip_header_value: str) -> str:
     return ""
 
 
+def _join_header_lines(headers: Mapping[str, str], names: frozenset[str]) -> dict[str, str]:
+    joined: dict[str, str] = {}
+    for key, value in headers.items():
+        field = key.lower()
+        if field.replace("_", "-") in names:
+            joined[field] = f"{joined[field]}, {value}" if field in joined else value
+    return joined
+
+
 def _get_request_header_client_ip(
     headers: Optional[Mapping[str, str]], peer_ip: Optional[str] = None, headers_are_case_sensitive: bool = False
 ) -> Optional[str]:
@@ -229,7 +239,7 @@ def _get_request_header_client_ip(
         if not headers_are_case_sensitive:
             return headers.get(key)
 
-        return _get_header_value_case_insensitive(headers, key)
+        return _get_header_value_case_insensitive(_join_header_lines(headers, frozenset((key,))), key)
 
     ip_header_value: Optional[str] = ""
     user_configured_ip_header = config._client_ip_header
@@ -252,10 +262,10 @@ def _get_request_header_client_ip(
 
     else:
         if headers_are_case_sensitive:
-            new_headers = {k.lower().replace("_", "-"): v for k, v in headers.items()}
+            ip_headers = {k.replace("_", "-"): v for k, v in _join_header_lines(headers, _IP_HEADERS).items()}
             for ip_header in IP_PATTERNS:
-                if ip_header in new_headers:
-                    ip_header_value = new_headers[ip_header]
+                if ip_header in ip_headers:
+                    ip_header_value = ip_headers[ip_header]
                     break
         else:
             for ip_header in IP_PATTERNS:

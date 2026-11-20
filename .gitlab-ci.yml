@@ -877,6 +877,8 @@ lib_injection_tests:
   after_script:
     - |
       if ls native-junit/*.xml >/dev/null 2>&1; then
+        # Source file per testcase, for test.source.file and code owners in Test Optimization
+        python3 .gitlab/scripts/junit-add-source-file.py native-junit ddtrace/internal/datadog/profiling || echo "Adding source files failed (ignored)"
         DD_API_KEY=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab" | python3 -c 'import json, sys; print(json.load(sys.stdin)["api_key"])') && export DD_API_KEY
         curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o /tmp/datadog-ci https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64 && chmod +x /tmp/datadog-ci
         /tmp/datadog-ci junit upload --service dd-trace-py --env ci native-junit/ || echo "JUnit upload failed (ignored)"

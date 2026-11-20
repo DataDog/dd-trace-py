@@ -18,12 +18,14 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.http_meta import _IP_HEADERS  # noqa:F401
 from ddtrace._trace.http_meta import IP_PATTERNS  # noqa:F401
 from ddtrace._trace.http_meta import NORMALIZE_PATTERN  # noqa:F401
 from ddtrace._trace.http_meta import REQUEST  # noqa:F401
 from ddtrace._trace.http_meta import RESPONSE  # noqa:F401
 from ddtrace._trace.http_meta import _get_request_header_client_ip  # noqa:F401
 from ddtrace._trace.http_meta import _get_request_header_referrer_host  # noqa:F401
+from ddtrace._trace.http_meta import _join_header_lines  # noqa:F401
 from ddtrace._trace.http_meta import _parse_ip_header  # noqa:F401
 from ddtrace._trace.http_meta import _sanitized_url  # noqa:F401
 from ddtrace._trace.http_meta import _set_http_meta  # noqa:F401
