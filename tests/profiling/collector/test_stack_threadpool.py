@@ -50,7 +50,7 @@ def test_link_span_plain_context_uses_span_id_as_local_root(monkeypatch: pytest.
     collector = stack.StackCollector(tracer=tracer)
     collector._link_span(tracer.context_provider, ctx)
 
-    assert calls == [(456, 456, None)]
+    assert calls == [(456, 456, None, 0)]
 
 
 def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, tracer: Tracer) -> None:
@@ -67,7 +67,7 @@ def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, 
     collector = stack.StackCollector(tracer=tracer)
     collector._link_span(tracer.context_provider, ctx)
 
-    assert calls == [(456, 789, "web")]
+    assert calls == [(456, 789, "web", 0)]
 
 
 def _get_threadpool_samples(profile: pprof_pb2.Profile) -> list[Sample]:

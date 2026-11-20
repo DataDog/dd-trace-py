@@ -3,9 +3,6 @@ import sys
 import pytest
 
 
-@pytest.mark.xfail(
-    strict=True, reason="task_a samples get task_b's endpoint: span labels are tracked per thread, not per task"
-)
 @pytest.mark.subprocess(
     env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_asyncio_task_endpoints",
@@ -79,6 +76,107 @@ def test_stack_keeps_asyncio_task_endpoints_separate() -> None:
         assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in samples)
         assert all(pprof_utils.get_num_label(profile, sample, "span id") == span_id for sample in samples)
         assert all(pprof_utils.get_num_label(profile, sample, "local root span id") == span_id for sample in samples)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_asyncio_child_task_creator_span",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_keeps_creator_span_for_asyncio_child_task_without_own_span() -> None:
+    """Label a child task that activates no span of its own with the span its creator activated."""
+    import asyncio
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    endpoint = "creator-task-endpoint"
+    span_ids: dict[str, int] = {}
+
+    def child_task_work() -> None:
+        deadline = time.thread_time_ns() + 500_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    async def child_task() -> None:
+        child_task_work()
+
+    # The creator activates its span inside its own task, and the child never activates one.
+    async def creator_task() -> None:
+        with tracer.trace("creator.task.request", resource=endpoint, span_type=ext.SpanTypes.WEB) as span:
+            span_ids["creator"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
+            await asyncio.create_task(child_task(), name="child-task")
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    asyncio.run(creator_task())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    child_task_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "child_task_work")
+
+    assert child_task_samples
+    assert all(
+        pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in child_task_samples
+    )
+    assert all(
+        pprof_utils.get_num_label(profile, sample, "span id") == span_ids["creator"] for sample in child_task_samples
+    )
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_asyncio_task_cleared_context",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_drops_asyncio_task_span_after_task_activates_no_context() -> None:
+    """Stop labeling a task with its span once the task activates no context, as for a thread."""
+    import asyncio
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    def task_work() -> None:
+        deadline = time.thread_time_ns() + 500_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    # The span stays open, but the task no longer has an active context while it works.
+    async def task() -> None:
+        with tracer.trace("cleared.task.request", resource="cleared-task-endpoint", span_type=ext.SpanTypes.WEB):
+            tracer.context_provider.activate(None)
+            task_work()
+
+    async def main() -> None:
+        await asyncio.create_task(task(), name="cleared-context-task")
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    asyncio.run(main())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    task_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "task_work")
+
+    assert task_samples
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in task_samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in task_samples)
 
 
 @pytest.mark.xfail(

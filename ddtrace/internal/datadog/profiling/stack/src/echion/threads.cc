@@ -866,7 +866,10 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
         for (auto& task_stack_info : current_tasks) {
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
                 renderer.render_task_begin(
-                  task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
+                  task_name,
+                  task_stack_info->on_cpu,
+                  Datadog::SpanLinkKey{ Datadog::SpanLinkDomain::AsyncioTask, task_stack_info->task_id },
+                  task_stack_info->walltime_ns);
             });
 
             task_stack_info->stack.render(echion, TruncationStatus::Unknown);
@@ -877,7 +880,10 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
                 renderer.render_task_begin(
-                  task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, greenlet_stack->walltime_ns);
+                  task_name,
+                  greenlet_stack->on_cpu,
+                  Datadog::SpanLinkKey{ Datadog::SpanLinkDomain::Greenlet, greenlet_stack->task_id },
+                  greenlet_stack->walltime_ns);
             });
 
             auto& stack = greenlet_stack->stack;
@@ -886,6 +892,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
             renderer.render_stack_end();
         }
     } else {
+        renderer.render_thread_span();
         python_stack.render(echion, python_stack_unwind_result.truncation);
         renderer.render_stack_end();
     }
