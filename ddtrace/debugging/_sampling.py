@@ -6,9 +6,13 @@ shared by every probe in it, so a chain arrives whole or not at all. Each probe
 captures at most once per context.
 
 Signals check twice: a cheap gate before the condition, and atomic admission
-right before capture. The first capture admits the context against a global rate
-limit; every later capture is charged, possibly into deficit, so new contexts
-are turned away until it is repaid. A rejected context stays rejected.
+right before capture. The first capture decides the context: it is admitted only
+if the capturing probe is within its own rate and the global rate limit has
+room, so that a probe firing in many concurrent contexts cannot take the whole
+global budget for itself. Otherwise it is rejected, so that no later probe can
+admit it with a hole where the first capture should have been. Every later
+capture is charged, possibly into deficit, so new contexts are turned away until
+it is repaid. A rejected context stays rejected.
 
 Outside of any context, firings are admitted individually and also held to the
 probe's own rate. Unsampled probes (no snapshot, exception replay, code origin)
@@ -27,33 +31,42 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.rate_limiter import limit_all
 
 
 class Decision(str, Enum):
     """Outcome of sampling a single probe firing."""
 
     FIRE = "FIRE"
-    # The sampling context was rejected, there is no budget left to admit it,
-    # or the sampler is stopped.
+    # There is no global budget left to admit the firing or its sampling
+    # context, or the sampler is stopped.
     DROP_SAMPLED = "DROP_SAMPLED"
+    # The sampling context was rejected by an earlier firing in it, which
+    # reported why.
+    DROP_REJECTED = "DROP_REJECTED"
     # The probe already captured in this sampling context.
     DROP_CAPPED = "DROP_CAPPED"
-    # The probe is over its own rate: it is not sampled, or it fired outside of
-    # any sampling context.
+    # The probe is over its own rate: it is not sampled, it fired outside of
+    # any sampling context, or it was the first to capture in one after
+    # spending its rate on others, and so the context is rejected.
     DROP_RATE = "DROP_RATE"
 
 
 log = get_logger(__name__)
 
 
-# Makes admission atomic. A context is usually only active on the thread that
-# started it, but copying the execution context into another thread (e.g.
-# asyncio.to_thread) shares it, so the decision and the per-probe cap need
-# guarding. Outside of any context, it lets admission check both the global and
-# the probe limiter before charging either, as they are only charged under it.
-# Only held briefly, at capture time. Nothing that can call back into
-# application code (e.g. logging) may run while it is held, or a probe there
-# could deadlock against it.
+# Makes admission within a context atomic. A context is usually only active on
+# the thread that started it, but copying the execution context into another
+# thread (e.g. asyncio.to_thread) shares it, so the decision and the per-probe
+# cap need guarding. Taken on application threads, at the gate to reject a
+# context and at admission, so it is fork-safe, and only ever held briefly.
+#
+# It is not re-entrant, so a probe firing on a thread that already holds it
+# deadlocks. Nothing called while it is held may therefore reach application
+# code, e.g. logging, whose handlers may be the application's. The interpreter
+# can still run application code under it, e.g. a GC finalizer or a signal
+# handler, so a probe there would deadlock. That residual hazard is rare and
+# needs a re-entrancy guard to close.
 _context_lock = forksafe.Lock()
 
 
@@ -125,6 +138,16 @@ class TraceContext(SamplingContext):
         self._root._set_ctx_item(self._KEYS[name], value)
 
 
+def _limiters(probe: Probe, limiter: RateLimiter) -> tuple[RateLimiter, ...]:
+    """The limiters a sampled probe firing is admitted against, in order.
+
+    The probe's own rate comes first, so that a firing turned away by it never
+    spends a token of the global budget.
+    """
+    own = getattr(probe, "limiter", None)
+    return (own, limiter) if own is not None else (limiter,)
+
+
 def _over_rate(probe: Probe, peek: bool) -> bool:
     """Whether the probe is over its own rate limit, charging it unless peeking."""
     limiter = getattr(probe, "limiter", None)
@@ -142,10 +165,13 @@ class DebuggerSampler:
     part in coordinated sampling may fire. Probes that do not take part are only
     ever held to their own rate limit, stopped or not.
 
-    The decision is taken once per sampling context, by admitting it against a
-    global rate limit at its first capture, and shared by every probe firing
-    within it. On top of that, each probe captures at most once per context, so
-    that one probe in a loop cannot crowd out the probes around it.
+    The decision is taken once per sampling context, at its first capture, and
+    shared by every probe firing within it. The context is admitted against the
+    capturing probe's own rate and the global rate limit, so that the contexts
+    sharing the global budget are not all admitted by the same probe, and is
+    rejected if either refuses. On top of that, each probe captures at most
+    once per context, so that one probe in a loop cannot crowd out the probes
+    around it.
     """
 
     _tracer: t.Optional[t.Any] = None
@@ -160,8 +186,9 @@ class DebuggerSampler:
         rate limit reads the current config.
         """
         cls._tracer = ddtrace.tracer
-        # No on_exceed callback: it would run under the context lock. Exceeding
-        # the limit is logged by _exceeded once the lock is released instead.
+        # No on_exceed callback: admission goes through limit_all, which never
+        # calls it. Exceeding either limit is logged by _reported instead, once
+        # the context lock is released.
         cls._limiter = RateLimiter(
             limit_rate=di_config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
             raise_on_exceed=False,
@@ -172,10 +199,28 @@ class DebuggerSampler:
         cls._tracer = cls._limiter = None
 
     @classmethod
-    def _exceeded(cls) -> Decision:
-        """Report a firing turned away by the global rate limit."""
-        cls._log_limiter.limit(log.debug, "Global rate limit exceeded")
-        return Decision.DROP_SAMPLED
+    def _limit(cls, probe: Probe, limiter: RateLimiter, peek: bool) -> Decision:
+        """Hold a sampled probe firing to its own rate and the global rate limit.
+
+        Both are charged, unless peeking, or neither is.
+        """
+        refused = limit_all(*_limiters(probe, limiter), peek=peek)
+        if refused is None:
+            return Decision.FIRE
+        return Decision.DROP_SAMPLED if refused is limiter else Decision.DROP_RATE
+
+    @classmethod
+    def _reported(cls, probe: Probe, decision: Decision) -> Decision:
+        """Report a sampled probe firing freshly turned away by a rate limit.
+
+        Must be called outside the context lock, as logging may call into
+        application code.
+        """
+        if decision is Decision.DROP_SAMPLED:
+            cls._log_limiter.limit(log.debug, "Global rate limit exceeded")
+        elif decision is Decision.DROP_RATE:
+            cls._log_limiter.limit(log.debug, "Rate limit exceeded for probe %s", probe.probe_id)
+        return decision
 
     @classmethod
     def _context(cls) -> t.Optional[SamplingContext]:
@@ -196,6 +241,11 @@ class DebuggerSampler:
         one thing recorded here is the rejection of a context that finds the
         budget already spent, so that it is not admitted halfway through once
         the budget is repaid.
+
+        A probe over its own rate is not turned away from an undecided context
+        here: that would reject the context, or leave it to another probe to
+        admit without this one, before knowing whether its condition matches.
+        Admission decides once it does.
         """
         limiter = cls._limiter
         sampled = probe.is_sampled()
@@ -212,9 +262,7 @@ class DebuggerSampler:
 
         context = cls._context()
         if context is None:
-            if not limiter.has_budget():
-                return Decision.DROP_SAMPLED
-            return Decision.DROP_RATE if _over_rate(probe, peek=True) else Decision.FIRE
+            return cls._limit(probe, limiter, peek=True)
 
         # Only an undecided context with no budget is written to here, so the
         # common path takes no lock. A decision is never changed once taken, so
@@ -223,10 +271,13 @@ class DebuggerSampler:
             with _context_lock:
                 # Check again: another thread may have admitted the context, or
                 # the budget may have been replenished, meanwhile.
-                if not context.decided and not limiter.has_budget():
+                rejecting = not context.decided and not limiter.has_budget()
+                if rejecting:
                     context.reject()
+            if rejecting:
+                return cls._reported(probe, Decision.DROP_SAMPLED)
         if context.rejected:
-            return Decision.DROP_SAMPLED
+            return Decision.DROP_REJECTED
 
         return Decision.DROP_CAPPED if context.captured(probe) else Decision.FIRE
 
@@ -234,8 +285,12 @@ class DebuggerSampler:
     def admit(cls, probe: Probe) -> Decision:
         """Admit a probe firing whose condition has matched, right before capture.
 
-        The first capture in a sampling context admits the context, atomically,
-        against the global rate limit. Every later capture in an admitted
+        The first capture in a sampling context decides the context, atomically:
+        it is admitted if the probe is within its own rate and the global rate
+        limit has room, and rejected otherwise. The firing that rejects it is
+        told which limit refused, and every later one that the context was
+        rejected, so that each drop is reported once against its cause. Every
+        later capture in an admitted
         context is charged unconditionally, so a context that overshoots puts
         the budget into deficit, and new contexts are turned away until it is
         repaid. A probe that already captured in the context is turned away.
@@ -259,37 +314,26 @@ class DebuggerSampler:
 
         context = cls._context()
         if context is None:
-            with _context_lock:
-                # Both limiters are only ever charged under this lock, and
-                # peeking only adds to their budget. So once both are seen to
-                # have budget, charging them cannot fail, and a firing turned
-                # away by one never spends a token of the other.
-                if _over_rate(probe, peek=True):
-                    return Decision.DROP_RATE
-                admitted = limiter.has_budget()
-                if admitted:
-                    _over_rate(probe, peek=False)
-                    limiter.limit()
-            # Logged outside the lock, as logging may call into application code.
-            return Decision.FIRE if admitted else cls._exceeded()
+            return cls._reported(probe, cls._limit(probe, limiter, peek=False))
 
         with _context_lock:
             if context.captured(probe):
                 return Decision.DROP_CAPPED
 
             if context.rejected:
-                return Decision.DROP_SAMPLED
+                return Decision.DROP_REJECTED
 
             if context.accepted:
                 limiter.consume()
-            elif limiter.limit() is not RateLimitExceeded:
-                context.accept()
+                decision = Decision.FIRE
             else:
-                context.reject()
+                decision = cls._limit(probe, limiter, peek=False)
+                if decision is Decision.FIRE:
+                    context.accept()
+                else:
+                    context.reject()
 
-            if context.accepted:
+            if decision is Decision.FIRE:
                 context.capture(probe)
-                return Decision.FIRE
 
-        # Logged outside the lock, as logging may call into application code.
-        return cls._exceeded()
+        return cls._reported(probe, decision)

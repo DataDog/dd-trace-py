@@ -1,3 +1,6 @@
+import sys
+from threading import Barrier
+from threading import Thread
 import time
 from unittest import mock
 
@@ -6,6 +9,7 @@ import pytest
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.rate_limiter import limit_all
 
 
 def nanoseconds(x, time_window):
@@ -357,3 +361,97 @@ def test_rate_limiter_has_budget_agrees_with_limit(jitter, expected):
         with mock.patch("ddtrace.internal.rate_limiter.random.random", return_value=0.999999):
             assert limiter.has_budget() is expected
             assert (limiter.limit() is not RateLimitExceeded) is expected
+
+
+def _tokens(n):
+    """A limiter holding n tokens that are never replenished."""
+    limiter = BudgetRateLimiterWithJitter(limit_rate=0.0, raise_on_exceed=False)
+    limiter.budget = float(n)
+    return limiter
+
+
+def test_limit_all_charges_every_limiter():
+    first, second = _tokens(1), _tokens(1)
+
+    assert limit_all(first, second) is None
+
+    assert first.has_budget() is False
+    assert second.has_budget() is False
+
+
+@pytest.mark.parametrize("refusing", [0, 1])
+def test_limit_all_refusal_charges_none(refusing):
+    limiters = [_tokens(1), _tokens(1)]
+    limiters[refusing].budget = 0.0
+
+    assert limit_all(*limiters) is limiters[refusing]
+
+    other = limiters[1 - refusing]
+    assert other.has_budget() is True
+
+
+def test_limit_all_reports_the_first_refusal_in_order():
+    first, second = _tokens(0), _tokens(0)
+
+    assert limit_all(first, second) is first
+    assert limit_all(second, first) is second
+
+
+def test_limit_all_peek_does_not_charge():
+    first, second = _tokens(1), _tokens(1)
+
+    assert limit_all(first, second, peek=True) is None
+    assert limit_all(first, second, peek=True) is None
+
+    assert first.has_budget() is True
+    assert second.has_budget() is True
+
+
+def test_limit_all_charges_a_repeated_limiter_once():
+    limiter = _tokens(1)
+
+    assert limit_all(limiter, limiter) is None
+    assert limiter.has_budget() is False
+
+
+def test_limit_all_neither_calls_back_nor_raises():
+    calls = []
+    limiter = BudgetRateLimiterWithJitter(limit_rate=0.0, on_exceed=lambda: calls.append(None))
+    limiter.budget = 0.0
+
+    assert limit_all(limiter) is limiter
+    assert calls == []
+
+
+def test_limit_all_is_atomic():
+    # Many threads race for the single token of a shared limiter, each paired
+    # with its own. Only one gets through, and only its own limiter is charged.
+    n = 16
+    shared = _tokens(1)
+    own = [_tokens(1) for _ in range(n)]
+    barrier = Barrier(n)
+    results = [None] * n
+
+    def race(i):
+        barrier.wait()
+        # Half the threads take the limiters in the opposite order, which must
+        # not deadlock.
+        results[i] = limit_all(own[i], shared) if i % 2 else limit_all(shared, own[i])
+
+    # Switch threads as often as possible, so that a check and a charge that
+    # were not atomic would be interleaved.
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        threads = [Thread(target=race, args=(i,)) for i in range(n)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(5)
+            assert not t.is_alive()
+    finally:
+        sys.setswitchinterval(interval)
+
+    winners = [i for i, refused in enumerate(results) if refused is None]
+    assert len(winners) == 1, results
+    assert [limiter.has_budget() for limiter in own] == [i not in winners for i in range(n)]

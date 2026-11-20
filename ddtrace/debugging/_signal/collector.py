@@ -88,6 +88,13 @@ class SignalCollector:
                 "events.skipped",
                 tags={"reason": "rateLimitProbe", "event_type": _event_type(signal)},
             )
+        elif signal.state is SignalState.SKIP_REJECTED:
+            # The trace was rejected by an earlier probe firing in it, which was
+            # reported against the limit that refused it.
+            guardrails_meter.increment(
+                "events.skipped",
+                tags={"reason": "traceNotSampled", "event_type": _event_type(signal)},
+            )
         elif signal.state is SignalState.SKIP_BUDGET or signal.state is SignalState.SKIP_CAPPED:
             # Both a session's per-probe budget and the coordinated sampling cap
             # of one snapshot per probe per trace are invocation budgets.
