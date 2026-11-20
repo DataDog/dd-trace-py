@@ -3538,9 +3538,11 @@ class LLMObs(Service):
         With multiple routing destinations, ``False`` can mean some destinations
         accepted the observation; retrying the same conversation does not add charges.
         Queue acceptance does not acknowledge delivery. Delivery, conflicting amounts,
-        and expiration are handled asynchronously. Delivery and missing-value updates
-        are supported for 24 hours after the first known total is accepted, including
-        when the initial billing arrives after the conversation ends.
+        and expiration are handled asynchronously. Missing-value updates are supported
+        for 24 hours after the first known total is accepted; exact retries do not reset
+        that window. Initial metric delivery has a shorter deadline of 3 hours and
+        55 minutes. Expired or uncertain delivery remains pending without automatic
+        backfill. Late initial reports start their window at acceptance.
         """
         if not cls.enabled:
             return False

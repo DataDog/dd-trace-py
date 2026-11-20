@@ -6,6 +6,8 @@ from typing import cast
 
 from ddtrace import config
 from ddtrace.internal.native._native import Context
+from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._context import _DD_LLMOBS_CONTEXTVAR
 from ddtrace.llmobs._integration_api import get_llmobs_service
 from ddtrace.llmobs._integration_api import is_enabled
@@ -107,9 +109,12 @@ class ElevenLabsIntegration(BaseLLMIntegration):
 def create_conversation_state(instance: Any, parent: Any) -> Optional[ConversationState]:
     if not is_enabled():
         return None
-    return ConversationState(
-        ElevenLabsIntegration(config.elevenlabs),
-        instance,
-        parent,
-        billing_ml_app=resolve_ml_app() if config.elevenlabs.conversation_cost_enabled else None,
-    )
+    ml_app = None
+    if config.elevenlabs.conversation_cost_enabled:
+        if isinstance(parent, Context):
+            parent_context = parent
+            ml_app = parent_context._meta.get(PROPAGATED_ML_APP_KEY)
+        elif parent is not None:
+            ml_app = parent._get_ctx_item(ML_APP)
+        ml_app = resolve_ml_app(ml_app)
+    return ConversationState(ElevenLabsIntegration(config.elevenlabs), instance, parent, billing_ml_app=ml_app)

@@ -36,6 +36,15 @@ def collect_conversation_cost(
     conversations = getattr(getattr(client, "conversational_ai", None), "conversations", None)
     if conversations is None or not callable(getattr(conversations, "get", None)):
         return
+    instance = getattr(get_llmobs_service(), "_instance", None)
+    if instance is None:
+        return
+    writer = instance._llmobs_span_writer
+
+    def enabled() -> bool:
+        current = getattr(get_llmobs_service(), "_instance", None)
+        return bool(_enabled() and current is instance and current._llmobs_span_writer is writer)
+
     key = (id(client), conversation_id)
     with _lock:
         if key in _active or len(_active) >= _MAX_ACTIVE:
@@ -50,7 +59,7 @@ def collect_conversation_cost(
         try:
             for attempt in range(_MAX_ATTEMPTS):
                 time.sleep(min(2**attempt, 12, max(0, deadline - time.monotonic())))
-                if not _enabled() or time.monotonic() >= deadline:
+                if not enabled() or time.monotonic() >= deadline:
                     return
                 try:
                     # Both SDK Conversation and AsyncConversation accept BaseElevenLabs,
@@ -59,7 +68,7 @@ def collect_conversation_cost(
                         conversation_id,
                         request_options={"max_retries": 0, "timeout_in_seconds": min(3, deadline - time.monotonic())},
                     )
-                    if not _enabled():
+                    if not enabled() or time.monotonic() >= deadline:
                         return
                     event = build_conversation_cost_event(response, ml_app, service=service, env=env, version=version)
                     del response
@@ -67,10 +76,7 @@ def collect_conversation_cost(
                         continue
                     if event["session_id"] != conversation_id:
                         return
-                    instance = getattr(get_llmobs_service(), "_instance", None)
-                    if instance is None:
-                        return
-                    submitted = instance._llmobs_span_writer.enqueue(event, targets=targets)
+                    submitted = writer.enqueue(event, targets=targets)
                     amounts = event["meta"]["metadata"]["provider_cost"]["amounts"]
                     if submitted and all(name in amounts for name in ("total", "llm", "platform")):
                         return

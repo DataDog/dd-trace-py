@@ -248,3 +248,62 @@ def test_auto_cost_application_is_captured_at_session_start(collector):
         state.close()
         collector.jobs.pop()()
     assert "ml_app:elevenlabs-tests" in collector.writer.enqueue.call_args.args[0]["tags"]
+
+
+@pytest.mark.parametrize("replace_during_request", [False, True])
+@pytest.mark.parametrize("replace_writer_only", [False, True])
+def test_auto_cost_does_not_cross_service_generations(
+    collector, monkeypatch, replace_during_request, replace_writer_only
+):
+    other_writer = mock.Mock()
+    replacement = SimpleNamespace(_llmobs_span_writer=other_writer)
+    with monkeypatch.context() as context:
+
+        def replace():
+            if replace_writer_only:
+                context.setattr(LLMObs._instance, "_llmobs_span_writer", other_writer)
+            else:
+                context.setattr(LLMObs, "_instance", replacement)
+
+        start(collector)
+        if replace_during_request:
+
+            def get(*args, **kwargs):
+                replace()
+                return completed()
+
+            collector.get.side_effect = get
+        else:
+            replace()
+        collector.jobs.pop()()
+    collector.writer.enqueue.assert_not_called()
+    other_writer.enqueue.assert_not_called()
+    assert collector.get.call_count == int(replace_during_request)
+
+
+@pytest.mark.parametrize("distributed", [False, True])
+def test_auto_cost_inherits_parent_application(collector, distributed):
+    from ddtrace.internal.native._native import Context
+    from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
+
+    with LLMObs.workflow(agent_service="voice-app") as workflow:
+        parent = Context(meta={PROPAGATED_ML_APP_KEY: "voice-app"}) if distributed else workflow
+        state = create_conversation_state(SimpleNamespace(client=collector.client, agent_id="agent"), parent)
+    assert state.billing_ml_app == "voice-app"
+    state.provider_conversation_id = "conv-test"
+    state.close()
+    collector.jobs.pop()()
+    assert "ml_app:voice-app" in collector.writer.enqueue.call_args.args[0]["tags"]
+
+
+def test_auto_cost_discards_a_response_after_its_deadline(collector):
+    def get(*args, **kwargs):
+        collector.now[0] += 31
+        return completed()
+
+    collector.get.side_effect = get
+    start(collector)
+    collector.jobs.pop()()
+    collector.get.assert_called_once()
+    collector.writer.enqueue.assert_not_called()
+    assert not billing._active
