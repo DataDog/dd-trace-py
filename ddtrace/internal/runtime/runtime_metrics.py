@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import itertools
 import sys
 from types import ModuleType
@@ -13,6 +14,7 @@ from typing import Union
 
 from ddtrace.internal import atexit
 from ddtrace.internal import core
+from ddtrace.internal import forksafe
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
 from ddtrace.internal.constants import RUNTIME_METRICS_ENABLED_KEY
 from ddtrace.internal.module import ModuleWatchdog
@@ -110,6 +112,28 @@ _OTLP_METRICS_EXPORTERS = {
     "http/protobuf": "opentelemetry-exporter-otlp-proto-http",
 }
 _OTLP_RUNTIME_METRICS_MODULE = "ddtrace.internal.runtime.otlp_runtime_metrics"
+
+
+# A forked child inherits the GC statistics of its parent, and reports those since the fork over OTLP. This module
+# records them, as the OTLP runtime metrics module is only loaded when OpenTelemetry is imported, possibly after the
+# fork, e.g. in the workers of a server that forks before loading the application.
+gc_stats_at_fork: list[dict[str, int]] = []
+_gc_stats_at_fork_recorded = False
+
+
+def _record_gc_stats_at_fork() -> None:
+    global gc_stats_at_fork
+
+    gc_stats_at_fork = gc.get_stats()
+
+
+def record_gc_stats_at_fork() -> None:
+    """Record the GC statistics when the process forks, for the OTLP runtime metrics of the child."""
+    global _gc_stats_at_fork_recorded
+
+    if not _gc_stats_at_fork_recorded:
+        forksafe.register(_record_gc_stats_at_fork)
+        _gc_stats_at_fork_recorded = True
 
 
 def _can_export_otlp_runtime_metrics() -> bool:
@@ -252,6 +276,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
             if config._otel_metrics_enabled and _can_export_otlp_runtime_metrics():
                 log.debug("Runtime metrics will be exported over OTLP once the application imports OpenTelemetry")
+                record_gc_stats_at_fork()
                 ModuleWatchdog.after_module_imported("opentelemetry")(_start_otlp_runtime_metrics)
                 cls._otlp = True
             else:

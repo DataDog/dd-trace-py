@@ -27,6 +27,7 @@ from ddtrace.internal.runtime import get_runtime_id
 
 from .. import forksafe
 from ..logger import get_logger
+from . import runtime_metrics
 from .metric_collectors import _ProcessMetrics
 
 
@@ -46,17 +47,13 @@ _instruments_created = False
 # continuing those of its parent.
 RUNTIME_ID_ATTRIBUTE = "datadog.runtime_id"
 
-# A forked child inherits the GC statistics of its parent: it reports those since the fork.
-_gc_stats_at_fork: list[dict[str, int]] = []
-
 # The time and the CPU time of the last measurement of the CPU utilization.
 _cpu_sample: Optional[tuple[float, float]] = None
 
 
 def _reset_after_fork() -> None:
-    global _gc_stats_at_fork, _cpu_sample
+    global _cpu_sample
 
-    _gc_stats_at_fork = gc.get_stats()
     # The next collection takes the first CPU sample of the child: fork hooks do no I/O.
     _cpu_sample = None
 
@@ -82,6 +79,7 @@ def start() -> None:
     """Start reporting the runtime metrics through the OpenTelemetry metrics API."""
     global _enabled, _instruments_created
 
+    runtime_metrics.record_gc_stats_at_fork()
     if not _instruments_created:
         _create_instruments(get_meter(METER_NAME))
         _instruments_created = True
@@ -173,7 +171,8 @@ def _gc_callback(stat: str) -> Callable[[CallbackOptions], list[Observation]]:
         if not _enabled:
             return []
         runtime_id = get_runtime_id()
-        at_fork = _gc_stats_at_fork
+        # A forked child reports the GC statistics since the fork.
+        at_fork = runtime_metrics.gc_stats_at_fork
         return [
             Observation(
                 row.get(stat, 0) - (at_fork[generation].get(stat, 0) if generation < len(at_fork) else 0),

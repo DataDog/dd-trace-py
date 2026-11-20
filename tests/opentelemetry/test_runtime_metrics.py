@@ -296,6 +296,56 @@ def test_runtime_metrics_counters_stay_monotonic_across_fork():
 
 
 @requires_exporter
+@pytest.mark.subprocess(ddtrace_run=True, env=OTLP_RUNTIME_METRICS_ENV)
+def test_runtime_metrics_gc_since_fork_when_opentelemetry_is_imported_after_the_fork():
+    import gc
+    import os
+    import warnings
+
+    # Like a server that forks its workers before loading the application, which imports OpenTelemetry.
+    parent_collections = 50
+    for _ in range(parent_collections):
+        gc.collect()
+
+    with warnings.catch_warnings():
+        # Python 3.12+ warns when a multi-threaded process forks.
+        warnings.simplefilter("ignore", DeprecationWarning)
+        pid = os.fork()
+    if pid == 0:
+        exit_code = 1
+        try:
+            from opentelemetry.metrics import get_meter_provider
+            from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+
+            from ddtrace.runtime import RuntimeMetrics
+            from tests.opentelemetry.utils import _capture_http_requests
+
+            with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
+                flushed = get_meter_provider().force_flush()
+            RuntimeMetrics.disable()
+            full_collections = [
+                data_point.as_int
+                for request in requests
+                for resource_metrics in request.resource_metrics
+                for scope_metrics in resource_metrics.scope_metrics
+                for metric in scope_metrics.metrics
+                if metric.name == "cpython.gc.collections"
+                for data_point in metric.sum.data_points
+                if {attribute.key: attribute.value.int_value for attribute in data_point.attributes}.get(
+                    "cpython.gc.generation"
+                )
+                == 2
+            ]
+            # The child reports its own full collections, not those of its parent.
+            exit_code = 0 if flushed and full_collections and sum(full_collections) < parent_collections else 1
+        finally:
+            os._exit(exit_code)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report its own GC collections"
+
+
+@requires_exporter
 @pytest.mark.subprocess(parametrize={"TEMPORALITY": ["delta", "cumulative"]})
 def test_runtime_metrics_after_fork_with_an_application_reader():
     import os
