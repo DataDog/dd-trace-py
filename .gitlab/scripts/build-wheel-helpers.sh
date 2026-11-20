@@ -137,7 +137,7 @@ repair_wheel() {
   section_start "extract_debug_symbols" "Extracting debug symbols"
   uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" \
     --output-dir "${DEBUG_WHEEL_DIR}" \
-    --ignore-patterns "libddwaf*,libdd_heap_gotter*"
+    --ignore-patterns "libddwaf*,libdd_heap_gotter*" "$@"
   section_end "extract_debug_symbols"
 
   # Heap-gotter cdylib debug symbols are extracted in setup.py (build_heap_gotter);

@@ -29,6 +29,12 @@ if [[ "${mode}" == "restore" ]]; then
     exit 1
   fi
   printf 'Seed host: %s\nRestore host: %s\n' "$(cat "${seed}/hostname")" "$(cat "${output}/hostname")"
+  seed_symbols=("${seed}"/*-debug-symbols.zip)
+  if [[ ${#seed_symbols[@]} != 1 || ! -s "${seed_symbols[0]}" ]]; then
+    echo "Expected one seed debug-symbols archive" >&2
+    exit 1
+  fi
+  echo "Seed debug-symbols archive bytes: $(wc -c < "${seed_symbols[0]}")"
 fi
 
 export DD_USE_SCCACHE=0 _DD_DEBUG_EXT=1
@@ -80,6 +86,12 @@ if [[ "${mode}" == "seed" ]]; then
   echo "Compressed extension cache bytes: $(wc -c < "${archive}")"
 fi
 
-repair_wheel
+SECONDS=0
+if [[ "${mode}" == "restore" ]]; then
+  repair_wheel --reuse-dsym-from "${seed_symbols[0]}"
+else
+  repair_wheel
+fi
 finalize
+echo "${mode} wheel packaging: ${SECONDS}s"
 test_wheel
