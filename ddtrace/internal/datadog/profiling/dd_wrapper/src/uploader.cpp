@@ -1,6 +1,7 @@
 #include "uploader.hpp"
 
 #include "code_provenance.hpp"
+#include "gc_monitor.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
 #include "profiler_stats.hpp"
@@ -93,6 +94,17 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
         }
     }
 
+    const std::string gc_json = GCMonitor::get().get_latest_json();
+    if (!gc_json.empty()) {
+        const std::string gc_filename = base_filename + ".gc-stats.json";
+        std::ofstream out_gc(gc_filename);
+        out_gc << gc_json;
+        if (out_gc.fail()) {
+            std::cerr << "Error writing to gc-stats file " << gc_filename << std::endl;
+            // Non-fatal: continue even if gc stats can't be written
+        }
+    }
+
     return true;
 }
 
@@ -108,10 +120,19 @@ Datadog::Uploader::upload_unlocked()
     std::string_view json_str = CodeProvenance::get_instance().get_json_str();
 
     if (!json_str.empty()) {
-        to_compress_files.reserve(1);
         to_compress_files.push_back({
           .name = to_slice("code-provenance.json"),
           .file = to_byte_slice(json_str),
+        });
+    }
+
+    // Attach the latest GC snapshot if one is available.
+    // We take a copy by value so it outlives the upload call.
+    const std::string gc_json = GCMonitor::get().get_latest_json();
+    if (!gc_json.empty()) {
+        to_compress_files.push_back({
+          .name = to_slice("gc-stats.json"),
+          .file = to_byte_slice(gc_json),
         });
     }
 

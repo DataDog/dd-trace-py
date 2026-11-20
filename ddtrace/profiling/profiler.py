@@ -552,6 +552,19 @@ class _ProfilerInstance(service.Service):
             # Start collectors (stack, memory, etc.)
             self._start_collectors()
 
+            if profiling_config.gc.enabled:
+                try:
+                    ddup.start_gc_monitor(
+                        interval_ms=profiling_config.gc.interval_s * 1000,
+                        survivor_threshold=profiling_config.gc.survivor_threshold,
+                        top_n=profiling_config.gc.top_n,
+                        referrers_enabled=profiling_config.gc.referrers_enabled,
+                        max_depth=profiling_config.gc.max_depth,
+                    )
+                    LOG.debug("GC monitor started (interval=%ds)", profiling_config.gc.interval_s)
+                except Exception:
+                    LOG.error("Failed to start GC monitor", exc_info=True)
+
             # Start the upload scheduler
             if self._scheduler is not None:
                 self._scheduler.start()
@@ -597,6 +610,14 @@ class _ProfilerInstance(service.Service):
 
         # Reset endpoint counter to prevent it from growing forever
         self._disable_endpoint_collection()
+
+        # Signal the GC monitor to stop. This is a fire-and-forget stop -- no
+        # final snapshot is taken and we do not block waiting for the thread.
+        if profiling_config.gc.enabled:
+            try:
+                ddup.stop_gc_monitor()
+            except Exception:
+                LOG.debug("Exception while stopping GC monitor", exc_info=True)
 
         for col in reversed(self._collectors):
             try:

@@ -1,0 +1,3 @@
+features:
+  - |
+    Profiling: The SDK now has experimental support for reference chain dumps.
