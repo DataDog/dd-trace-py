@@ -15,7 +15,6 @@ import pytest
 from ddtrace import config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
-from ddtrace.llmobs._integrations.claude_agent_sdk import ClaudeAgentSdkIntegration
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
 from ddtrace.llmobs._integrations.google_adk import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
@@ -26,10 +25,9 @@ from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 # spans but only via an OaiSpanAdapter, so it is exercised by its own contrib suite, not here.
 _AUTO_AGENT_CASES = [
     pytest.param(CrewAIIntegration, "crewai", {"operation": "agent"}, id="crewai"),
-    pytest.param(GoogleAdkIntegration, "google_adk", {"kind": "agent"}, id="google_adk"),
-    pytest.param(BedrockIntegration, "botocore", {"interface_type": "agent"}, id="bedrock"),
-    pytest.param(LangGraphIntegration, "langgraph", {"kind": "agent"}, id="langgraph"),
-    pytest.param(ClaudeAgentSdkIntegration, "claude_agent_sdk", {"kind": "agent"}, id="claude_agent_sdk"),
+    pytest.param(BedrockIntegration, "botocore", {"operation": "agent"}, id="bedrock"),
+    pytest.param(LangGraphIntegration, "langgraph", {"operation": "graph"}, id="langgraph"),
+    pytest.param(GoogleAdkIntegration, "google_adk", {"operation": "agent"}, id="google_adk"),
 ]
 
 
@@ -106,8 +104,8 @@ def test_auto_instrumented_agent_parent_attributes_child(
     """A child under an auto-instrumented (trace()-based) agent span must attribute to that agent.
 
     Regression guard for the LIFO start-vs-finish bug: the agent kind must be known at span start,
-    not finish. Also exercises each integration's start-time signal (operation / kind /
-    interface_type) feeding ``_llmobs_span_kind``.
+    not finish. Also exercises each integration's start-time signal (operation / kind) feeding
+    ``_llmobs_span_kind``.
     """
     integration = integration_cls(IntegrationConfig(config, config_name))
     agent_span = integration.trace("agent_run", span_name="my_agent", submit_to_llmobs=True, **agent_trace_kwargs)
@@ -125,43 +123,81 @@ def test_auto_instrumented_agent_parent_attributes_child(
 
 
 def test_event_based_agent_parent_attributes_child(llmobs, llmobs_events):
-    """Same guard for the event-based path: llama_index creates its agent span via the event
-    subscriber (kind stamped in ``on_started``), not ``trace()``.
+    """Same guard for the event-based path: llama_index creates its agent span via the event, and the
+    shared SPAN_STARTED subscriber stamps the kind, not ``trace()``.
     """
     from ddtrace.contrib._events.llm import LlmRequestEvent
     from ddtrace.internal import core
     from ddtrace.internal.span_bus import span_from_context
-    from ddtrace.llmobs._integrations.llama_index import LlamaIndexIntegration
+    from ddtrace.llmobs._contrib import llama_index as llama_index_hooks
 
-    integration = LlamaIndexIntegration(IntegrationConfig(config, "llama_index"))
-    event = LlmRequestEvent(
-        component="llama_index",
-        integration_config=integration.integration_config,
-        resource="my_agent",
-        provider="llama_index",
-        llmobs_integration=integration,
-        submit_to_llmobs=True,
-        operation="agent",
-    )
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        agent_span = span_from_context(ctx)
-        with llmobs.tool(name="my_tool"):
-            pass
-        ctx.dispatch_ended_event()
+    llama_index_hooks.listen()
+    try:
+        event = LlmRequestEvent(
+            component="llama_index",
+            integration_config=IntegrationConfig(config, "llama_index"),
+            resource="my_agent",
+            provider="llama_index",
+            submit_to_llmobs=True,
+            operation="agent",
+        )
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            agent_span = span_from_context(ctx)
+            with llmobs.tool(name="my_tool"):
+                pass
+            ctx.dispatch_ended_event()
+    finally:
+        llama_index_hooks.unlisten()
 
     tool_event = _event_by_name(llmobs_events, "my_tool")
     assert tool_event["meta"]["agent_attribution"]["pagent_span_id"] == str(agent_span.span_id)
 
 
+def test_subscriber_based_agent_parent_attributes_child(llmobs, llmobs_events):
+    """Same guard for integrations whose LLMObs handling is attached through integration hooks:
+    claude_agent_sdk signals its agent span with operation="query", stamped by the shared
+    SPAN_STARTED subscriber.
+    """
+    from ddtrace.contrib._events.llm import LlmRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.span_bus import span_from_context
+    from ddtrace.llmobs._contrib import claude_agent_sdk as claude_agent_sdk_hooks
+
+    claude_agent_sdk_hooks.listen()
+    try:
+        event = LlmRequestEvent(
+            component="claude_agent_sdk",
+            integration_config=IntegrationConfig(config, "claude_agent_sdk"),
+            resource="claude_agent_sdk.query",
+            span_name="my_agent",
+            provider="",
+            submit_to_llmobs=True,
+            operation="query",
+        )
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            agent_span = span_from_context(ctx)
+            with llmobs.tool(name="my_tool"):
+                pass
+            ctx.dispatch_ended_event()
+    finally:
+        claude_agent_sdk_hooks.unlisten()
+
+    tool_event = _event_by_name(llmobs_events, "my_tool")
+    assert tool_event["meta"]["agent_attribution"] == {
+        "pagent_name": "my_agent",
+        "pagent_span_id": str(agent_span.span_id),
+    }
+
+
 def test_google_adk_agent_name_stamped_at_start(llmobs, llmobs_events):
     """Google ADK never passes span_name to trace(); without name-at-start stamping, children
     attribute to 'google_adk.request' (the APM span name) instead of the actual ADK agent name.
-    Regression guard: _dd_agent kwarg must flow through trace() to _llmobs_agent_name_at_start.
+    Regression guard: the agent passed as the request's instance must reach _llmobs_agent_name_at_start.
     """
     integration = GoogleAdkIntegration(IntegrationConfig(config, "google_adk"))
     mock_agent = SimpleNamespace(name="my_adk_agent")
-    # Mirrors _traced_agent_run_async: no span_name, passes _dd_agent with the agent object.
-    agent_span = integration.trace("Runner.run_async", kind="agent", submit_to_llmobs=True, _dd_agent=mock_agent)
+    # Mirrors _traced_agent_run_async: no span_name, and the agent object is the request's instance.
+    agent_span = integration.trace("Runner.run_async", operation="agent", submit_to_llmobs=True, instance=mock_agent)
     try:
         with llmobs.tool(name="my_tool"):
             pass
@@ -177,19 +213,37 @@ def test_google_adk_agent_name_stamped_at_start(llmobs, llmobs_events):
 def test_langgraph_agent_name_stamped_at_start(llmobs, llmobs_events):
     """LangGraph's LLMObs agent name is instance.name (short), but the APM span name is
     '{module}.CompiledGraph.{name}'. Without name-at-start stamping, children attribute to the
-    long composed APM name. Regression guard: LangGraphIntegration.trace() must stamp name.
+    long composed APM name. Regression guard: the graph passed as the request's instance must be
+    stamped by LangGraphIntegration._on_request_span_started.
     """
-    integration = LangGraphIntegration(IntegrationConfig(config, "langgraph"))
+    from ddtrace.contrib._events.llm import LlmRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.span_bus import span_from_context
+    from ddtrace.llmobs._contrib import langgraph as langgraph_hooks
+
     mock_graph = SimpleNamespace(name="my_graph")
-    # Mirrors traced_pregel_stream: long operation_id, instance carries the short name.
-    agent_span = integration.trace(
-        "module.CompiledGraph.my_graph", kind="agent", submit_to_llmobs=True, instance=mock_graph
-    )
+    langgraph_hooks.listen()
     try:
-        with llmobs.tool(name="my_tool"):
-            pass
+        # Mirrors traced_pregel_stream: long resource, instance carries the short name.
+        event = LlmRequestEvent(
+            component="langgraph",
+            integration_config=IntegrationConfig(config, "langgraph"),
+            resource="module.CompiledGraph.my_graph",
+            provider=None,
+            submit_to_llmobs=True,
+            request_args=({},),
+            request_kwargs={"name": "my_graph"},
+            instance=mock_graph,
+            operation="graph",
+        )
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            agent_span = span_from_context(ctx)
+            with llmobs.tool(name="my_tool"):
+                pass
+            ctx.dispatch_ended_event()
     finally:
-        agent_span.finish()
+        langgraph_hooks.unlisten()
+
     tool_event = _event_by_name(llmobs_events, "my_tool")
     assert tool_event["meta"]["agent_attribution"] == {
         "pagent_name": "my_graph",

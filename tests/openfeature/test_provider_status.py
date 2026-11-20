@@ -31,6 +31,7 @@ from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
 from tests.openfeature.conftest import set_openfeature_provider
+from tests.openfeature.conftest import use_configuration_source
 from tests.utils import override_global_config
 
 
@@ -40,6 +41,12 @@ def clear_config():
     _set_ffe_config(None)
     yield
     _set_ffe_config(None)
+
+
+@pytest.fixture(autouse=True)
+def remote_config_source(monkeypatch):
+    """Deliver configuration through Remote Config, as these tests do, so the wait does not need an API key."""
+    use_configuration_source(monkeypatch, DD_FEATURE_FLAGS_CONFIGURATION_SOURCE="remote_config")
 
 
 def _set_provider(provider: DataDogProvider) -> None:
@@ -332,8 +339,7 @@ class TestProviderInitializationAsync:
             provider.shutdown()
 
         assert (
-            "Feature Flags: provider recovered: configuration received after initialization timed out"
-            in caplog.messages
+            "Feature Flags: provider recovered: configuration received after initialization failed" in caplog.messages
         )
 
     def test_shutdown_debug_logs_start_and_completion(self, caplog):
@@ -389,6 +395,23 @@ class TestProviderInitializationAsync:
         finally:
             api.remove_handler(ProviderEvent.PROVIDER_ERROR, on_provider_error)
             api.clear_providers()
+
+    def test_configuration_received_at_the_timeout_initializes(self, mocker):
+        """Configuration that lands as the wait times out makes initialization succeed, not fail."""
+        provider = DataDogProvider(initialization_timeout=0.2)
+
+        def deliver_then_time_out(timeout=None):
+            process_ffe_configuration(create_config(create_boolean_flag("test-flag", enabled=True)))
+            return False
+
+        mocker.patch.object(provider._config_received, "wait", side_effect=deliver_then_time_out)
+        try:
+            provider.initialize(EvaluationContext())
+
+            assert provider._status == ProviderStatus.READY
+            assert not provider._initialization_failed
+        finally:
+            provider.shutdown()
 
     def test_initialize_waits_for_config_and_becomes_ready(self):
         """initialize() blocks until config arrives, so READY implies flags are resolvable."""

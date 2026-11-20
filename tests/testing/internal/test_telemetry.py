@@ -243,6 +243,20 @@ class TestTelemetry:
             call(CIVISIBILITY, "known_tests.response_tests", 42, ())
         ]
 
+    @pytest.mark.parametrize(
+        "method,metric,value",
+        [
+            ("record_known_tests_pages_fetched", "known_tests.pages_fetched", 2),
+            ("record_known_tests_total_fetch_ms", "known_tests.total_fetch_ms", 3750.0),
+            ("record_known_tests_total_request_ms", "known_tests.total_request_ms", 2500.0),
+        ],
+    )
+    def test_known_tests_pagination_metrics(
+        self, telemetry_api: TelemetryAPI, mock_writer: Mock, method: str, metric: str, value: float
+    ) -> None:
+        getattr(telemetry_api, method)(value)
+        mock_writer.add_distribution_metric.assert_called_once_with(CIVISIBILITY, metric, value, ())
+
     def test_record_skippable_tests_count(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_skippable_count(42, ITRSkippingLevel.TEST)
 

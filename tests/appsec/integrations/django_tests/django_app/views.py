@@ -120,7 +120,7 @@ def untrusted_serialization_yaml_load_view(request):
     """
     user_input = request.GET.get("input", "")
     # label untrusted_serialization_yaml_load
-    yaml.load(user_input, Loader=getattr(yaml, "UnsafeLoader", None))
+    yaml.load(stream=user_input, Loader=getattr(yaml, "UnsafeLoader", None))
     return HttpResponse("OK", status=200)
 
 

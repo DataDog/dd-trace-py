@@ -1,5 +1,6 @@
 from ipaddress import ip_network
 from unittest import mock
+import wsgiref.headers
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -802,6 +803,37 @@ def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, e
     assert ip == expected
 
 
+@pytest.mark.parametrize(
+    "configured_header,header_lines,expected",
+    [
+        (None, [("X-Forwarded-For", "1.1.1.1"), ("x-forwarded-for", "10.0.0.1, 8.8.8.8")], "1.1.1.1"),
+        (
+            None,
+            [("X-Forwarded-For", "10.0.0.1"), ("X-Real-Ip", "4.4.4.4"), ("X-Forwarded-For", "10.0.0.2")],
+            "10.0.0.1",
+        ),
+        (
+            None,
+            [("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1"), ("x-forwarded-for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        (
+            None,
+            [("X_Forwarded_For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1"), ("x_forwarded_for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        ("X-Use-This", [("X-Use-This", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X-Use-This", "4.4.4.4")], "4.4.4.4"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X_Use_This", "1.1.1.1")], ""),
+    ],
+)
+def test_get_request_header_client_ip_repeated_and_respelled_header_lines(configured_header, header_lines, expected):
+    headers = wsgiref.headers.Headers(header_lines)
+    with override_global_config(dict(_client_ip_header=configured_header)):
+        assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
+
+
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
     with override_global_config(dict(_asm_enabled=False)):
         int_config.myint.http._header_tags = {"enabled": True}
@@ -1062,6 +1094,66 @@ def test_activate_distributed_headers_existing_context_different_trace_id(int_co
     assert new_ctx is not None
     assert new_ctx.trace_id == 678910
     assert new_ctx.span_id == 12345
+
+
+@pytest.mark.parametrize("otel_semantics", [False, True])
+@pytest.mark.parametrize("client", [False, True])
+@pytest.mark.parametrize("configured", [False, True])
+@pytest.mark.parametrize("capture_url_query", [False, True])
+@pytest.mark.parametrize("override", [None, False, True])
+@pytest.mark.parametrize("query_in_url", [False, True])
+def test_http_query_string_override(otel_semantics, client, configured, capture_url_query, override, query_in_url):
+    cfg = Config()
+    cfg._http.trace_query_string = not configured
+    integration_config = IntegrationConfig(cfg, "query_override")
+    integration_config.http.trace_query_string = configured
+    integration_config.http_tag_query_string = capture_url_query
+    span = Span("http.request", span_type="http" if client else "web")
+    span._set_attribute("span.kind", "client" if client else "server")
+    query = "page=2"
+    url = "http://example.com/search?" + query
+    enabled = configured if override is None else override
+
+    with override_global_config({"_otel_trace_semantics_enabled": otel_semantics}):
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            url=url if query_in_url else "http://example.com/search",
+            query=query,
+            trace_query_string=override,
+        )
+
+    if not otel_semantics:
+        assert span.get_tag(http.QUERY_STRING) == (query if enabled else None)
+        assert span.get_tag(http.URL) == (url if capture_url_query else "http://example.com/search")
+    elif client:
+        expected_capture = capture_url_query or configured if override is None else override
+        assert span.get_tag("url.full") == (url if expected_capture else "http://example.com/search")
+        assert span.get_tag("url.query") is None
+    else:
+        expected_capture = capture_url_query or configured if override is None else override
+        assert span.get_tag("url.query") == (query if expected_capture else None)
+    assert integration_config.trace_query_string is configured
+    assert cfg._http.trace_query_string is not configured
+
+
+@pytest.mark.parametrize("query", [None, "", "page=3"])
+@pytest.mark.parametrize("tagged_separately", [False, True])
+def test_http_query_string_separate_tagging_preserves_url_fallback(query, tagged_separately):
+    cfg = Config()
+    integration_config = IntegrationConfig(cfg, "query_fallback")
+    integration_config.http_tag_query_string = True
+    span = Span("http.request", span_type="web")
+    with override_global_config({"_otel_trace_semantics_enabled": True}):
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            url="http://example.com/search?page=2",
+            query=query,
+            query_tagged_separately=tagged_separately,
+        )
+    expected = None if query == "" or (query is None and tagged_separately) else query or "page=2"
+    assert span.get_tag("url.query") == expected
 
 
 def test_sanitized_url_in_http_meta(span, int_config):

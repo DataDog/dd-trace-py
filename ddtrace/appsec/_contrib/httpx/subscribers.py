@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import Any
 from typing import Optional
 
+from ddtrace.appsec._asm_request_context import SsrfLayer
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -23,7 +24,6 @@ APPSEC_SSRF_ANALYZE_BODY_KEY = "appsec.ssrf_analyze_body"
 
 
 class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEvent]):
-    auto_register = False
     event_names = (HttpClientEvents.HTTPX_REQUEST.value,)
 
     @classmethod
@@ -34,9 +34,9 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
         if asm_context is None:
             return
 
-        # Own the SSRF subcontext on this outer request context so the inner send's SSRF_REQ and
-        # the final SSRF_RES (dispatched on this context in on_ended) share one subcontext.
-        open_rasp_subcontext_scope()
+        # The holder lives on this request context, not on each send's: the final SSRF_RES is
+        # dispatched here in on_ended, and redirect hops share the request's subcontext.
+        open_rasp_subcontext_scope(SsrfLayer.HTTPX, inherit_from=())
 
         analyze_body = should_analyze_body_response(asm_context)
         ctx.set_item(APPSEC_SSRF_ANALYZE_BODY_KEY, analyze_body)
@@ -75,7 +75,6 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
 
 
 class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSendEvent]):
-    auto_register = False
     event_names = (HttpClientEvents.HTTPX_SEND_REQUEST.value,)
 
     @classmethod

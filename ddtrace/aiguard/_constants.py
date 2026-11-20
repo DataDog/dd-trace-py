@@ -18,6 +18,14 @@ class AI_GUARD(metaclass=Constant_Class):
     REDACTED_TAG: str = TAG + ".redacted"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
     EVENT_TAG: str = TAG + ".event"
+    # OpenAI runs hosted MCP tools itself and does not report whether it reached the server over
+    # streamable HTTP or SSE, so their servers carry the unknown transport.
+    MCP_TRANSPORT_UNKNOWN: Literal["unknown"] = "unknown"
+    MCP_TRANSPORT_STREAMABLE_HTTP: Literal["streamable_http"] = "streamable_http"
+    MCP_TRANSPORT_SSE: Literal["sse"] = "sse"
+    MCP_TRANSPORT_STDIO: Literal["stdio"] = "stdio"
+    # managed_by of an MCP server whose client is run by the model provider (OpenAI hosted MCP).
+    MCP_MANAGED_BY_PROVIDER: Literal["provider"] = "provider"
 
     # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
     # span only if an ai_guard span is created during the request.
@@ -80,6 +88,7 @@ class AI_GUARD(metaclass=Constant_Class):
     INTEGRATION_LANGCHAIN: Literal["langchain"] = "langchain"
     INTEGRATION_LITELLM: Literal["litellm"] = "litellm"
     INTEGRATION_STRANDS: Literal["strands"] = "strands"
+    INTEGRATION_OPENAI_AGENTS: Literal["openai_agents"] = "openai_agents"
 
     # Closed tag sets: anything else reaching the metrics is clamped back to these defaults,
     # so a bad value from a caller cannot invent telemetry series.
@@ -91,4 +100,5 @@ class AI_GUARD(metaclass=Constant_Class):
         INTEGRATION_LANGCHAIN,
         INTEGRATION_LITELLM,
         INTEGRATION_STRANDS,
+        INTEGRATION_OPENAI_AGENTS,
     )

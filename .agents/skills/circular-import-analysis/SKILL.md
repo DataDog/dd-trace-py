@@ -51,8 +51,8 @@ Choose the repair that matches the names crossing the boundary:
   instead of introducing another abstraction. Preserve public import paths and behavior.
 
 For an enabled startup path, follow `ddtrace/internal/aiguard/product.py` through
-`ddtrace/aiguard/_initialization.py`. This is not a blanket ban on automatic registration:
-`ddtrace/internal/core/subscriber.py` deliberately registers some subscribers at class definition.
+`ddtrace/aiguard/_initialization.py`. Subscriber classes only collect handlers at class definition;
+their owners explicitly activate listeners through `register()` or a `SubscriberBundle`.
 
 Do not hide a dependency cycle with function-local imports or `TYPE_CHECKING` guards.
 This does not ban deliberate lazy imports for startup or gevent compatibility unrelated to a cycle.

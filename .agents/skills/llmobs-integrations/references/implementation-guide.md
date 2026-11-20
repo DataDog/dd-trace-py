@@ -21,7 +21,7 @@ the provider's `_integration_name`. Supply the two provider-specific behaviors:
 
 Use the actual base/reference signatures and implement or inherit the behavior needed by the
 integration. For standard request integrations, construct it lazily in the LLMObs subscriber
-with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/_subscribers.py`.
+with `integration_config=config.<name>`; see `ddtrace/llmobs/_subscribers.py`.
 Keep contrib free of LLMObs imports. When extending an integration that stores its instance on
 `module._datadog_integration`, preserve that ownership and cleanup unless migrating its lifecycle.
 
@@ -45,7 +45,9 @@ Implement only the extraction helpers needed by the provider. Register exported 
 Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `SpanLifecycleEvents` (`ddtrace/contrib/_events/span_lifecycle.py`) so product subscribers can add tags and extract LLMObs data.
 
 Key points:
-- Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` and leave `llmobs_integration` unset for subscriber-based integrations
+- Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)`; the registered LLMObs integration tags the span through product subscribers, so contrib does not import LLMObs
+- Pass `request_args=args` when the wrapped call accepts positional arguments that extraction reads; the finishing subscriber forwards them to `llmobs_set_tags()`
+- `_get_base_url()` receives `instance` and `request_kwargs`, so integrations whose base URL is a request argument (LiteLLM's `api_base`) can still detect instrumented proxies
 - Set contrib-owned APM tags through the event's `tags`; pass `None` as the stream handler's integration when contrib has none
 - The event/subscriber path owns span creation and finishing; patch wrappers should not call `tracer.trace()`, `integration.trace()`, or create spans directly for standard request spans
 - Use `with core.context_with_event(event, dispatch_end_event=False) as ctx:` when streaming or when the wrapper needs to dispatch the ended event manually
@@ -54,25 +56,63 @@ Key points:
 - LLMObs tag setting is handled by product subscribers, not directly in the patch wrapper
 - The async variant is identical but uses `async def` / `await`
 
-Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Google GenAI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans or agent/tool child spans; keep their creation, extraction, and finishing under one owner.
+Agent and tool spans can use the same event. Pass `operation="agent"` or `"tool"` and set
+`event.operation_name` after construction when the span name is not `<component>.request`
+(`ddtrace/contrib/internal/crewai/patch.py`). When the span outlives the wrapper, the object
+that finishes it must dispatch the ended event only once, since the context drops its event afterwards
+(`ddtrace/contrib/internal/mcp/patch.py`). The LLMObs subscriber stamps the span kind at start from
+`operation`, so override `_llmobs_span_kind()` to read `kwargs["operation"]`.
 
-Existing events carrying `llmobs_integration` are handled directly by `LlmTracingSubscriber`.
-Preserve that contract when extending those integrations; use product subscribers for new
-standard request integrations so contrib does not import LLMObs.
+State that LLMObs tracks per span from creation, such as span-link bookkeeping or an ADK session
+id that children inherit, belongs in an `_on_request_span_started()` override. The subscriber calls it
+with the event's `instance`, `operation` and `request_kwargs` whether or not LLMObs is enabled
+(`ddtrace/llmobs/_integrations/crewai.py`). Pass the object it reads as the event's `instance`,
+since the request kwargs are still the wrapped call's own at start.
+`_llmobs_agent_name_at_start()` also receives `instance`.
+
+For LLMObs work outside a traced span, such as CrewAI's task links or MCP's intent-argument
+handling, the patch dispatches a `core` event. Define the event names in the contrib's
+`_constants.py`; the hook module subscribes in `listen()` and looks the integration up with
+`get_integration()` (`ddtrace/llmobs/_contrib/crewai/`, `ddtrace/llmobs/_contrib/mcp/`).
+
+LLMObs tagging runs in the finishing phase, before the span records an exception passed to
+`dispatch_ended_event()`. When extraction reads `span.error`, record it first with
+`span_from_context(ctx).set_exc_info(...)` (`ddtrace/contrib/internal/mcp/utils.py`). To finish a
+span at an earlier time, set `ctx.event._end_span = False`, dispatch the ended event, then call
+`span.finish(finish_time=...)` (Google ADK's abandoned tool streams).
+
+Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as agent/tool child spans; keep their creation, extraction, and finishing under one owner. Sessions that only a product observes, such as OpenAI Realtime connections, hand a product-supplied observer to contrib through a typed core event (`ddtrace/contrib/_events/openai_realtime.py`), so contrib forwards events without importing the product.
 
 ## LLMObs subscribers and registration
 
 Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration.
 `LlmTracingSubscriber` is a `SpanLifecycleSubscriber`, so it dispatches each
 `SpanLifecycleEvents` phase as `"<phase>.llm.request"`. The shared subscribers in
-`ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
-registered integration using `ctx.event.component`:
+`ddtrace/llmobs/_subscribers.py` receive an `ExecutionContext` and select the
+registered integration using `ctx.event.component`. The compatibility module
+`ddtrace/llmobs/_contrib/_subscribers.py` re-exports `register`, `unregister`, and
+`get_integration`; lifecycle changes belong in `ddtrace/llmobs/_subscribers.py`.
+When rebasing integration changes, move edits to the old subscriber bodies into the
+corresponding shared listener methods, preserving request arguments, base URL inputs,
+and integration start hooks. The lifecycle phases are:
 
 - `SpanLifecycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
-  `event.submit_to_llmobs` and the integration's LLMObs enablement require it.
+  `event.submit_to_llmobs` and the integration's LLMObs enablement require it. An integration that can
+  detect an LLM gateway overrides `_llmobs_gateway()`. When LLMObs is enabled, the shared subscriber sets the
+  returned gateway kind as a context item on the request context, whether or not the span is submitted.
+  Every LLMObs span that starts below that context keeps the context item, so the `llm` span of a downstream
+  integration also gets the marker. At finish, the shared LLMObs layer writes it to `meta.metadata._dd.gateway`
+  only on `llm` spans. A manually instrumented gateway can still set this key through metadata.
 - `SpanLifecycleEvents.SPAN_STARTED`: set base tags, annotate the integration, and stamp agent kind/name
   before children start. Preserve APM shadow tags and proxy handling from the reference.
 - `SpanLifecycleEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.
+
+The finishing subscriber passes `event.request_args` and `event.request_kwargs` to
+`llmobs_set_tags()`. `_on_request_span_started()` (described above) also covers per-span setup
+that must run before the wrapped call, such as LangChain's instance recording and prompt tagging.
+For LLMObs-only hooks that do not create a span (for example LangChain prompt-template
+propagation), the contrib dispatches a plain `core` event and `listen()` attaches the
+listener with `core.on()`; see `ddtrace/llmobs/_contrib/langchain/`.
 
 Provide `listen()` / `unlisten()` in `ddtrace/llmobs/_contrib/<name>/__init__.py`.
 Call the shared `register(component, integration_cls)` from `listen()` and
@@ -111,6 +151,10 @@ Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/internal/utils/strea
 When `__enter__` wraps a stream manager, the parent retains the child wrapper for the `with` body so `__del__` cannot finalize the shared handler early. `on_stream_created` runs before that retain; if it raises, the handler is finalized immediately because Python will not call `__exit__`.
 
 Wire into patch with `make_traced_stream(response, handler)`.
+
+When one stream completes several requests, the handler finishes each request's context.
+LiteLLM's Router streams the response of the inner `litellm.completion` call, so the router
+wrapper adds its context to that stream's handler (`ddtrace/contrib/internal/litellm/utils.py`).
 
 For the agent pattern (tool child spans within streams), see `ddtrace/llmobs/_integrations/claude_agent_sdk.py`.
 
@@ -192,25 +236,24 @@ Agent integrations have a critical ordering constraint. `_resolve_parent_agent()
 
 **Contract: any integration that produces `kind="agent"` LLMObs spans must stamp kind at span creation, not at finish.**
 
-Direct spans call `_stamp_llmobs_span_kind_at_start()` through `BaseLLMIntegration.trace()`.
-Events carrying `llmobs_integration` call it through `LlmTracingSubscriber.on_started`;
-subscriber-based integrations must call it in their `SpanLifecycleEvents.SPAN_STARTED` handler. Extraction classes
+Direct spans call `_stamp_llmobs_span_kind_at_start()` through `BaseLLMIntegration.trace()`;
+event-based integrations get it from the shared `SpanLifecycleEvents.SPAN_STARTED` subscriber. Extraction classes
 customize the two hooks below instead of stamping kind at finish time.
 
 ### Hooks to implement for agent spans
 
 **`_llmobs_span_kind(self, operation_id, span, **kwargs) -> Optional[str]`**
 
-Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI, `interface_type="agent"` for Bedrock). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
+Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI and Bedrock agents). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
 
 **`_llmobs_agent_name_at_start(self, span, **kwargs) -> Optional[str]`**
 
 Return the agent's LLMObs display name when it can be determined at `trace()` call time. Return `None` to fall back to the span resource name. Override when the integration can resolve the name from kwargs (e.g. Google ADK passes `_dd_agent=<agent_instance>` and the integration reads `agent.name`).
 
-If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph),
-`_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. Stamp the name directly
-in the integration's `trace()` override after calling `super().trace()` and before returning
-the span. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
+For subscriber-based integrations, the shared SPAN_STARTED subscriber does not pass the event's
+instance to `_llmobs_agent_name_at_start`. When the name comes from the instance (e.g. LangGraph's
+graph name), stamp it in `_on_request_span_started()`, which receives the instance and runs before
+children start. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
 `ddtrace/llmobs/_integrations/google_adk.py` when the instance is available to the agent-name hook.
 
 ## Hosted voice conversations: ElevenLabs Agents

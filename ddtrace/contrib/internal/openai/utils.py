@@ -1,16 +1,82 @@
 from collections import defaultdict
+from typing import Any
 from typing import AsyncGenerator
 from typing import Generator
 from typing import Optional
 
+from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.openai._constants import BASE_URL
+from ddtrace.contrib.internal.openai._constants import COMPONENT
+from ddtrace.contrib.internal.openai._constants import SUBMITTED_OPERATION_IDS
+from ddtrace.contrib.internal.openai._constants import provider_name
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT as COMPONENT_TAG
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.utils.openai import openai_construct_completion_from_streamed_chunks
 from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
-from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 
 
 log = get_logger(__name__)
+
+# The most recently initialized client, whose base URL is used for requests that do not carry their own.
+_default_client: Any = None
+
+
+def set_default_client(client: Any) -> None:
+    global _default_client
+    _default_client = client
+
+
+def _base_url(instance: Any) -> Optional[str]:
+    client = getattr(instance, "_client", None) or _default_client
+    base_url = getattr(client, "_base_url", None)
+    return str(base_url) if base_url else None
+
+
+def start_request(
+    operation_id: str,
+    instance: Any,
+    kwargs: dict[str, Any],
+    operation: str = "",
+    submit_to_llmobs: Optional[bool] = None,
+) -> core.ExecutionContext[LlmRequestEvent]:
+    """Start the request's span, which stays active until the returned context's ended event is dispatched.
+
+    operation is the kind of LLM request (completion, chat, embedding, response, decision or tool) that products
+    tag when the span finishes, or empty for the OpenAI requests that are only traced.
+    """
+    event = LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.openai,
+        service=int_service(None, config.openai),
+        resource=operation_id,
+        provider=None,
+        submit_to_llmobs=operation_id in SUBMITTED_OPERATION_IDS if submit_to_llmobs is None else submit_to_llmobs,
+        request_kwargs=kwargs,
+        # Products read the client's endpoint from the instance to detect proxied requests.
+        instance=instance,
+        operation=operation,
+    )
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        span = span_from_context(ctx)
+        base_url = _base_url(instance)
+        if base_url:
+            span._set_ctx_item(BASE_URL, base_url)
+        # The LLM request subscriber drops the component tag when the span starts, so set it once started.
+        span._set_attribute(COMPONENT_TAG, config.openai.integration_name)
+        span._set_attribute("openai.request.provider", provider_name(base_url or ""))
+    return ctx
+
+
+def finish_request(ctx: core.ExecutionContext[LlmRequestEvent], response: Any = None) -> None:
+    """Finish the request's span; products tag it with response first."""
+    ctx.event.response = response
+    ctx.dispatch_ended_event()
 
 
 class BaseOpenAIStreamHandler:
@@ -18,14 +84,8 @@ class BaseOpenAIStreamHandler:
         return defaultdict(list)
 
     def finalize_stream(self, exception=None):
-        _process_finished_stream(
-            self.integration,
-            self.primary_span,
-            self.request_kwargs,
-            self.chunks,
-            self.options.get("operation_type", ""),
-        )
-        self.primary_span.finish()
+        operation_type = self.options.get("operation_type", "")
+        finish_request(self.options["ctx"], _format_finished_stream(self.chunks, operation_type))
 
 
 class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
@@ -138,22 +198,17 @@ def _loop_handler(span, chunk, streamed_chunks):
             streamed_chunks[0].insert(0, chunk)
 
 
-def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
+def _format_finished_stream(streamed_chunks, operation_type=""):
+    """The response a finished stream amounts to, which products tag the request's span with."""
     if isinstance(streamed_chunks, dict) and operation_type != "response":
         streamed_chunks = streamed_chunks.values()
     try:
         if operation_type == "response":
-            formatted_completions = streamed_chunks[0][0] if streamed_chunks and streamed_chunks[0] else None
+            return streamed_chunks[0][0] if streamed_chunks and streamed_chunks[0] else None
         elif operation_type == "completion":
-            formatted_completions = [
-                openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
-            ]
+            return [openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
         elif operation_type == "chat":
-            formatted_completions = [
-                openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
-            ]
-        integration.llmobs_set_tags(
-            span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation_type
-        )
+            return [openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
+    return None

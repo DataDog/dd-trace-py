@@ -3,7 +3,6 @@ import math
 from typing import Any
 from typing import Optional
 from typing import Protocol
-from typing import TypedDict
 from typing import Union
 
 from ddtrace._trace.sampling_rule import SamplingRule
@@ -55,14 +54,6 @@ class SpanTraceSourceProtocol(Protocol):
     ) -> None: ...
 
 
-class PriorityCategory:
-    DEFAULT = "default"
-    AUTO = "auto"
-    RULE_DEFAULT = "rule_default"
-    RULE_CUSTOMER = "rule_customer"
-    RULE_DYNAMIC = "rule_dynamic"
-
-
 # sampling mechanism is an opaque integer; validate syntax/range only, not enum
 # membership, or unenumerated-but-valid ids get silently dropped (#13516, #19335). Do not re-tighten.
 _MAX_SAMPLING_MECHANISM = 255  # libdatadog encodes the sampling mechanism as a u8
@@ -82,13 +73,6 @@ def format_rate(rate: float) -> str:
     """
     rounded = math.floor(rate * 1e6 + 0.5) / 1e6
     return f"{rounded:.6f}".rstrip("0").rstrip(".")
-
-
-class SpanSamplingRules(TypedDict, total=False):
-    name: str
-    service: str
-    sample_rate: float
-    max_per_second: int
 
 
 def validate_sampling_decision(

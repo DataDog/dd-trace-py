@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes ``runtime.python.gc.pause.time`` and ``runtime.python.gc.pause.max``
+    overcounting GC pause time when other threads held the GIL during a collection.

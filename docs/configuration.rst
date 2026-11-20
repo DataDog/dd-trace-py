@@ -746,6 +746,16 @@ Application & API Security
      default: None
      description: Whether to enable/disable SCA (Software Composition Analysis).
 
+   _DD_APPSEC_SCA_CVE_FILE:
+     type: String
+     default: None
+     description: |
+       Internal override for the local JSON file containing SCA vulnerability targets.
+       When set, this file replaces the bundled CVE data at startup without merging.
+       It must use the same schema as the bundled data. When unset, the bundled file is used.
+       If the file cannot be read or contains invalid JSON, no targets are loaded and
+       the tracer does not fall back to the bundled file. This option does not enable SCA.
+
    DD_APPSEC_MAX_STACK_TRACES:
      type: Integer
      default: 2
@@ -849,6 +859,12 @@ AI Guard
        received before the first one is delivered) and increases peak memory usage proportional
        to the response size.
 
+       The option also applies to the Datadog AI Guard guardrail of the LiteLLM proxy in the post_call
+       mode. When the option is True, the guardrail holds a streamed chat or text answer until AI Guard
+       evaluates it, and it can block the answer. When the option is False, the guardrail sends the
+       chunks as they arrive, and evaluates the full answer after the last chunk without blocking.
+       When the option is False, the end of the stream waits for the AI Guard evaluation.
+
    DD_AI_GUARD_BLOCK:
      type: Boolean
      default: True
@@ -899,6 +915,43 @@ AI Guard
        ``ChatOpenAI`` also set ``DD_AI_GUARD_OPENAI_ENABLED=false``, and with ``ChatAnthropic`` also
        set ``DD_AI_GUARD_ANTHROPIC_ENABLED=false``. To stop AI Guard for a LangChain app regardless of
        provider, set ``DD_AI_GUARD_ENABLED=false``.
+
+   DD_AI_GUARD_MCP_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Enabled by default; set to False to stop sending MCP server details, evaluating MCP approval
+       requests and checking the calls of Anthropic SDK MCP tools. When AI Guard is enabled,
+       evaluations of remote MCP tools run by the OpenAI Responses API (tools of type ``mcp``)
+       identify the MCP server each call goes to: its configured name, the scheme, host and port of
+       its URL, and the tools called through it.
+       Credentials, headers, and the user information, path, query string and fragment of the server
+       URL are never sent. This setting does not change blocking, which still follows the evaluation
+       verdict and DD_AI_GUARD_BLOCK.
+
+       Tools of MCP servers configured in the OpenAI Agents SDK (MCPServerStdio, MCPServerSse,
+       MCPServerStreamableHttp) are evaluated before each call reaches the server, whether the
+       agent runs the tool or the application calls ``server.call_tool`` directly; a blocking
+       verdict raises ``AIGuardAbortError`` and the call is not sent. For stdio servers only the
+       command and the package or module it launches are sent, never other arguments or the
+       environment.
+
+       MCP approval requests are evaluated before your application can approve them. Streamed
+       responses of requests whose MCP tools can ask for approval are buffered until that
+       evaluation completes, even when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off. So
+       are streamed responses of requests that use a reusable prompt, unless DD_AI_GUARD_BLOCK
+       is false.
+       Responses read through ``with_raw_response`` or ``with_streaming_response`` are not evaluated.
+
+       MCP tools converted with the Anthropic SDK ``mcp_tool`` and ``async_mcp_tool`` helpers are
+       evaluated before each call is sent to the MCP server, unless the model response that requested
+       that call was already evaluated with its MCP server details. The server is identified from the
+       MCP SDK client transport of its session: the scheme, host and port of a streamable HTTP or SSE
+       URL, or the command and package or module name of a stdio server. Headers, environment variables
+       and other command arguments are never sent. Sessions on in-memory or unrecognized transports, or
+       on a transport opened before the Anthropic integration was patched, get no MCP server details and
+       no call check. The non-streaming tool runner calls ``messages.parse``, which is not instrumented,
+       so its MCP tool calls are checked without the conversation that requested them.
 
 Code Security
 -------------
@@ -1302,9 +1355,12 @@ Agent
 
    DD_TAGS:
      description: |
-         Set global tags to be attached to every span. Value must be either comma and/or space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3`` or ``key1:value1, key2:value2, key3``.
+         Set global tags to be attached to every span. Value must be either comma and/or
+         space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3``
+         or ``key1:value1, key2:value2, key3``. If a tag value is not supplied the value will
+         be an empty string.
 
-         If a tag value is not supplied the value will be an empty string.
+         OTLP export sends shared tags as resource attributes to reduce payload size.
 
      version_added:
        v0.38.0: Comma separated support added
@@ -1408,8 +1464,15 @@ Logs
 
    DD_TRACE_STARTUP_LOGS:
      type: Boolean
-     default: False
-     description: Enable or disable start up diagnostic logging.
+     default: True
+     description: |
+         Enable or disable start up diagnostic logging. When enabled, the tracer logs its configuration as a
+         ``DATADOG TRACER CONFIGURATION`` JSON object at the ``INFO`` level, even when the `ddtrace` logger level is
+         higher. The object includes the effective OpenTelemetry settings, keyed by the environment variables that
+         set them, with OTLP header values redacted. The diagnostics check that the agent is reachable, which takes
+         up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
+     version_added:
+       v4.18.0: The default changed from ``False`` to ``True``.
 
 Sampling
 --------
@@ -1506,6 +1569,10 @@ Feature Flagging
          and ``remote_config`` (deliver via the Datadog Agent's Remote
          Configuration). ``offline`` is reserved and currently unsupported; any
          unsupported value disables the provider without contacting either source.
+         ``agentless`` requires ``DD_API_KEY`` unless
+         ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL`` is set;
+         without either, provider initialization fails at once and evaluations
+         return their default values.
 
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
      type: String
@@ -1535,6 +1602,16 @@ Feature Flagging
      description: |
          The per-request timeout in seconds for agentless Universal Flag
          Configuration polls.
+
+   DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Controls whether feature flag exposure events are sent to Datadog. When
+         ``False``, the provider sends no exposures to Datadog. It does not stop
+         flag evaluation counts, which ``DD_FLAGGING_EVALUATION_COUNTS_ENABLED``
+         controls. ``DD_FFE_INTAKE_ENABLED`` is a deprecated alias that will be
+         removed in 5.0.0; when both are set, this setting takes precedence.
 
 Other
 -----

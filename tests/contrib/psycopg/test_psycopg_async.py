@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from tests.contrib import shared_tests_async
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import assert_is_measured
 
@@ -29,11 +28,9 @@ class PsycopgCore(AsyncioTestCase):
         unpatch()
 
     async def _get_conn(self):
-        print(POSTGRES_CONFIG)
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
         return conn
 
-    @mark_asyncio
     async def test_byte_query_uses_connection_encoding(self):
         for encoding, codec in (("UTF8", "utf-8"), ("WIN1252", "cp1252")):
             async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG, client_encoding=encoding) as connection:
@@ -292,17 +289,17 @@ class PsycopgCore(AsyncioTestCase):
     async def test_cursor_async_connect_execute(self):
         """Checks whether connection can execute operations with async iteration."""
 
-        async with psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
+        async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as conn:
             async with conn.cursor() as cur:
                 await cur.execute("""select 'one' as x""")
                 await cur.execute("""select 'blah'""")
 
-                async for row in cur:
-                    spans = self.get_spans()
-                    assert len(spans) == 2
-                    assert spans[0].name == "postgres.query"
-                    assert spans[0].resource == "select ?"
-                    assert spans[0].service == "postgres"
-                    assert spans[1].name == "postgres.query"
-                    assert spans[1].resource == "select ?"
-                    assert spans[1].service == "postgres"
+                assert [row async for row in cur] == [("blah",)]
+                spans = self.get_spans()
+                assert len(spans) == 2
+                assert spans[0].name == "postgres.query"
+                assert spans[0].resource == "select 'one' as x"
+                assert spans[0].service == "postgres"
+                assert spans[1].name == "postgres.query"
+                assert spans[1].resource == "select 'blah'"
+                assert spans[1].service == "postgres"

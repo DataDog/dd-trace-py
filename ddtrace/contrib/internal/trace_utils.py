@@ -89,6 +89,7 @@ IP_PATTERNS = (
     "cf-connecting-ip",
     "cf-connecting-ipv6",
 )
+_IP_HEADERS = frozenset(IP_PATTERNS)
 
 
 # The request-start event is published for WSGI and ASGI applications only: the
@@ -196,6 +197,15 @@ def _parse_ip_header(ip_header_value: str) -> str:
     return ""
 
 
+def _join_header_lines(headers: Mapping[str, str], names: frozenset[str]) -> dict[str, str]:
+    joined: dict[str, str] = {}
+    for key, value in headers.items():
+        field = key.lower()
+        if field.replace("_", "-") in names:
+            joined[field] = f"{joined[field]}, {value}" if field in joined else value
+    return joined
+
+
 def _get_request_header_client_ip(
     headers: Optional[Mapping[str, str]], peer_ip: Optional[str] = None, headers_are_case_sensitive: bool = False
 ) -> str:
@@ -203,7 +213,7 @@ def _get_request_header_client_ip(
         if not headers_are_case_sensitive:
             return headers.get(key)
 
-        return _get_header_value_case_insensitive(headers, key)
+        return _get_header_value_case_insensitive(_join_header_lines(headers, frozenset((key,))), key)
 
     if not headers:
         try:
@@ -233,10 +243,10 @@ def _get_request_header_client_ip(
 
     else:
         if headers_are_case_sensitive:
-            new_headers = {k.lower().replace("_", "-"): v for k, v in headers.items()}
+            ip_headers = {k.replace("_", "-"): v for k, v in _join_header_lines(headers, _IP_HEADERS).items()}
             for ip_header in IP_PATTERNS:
-                if ip_header in new_headers:
-                    ip_header_value = new_headers[ip_header]
+                if ip_header in ip_headers:
+                    ip_header_value = ip_headers[ip_header]
                     break
         else:
             for ip_header in IP_PATTERNS:
@@ -399,6 +409,7 @@ def set_http_meta(
     route: Optional[str] = None,
     response_cookies: Optional[dict[str, str]] = None,
     query_tagged_separately: bool = False,
+    trace_query_string: Optional[bool] = None,
 ) -> None:
     """
     Set HTTP metas on the span
@@ -409,6 +420,7 @@ def set_http_meta(
     :param status_msg: the HTTP status message
     :param query: the HTTP query part of the URI as a string
     :param query_tagged_separately: the caller tags the query string itself, so it must not be read from the URL
+    :param trace_query_string: optional request-level override for query-string tagging
     :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
     :param request_headers: the HTTP request headers
     :param response_headers: the HTTP response headers
@@ -431,6 +443,7 @@ def set_http_meta(
             status_code=status_code,
             query=query,
             query_tagged_separately=query_tagged_separately,
+            trace_query_string=trace_query_string,
             request_headers=request_headers,
             headers_are_case_sensitive=headers_are_case_sensitive,
             route=route,
@@ -445,6 +458,7 @@ def set_http_meta(
             server_address=server_address,
             status_code=status_code,
             query=query,
+            trace_query_string=trace_query_string,
             request_headers=request_headers,
             headers_are_case_sensitive=headers_are_case_sensitive,
         )
@@ -523,6 +537,7 @@ def _set_http_meta(
     query: Optional[str],
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
+    trace_query_string: Optional[bool] = None,
 ) -> None:
     """Set the tags whose names or semantics differ from OTel's, using the Datadog conventions."""
     if method is not None:
@@ -548,7 +563,9 @@ def _set_http_meta(
             if config._http_server.is_error_code(int_status_code):
                 span.error = 1
 
-    if query is not None and integration_config.trace_query_string:
+    if query is not None and (
+        integration_config.trace_query_string if trace_query_string is None else trace_query_string
+    ):
         span._set_attribute(http.QUERY_STRING, query)
 
     if request_headers:
@@ -570,6 +587,7 @@ def _set_http_meta_otel(
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
     route: Optional[str],
+    trace_query_string: Optional[bool] = None,
 ) -> None:
     """Set the tags whose names or semantics differ between conventions, using the OTel conventions."""
     otel_http.set_method(method)
@@ -580,6 +598,7 @@ def _set_http_meta_otel(
         server_address=server_address,
         fallback_server_address=target_host,
         query_tagged_separately=query_tagged_separately,
+        trace_query_string=trace_query_string,
     )
     otel_http.set_status_code(status_code)
     if request_headers:

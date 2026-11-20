@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: Fixes a spurious "failed to start writer service" warning when
+    multiple threads send their first traces concurrently.

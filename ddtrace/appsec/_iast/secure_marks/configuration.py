@@ -21,6 +21,7 @@ log = get_logger(__name__)
 VULNERABILITY_TYPE_MAPPING = {
     "CODE_INJECTION": VulnerabilityType.CODE_INJECTION,
     "COMMAND_INJECTION": VulnerabilityType.COMMAND_INJECTION,
+    "CMDI": VulnerabilityType.COMMAND_INJECTION,  # Alias
     "HEADER_INJECTION": VulnerabilityType.HEADER_INJECTION,
     "UNVALIDATED_REDIRECT": VulnerabilityType.UNVALIDATED_REDIRECT,
     "INSECURE_COOKIE": VulnerabilityType.INSECURE_COOKIE,
@@ -51,7 +52,7 @@ class SecurityControl:
         module_path: str,
         method_name: str,
         parameters: Optional[list[int]] = None,
-    ):
+    ) -> None:
         """Initialize a security control configuration.
 
         Args:
@@ -70,7 +71,7 @@ class SecurityControl:
         if self.control_type not in (SC_VALIDATOR, SC_SANITIZER):
             raise ValueError(f"Invalid control type: {control_type}")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"SecurityControl(type={self.control_type}, "
             f"vulns={[v.name for v in self.vulnerability_types]}, "
