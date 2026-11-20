@@ -1,11 +1,16 @@
+import json
 import logging
+from pathlib import Path
 import threading
+import time
 import typing as t
 from unittest import mock
 
 import pytest
 
 from ddtrace.internal import service
+from ddtrace.internal import threads
+from ddtrace.internal.datadog.profiling import code_provenance
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.profiling import scheduler
@@ -57,6 +62,163 @@ def test_periodic_survives_export_failure() -> None:
         finally:
             s.stop()
             s.join()
+
+
+def test_start_builds_code_provenance_in_background() -> None:
+    build_started: threading.Event = threading.Event()
+    release_build: threading.Event = threading.Event()
+    build_finished: threading.Event = threading.Event()
+    build_thread_ids: list[int] = []
+
+    def slow_build() -> None:
+        build_thread_ids.append(threading.get_ident())
+        build_started.set()
+        try:
+            release_build.wait(5)
+        finally:
+            build_finished.set()
+
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = True
+    with mock.patch.object(code_provenance, "get_code_provenance_file", slow_build):
+        s.start()
+        try:
+            assert build_started.wait(30), "code provenance was not built on start"
+            assert build_thread_ids != [threading.get_ident()], "start waited for the code provenance build"
+            assert s.status == service.ServiceStatus.RUNNING
+        finally:
+            release_build.set()
+            s.stop()
+            s.join()
+            assert build_finished.wait(30)
+
+    assert len(build_thread_ids) == 1
+
+
+def test_start_skips_code_provenance_build_when_disabled() -> None:
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = False
+    build: mock.MagicMock
+    with mock.patch.object(code_provenance, "get_code_provenance_file") as build:
+        s.start()
+        s.stop()
+        s.join()
+
+    build.assert_not_called()
+
+
+def test_start_survives_code_provenance_build_failure() -> None:
+    build_done: threading.Event = threading.Event()
+
+    def failing_build() -> None:
+        build_done.set()
+        raise RuntimeError("LOL")
+
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = True
+    with mock.patch.object(code_provenance, "get_code_provenance_file", failing_build):
+        s.start()
+        try:
+            assert build_done.wait(30)
+            assert s.status == service.ServiceStatus.RUNNING
+        finally:
+            s.stop()
+            s.join()
+
+
+def _start_with_held_build(
+    s: scheduler.Scheduler, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[threading.Event, list[int]]:
+    """Start ``s`` on a cold cache with the background build held until the returned event is set."""
+    cache_file: Path = tmp_path / "code-provenance.json"
+    lock_file: Path = tmp_path / "code-provenance.lock"
+    monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
+    monkeypatch.setattr(code_provenance, "_code_provenance_file_path", None)
+
+    build_started: threading.Event = threading.Event()
+    release_build: threading.Event = threading.Event()
+    computes: list[int] = []
+
+    def compute() -> str:
+        computes.append(threading.get_ident())
+        if len(computes) == 1:
+            build_started.set()
+            release_build.wait(10)
+        return json.dumps({"v1": []})
+
+    monkeypatch.setattr(code_provenance, "_compute_json_str", compute)
+    s._enable_code_provenance = True
+    s.start()
+    assert build_started.wait(10), "code provenance was not built on start"
+    return release_build, computes
+
+
+def test_flush_during_background_build_builds_the_file_itself(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A process that exits before the background build finishes: stop does not wait for it,
+    # and the shutdown flush builds the file itself.
+    uploaded: list[t.Optional[str]] = []
+
+    def upload(*args: t.Any, **kwargs: t.Any) -> None:
+        uploaded.append(code_provenance.get_code_provenance_file())
+
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    with mock.patch.object(ddup, "upload", upload):
+        release_build: threading.Event
+        computes: list[int]
+        release_build, computes = _start_with_held_build(s, tmp_path, monkeypatch)
+        try:
+            s.stop()
+            s.join()
+            s.flush()
+        finally:
+            release_build.set()
+
+    cache_file: Path = tmp_path / "code-provenance.json"
+    assert uploaded == [str(cache_file)]
+    assert len(computes) == 2, "the flush did not build the file itself"
+    assert computes[0] != computes[1]
+    deadline: float = time.monotonic() + 10
+    while s._code_provenance_thread is not None and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert s._code_provenance_thread is None
+    assert json.loads(cache_file.read_text(encoding="utf-8")) == {"v1": []}
+
+
+def test_fork_waits_for_background_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Same as any one-shot ddtrace thread: the before-fork hook joins it, so a fork during a
+    # cold build waits for the build to finish.
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    with mock.patch.object(ddup, "upload"):
+        release_build: threading.Event
+        computes: list[int]
+        release_build, computes = _start_with_held_build(s, tmp_path, monkeypatch)
+        s.stop()
+        s.join()
+
+    hold_s: float = 0.2
+
+    def release_later() -> None:
+        time.sleep(hold_s)
+        release_build.set()
+
+    releaser: threading.Thread = threading.Thread(target=release_later)
+    releaser.start()
+    started_at: float = time.monotonic()
+    try:
+        threads._before_fork()
+        waited_s: float = time.monotonic() - started_at
+        assert release_build.is_set(), "fork did not wait for the build"
+        assert waited_s >= hold_s * 0.9
+        assert s._code_provenance_thread is None
+        assert len(computes) == 1
+        threads._after_fork_parent()
+        time.sleep(0.3)
+    finally:
+        release_build.set()
+        releaser.join(10)
+        threads.ThreadRestartTimer.clear()
+        threads._threads_to_restart_after_fork.clear()
+        threads._forking = False
 
 
 def test_thread_name() -> None:

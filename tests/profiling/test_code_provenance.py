@@ -263,6 +263,52 @@ class TestCodeProvenance:
         # Third call: uses cached path
         assert code_provenance.get_code_provenance_file() == str(cache_file)
 
+    def test_two_threads_building_at_once_both_get_the_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The scheduler builds the file in the background while a flush may build it too.
+        # The file lock does not keep out a second thread of the same process.
+        import os
+        import threading
+
+        from ddtrace.internal.datadog.profiling import code_provenance
+
+        cache_file: Path = tmp_path / "code-provenance.json"
+        lock_file: Path = tmp_path / "code-provenance.lock"
+        monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
+        expected_json: str = json.dumps({"v1": [{"kind": "library", "name": "foo", "version": "1", "paths": ["/x"]}]})
+        monkeypatch.setattr(code_provenance, "_compute_json_str", lambda: expected_json)
+
+        # Hold both writers after they have written their temp file and before they rename it.
+        both_written: threading.Barrier = threading.Barrier(2, timeout=10)
+        builders: set[int] = set()
+        real_fsync: Any = os.fsync
+
+        def fsync(fd: int) -> None:
+            if threading.get_ident() in builders:
+                both_written.wait()
+            real_fsync(fd)
+
+        monkeypatch.setattr(os, "fsync", fsync)
+
+        results: dict[str, Any] = {}
+
+        def build(name: str) -> None:
+            builders.add(threading.get_ident())
+            results[name] = code_provenance.get_code_provenance_file()
+
+        workers: list[threading.Thread] = [
+            threading.Thread(target=build, args=(name,)) for name in ("background", "flush")
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(30)
+
+        assert results == {"background": str(cache_file), "flush": str(cache_file)}
+        assert cache_file.read_text(encoding="utf-8") == expected_json
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["code-provenance.json", "code-provenance.lock"]
+
     def test_cache_key_changes_with_main_package(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from ddtrace.internal.datadog.profiling import code_provenance
 
