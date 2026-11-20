@@ -2,6 +2,7 @@ import os
 import time
 from unittest import mock
 
+from crewai import LLM
 from crewai import Agent
 from crewai import Crew
 from crewai import Flow
@@ -19,6 +20,7 @@ import vcr
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from tests.contrib.crewai.utils import CREWAI_VERSION
 from tests.contrib.crewai.utils import budget_text
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.contrib.crewai.utils import itinerary_text
@@ -26,10 +28,21 @@ from tests.contrib.crewai.utils import welcome_email_text
 from tests.utils import override_global_config
 
 
+CASSETTE_DIR = os.path.join(os.path.dirname(__file__), "cassettes")
+
+
+def _cassette_path(path):
+    # crewai 1.x makes native function calls and structured planner requests, so interactions whose requests changed
+    # were recorded again under cassettes/v1; crewai<1.0 keeps replaying the original recordings.
+    v1_path = os.path.join(CASSETTE_DIR, "v1", os.path.basename(path))
+    return v1_path if CREWAI_VERSION >= (1, 0, 0) and os.path.exists(v1_path) else path
+
+
 @pytest.fixture
 def request_vcr():
     yield vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes"),
+        cassette_library_dir=CASSETTE_DIR,
+        path_transformer=_cassette_path,
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-api-key", "api-key"],
@@ -39,8 +52,9 @@ def request_vcr():
     )
 
 
+# OpenAI's strict function schemas, used by crewai 1.x native tool calls, reject an untyped list argument.
 @tool("Average Calculator")
-def calculate_average_tool(entries: list) -> float:
+def calculate_average_tool(entries: list[float]) -> float:
     """This tool returns the average of a list of numbers."""
     return sum(entries) / len(entries)
 
@@ -161,9 +175,60 @@ def hierarchical_crew(crewai):
         agents=[analytics_agent, recommender_agent],
         tasks=[data_analysis_task, recommend_task],
         process=Process.hierarchical,
-        manager_llm="gpt-4o",
+        manager_llm="gpt-4o-mini",  # the model the crewai 1.x hierarchical recording was made with
         planning=True,
     )
+
+
+@pytest.fixture
+def failing_llm_crew(crewai):
+    # OpenAI rejects temperature=5, so the recorded LLM call fails; max_retry_limit=0 stops the agent from retrying.
+    agent = Agent(
+        role="Senior Research Scientist",
+        goal="Summarize developments in AI agents",
+        backstory="You're a seasoned researcher.",
+        llm=LLM(model="gpt-4.1-mini", temperature=5),
+        max_retry_limit=0,
+    )
+    task = Task(description="Summarize AI agents in one sentence.", expected_output="One sentence.", agent=agent)
+    yield Crew(agents=[agent], tasks=[task], process=Process.sequential)
+
+
+@pytest.fixture
+def openai_traced_tool_crew(crewai):
+    """tool_crew with a fresh agent, so its LLM creates its OpenAI client after openai is patched."""
+    from ddtrace.contrib.internal.openai.patch import patch as patch_openai
+    from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
+
+    patch_openai()
+    agent = Agent(
+        role=analytics_agent.role,
+        goal=analytics_agent.goal,
+        backstory=analytics_agent.backstory,
+        tools=[calculate_average_tool],
+    )
+    task = Task(
+        name=data_analysis_task_1.name,
+        description=data_analysis_task_1.description,
+        expected_output=data_analysis_task_1.expected_output,
+        agent=agent,
+        async_execution=True,
+    )
+    yield Crew(agents=[agent], tasks=[task], process=Process.sequential)
+    unpatch_openai()
+
+
+@pytest.fixture
+def streaming_crew(crewai):
+    # Its own agent, because a streaming kickoff turns on streaming for the LLM of every agent in the crew.
+    agent = Agent(
+        role="Senior Research Scientist",
+        goal="Summarize developments in AI agents",
+        backstory="You're a seasoned researcher.",
+        llm=LLM(model="gpt-4.1-mini"),
+    )
+    task = Task(description="Summarize AI agents in one sentence.", expected_output="One sentence.", agent=agent)
+    yield Crew(agents=[agent], tasks=[task], process=Process.sequential, stream=True)
 
 
 @pytest.fixture
@@ -335,6 +400,9 @@ def router_flow_async(crewai):
 @pytest.fixture
 def crewai(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
+    # crewai telemetry exports from a background thread. VCR sends ignored-host requests with all of its patches
+    # removed process-wide, so that export can let a concurrent LLM call escape the cassette.
+    monkeypatch.setenv("CREWAI_DISABLE_TELEMETRY", "true")
     patch()
     import crewai
 

@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Senior Research Scientist. You''re a seasoned researcher.\nYour personal goal is: Summarize developments in AI agents"},{"role":"user","content":"\nCurrent Task: Summarize AI agents in one sentence.\n\nThis is the expected criteria for your final answer: One sentence.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"}],"model":"gpt-4.1-mini","temperature":5.0}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '477'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"error":{"message":"Provider ''openai'' returned 400 for model ''gpt-4.1-mini'': Invalid ''temperature'': decimal above maximum value. Expected a value <= 2, but got 5.0 instead.","type":"invalid_request_error","param":"temperature","code":"decimal_above_max_value"}}'
+    headers:
+      content-length:
+      - '262'
+      content-type:
+      - application/json
+      date:
+      - Tue, 03 Nov 2026 00:55:03 GMT
+      vary:
+      - Accept-Encoding
+    status:
+      code: 400
+      message: Bad Request
+version: 1
