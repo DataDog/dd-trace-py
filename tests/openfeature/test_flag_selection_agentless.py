@@ -3,9 +3,11 @@
 import http.server
 import logging
 import threading
+from unittest import mock
 
 import pytest
 
+from ddtrace.internal.openfeature import _flag_selection
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
@@ -18,6 +20,7 @@ from tests.openfeature.flag_selection_helpers import REMOTE_CONFIG_WARNING
 from tests.openfeature.flag_selection_helpers import SELECTION_LOGGER
 from tests.openfeature.flag_selection_helpers import _create_source
 from tests.openfeature.flag_selection_helpers import _FakeResponse
+from tests.openfeature.flag_selection_helpers import _metric_calls
 from tests.openfeature.flag_selection_helpers import _ufc_body
 
 
@@ -210,3 +213,33 @@ def test_remote_config_does_not_warn_without_a_selection(option, caplog):
     with caplog.at_level(logging.WARNING, logger=SELECTION_LOGGER):
         assert _create_source(option, DD_FEATURE_FLAGS_CONFIGURATION_SOURCE="remote_config") is None
     assert [r for r in caplog.records if r.name == SELECTION_LOGGER] == []
+
+
+def test_poll_does_not_wait_for_the_selection_lock(poller, count_metric):
+    # Pollers never wait on each other: a poll counts an inherited drop, records what it applied and reports an
+    # ignored selection while another thread holds the selection lock.
+    with mock.patch.object(_flag_selection, "log"):
+        _create_source({"tags": ["t" * 201]})
+    _flag_selection._reset_once_per_process_guards()  # as in a forked child that inherited the dropped claim
+    count_metric.reset_mock()
+    selection = canonicalize_flag_selection({"tags": ["a"]})
+    applied = []
+    source = poller(
+        [_FakeResponse(200, _ufc_body(), {"DD-Flag-Selection-Ignored": "tag_load_failed"})],
+        apply_configuration=_flag_selection.recording_loaded_selection(applied.append, selection, lambda: None),
+    )
+    polled = threading.Event()
+
+    def poll():
+        source.periodic()
+        polled.set()
+
+    polling = threading.Thread(target=poll)
+    with _flag_selection._lock:
+        polling.start()
+        assert polled.wait(timeout=5)
+    polling.join(timeout=5)
+    assert len(applied) == 1
+    assert _flag_selection._loaded == selection
+    assert len(_metric_calls(count_metric, "flag_selection.dropped")) == 1
+    assert len(_metric_calls(count_metric, "flag_selection.ignored")) == 1

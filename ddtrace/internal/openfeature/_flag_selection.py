@@ -95,17 +95,20 @@ class FlagSelection(typing.NamedTuple):
 NO_SELECTION = FlagSelection()
 _MALFORMED = FlagSelection(reason=MALFORMED_SELECTION)
 
+# A poll never takes it, so pollers never wait on each other: what a poll writes is one name rebinding or one atomic
+# dict or list call. Provider calls take it, including one made from a callback on a poller.
 _lock = forksafe.Lock()
 _claimed: FlagSelection = NO_SELECTION
 _claim_count = 0
 # The selection under which the agentless source last applied the shared snapshot.
 _loaded: typing.Optional[FlagSelection] = None
-_reported: set[tuple[str, str]] = set()
+_reported: dict[tuple[str, str], object] = {}
 _remote_config_warned = False
 _second_selection_warned = False
 # Why the claimed selection was not sent, so a forked child can count the drop it inherits.
 _dropped_reason: typing.Optional[str] = None
-_pending_fork_drop: typing.Optional[str] = None
+# The dropped reason a forked child still has to count, at most one item.
+_pending_fork_drop: list[str] = []
 
 
 def canonicalize_flag_selection(raw: typing.Any) -> FlagSelection:
@@ -259,9 +262,8 @@ def recording_loaded_selection(
     def apply(configuration: typing.Any) -> None:
         global _loaded
         apply_configuration(configuration)
-        with _lock:
-            changed = _loaded != selection
-            _loaded = selection
+        changed = _loaded != selection
+        _loaded = selection
         if changed:
             notify_providers()
 
@@ -357,12 +359,11 @@ def count_inherited_drop() -> None:
 
     It logs nothing: "not sent" is logged once per provider initialization, and no provider initializes here.
     """
-    global _pending_fork_drop
-    if _pending_fork_drop is None:
+    try:
+        reason = _pending_fork_drop.pop()
+    except IndexError:
         return
-    with _lock:
-        reason, _pending_fork_drop = _pending_fork_drop, None
-    if reason is not None and _first_report(DROPPED_METRIC, reason):
+    if _first_report(DROPPED_METRIC, reason):
         _count(DROPPED_METRIC, reason)
 
 
@@ -373,11 +374,8 @@ def _record_dropped(reason: typing.Optional[str]) -> None:
 
 
 def _first_report(metric: str, reason: str) -> bool:
-    with _lock:
-        if (metric, reason) in _reported:
-            return False
-        _reported.add((metric, reason))
-        return True
+    first = object()
+    return _reported.setdefault((metric, reason), first) is first
 
 
 def _count(metric: str, reason: str) -> None:
@@ -390,12 +388,12 @@ def _count(metric: str, reason: str) -> None:
 @forksafe.register
 def _reset_once_per_process_guards() -> None:
     """Let each forked worker report its own diagnostics. The claim stays with the inherited providers."""
-    global _remote_config_warned, _second_selection_warned, _pending_fork_drop
+    global _remote_config_warned, _second_selection_warned
     _reported.clear()
     _remote_config_warned = False
     _second_selection_warned = False
     # Telemetry drops points recorded inside a fork hook, so the inherited poller counts the drop on its next run.
-    _pending_fork_drop = _dropped_reason if _claim_count > 0 else None
+    _pending_fork_drop[:] = [_dropped_reason] if _claim_count > 0 and _dropped_reason is not None else []
 
 
 def _reset_flag_selection_state() -> None:
