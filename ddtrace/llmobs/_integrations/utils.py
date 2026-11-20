@@ -1974,10 +1974,14 @@ def get_final_message_converse_stream_message(
             continue
         tool_input = tool_block.get("input")
         tool_args = {}
-        if tool_input is not None:
+        if isinstance(tool_input, dict):
+            # The input can already be parsed into a dict (#21830); json.loads would
+            # raise TypeError, which escapes into the caller's stream iteration.
+            tool_args = tool_input
+        elif tool_input is not None:
             try:
                 tool_args = json.loads(tool_input)
-            except (json.JSONDecodeError, ValueError):
+            except (json.JSONDecodeError, ValueError, TypeError):
                 tool_args = {"input": tool_input}
         tool_call_info = ToolCall(
             name=tool_block.get("name", ""),
