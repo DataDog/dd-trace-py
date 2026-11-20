@@ -399,15 +399,13 @@ class DataDogProvider(AbstractProvider):
         # common in pre-fork servers where master receives RC before workers fork).
         # A snapshot loaded for a released, different flag selection does not count, nor does any snapshot
         # while another thread's start, which may not have claimed its selection yet, is still in progress.
-        # A source that cannot start polls nothing of its own, so a released selection's snapshot with other flags
-        # never counts for it.
-        no_own_poll = self._configuration_source_error is not None
-        if (
-            started
-            and _get_ffe_snapshot() is not None
-            and not snapshot_from_other_selection()
-            and not (no_own_poll and snapshot_from_released_selection(self._flag_selection))
-        ):
+        # A source that cannot start polls nothing of its own, so neither a released selection's snapshot with other
+        # flags nor a readiness signal its poller sent after attach() registered this provider counts for it.
+        stale = self._configuration_source_error is not None and snapshot_from_released_selection(self._flag_selection)
+        if stale:
+            self._config_received.clear()
+            self._status = ProviderStatus.NOT_READY
+        if started and _get_ffe_snapshot() is not None and not snapshot_from_other_selection() and not stale:
             self._config_received.set()
             self._status = ProviderStatus.READY
             logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")

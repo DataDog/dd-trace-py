@@ -247,3 +247,25 @@ def test_provider_whose_source_cannot_start_uses_a_released_snapshot_with_its_fl
     finally:
         same.shutdown()
         first.shutdown()
+
+
+def test_provider_whose_source_cannot_start_ignores_a_notification_from_a_released_selection(cdn, api_key):
+    from ddtrace.internal.openfeature._config import _register_provider
+    from ddtrace.internal.openfeature._config import _unregister_provider
+
+    first = _provider({"tags": ["a"]})
+    replacement = _provider({"tags": ["b"]})
+    # Registered as attach() does, so the first provider's poll notifies it before it initializes.
+    _register_provider(replacement)
+    try:
+        first.initialize(EvaluationContext())
+        assert replacement._config_received.is_set()
+        first.shutdown()
+        with override_global_config({"_dd_api_key": None, "_dd_site": "datadoghq.com", "env": None}):
+            with pytest.raises(ProviderNotReadyError, match="DD_API_KEY"):
+                replacement.initialize(EvaluationContext())
+        assert replacement._status != ProviderStatus.READY
+    finally:
+        _unregister_provider(replacement)
+        replacement.shutdown()
+        first.shutdown()
