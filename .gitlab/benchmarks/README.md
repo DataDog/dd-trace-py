@@ -35,10 +35,6 @@ scenarios that need a live Datadog agent — currently those whose names start w
 `django_`. It pins the agent to CPUs 24-25 and the benchmark to CPUs 26-47 so the two never share a
 core. All other scenarios bypass this file and run through `steps/run-benchmarks.sh` directly.
 
-**`bp-runner.fail-on-regression.yml`** — `bp-runner` experiment used by the manual big-regression
-check; carried over from the benchmarking-platform branch and kept for parity with the other
-tracer repos.
-
 **`.gitlab/benchmarks/slos/<team>.yml`** — SLO thresholds for every microbenchmark scenario,
 currently one `execution_time` limit per scenario config. There is one file per team, each owned
 by its team via `.github/CODEOWNERS` so editing a threshold routes review to that team. This is
@@ -72,11 +68,9 @@ The rest — `run-benchmarks.sh`, `run-baseline.sh`, `run-candidate.sh`,
 `update-dd-agent-config.sh`, `upload-results-to-s3.sh`,
 `upload-results-to-benchmarking-api.sh`, `post-pr-comment.sh`, `post-pr-comment-old.sh`, and
 `format-benchmark-results.py` — run and report the benchmarks themselves. They were migrated
-verbatim from the `dd-trace-py` branch of
-[DataDog/benchmarking-platform](https://github.com/DataDog/benchmarking-platform) (the only
-edits are the `/platform/steps/` path rewrites and the `SCRIPT_DIR` resolution in
-`run-benchmarks.sh`), so changing how a benchmark is executed or
-reported is now a pull request here.
+from the `dd-trace-py` branch of
+[DataDog/benchmarking-platform](https://github.com/DataDog/benchmarking-platform), so changing
+how a benchmark is executed or reported is now a pull request here.
 
 ## External
 

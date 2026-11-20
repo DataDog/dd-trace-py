@@ -201,14 +201,19 @@ authenticate with whichever Datadog credential helper you normally use for it:
 docker pull registry.ddbuild.io/ci/benchmarking-platform:dd-trace-py-<pipeline id>
 ```
 
-Run a scenario the way CI does, with the repository mounted:
+Run a scenario the way CI does, with the repository mounted. `run-benchmarks.sh` installs the
+candidate from a wheel, so build one first with `pip wheel . --no-deps -w dist/` (or download the
+`cp312` wheel from the branch pipeline), and pass it through:
 
 ```bash
 docker run --rm -it \
   -v "$(pwd)":/dd-trace-py -w /dd-trace-py \
   -e SCENARIO=<name> \
+  -e CANDIDATE_WHL=dist/<wheel>.whl \
   registry.ddbuild.io/ci/benchmarking-platform:dd-trace-py-<pipeline id> bash
 ```
+
+Set `BASELINE_WHL` the same way for a comparison run; without it the baseline is skipped.
 
 Inside the container, put the step scripts from the checkout on `PATH` as the job does:
 

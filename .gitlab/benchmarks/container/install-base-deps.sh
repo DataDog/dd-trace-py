@@ -15,27 +15,25 @@ apt-get update && apt-get install --no-install-recommends -y \
     && apt-get -y clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install newer pyenv version (must be new enough for Python 3.14.x definitions)
+# Install newer pyenv version (must be new enough for the Python versions below)
 rm -rf "$PYENV_ROOT"
 git clone --depth 1 https://github.com/pyenv/pyenv.git --branch "v2.7.3" --single-branch "$PYENV_ROOT"
 eval "$(pyenv init -)"
 pyenv install 3.9.15   # Required for BP tooling (bp-runner, upload scripts, etc.)
 pyenv install 3.12.10  # Available for repos that need it (e.g. dd-trace-py microbenchmarks)
-pyenv install 3.14.4  # Available for repos that need it (e.g. dd-trace-py microbenchmarks)
 pyenv global 3.9.15    # Keep 3.9 as default; repos select other versions via PYENV_VERSION
 pip3 install awscli virtualenv setuptools
 # Also install awscli under the non-default versions so the `aws` pyenv shim
 # works when PYENV_VERSION is set (e.g. dd-trace-py microbenchmarks).
 pyenv shell 3.12.10 && pip3 install awscli && pyenv shell --unset
-pyenv shell 3.14.4 && pip3 install awscli && pyenv shell --unset
 
 echo "Install Rust toolchain"
 
 # The base image already carries a toolchain; reinstalling on top of it fails
 # with a cross-device link error across Docker layers.
 if ! command -v cargo >/dev/null 2>&1; then
-  curl https://sh.rustup.rs -sSf | \
-    sh -s -- --default-toolchain stable -y
+  curl -sSf --retry 5 --retry-delay 2 --retry-connrefused -o /tmp/rustup-init.sh https://sh.rustup.rs
+  sh /tmp/rustup-init.sh --default-toolchain stable -y
 fi
 
 echo "Copying bp-install from benchmarking-platform-tools repo..."

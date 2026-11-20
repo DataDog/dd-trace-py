@@ -41,9 +41,6 @@ if [ -f "$BASELINE_WHL" ]; then
   # CPUs 36-37 are skipped to match the candidate's CPU count.
   CPU_AFFINITY=38-47 "$SCRIPT_DIR/run-baseline.sh" &
 
-  # baseline_branch.txt is used by big regression check
-  # TODO: Deprecate after we switch to new way of running benchmarks in other lang repos
-  echo "baseline" > "$REPORTS_DIR"/baseline_branch.txt
 else
   echo "Baseline wheel not found: $BASELINE_WHL"
 fi
