@@ -1,6 +1,8 @@
 import logging
 import os
+import subprocess
 import sys
+import textwrap
 
 import pytest
 
@@ -73,9 +75,9 @@ def test_alias_is_accepted(caplog):
 
 
 def test_deprecated_key_logs_deprecated_message(caplog):
-    if not env_module.DEPRECATED_CONFIGURATIONS:
+    if not env_module._DEPRECATED_CONFIGURATIONS:
         pytest.skip("no deprecated configurations registered")
-    deprecated_key = next(iter(env_module.DEPRECATED_CONFIGURATIONS))
+    deprecated_key = next(iter(env_module._DEPRECATED_CONFIGURATIONS))
     with caplog.at_level(logging.DEBUG, logger=ENV_LOGGER):
         env_module._validate_key(deprecated_key)
     assert "Deprecated Datadog configuration variable accessed" in caplog.text
@@ -172,7 +174,7 @@ def test_copy_returns_plain_dict():
 
 def _pick_alias_pair() -> tuple[str, str]:
     """Return (canonical, legacy) for the first registered rename alias."""
-    canonical, aliases = next(iter(env_module.CONFIGURATION_ALIASES.items()))
+    canonical, aliases = next(iter(env_module._CONFIGURATION_ALIASES.items()))
     return canonical, aliases[0]
 
 
@@ -245,3 +247,66 @@ def test_get_config_falls_back_to_alias_in_fleet_config(monkeypatch):
 
     val = telemetry_mod.get_config(canonical, default=None, report_telemetry=False)
     assert val == "from-fleet"
+
+
+def _run_python(code: str, env: dict[str, str]) -> str:
+    result = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(code)],
+        env={**os.environ, **env},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def test_import_ddtrace_registers_registry_with_env():
+    """Importing ddtrace hands the generated registry to env before any lookup."""
+    canonical, legacy = _pick_alias_pair()
+    out = _run_python(
+        f"""
+        import ddtrace
+        from ddtrace.internal.settings.env import dd_environ, register_supported_configurations
+
+        assert dd_environ[{canonical!r}] == "from-alias"
+        assert not register_supported_configurations([], {{}}, [])  # first registration won
+        assert dd_environ[{canonical!r}] == "from-alias"
+        print("ok")
+        """,
+        {legacy: "from-alias"},
+    )
+    assert out == "ok"
+
+
+def test_env_before_registration_is_exact_lookup_without_validation():
+    """Loading env.py on its own (no ddtrace package, no registry) must be safe and inert."""
+    canonical, legacy = _pick_alias_pair()
+    out = _run_python(
+        f"""
+        import importlib.util, logging, sys
+
+        logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format="LOG %(message)s")
+        spec = importlib.util.spec_from_file_location("standalone_env", {env_module.__file__!r})
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        assert "ddtrace" not in sys.modules
+
+        env = mod.dd_environ
+        assert env.get("DD_TOTALLY_BOGUS_XYZ") is None  # unregistered-key debug log is skipped
+        assert {canonical!r} not in env  # aliases are not applied
+        assert env[{legacy!r}] == "from-alias"  # exact-key lookup still works
+
+        assert mod.register_supported_configurations(
+            [{canonical!r}], {{{canonical!r}: [{legacy!r}]}}, []
+        )
+        assert env[{canonical!r}] == "from-alias"
+        env.get("DD_TOTALLY_BOGUS_XYZ")
+        print("done")
+        """,
+        {legacy: "from-alias"},
+    )
+    lines = out.splitlines()
+    assert lines[-1] == "done"
+    assert [line for line in lines if line.startswith("LOG ")] == [
+        "LOG Unsupported Datadog configuration variable accessed: DD_TOTALLY_BOGUS_XYZ"
+    ]
