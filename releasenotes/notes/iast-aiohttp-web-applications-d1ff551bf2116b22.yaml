@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Code Security (IAST): Adds vulnerability detection for aiohttp web applications traced with
+    ``ddtrace.contrib.aiohttp.trace_app``. Request headers, query parameters and form fields are
+    only tracked with multidict 6.4 or later. Uploaded files and request bodies read through
+    ``request.content`` or ``request.multipart()`` are not tracked.
