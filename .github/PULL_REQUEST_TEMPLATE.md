@@ -6,8 +6,8 @@
 
 ## Customer impact
 
-<!-- What would a customer notice after upgrading? If nothing, say so and use the `changelog/no-changelog`
-     label (not needed for `ci`, `test` and `docs` PRs). Otherwise add a release note. -->
+<!-- What, if anything, would a customer notice after upgrading? What would motivate them to upgrade?
+     If nothing, say so. Otherwise add a release note. -->
 
 ## Testing
 

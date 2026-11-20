@@ -21,8 +21,7 @@ then
     exit 0
 fi
 
-# `ci`, `test` and `docs` PRs do not change anything customers receive, so neither a release note
-# nor the `changelog/no-changelog` label is required. A note may still be added if one is warranted.
+# Do not enforce release notes for `ci`, `test` and `docs` PRs.
 # DEV: The PR title is validated as a conventional commit by the `pr-name` workflow.
 if [[ -f "${GITHUB_EVENT_PATH}" ]];
 then
