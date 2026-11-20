@@ -168,6 +168,37 @@ def test_memory_collector(tmp_path: Path) -> None:
     )
 
 
+def _grow_by_realloc(nchars: int) -> str:
+    # One non-ASCII character takes str.translate off its ASCII fast path; the generic path then grows its output
+    # buffer by one realloc per replacement longer than the character it replaces.
+    text = "<b>x " * (nchars // 5) + "\u00e9"
+    return text.translate(str.maketrans({"<": "&lt;", ">": "&gt;"}))
+
+
+def test_memory_collector_realloc_growth_is_charged_once(tmp_path: Path) -> None:
+    """A buffer grown by many small reallocs is charged with what it grew by, not its full size at every step."""
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_realloc_growth_is_charged_once")
+
+    mc = memalloc.MemoryCollector(heap_sample_size=1024 * 1024)
+    with mc:
+        result = _grow_by_realloc(3_000_000)
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
+    charged = 0
+    for sample in profile.sample:
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            names = {pprof_utils.get_function_with_id(profile, line.function_id).name for line in location.line}
+            if "_grow_by_realloc" in {profile.string_table[name] for name in names}:
+                charged += sample.value[alloc_space_idx]
+                break
+
+    # The output buffer grows to about sys.getsizeof(result) bytes in ~1.6M reallocs. Charged with its full size at
+    # each one, the reported allocations come to terabytes; charged with the growth, they stay near the buffer size.
+    assert 0 < charged < 50 * sys.getsizeof(result), charged
+
+
 def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_ignore_profiler")
 
@@ -1252,6 +1283,15 @@ def test_memalloc_speed(benchmark: Any, heap_sample_size: int) -> None:
             benchmark(_allocate_1k)
     else:
         benchmark(_allocate_1k)
+
+
+@pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
+def test_memalloc_realloc_speed(benchmark: Any, heap_sample_size: int) -> None:
+    if heap_sample_size:
+        with memalloc.MemoryCollector(heap_sample_size=heap_sample_size):
+            benchmark(_grow_by_realloc, 300_000)
+    else:
+        benchmark(_grow_by_realloc, 300_000)
 
 
 @pytest.mark.parametrize(

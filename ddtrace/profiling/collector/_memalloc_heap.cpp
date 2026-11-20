@@ -103,6 +103,14 @@ class heap_tracker_t
      * internally if found. */
     void untrack_no_cpython(void* ptr);
 
+    /* Move the sample tracked at `from` to a different address `to`, for a realloc that moved the block. Returns
+     * whether `from` was tracked. Must be called with the GIL held and must not make any C Python API calls. */
+    bool move_no_cpython(void* from, void* to);
+
+    /* The bytes a realloc of `old_ptr` to `new_size` at `new_ptr` adds to the sampling counter. Must be called with
+     * the GIL held and must not make any C Python API calls. */
+    size_t realloc_charge_no_cpython(void* old_ptr, void* new_ptr, size_t new_size);
+
     /* Decide whether we should sample an allocation of the given size. Accesses
      * shared state, and must be called with the GIL held and without making any C
      * Python API calls. Returns true if we should sample, and sets allocated_memory_val
@@ -161,6 +169,16 @@ class heap_tracker_t
      * Accumulated across the lifetime of this tracker instance and surfaced
      * via ProfilerStats so the backend / user can detect data loss. */
     size_t cap_drops{ 0 };
+
+    /* The block last reallocated, and its size then. CPython grows some buffers by one realloc per small step
+       (str.translate with replacements longer than one character reallocates once per replaced character), so
+       charging each realloc with its full new size samples nearly every step of a large buffer: about 1.6M samples
+       for one translate of 3M characters, each one a traceback captured with the GIL held. Charging a realloc of
+       the same block only with its growth keeps the counter on bytes actually allocated. Nothing clears these on
+       free, to keep malloc and free untouched: an address freed and handed out again, or another thread's realloc
+       in between, only changes what one realloc is charged, and the pointer is never dereferenced. */
+    void* last_realloc_ptr{ nullptr };
+    size_t last_realloc_size{ 0 };
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -251,6 +269,34 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 }
 
 bool
+heap_tracker_t::move_no_cpython(void* from, void* to)
+{
+    memalloc_gil_debug_guard_t guard(gil_guard);
+
+    auto node = allocs_m.extract(from);
+    if (node.empty()) {
+        return false;
+    }
+    std::unique_ptr<traceback_t> tb = std::move(node.mapped());
+    allocs_m.insert_or_assign(to, std::move(tb));
+    return true;
+}
+
+size_t
+heap_tracker_t::realloc_charge_no_cpython(void* old_ptr, void* new_ptr, size_t new_size)
+{
+    memalloc_gil_debug_guard_t guard(gil_guard);
+
+    size_t charge = new_size;
+    if (old_ptr != nullptr && old_ptr == last_realloc_ptr) {
+        charge = new_size > last_realloc_size ? new_size - last_realloc_size : 0;
+    }
+    last_realloc_ptr = new_ptr;
+    last_realloc_size = new_size;
+    return charge;
+}
+
+bool
 heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
@@ -331,6 +377,8 @@ heap_tracker_t::postfork_child()
     allocs_m.clear();
 
     cap_drops = 0;
+    last_realloc_ptr = nullptr;
+    last_realloc_size = 0;
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
@@ -370,17 +418,17 @@ memalloc_heap_untrack_no_cpython(void* ptr)
     }
 }
 
-/* Track a memory allocation in the heap profiler. */
-void
-memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
+/* Take a sample of the allocation of `size` bytes at `ptr`, which the counter (now `allocated_memory_val`) chose.
+ * `replace` says a sample may already be tracked at `ptr` (one a realloc left there); the new one takes its place.
+ * Kept out of line so the hooks' fast path, the should_sample check, stays as small as it was. */
+__attribute__((noinline)) static void
+memalloc_heap_sample_invokes_cpython(uint16_t max_nframe,
+                                     void* ptr,
+                                     size_t size,
+                                     uint64_t allocated_memory_val,
+                                     bool replace,
+                                     PyMemAllocatorDomain domain)
 {
-    if (!heap_tracker_t::instance) {
-        return;
-    }
-    uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
-        return;
-    }
 
     /* Skip tracking if we're already inside the malloc hook on this thread.
      * Reentrant tracking would corrupt the heap tracker's data structures. */
@@ -455,9 +503,51 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
+        if (replace) {
+            heap_tracker_t::instance->untrack_no_cpython(ptr);
+        }
         heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
+}
+
+/* Track a memory allocation in the heap profiler. */
+void
+memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
+{
+    if (!heap_tracker_t::instance) {
+        return;
+    }
+    uint64_t allocated_memory_val = 0;
+    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
+        return;
+    }
+    memalloc_heap_sample_invokes_cpython(max_nframe, ptr, size, allocated_memory_val, false, domain);
+}
+
+void
+memalloc_heap_retrack_invokes_cpython(uint16_t max_nframe,
+                                      void* old_ptr,
+                                      void* new_ptr,
+                                      size_t new_size,
+                                      PyMemAllocatorDomain domain)
+{
+    if (!heap_tracker_t::instance) {
+        return;
+    }
+    size_t charge = heap_tracker_t::instance->realloc_charge_no_cpython(old_ptr, new_ptr, new_size);
+
+    /* Grown in place, a tracked sample is already under the right address; only a new sample replaces it. A moved
+     * block takes its sample along. */
+    bool tracked_at_new = old_ptr == new_ptr;
+    if (!tracked_at_new && old_ptr != nullptr) {
+        tracked_at_new = heap_tracker_t::instance->move_no_cpython(old_ptr, new_ptr);
+    }
+    uint64_t allocated_memory_val = 0;
+    if (!heap_tracker_t::instance->should_sample_no_cpython(charge, &allocated_memory_val)) {
+        return;
+    }
+    memalloc_heap_sample_invokes_cpython(max_nframe, new_ptr, new_size, allocated_memory_val, tracked_at_new, domain);
 }
 
 void
