@@ -6,6 +6,7 @@ from typing import Optional
 from typing import Sequence
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import register_package_root_paths
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.utils.formats import asbool
 
@@ -23,11 +24,19 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
-# Root loggers configured identically by `configure_ddtrace_logger`. Code extracted from ddtrace into sibling
-# packages logs under its own top-level name (`_ddtrace_internal.*`, ...), which is not a child of `ddtrace`.
-# New packages must be listed here and keep the `_ddtrace_` prefix that `ddtrace.internal.logger` relies on
-# to apply the per-product `_DD_<PRODUCT>_LOG_LEVEL` settings.
-LOGGER_ROOTS = ("ddtrace", "_ddtrace_internal", "_ddtrace_coverage", "_ddtrace_native")
+# Code extracted from ddtrace into sibling packages logs under its own top-level name (`_ddtrace_internal.*`,
+# ...), which is not a child of `ddtrace`. Each package root maps to the path its code had inside ddtrace, so the
+# per-product `_DD_<PRODUCT>_LOG_LEVEL` settings keep their names (e.g. `_DD_INTERNAL_COVERAGE_LOG_LEVEL`).
+# New packages must be listed here and keep the `_ddtrace_` prefix that `ddtrace.internal.logger` relies on.
+LOGGER_PACKAGE_PATHS = {
+    "_ddtrace_internal": "internal",
+    "_ddtrace_coverage": "internal.coverage",
+    "_ddtrace_native": "internal.native",
+}
+register_package_root_paths(LOGGER_PACKAGE_PATHS)
+
+# Root loggers configured identically by `configure_ddtrace_logger`.
+LOGGER_ROOTS = ("ddtrace", *LOGGER_PACKAGE_PATHS)
 
 
 def configure_ddtrace_logger() -> None:
