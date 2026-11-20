@@ -1,5 +1,4 @@
 # LLM Validation Platform — dd-trace-py config
-model: claude-opus-4-8
 runs: 3
 # The instruction file(s) this repo monitors (candidate = the PR's copy, baseline = main's). Repo-relative.
 # Single source of truth for *which* files are validated; the CI trigger derives its watch paths from this too.
