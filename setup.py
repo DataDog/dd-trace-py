@@ -995,7 +995,10 @@ class CustomBuildExt(build_ext):
         else:
             cargo_cmd: list[str] = [
                 "cargo",
-                "build",
+                # `rustc` rather than `build`: it passes the linker arguments below to this crate only, not to its
+                # dependencies (as RUSTFLAGS would).
+                "rustc",
+                "--lib",
                 "--locked",
                 "--manifest-path",
                 str(PROFILING_FFI_CRATE / "Cargo.toml"),
@@ -1007,6 +1010,13 @@ class CustomBuildExt(build_ext):
             if COMPILE_MODE.lower() != "debug":
                 cargo_cmd.append("--release")
             cargo_cmd.extend(DD_CARGO_ARGS)
+            # Record the staged file name as the library's SONAME (install name on macOS) at link time, so dd_wrapper
+            # records it as its dependency. Linking it in avoids patchelf, which the standalone profiling builds
+            # (build_standalone.sh) don't install.
+            if CURRENT_OS == "Linux":
+                cargo_cmd.extend(["--", "-C", f"link-arg=-Wl,-soname,{ffi_name}"])
+            elif CURRENT_OS == "Darwin":
+                cargo_cmd.extend(["--", "-C", f"link-arg=-Wl,-install_name,{ffi_name}"])
 
             cargo_env = os.environ.copy()
             cargo_env["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
@@ -1038,12 +1048,6 @@ class CustomBuildExt(build_ext):
             print(f"Built and copied profiling FFI library: {ffi_name}")
 
             dedup_profiling_headers()
-
-        # Set SONAME (always do this as it's idempotent) so dd_wrapper records the staged name as its dependency
-        if CURRENT_OS == "Linux":
-            subprocess.run(["patchelf", "--set-soname", ffi_name, library], check=True)
-        elif CURRENT_OS == "Darwin":
-            subprocess.run(["install_name_tool", "-id", ffi_name, library], check=True)
 
     def build_libdd_wrapper(self):
         """Build libdd_wrapper shared library as a dependency for profiling extensions."""
