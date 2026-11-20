@@ -7,4 +7,3 @@
 # To unfreeze, remove the entry in a separate PR that leaves the file unchanged;
 # changes to the file can land after that PR merges. The check reads base rules
 # as well as merge-result rules, so editing this list cannot bypass a freeze.
-ddtrace/internal/codeowners.py=79ba689aac82d7f54ceb30661ffed6d8bb5ff76697dc3a87eb05718d6301ed9b
