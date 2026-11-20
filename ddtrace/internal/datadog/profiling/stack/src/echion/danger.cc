@@ -136,6 +136,7 @@ disarm_fault_handler()
 static void
 segv_handler(int signo, siginfo_t* info, void* ucontext)
 {
+    const int saved_errno = errno;
     if (!t_handler_armed) {
         const uintptr_t frame = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
         if (t_unarmed_chain_frame != 0 && frame < t_unarmed_chain_frame &&
@@ -145,6 +146,7 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
             // default disposition and re-raise to guarantee the process
             // terminates instead of looping forever.
             reset_to_default_and_reraise(signo);
+            errno = saved_errno;
             return;
         }
 
@@ -199,10 +201,12 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
 
         t_unarmed_chain_frame = prev_frame;
         t_unarmed_chain_info = prev_info;
+        errno = saved_errno;
         return;
     }
 
     // Jump back to the armed site. Use 1 so sigsetjmp returns nonzero.
+    errno = saved_errno;
     siglongjmp(t_jmpenv, 1);
 }
 

@@ -108,7 +108,7 @@ class JSONEncoder(_EncoderBase):
         return self.encode(normalized_traces)[0]
 
     @staticmethod
-    def _normalize_span(span):
+    def _normalize_span(span: dict[str, Any]) -> dict[str, Any]:
         # Ensure all string attributes are actually strings and not bytes
         # DEV: We are deferring meta/metrics to reduce any performance issues.
         #      Meta/metrics may still contain `bytes` and have encoding issues.
@@ -118,7 +118,7 @@ class JSONEncoder(_EncoderBase):
         return span
 
     @staticmethod
-    def _normalize_str(obj):
+    def _normalize_str(obj: Any) -> Optional[str]:
         if obj is None:
             return obj
 

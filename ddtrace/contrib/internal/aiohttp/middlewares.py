@@ -10,8 +10,10 @@ from typing import Any
 from typing import Optional
 from typing import cast
 
+from aiohttp import hdrs
 from aiohttp import web
 from aiohttp.streams import StreamReader
+from aiohttp.web_urldispatcher import AbstractRoute
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
@@ -22,11 +24,16 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.endpoints import endpoint_collection
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.http import _format_template
 
+
+log = get_logger(__name__)
 
 CONFIG_KEY = "datadog_trace"
 REQUEST_CONTEXT_KEY = "datadog_context"
@@ -185,6 +192,8 @@ async def trace_middleware(
                 trace_query_string=trace_query_string,
                 query=request.rel_url.raw_query_string,
                 service=service,
+                peer_ip=request.remote,
+                tag_request_on_start=True,
             ),
             dispatch_end_event=False,
         ) as ctx:
@@ -357,6 +366,37 @@ async def on_prepare(request: web.Request, response: web.StreamResponse) -> None
                 ctx.set_item("aiohttp.response", response)
 
 
+def _route_methods(route: AbstractRoute) -> list[str]:
+    handler = route.handler
+    if route.method == hdrs.METH_ANY and isinstance(handler, type) and issubclass(handler, web.View):
+        methods = sorted(method for method in hdrs.METH_ALL if hasattr(handler, method.lower()))
+        if methods:
+            return methods
+    return [route.method]
+
+
+def _collect_routes(app: web.Application) -> None:
+    if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED:
+        return
+    try:
+        routes = app.router.routes()
+    except Exception:
+        log.debug("Failed to enumerate aiohttp routes for endpoint collection", exc_info=True)
+        return
+    for route in routes:
+        try:
+            resource = route.resource
+            if resource is not None:
+                for method in _route_methods(route):
+                    endpoint_collection.add_endpoint(method, resource.canonical, operation_name="aiohttp.request")
+        except Exception:
+            log.debug("Failed to register aiohttp route %r for endpoint collection", route, exc_info=True)
+
+
+async def _collect_endpoints(app: web.Application) -> None:
+    _collect_routes(app)
+
+
 def trace_app(app, tracer=None, service="aiohttp-web"):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
@@ -389,3 +429,7 @@ def trace_app(app, tracer=None, service="aiohttp-web"):
     # and be sure that the on_prepare signal is the last one
     app.middlewares.insert(0, trace_middleware)
     app.on_response_prepare.append(on_prepare)
+    if app.on_startup.frozen:
+        _collect_routes(app)
+    else:
+        app.on_startup.append(_collect_endpoints)

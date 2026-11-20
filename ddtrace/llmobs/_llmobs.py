@@ -96,6 +96,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
+from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
@@ -732,6 +733,10 @@ class LLMObs(Service):
             routing = get_routing_context()
             if routing is not None:
                 span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
+            # Read at start: a streamed span finishes after the core context of its request has exited.
+            gateway = core.find_item(GATEWAY)
+            if gateway is not None:
+                span._set_ctx_item(GATEWAY, gateway)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -909,6 +914,12 @@ class LLMObs(Service):
             parent_agent_version = span._get_ctx_item(PARENT_AGENT_VERSION)
             if parent_agent_version:
                 llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = parent_agent_version
+
+        # Write the gateway on the llm spans of a gateway request. This runs after the integration and annotate
+        # writes, and _normalize_llmobs_meta keeps _dd safe from the span processor.
+        gateway = span._get_ctx_item(GATEWAY) if span_kind == "llm" else None
+        if gateway:
+            _annotate_llmobs_span_data(span, gateway=gateway)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         # Before the user processor and _normalize_llmobs_meta, either of which can strip values

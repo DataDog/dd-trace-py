@@ -2,6 +2,7 @@ import time
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
@@ -9,13 +10,13 @@ from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._event_types import LLMObsSpanEvent
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_tags
-from ddtrace.trace import Span
 
 
 class LLMObsTelemetryMetrics:
@@ -107,7 +108,7 @@ def record_span_started():
     )
 
 
-def record_span_created(span: Span, export_mode: LLMObsExportMode):
+def record_span_created(span: _LLMObsSpan, export_mode: LLMObsExportMode):
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
@@ -171,11 +172,11 @@ def record_dropped_payload(num_events: int, event_type: str, error: str):
     )
 
 
-def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
+def record_llmobs_annotate(span: Optional[_LLMObsSpan], error: Optional[str]):
     tags = _base_tags(error)
     span_kind = "N/A"
     is_root_span = "0"
-    if span and isinstance(span, Span):
+    if span and isinstance(span, SpanData):
         span_kind = get_llmobs_span_kind(span) or "N/A"
         is_root_span = str(int(get_llmobs_parent_id(span) == ROOT_PARENT_ID))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
@@ -184,7 +185,7 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     )
 
 
-def record_cost_tags_annotated(span: Span, source: str) -> None:
+def record_cost_tags_annotated(span: _LLMObsSpan, source: str) -> None:
     tags = [
         ("span_kind", get_llmobs_span_kind(span) or "N/A"),
         ("source", source),
@@ -199,7 +200,7 @@ def record_cost_tags_annotated(span: Span, source: str) -> None:
     )
 
 
-def record_cost_tags_submitted(span: Span, count: int, source: str, state: str, reason: str = "none") -> None:
+def record_cost_tags_submitted(span: _LLMObsSpan, count: int, source: str, state: str, reason: str = "none") -> None:
     tags = [
         ("span_kind", get_llmobs_span_kind(span) or "N/A"),
         ("source", source),
@@ -249,11 +250,11 @@ def record_llmobs_submit_feedback(target_type: str, metric_type: str, error: Opt
     )
 
 
-def record_span_exported(span: Optional[Span], error: Optional[str]):
+def record_span_exported(span: Optional[_LLMObsSpan], error: Optional[str]):
     tags = _base_tags(error)
     span_kind = "N/A"
     is_root_span = "0"
-    if span and isinstance(span, Span):
+    if span and isinstance(span, SpanData):
         span_kind = get_llmobs_span_kind(span) or "N/A"
         is_root_span = str(int(get_llmobs_parent_id(span) == ROOT_PARENT_ID))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
