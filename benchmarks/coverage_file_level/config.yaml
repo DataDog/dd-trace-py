@@ -1,0 +1,13 @@
+# Control for subprocess and generated-corpus noise.
+baseline: &base
+  ncontexts: 1000
+  nmodules: 25
+  functions_per_module: 4
+  modules_per_context: 3
+  collect_coverage: false
+
+# File-level coverage as used by the pytest plugin: import-time collection plus
+# one coverage context per test-like corpus execution.
+file_level:
+  <<: *base
+  collect_coverage: true
