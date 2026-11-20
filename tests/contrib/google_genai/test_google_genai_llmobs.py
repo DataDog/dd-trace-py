@@ -29,6 +29,12 @@ EMBED_METADATA = {
     "title": None,
 }
 
+LOOKUP_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {"location": {"type": "string"}},
+    "required": ["location"],
+}
+
 WEATHER_TOOL_DEFINITIONS = [
     {
         "name": "get_current_weather",
@@ -510,6 +516,37 @@ class TestLLMObsGoogleGenAI:
             _get_llmobs_data_metastruct(spans[1]),
             **_expected_tool_followup_span_data(),
         )
+
+    @pytest.mark.parametrize(
+        "config",
+        [
+            pytest.param(
+                {"tools": [{"function_declarations": [{"name": "lookup", "parameters": LOOKUP_JSON_SCHEMA}]}]},
+                id="dict_config",
+            ),
+            pytest.param(
+                types.GenerateContentConfig(
+                    tools=[
+                        types.Tool(
+                            function_declarations=[
+                                types.FunctionDeclaration(name="lookup", parameters_json_schema=LOOKUP_JSON_SCHEMA)
+                            ]
+                        )
+                    ]
+                ),
+                id="parameters_json_schema",
+            ),
+        ],
+    )
+    def test_generate_content_tool_definition_json_schema(
+        self, genai_client, genai_llmobs, test_spans, mock_generate_content_with_tools, config
+    ):
+        genai_client.models.generate_content(model="gemini-2.0-flash-001", contents="Look up Boston", config=config)
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        tool_definitions = _get_llmobs_data_metastruct(spans[0])["meta"]["tool_definitions"]
+        assert tool_definitions == [{"name": "lookup", "description": "", "schema": LOOKUP_JSON_SCHEMA}]
 
     def test_generate_content_stream_with_tools(
         self, genai_client, genai_llmobs, test_spans, mock_generate_content_stream_with_tools
