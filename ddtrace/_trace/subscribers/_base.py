@@ -114,7 +114,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     return span
 
 
-class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType], auto_register=False):
+class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType]):
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
@@ -132,6 +132,8 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
             def on_ended(cls, ctx, exc_info):
                 if exc_info[1]:
                     span_from_context(ctx).set_tag("error", True)
+
+        MySpanSubscriber.register()
     """
 
     # Register here events that just create / finish spans
@@ -184,7 +186,6 @@ class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[Traci
 
 
 class SpanExceptionSubscriber(Subscriber):
-    auto_register = False
     event_names = (ContextExceptionEvent.event_name,)
 
     @classmethod
