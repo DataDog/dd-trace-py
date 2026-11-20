@@ -1,4 +1,6 @@
 import os
+import sys
+from unittest import mock
 
 from opentelemetry import version
 import pytest
@@ -269,8 +271,7 @@ def test_runtime_metrics_enabled_without_the_bootstrap_are_sent_to_dogstatsd():
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=OTLP_RUNTIME_METRICS_ENV,
-    err=lambda err: "Runtime metrics are sent to DogStatsD: install opentelemetry-exporter-otlp 1.16.0 or higher to "
-    "export them over OTLP.\n" in err,
+    err=lambda err: "Runtime metrics are sent to DogStatsD: exporting them over OTLP requires opentelemetry-" in err,
 )
 def test_runtime_metrics_fall_back_to_dogstatsd_without_otel_sdk():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
@@ -286,3 +287,38 @@ def test_runtime_metrics_sent_to_dogstatsd_by_default():
 
     assert RuntimeWorker.enabled
     assert RuntimeWorker._instance is not None
+
+
+@pytest.mark.parametrize(
+    "versions,expected",
+    [
+        ({"api": "1.15.0", "sdk": "1.16.0", "exporter": "1.16.0"}, ("api", "1.16.0", "1.15.0")),
+        ({"api": "1.16.0", "sdk": "", "exporter": "1.16.0"}, ("sdk", "1.16.0", "none")),
+        ({"api": "1.16.0", "sdk": "1.16.0", "exporter": "1.14.0"}, ("exporter", "1.15.0", "1.14.0")),
+        ({"api": "1.16.0", "sdk": "1.16.0", "exporter": "1.15.0"}, None),
+    ],
+)
+def test_runtime_metrics_otlp_dependency_checks(versions, expected):
+    from ddtrace.internal.runtime import runtime_metrics
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    distributions = {
+        "api": "opentelemetry-api",
+        "sdk": "opentelemetry-sdk",
+        "exporter": runtime_metrics._OTLP_METRICS_EXPORTERS[otel_config.exporter.METRICS_PROTOCOL],
+    }
+    installed = {distributions[dependency]: version for dependency, version in versions.items()}
+
+    with mock.patch.dict(sys.modules, {runtime_metrics._BOOTSTRAP_MODULE: mock.Mock()}):
+        with mock.patch("ddtrace.internal.packages.get_version_for_package", side_effect=installed.get):
+            with mock.patch.object(runtime_metrics.log, "warning") as warning:
+                can_export = runtime_metrics._can_export_otlp_runtime_metrics()
+
+    if expected is None:
+        assert can_export
+        warning.assert_not_called()
+    else:
+        dependency, minimum_version, installed_version = expected
+        assert not can_export
+        # The warning names the dependency that failed the check, with its own minimum version.
+        assert warning.call_args.args[1:] == (distributions[dependency], minimum_version, installed_version)
