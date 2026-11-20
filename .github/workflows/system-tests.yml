@@ -107,11 +107,11 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e09565dccaba88cc2c8aabd9db680dbc1c7332a6
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3
     secrets: inherit
     with:
       library: python_lambda
-      ref: 'e09565dccaba88cc2c8aabd9db680dbc1c7332a6'
+      ref: '7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3'
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
@@ -144,11 +144,11 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e09565dccaba88cc2c8aabd9db680dbc1c7332a6
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3
     secrets: inherit
     with:
       library: python
-      ref: 'e09565dccaba88cc2c8aabd9db680dbc1c7332a6'
+      ref: '7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3'
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
       push_to_test_optimization: true
@@ -156,15 +156,14 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e09565dccaba88cc2c8aabd9db680dbc1c7332a6
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3
     secrets: inherit
     with:
       library: python
-      ref: 'e09565dccaba88cc2c8aabd9db680dbc1c7332a6'
+      ref: '7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3'
       binaries_artifact: wheels-manylinux_x86_64
       desired_execution_time: 900
       scenarios_groups: tracer-release
-      force_execute: tests/parametric/test_otel_env_vars.py::Test_Otel_Env_Vars::test_otlp_grpc_unix_endpoint_does_not_prevent_startup
       skip_empty_scenarios: ${{github.event_name == 'pull_request'}}
       push_to_test_optimization: true
 

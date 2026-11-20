@@ -1,10 +1,13 @@
 import typing as t
+from urllib.parse import unquote
 
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._agentless import config as agentless_config
+from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
@@ -164,10 +167,10 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
     if traces_endpoint := env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
         return traces_endpoint
     protocol = config.TRACES_PROTOCOL
-    # A global HTTP endpoint is a base URL; gRPC uses it as-is.
+    # TCP HTTP endpoints are base URLs; gRPC and Unix socket addresses stay intact.
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
-        if protocol == "grpc":
+        if protocol == "grpc" or global_endpoint.startswith("unix://"):
             return global_endpoint.rstrip("/")
         return global_endpoint.rstrip("/") + ExporterConfig.TRACES_PATH
     return ExporterConfig._get_default_endpoint(protocol, ExporterConfig.TRACES_PATH)
@@ -182,9 +185,11 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
     # Signal-specific endpoint takes precedence (full URL, no path appended).
     if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
         return metrics_endpoint
-    # Global endpoint is a base URL; append the metrics signal path.
+    # Unix socket addresses stay intact; libdatadog selects the signal route.
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
+        if global_endpoint.startswith("unix://"):
+            return global_endpoint
         return global_endpoint.rstrip("/") + ExporterConfig.METRICS_PATH
     # Agentless has no agent OTLP receiver to fall back on.
     if _targets_agentless_intake():
@@ -195,6 +200,47 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
     return agent_config.trace_otlp_export_enabled
+
+
+def otel_resource_attributes() -> dict[str, str]:
+    """Return the resource attributes of the OTLP logs and metrics, built from DD_TAGS and OTEL_RESOURCE_ATTRIBUTES.
+
+    The unified service tags are reported under their OpenTelemetry semantic convention names.
+    """
+    resource_attributes = {k: v for k, v in tracer_config.tags.items() if k not in ("service", "version", "env")}
+    resource_attributes.update(
+        {
+            "service.name": tracer_config.service,
+            "service.version": tracer_config.version,
+            "deployment.environment.name": tracer_config.env,
+        }
+    )
+
+    if tracer_config._report_hostname and "host.name" not in resource_attributes:
+        resource_attributes["host.name"] = get_hostname()
+
+    return {k: str(v) if v is not None else "" for k, v in resource_attributes.items()}
+
+
+def otel_sdk_resource_attributes() -> dict[str, str]:
+    """Return the resource attributes the OpenTelemetry SDK exports for the OTLP logs and metrics.
+
+    Resource.create() puts the attributes of otel_resource_attributes() over those its OTEL resource detector reads
+    from OTEL_RESOURCE_ATTRIBUTES and OTEL_SERVICE_NAME, parsed here the same way, then defaults service.name. The
+    attributes the SDK generates rather than reads from the configuration, such as telemetry.sdk.version and the
+    random service.instance.id of recent SDK versions, are left out. This does not import the SDK, which is optional.
+    """
+    resource_attributes: dict[str, str] = {}
+    for item in env.get("OTEL_RESOURCE_ATTRIBUTES", "").split(","):
+        key, sep, value = item.partition("=")
+        if sep:
+            resource_attributes[key.strip()] = unquote(value.strip())
+    if service_name := env.get("OTEL_SERVICE_NAME"):
+        resource_attributes["service.name"] = service_name
+    resource_attributes.update(otel_resource_attributes())
+    if not resource_attributes.get("service.name"):
+        resource_attributes["service.name"] = "unknown_service"
+    return resource_attributes
 
 
 class OpenTelemetryConfig(DDConfig):

@@ -2,6 +2,7 @@ from concurrent import futures
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
+import socketserver
 from threading import Thread
 
 
@@ -138,7 +139,11 @@ def _capture_http_requests(port, request_type=None, include_headers=False):
         def log_message(self, format_string, *args):
             pass
 
-    server = HTTPServer(("127.0.0.1", port), RequestHandler)
+    server = (
+        socketserver.UnixStreamServer(port, RequestHandler)
+        if isinstance(port, str)
+        else HTTPServer(("127.0.0.1", port), RequestHandler)
+    )
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

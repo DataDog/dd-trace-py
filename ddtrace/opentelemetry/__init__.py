@@ -186,9 +186,10 @@ The following environment variables are supported:
 - ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``
   Defines the target endpoint for OTLP traces. The default is ``http://<agent_hostname>:4317``
   for gRPC and ``http://<agent_hostname>:4318/v1/traces`` for HTTP.
-  On Unix, gRPC also accepts ``unix:///absolute/path/to/socket``. Use a literal absolute
+  On Unix, all trace protocols also accept ``unix:///absolute/path/to/socket``. Use a literal absolute
   socket path without a host, query, or fragment. This syntax also applies to the global
-  ``OTEL_EXPORTER_OTLP_ENDPOINT`` when gRPC is selected for traces.
+  ``OTEL_EXPORTER_OTLP_ENDPOINT``. The socket path is used as-is; HTTP signal routes
+  are selected automatically.
 
 - ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_HEADERS``
   Optional comma-separated key-value pairs for OTLP export (default: empty).
@@ -214,6 +215,11 @@ The following environment variables are supported:
   uses fleet configuration first, then environment variables, then local configuration.
 
 OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
+
+To check the settings in effect, read the ``DATADOG TRACER CONFIGURATION`` startup log, which
+``DD_TRACE_STARTUP_LOGS`` enables by default: it reports the value the SDK resolved for each setting above,
+keyed by its environment variable. ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_TIMEOUT`` are the exceptions, as the
+OpenTelemetry SDK exporters read them directly.
 
 
 Trace Mapping

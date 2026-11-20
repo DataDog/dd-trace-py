@@ -22,6 +22,7 @@ from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._integrations.utils import safe_mcp_tool_config
 from ddtrace.llmobs._integrations.utils import safe_tool_config
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -29,7 +30,6 @@ from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
@@ -41,17 +41,20 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def __init__(self, integration_config: Any) -> None:
         super().__init__(integration_config)
         # a map of openai span ids to the corresponding llm obs span
-        self.oai_to_llmobs_span: weakref.WeakValueDictionary[str, Span] = weakref.WeakValueDictionary()
+        self.oai_to_llmobs_span: weakref.WeakValueDictionary[str, _LLMObsSpan] = weakref.WeakValueDictionary()
         # a map of OpenAI trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
+
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: spans are tagged from the OpenAI span or trace they mirror."""
 
     def trace(
         self,
         operation_id: str = "",
         submit_to_llmobs: bool = False,
         **kwargs,
-    ) -> Span:
+    ) -> _LLMObsSpan:
         oai_trace = kwargs.get("oai_trace")
         oai_span = kwargs.get("oai_span")
 
@@ -85,7 +88,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Union[Any, OaiTraceAdapter, OaiSpanAdapter]],
         response: Optional[Any] = None,
@@ -137,7 +140,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         elif span_type == "custom":
             _annotate_llmobs_span_data(span, metadata=oai_span.formatted_custom_data or None)
 
-    def _llmobs_update_trace_info_input(self, oai_span: OaiSpanAdapter, llmobs_span: Span) -> None:
+    def _llmobs_update_trace_info_input(self, oai_span: OaiSpanAdapter, llmobs_span: _LLMObsSpan) -> None:
         """
         Store the openai span we are using as the input to the top level trace. Since the openai trace
         itself does not have input / output data, we use the input to the first LLM call of the first
@@ -175,7 +178,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if current_top_level_agent_span_id and get_llmobs_parent_id(llmobs_span) == current_top_level_agent_span_id:
             trace_info.output_oai_span = oai_span
 
-    def _llmobs_set_trace_attributes(self, span: Span, oai_trace: OaiTraceAdapter) -> None:
+    def _llmobs_set_trace_attributes(self, span: _LLMObsSpan, oai_trace: OaiTraceAdapter) -> None:
         trace_info = self._llmobs_get_trace_info(oai_trace)
         if not trace_info:
             return
@@ -197,7 +200,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             metadata=oai_trace.metadata or None,
         )
 
-    def _llmobs_set_response_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+    def _llmobs_set_response_attributes(self, span: _LLMObsSpan, oai_span: OaiSpanAdapter) -> None:
         """Sets attributes for response type spans."""
         if not oai_span.response:
             return
@@ -243,14 +246,14 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             metrics=oai_span.llmobs_metrics or None,
         )
 
-    def _llmobs_set_tool_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+    def _llmobs_set_tool_attributes(self, span: _LLMObsSpan, oai_span: OaiSpanAdapter) -> None:
         _annotate_llmobs_span_data(span, input_value=oai_span.input or "", output_value=oai_span.output or "")
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
             (oai_span.name, oai_span.input, "function", span),
         )
 
-    def _llmobs_set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+    def _llmobs_set_handoff_attributes(self, span: _LLMObsSpan, oai_span: OaiSpanAdapter) -> None:
         handoff_tool_name = "transfer_to_{}".format("_".join(oai_span.to_agent.split(" ")).lower())
         span.name = handoff_tool_name
         _annotate_llmobs_span_data(
@@ -264,7 +267,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             (handoff_tool_name, OAI_HANDOFF_TOOL_ARG, "handoff", span),
         )
 
-    def _llmobs_set_agent_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+    def _llmobs_set_agent_attributes(self, span: _LLMObsSpan, oai_span: OaiSpanAdapter) -> None:
         if oai_span.llmobs_metadata:
             _annotate_llmobs_span_data(span, metadata=oai_span.llmobs_metadata)
 
@@ -311,13 +314,13 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                 return candidate
         return None
 
-    def tag_agent_manifest(self, span: Span, args: list[Any], kwargs: dict[str, Any]) -> None:
+    def tag_agent_manifest(self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any]) -> None:
         agent = self._extract_agent_from_call(args, kwargs)
         if agent is None:
             return
         self._tag_agent_manifest_from_agent(span, agent)
 
-    def _tag_agent_manifest_from_agent(self, span: Span, agent: Any) -> None:
+    def _tag_agent_manifest_from_agent(self, span: _LLMObsSpan, agent: Any) -> None:
         if not agent or not self.llmobs_enabled:
             return
 

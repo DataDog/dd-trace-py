@@ -50,8 +50,9 @@ class IASTEnvironment:
 
 
 def _get_iast_env() -> Optional[IASTEnvironment]:
-    return core.find_item(IAST.REQUEST_CONTEXT_KEY)
+    env = core.find_item(IAST.REQUEST_CONTEXT_KEY)
+    return env if isinstance(env, IASTEnvironment) else None
 
 
 def in_iast_env() -> bool:
-    return core.find_item(IAST.REQUEST_CONTEXT_KEY) is not None
+    return _get_iast_env() is not None

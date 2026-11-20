@@ -216,9 +216,63 @@ async def _aiohttp_hands_attack(request: web.Request, body: bytes) -> bool:
 
 
 class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
-    @pytest.mark.skip(reason="API endpoint discovery is not supported for aiohttp")
-    def test_api_endpoint_discovery(self, interface, find_resource):
-        pass
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "/",
+        "/asm/{param_int}/{param_str}",
+        "/asm/",
+        "/new_service/{service_name}",
+        "/login/",
+        "/login_sdk/",
+        "/rasp/{endpoint}/",
+    }
+    ENDPOINT_DISCOVERY_UNREQUESTED_PATHS = {
+        "/aiohttp_client/{case}/{port}",
+        "/block_request/",
+        "/error/",
+        "/multipart/",
+        "/set_user/",
+        "/stream_rasp/",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        import re
+
+        path = path.replace("{param_int}", "123").replace("{port}", "123")
+        return re.sub(r"\{[a-z_]+\}", "abczx", path)
+
+    @pytest.mark.parametrize(
+        ("headers", "client_ip", "status"),
+        [
+            ([("X-Forwarded-For", rules._IP.BLOCKED), ("X-Forwarded-For", rules._IP.DEFAULT)], rules._IP.BLOCKED, 403),
+            ([("X-Forwarded-For", rules._IP.DEFAULT), ("X-Forwarded-For", rules._IP.BLOCKED)], rules._IP.DEFAULT, 200),
+            ([("X_Forwarded_For", rules._IP.BLOCKED), ("X-Forwarded-For", rules._IP.DEFAULT)], rules._IP.DEFAULT, 200),
+            ([("X-Forwarded-For", rules._IP.DEFAULT), ("X_Forwarded_For", rules._IP.BLOCKED)], rules._IP.BLOCKED, 403),
+        ],
+    )
+    def test_repeated_forwarded_for_lines_resolve_to_the_first_public_ip(
+        self, interface, get_entry_span_tag, headers, client_ip, status
+    ):
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers=headers)
+            assert self.status(response) == status
+            assert get_entry_span_tag(http.CLIENT_IP) == client_ip
+
+    @pytest.mark.parametrize(
+        "configured_header_values", [(rules._IP.BLOCKED, rules._IP.DEFAULT), (rules._IP.DEFAULT, rules._IP.BLOCKED)]
+    )
+    def test_repeated_configured_ip_header_lines_fall_back_to_the_peer_ip(
+        self, interface, get_entry_span_tag, configured_header_values
+    ):
+        headers = [("X-Use-This", ip) for ip in configured_header_values]
+        with override_global_config(
+            dict(_asm_enabled=True, _client_ip_header="X-Use-This", _asm_static_rule_file=rules.RULES_GOOD_PATH)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers=headers)
+            assert self.status(response) == 200
+            assert get_entry_span_tag(http.CLIENT_IP) in (None, "127.0.0.1")
 
     def test_large_streamed_upload(self, interface):
         body, content_type = _multipart_body({"upload": b"x" * (2 * 1024**2)})

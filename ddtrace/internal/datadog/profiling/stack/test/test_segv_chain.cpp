@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <cerrno>
 #include <csetjmp>
 #include <csignal>
 #include <cstdint>
@@ -52,6 +53,19 @@ plain_handler(int signo)
 {
     g_last_signo.store(signo);
     g_calls.fetch_add(1);
+}
+
+void
+errno_setting_handler(int signo)
+{
+    plain_handler(signo);
+    errno = ERANGE;
+}
+
+void
+errno_setting_siginfo_handler(int signo, siginfo_t*, void*)
+{
+    errno_setting_handler(signo);
 }
 
 void
@@ -299,11 +313,38 @@ TEST_F(SegvChain, PreviousHandlerReturnsAndSafeMemcpyStillRecovers)
     EXPECT_EQ(g_calls.load(), 1);
     EXPECT_TRUE(segv_handler_installed());
 
-    EXPECT_FALSE(safe_copy_from(bad_page_));
+    const bool copied = safe_copy_from(bad_page_);
+    const int errno_after = errno;
+    EXPECT_FALSE(copied);
+    EXPECT_EQ(errno_after, EFAULT);
     EXPECT_EQ(g_calls.load(), 1);
 
     const uint8_t good[16] = {};
     EXPECT_TRUE(safe_copy_from(good));
+}
+
+TEST_F(SegvChain, ChainingPreservesErrno)
+{
+    const pthread_t self = pthread_self();
+    for (bool siginfo : { false, true }) {
+        SCOPED_TRACE(siginfo);
+        ASSERT_EQ(siginfo ? install_previous(errno_setting_siginfo_handler, 0, nullptr)
+                          : install_previous_plain(errno_setting_handler),
+                  0);
+        g_calls.store(0);
+        for (int signo : { SIGSEGV, SIGBUS }) {
+            SCOPED_TRACE(signo);
+            errno = EDOM;
+            const int result = pthread_kill(self, signo);
+            const int errno_after = errno;
+
+            EXPECT_EQ(result, 0);
+            EXPECT_EQ(errno_after, EDOM);
+            EXPECT_EQ(g_calls.load(), signo == SIGSEGV ? 1 : 2);
+            EXPECT_EQ(g_last_signo.load(), signo);
+        }
+        uninstall_segv_handler();
+    }
 }
 
 // A previous handler that recovers with siglongjmp leaves our chain state stale.
@@ -492,9 +533,17 @@ TEST_F(SegvChain, PreviousIgnoreHandlesUserSentSignal)
 #else
     ASSERT_EQ(install_previous_plain(SIG_IGN), 0);
 
-    pthread_kill(pthread_self(), SIGSEGV);
+    const pthread_t self = pthread_self();
+    for (int signo : { SIGSEGV, SIGBUS }) {
+        SCOPED_TRACE(signo);
+        errno = EDOM;
+        const int result = pthread_kill(self, signo);
+        const int errno_after = errno;
 
-    EXPECT_TRUE(segv_handler_installed());
+        EXPECT_EQ(result, 0);
+        EXPECT_EQ(errno_after, EDOM);
+        EXPECT_TRUE(segv_handler_installed());
+    }
 #endif
 }
 

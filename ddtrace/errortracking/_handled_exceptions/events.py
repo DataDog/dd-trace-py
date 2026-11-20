@@ -35,7 +35,7 @@ class SpanEventData(NamedTuple):
     time_unix_nano: t.Optional[int] = None
 
 
-_span_exception_events: dict[int, dict[int, tuple[Exception, SpanEventData]]] = {}
+_span_exception_events: dict[int, dict[int, tuple[BaseException, SpanEventData]]] = {}
 
 
 def add_span_events(span: HandledExceptionSpanProtocol) -> None:
@@ -61,7 +61,7 @@ def on_span_exception(
         del exception_events[exc_id]
 
 
-def capture_exception_event(span: HandledExceptionSpanProtocol, exc: Exception, event: SpanEventData) -> None:
+def capture_exception_event(span: HandledExceptionSpanProtocol, exc: BaseException, event: SpanEventData) -> None:
     span_id = span.span_id
     events_dict = _span_exception_events.setdefault(span_id, {})
     if not events_dict:
@@ -72,7 +72,7 @@ def capture_exception_event(span: HandledExceptionSpanProtocol, exc: Exception, 
         events_dict[exc_id] = (exc, event)
 
 
-def get_exception_events(span_id: int) -> dict[int, tuple[Exception, SpanEventData]]:
+def get_exception_events(span_id: int) -> dict[int, tuple[BaseException, SpanEventData]]:
     return _span_exception_events.get(span_id, {})
 
 

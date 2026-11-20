@@ -77,6 +77,131 @@ def test_otlp_traces_sent_via_grpc_unix_socket():
         assert {span.name for span in spans} == {"unix-grpc-span"}
 
 
+@requires_unix_socket
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "DD_TRACE_SAMPLE_RATE": "1",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+        "_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL": "1000",
+    },
+    parametrize={
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": ["http/json", "http/protobuf"],
+        "_TEST_OTLP_CONFIGURATION": ["signal", "global", "signal-overrides-global"],
+    },
+)
+def test_otlp_traces_and_trace_metrics_sent_via_http_unix_socket():
+    import json
+    import os
+    import tempfile
+    import time
+
+    from tests.opentelemetry.utils import _capture_http_requests
+
+    with tempfile.TemporaryDirectory() as directory:
+        socket_path = directory + "/otel.sock"
+        endpoint = "unix://" + socket_path
+        configuration = os.environ["_TEST_OTLP_CONFIGURATION"]
+        os.environ.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
+        for signal in ("TRACES", "METRICS"):
+            os.environ.pop(f"OTEL_EXPORTER_OTLP_{signal}_ENDPOINT", None)
+            if configuration != "global":
+                os.environ[f"OTEL_EXPORTER_OTLP_{signal}_ENDPOINT"] = endpoint
+        if configuration == "global":
+            os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = endpoint
+        elif configuration == "signal-overrides-global":
+            os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:1"
+
+        with _capture_http_requests(socket_path, include_headers=True) as requests:
+            from ddtrace.trace import tracer
+
+            with tracer.trace("unix-http-span"):
+                pass
+            tracer.flush()
+            deadline = time.monotonic() + 15
+            while not any(path == "/v1/metrics" for path, _, _ in requests) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            tracer.shutdown()
+
+        trace_bodies = [body for path, _, body in requests if path == "/v1/traces"]
+        assert trace_bodies, requests
+        if os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] == "http/json":
+            trace_request = json.loads(trace_bodies[0])
+            spans = [
+                span
+                for resource in trace_request["resourceSpans"]
+                for scope in resource["scopeSpans"]
+                for span in scope["spans"]
+            ]
+            assert {span["name"] for span in spans} == {"unix-http-span"}
+        else:
+            from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+
+            trace_request = ExportTraceServiceRequest.FromString(trace_bodies[0])
+            assert trace_request.resource_spans[0].scope_spans[0].spans[0].name == "unix-http-span"
+        metrics = [json.loads(body) for path, _, body in requests if path == "/v1/metrics"]
+        assert metrics, requests
+        assert (
+            metrics[0]["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["name"]
+            == "traces.span.sdk.metrics.duration"
+        )
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:14318/v1/traces",
+        "DD_TRACE_SAMPLE_RATE": "1",
+        "DD_TAGS": "team:core,region:us1,workers:7",
+    },
+    parametrize={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": ["true", "false"],
+        "_DD_TRACE_NATIVE_BUFFER_ENABLED": ["false", "true"],
+    },
+)
+def test_otlp_resource_attributes():
+    import json
+
+    from ddtrace.trace import tracer
+    from tests.opentelemetry.utils import _capture_http_requests
+
+    with _capture_http_requests(port=14318) as requests:
+        with tracer.trace("root") as root:
+            assert root.get_tag("team") == "core"
+            with tracer.trace("child") as child:
+                child.set_tag("region", "eu1")
+                child._set_attribute("workers", 7)
+        tracer.flush()
+        tracer.set_tags({"team": "updated", "workers": 8, 1: "invalid-key"})
+        tracer.configure(trace_processors=[])
+        with tracer.trace("updated"):
+            pass
+        tracer.flush()
+
+    assert len(requests) == 2
+    [resource_spans] = json.loads(requests[0])["resourceSpans"]
+    resource = {a["key"]: a["value"] for a in resource_spans["resource"]["attributes"]}
+    spans = {
+        span["name"]: {a["key"]: a["value"] for a in span["attributes"]}
+        for scope in resource_spans["scopeSpans"]
+        for span in scope["spans"]
+    }
+    assert resource["team"] == {"stringValue": "core"}
+    assert resource["workers"] == {"stringValue": "7"}
+    assert all("team" not in attributes for attributes in spans.values())
+    assert "workers" not in spans["root"]
+    assert spans["child"]["workers"] == {"intValue": "7"}
+    assert spans["root"]["region"] == {"stringValue": "us1"}
+    assert spans["child"]["region"] == {"stringValue": "eu1"}
+    [updated] = json.loads(requests[1])["resourceSpans"]
+    attributes = {a["key"]: a["value"] for a in updated["resource"]["attributes"]}
+    assert attributes["team"] == {"stringValue": "updated"}
+    assert "workers" not in attributes
+    span_attributes = {a["key"]: a["value"] for a in updated["scopeSpans"][0]["spans"][0]["attributes"]}
+    assert span_attributes["workers"] == {"intValue": "8"}
+
+
 @requires_grpc_test_server
 @pytest.mark.subprocess(
     env={

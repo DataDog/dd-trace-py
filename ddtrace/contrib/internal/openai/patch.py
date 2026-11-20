@@ -8,14 +8,18 @@ from openai import version
 from ddtrace import config
 from ddtrace.contrib.internal.openai import _endpoint_hooks
 from ddtrace.contrib.internal.openai import _realtime
+from ddtrace.contrib.internal.openai._constants import COMPONENT
+from ddtrace.contrib.internal.openai.utils import set_default_client
+from ddtrace.contrib.internal.openai.utils import start_request
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations import OpenAIIntegration
 from ddtrace.trace import tracer
 
 
@@ -105,9 +109,6 @@ def patch():
         log.warning("openai version %s is not supported, please upgrade to openai version 1.0 or later", OPENAI_VERSION)
         return
 
-    integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
-    openai._datadog_integration = integration
-
     if OPENAI_VERSION >= (1, 8, 0):
         wrap(openai, "_base_client.SyncAPIClient._process_response", traced_convert)
         wrap(openai, "_base_client.AsyncAPIClient._process_response", traced_convert)
@@ -149,6 +150,10 @@ def patch():
 
     openai.__datadog_patch = True
 
+    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
+
     # Notify AI Guard (and any other plugin) that wrapping is complete so they
     # can install their own outermost wrappers on the same targets.
     core.dispatch("openai.patch", tuple())
@@ -167,6 +172,7 @@ def unpatch():
     # Notify AI Guard first so it can peel its outermost wrappers before the
     # contrib's own unwrap calls restore the layer below.
     core.dispatch("openai.unpatch", tuple())
+    integration_hooks.on_unpatch(COMPONENT)
 
     if OPENAI_VERSION >= (1, 8, 0):
         unwrap(openai._base_client.SyncAPIClient, "_process_response")
@@ -195,17 +201,14 @@ def unpatch():
 
     _realtime.unpatch_realtime()
 
-    delattr(openai, "_datadog_integration")
-
 
 def traced_client_init(func, instance, args, kwargs):
     """
-    Patch for `openai.OpenAI/AsyncOpenAI` client init methods to add
-    the client object to the OpenAIIntegration object.
+    Patch for `openai.OpenAI/AsyncOpenAI` client init methods to record the most recent client, whose base URL
+    identifies the provider of requests that do not carry their own.
     """
     func(*args, **kwargs)
-    integration = openai._datadog_integration
-    integration._client = instance
+    set_default_client(instance)
     return
 
 
@@ -228,12 +231,13 @@ def traced_completions_with_raw_response_init(func, instance, args, kwargs):
         return
 
 
-def _traced_endpoint(endpoint_hook, integration, instance, args, kwargs):
-    span = integration.trace(endpoint_hook.OPERATION_ID, instance=instance)
+def _traced_endpoint(endpoint_hook, instance, args, kwargs):
+    ctx = start_request(endpoint_hook.OPERATION_ID, instance, kwargs, operation=endpoint_hook.OPERATION)
+    span = span_from_context(ctx)
     resp, err = None, None
     try:
         # Start the hook
-        hook = endpoint_hook().handle_request(None, integration, instance, span, args, kwargs)
+        hook = endpoint_hook().handle_request(None, ctx, instance, span, args, kwargs)
         hook.send(None)
 
         resp, err = yield
@@ -252,7 +256,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, args, kwargs):
         # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
         # Streamed responses with error will need to be finished manually as well.
         if not kwargs.get("stream") or err is not None or resp is None:
-            span.finish()
+            ctx.dispatch_ended_event()
 
 
 def _patched_endpoint(patch_hook):
@@ -283,7 +287,7 @@ def _patched_endpoint(patch_hook):
                 try:
                     core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
                 except BaseException as dispatch_err:
-                    g = _traced_endpoint(patch_hook, openai._datadog_integration, instance, args, kwargs)
+                    g = _traced_endpoint(patch_hook, instance, args, kwargs)
                     g.send(None)
                     try:
                         g.send((None, dispatch_err))
@@ -292,8 +296,7 @@ def _patched_endpoint(patch_hook):
                     raise
             return func(*args, **kwargs)
 
-        integration = openai._datadog_integration
-        g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
+        g = _traced_endpoint(patch_hook, instance, args, kwargs)
         g.send(None)
         resp, err = None, None
         override_return = None
@@ -369,9 +372,8 @@ async def _maybe_preparse_async_response(resp, err):
 class _TracedAsyncPaginator:
     """Wrapper for AsyncPaginator objects to enable tracing for both await and async for usage."""
 
-    def __init__(self, paginator, integration, patch_hook, instance, args, kwargs):
+    def __init__(self, paginator, patch_hook, instance, args, kwargs):
         self._paginator = paginator
-        self._integration = integration
         self._patch_hook = patch_hook
         self._instance = instance
         self._args = args
@@ -379,7 +381,7 @@ class _TracedAsyncPaginator:
 
     def __aiter__(self):
         async def _traced_aiter():
-            g = _traced_endpoint(self._patch_hook, self._integration, self._instance, self._args, self._kwargs)
+            g = _traced_endpoint(self._patch_hook, self._instance, self._args, self._kwargs)
             g.send(None)
             err = None
             completed = False
@@ -412,7 +414,7 @@ class _TracedAsyncPaginator:
 
     def __await__(self):
         async def _trace_and_await():
-            g = _traced_endpoint(self._patch_hook, self._integration, self._instance, self._args, self._kwargs)
+            g = _traced_endpoint(self._patch_hook, self._instance, self._args, self._kwargs)
             g.send(None)
             resp, err = None, None
             try:
@@ -464,7 +466,7 @@ def _patched_endpoint_async(patch_hook):
                 try:
                     core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
                 except BaseException as dispatch_err:
-                    g = _traced_endpoint(patch_hook, openai._datadog_integration, instance, args, kwargs)
+                    g = _traced_endpoint(patch_hook, instance, args, kwargs)
                     g.send(None)
                     try:
                         g.send((None, dispatch_err))
@@ -478,11 +480,10 @@ def _patched_endpoint_async(patch_hook):
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.
         if hasattr(result, "__aiter__") and hasattr(result, "__await__"):
-            return _TracedAsyncPaginator(result, openai._datadog_integration, patch_hook, instance, args, kwargs)
+            return _TracedAsyncPaginator(result, patch_hook, instance, args, kwargs)
 
         async def async_wrapper():
-            integration = openai._datadog_integration
-            g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
+            g = _traced_endpoint(patch_hook, instance, args, kwargs)
             g.send(None)
             resp, err = None, None
             override_return = None

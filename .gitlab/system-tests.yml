@@ -86,7 +86,7 @@ system-tests parametric:
     - echo -e "\e[0Ksection_start:`date +%s`:run_parametric\r\e[0KRunning PARAMETRIC scenario"
     - cd ${CI_PROJECT_DIR}/system-tests
     - source venv/bin/activate
-    - ./run.sh PARAMETRIC -F tests/parametric/test_otel_env_vars.py::Test_Otel_Env_Vars::test_otlp_grpc_unix_endpoint_does_not_prevent_startup
+    - ./run.sh PARAMETRIC
     - echo -e "\e[0Ksection_end:`date +%s`:run_parametric\r\e[0K"
   variables:
     PYTEST_XDIST_AUTO_NUM_WORKERS: "8"
