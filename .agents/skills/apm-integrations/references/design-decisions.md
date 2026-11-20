@@ -4,8 +4,17 @@ Why dd-trace-py integrations are structured the way they are.
 
 ## Patch Modules
 
-Integrations use monkey-patching via `wrapt.wrap_function_wrapper` to intercept
-library calls at runtime. Each integration registers in `ddtrace/_monkey.py`
+Prefer a supported library hook or interceptor when it covers the required operations.
+For Python functions that need wrapping, evaluate `ddtrace.internal.wrapping.wrap`:
+it changes the function's code while preserving the function object.
+
+Use wrapt when the target or compatibility requirements need it; follow a current reference and
+verify supported Python versions, calling conventions, and symmetric unpatching.
+
+Hook selection is separate from event/span ownership: using an SDK interceptor or
+bytecode wrapper does not replace the events API described below.
+
+Each integration registers in `ddtrace/_monkey.py`
 (`PATCH_MODULES` dict) so `ddtrace.patch_all()` and `ddtrace-run` can auto-enable it.
 
 The `_datadog_patch` flag on the module prevents double-patching. Always check
