@@ -13,56 +13,57 @@ Environment Variables:
     REPORTS_DIR: Directory containing the fail-on-breach.json file and baseline-*.converted.json files
 """
 
-import sys
+from collections import defaultdict
+from dataclasses import dataclass
 import json
 import os
 import re
-from collections import defaultdict
-from dataclasses import dataclass
-from typing import Optional, Dict, List, Tuple, Any
+import sys
+from typing import Any
+from typing import Optional
 
 
 # Configuration constants
 class Config:
     """Configuration constants for the benchmark formatter."""
 
-
     # Threshold percentages for different status indicators
     THRESHOLDS = {
-        'regression': 10,       # >10% worse than baseline triggers regression indicator
-        'improvement': -10,     # >10% better than baseline triggers improvement indicator
-        'near_breach': -2,      # Within 2% of SLO triggers warning
-        'near_breach_max': 0,   # Upper bound for near-breach warning
+        "regression": 10,  # >10% worse than baseline triggers regression indicator
+        "improvement": -10,  # >10% better than baseline triggers improvement indicator
+        "near_breach": -2,  # Within 2% of SLO triggers warning
+        "near_breach_max": 0,  # Upper bound for near-breach warning
     }
 
     # Display width constants for alignment
     DISPLAY_WIDTHS = {
-        'value': 9,         # Width for formatted values (e.g., "999.999ms")
-        'percentage': 7,    # Width for percentages (e.g., "+999.9%")
-        'slo': 11,         # Width for SLO values (e.g., "<999.999ms")
+        "value": 9,  # Width for formatted values (e.g., "999.999ms")
+        "percentage": 7,  # Width for percentages (e.g., "+999.9%")
+        "slo": 11,  # Width for SLO values (e.g., "<999.999ms")
     }
 
     # Unicode characters for formatting
     UNICODE_CHARS = {
-        'fig_space': '\u2007',  # Figure space for number alignment
-        'em_space': '\u2003',   # Em space for wider spacing
+        "fig_space": "\u2007",  # Figure space for number alignment
+        "em_space": "\u2003",  # Em space for wider spacing
     }
 
     # Status icons
     STATUS_ICONS = {
-        'pass': '✅',
-        'warning': '⚠️',
-        'fail': '❌',
-        'regression': '📈',
-        'improvement': '📉',
-        'near_breach': '🟡',
-        'no_baseline': '🟡',
+        "pass": "✅",
+        "warning": "⚠️",
+        "fail": "❌",
+        "regression": "📈",
+        "improvement": "📉",
+        "near_breach": "🟡",
+        "no_baseline": "🟡",
     }
 
 
 @dataclass
 class Metric:
     """Data class representing a single performance metric."""
+
     name: str
     value: Optional[float]
     unit: str
@@ -96,21 +97,10 @@ class UnitConverter:
     """Handles unit conversions for time and memory measurements."""
 
     # Time unit conversions to nanoseconds
-    TIME_UNITS = {
-        "ns": 1,
-        "µs": 1000,
-        "us": 1000,
-        "ms": 1000000,
-        "s": 1000000000
-    }
+    TIME_UNITS = {"ns": 1, "µs": 1000, "us": 1000, "ms": 1000000, "s": 1000000000}
 
     # Memory unit conversions to bytes
-    MEMORY_UNITS = {
-        "B": 1,
-        "KB": 1024,
-        "MB": 1024 * 1024,
-        "GB": 1024 * 1024 * 1024
-    }
+    MEMORY_UNITS = {"B": 1, "KB": 1024, "MB": 1024 * 1024, "GB": 1024 * 1024 * 1024}
 
     @classmethod
     def convert(cls, value: float, from_unit: str, to_unit: str) -> float:
@@ -160,7 +150,7 @@ class Formatter:
             Right-aligned text
         """
         if padding_char is None:
-            padding_char = Config.UNICODE_CHARS['fig_space']
+            padding_char = Config.UNICODE_CHARS["fig_space"]
 
         current_width = len(text)
         if current_width < width:
@@ -202,8 +192,7 @@ class Formatter:
         return formatted
 
     @staticmethod
-    def format_percentage(value: Optional[float], show_emoji: bool = True,
-                         override_emoji: Optional[str] = None) -> str:
+    def format_percentage(value: Optional[float], show_emoji: bool = True, override_emoji: Optional[str] = None) -> str:
         """
         Format a percentage value with optional emoji indicators.
 
@@ -230,10 +219,10 @@ class Formatter:
         if override_emoji:
             emoji = override_emoji
         elif show_emoji and value is not None:
-            if value > Config.THRESHOLDS['regression']:
-                emoji = Config.STATUS_ICONS['regression']
-            elif value < Config.THRESHOLDS['improvement']:
-                emoji = Config.STATUS_ICONS['improvement']
+            if value > Config.THRESHOLDS["regression"]:
+                emoji = Config.STATUS_ICONS["regression"]
+            elif value < Config.THRESHOLDS["improvement"]:
+                emoji = Config.STATUS_ICONS["improvement"]
 
         # Build final result
         if emoji:
@@ -264,7 +253,7 @@ class BaselineDataLoader:
     """Handles loading and processing of baseline data from artifacts."""
 
     @staticmethod
-    def load(reports_dir: Optional[str]) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Any]]:
+    def load(reports_dir: Optional[str]) -> tuple[dict[str, dict[str, float]], dict[str, Any]]:
         """
         Load baseline data from baseline converted JSON files in reports directory.
 
@@ -292,15 +281,13 @@ class BaselineDataLoader:
 
         return baseline_data, baseline_metadata
 
-
-
     @staticmethod
-    def _load_baseline_metadata(json_path: str) -> Dict[str, Any]:
+    def _load_baseline_metadata(json_path: str) -> dict[str, Any]:
         """Load baseline metadata from converted JSON file."""
         metadata = {}
 
         try:
-            with open(json_path, 'r') as f:
+            with open(json_path) as f:
                 data = json.load(f)
 
             # Extract git metadata from the first benchmark entry
@@ -320,9 +307,9 @@ class BaselineDataLoader:
         return metadata
 
     @staticmethod
-    def get_baseline_entry(baseline_data: Dict[str, Dict[str, float]],
-                          scenario_full_name: str,
-                          scenario_name: str) -> Optional[Dict[str, float]]:
+    def get_baseline_entry(
+        baseline_data: dict[str, dict[str, float]], scenario_full_name: str, scenario_name: str
+    ) -> Optional[dict[str, float]]:
         """
         Get baseline entry for a scenario, checking multiple name formats.
 
@@ -341,7 +328,7 @@ class BaselineDataLoader:
         return None
 
     @staticmethod
-    def _load_baseline_converted_files(reports_dir: str) -> Dict[str, Dict[str, float]]:
+    def _load_baseline_converted_files(reports_dir: str) -> dict[str, dict[str, float]]:
         """
         Load baseline data from all baseline-*.converted.json files in reports directory.
 
@@ -370,12 +357,12 @@ class BaselineDataLoader:
         return baseline_data
 
     @staticmethod
-    def _load_baseline_converted_file(file_path: str) -> Dict[str, Dict[str, float]]:
+    def _load_baseline_converted_file(file_path: str) -> dict[str, dict[str, float]]:
         """Load baseline data from a single baseline converted JSON file."""
         suite_data = {}
 
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path) as f:
                 data = json.load(f)
 
             for benchmark in data.get("benchmarks", []):
@@ -410,7 +397,7 @@ class BaselineDataLoader:
 
                 suite_data[scenario_name] = metrics
 
-        except (json.JSONDecodeError, KeyError) as e:
+        except (json.JSONDecodeError, KeyError):
             pass  # Skip files with parsing errors
 
         return suite_data
@@ -456,12 +443,10 @@ class MetricAnalyzer:
         """Check if a metric is near SLO breach."""
         if slo_percentage is None:
             return False
-        return (Config.THRESHOLDS['near_breach'] <= slo_percentage <
-                Config.THRESHOLDS['near_breach_max'])
+        return Config.THRESHOLDS["near_breach"] <= slo_percentage < Config.THRESHOLDS["near_breach_max"]
 
     @staticmethod
-    def analyze_suite_metrics(metrics: List[Metric],
-                            baseline_data: Dict[str, Dict[str, float]]) -> Dict[str, bool]:
+    def analyze_suite_metrics(metrics: list[Metric], baseline_data: dict[str, dict[str, float]]) -> dict[str, bool]:
         """
         Analyze a suite's metrics for various conditions.
 
@@ -473,22 +458,22 @@ class MetricAnalyzer:
             Dictionary with analysis results
         """
         analysis = {
-            'has_failures': False,
-            'has_regressions': False,
-            'has_warnings': False,
-            'has_improvements': False,
-            'has_unstable': False,
-            'has_no_baseline': True,  # Assume no baseline until we find one
+            "has_failures": False,
+            "has_regressions": False,
+            "has_warnings": False,
+            "has_improvements": False,
+            "has_unstable": False,
+            "has_no_baseline": True,  # Assume no baseline until we find one
         }
 
         for metric in metrics:
             # Check for failures
             if metric.is_fail:
-                analysis['has_failures'] = True
+                analysis["has_failures"] = True
 
             # Check for unstable
             if metric.is_unstable:
-                analysis['has_unstable'] = True
+                analysis["has_unstable"] = True
 
             # Check baseline comparison
             baseline_entry = BaselineDataLoader.get_baseline_entry(
@@ -497,7 +482,7 @@ class MetricAnalyzer:
 
             if baseline_entry and metric.name in baseline_entry:
                 # We found baseline data, so set flag to False
-                analysis['has_no_baseline'] = False
+                analysis["has_no_baseline"] = False
 
                 baseline_value = baseline_entry[metric.name]
 
@@ -508,20 +493,18 @@ class MetricAnalyzer:
                 else:
                     baseline_converted = baseline_value
 
-                change_pct = MetricAnalyzer.calculate_percentage_change(
-                    metric.value, baseline_converted
-                )
+                change_pct = MetricAnalyzer.calculate_percentage_change(metric.value, baseline_converted)
 
                 if change_pct is not None:
-                    if change_pct > Config.THRESHOLDS['regression']:
-                        analysis['has_regressions'] = True
-                    elif change_pct < Config.THRESHOLDS['improvement']:
-                        analysis['has_improvements'] = True
+                    if change_pct > Config.THRESHOLDS["regression"]:
+                        analysis["has_regressions"] = True
+                    elif change_pct < Config.THRESHOLDS["improvement"]:
+                        analysis["has_improvements"] = True
 
             # Check for near-breach warnings
             slo_pct = MetricAnalyzer.calculate_slo_percentage(metric.value, metric.slo)
             if MetricAnalyzer.is_near_breach(slo_pct):
-                analysis['has_warnings'] = True
+                analysis["has_warnings"] = True
 
         return analysis
 
@@ -529,8 +512,13 @@ class MetricAnalyzer:
 class ReportGenerator:
     """Generates the formatted benchmark report."""
 
-    def __init__(self, data: Dict[str, Any], baseline_data: Dict[str, Dict[str, float]],
-                 baseline_metadata: Optional[Dict[str, Any]] = None, reports_dir: Optional[str] = None):
+    def __init__(
+        self,
+        data: dict[str, Any],
+        baseline_data: dict[str, dict[str, float]],
+        baseline_metadata: Optional[dict[str, Any]] = None,
+        reports_dir: Optional[str] = None,
+    ):
         """
         Initialize the report generator.
 
@@ -568,7 +556,7 @@ class ReportGenerator:
 
         return "\n".join(output)
 
-    def _generate_header(self) -> List[str]:
+    def _generate_header(self) -> list[str]:
         """Generate report header with comparison information."""
         header = []
 
@@ -585,7 +573,9 @@ class ReportGenerator:
             # Candidate info
             if self.metadata:
                 candidate_branch = self.metadata.get("candidate_branch", self.metadata.get("git_branch", "unknown"))
-                candidate_sha = self.metadata.get("candidate_commit", self.metadata.get("git_commit_sha", "unknown"))[:8]
+                candidate_sha = self.metadata.get("candidate_commit", self.metadata.get("git_commit_sha", "unknown"))[
+                    :8
+                ]
                 candidate_info = f"{candidate_branch} ({candidate_sha})"
 
             # Baseline info
@@ -615,21 +605,23 @@ class ReportGenerator:
             return None
 
         try:
-            with open(comparison_file, 'r') as f:
+            with open(comparison_file) as f:
                 content = f.read()
                 match = re.search(
-                    r'candidate commit (\w+) in PR branch `([^`]+)` with baseline commit (\w+) in branch `([^`]+)`',
-                    content
+                    r"candidate commit (\w+) in PR branch `([^`]+)` with baseline commit (\w+) in branch `([^`]+)`",
+                    content,
                 )
                 if match:
-                    return (f"Comparing candidate {match.group(2)} ({match.group(1)}) "
-                           f"with baseline {match.group(4)} ({match.group(3)})")
+                    return (
+                        f"Comparing candidate {match.group(2)} ({match.group(1)}) "
+                        f"with baseline {match.group(4)} ({match.group(3)})"
+                    )
         except Exception:
             pass
 
         return None
 
-    def _generate_performance_results(self) -> List[str]:
+    def _generate_performance_results(self) -> list[str]:
         """Generate the main performance results section."""
         output = []
 
@@ -641,13 +633,13 @@ class ReportGenerator:
 
         # Generate output for each status group
         status_order = [
-            ('fail', '❌ Test Failures'),
-            ('regression', '📈 Performance Regressions'),
-            ('near_breach', '🟡 Near SLO Breach'),
-            ('no_baseline', '🔵 No Baseline Data'),
-            ('improvement', '📉 Performance Improvements'),
-            ('warning', '⚠️ Unstable Tests'),
-            ('pass', '✅ All Tests Passing')
+            ("fail", "❌ Test Failures"),
+            ("regression", "📈 Performance Regressions"),
+            ("near_breach", "🟡 Near SLO Breach"),
+            ("no_baseline", "🔵 No Baseline Data"),
+            ("improvement", "📉 Performance Improvements"),
+            ("warning", "⚠️ Unstable Tests"),
+            ("pass", "✅ All Tests Passing"),
         ]
 
         for status_key, status_title in status_order:
@@ -657,7 +649,7 @@ class ReportGenerator:
 
         return output
 
-    def _process_scenarios(self) -> Dict[str, Dict[str, List[Metric]]]:
+    def _process_scenarios(self) -> dict[str, dict[str, list[Metric]]]:
         """Process scenarios into organized test suites."""
         test_suites = defaultdict(lambda: {"scenarios": defaultdict(list)})
 
@@ -673,7 +665,9 @@ class ReportGenerator:
 
         return test_suites
 
-    def _group_suites_by_status(self, test_suites: Dict[str, Dict[str, Any]]) -> Dict[str, List[Tuple[str, Dict[str, Any]]]]:
+    def _group_suites_by_status(
+        self, test_suites: dict[str, dict[str, Any]]
+    ) -> dict[str, list[tuple[str, dict[str, Any]]]]:
         """Group suites by their status."""
         status_groups = defaultdict(list)
 
@@ -688,34 +682,36 @@ class ReportGenerator:
 
             # Analyze suite status
             analysis = MetricAnalyzer.analyze_suite_metrics(all_metrics, self.baseline_data)
-            status_icon = self._determine_suite_status_icon(analysis)
+            self._determine_suite_status_icon(analysis)
 
             # Categorize by status
-            if analysis['has_failures']:
-                status_groups['fail'].append((suite_name, suite_data))
-            elif analysis['has_regressions']:
-                status_groups['regression'].append((suite_name, suite_data))
-            elif analysis.get('has_no_baseline', False):
-                status_groups['no_baseline'].append((suite_name, suite_data))
-            elif analysis['has_warnings']:
-                status_groups['near_breach'].append((suite_name, suite_data))
-            elif analysis['has_improvements']:
-                status_groups['improvement'].append((suite_name, suite_data))
-            elif analysis['has_unstable']:
-                status_groups['warning'].append((suite_name, suite_data))
+            if analysis["has_failures"]:
+                status_groups["fail"].append((suite_name, suite_data))
+            elif analysis["has_regressions"]:
+                status_groups["regression"].append((suite_name, suite_data))
+            elif analysis.get("has_no_baseline", False):
+                status_groups["no_baseline"].append((suite_name, suite_data))
+            elif analysis["has_warnings"]:
+                status_groups["near_breach"].append((suite_name, suite_data))
+            elif analysis["has_improvements"]:
+                status_groups["improvement"].append((suite_name, suite_data))
+            elif analysis["has_unstable"]:
+                status_groups["warning"].append((suite_name, suite_data))
             else:
-                status_groups['pass'].append((suite_name, suite_data))
+                status_groups["pass"].append((suite_name, suite_data))
 
         return status_groups
 
-    def _generate_status_group(self, status_title: str, suites: List[Tuple[str, Dict[str, Any]]]) -> List[str]:
+    def _generate_status_group(self, status_title: str, suites: list[tuple[str, dict[str, Any]]]) -> list[str]:
         """Generate output for a status group."""
         output = []
 
         # Create the group header
         suite_count = len(suites)
         output.append("<details>")
-        output.append(f"<summary><strong>{status_title} ({suite_count} suite{'s' if suite_count != 1 else ''})</strong></summary>")
+        output.append(
+            f"<summary><strong>{status_title} ({suite_count} suite{'s' if suite_count != 1 else ''})</strong></summary>"
+        )
         output.append("")
 
         # Generate each suite in the group
@@ -731,8 +727,7 @@ class ReportGenerator:
 
         return output
 
-    def _create_metric(self, metric_data: Dict[str, Any],
-                      scenario: str, scenario_full_name: str) -> Metric:
+    def _create_metric(self, metric_data: dict[str, Any], scenario: str, scenario_full_name: str) -> Metric:
         """Create a Metric object from raw metric data."""
         conclusion = metric_data.get("conclusion", "fail")
         unstable = metric_data.get("unstable", False)
@@ -740,13 +735,13 @@ class ReportGenerator:
         # Determine status and icon
         if conclusion == "pass" and not unstable:
             status = "pass"
-            icon = Config.STATUS_ICONS['pass']
+            icon = Config.STATUS_ICONS["pass"]
         elif unstable:
             status = "unstable"
-            icon = Config.STATUS_ICONS['warning']
+            icon = Config.STATUS_ICONS["warning"]
         else:
             status = "fail"
-            icon = Config.STATUS_ICONS['fail']
+            icon = Config.STATUS_ICONS["fail"]
 
         # Extract SLO display values
         threshold = metric_data.get("breach_threshold")
@@ -756,7 +751,7 @@ class ReportGenerator:
 
         if threshold_str and threshold:
             # Extract unit and value from threshold string for display
-            threshold_match = re.search(r'([\d.]+)([^\d\s]+)$', threshold_str)
+            threshold_match = re.search(r"([\d.]+)([^\d\s]+)$", threshold_str)
             if threshold_match:
                 slo_display_value = float(threshold_match.group(1))
                 slo_unit = threshold_match.group(2)
@@ -773,11 +768,10 @@ class ReportGenerator:
             scenario=scenario,
             scenario_full_name=scenario_full_name,
             conclusion=conclusion,
-            unstable=unstable
+            unstable=unstable,
         )
 
-    def _generate_suite_output(self, suite_name: str,
-                             suite_data: Dict[str, Any]) -> List[str]:
+    def _generate_suite_output(self, suite_name: str, suite_data: dict[str, Any]) -> list[str]:
         """Generate output for a single test suite."""
         output = []
 
@@ -805,7 +799,7 @@ class ReportGenerator:
         output.append("")
 
         # Check if suite has baseline data
-        suite_has_baseline = not analysis.get('has_no_baseline', False)
+        suite_has_baseline = not analysis.get("has_no_baseline", False)
 
         if not suite_has_baseline:
             output.append("🔵 **No baseline data available for this suite**")
@@ -825,17 +819,17 @@ class ReportGenerator:
 
         return output
 
-    def _calculate_suite_stats(self, metrics: List[Metric]) -> Dict[str, int]:
+    def _calculate_suite_stats(self, metrics: list[Metric]) -> dict[str, int]:
         """Calculate statistics for a suite."""
         return {
-            'pass': sum(1 for m in metrics if m.is_pass),
-            'unstable': sum(1 for m in metrics if m.is_unstable),
-            'fail': sum(1 for m in metrics if m.is_fail),
-            'total': len(metrics),
-            'passed': sum(1 for m in metrics if m.is_pass or m.is_unstable)
+            "pass": sum(1 for m in metrics if m.is_pass),
+            "unstable": sum(1 for m in metrics if m.is_unstable),
+            "fail": sum(1 for m in metrics if m.is_fail),
+            "total": len(metrics),
+            "passed": sum(1 for m in metrics if m.is_pass or m.is_unstable),
         }
 
-    def _determine_suite_status_icon(self, analysis: Dict[str, bool]) -> str:
+    def _determine_suite_status_icon(self, analysis: dict[str, bool]) -> str:
         """
         Determine the appropriate status icon for a suite.
 
@@ -848,34 +842,33 @@ class ReportGenerator:
         6. ⚠️ if there are any unstable builds
         7. ✅ otherwise show that all is green/stable
         """
-        if analysis['has_failures']:
-            return Config.STATUS_ICONS['fail']
-        elif analysis['has_regressions']:
-            return Config.STATUS_ICONS['regression']
-        elif analysis.get('has_no_baseline', False):
-            return '🔵'
-        elif analysis['has_warnings']:
-            return Config.STATUS_ICONS['near_breach']
-        elif analysis['has_improvements']:
-            return Config.STATUS_ICONS['improvement']
-        elif analysis['has_unstable']:
-            return Config.STATUS_ICONS['warning']
+        if analysis["has_failures"]:
+            return Config.STATUS_ICONS["fail"]
+        elif analysis["has_regressions"]:
+            return Config.STATUS_ICONS["regression"]
+        elif analysis.get("has_no_baseline", False):
+            return "🔵"
+        elif analysis["has_warnings"]:
+            return Config.STATUS_ICONS["near_breach"]
+        elif analysis["has_improvements"]:
+            return Config.STATUS_ICONS["improvement"]
+        elif analysis["has_unstable"]:
+            return Config.STATUS_ICONS["warning"]
         else:
-            return Config.STATUS_ICONS['pass']
+            return Config.STATUS_ICONS["pass"]
 
-    def _create_suite_summary(self, suite_name: str, stats: Dict[str, int],
-                            status_icon: str) -> str:
+    def _create_suite_summary(self, suite_name: str, stats: dict[str, int], status_icon: str) -> str:
         """Create suite summary line."""
-        if stats['unstable'] > 0:
+        if stats["unstable"] > 0:
             pass_info = f"{stats['passed']}/{stats['total']} ({stats['unstable']} unstable)"
         else:
             pass_info = f"{stats['passed']}/{stats['total']}"
 
         return f"{status_icon} <strong>{suite_name}</strong> - {pass_info}"
 
-    def _generate_scenario_output(self, scenario_name: str,
-                                metrics: List[Metric],
-                                suite_has_baseline: bool = True) -> List[str]:
+    def _generate_scenario_output(
+        self, scenario_name: str, metrics: list[Metric], suite_has_baseline: bool = True
+    ) -> list[str]:
         """Generate output for a single scenario."""
         output = []
 
@@ -928,7 +921,7 @@ class ReportGenerator:
 
         return " ".join(parts)
 
-    def _scenario_has_baseline(self, metrics: List[Metric]) -> bool:
+    def _scenario_has_baseline(self, metrics: list[Metric]) -> bool:
         """Check if any metric in the scenario has baseline data."""
         for metric in metrics:
             baseline_entry = BaselineDataLoader.get_baseline_entry(
@@ -938,17 +931,17 @@ class ReportGenerator:
                 return True
         return False
 
-    def _determine_scenario_icon(self, metrics: List[Metric]) -> str:
+    def _determine_scenario_icon(self, metrics: list[Metric]) -> str:
         """Determine the appropriate icon for a scenario."""
         has_fail = any(m.is_fail for m in metrics)
         has_unstable = any(m.is_unstable for m in metrics)
 
         if has_fail:
-            return Config.STATUS_ICONS['fail']
+            return Config.STATUS_ICONS["fail"]
         elif has_unstable:
-            return Config.STATUS_ICONS['warning']
+            return Config.STATUS_ICONS["warning"]
         else:
-            return Config.STATUS_ICONS['pass']
+            return Config.STATUS_ICONS["pass"]
 
     def _generate_metric_row(self, metric: Metric, has_baseline: bool = True) -> str:
         """Generate a table row for a single metric."""
@@ -969,7 +962,10 @@ class ReportGenerator:
             # Determine final icon (may be modified based on combined risk)
             icon = self._determine_metric_icon(metric, slo_percentage, baseline_change_pct)
 
-            return f"| {metric.name} | {icon} | {candidate_str} | {baseline_value_str} | {slo_str} | {vs_slo_str} | {baseline_change_str} |"
+            return (
+                f"| {metric.name} | {icon} | {candidate_str} | {baseline_value_str} "
+                f"| {slo_str} | {vs_slo_str} | {baseline_change_str} |"
+            )
         else:
             # No baseline columns
             icon = metric.icon
@@ -987,7 +983,7 @@ class ReportGenerator:
         else:
             return Formatter.format_value_with_unit(metric.value, metric.unit)
 
-    def _format_baseline_comparison(self, metric: Metric) -> Tuple[str, str, Optional[float]]:
+    def _format_baseline_comparison(self, metric: Metric) -> tuple[str, str, Optional[float]]:
         """Format baseline value and comparison percentage."""
         baseline_entry = BaselineDataLoader.get_baseline_entry(
             self.baseline_data, metric.scenario_full_name, metric.scenario
@@ -997,16 +993,12 @@ class ReportGenerator:
             return (
                 "",  # Empty baseline value
                 "",  # Empty vs baseline
-                None
+                None,
             )
 
         baseline_value = baseline_entry[metric.name]
         if not baseline_value:
-            return (
-                "N/A",
-                Formatter.format_percentage(None),
-                None
-            )
+            return ("N/A", Formatter.format_percentage(None), None)
 
         # Convert baseline value
         if metric.name == "execution_time":
@@ -1025,9 +1017,7 @@ class ReportGenerator:
             baseline_value_str = "N/A"
 
         # Calculate percentage change
-        baseline_change_pct = MetricAnalyzer.calculate_percentage_change(
-            metric.value, baseline_converted
-        )
+        baseline_change_pct = MetricAnalyzer.calculate_percentage_change(metric.value, baseline_converted)
         baseline_change_str = Formatter.format_percentage(baseline_change_pct, show_emoji=True)
 
         return baseline_value_str, baseline_change_str, baseline_change_pct
@@ -1047,27 +1037,27 @@ class ReportGenerator:
         # Check for near-breach warning
         if MetricAnalyzer.is_near_breach(slo_percentage):
             return Formatter.format_percentage(
-                slo_percentage,
-                show_emoji=True,
-                override_emoji=Config.STATUS_ICONS['near_breach']
+                slo_percentage, show_emoji=True, override_emoji=Config.STATUS_ICONS["near_breach"]
             )
         else:
             return Formatter.format_percentage(slo_percentage, show_emoji=True)
 
-    def _determine_metric_icon(self, metric: Metric,
-                             slo_percentage: Optional[float],
-                             baseline_change_pct: Optional[float]) -> str:
+    def _determine_metric_icon(
+        self, metric: Metric, slo_percentage: Optional[float], baseline_change_pct: Optional[float]
+    ) -> str:
         """Determine the final icon for a metric based on all factors."""
         # Rule: Combined risk - use warning when <2% SLO buffer AND >10% baseline regression
-        if (slo_percentage is not None and
-            MetricAnalyzer.is_near_breach(slo_percentage) and
-            baseline_change_pct is not None and
-            baseline_change_pct > Config.THRESHOLDS['regression']):
-            return Config.STATUS_ICONS['warning']
+        if (
+            slo_percentage is not None
+            and MetricAnalyzer.is_near_breach(slo_percentage)
+            and baseline_change_pct is not None
+            and baseline_change_pct > Config.THRESHOLDS["regression"]
+        ):
+            return Config.STATUS_ICONS["warning"]
 
         return metric.icon
 
-    def _generate_missing_slo_section(self) -> List[str]:
+    def _generate_missing_slo_section(self) -> list[str]:
         """Generate section for scenarios without SLO configuration."""
         if not self.reports_dir or not os.path.exists(self.reports_dir):
             return []
@@ -1076,19 +1066,19 @@ class ReportGenerator:
             # Get all scenarios from candidate converted files
             candidate_scenarios = set()
             for filename in os.listdir(self.reports_dir):
-                if filename.startswith('candidate-') and filename.endswith('.converted.json'):
+                if filename.startswith("candidate-") and filename.endswith(".converted.json"):
                     filepath = os.path.join(self.reports_dir, filename)
                     try:
-                        with open(filepath, 'r') as f:
+                        with open(filepath) as f:
                             data = json.load(f)
-                        for benchmark in data.get('benchmarks', []):
-                            scenario = benchmark['parameters']['scenario']
+                        for benchmark in data.get("benchmarks", []):
+                            scenario = benchmark["parameters"]["scenario"]
                             candidate_scenarios.add(scenario)
                     except Exception:
                         continue
 
             # Get scenarios from current data (these have SLO checks)
-            slo_scenarios = set(self.data.get('scenarios', {}).keys())
+            slo_scenarios = set(self.data.get("scenarios", {}).keys())
 
             # Find missing
             missing_slo = candidate_scenarios - slo_scenarios
@@ -1099,7 +1089,10 @@ class ReportGenerator:
             output = []
             output.append("")
             output.append("<details>")
-            output.append(f"<summary><strong>ℹ️ Scenarios Missing SLO Configuration ({len(missing_slo)} scenarios)</strong></summary>")
+            output.append(
+                f"<summary><strong>ℹ️ Scenarios Missing SLO Configuration "
+                f"({len(missing_slo)} scenarios)</strong></summary>"
+            )
             output.append("")
             output.append("The following scenarios exist in candidate data but have no SLO thresholds configured:")
             output.append("")
@@ -1117,7 +1110,7 @@ class ReportGenerator:
             return []
 
 
-def load_json_data(json_file: str) -> Dict[str, Any]:
+def load_json_data(json_file: str) -> dict[str, Any]:
     """
     Load and validate JSON data from file.
 
@@ -1135,7 +1128,7 @@ def load_json_data(json_file: str) -> Dict[str, Any]:
         raise FileNotFoundError(f"JSON file not found: {json_file}")
 
     try:
-        with open(json_file, "r") as f:
+        with open(json_file) as f:
             return json.load(f)
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in {json_file}: {e}")
