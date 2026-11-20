@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
 
+    from _ddtrace_coverage.util import is_file_level_coverage_enabled as is_file_level_coverage_enabled  # noqa: F401
+    from _ddtrace_coverage.util import resolved_path as resolved_path  # noqa: F401
+
     def __getattr__(name: str) -> Any: ...
 
 else:

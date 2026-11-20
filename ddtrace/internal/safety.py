@@ -42,7 +42,7 @@ def _isinstance(obj: Any, types: Union[type, tuple[Union[type, tuple[Any, ...]],
 IS_312_OR_NEWER = is_at_least_py(3, 12)
 
 
-class SafeObjectProxy(wrapt.ObjectProxy):  # type: ignore[type-arg]
+class SafeObjectProxy(wrapt.ObjectProxy):
     """Object proxy to make sure we don't call unsafe code.
 
     Access to the wrapped object is denied to prevent any potential

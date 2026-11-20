@@ -134,6 +134,10 @@ lint = [
     "ddtrace-coverage==0.1.0.dev0",
     "ddtrace-internal==0.4.0.dev0",
     "ddtrace-native==0.1.0.dev0",
+    # ddtrace-internal depends on wrapt, which pulls it into this group. Every wrapt 2.x ships type information
+    # that mypy would then check our wrapt usage against; keep it untyped, as before, until that typing is
+    # fixed (DataDog/dd-trace-py#21989). wrapt 1.x is within the runtime range and still tested.
+    "wrapt<2",
     "openfeature-sdk~=0.8.0",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
