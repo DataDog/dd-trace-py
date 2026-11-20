@@ -338,12 +338,12 @@ register(_reset_objects)
 
 
 def Lock() -> _unpatched.threading_Lock:
-    return ResetObject(_unpatched.threading_Lock)  # type: ignore[return-value]
+    return ResetObject(_unpatched.threading_Lock)
 
 
 def RLock() -> _unpatched.threading_RLock:
-    return ResetObject(_unpatched.threading_RLock)  # type: ignore[return-value]
+    return ResetObject(_unpatched.threading_RLock)
 
 
 def Event() -> _unpatched.threading_Event:
-    return ResetObject(_unpatched.threading_Event)  # type: ignore[return-value]
+    return ResetObject(_unpatched.threading_Event)

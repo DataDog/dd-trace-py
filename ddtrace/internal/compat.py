@@ -11,6 +11,9 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    # compat re-exports functools' singledispatchmethod (patched for Python < 3.9.8) without declaring it.
+    from functools import singledispatchmethod as singledispatchmethod  # noqa: F401
+
     from _ddtrace_internal.compat import MAX_PY as MAX_PY  # noqa: F401
     from _ddtrace_internal.compat import NEXT_MAX_PY as NEXT_MAX_PY  # noqa: F401
     from _ddtrace_internal.compat import NEXT_PY_UNSUPPORTED_MSG as NEXT_PY_UNSUPPORTED_MSG  # noqa: F401

@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
 
+    from _ddtrace_coverage.coverage_lines import CoverageLines as CoverageLines  # noqa: F401
+
     def __getattr__(name: str) -> Any: ...
 
 else:
