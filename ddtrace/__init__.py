@@ -6,8 +6,9 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 
 # The env accessor does not import the generated registry itself; hand it over before anything reads the
 # environment. Python runs this package __init__ before any ddtrace submodule, so this precedes every env lookup.
+from _ddtrace_internal.settings.env import register_supported_configurations  # noqa: E402
+
 from ddtrace.internal.settings import _supported_configurations as _registry  # noqa: E402
-from ddtrace.internal.settings.env import register_supported_configurations  # noqa: E402
 
 
 register_supported_configurations(

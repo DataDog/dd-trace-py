@@ -1,20 +1,19 @@
-import dis
+"""Bridge to the extracted ``ddtrace-coverage`` package: this module *is* ``_ddtrace_coverage.instrumentation_py3_16``.
+
+At runtime the module object is replaced by the package module, so there is a single copy of its
+state and tests may patch either path. The ``TYPE_CHECKING`` block only tells static tools what it exports.
+"""
+
 import sys
-from types import CodeType
+from typing import TYPE_CHECKING
 
-from ddtrace.internal.bytecode_injection import HookType
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
-
-
-# This is primarily to make mypy happy without having to nest the rest of this module behind a version check
-assert sys.version_info >= (3, 16)  # nosec
-
-EXTENDED_ARG = dis.EXTENDED_ARG
-IMPORT_NAME = dis.opmap["IMPORT_NAME"]
-IMPORT_FROM = dis.opmap["IMPORT_FROM"]
-RESUME = dis.opmap["RESUME"]
+import _ddtrace_coverage.instrumentation_py3_16 as _impl
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
-    # No-op
-    return code, CoverageLines()
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+
+    def __getattr__(name: str) -> Any: ...
+
+else:
+    sys.modules[__name__] = _impl

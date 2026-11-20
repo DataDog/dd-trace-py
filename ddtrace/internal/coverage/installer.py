@@ -1,20 +1,19 @@
-from pathlib import Path
-import typing as t
+"""Bridge to the extracted ``ddtrace-coverage`` package: this module *is* ``_ddtrace_coverage.installer``.
 
-from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.coverage.multiprocessing_coverage import _patch_multiprocessing
-from ddtrace.internal.coverage.threading_coverage import _patch_threading
+At runtime the module object is replaced by the package module, so there is a single copy of its
+state and tests may patch either path. The ``TYPE_CHECKING`` block only tells static tools what it exports.
+"""
+
+import sys
+from typing import TYPE_CHECKING
+
+import _ddtrace_coverage.installer as _impl
 
 
-def install(
-    include_paths: t.Optional[list[Path]] = None,
-    collect_import_time_coverage: bool = False,
-    file_level_coverage: t.Optional[bool] = None,
-) -> None:
-    ModuleCodeCollector.install(
-        include_paths=include_paths,
-        collect_import_time_coverage=collect_import_time_coverage,
-        file_level_coverage=file_level_coverage,
-    )
-    _patch_multiprocessing()
-    _patch_threading()
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+
+    def __getattr__(name: str) -> Any: ...
+
+else:
+    sys.modules[__name__] = _impl

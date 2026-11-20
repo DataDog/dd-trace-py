@@ -1,172 +1,32 @@
-from functools import lru_cache
-from functools import wraps
-from inspect import FullArgSpec
-from inspect import getfullargspec
-from inspect import isgeneratorfunction
-from typing import Any
-from typing import Callable
-from typing import Generic
-from typing import Iterator
-from typing import Optional
-from typing import TypeVar
-import weakref
+"""Bridge to the extracted ``ddtrace-internal`` package: this module *is* ``_ddtrace_internal.utils.cache``.
+
+At runtime the module object is replaced by the package module, so there is a single copy of its
+state and tests may patch either path. The ``TYPE_CHECKING`` block only tells static tools what it exports.
+"""
+
+import sys
+from typing import TYPE_CHECKING
+
+import _ddtrace_internal.utils.cache as _impl
 
 
-miss = object()
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
 
-T = TypeVar("T")
-F = Callable[[T], Any]
-M = Callable[[Any, T], Any]
+    from _ddtrace_internal.utils.cache import WK as WK  # noqa: F401
+    from _ddtrace_internal.utils.cache import WV as WV  # noqa: F401
+    from _ddtrace_internal.utils.cache import CachedMethodDescriptor as CachedMethodDescriptor  # noqa: F401
+    from _ddtrace_internal.utils.cache import F as F  # noqa: F401
+    from _ddtrace_internal.utils.cache import IdentityWeakKeyDictionary as IdentityWeakKeyDictionary  # noqa: F401
+    from _ddtrace_internal.utils.cache import M as M  # noqa: F401
+    from _ddtrace_internal.utils.cache import T as T  # noqa: F401
+    from _ddtrace_internal.utils.cache import cached as cached  # noqa: F401
+    from _ddtrace_internal.utils.cache import cachedmethod as cachedmethod  # noqa: F401
+    from _ddtrace_internal.utils.cache import callonce as callonce  # noqa: F401
+    from _ddtrace_internal.utils.cache import is_not_void_function as is_not_void_function  # noqa: F401
+    from _ddtrace_internal.utils.cache import miss as miss  # noqa: F401
 
-WK = TypeVar("WK")
-WV = TypeVar("WV")
+    def __getattr__(name: str) -> Any: ...
 
-
-def cached(maxsize: int = 256) -> Callable[[Callable], Callable]:
-    def _(f: Callable) -> Callable:
-        return lru_cache(maxsize)(f)
-
-    return _
-
-
-class CachedMethodDescriptor:
-    def __init__(self, method: M, maxsize: int) -> None:
-        self._method = method
-        self._maxsize = maxsize
-
-    def __get__(self, obj: Any, objtype: Optional[type] = None) -> F:
-        cached_method = cached(self._maxsize)(self._method.__get__(obj, objtype))
-        setattr(obj, self._method.__name__, cached_method)
-        return cached_method
-
-
-def cachedmethod(maxsize: int = 256) -> Callable[[M], CachedMethodDescriptor]:
-    """Decorator for memoizing methods of a single argument (LFU policy)."""
-
-    def cached_wrapper(f: M) -> CachedMethodDescriptor:
-        return CachedMethodDescriptor(f, maxsize)
-
-    return cached_wrapper
-
-
-class IdentityWeakKeyDictionary(Generic[WK, WV]):
-    """Weak mapping keyed by object identity (id()), not equality or hash.
-
-    Unlike ``weakref.WeakKeyDictionary``, insertion and lookup never call
-    ``hash(key)`` or ``key.__eq__``: the internal dict is keyed on ``id(key)``,
-    with an ``is`` check to detect id reuse after the original key was
-    garbage collected. Use this instead of a plain ``lru_cache`` or
-    ``WeakKeyDictionary`` whenever hashing the key could run arbitrary code
-    (e.g. a class whose metaclass defines ``__hash__``) or raise (e.g.
-    ``__hash__ = None``), or whenever the key type's ``__eq__``/``__hash__``
-    would conflate objects that must stay distinct (e.g. two structurally
-    identical but separately created code objects).
-    """
-
-    __slots__ = ("_data", "_on_remove")
-
-    def __init__(self, on_remove: Optional[Callable[[], None]] = None) -> None:
-        self._data: dict[int, tuple[weakref.ref[WK], WV]] = {}
-        self._on_remove = on_remove
-
-    def _make_remove(self, key_id: int) -> Callable[["weakref.ref[WK]"], None]:
-        def remove(ref: "weakref.ref[WK]") -> None:
-            # Only drop the entry this weakref was created for: the slot may
-            # since have been overwritten by a new key reusing the same id.
-            item = self._data.get(key_id)
-            if item is not None and item[0] is ref:
-                self._data.pop(key_id, None)
-                if (on_remove := self._on_remove) is not None:
-                    on_remove()
-
-        return remove
-
-    def get(self, key: WK, default: Any = None) -> Any:
-        item = self._data.get(id(key))
-        if item is None:
-            return default
-        ref, value = item
-        if ref() is key:
-            return value
-        return default
-
-    def __contains__(self, key: WK) -> bool:
-        item = self._data.get(id(key))
-        return item is not None and item[0]() is key
-
-    def __iter__(self) -> Iterator[WK]:
-        for ref, _value in tuple(self._data.values()):
-            key = ref()
-            if key is not None:
-                yield key
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __getitem__(self, key: WK) -> WV:
-        item = self._data.get(id(key))
-        if item is None or item[0]() is not key:
-            raise KeyError(key)
-        return item[1]
-
-    def __setitem__(self, key: WK, value: WV) -> None:
-        key_id = id(key)
-        self._data[key_id] = (weakref.ref(key, self._make_remove(key_id)), value)
-
-    def __delitem__(self, key: WK) -> None:
-        key_id = id(key)
-        if key_id not in self._data:
-            raise KeyError(key)
-        del self._data[key_id]
-
-    def pop(self, key: WK, *default: WV) -> WV:
-        try:
-            value = self[key]
-        except KeyError:
-            if default:
-                return default[0]
-            raise
-        del self[key]
-        return value
-
-    def clear(self) -> None:
-        self._data.clear()
-
-
-def is_not_void_function(f, argspec: FullArgSpec):
-    return (
-        argspec.args
-        or argspec.varargs
-        or argspec.varkw
-        or argspec.defaults
-        or argspec.kwonlyargs
-        or argspec.kwonlydefaults
-        or isgeneratorfunction(f)
-    )
-
-
-def callonce(f: Callable[[], Any]) -> Callable[[], Any]:
-    """Decorator for executing a function only the first time."""
-    argspec = getfullargspec(f)
-    if is_not_void_function(f, argspec):
-        raise ValueError("The callonce decorator can only be applied to functions with no arguments")
-
-    @wraps(f)
-    def _() -> Any:
-        try:
-            retval, exc = f.__callonce_result__  # type: ignore[attr-defined]
-        except AttributeError:
-            try:
-                retval = f()
-                exc = None
-            except Exception as e:
-                retval = None
-                exc = e
-            f.__callonce_result__ = retval, exc  # type: ignore[attr-defined]
-
-        if exc is not None:
-            raise exc
-
-        return retval
-
-    return _
+else:
+    sys.modules[__name__] = _impl
