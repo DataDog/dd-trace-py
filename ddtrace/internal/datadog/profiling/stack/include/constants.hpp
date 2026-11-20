@@ -19,5 +19,8 @@ constexpr unsigned int g_default_max_threads_per_sample = 25;
 // leaf tasks exceeds this, reservoir sampling is used. 0 means sample all tasks.
 constexpr unsigned int g_default_max_tasks_per_sample = 50;
 
-// Echion maintains a cache of frames--the size of this cache is specified up-front.
-constexpr unsigned int g_default_echion_frame_cache_size = 1024;
+// Echion retains recently rendered frames across stack walks. Scale the cache with
+// the configured stack depth while bounding both churn and retained memory.
+constexpr unsigned int g_min_echion_frame_cache_size = 256;
+constexpr unsigned int g_max_echion_frame_cache_size = 1024;
+constexpr unsigned int g_echion_frame_cache_size_multiplier = 4;

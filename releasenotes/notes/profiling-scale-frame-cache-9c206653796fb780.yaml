@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Reduces profiling memory usage by scaling frame caching with ``DD_PROFILING_MAX_FRAMES``.
