@@ -61,18 +61,27 @@ def invoke_ext_hashes() -> tuple[list[tuple[str, str, str]], list[tuple[str, str
 # ---------------------------------------------------------------------------
 
 
-def try_restore_from_cache(shared_deps: bool = True) -> None:
+def try_restore_from_cache(
+    shared_deps: bool = True, accept_file: t.Optional[t.Callable[[Path, Path], bool]] = None
+) -> None:
     ext_entries, dep_entries = invoke_ext_hashes()
+    rejected_generations: set[Path] = set()
 
     for ext_name, ext_hash, ext_target in ext_entries:
         target = Path(ext_target)
         cache_dir = CACHE / ext_name / ext_hash
+        if cache_dir in rejected_generations:
+            continue
         target_dir = target.parent.resolve()
         if not (matches := list(cache_dir.glob(target.name))):
             print(f"Warning: No cached files found for {target.name} in {cache_dir}", file=sys.stderr)
             continue
         for d in matches:
             if d.is_file():
+                if accept_file is not None and not accept_file(d, target):
+                    # The primary binary precedes any generated headers for the same extension.
+                    rejected_generations.add(cache_dir)
+                    break
                 print(f"Restoring {d.resolve()} to {target_dir.resolve()} directory")
                 target_dir.mkdir(parents=True, exist_ok=True)
                 shutil.copy(d.resolve(), target_dir.resolve())

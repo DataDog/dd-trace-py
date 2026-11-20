@@ -199,6 +199,52 @@ variables:
   after_script:
     - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
 
+.macos_ext_cache_cross_commit:
+  extends: .build_base
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "juanjo/macos-ext-cache-cross-commit"'
+      allow_failure: true
+  cache:
+    - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+      policy: pull
+      paths:
+        - .download_cache
+  timeout: 30m
+  variables:
+    ARCH_TAG: "amd64"
+    SYSTEM_VERSION_COMPAT: "0"
+    MACOSX_DEPLOYMENT_TARGET: "14.7"
+    UV_PYTHON: "3.12"
+    GIT_DEPTH: "20"
+  artifacts:
+    when: always
+    expire_in: 1 day
+    paths:
+      - debugwheelhouse/extension-cache-${MACOS_CACHE_CASE}/
+  script: bash .gitlab/scripts/test-macos-ext-cache-cross-commit.sh "${MACOS_CACHE_CASE}"
+
+"macos amd64 cross-commit cache seed":
+  extends: .macos_ext_cache_cross_commit
+  needs: []
+  variables:
+    MACOS_CACHE_CASE: "seed"
+
+"macos amd64 cross-commit cache control":
+  extends: .macos_ext_cache_cross_commit
+  needs: []
+  variables:
+    MACOS_CACHE_CASE: "control"
+
+"macos amd64 cross-commit cache restore":
+  extends: .macos_ext_cache_cross_commit
+  needs:
+    - job: "macos amd64 cross-commit cache seed"
+      artifacts: true
+  parallel:
+    matrix:
+      - MACOS_CACHE_CASE: ["warm", "invalidate"]
+
 "build macos arm64":
   extends: .build_macos_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
