@@ -1116,3 +1116,22 @@ def test_start_waiting_for_another_threads_start_sleeps_instead_of_blocking(cdn,
         if waiting is not None:
             waiting.join(timeout=5)
         provider.shutdown()
+
+
+def test_initialize_that_times_out_waiting_for_a_start_ignores_a_source_error(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    resume = threading.Event()
+    holding = _hold_source_creation(monkeypatch, resume)
+    first = threading.Thread(target=lambda: _initialize_quietly(provider))
+    first.start()
+    try:
+        assert holding.wait(timeout=5)
+        # What an earlier failed start and a readiness signal can leave behind while this start is still pending.
+        provider._configuration_source_error = "an earlier source error"
+        provider._config_received.set()
+        with pytest.raises(ProviderNotReadyError):
+            provider.initialize(EvaluationContext())
+    finally:
+        resume.set()
+        first.join(timeout=5)
+        provider.shutdown()

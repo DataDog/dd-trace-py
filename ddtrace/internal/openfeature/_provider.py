@@ -411,8 +411,9 @@ class DataDogProvider(AbstractProvider):
             logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")
             return  # SDK will dispatch PROVIDER_READY
 
-        if self._configuration_source_error is not None:
-            # No configuration can arrive, so fail now instead of waiting for the timeout.
+        if started and self._configuration_source_error is not None:
+            # No configuration can arrive, so fail now instead of waiting for the timeout. A start that timed out
+            # waiting for another thread's start takes the timeout path, which never reports READY.
             if self._mark_initialization_failed():
                 raise ProviderNotReadyError(self._configuration_source_error)
             logger.debug("Feature Flags: provider initialized successfully (configuration received meanwhile)")
