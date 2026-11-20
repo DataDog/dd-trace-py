@@ -11,10 +11,12 @@ from typing import Optional
 from typing import cast
 import weakref
 
+from _ddtrace_internal.utils.inspection import _filename_to_resolved_path as _filename_to_resolved_path  # noqa: F401
+from _ddtrace_internal.utils.inspection import resolved_code_origin as resolved_code_origin  # noqa: F401
+
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
-from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import miss
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
@@ -35,15 +37,6 @@ def _(code: CodeType) -> set[int]:
 @linenos.register
 def _(f: FunctionType) -> set[int]:
     return linenos(f.__code__)
-
-
-@cached(maxsize=4 << 10)
-def _filename_to_resolved_path(filename: str) -> Path:
-    return Path(filename).resolve()
-
-
-def resolved_code_origin(code: CodeType) -> Path:
-    return _filename_to_resolved_path(code.co_filename)
 
 
 def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:

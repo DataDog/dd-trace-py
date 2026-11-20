@@ -1,22 +1,19 @@
-import dis
+"""Bridge to the extracted ``ddtrace-coverage`` package: this module *is* ``_ddtrace_coverage.instrumentation_py3_10``.
+
+At runtime the module object is replaced by the package module, so there is a single copy of its
+state and tests may patch either path. (``import_module``, not ``import x.y as z``: a package attribute can shadow
+a submodule, as ``settings.env`` does.) The ``TYPE_CHECKING`` block only tells static tools what it exports.
+"""
+
+from importlib import import_module
 import sys
-from types import CodeType
-
-from ddtrace.internal.bytecode_injection import HookType
-from ddtrace.internal.bytecode_injection.core import InjectionContext
-from ddtrace.internal.bytecode_injection.core import inject_invocation
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from typing import TYPE_CHECKING
 
 
-assert sys.version_info[:2] == (3, 10)  # nosec
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
 
+    def __getattr__(name: str) -> Any: ...
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
-    injection_context = InjectionContext(code, hook, lambda _s: [o for o, _ in dis.findlinestarts(_s.original_code)])
-    new_code, lines = inject_invocation(injection_context, path, package)
-
-    coverage_lines = CoverageLines()
-    for line in lines:
-        coverage_lines.add(line)
-
-    return new_code, coverage_lines
+else:
+    sys.modules[__name__] = import_module("_ddtrace_coverage.instrumentation_py3_10")

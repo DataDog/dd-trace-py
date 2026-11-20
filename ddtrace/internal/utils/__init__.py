@@ -3,71 +3,9 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
-
-class ArgumentError(Exception):
-    """
-    This is raised when an argument lookup, either by position or by keyword, is
-    not found.
-    """
-
-
-def get_argument_value(
-    args: Union[tuple[Any], list[Any]],
-    kwargs: dict[str, Any],
-    pos: int,
-    kw: str,
-    optional: bool = False,
-) -> Optional[Any]:
-    """
-    This function parses the value of a target function argument that may have been
-    passed in as a positional argument or a keyword argument. Because monkey-patched
-    functions do not define the same signature as their target function, the value of
-    arguments must be inferred from the packed args and kwargs.
-    Keyword arguments are prioritized, followed by the positional argument. If the
-    argument cannot be resolved, an ``ArgumentError`` exception is raised, which could
-    be used, e.g., to handle a default value by the caller.
-    :param args: Positional arguments
-    :param kwargs: Keyword arguments
-    :param pos: The positional index of the argument if passed in as a positional arg
-    :param kw: The name of the keyword if passed in as a keyword argument
-    :return: The value of the target argument
-    """
-    try:
-        return kwargs[kw]
-    except KeyError:
-        try:
-            return args[pos]
-        except IndexError:
-            if optional:
-                return None
-            raise ArgumentError("%s (at position %d)" % (kw, pos))
-
-
-def set_argument_value(
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-    pos: int,
-    kw: str,
-    value: Any,
-    override_unset: bool = False,
-) -> tuple[tuple[Any, ...], dict[str, Any]]:
-    """
-    Returns a new args, kwargs with the given value updated
-    :param args: Positional arguments
-    :param kwargs: Keyword arguments
-    :param pos: The positional index of the argument
-    :param kw: The name of the keyword
-    :param value: The new value of the target argument
-    :return: Updated args and kwargs
-    """
-    if len(args) > pos:
-        args = args[:pos] + (value,) + args[pos + 1 :]
-    elif kw in kwargs or override_unset:
-        kwargs[kw] = value
-    else:
-        raise ArgumentError("%s (at position %d) is invalid" % (kw, pos))
-
-    return args, kwargs
+from _ddtrace_internal.utils import ArgumentError as ArgumentError  # noqa: F401 -- moved to ddtrace-internal
+from _ddtrace_internal.utils import get_argument_value as get_argument_value  # noqa: F401
+from _ddtrace_internal.utils import set_argument_value as set_argument_value  # noqa: F401
 
 
 def _get_metas_to_propagate(context: Any) -> list[tuple[str, str]]:

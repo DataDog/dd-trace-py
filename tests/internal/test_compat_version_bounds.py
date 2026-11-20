@@ -57,7 +57,13 @@ _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
 )
 
 
+_COVERAGE_PREFIX: str = "ddtrace/internal/coverage/"
+
+
 def _ddtrace_source(path: str) -> str:
+    if path.startswith(_COVERAGE_PREFIX):
+        # The coverage implementation lives in the ddtrace-coverage package; ddtrace.internal.coverage only bridges.
+        return resources.files("_ddtrace_coverage").joinpath(path.removeprefix(_COVERAGE_PREFIX)).read_text()
     return resources.files("ddtrace").joinpath(path.removeprefix("ddtrace/")).read_text()
 
 

@@ -1,59 +1,25 @@
-"""Best-effort detection of code objects protected by a third-party bytecode
-obfuscator (e.g. PyArmor).
+"""Bridge to the extracted ``ddtrace-internal`` package: this module *is* ``_ddtrace_internal.utils.obfuscation``.
 
-Obfuscators such as PyArmor replace a function's real bytecode with an
-encrypted blob that is only decrypted transiently, in place, for the duration
-of a single call. Disassembling/rewriting such a code object with the
-``bytecode`` package (or any tool that assumes ``co_code`` is genuine CPython
-bytecode) can produce corrupt bytecode, and on some CPython versions merely
-using the code object as a dict/cache key can crash if internal fields that
-CPython expects to be consistent (e.g. PEP 669 monitoring data) are not, since
-some obfuscation modes construct code objects outside of the normal
-``PyCode_New*`` paths.
-
-There is no version-proof structural signature for obfuscated code objects:
-the more aggressive protection modes change the code object layout enough
-that no marker survives. This module only recognizes the common case where
-the PyArmor runtime has injected its ``__armor_enter__``/``__armor_exit__``
-call wrapper around the function body. Callers that rewrite bytecode should
-still guard the rewrite itself defensively, since this check can miss more
-aggressive obfuscation modes.
+At runtime the module object is replaced by the package module, so there is a single copy of its
+state and tests may patch either path. (``import_module``, not ``import x.y as z``: a package attribute can shadow
+a submodule, as ``settings.env`` does.) The ``TYPE_CHECKING`` block only tells static tools what it exports.
 """
 
-from types import CodeType
-from types import ModuleType
+from importlib import import_module
+import sys
+from typing import TYPE_CHECKING
 
 
-# Legacy PyArmor (<= 8.x, "RFT"/restrict mode) calls into module-level
-# ``__armor_enter__``/``__armor_exit__`` functions that show up as regular
-# globals, hence as names in ``co_names``.
-_ARMOR_MARKERS = frozenset(("__armor_enter__", "__armor_exit__"))
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
 
-# Modern PyArmor (9.x) instead embeds direct references to native runtime
-# functions (e.g. ``C_ENTER_CO_OBJECT_INDEX``) in ``co_consts``. These are
-# builtin functions whose ``__module__`` lives in the runtime package.
-_RUNTIME_MODULE_PREFIXES = ("pytransform", "pyarmor_runtime")
+    from _ddtrace_internal.utils.obfuscation import _ARMOR_MARKERS as _ARMOR_MARKERS  # noqa: F401
+    from _ddtrace_internal.utils.obfuscation import _RUNTIME_MODULE_PREFIXES as _RUNTIME_MODULE_PREFIXES  # noqa: F401
+    from _ddtrace_internal.utils.obfuscation import ObfuscatedCodeError as ObfuscatedCodeError  # noqa: F401
+    from _ddtrace_internal.utils.obfuscation import _is_runtime_object as _is_runtime_object  # noqa: F401
+    from _ddtrace_internal.utils.obfuscation import is_obfuscated_code as is_obfuscated_code  # noqa: F401
 
+    def __getattr__(name: str) -> Any: ...
 
-def _is_runtime_object(obj: object) -> bool:
-    module = getattr(obj, "__module__", None)
-    if isinstance(module, ModuleType):
-        module = module.__name__
-    return isinstance(module, str) and module.startswith(_RUNTIME_MODULE_PREFIXES)
-
-
-class ObfuscatedCodeError(Exception):
-    """Raised when a code object cannot be safely rewritten because it appears
-    to be obfuscated (e.g. by PyArmor).
-    """
-
-
-def is_obfuscated_code(code: CodeType) -> bool:
-    """Check whether a code object looks like it was wrapped by PyArmor.
-
-    This is a coarse, best-effort heuristic, not a guarantee: it can produce
-    false negatives (some obfuscation modes leave no detectable marker). It
-    only looks at the code object itself, so it also works before the code
-    has run (i.e. before it gets the chance to import the obfuscation runtime).
-    """
-    return not _ARMOR_MARKERS.isdisjoint(code.co_names) or any(_is_runtime_object(c) for c in code.co_consts)
+else:
+    sys.modules[__name__] = import_module("_ddtrace_internal.utils.obfuscation")

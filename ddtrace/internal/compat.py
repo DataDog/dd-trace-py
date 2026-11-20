@@ -1,170 +1,35 @@
-from functools import singledispatchmethod
-import ipaddress
+"""Bridge to the extracted ``ddtrace-internal`` package: this module *is* ``_ddtrace_internal.compat``.
+
+At runtime the module object is replaced by the package module, so there is a single copy of its
+state and tests may patch either path. (``import_module``, not ``import x.y as z``: a package attribute can shadow
+a submodule, as ``settings.env`` does.) The ``TYPE_CHECKING`` block only tells static tools what it exports.
+"""
+
+from importlib import import_module
 import sys
-from types import TracebackType
-from typing import Any
-from typing import Optional
-from typing import Union
-
-import wrapt
+from typing import TYPE_CHECKING
 
 
-__all__ = [
-    "maybe_stringify",
-    "MAX_PY",
-    "NEXT_MAX_PY",
-    "NEXT_PY_UNSUPPORTED_MSG",
-    "PYTHON_VERSION_INFO",
-    "is_at_least_py",
-    "is_at_most_py",
-    "is_supported_python_version",
-]
-
-PYTHON_VERSION_INFO = sys.version_info
-
-# Last officially supported CPython. Matches requires-python <3.16.
-MAX_PY: tuple[int, int] = (3, 15)
-
-# Next CPython: packaging exclusive ceiling and wrap-live inclusive ceiling.
-# wrap() / lazy are live through NEXT_MAX_PY (`is_supported_python_version()`); 3.17 dies.
-NEXT_MAX_PY: tuple[int, int] = (3, 16)
-
-NEXT_PY_UNSUPPORTED_MSG: str = (
-    f"This version of CPython is not supported yet: {sys.version_info[0]}.{sys.version_info[1]}"
-)
-
-
-def is_at_least_py(major: int, minor: int, version: Optional[tuple[int, ...]] = None) -> bool:
-    """True if version is at or past (major, minor).
-
-    Feature gates pass literals (`is_at_least_py(3, 15)`), not NEXT_MAX_PY.
-    """
-    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
-    return resolved[:2] >= (major, minor)
-
-
-def is_at_most_py(major: int, minor: int, version: Optional[tuple[int, ...]] = None) -> bool:
-    """True if version is at or below (major, minor) inclusive.
-
-    Exclusive `< (3, 13)` is `is_at_most_py(3, 12)`, not `is_at_most_py(3, 13)`.
-    Official packaging support is `is_at_most_py(*MAX_PY)`. The rolling runtime
-    ceiling is `is_supported_python_version()`. Feature gates stay
-    `is_at_least_py(3, 15)` literals, not these constants.
-    """
-    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
-    return resolved[:2] <= (major, minor)
-
-
-def is_supported_python_version(version: Optional[tuple[int, ...]] = None) -> bool:
-    """True if version is within the rolling runtime compatibility ceiling.
-
-    Encapsulates ``PYTHON_VERSION_INFO[:2] <= NEXT_MAX_PY``. This is the
-    inclusive runtime ceiling (wrap/lazy live through the next CPython under
-    development), not the packaging/official support range represented by
-    ``MAX_PY`` / ``requires-python``.
-    """
-    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
-    return resolved[:2] <= NEXT_MAX_PY
-
-
-def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
-    if isinstance(s, str):
-        return s
-    if isinstance(s, bytes):
-        return s.decode(encoding, errors)
-    raise TypeError("Expected str or bytes but received %r" % (s.__class__))
-
-
-def ensure_binary(s, encoding="utf-8", errors="ignore") -> bytes:
-    if isinstance(s, bytes):
-        return s
-    if not isinstance(s, str):
-        raise TypeError("Expected str or bytes but received %r" % (s.__class__))
-    return s.encode(encoding, errors)
-
-
-NumericType = Union[int, float]
-
-
-def is_integer(obj: Any) -> bool:
-    """Helper to determine if the provided ``obj`` is an integer type or not"""
-    # DEV: We have to make sure it is an integer and not a boolean
-    # >>> type(True)
-    # <class 'bool'>
-    # >>> isinstance(True, int)
-    # True
-    return isinstance(obj, int) and not isinstance(obj, bool)
-
-
-def maybe_stringify(obj: Any) -> Optional[str]:
-    if obj is not None:
-        return str(obj)
-    return None
-
-
-ExcInfoType = Union[tuple[type[BaseException], BaseException, Optional[TracebackType]], tuple[None, None, None]]
-
-# Sentinel value to represent "no exception"
-NO_EXCEPTION: ExcInfoType = (None, None, None)
-
-
-def is_valid_ip(ip: str) -> bool:
-    try:
-        # try parsing the IP address
-        ipaddress.ip_address(str(ip))
-        return True
-    except Exception:
-        return False
-
-
-def ip_is_global(ip: str) -> bool:
-    """
-    is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
-    """
-    parsed_ip = ipaddress.ip_address(str(ip))
-
-    return parsed_ip.is_global
-
-
-# This fix was implemented in 3.9.8
-# https://github.com/python/cpython/issues/83860
-def _singledispatchmethod_register(self: Any, cls: Any, method: Any = None) -> Any:
-    # Like CPython >= 3.9.8: only classmethod/staticmethod instances get
-    # annotations from __func__. hasattr catches the types too (member_descriptor)
-    # and blew up Symbol Database's @register(classmethod) on Python < 3.9.8.
-    if isinstance(cls, (staticmethod, classmethod)):
-        cls.__annotations__ = getattr(cls.__func__, "__annotations__", {})
-    return self.dispatcher.register(cls, func=method)
-
-
-if PYTHON_VERSION_INFO < (3, 9, 8):
-    singledispatchmethod.register = _singledispatchmethod_register  # type: ignore[method-assign]
-
-
-def __getattr__(name: str) -> Any:
-    # These attributes are expensive to pre-compute, so we make them lazy
-    if name == "PYTHON_VERSION":
-        from platform import python_version
-
-        globals()[name] = python_version()
-
-    elif name == "PYTHON_INTERPRETER":
-        from platform import python_implementation
-
-        globals()[name] = python_implementation()
-
-    try:
-        return globals()[name]
-    except KeyError:
-        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
-
-
-if hasattr(wrapt, "BaseObjectProxy"):
-    # This must be used for wrapt version >= 2.0.0
-    wrapt_class: type = wrapt.BaseObjectProxy
+if TYPE_CHECKING:  # pragma: no cover
+    from _ddtrace_internal.compat import MAX_PY as MAX_PY  # noqa: F401
+    from _ddtrace_internal.compat import NEXT_MAX_PY as NEXT_MAX_PY  # noqa: F401
+    from _ddtrace_internal.compat import NEXT_PY_UNSUPPORTED_MSG as NEXT_PY_UNSUPPORTED_MSG  # noqa: F401
+    from _ddtrace_internal.compat import NO_EXCEPTION as NO_EXCEPTION  # noqa: F401
+    from _ddtrace_internal.compat import PYTHON_VERSION_INFO as PYTHON_VERSION_INFO  # noqa: F401
+    from _ddtrace_internal.compat import ExcInfoType as ExcInfoType  # noqa: F401
+    from _ddtrace_internal.compat import NumericType as NumericType  # noqa: F401
+    from _ddtrace_internal.compat import __getattr__ as __getattr__  # noqa: F401
+    from _ddtrace_internal.compat import _singledispatchmethod_register as _singledispatchmethod_register  # noqa: F401
+    from _ddtrace_internal.compat import ensure_binary as ensure_binary  # noqa: F401
+    from _ddtrace_internal.compat import ensure_text as ensure_text  # noqa: F401
+    from _ddtrace_internal.compat import ip_is_global as ip_is_global  # noqa: F401
+    from _ddtrace_internal.compat import is_at_least_py as is_at_least_py  # noqa: F401
+    from _ddtrace_internal.compat import is_at_most_py as is_at_most_py  # noqa: F401
+    from _ddtrace_internal.compat import is_integer as is_integer  # noqa: F401
+    from _ddtrace_internal.compat import is_supported_python_version as is_supported_python_version  # noqa: F401
+    from _ddtrace_internal.compat import is_valid_ip as is_valid_ip  # noqa: F401
+    from _ddtrace_internal.compat import is_wrapted as is_wrapted  # noqa: F401
+    from _ddtrace_internal.compat import maybe_stringify as maybe_stringify  # noqa: F401
+    from _ddtrace_internal.compat import wrapt_class as wrapt_class  # noqa: F401
 else:
-    wrapt_class = wrapt.ObjectProxy
-
-
-def is_wrapted(o: object) -> bool:
-    return isinstance(o, wrapt_class)
+    sys.modules[__name__] = import_module("_ddtrace_internal.compat")

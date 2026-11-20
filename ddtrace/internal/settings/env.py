@@ -1,111 +1,33 @@
-"""Centralized environment variable access for dd-trace-py.
+"""Bridge to the extracted ``ddtrace-internal`` package: this module *is* ``_ddtrace_internal.settings.env``.
 
-This module provides a configuration-aware view of os.environ, enabling
-centralized control and validation of all environment variable access in
-ddtrace.
-
-All DD_*/_DD_*/OTEL_*/DATADOG_* environment variable accesses are validated
-against the registry in supported-configurations.json. Unregistered variables
-produce a debug log.
-
-Reads also honor ``CONFIGURATION_ALIASES`` from the registry: a read for a
-canonical name falls back to its registered legacy aliases if the canonical
-is unset. Aliases registered here must be pure renames (same value space) —
-translations like OTEL→DD belong in ``_otel_remapper.py`` instead.
+At runtime the module object is replaced by the package module, so there is a single copy of its
+state and tests may patch either path. (``import_module``, not ``import x.y as z``: a package attribute can shadow
+a submodule, as ``settings.env`` does.) The ``TYPE_CHECKING`` block only tells static tools what it exports.
 """
 
-from collections.abc import Iterator
-from collections.abc import MutableMapping
-import logging
-import os
-from typing import Optional
-
-from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
-from ddtrace.internal.settings._supported_configurations import DEPRECATED_CONFIGURATIONS
-from ddtrace.internal.settings._supported_configurations import SUPPORTED_CONFIGURATIONS
+from importlib import import_module
+import sys
+from typing import TYPE_CHECKING
 
 
-# Use stdlib logging here instead of ddtrace.internal.logger.get_logger.
-# ddtrace/internal/logger.py imports ddtrace.internal.settings.env, so using
-# get_logger() would create a circular import at module-load time.
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
 
-_ALIAS_TARGETS: frozenset[str] = frozenset(alias for aliases in CONFIGURATION_ALIASES.values() for alias in aliases)
-_warned_keys: set[str] = set()
+    from _ddtrace_internal.settings.env import _ALIAS_TARGETS as _ALIAS_TARGETS  # noqa: F401
+    from _ddtrace_internal.settings.env import _CONFIGURATION_ALIASES as _CONFIGURATION_ALIASES  # noqa: F401
+    from _ddtrace_internal.settings.env import _DEPRECATED_CONFIGURATIONS as _DEPRECATED_CONFIGURATIONS  # noqa: F401
+    from _ddtrace_internal.settings.env import _SUPPORTED_CONFIGURATIONS as _SUPPORTED_CONFIGURATIONS  # noqa: F401
+    from _ddtrace_internal.settings.env import EnvConfig as EnvConfig  # noqa: F401
+    from _ddtrace_internal.settings.env import _get_env_value as _get_env_value  # noqa: F401
+    from _ddtrace_internal.settings.env import _validate_key as _validate_key  # noqa: F401
+    from _ddtrace_internal.settings.env import _warned_keys as _warned_keys  # noqa: F401
+    from _ddtrace_internal.settings.env import dd_environ as dd_environ  # noqa: F401
+    from _ddtrace_internal.settings.env import logger as logger  # noqa: F401
+    from _ddtrace_internal.settings.env import (
+        register_supported_configurations as register_supported_configurations,  # noqa: F401
+    )
 
+    def __getattr__(name: str) -> Any: ...
 
-def _get_env_value(key: str) -> Optional[str]:
-    """Return the environment value, masking empty values for OTel config variables (OTel specification requirement)"""
-    value = os.environ.get(key)
-
-    if key.startswith("OTEL_") and value == "":
-        return None
-    return value
-
-
-def _validate_key(key: str) -> None:
-    """Warn if a DD_*/_DD_*/OTEL_*/DATADOG_* key is not in the supported-configurations registry.
-
-    Keys that are registered aliases of a supported configuration are also accepted.
-    Each unsupported key is warned about at most once per process.
-    """
-    if not (key.startswith("DD_") or key.startswith("_DD_") or key.startswith("OTEL_") or key.startswith("DATADOG_")):
-        return
-
-    if key in _warned_keys:
-        return
-
-    if key not in SUPPORTED_CONFIGURATIONS and key not in _ALIAS_TARGETS:
-        _warned_keys.add(key)
-        logger.debug("Unsupported Datadog configuration variable accessed: %s", key)
-    elif key in DEPRECATED_CONFIGURATIONS:
-        _warned_keys.add(key)
-        logger.debug("Deprecated Datadog configuration variable accessed: %s", key)
-
-
-class EnvConfig(MutableMapping[str, str]):
-    """A MutableMapping wrapper around os.environ.
-
-    Serves as the centralized entry point for all environment variable access
-    in dd-trace-py. Empty OTEL_* values are excluded from reads and iteration.
-    Writes and deletes operate directly on os.environ.
-
-    Validates that DD_*/_DD_*/OTEL_*/DATADOG_* accesses use registered
-    configuration variables from supported-configurations.json.
-    """
-
-    def __getitem__(self, key: str) -> str:
-        _validate_key(key)
-        if (value := _get_env_value(key)) is not None:
-            return value
-        for alias in CONFIGURATION_ALIASES.get(key, ()):
-            if (value := _get_env_value(alias)) is not None:
-                return value
-        raise KeyError(key)
-
-    def __setitem__(self, key: str, value: str) -> None:
-        _validate_key(key)
-        os.environ[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del os.environ[key]
-
-    def __contains__(self, key: object) -> bool:
-        if isinstance(key, str):
-            _validate_key(key)
-            if _get_env_value(key) is not None:
-                return True
-            return any(_get_env_value(alias) is not None for alias in CONFIGURATION_ALIASES.get(key, ()))
-        return key in os.environ
-
-    def __iter__(self) -> Iterator[str]:
-        return (key for key in os.environ if _get_env_value(key) is not None)
-
-    def __len__(self) -> int:
-        return sum(1 for _ in self)
-
-    def copy(self) -> dict[str, str]:
-        return dict(self)
-
-
-dd_environ = EnvConfig()
+else:
+    sys.modules[__name__] = import_module("_ddtrace_internal.settings.env")

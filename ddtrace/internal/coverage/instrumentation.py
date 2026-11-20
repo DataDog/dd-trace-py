@@ -1,14 +1,19 @@
+"""Bridge to the extracted ``ddtrace-coverage`` package: this module *is* ``_ddtrace_coverage.instrumentation``.
+
+At runtime the module object is replaced by the package module, so there is a single copy of its
+state and tests may patch either path. (``import_module``, not ``import x.y as z``: a package attribute can shadow
+a submodule, as ``settings.env`` does.) The ``TYPE_CHECKING`` block only tells static tools what it exports.
+"""
+
+from importlib import import_module
 import sys
+from typing import TYPE_CHECKING
 
 
-# Import are noqa'd otherwise some formatters will helpfully remove them
-if sys.version_info >= (3, 16):
-    from ddtrace.internal.coverage.instrumentation_py3_16 import instrument_all_lines  # noqa
-elif sys.version_info >= (3, 12):
-    from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines  # noqa
-elif sys.version_info >= (3, 11):
-    from ddtrace.internal.coverage.instrumentation_py3_11 import instrument_all_lines  # noqa
-elif sys.version_info >= (3, 10):
-    from ddtrace.internal.coverage.instrumentation_py3_10 import instrument_all_lines  # noqa
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+
+    def __getattr__(name: str) -> Any: ...
+
 else:
-    from ddtrace.internal.coverage.instrumentation_py3_9 import instrument_all_lines  # noqa
+    sys.modules[__name__] = import_module("_ddtrace_coverage.instrumentation")

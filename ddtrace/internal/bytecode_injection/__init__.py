@@ -2,12 +2,11 @@ from collections import deque
 from types import CodeType
 from types import FunctionType
 from typing import Any
-from typing import Callable
 
+from _ddtrace_internal.bytecode_injection import HookType as HookType  # noqa: F401 -- moved to ddtrace-internal
 from bytecode import Bytecode
 from bytecode import Instr
 
-from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.logger import get_logger
@@ -19,7 +18,6 @@ from ddtrace.internal.wrapping import set_function_code
 
 log = get_logger(__name__)
 
-HookType = Callable[[Any], Any]
 HookInfoType = tuple[HookType, int, Any]
 
 HOOK_ARG_PREFIX = "_hook_arg"
@@ -254,47 +252,7 @@ else:
     # Additionally, we must discard the return value (top of the stack) to restore
     # the stack to the state prior to the call.
 
-    INJECTION_ASSEMBLY = Assembly()
-    if is_at_least_py(3, 13):
-        INJECTION_ASSEMBLY.parse(
-            r"""
-            load_const      {hook}
-            push_null
-            load_const      {arg}
-            call            1
-            pop_top
-            """
-        )
-    elif is_at_least_py(3, 12):
-        INJECTION_ASSEMBLY.parse(
-            r"""
-            push_null
-            load_const      {hook}
-            load_const      {arg}
-            call            1
-            pop_top
-            """
-        )
-    elif is_at_least_py(3, 11):
-        INJECTION_ASSEMBLY.parse(
-            r"""
-            push_null
-            load_const      {hook}
-            load_const      {arg}
-            precall         1
-            call            1
-            pop_top
-            """
-        )
-    else:
-        INJECTION_ASSEMBLY.parse(
-            r"""
-            load_const      {hook}
-            load_const      {arg}
-            call_function   1
-            pop_top
-            """
-        )
+    from _ddtrace_internal.bytecode_injection import INJECTION_ASSEMBLY
 
     _INJECT_HOOK_OPCODES = [_.name for _ in INJECTION_ASSEMBLY]
 
