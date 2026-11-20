@@ -20,6 +20,9 @@ from ddtrace.aiguard._types import Function
 from ddtrace.aiguard._types import ImageURL
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import Message
+from ddtrace.aiguard._types import Policy
+from ddtrace.aiguard._types import ResourceEvaluation
+from ddtrace.aiguard._types import ResourceTarget
 from ddtrace.aiguard._types import ToolCall
 from ddtrace.aiguard.middleware import _MIDDLEWARES
 from ddtrace.aiguard.middleware import AIGuardContext
@@ -193,6 +196,32 @@ def _classify_transport_error(exc: BaseException) -> str:
 def _status_tag(status: Optional[int]) -> str:
     """Clamp a response status to the declared allowlist, keeping the tag bounded."""
     return str(status) if status in AI_GUARD.STATUSES else AI_GUARD.STATUS_OTHER
+
+
+def _target_result(body: Any) -> Optional[dict[str, Any]]:
+    """The result for the first target of a resource evaluation, or None unless exactly one result matches it.
+
+    A result matches if its target_index is the int 0, or if it has no target_index and is at list position 0.
+    """
+    try:
+        results = body["data"]["attributes"]["results"]
+    except Exception:
+        return None
+    if not isinstance(results, list):
+        return None
+    matches = []
+    for position, result in enumerate(results):
+        index = result.get("target_index", position) if isinstance(result, dict) else None
+        # bool is a subclass of int, so the exact type check also rejects False.
+        if type(index) is int and index == 0:
+            matches.append(result)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _policy_field(policy: Any, key: str) -> Optional[str]:
+    """A field of the result policy as a string. The service can send it as a string or as an integer."""
+    value = policy.get(key) if isinstance(policy, dict) else None
+    return str(value) if isinstance(value, (str, int)) and not isinstance(value, bool) else None
 
 
 # What replaces an endpoint anywhere it would otherwise be reported.
@@ -685,6 +714,138 @@ class AIGuardClient:
                 if context is not None:
                     for middleware in _MIDDLEWARES:
                         _call_hook(middleware.post_evaluate, context)
+
+    def _evaluate_resource(
+        self,
+        target: ResourceTarget,
+        options: Optional[Options] = None,
+        source: str = AI_GUARD.SOURCE_SDK,
+        integration: str = AI_GUARD.INTEGRATION_NONE,
+    ) -> ResourceEvaluation:
+        """Evaluate one target, for example an MCP server connection, against the runtime policy.
+
+        Raises AIGuardAbortError if the decision must block, and AIGuardClientError if the evaluation fails.
+        """
+        tracer = core.root.get_item("tracer")
+        if tracer is None:
+            raise AIGuardClientError("AI Guard requires the global tracer, but no tracer has been initialized")
+
+        # As in evaluate: a failure that no step below classifies is a failure in our own code.
+        error_type: str = AI_GUARD.ERROR_INTERNAL
+        error_status: Optional[int] = None
+        call_path_tags = self._call_path_tags(source, integration)
+        (_, clamped_source), (_, clamped_integration) = call_path_tags
+
+        with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
+            try:
+                span.set_tag(AI_GUARD.TARGET_TAG, target["type"])
+                span.set_tag(AI_GUARD.SOURCE_TAG, clamped_source)
+                span.set_tag(AI_GUARD.INTEGRATION_TAG, clamped_integration)
+                attributes = {"profile": AI_GUARD.POLICY_PROFILE_DEFAULT, "targets": [target], "meta": self._meta}
+
+                transport_error = None
+                try:
+                    response = self._execute_request(
+                        f"{self._endpoint}/evaluate/resource", {"data": {"attributes": attributes}}
+                    )
+                except Exception as e:
+                    error_type = _classify_transport_error(e)
+                    transport_error = AIGuardClientError(message=self._describe_transport_error(e))
+                if transport_error is not None:
+                    # As in evaluate, the raise is outside the handler, so that no exception chain
+                    # includes the transport failure.
+                    raise transport_error
+
+                try:
+                    body = response.get_json() or {}  # type: ignore[no-untyped-call]
+                except Exception as e:
+                    if response.status == 200:
+                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
+                    else:
+                        error_type = AI_GUARD.ERROR_BAD_STATUS
+                        error_status = response.status
+                    raise AIGuardClientError(
+                        message=f"AI Guard service returned an undecodable response body: {e}",
+                        status=response.status,
+                    ) from e
+
+                if response.status != 200:
+                    error_type = AI_GUARD.ERROR_BAD_STATUS
+                    error_status = response.status
+                    raise AIGuardClientError(
+                        message=f"AI Guard service call failed, status: {response.status}",
+                        status=response.status,
+                        errors=body.get("errors") if isinstance(body, dict) else None,
+                    )
+
+                result = _target_result(body)
+                if result is None:
+                    error_type = AI_GUARD.ERROR_BAD_RESPONSE
+                    value = json.dumps(body, indent=2)[:500]
+                    raise AIGuardClientError(
+                        message=f"AI Guard service returned no single result for the target: {value}",
+                        status=response.status,
+                    )
+                action = result.get("action")
+                if action not in ACTIONS:
+                    error_type = AI_GUARD.ERROR_BAD_RESPONSE
+                    raise AIGuardClientError(
+                        f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}",
+                        status=response.status,
+                    )
+
+                span.set_tag(AI_GUARD.ACTION_TAG, action)
+                reason = result.get("reason")
+                if not isinstance(reason, str):
+                    reason = ""
+                if reason:
+                    span.set_tag(AI_GUARD.REASON_TAG, reason)
+                evaluation = ResourceEvaluation(action=action, reason=reason)
+                policy = Policy()
+                result_policy = result.get("policy")
+                policy_id = _policy_field(result_policy, "id")
+                policy_version = _policy_field(result_policy, "version")
+                if policy_id is not None:
+                    span.set_tag(AI_GUARD.POLICY_ID_TAG, policy_id)
+                    policy["id"] = policy_id
+                if policy_version is not None:
+                    span.set_tag(AI_GUARD.POLICY_VERSION_TAG, policy_version)
+                    policy["version"] = policy_version
+                if policy:
+                    evaluation["policy"] = policy
+                # A copy, so that a later change to the target cannot change what the span reports.
+                span._set_struct_tag(AI_GUARD.STRUCT, {"targets": [deepcopy(target)]})
+
+                should_block = (
+                    self._is_blocking_enabled(options, result.get("is_blocking_enabled", False)) and action != ALLOW
+                )
+                self._add_request_to_telemetry(
+                    (
+                        ("action", action),
+                        ("block", "true" if should_block else "false"),
+                        ("error", "false"),
+                        ("skipped", "false"),
+                    )
+                    + call_path_tags
+                )
+                root_span = span_bus.get_root_span()
+                if root_span:
+                    _aiguard_manual_keep(root_span)
+                    root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
+                if should_block:
+                    span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
+                    raise AIGuardAbortError(action=action, reason=reason)
+                return evaluation
+
+            # AIGuardAbortError is a BaseException, so a block is not reported as a failure.
+            except Exception:
+                self._add_request_to_telemetry((("error", "true"), ("skipped", "false")) + call_path_tags)
+                error_tags = call_path_tags
+                if error_status is not None:
+                    error_tags += (("http_status", _status_tag(error_status)),)
+                self._add_error_to_telemetry(error_type, error_tags)
+                logger.debug("AI Guard resource evaluation failed (%s)", error_type, exc_info=True)
+                raise
 
     def _scrub(self, text: str) -> str:
         """Remove the configured endpoint from text this client is about to report."""

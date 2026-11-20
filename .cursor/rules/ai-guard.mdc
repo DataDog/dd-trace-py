@@ -52,14 +52,16 @@ ddtrace/aiguard/
 │                           #   AIGuardClient, AIGuardClientError,
 │                           #   AIGuardAbortError, Message, Evaluation, Options,
 │                           #   ToolCall, Function, … (lazily via __getattr__)
-├── _api_client.py          # AIGuardClient.evaluate() + HTTP transport
-├── _types.py               # Message / ToolCall / Function / ContentPart TypedDicts
+├── _api_client.py          # AIGuardClient.evaluate(), _evaluate_resource() + HTTP transport
+├── _types.py               # Message / ToolCall / Function / ContentPart TypedDicts,
+│                           #   resource evaluation targets and results
 ├── _constants.py           # AI_GUARD constants: tags, metrics, telemetry values
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
 ├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks,
 │                           #   gated per integration by DD_AI_GUARD_<LLM>_ENABLED
 ├── _context.py             # framework claims to avoid double-scanning
-├── _common.py              # _get(), wrap_abort_error(), evaluate_auto() helpers
+├── _common.py              # _get(), wrap_abort_error(), evaluate_auto(),
+│                           #   evaluate_resource_auto() helpers
 ├── _redaction.py           # applies the service's redaction_replacements
 ├── _trace_utils.py         # _aiguard_manual_keep(): force-keep the AI Guard trace
 ├── _streaming.py           # buffer-then-evaluate stream proxies
@@ -77,9 +79,9 @@ ddtrace/aiguard/
     ├── _anthropic_streaming.py # Anthropic stream reconstruction
     ├── _anthropic_errors.py    # Anthropic-compatible abort error class
     ├── _langchain.py       # LangChain agent/chatmodel/llm listeners
-    ├── _mcp.py             # MCP server IDs and entries, OpenAI MCP approval decision cache,
-    │                       #   MCP SDK client transport capture
-    └── _openai_agents.py   # openai-agents MCP server tool listeners
+    ├── _mcp.py             # MCP server IDs and entries, connection check targets,
+    │                       #   OpenAI MCP approval decision cache, MCP SDK client transport capture
+    └── _openai_agents.py   # openai-agents MCP tool call and connection listeners
 ```
 
 Keep the public SDK's `__getattr__` exports lazy: settings import AI Guard constants during
@@ -115,6 +117,30 @@ the openai-agents MCP server listeners, gated by `DD_AI_GUARD_MCP_ENABLED`. Keep
 - stdio servers send only `command` plus `safe_stdio_args`: never other arguments or the environment.
 - New MCP code inside the listeners fails open (debug log) and only lets `AIGuardAbortError`
   propagate.
+
+MCP connection checks evaluate each openai-agents MCP connection against the runtime policy before the
+transport opens. The private variable `_DD_AI_GUARD_MCP_CONNECTIONS_ENABLED` (default `false`) gates them,
+because the policy endpoint is not available yet. The checks also need `DD_AI_GUARD_MCP_ENABLED`.
+Keep these invariants when you change them:
+- The contrib wraps `create_streams` of each SDK server class in `agents.mcp.server`. Each connection
+  attempt calls it once: `connect()`, a reconnection and the isolated session of a tool call retry.
+- A server class gets no check if it does not inherit `create_streams` from an SDK class in `agents.mcp.server`.
+  It also gets no check if it overrides `create_streams` and does not call `super()`.
+- The check runs in `connect()`, so it uses a part of the connect timeout of the application or of
+  `MCPServerManager` (`connect_timeout_seconds`, 10 seconds by default). A slow check can make that
+  timeout stop the connection.
+- With no listener, the wrapper returns the original context manager: no dispatch and no thread hop.
+  Otherwise, `_CheckedStreams` dispatches `openai_agents.mcp.connect.before` off the event loop.
+  It enters the original context manager only after the listener returns.
+- The listener builds the target with `_server_entry` and `mcp_connect_target`, so the identity rules above
+  apply. The target has no server ID, no tools and no `managed_by`. A server with no safe identifier gets no check.
+- `AIGuardClient._evaluate_resource()` sends one target to `{endpoint}/evaluate/resource`, with the
+  `default` profile and `meta`. Middlewares do not run for it, and it does not change `evaluate()`.
+- An enforced block raises the bare `AIGuardAbortError`. Then the SDK starts no subprocess, opens no network
+  connection and sends no `initialize` or `tools/list` request.
+- Monitor mode and failed checks let the connection continue.
+  The span and the telemetry never report a failed check as `ALLOW`.
+- A connected session needs no other check for its tool calls.
 
 Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic_mcp.py`, installed on
 `anthropic.patch`:
@@ -301,11 +327,13 @@ AI Guard product. Span tags, metric names, and other product constants live in
 | `DD_AI_GUARD_OPENAI_ENABLED` | `true` | Per-provider kill switch for the OpenAI integration. |
 | `DD_AI_GUARD_ANTHROPIC_ENABLED` | `true` | Per-provider kill switch for the Anthropic integration. |
 | `DD_AI_GUARD_LANGCHAIN_ENABLED` | `true` | Per-framework kill switch for the LangChain integration. |
+| `DD_AI_GUARD_MCP_ENABLED` | `true` | Kill switch for the MCP support: server details, approval requests, tool call checks and connection checks. |
+| `_DD_AI_GUARD_MCP_CONNECTIONS_ENABLED` | `false` | Private rollout gate for the MCP connection checks. They also need `DD_AI_GUARD_MCP_ENABLED`. |
 
 Truncation only affects what is reported on the span; the service always
 evaluates the full conversation. User-facing descriptions live in the AI Guard
 section of `docs/configuration.rst`; keep both in sync when adding a variable
-(see the `add-new-configuration` skill).
+(see the `add-new-configuration` skill). A private `_DD_` variable has no entry in `docs/configuration.rst`.
 
 `new_ai_guard_client()` additionally requires `DD_API_KEY` and `DD_APP_KEY`.
 
