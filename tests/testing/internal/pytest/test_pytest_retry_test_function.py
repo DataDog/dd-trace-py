@@ -130,6 +130,62 @@ class TestRetriesKeepTestFunction:
         seen = [json.loads(line) for line in seen_file.read_text().splitlines()]
         assert seen == expected_seen
 
+    @pytest.mark.parametrize(
+        "api_client_settings,expected_seen",
+        [
+            pytest.param(dict(), ["open"] * 2, id="no_retries"),
+            pytest.param(
+                dict(efd_enabled=True, known_tests_enabled=True, known_tests={_KNOWN_TEST_REF}),
+                # The first item runs 1 + 10 attempts; the second item's test has already been retried.
+                ["open"] * 12,
+                id="early_flake_detection",
+            ),
+        ],
+    )
+    def test_items_collected_twice_run_on_their_own_instance(
+        self,
+        pytester: Pytester,
+        tmp_path: pathlib.Path,
+        api_client_settings: dict[str, t.Any],
+        expected_seen: list[str],
+    ) -> None:
+        """Two items collected from one class test share a node ID; each must run on the instance its setup prepared."""
+        seen_file = tmp_path / "seen.jsonl"
+        pytester.makepyfile(
+            test_foo=f"""
+            import json
+            import pathlib
+
+            _seen_file = pathlib.Path(r"{seen_file}")
+
+
+            class TestResource:
+                def setup_method(self, method):
+                    self.resource = "open"
+
+                def teardown_method(self, method):
+                    self.resource = "closed"
+
+                def test_uses_resource(self):
+                    with _seen_file.open("a") as f:
+                        f.write(json.dumps(self.resource) + "\\n")
+                    assert self.resource == "open"
+            """
+        )
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(**api_client_settings),
+            ),
+            setup_standard_mocks(),
+        ):
+            result = pytester.inline_run("--ddtrace", "--keep-duplicates", "test_foo.py", "test_foo.py")
+
+        assert result.ret == 0
+        seen = [json.loads(line) for line in seen_file.read_text().splitlines()]
+        assert seen == expected_seen
+
     def test_unittest_attempts_run_on_the_instance_their_set_up_prepared(self, pytester: Pytester) -> None:
         """pytest creates a new TestCase instance for every run of a unittest item; retries must not undo that."""
         pytester.makepyfile(
