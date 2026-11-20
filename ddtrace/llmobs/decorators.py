@@ -14,12 +14,12 @@ from typing import Protocol
 from typing import TypeVar
 from typing import overload
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
 
@@ -104,7 +104,7 @@ def _get_span_inputs(args: "OrderedDict[str, Any]") -> dict[str, Any]:
 
 
 async def yield_from_async_gen(
-    func: Callable[..., AsyncGenerator[Any, Any]], span: Span, args: tuple[Any, ...], kwargs: dict[str, Any]
+    func: Callable[..., AsyncGenerator[Any, Any]], span: _LLMObsSpan, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> AsyncGenerator[Any, Any]:
     try:
         gen = func(*args, **kwargs)
