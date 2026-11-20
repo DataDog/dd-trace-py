@@ -50,6 +50,11 @@ HOUR = 60 * MINUTE
 DAY = 24 * HOUR
 
 
+# Logger roots of the packages extracted from ddtrace (`_ddtrace_internal`, `_ddtrace_coverage`, ...) share the
+# `ddtrace` configuration. The prefix is a naming convention, so this module does not need to know the packages.
+PACKAGE_ROOT_PREFIX = "_ddtrace_"
+
+
 @dataclass
 class LoggerPrefix:
     prefix: str
@@ -62,9 +67,14 @@ class LoggerPrefix:
 
         The name is split by '.' and each part is used to traverse the trie.
         If a part is not found, it returns the level of the closest parent node.
+
+        The root of the name (``ddtrace``) is not part of the trie. Package roots (``_ddtrace_<package>``) are
+        resolved as ``<package>``, so ``_ddtrace_internal.module`` is looked up like ``ddtrace.internal.module``.
         """
-        parts = name.replace("_", ".").lower().split(".")
-        parts.pop(0)  # remove the ddtrace prefix
+        root, _, rest = name.partition(".")
+        parts = rest.replace("_", ".").lower().split(".")
+        if root.startswith(PACKAGE_ROOT_PREFIX):
+            parts[:0] = root[len(PACKAGE_ROOT_PREFIX) :].replace("_", ".").lower().split(".")
         current = self
         while parts:
             if (part := parts.pop(0)) not in current.children:
@@ -106,7 +116,7 @@ def get_logger(name: str) -> logging.Logger:
 
     # Set the log level from the environment variable of the closest parent
     # logger.
-    if name.startswith("ddtrace."):  # for the whole of ddtrace we have DD_TRACE_DEBUG
+    if name.startswith(("ddtrace.", PACKAGE_ROOT_PREFIX)):  # for the whole of ddtrace we have DD_TRACE_DEBUG
         if (level := LOG_LEVEL_TRIE.lookup(name)) is not None:
             logger.setLevel(level)
 
