@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAM
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
+from ddtrace.contrib.internal.mcp._tool_result import get_tool_error_message
 from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import uuid4
@@ -55,6 +56,7 @@ NEW_CONVERSATION_ID = "_dd.mcp.new_conversation_id"
 # The shape of IDs this integration generates, so values an agent made up are not used as sessions
 CONVERSATION_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 MCP_SESSION_SOURCE_TAG = "mcp_session_source"
+TELEMETRY_FIELDS = frozenset((INTENT_KEY, CONVERSATION_ID_KEY))
 # Parallel first calls of a conversation arrive together, before the agent has seen any ID
 PENDING_CONVERSATION_ID_SECONDS = 2.0
 
@@ -105,8 +107,6 @@ def get_client_info_tags(client_info: Any) -> dict[str, str]:
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
     _pending_conversation_ids: "weakref.WeakKeyDictionary[Any, tuple[str, float]]" = weakref.WeakKeyDictionary()
-    # Tools that declare their own telemetry argument, which must reach them unchanged
-    _tools_with_own_telemetry: set[str] = set()
 
     def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: MCP spans carry no provider or model tags."""
@@ -134,7 +134,6 @@ class MCPIntegration(BaseLLMIntegration):
             if not isinstance(input_schema, dict):
                 continue
             if TELEMETRY_KEY in (input_schema.get("properties") or {}):
-                self._tools_with_own_telemetry.add(str(_get_attr(tool, "name", "")))
                 continue
             schema = {
                 **input_schema,
@@ -284,11 +283,12 @@ class MCPIntegration(BaseLLMIntegration):
             return
 
         params = _get_attr(request, "params", None)
-        if _get_attr(params, "name", None) in self._tools_with_own_telemetry:
-            return
         arguments = _get_attr(params, "arguments", None)
         telemetry = _get_attr(arguments, TELEMETRY_KEY, None)
         if isinstance(arguments, dict) and TELEMETRY_KEY in arguments:
+            # Any other value is the tool's own telemetry argument, which must reach the tool unchanged
+            if not (telemetry is None or (isinstance(telemetry, dict) and set(telemetry) <= TELEMETRY_FIELDS)):
+                return
             intent = _get_attr(telemetry, INTENT_KEY, None)
             if intent:
                 _annotate_llmobs_span_data(span, intent=intent)
@@ -337,6 +337,9 @@ class MCPIntegration(BaseLLMIntegration):
         conversation_id = span._get_ctx_item(NEW_CONVERSATION_ID)
         content = _get_attr(result, "content", None)
         if not conversation_id or not isinstance(content, list):
+            return
+        # The instruction would otherwise become the error message of an error result without text
+        if is_tool_error(result) and get_tool_error_message(result) is None:
             return
 
         block: Any = {"type": "text", "text": CONVERSATION_ID_INSTRUCTION.format(conversation_id)}

@@ -386,7 +386,8 @@ def test_conversation_id_source_and_invented_ids(mcp_llmobs, test_spans, run_cli
     assert get_llmobs_session_id(invented_span) in invented.content[-1].text
 
 
-def test_tool_with_own_telemetry_argument_is_unchanged(mcp_llmobs, test_spans):
+@pytest.mark.parametrize("list_first", [True, False])
+def test_tool_with_own_telemetry_argument_is_unchanged(mcp_llmobs, test_spans, list_first):
     from mcp import Client
     from mcp.server.mcpserver import MCPServer
 
@@ -398,15 +399,16 @@ def test_tool_with_own_telemetry_argument_is_unchanged(mcp_llmobs, test_spans):
 
     async def run():
         async with Client(server, mode="legacy") as client:
-            tools = await client.list_tools()
+            tools = await client.list_tools() if list_first else None
             result = await client.call_tool("record_event", {"telemetry": {"event": "click"}})
             return tools, result
 
     with override_config("mcp", dict(capture_session=True)):
         tools, result = asyncio.run(run())
 
-    schema = next(t for t in tools.tools if t.name == "record_event").input_schema
-    assert "conversation_id" not in json.dumps(schema)
+    if tools:
+        schema = next(t for t in tools.tools if t.name == "record_event").input_schema
+        assert "conversation_id" not in json.dumps(schema)
     assert not result.is_error
     assert json.loads(result.content[0].text) == {"event": "click"}
     assert len(result.content) == 1
@@ -432,3 +434,26 @@ def test_own_telemetry_argument_kept_with_capture_disabled(mcp_llmobs, test_span
 
     assert not result.is_error
     assert json.loads(result.content[0].text) == {"event": "click"}
+
+
+def test_conversation_id_not_added_to_error_without_text(mcp_llmobs, test_spans):
+    from mcp import Client
+    from mcp.server.mcpserver import MCPServer
+    from mcp.types import CallToolResult
+
+    server = MCPServer(name="EmptyErrorServer")
+
+    @server.tool(description="Fails without a message")
+    def fail_quietly() -> CallToolResult:
+        return CallToolResult(content=[], is_error=True)
+
+    async def run():
+        async with Client(server, mode="legacy") as client:
+            return await client.call_tool("fail_quietly", {})
+
+    with override_config("mcp", dict(capture_session=True)):
+        result = asyncio.run(run())
+
+    assert result.is_error
+    assert result.content == []
+    assert _only(_pop_spans(test_spans), "server_tool_call").get_tag("error.message") == "tool resulted in an error"
