@@ -1012,3 +1012,29 @@ def test_lifecycle_events_stay_unpatched_when_the_application_patches_threading(
         assert not isinstance(provider_module._lifecycle_ended, _ApplicationEvent)
     finally:
         provider.shutdown()
+
+
+class _EscapingPoll(BaseException):
+    """Escapes the poll's own error handling, which catches Exception."""
+
+
+def test_poll_raising_after_a_shutdown_from_inside_it_still_releases_the_claim(cdn, api_key, monkeypatch):
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    later = _provider({"tags": ["b"]})
+    source = _poll_without_configuration(provider, cdn, monkeypatch)
+
+    def shut_down_and_raise(*args, **kwargs):
+        provider.shutdown()
+        raise _EscapingPoll()
+
+    try:
+        _on_recovery(provider, cdn, monkeypatch, shut_down_and_raise)
+        # The poll raises out of the worker, which then exits without on_shutdown.
+        source.join(timeout=5)
+        assert _flag_selection._claim_count == 0
+        assert provider._retired_configuration_sources == []
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["b"], [])
+    finally:
+        later.shutdown()
+        provider.shutdown()

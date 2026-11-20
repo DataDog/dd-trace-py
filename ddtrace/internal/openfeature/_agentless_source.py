@@ -382,6 +382,10 @@ class AgentlessConfigurationSource(PeriodicService):
         self._polling_thread = current_thread()
         try:
             self._poll_once()
+        except BaseException:
+            # The worker skips on_shutdown when its target raises, so a poller stopped in this poll exits here.
+            self.on_shutdown()
+            raise
         finally:
             self._polling_thread = None
 
