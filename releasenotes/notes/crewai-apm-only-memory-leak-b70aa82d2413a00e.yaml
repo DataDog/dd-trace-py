@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    crewai: Fixes a memory leak that causes memory usage to grow with every crew kickoff in long-running
+    processes when LLM Observability is disabled.
