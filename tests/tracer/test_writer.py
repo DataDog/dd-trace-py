@@ -1949,29 +1949,21 @@ def test_native_writer_stop_skips_join_only_for_discarded_microvm_writer(monkeyp
         ("win32", None, None, False, "v0.4"),
         # Env variable is used if explicit value is not given
         ("win32", None, "v0.4", False, "v0.4"),
-        ("win32", None, "v0.4", False, "v0.4"),
         # v0.5 is not supported on windows
-        ("win32", "v0.5", None, True, None),
         ("win32", "v0.5", None, True, None),
         ("win32", "v0.5", "v0.4", True, None),
         ("win32", None, "v0.5", True, None),
         # -- cygwin
         # Defaults on windows
         ("cygwin", None, None, False, "v0.4"),
-        # Default with priority sampler
-        ("cygwin", None, None, False, "v0.4"),
         # Env variable is used if explicit value is not given
         ("cygwin", None, "v0.4", False, "v0.4"),
-        ("cygwin", None, "v0.4", False, "v0.4"),
         # v0.5 is not supported on windows
-        ("cygwin", "v0.5", None, True, None),
         ("cygwin", "v0.5", None, True, None),
         ("cygwin", "v0.5", "v0.4", True, None),
         ("cygwin", None, "v0.5", True, None),
         # -- Non-windows
         # defaults
-        ("darwin", None, None, False, "v0.5"),
-        # Default with priority sample
         ("darwin", None, None, False, "v0.5"),
         # Explicitly setting api version
         ("darwin", "v0.4", None, False, "v0.4"),
