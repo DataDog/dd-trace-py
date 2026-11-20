@@ -1159,25 +1159,35 @@ _lifecycle_ended = original_Event()
 # thread holds, so the next provider start or shutdown releases their claims, on an application thread.
 _exited_configuration_sources: "list[tuple[DataDogProvider, AgentlessConfigurationSource]]" = []
 _exited_release_lock = forksafe.Lock()
+# How long a ddtrace thread waits for another thread's release of those claims, which takes microseconds: a provider
+# call from a callback on a ddtrace thread must not wait without a bound.
+_RELEASE_WAIT_ON_DDTRACE_THREAD_SECONDS = 0.5
 # How long an application thread sleeps between checks while it waits for a start or teardown on another thread.
 _START_WAIT_SLICE_SECONDS = 0.01
 
 
 def _release_exited_pollers() -> None:
-    """Release the claims of exited self-stopped pollers, from an application thread only.
+    """Release the claims of exited self-stopped pollers.
 
     An entry leaves the list only once its claim is released, so a start that finds the list empty knows every such
-    claim is released, and a child forked in between still has the entry to finish. ddtrace threads skip this: a
-    provider call from a callback on one must not wait for the lock.
+    claim is released, and a child forked in between still has the entry to finish. On a ddtrace thread, where a
+    provider call can come from a callback, the wait for another caller's release is bounded.
     """
-    if not _exited_configuration_sources or ddtrace_threading.get_ident() in periodic_threads:
+    if not _exited_configuration_sources:
         return
+    on_ddtrace_thread = ddtrace_threading.get_ident() in periodic_threads
     # One caller at a time, so a start that has to wait here finds every claim released when it continues.
-    with _exited_release_lock:
+    lock = _exited_release_lock
+    if not lock.acquire(timeout=_RELEASE_WAIT_ON_DDTRACE_THREAD_SECONDS if on_ddtrace_thread else -1):
+        logger.debug("Feature Flags: exited pollers' claims are being released on another thread")
+        return
+    try:
         while _exited_configuration_sources:
             provider, source = _exited_configuration_sources[0]
             provider._release_exited_poller(source)
             _exited_configuration_sources.pop(0)
+    finally:
+        lock.release()
 
 
 def _wait_cooperatively(event: typing.Any, timeout: float) -> None:

@@ -1158,12 +1158,12 @@ def test_start_while_another_start_releases_an_exited_pollers_claim_claims_its_o
             self._lock = lock
             self.waiting = threading.Event()
 
-        def __enter__(self):
+        def acquire(self, *args, **kwargs):
             self.waiting.set()
-            return self._lock.__enter__()
+            return self._lock.acquire(*args, **kwargs)
 
-        def __exit__(self, *exc_info):
-            return self._lock.__exit__(*exc_info)
+        def release(self):
+            self._lock.release()
 
     starting = [threading.Thread(target=each.initialize, args=(EvaluationContext(),)) for each in (first, second)]
     try:
@@ -1194,7 +1194,7 @@ def test_start_while_another_start_releases_an_exited_pollers_claim_claims_its_o
             each.shutdown()
 
 
-def test_provider_call_on_a_ddtrace_thread_does_not_wait_to_release_exited_pollers(cdn, api_key, monkeypatch):
+def test_provider_call_on_a_ddtrace_thread_waits_for_the_release_lock_only_briefly(cdn, api_key, monkeypatch):
     from ddtrace.internal.threads import PeriodicThread
 
     provider = _provider({"tags": ["a"]}, timeout=0.3)
@@ -1216,7 +1216,7 @@ def test_provider_call_on_a_ddtrace_thread_does_not_wait_to_release_exited_polle
         assert stopped.wait(timeout=5)
         source.join(timeout=5)
         assert provider_module._exited_configuration_sources
-        # A provider call from a callback on a ddtrace thread leaves the release to an application thread.
+        # A provider call from a callback on a ddtrace thread waits for another release only for a bounded time.
         with provider_module._exited_release_lock:
             worker.start()
             assert returned.wait(timeout=5)
@@ -1227,4 +1227,39 @@ def test_provider_call_on_a_ddtrace_thread_does_not_wait_to_release_exited_polle
             worker.stop()
             worker.join(timeout=5)
         other.shutdown()
+        provider.shutdown()
+
+
+def test_start_on_a_ddtrace_thread_releases_exited_pollers_before_it_claims(cdn, api_key, monkeypatch):
+    from ddtrace.internal.threads import PeriodicThread
+
+    provider = _provider({"tags": ["a"]}, timeout=0.3)
+    replacement = _provider({"tags": ["b"]})
+    source = _poll_without_configuration(provider, cdn, monkeypatch)
+    stopped, initialized = threading.Event(), threading.Event()
+
+    def shut_down(*args, **kwargs):
+        provider.shutdown()
+        stopped.set()
+
+    def initialize_from_a_ddtrace_thread():
+        _initialize_quietly(replacement)
+        initialized.set()
+
+    worker = PeriodicThread(
+        60.0, target=initialize_from_a_ddtrace_thread, name="flag-selection-test", no_wait_at_start=True
+    )
+    try:
+        _on_recovery(provider, cdn, monkeypatch, shut_down)
+        assert stopped.wait(timeout=5)
+        source.join(timeout=5)
+        assert provider_module._exited_configuration_sources
+        worker.start()
+        assert initialized.wait(timeout=10)
+        assert _sent_selection(replacement._configuration_source) == (["b"], [])
+    finally:
+        if initialized.is_set():
+            worker.stop()
+            worker.join(timeout=5)
+        replacement.shutdown()
         provider.shutdown()
