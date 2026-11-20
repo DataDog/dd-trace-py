@@ -1,4 +1,7 @@
 import re
+from typing import Optional
+from typing import Protocol
+from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
@@ -9,7 +12,14 @@ AUTHORITY_PATTERN = re.compile(r"(?<![a-z0-9+.\-])[a-z][a-z0-9+.\-]*://([^@/?#]+
 QUERY_FRAGMENT_PATTERN = re.compile(r"[?#&]([^=&;?#]+)=([^?#&]+)", re.IGNORECASE)
 
 
-def find_authority(ranges, evidence):
+class _UrlEvidence(Protocol):
+    @property
+    def value(self) -> Optional[str]: ...
+
+
+def find_authority(ranges: list[dict[str, int]], evidence: _UrlEvidence) -> None:
+    if evidence.value is None:
+        return
     regex_result = AUTHORITY_PATTERN.search(evidence.value)
     while regex_result is not None:
         if isinstance(regex_result.group(1), str):
@@ -20,7 +30,9 @@ def find_authority(ranges, evidence):
         regex_result = AUTHORITY_PATTERN.search(evidence.value, regex_result.end())
 
 
-def find_query_fragment(ranges, evidence):
+def find_query_fragment(ranges: list[dict[str, int]], evidence: _UrlEvidence) -> None:
+    if evidence.value is None:
+        return
     regex_result = QUERY_FRAGMENT_PATTERN.search(evidence.value)
     while regex_result is not None:
         if isinstance(regex_result.group(2), str):
@@ -30,12 +42,14 @@ def find_query_fragment(ranges, evidence):
         regex_result = QUERY_FRAGMENT_PATTERN.search(evidence.value, regex_result.end())
 
 
-def find_query_string_matches(ranges, evidence, query_string_pattern):
+def find_query_string_matches(
+    ranges: list[dict[str, int]], evidence: _UrlEvidence, query_string_pattern: Optional[re.Pattern[bytes]]
+) -> None:
     """
     Find sensitive data in query string using the query string obfuscation pattern.
     This ensures synchronization with span-level query string redaction.
     """
-    if query_string_pattern is None:
+    if query_string_pattern is None or evidence.value is None:
         return
 
     try:
@@ -49,8 +63,8 @@ def find_query_string_matches(ranges, evidence, query_string_pattern):
         query_string = evidence.value[query_start:query_end]
 
         # Convert to bytes for pattern matching (query string pattern is in bytes)
-        query_bytes = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
-        byte_to_char = range(len(query_bytes) + 1)
+        query_bytes = query_string.encode("utf-8")
+        byte_to_char: Union[range, list[int]] = range(len(query_bytes) + 1)
         if isinstance(query_string, str) and not query_string.isascii():
             # Build once so converting all match offsets takes linear time.
             byte_to_char = [index for index, char in enumerate(query_string) for _ in char.encode("utf-8")]
@@ -74,7 +88,12 @@ def find_query_string_matches(ranges, evidence, query_string_pattern):
         log.debug("Error applying query string pattern to URL evidence", exc_info=True)
 
 
-def url_sensitive_analyzer(evidence, name_pattern=None, value_pattern=None, query_string_pattern=None):
+def url_sensitive_analyzer(
+    evidence: _UrlEvidence,
+    name_pattern: Optional[re.Pattern[str]] = None,
+    value_pattern: Optional[re.Pattern[str]] = None,
+    query_string_pattern: Optional[re.Pattern[bytes]] = None,
+) -> list[dict[str, int]]:
     """
     Analyzes URL evidence for sensitive information.
 
@@ -87,7 +106,7 @@ def url_sensitive_analyzer(evidence, name_pattern=None, value_pattern=None, quer
     Returns:
     - list: List of sensitive ranges to redact
     """
-    ranges = []
+    ranges: list[dict[str, int]] = []
     find_authority(ranges, evidence)
     find_query_fragment(ranges, evidence)
     # Apply query string pattern for synchronization with span-level redaction

@@ -1,3 +1,4 @@
+import re
 import time
 
 import pytest
@@ -16,6 +17,10 @@ from ddtrace.appsec._iast.taint_sinks.ssrf import SSRF
 from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
+
+
+def test_url_analyzer_without_evidence_value():
+    assert url_sensitive_analyzer(Evidence(), query_string_pattern=re.compile(b"password")) == []
 
 
 @pytest.mark.parametrize(
