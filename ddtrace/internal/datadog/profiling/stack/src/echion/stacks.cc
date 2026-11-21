@@ -5,14 +5,31 @@
 
 #include "dd_wrapper/include/profiler_state.hpp"
 
+size_t
+rendered_location_count(const Frame& frame)
+{
+    size_t count = frame.is_in_gc ? 2 : 1;
+    if (frame.code_object == 0 || frame.lasti < 0) {
+        return count;
+    }
+
+    auto& registry = Datadog::ProfilerState::get().native_call_registry;
+    const int offset_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
+    return registry.lookup(frame.code_object, offset_bytes, frame.first_lineno) ? count + 1 : count;
+}
+
 void
-FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
+FrameStack::render(EchionSampler& echion, TruncationStatus truncation, size_t truncation_index, size_t truncated_frames)
 {
     auto& renderer = echion.renderer();
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
-    for (auto it = this->begin(); it != this->end(); ++it) {
-        auto& frame = *it;
+    for (size_t i = 0; i < size(); ++i) {
+        if (i == truncation_index) {
+            renderer.render_truncated_frames(truncated_frames);
+        }
+
+        auto& frame = (*this)[i];
 
         // The collection runs underneath everything the frame is doing, including a native call
         // such as gc.collect that is still in progress. Locations are leaf-to-root, so the GC
@@ -36,6 +53,9 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
         renderer.render_frame(frame);
     }
 
+    if (truncation_index == size()) {
+        renderer.render_truncated_frames(truncated_frames);
+    }
     if (truncation == TruncationStatus::Truncated) {
         renderer.mark_truncated();
     }

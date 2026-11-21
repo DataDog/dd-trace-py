@@ -5,6 +5,7 @@ import pytest
 
 @pytest.mark.subprocess(
     env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_off_cpu_sibling"},
+    parametrize={"DD_PROFILING_MAX_FRAMES": ["64", "6"]},
     err=None,
 )
 def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
@@ -15,13 +16,15 @@ def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
-    def busy_sync() -> None:
-        deadline = time.monotonic() + 1
-        while time.monotonic() < deadline:
-            pass
+    def busy_sync(depth: int) -> None:
+        if depth:
+            busy_sync(depth - 1)
+        else:
+            time.sleep(1)
 
     async def busy(done: asyncio.Event) -> None:
-        busy_sync()
+        # The smaller budget can't reach the event-loop boundary through this stack.
+        busy_sync(20)
         done.set()
 
     async def sleeper(done: asyncio.Event) -> None:
@@ -49,7 +52,7 @@ def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
                 ]
             )
 
-    assert sleeper_stacks
+    assert any("sleeper" in names for names in sleeper_stacks), sleeper_stacks
     leaked = [names for names in sleeper_stacks if {"busy_sync", "busy"}.intersection(names)]
     assert not leaked, leaked
 
