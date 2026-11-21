@@ -1,0 +1,1000 @@
+{
+  "createdAt": "2024-04-17T19:40:53.716Z",
+  "format": "SERVER",
+  "environment": {
+    "name": "Test",
+    "unknownEnvironmentField": "ignored"
+  },
+  "evaluatorParams": {
+    "maxDependencyDepth": 2,
+    "unknownEvaluatorField": "ignored"
+  },
+  "flags": {
+    "dependent-leaf-on": {
+      "key": "dependent-leaf-on",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "on": {
+          "key": "on",
+          "value": "leaf-on"
+        }
+      },
+      "allocations": [
+        {
+          "key": "leaf-static",
+          "splits": [
+            {
+              "variationKey": "on",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-direct-root": {
+      "key": "dependent-direct-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "direct-match"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "direct-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "dependent-match",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-one-of-miss-root": {
+      "key": "dependent-one-of-miss-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "one-of-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "variant-not-in-list",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "off"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-not-one-of-hit-root": {
+      "key": "dependent-not-one-of-hit-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "not-one-of-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "variant-in-excluded-list",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "NOT_ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-transitive-parent": {
+      "key": "dependent-transitive-parent",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "parent-on": {
+          "key": "parent-on",
+          "value": "parent-on"
+        },
+        "parent-off": {
+          "key": "parent-off",
+          "value": "parent-off"
+        }
+      },
+      "allocations": [
+        {
+          "key": "leaf-on",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "parent-on",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "parent-off",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-transitive-root": {
+      "key": "dependent-transitive-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "transitive-match"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "transitive-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "parent-match",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-transitive-parent"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "parent-on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-depth-three-parent": {
+      "key": "dependent-depth-three-parent",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "ready": {
+          "key": "ready",
+          "value": "ready"
+        }
+      },
+      "allocations": [
+        {
+          "key": "transitive-parent-ready",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-transitive-parent"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "parent-on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "ready",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-depth-three-root": {
+      "key": "dependent-depth-three-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned"
+        }
+      },
+      "allocations": [
+        {
+          "key": "over-depth",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-depth-three-parent"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "ready"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-short-circuit-root": {
+      "key": "dependent-short-circuit-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "short-circuit-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "short-circuited-rule",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "gate",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "open"
+                  ]
+                },
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-missing-prerequisite"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-inapplicable-rule-root": {
+      "key": "dependent-inapplicable-rule-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "inapplicable-rule-match"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "inapplicable-rule-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "prerequisite-before-false-condition",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                },
+                {
+                  "attribute": "gate",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "open"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-reuse-after-rejection-root": {
+      "key": "dependent-reuse-after-rejection-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "reuse-after-rejection-match"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "reuse-after-rejection-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "rejected-first-use",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                },
+                {
+                  "attribute": "gate",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "open"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "selected-reuse",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-transitive-inapplicable-rule-root": {
+      "key": "dependent-transitive-inapplicable-rule-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "transitive-inapplicable-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "transitive-prerequisite-before-false-condition",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-transitive-parent"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "parent-on"
+                  ]
+                },
+                {
+                  "attribute": "gate",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "open"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-memoized-root": {
+      "key": "dependent-memoized-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "memoized-match"
+        }
+      },
+      "allocations": [
+        {
+          "key": "same-prerequisite-twice",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                },
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "NOT_ONE_OF",
+                  "value": [
+                    "off"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-no-assignment-parent": {
+      "key": "dependent-no-assignment-parent",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "assigned": {
+          "key": "assigned",
+          "value": "must-never-be-returned-no-assignment-parent"
+        }
+      },
+      "allocations": []
+    },
+    "dependent-no-assignment-root": {
+      "key": "dependent-no-assignment-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned-no-assignment-match"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "must-not-be-returned-no-assignment-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "parent-assigned",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-no-assignment-parent"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "assigned"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "must-not-be-reached-fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-atomic-error-root": {
+      "key": "dependent-atomic-error-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned"
+        }
+      },
+      "allocations": [
+        {
+          "key": "present-then-missing",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                },
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-missing-prerequisite"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-transitive-error-parent": {
+      "key": "dependent-transitive-error-parent",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned-transitive-error-parent"
+        }
+      },
+      "allocations": [
+        {
+          "key": "requires-missing",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-missing-prerequisite"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-transitive-error-root": {
+      "key": "dependent-transitive-error-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "must-not-be-returned"
+        }
+      },
+      "allocations": [
+        {
+          "key": "requires-parent",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-transitive-error-parent"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "matched"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-cycle-a": {
+      "key": "dependent-cycle-a",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "a": {
+          "key": "a",
+          "value": "must-not-be-returned"
+        }
+      },
+      "allocations": [
+        {
+          "key": "a-needs-b",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-cycle-b"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "b"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "a",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-cycle-b": {
+      "key": "dependent-cycle-b",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "b": {
+          "key": "b",
+          "value": "must-not-be-returned"
+        }
+      },
+      "allocations": [
+        {
+          "key": "b-needs-a",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-cycle-a"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "a"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "b",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "dependent-unknown-fields-root": {
+      "key": "dependent-unknown-fields-root",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "direct-match"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "direct-fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "dependent-match",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "flagEvaluation": {
+                    "key": "dependent-leaf-on",
+                    "unknownFlagEvaluationField": "ignored"
+                  },
+                  "operator": "ONE_OF",
+                  "value": [
+                    "on"
+                  ],
+                  "unknownConditionField": {
+                    "nested": true
+                  }
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "fallback",
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    }
+  }
+}

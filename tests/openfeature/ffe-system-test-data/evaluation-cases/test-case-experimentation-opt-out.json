@@ -9,6 +9,12 @@
     }
   },
   {
+    "_skip": [
+      {
+        "platform": "php",
+        "reason": "PHP reports GENERAL when the targeting key is missing."
+      }
+    ],
     "flag": "special-characters", "variationType": "JSON", "defaultValue": {}, "targetingKey": null,
     "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
     "result": { "value": {}, "reason": "ERROR", "errorCode": "TARGETING_KEY_MISSING" },
@@ -216,6 +222,12 @@
     }
   },
   {
+    "_skip": [
+      {
+        "platform": "python",
+        "reason": "Python rejects object opt-out attributes before flag evaluation."
+      }
+    ],
     "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
     "attributes": { "dd_experimentation_opt_out_at": { "timestamp": "2026-10-19T12:00:00Z" } },
     "result": { "value": 1, "reason": "SPLIT" },
@@ -225,6 +237,12 @@
     }
   },
   {
+    "_skip": [
+      {
+        "platform": "python",
+        "reason": "Python rejects array opt-out attributes before flag evaluation."
+      }
+    ],
     "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
     "attributes": { "dd_experimentation_opt_out_at": ["2026-10-19T12:00:00Z"] },
     "result": { "value": 1, "reason": "SPLIT" },

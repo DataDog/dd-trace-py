@@ -1,0 +1,3 @@
+features:
+  - |
+    feature flags: Adds support for evaluating dependent flags.

@@ -3,7 +3,7 @@
 These files are copied from the canonical FFE fixture repository.
 
 Canonical source: https://github.com/DataDog/ffe-system-test-data
-Source commit: e8777633d09f0e42b082f5ed64d42edeed080220
+Source commit: 29ba6bf2e7514cf1b75c046b8956a22565221ee8
 
 Do not edit these fixtures directly in dd-trace-py. Add or update shared FFE behavior
 in ffe-system-test-data first, then refresh this snapshot.
