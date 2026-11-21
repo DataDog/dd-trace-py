@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    starlette: Fixes the resource name and ``http.route`` of requests that are routed again by another router with the same ``Mount``, as connexion 3 does for each of its middlewares. The mount path, such as the API base path, was repeated (``GET /api/api/ping``).
