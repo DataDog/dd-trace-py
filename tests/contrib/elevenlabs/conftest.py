@@ -2,6 +2,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace import config
 from ddtrace.contrib.internal.elevenlabs.patch import patch
 from ddtrace.contrib.internal.elevenlabs.patch import unpatch
 from ddtrace.llmobs import LLMObs
@@ -10,6 +11,7 @@ from tests.utils import override_global_config
 
 @pytest.fixture(autouse=True)
 def elevenlabs_llmobs(tracer, monkeypatch):
+    monkeypatch.setitem(config.elevenlabs, "conversation_cost_enabled", False)
     LLMObs.disable()
     with override_global_config({"_llmobs_ml_app": "elevenlabs-tests", "_dd_api_key": "test-key"}):
         # Preserve the tracer fixture's DummyWriter; agentless mode replaces it.

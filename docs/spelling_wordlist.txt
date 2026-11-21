@@ -389,6 +389,7 @@ vertica
 vLLM
 w3c
 Webbrowser
+webhook
 websocket
 websockets
 whitelist

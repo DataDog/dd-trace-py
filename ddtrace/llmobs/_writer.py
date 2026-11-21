@@ -214,12 +214,13 @@ class BaseLLMObsWriter(PeriodicService):
         event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent],
         event_size: int,
         targets: list[RoutingTarget],
-    ) -> None:
+    ) -> bool:
         """Copy the event into one buffer per destination.
 
         With a single target this diverts the event away from the default org; with several it
         dual ships. Each destination gets its own buffer so a slow or failing org cannot hold
-        up the others.
+        up the others. Return whether every destination accepted the event; copies already
+        queued remain queued when another destination is full.
         """
         if not self._agentless and not self._warned_routing_bypasses_agent:
             self._warned_routing_bypasses_agent = True
@@ -228,6 +229,7 @@ class BaseLLMObsWriter(PeriodicService):
                 "Routed events are sent directly to the intake instead, because the Agent EVP proxy would "
                 "stamp its own API key. Ensure this process can reach the LLM Observability intake directly."
             )
+        accepted = True
         for target in targets:
             buffer = self._get_tenant_buffer(target)
             if len(buffer.events) >= self.BUFFER_LIMIT:
@@ -237,6 +239,7 @@ class BaseLLMObsWriter(PeriodicService):
                     self.BUFFER_LIMIT,
                 )
                 telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
+                accepted = False
                 continue
             if buffer.size + event_size > config._llmobs_payload_size_limit:
                 logger.debug(
@@ -247,29 +250,30 @@ class BaseLLMObsWriter(PeriodicService):
                 buffer = self._get_tenant_buffer(target)
             buffer.events.append(event)
             buffer.size += event_size
+        return accepted
 
     def _enqueue(
         self,
         event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent],
         event_size: int,
         targets: Optional[list[RoutingTarget]] = None,
-    ) -> None:
-        """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
+    ) -> bool:
+        """Queue under the lock, returning whether all requested buffers accepted the event."""
         with self._lock:
             if targets:
-                self._enqueue_routed(event, event_size, targets)
-                return
+                return self._enqueue_routed(event, event_size, targets)
             if len(self._buffer) >= self.BUFFER_LIMIT:
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self.BUFFER_LIMIT
                 )
                 telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
-                return
+                return False
             if self._buffer_size + event_size > config._llmobs_payload_size_limit:
                 logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
                 self.periodic()
             self._buffer.append(event)
             self._buffer_size += event_size
+            return True
 
     def _encode(self, payload: Any, num_events: int) -> Optional[str]:
         try:
@@ -1206,7 +1210,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     AGENTLESS_BASE_URL = AGENTLESS_SPAN_BASE_URL
     ENDPOINT = SPAN_ENDPOINT
 
-    def enqueue(self, event: LLMObsSpanEvent, targets: Optional[list[RoutingTarget]] = None) -> None:
+    def enqueue(self, event: LLMObsSpanEvent, targets: Optional[list[RoutingTarget]] = None) -> bool:
         raw_event_size = len(safe_json(event))
         truncated_event_size = None
         should_truncate = raw_event_size >= config._llmobs_event_size_limit
@@ -1220,7 +1224,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
             truncated_event_size = len(safe_json(event))
         telemetry.record_span_event_raw_size(event, raw_event_size)
         telemetry.record_span_event_size(event, truncated_event_size or raw_event_size)
-        self._enqueue(event, truncated_event_size or raw_event_size, targets)
+        return self._enqueue(event, truncated_event_size or raw_event_size, targets)
 
     def _data(self, events: list[LLMObsSpanEvent]) -> list[dict[str, Any]]:
         payload = []
