@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes streamed OpenAI-compatible chat completions from backends that omit ``tool_calls[].index``
+    (such as Gemini's OpenAI-compatible endpoint), where parallel tool calls were merged into a single tool call with
+    concatenated arguments.
