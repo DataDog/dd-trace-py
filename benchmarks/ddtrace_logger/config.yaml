@@ -1,0 +1,15 @@
+defaults: &defaults
+  main_hub: false
+  enabled: false
+disabled:
+  <<: *defaults
+disabled-main-hub:
+  <<: *defaults
+  main_hub: true
+enabled:
+  <<: *defaults
+  enabled: true
+enabled-main-hub:
+  <<: *defaults
+  main_hub: true
+  enabled: true

@@ -30,17 +30,27 @@ Usage:
 
 """
 
+from _queue import Empty
+from _queue import SimpleQueue
+from _thread import get_ident
+import atexit
 import collections
 from dataclasses import dataclass
 from dataclasses import field
+from functools import cache
 import logging
+import os
+import sys
 import time
 import traceback
+from typing import Any
+from typing import Callable
 from typing import DefaultDict
 from typing import Optional
 from typing import Tuple
 from typing import Union
 
+from ddtrace.internal.locks import Lock
 from ddtrace.internal.settings import env
 
 
@@ -111,6 +121,186 @@ def get_logger(name: str) -> logging.Logger:
             logger.setLevel(level)
 
     return logger
+
+
+class _MainHubLogger(logging.Logger):
+    """A ddtrace logger that hands the records produced off the main thread to the main gevent hub."""
+
+    def isEnabledFor(self, level: int) -> bool:
+        if self.disabled:
+            return False
+        try:
+            return self._cache[level]  # type: ignore[attr-defined]
+        except KeyError:
+            pass
+        if main_hub_logging.runs_inline():
+            return super().isEnabledFor(level)
+        # Same as the base class, without the logging lock it takes to fill the cache.
+        return level > self.manager.disable and level >= self.getEffectiveLevel()
+
+    def handle(self, record: logging.LogRecord) -> None:
+        if main_hub_logging.runs_inline() or not main_hub_logging.put(self, record):
+            super().handle(record)
+
+
+@cache
+def _main_hub_logger_class(cls: type) -> type:
+    return _MainHubLogger if cls is logging.Logger else type(cls.__name__, (_MainHubLogger, cls), {})
+
+
+def _is_ddtrace(name: str) -> bool:
+    return name == "ddtrace" or name.startswith("ddtrace.")
+
+
+class _MainHubLoggerClass:
+    """Creates the ddtrace loggers as main hub loggers, as changing the class of a logger makes it slower on 3.12+.
+
+    Set as the logger class of the logging manager, which calls it only to create a logger.
+    """
+
+    def __init__(self, logger_class: Optional[type]) -> None:
+        self.logger_class = logger_class
+
+    def __call__(self, name: str) -> logging.Logger:
+        cls = self.logger_class or logging.getLoggerClass()
+        return (_main_hub_logger_class(cls) if _is_ddtrace(name) else cls)(name)
+
+
+def _wrap(logger: logging.Logger) -> None:
+    """Convert a ddtrace logger created before the logger class was set."""
+    if not isinstance(logger, _MainHubLogger) and _is_ddtrace(logger.name):
+        try:
+            logger.__class__ = _main_hub_logger_class(type(logger))  # type: ignore[arg-type]
+        except TypeError:
+            pass  # e.g. a logger class with __slots__, which keeps logging inline
+
+
+class MainHubLogging:
+    """Runs the logging handlers of ddtrace loggers on the main thread once gevent has a hub there.
+
+    Module cloning shares logging with the application, so once gevent has patched threading, the logging lock and
+    the handler locks are gevent locks. A ddtrace thread that waits for one depends on the main thread's hub, which
+    might itself be waiting for that thread, e.g. to join it before a fork. Records logged off the main thread are
+    queued instead, and a single greenlet on the main hub handles them in order.
+    """
+
+    # A main hub that doesn't run, e.g. busy with CPU work, makes threads log inline past this many records.
+    max_records = 1000
+
+    def __init__(self) -> None:
+        self._threading_patched = False
+        self.reset()
+
+    def reset(self) -> None:
+        """Log inline in a fork child until a main hub runs there: the parent emits the records it had queued, and
+        the child might exit with os._exit before. The thread that forked is the main thread of the child.
+        """
+        self._pid = os.getpid()
+        self._main_thread_ident = get_ident()
+        self._lock = Lock()
+        self._records: SimpleQueue[tuple[_MainHubLogger, logging.LogRecord]] = SimpleQueue()
+        self._draining = False
+        self._hub: Any = None
+        self._spawn_raw: Optional[Callable[..., Any]] = None
+
+    def set_hub(self, hub: Any, spawn_raw: Callable[..., Any]) -> None:
+        """Hand records to the hub created on the main thread, which owns the gevent locks of logging."""
+        if get_ident() != self._main_thread_ident:
+            return
+        with self._lock:
+            # A thread that sees the hub uses spawn_raw.
+            self._spawn_raw = spawn_raw
+            self._hub = hub
+        for logger in list(logging.Logger.manager.loggerDict.values()):
+            if isinstance(logger, logging.Logger):
+                _wrap(logger)
+
+    def runs_inline(self) -> bool:
+        # Until the main hub exists nothing can wait for it, and without patched threading the locks are native.
+        return self._hub is None or get_ident() == self._main_thread_ident or not self._is_threading_patched()
+
+    def _is_threading_patched(self) -> bool:
+        if not self._threading_patched:
+            monkey = sys.modules.get("gevent.monkey")
+            self._threading_patched = monkey is not None and monkey.is_module_patched("threading")
+        return self._threading_patched
+
+    def put(self, logger: _MainHubLogger, record: logging.LogRecord) -> bool:
+        """Queue the record for the main hub. Returns False when the caller should handle it inline."""
+        if os.getpid() != self._pid:
+            return False  # In a fork child before reset: the lock and the hub belong to the parent.
+        _format_args(record)
+        with self._lock:
+            hub, spawn_raw = self._hub, self._spawn_raw
+            if hub is None or self._records.qsize() >= self.max_records:
+                return False
+            self._records.put((logger, record))
+            if self._draining:
+                return True
+            self._draining = True
+        try:
+            # Spawning needs the hub's own thread. This only wakes up its loop, and doesn't block.
+            hub.loop.run_callback_threadsafe(spawn_raw, self._drain)
+        except Exception:
+            # The hub is gone; the records are emitted at exit.
+            with self._lock:
+                self._draining = False
+        return True
+
+    def flush(self) -> None:
+        """Handle the queued records on the current thread."""
+        while True:
+            try:
+                logger, record = self._records.get_nowait()
+            except Empty:
+                return
+            try:
+                super(_MainHubLogger, logger).handle(record)
+            except Exception:
+                if logging.raiseExceptions:
+                    traceback.print_exc()
+
+    def flush_at_exit(self) -> None:
+        # Runs after the native threads have joined, so it emits what they logged while stopping.
+        with self._lock:
+            # Nothing will run the hub anymore, so log inline from now on.
+            self._hub = None
+        self.flush()
+
+    def _drain(self) -> None:
+        try:
+            while True:
+                self.flush()
+                with self._lock:
+                    if self._records.empty():
+                        self._draining = False
+                        return
+        except BaseException:
+            with self._lock:
+                self._draining = False
+            raise
+
+
+def _format_args(record: logging.LogRecord) -> None:
+    """Format the record while its arguments still hold the values they were logged with."""
+    # The rate limiter keys product records on their message, and formats them itself.
+    if hasattr(record, "product") or record.msg in _RATE_LIMITS:
+        return
+    try:
+        if record.args:
+            record.msg, record.args = record.getMessage(), None
+        if record.exc_info:
+            record.exc_text, record.exc_info = logging.Formatter().formatException(record.exc_info), None
+    except Exception:
+        pass  # The handler reports the error
+
+
+main_hub_logging = MainHubLogging()
+if not isinstance(logging.Logger.manager.loggerClass, _MainHubLoggerClass):
+    logging.Logger.manager.loggerClass = _MainHubLoggerClass(logging.Logger.manager.loggerClass)  # type: ignore[assignment]
+# Registered before the native threads module registers the hook that joins them, so that it runs after it.
+# Not ddtrace.internal.atexit: it imports that module, and registering later would flush before the join.
+atexit.register(main_hub_logging.flush_at_exit)
 
 
 _RATE_LIMITS = {}

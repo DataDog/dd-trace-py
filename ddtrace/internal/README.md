@@ -532,6 +532,40 @@ Periodic threads are therefore not allowed to synchronize among themselves;
 each thread's lock must be acquired only by that thread and by the fork
 machinery in a well-defined order.
 
+### Logging from ddtrace threads under gevent
+
+Module cloning keeps `logging` shared with the application, so once gevent has
+patched `threading`, the logging lock and the handler locks are gevent locks. A
+native ddtrace thread that waits for one depends on the main thread's hub,
+which can be waiting for that thread, e.g. joining it before a fork.
+`main_hub_logging` in `ddtrace.internal.logger` breaks that cycle:
+
+- Once gevent creates the hub of the main thread, records logged by ddtrace
+  loggers on other threads are queued, and a single greenlet on the main hub
+  handles them in order. Records logged on the main thread, before the hub
+  exists, or without patched `threading` are handled inline, as is a record
+  logged while the queue is full.
+- ddtrace loggers are created as `_MainHubLogger`, also through
+  `logging.getLogger`: the logger module sets the logger class of the logging
+  manager to `_MainHubLoggerClass` when it is imported. Changing the class of
+  an existing logger makes its attribute lookups slower on Python 3.12+, so
+  only the ddtrace loggers created before are converted, when the hub is
+  created.
+- Records are formatted when queued, so mutable arguments and exceptions are
+  captured as logged.
+- After fork, the child resets it with a `forksafe.register` hook and logs
+  inline until its hub runs, since it might exit with `os._exit` before. The
+  parent emits the records it had queued. The thread that forked is the main
+  thread of the child, so its hub, created before or after the fork, becomes
+  the main hub. A `multiprocessing` child emits its queued records with a
+  `multiprocessing.util.Finalize`, since it exits with `os._exit`.
+- At exit, `flush_at_exit` emits the queued records and switches to inline
+  logging. It is registered with the stdlib `atexit` when the logger module is
+  imported, before the native threads module registers the hook that joins the
+  periodic threads, so it runs after that join and also emits what the threads
+  log while stopping. `ddtrace.internal.atexit` is not used, since it imports
+  the native threads module first.
+
 ### Adding new fork hooks
 
 - Register via `forksafe` — never call `os.register_at_fork()` directly.
