@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    runtime metrics: This fix resolves an issue where a forked child process kept using the DogStatsd socket
+    inherited from its parent. If that file descriptor number was later reused, for example by a TLS connection,
+    metrics could be written into the unrelated connection. The child now opens its own socket after a fork.
