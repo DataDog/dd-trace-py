@@ -89,6 +89,59 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
+Synchronous inspection and blocking
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Bottle keeps context entry, callback invocation, and metadata completion in its
+wrapper. Inside that context it uses ``blocking_execute_adapter`` from
+``ddtrace.contrib.internal.web_framework`` to inspect and optionally replace the
+callback outcome. The adapter receives ``event``, ``invoke``, callback ``kwargs``,
+and ``complete``. ``invoke()`` calls the application once and completes its metadata
+before returning or re-raising the original exception. The adapter completes any
+replacement metadata before context exit; it does not manage spans or contexts.
+
+Integrations construct the stateless adapter once, supplying four callbacks:
+
+``request_details(kwargs)``
+    Returns ``RequestInspectionDetails`` containing peer IP, cookies, and path parameters.
+``is_response_object(outcome)``
+    Identifies the framework's returned or raised response objects.
+``extract_body(outcome)``
+    Reads a response object's body without consuming it.
+``build_response(status, headers, body)``
+    Constructs a replacement response, clearing discarded application headers and cookies.
+
+The adapter dispatches ``WebFrameworkRequestInspectEvent`` before the callback and
+``WebFrameworkResponseInspectEvent`` after metadata completion. AppSec subscribers
+consume explicit request data rather than framework request objects. They own WAF
+evaluation, the ``block_request()`` capability, and response templates. A
+``WebFrameworkBlockResponseEvent`` carries the selected response back to the adapter;
+without a subscriber it falls back to a default JSON 403.
+
+The adapter catches ``BlockingException``, including blocks nested in exception
+groups, inside the request context. Request evaluation must run there because a
+failure during context entry skips context exit. Discarded response iterables are
+closed without iteration. A pending block is checked at response inspection even
+when application code catches the original blocking exception. Replacement responses
+clear ``response_from_exception``. Bottle combines repeated response-header values
+so inspection receives every value. AppSec resolves proxy and configured client-IP
+headers before evaluating the request.
+
+AppSec declares lazy bundles in ``ddtrace.internal.appsec.product_subscribers``.
+The existing ``load_appsec()`` lifecycle registers them on activation, including
+remote activation. Disablement and product stop remove entry inspection while
+retaining response replacement and cleanup listeners for active callbacks. Cleanup
+uses ``WebFrameworkRequestContextSubscriber`` on the existing ``web.request`` channel.
+Registration is idempotent and restores listeners after resets or reactivation.
+
+Blocking remains available with ``DD_APM_TRACING_ENABLED=false`` through the existing
+standalone AppSec enablement path. Protection covers only matched callbacks using
+the plugin. Request and response bodies, unmatched routes, skipped routes, earlier
+framework hooks, later response hooks, and streaming after callback return remain
+outside this boundary.
+
+
+
 Are there norms for integrating with database libraries?
 --------------------------------------------------------
 
