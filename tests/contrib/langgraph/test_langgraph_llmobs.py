@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
+from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_output
@@ -448,6 +449,28 @@ class TestLangGraphLLMObs:
 
         react_agent_metadata = get_llmobs_metadata(react_agent_span) or {}
         assert react_agent_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_manifest
+
+    @pytest.mark.skipif(
+        LANGGRAPH_VERSION < (0, 3, 21), reason="create_react_agent has full support after LangGraph 0.3.21"
+    )
+    @pytest.mark.parametrize(
+        "model,expected_model_info",
+        [
+            ("gpt-4o-mini", {"model": "gpt-4o-mini"}),
+            ("openai:gpt-4o-mini", {"model": "gpt-4o-mini", "model_provider": "openai"}),
+        ],
+    )
+    def test_agent_manifest_from_create_react_agent_model_string(
+        self, langgraph, langgraph_llmobs, monkeypatch, model, expected_model_info
+    ):
+        """A model string without a provider prefix is valid in create_react_agent and must not raise."""
+        from langgraph.prebuilt import create_react_agent
+
+        monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
+        agent = create_react_agent(model, tools=[], name="string_model_agent")
+
+        manifest = LangGraphIntegration._agent_manifests[agent]
+        assert manifest == {**expected_model_info, "name": "string_model_agent"}
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_populates_tools_from_tool_node(
