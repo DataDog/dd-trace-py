@@ -741,3 +741,54 @@ class _SpanActivationClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
+
+
+def _generator_responses():
+    yield "a"
+    yield "b"
+
+
+class _FutureLikeIterator:
+    """Iterator with add_done_callback, like a grpc rendezvous, that never finishes the span itself."""
+
+    def __init__(self, items):
+        self._items = iter(items)
+        self.callbacks = []
+
+    def add_done_callback(self, fn):
+        self.callbacks.append(fn)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._items)
+
+
+def test_wrapped_response_call_future_generator_finishes_span(tracer):
+    from ddtrace.contrib.internal.grpc.client_interceptor import _WrappedResponseCallFuture
+
+    span = tracer.start_span("grpc.generator")
+    wrapped = _WrappedResponseCallFuture(_generator_responses(), span)
+
+    assert next(wrapped) == "a"
+    assert span.duration is None
+    assert next(wrapped) == "b"
+    assert span.duration is None
+    with pytest.raises(StopIteration):
+        next(wrapped)
+    assert span.duration is not None
+
+
+def test_wrapped_response_call_future_with_done_callback_does_not_finish_span(tracer):
+    from ddtrace.contrib.internal.grpc.client_interceptor import _WrappedResponseCallFuture
+
+    span = tracer.start_span("grpc.future")
+    response = _FutureLikeIterator(["a"])
+    wrapped = _WrappedResponseCallFuture(response, span)
+
+    assert len(response.callbacks) == 1
+    assert list(wrapped) == ["a"]
+    # the done callback owns span finishing for objects that support it
+    assert span.duration is None
+    span.finish()
