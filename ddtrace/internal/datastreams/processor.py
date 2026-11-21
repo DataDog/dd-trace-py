@@ -428,10 +428,16 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
+        # DSM2-335: the process-tags/container-tags base hash used to be folded in here. It is
+        # deliberately excluded: those are per-process/per-pod values that change on every rolling
+        # deploy without any real change in topology, and the backend never decoded them into
+        # discrete tags, so they only inflated the cardinality of the (hash, parent_hash) pairs
+        # DSM's stats are keyed and quota-limited on. See process_tags.base_hash for the
+        # DBM-facing hash that still folds them in.
         def get_bytes(s):
             return bytes(s, encoding="utf-8")
 
-        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
+        b = get_bytes(self.service) + get_bytes(self.env)
 
         for t in tags:
             b += get_bytes(t)
