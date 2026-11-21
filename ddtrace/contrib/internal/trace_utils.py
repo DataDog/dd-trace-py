@@ -410,6 +410,7 @@ def set_http_meta(
     response_cookies: Optional[dict[str, str]] = None,
     query_tagged_separately: bool = False,
     trace_query_string: Optional[bool] = None,
+    response_only: bool = False,
 ) -> None:
     """
     Set HTTP metas on the span
@@ -426,28 +427,37 @@ def set_http_meta(
     :param response_headers: the HTTP response headers
     :param raw_uri: the full raw HTTP URI (including ports and query)
     :param request_cookies: the HTTP request cookies as a dict
+    :param response_only: Apply response metadata without replaying request attributes or route data.
     :param request_path_params: the parameters of the HTTP URL as set by the framework. Polymorphic: a mapping of
         ``{name: value}`` for frameworks that bind named parameters (Django ``resolver_match.kwargs``, Flask
         ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
         ``resolver_match.args``, Tornado ``path_args``).
     """
+    if response_only:
+        # Deferred completion must preserve application overrides and redactions.
+        method = url = target_host = server_address = query = raw_uri = route = peer_ip = None
+        request_headers = request_cookies = parsed_query = request_path_params = request_body = None
+
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
     if otel_http is not None:
-        _set_http_meta_otel(
-            otel_http,
-            method=method,
-            url=url,
-            raw_uri=raw_uri,
-            target_host=target_host,
-            server_address=server_address,
-            status_code=status_code,
-            query=query,
-            query_tagged_separately=query_tagged_separately,
-            trace_query_string=trace_query_string,
-            request_headers=request_headers,
-            headers_are_case_sensitive=headers_are_case_sensitive,
-            route=route,
-        )
+        if response_only:
+            otel_http.set_status_code(status_code)
+        else:
+            _set_http_meta_otel(
+                otel_http,
+                method=method,
+                url=url,
+                raw_uri=raw_uri,
+                target_host=target_host,
+                server_address=server_address,
+                status_code=status_code,
+                query=query,
+                query_tagged_separately=query_tagged_separately,
+                trace_query_string=trace_query_string,
+                request_headers=request_headers,
+                headers_are_case_sensitive=headers_are_case_sensitive,
+                route=route,
+            )
     else:
         _set_http_meta(
             span,
@@ -483,7 +493,7 @@ def set_http_meta(
 
     # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
     # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-    if asm_config._asm_enabled or config._retrieve_client_ip:
+    if not response_only and (asm_config._asm_enabled or config._retrieve_client_ip):
         # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
         request_ip = core.find_item("http.request.remote_ip")
 

@@ -163,8 +163,9 @@ that calls it after the subscriber package loads through contrib. Waiting for th
 package to finish avoids registering against partially initialized subscriber bases
 and preserves lightweight bare tracer imports.
 The subscriber package also explicitly activates `MANUAL_SUBSCRIBER_BUNDLES` for
-manual instrumentation, including when global tracer creation is deferred. Web request
-and span exception bundles retain their existing activation timing. Listeners remain
+manual instrumentation, including when global tracer creation is deferred. In that mode,
+a post-import hook also activates the web request bundle after the subscriber package
+finishes loading. Span exception activation still requires product startup. Listeners remain
 available with `DD_TRACE_ENABLED=false` so existing integrations can finish their spans
 without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
 All subscribers require explicit registration. Integrations emit events without
@@ -175,6 +176,29 @@ importing Ray during ordinary tracing startup. Repeated tracing startup restores
 listeners once that integration module has loaded. Ray unpatching retains completion
 listeners for active work. Tracing retains its existing shutdown behavior
 and keeps these listeners registered.
+
+Flask and WSGI use the shared web request subscriber and one deferred
+`WebFrameworkRequestEvent` context. Application
+return emits `wsgi.application.returned` while that context is still current, so
+AppSec and IAST finalize at their existing boundary before response iteration.
+`WebFrameworkResponseEvent` in `ddtrace._trace.events` describes the returned response;
+tracing creates its response child span. This tracing-owned contract uses a base
+`TracingEvent` context rather than importing integration-owned request event types. WSGI completion applies only response metadata so application request-tag
+overrides and redactions survive streaming and cleanup. The response iterable reports exhaustion, failure, and early
+closure by completing the request context. Tracing finishes the response span
+before the request span, preserving response-only error attribution for streaming
+failures and ignoring `GeneratorExit`. Closing an iterable that raises still
+completes its lifecycle, and repeated completion or close does not finish spans twice.
+Flask's route, body inspection, response preparation, and blocking hooks retain
+their existing order. These integrations remain span-dependent. Their service is
+resolved at span creation; deferred completion preserves later changes to the live
+request span instead of resolving its service again.
+
+Application execution, iteration, and closure normally run in one copied Context.
+When Werkzeug requests context preservation, including a preserved Flask test
+client, they remain in the caller's Context so Flask can safely re-push and pop its
+saved context objects. The legacy Flask preservation flag follows the same rule.
+Ordinary requests retain isolated execution for interleaved response streams.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls

@@ -67,8 +67,9 @@ subscriber package finishes loading through contrib; product startup activates i
 the product manager.
 All subscriber classes require explicit registration; class definitions only collect handlers.
 The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
-including explicitly deferred global tracer creation. Web request and span exception activation timing
-is unchanged. The generic span bundle registers `TracingSubscriber` directly. Custom subclasses must
+including explicitly deferred global tracer creation. Deferred initialization activates the web request
+bundle after the subscriber package finishes loading; span exception activation still requires product startup.
+The generic span bundle registers `TracingSubscriber` directly. Custom subclasses must
 call `register()` or be included in a bundle activated by their owning product.
 Ray's SDK-dependent bundle is activated by a tracing-owned import hook after its integration patch
 module finishes loading. Ordinary tracing startup does not import Ray. Repeated product startup
@@ -81,6 +82,18 @@ may never prepare a response. Store the callback handle and remove it when the
 request finishes: connection tasks can remain alive across keep-alive requests.
 Do not retain exception objects in deferred callbacks; record errors synchronously
 and allow cancellation to complete without requiring a response or tagging it as an error.
+
+Flask and WSGI use the same web request subscriber and defer their shared request context
+through response iteration.
+The iterable reports completion without owning spans; the tracing-owned
+`ddtrace._trace.events.WebFrameworkResponseEvent` lets tracing create the response child.
+Keep new tracing lifecycle contracts outside contrib so subscriber initialization does not
+add tracing-to-integration imports. Request metadata is applied before public span modifiers;
+deferred WSGI completion applies response-only metadata to preserve overrides and redactions.
+Keep application-return security cleanup
+separate from response completion: AppSec and IAST consume
+`wsgi.application.returned` while the request context remains current. Retain
+Flask's metadata and blocking phase hooks rather than adding a second request owner.
 
 Bottle maps request and response metadata into WebFrameworkRequestEvent and leaves
 propagation, spans, and HTTP error policy to WebFrameworkRequestSubscriber. Raised
@@ -102,7 +115,7 @@ with its cookie-free copy before the WAF runs.
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,
-flask and django. This pattern decouples patch code from span creation.
+Flask child operations and django. This pattern decouples patch code from span creation.
 
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call

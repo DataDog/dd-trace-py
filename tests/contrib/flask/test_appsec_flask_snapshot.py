@@ -61,7 +61,10 @@ def flask_appsec_good_rules_env(flask_wsgi_application: str) -> dict[str, str]:
 
 @pytest.fixture
 def flask_client(
-    flask_command: list[str], flask_port: dict[str, str], flask_wsgi_application: str, flask_env_arg: Callable
+    flask_command: list[str],
+    flask_port: str,
+    flask_wsgi_application: str,
+    flask_env_arg: Callable[[str], dict[str, str]],
 ) -> Generator[Client, None, None]:
     # Copy the env to get the correct PYTHONPATH and such
     # from the virtualenv.
@@ -86,7 +89,7 @@ def flask_client(
             os.killpg(proc.pid, signal.SIGKILL)
             stdout, stderr = proc.communicate()
             raise TimeoutError(
-                "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
+                "Server failed to start\n======STDOUT=====%r\n\n======STDERR=====%r\n" % (stdout, stderr)
             )
         yield client
         # Its response means the flush finished, so the SIGKILL below cannot preempt it.
@@ -120,7 +123,6 @@ def flask_client(
         "metrics._dd.appsec.event_rules.loaded",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta.span.kind",
         "meta._dd.appsec.rc_products",
         "meta.http.response.headers.content-length",
     ],
@@ -153,7 +155,6 @@ def test_flask_ipblock_match_403(flask_client):
         "metrics._dd.appsec.event_rules.loaded",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta.span.kind",
         "meta._dd.appsec.rc_products",
         "meta.http.response.headers.content-length",
     ],
