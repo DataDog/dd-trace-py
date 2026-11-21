@@ -497,6 +497,7 @@ class TestLLMObsBedrock:
             metadata={
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
+                "stop_reason": "tool_use",
             },
             metrics={
                 "input_tokens": 259,
@@ -551,6 +552,7 @@ class TestLLMObsBedrock:
             metadata={
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
+                "stop_reason": "tool_use",
             },
             metrics={
                 "input_tokens": 259,
@@ -683,6 +685,7 @@ class TestLLMObsBedrock:
                 output_messages=[{"content": mock.ANY, "role": "assistant"}],
                 metadata={
                     "max_tokens": 1000,
+                    "stop_reason": "end_turn",
                     "temperature": 0.7,
                 },
                 metrics={
@@ -707,6 +710,7 @@ class TestLLMObsBedrock:
                 output_messages=[{"content": mock.ANY, "role": "assistant"}],
                 metadata={
                     "max_tokens": 1000,
+                    "stop_reason": "end_turn",
                     "temperature": 0.7,
                 },
                 metrics={

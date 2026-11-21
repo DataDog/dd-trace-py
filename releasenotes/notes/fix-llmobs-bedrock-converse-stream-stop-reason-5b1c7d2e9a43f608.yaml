@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where Amazon Bedrock ``converse_stream`` spans did not record the
+    ``stop_reason`` metadata, which ``converse`` calls already reported.
