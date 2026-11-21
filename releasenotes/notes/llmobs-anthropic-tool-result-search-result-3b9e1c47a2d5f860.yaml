@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes the Anthropic and Bedrock InvokeModel integrations dropping the text of
+    ``search_result`` blocks returned inside a ``tool_result``, which left the tool result empty on the span.
