@@ -473,3 +473,14 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  openfeature_scale_json:
+    # Large JSON flag values from the shared scale-json suite, fetched on first use.
+    paths:
+      - ddtrace/internal/openfeature/_native.py
+      - ddtrace/internal/openfeature/_provider.py
+      - 'src/native/ffe.rs'
+      - 'src/native/Cargo.toml'
+      - benchmarks/openfeature_scale_json/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'

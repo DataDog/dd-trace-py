@@ -1,0 +1,85 @@
+# Each case of the scale-json suite at ffe-system-test-data@52205a7 (see scenario.py).
+# repeat: the same flag again under one configuration. first: the first evaluation after a load.
+# The runner executes every top-level key; the first one also holds the shared anchor.
+repeat-large: &defaults
+  case_file: json-values
+  case_index: 0
+  mode: repeat
+
+repeat-wide:
+  <<: *defaults
+  case_file: json-values
+  case_index: 1
+  mode: repeat
+
+repeat-deep:
+  <<: *defaults
+  case_file: json-values
+  case_index: 2
+  mode: repeat
+
+repeat-100kb:
+  <<: *defaults
+  case_file: json-sizes
+  case_index: 0
+  mode: repeat
+
+repeat-1mb:
+  <<: *defaults
+  case_file: json-sizes
+  case_index: 2
+  mode: repeat
+
+repeat-4mb:
+  <<: *defaults
+  case_file: json-sizes
+  case_index: 4
+  mode: repeat
+
+repeat-number-array:
+  <<: *defaults
+  case_file: json-shapes
+  case_index: 0
+  mode: repeat
+
+repeat-long-string:
+  <<: *defaults
+  case_file: json-shapes
+  case_index: 1
+  mode: repeat
+
+repeat-escapes:
+  <<: *defaults
+  case_file: json-shapes
+  case_index: 2
+  mode: repeat
+
+repeat-nested-arrays:
+  <<: *defaults
+  case_file: json-shapes
+  case_index: 3
+  mode: repeat
+
+first-large:
+  <<: *defaults
+  case_file: json-values
+  case_index: 0
+  mode: first
+
+first-100kb:
+  <<: *defaults
+  case_file: json-sizes
+  case_index: 0
+  mode: first
+
+first-1mb:
+  <<: *defaults
+  case_file: json-sizes
+  case_index: 2
+  mode: first
+
+first-4mb:
+  <<: *defaults
+  case_file: json-sizes
+  case_index: 4
+  mode: first
