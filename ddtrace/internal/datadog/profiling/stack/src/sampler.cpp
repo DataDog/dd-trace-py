@@ -23,6 +23,7 @@
 #include <pthread.h>
 #include <thread>
 #include <typeinfo>
+#include <unordered_set>
 #include <utility>
 
 using namespace Datadog;
@@ -288,9 +289,15 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
     if (!echion->validate_code_object_generations(interpreter_candidates, all_interpreter_data_captured)) {
         return;
     }
-#else
-    (void)all_interpreter_data_captured;
 #endif
+
+    std::unordered_set<uintptr_t> live_loops;
+    // Count all live candidates, including those skipped by reservoir sampling.
+    auto record_live_loop = [&](const PyThreadState& tstate, const ThreadInfo& thread, int64_t interp_id) {
+        if (auto loop = thread.live_asyncio_loop(tstate, interp_id); loop != 0) {
+            live_loops.insert(loop);
+        }
+    };
 
     // When max_threads_per_sample is set, we collect all threads first, then apply
     // reservoir sampling (Algorithm R) to select a uniform random subset, and only
@@ -299,6 +306,7 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
         for (auto& interp : interpreter_candidates) {
             PyObject* gc_frame = gc_tracking_enabled_ ? GCFrameTracker::get().capture(interp.interp) : nullptr;
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                record_live_loop(*tstate, thread, interp.id);
                 auto gc_frame_scope = echion->use_gc_frame(gc_frame);
                 auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
@@ -311,7 +319,8 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
 
         for (auto& interp : interpreter_candidates) {
             PyObject* gc_frame = gc_tracking_enabled_ ? GCFrameTracker::get().capture(interp.interp) : nullptr;
-            for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
+            for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                record_live_loop(*tstate, thread, interp.id);
                 thread_candidates.push_back({ *tstate, gc_frame });
             });
         }
@@ -385,6 +394,10 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
                 Sample::profile_borrow().stats().increment_sample_count();
             }
         }
+    }
+
+    if (all_interpreter_data_captured && echion->asyncio_initialized()) {
+        echion->prune_inactive_loop_task_links(live_loops);
     }
 }
 
@@ -707,9 +720,7 @@ Sampler::register_current_thread_if_missing()
         return;
     }
 
-    // After fork, the current thread is the main (and only) thread,
-    // so native_id == pid.
-    auto native_id = static_cast<unsigned long>(getpid());
+    auto native_id = PyThread_get_thread_native_id();
     const std::string thread_name = "MainThread";
 
     auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, thread_name.c_str());
@@ -866,6 +877,12 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
             // to the thread before, unless the thread id now belongs to another thread.
             if (it->second->native_id == native_id) {
                 (*maybe_thread_info)->asyncio_loop = it->second->asyncio_loop;
+#if PY_VERSION_HEX >= 0x030b0000
+                (*maybe_thread_info)->asyncio_loop_native_id = it->second->asyncio_loop_native_id;
+#else
+                (*maybe_thread_info)->asyncio_loop_interp_id = it->second->asyncio_loop_interp_id;
+                (*maybe_thread_info)->asyncio_loop_tstate_id = it->second->asyncio_loop_tstate_id;
+#endif
                 (*maybe_thread_info)->using_uvloop = it->second->using_uvloop;
             }
             it->second = std::move(*maybe_thread_info);
@@ -1001,12 +1018,19 @@ Sampler::set_max_tasks_per_sample(unsigned int value)
 }
 
 void
-Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
+Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop, const PyThreadState& tstate)
 {
     // Holds echion's global lock
     std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
     if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
-        it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
+        auto& thread = *it->second;
+        thread.asyncio_loop = loop != Py_None ? reinterpret_cast<uintptr_t>(loop) : 0;
+#if PY_VERSION_HEX >= 0x030b0000
+        thread.asyncio_loop_native_id = tstate.native_thread_id;
+#else
+        thread.asyncio_loop_interp_id = tstate.interp->id;
+        thread.asyncio_loop_tstate_id = tstate.id;
+#endif
     }
 }
 
@@ -1017,26 +1041,23 @@ Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eag
 }
 
 void
-Sampler::link_tasks(PyObject* parent, PyObject* child)
+Sampler::link_tasks(PyObject* parent, PyObject* child, uintptr_t loop, bool weak) noexcept
 {
-    // Only sampling removes the links of the tasks that are done, so the links would accumulate while it is stopped.
-    if (!sampler_active_.load(std::memory_order_acquire)) {
+    // Only sampling removes completed tasks' links, so don't add links after sampling has stopped.
+    if (!is_active()) {
         return;
     }
 
-    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->link_task(parent, child);
-}
-
-void
-Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
-{
-    if (!sampler_active_.load(std::memory_order_acquire)) {
-        return;
+    try {
+        std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
+        if (weak) {
+            echion->weak_link_task(parent, child, loop);
+        } else {
+            echion->link_task(parent, child, loop);
+        }
+    } catch (const std::exception&) {
+        // Task linking is best effort and must not throw across the Python boundary.
     }
-
-    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->weak_link_task(parent, child);
 }
 
 void

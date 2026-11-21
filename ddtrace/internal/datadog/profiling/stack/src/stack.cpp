@@ -18,6 +18,7 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <cstring>
 #include <string_view>
 #include <utility>
 
@@ -356,8 +357,9 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+    auto* tstate = PyThreadState_Get();
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().track_asyncio_loop(thread_id, loop);
+    Sampler::get().track_asyncio_loop(thread_id, loop, *tstate);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -412,38 +414,99 @@ stack_asyncio_task_lists(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
                          interpreter_head != 0 && thread_head != 0 ? "runtime-table" : "none");
 }
 
+// Test hook: number of strong and weak task links retained by the sampler.
 static PyObject*
-stack_link_tasks(PyObject* self, PyObject* args)
+stack_task_link_counts(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    (void)self;
-    PyObject *parent, *child;
+    auto& echion = Sampler::get().get_echion();
+    size_t strong;
+    size_t weak;
+    {
+        const std::lock_guard<std::mutex> guard(echion.task_link_map_lock());
+        strong = echion.task_link_map().size();
+        weak = echion.weak_task_link_map().size();
+    }
+    return Py_BuildValue("(KK)", static_cast<unsigned long long>(strong), static_cast<unsigned long long>(weak));
+}
 
+static PyObject*
+get_task_link_loop(PyObject* child)
+{
+#if PY_VERSION_HEX >= 0x030c0000 && PY_VERSION_HEX < 0x03100000 && !defined(Py_GIL_DISABLED)
+    // In CPython 3.12 through 3.15, the exact Task and Future types are bound to the _asyncio extension module.
+    // Check the defining module as well as the type name and size before reading the shared loop field.
+    auto* type = Py_TYPE(child);
+    const std::string_view name(type->tp_name);
+    if ((name == "_asyncio.Task" && type->tp_basicsize == static_cast<Py_ssize_t>(sizeof(TaskObj))) ||
+        (name == "_asyncio.Future" && type->tp_basicsize == static_cast<Py_ssize_t>(sizeof(FutureObj)))) {
+        PyObject* module = PyType_GetModule(type);
+        if (module != nullptr) {
+            auto* def = PyModule_GetDef(module);
+            if (def != nullptr && std::string_view(def->m_name) == "_asyncio") {
+                constexpr size_t loop_offset = offsetof(FutureObj, future_loop);
+                static_assert(loop_offset == offsetof(TaskObj, task_loop));
+                PyObject* loop;
+                std::memcpy(&loop, reinterpret_cast<const char*>(child) + loop_offset, sizeof(loop));
+                return Py_XNewRef(loop);
+            }
+        } else {
+            PyErr_Clear();
+        }
+    }
+#endif
+
+    // On free-threaded builds, get_loop() takes the child's critical section.
+    PyObject* method = PyUnicode_FromString("get_loop");
+    if (method == nullptr) {
+        return nullptr;
+    }
+    PyObject* loop = PyObject_CallMethodNoArgs(child, method);
+    Py_DECREF(method);
+    return loop;
+}
+
+static PyObject*
+stack_link_tasks_impl(PyObject* args, bool weak)
+{
+    PyObject *parent, *child;
     if (!PyArg_ParseTuple(args, "OO", &parent, &child)) {
         return nullptr;
     }
 
+    auto& sampler = Sampler::get();
+    if (!sampler.is_active()) {
+        Py_RETURN_NONE;
+    }
+
+    // The child's loop need not be the policy loop registered to this thread.
+    PyObject* loop = get_task_link_loop(child);
+    if (loop == nullptr) {
+        PyErr_Clear();
+        Py_RETURN_NONE;
+    }
+    if (loop == Py_None) {
+        Py_DECREF(loop);
+        Py_RETURN_NONE;
+    }
+
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().link_tasks(parent, child);
+    sampler.link_tasks(parent, child, reinterpret_cast<uintptr_t>(loop), weak);
     Py_END_ALLOW_THREADS;
 
+    Py_DECREF(loop);
     Py_RETURN_NONE;
 }
 
 static PyObject*
-stack_weak_link_tasks(PyObject* self, PyObject* args)
+stack_link_tasks(PyObject* Py_UNUSED(self), PyObject* args)
 {
-    (void)self;
-    PyObject *parent, *child;
+    return stack_link_tasks_impl(args, false);
+}
 
-    if (!PyArg_ParseTuple(args, "OO", &parent, &child)) {
-        return nullptr;
-    }
-
-    Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().weak_link_tasks(parent, child);
-    Py_END_ALLOW_THREADS;
-
-    Py_RETURN_NONE;
+static PyObject*
+stack_weak_link_tasks(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    return stack_link_tasks_impl(args, true);
 }
 
 static PyObject*
@@ -1207,6 +1270,7 @@ static PyMethodDef stack_methods[] = {
       stack_asyncio_task_lists,
       METH_NOARGS,
       "Return the published asyncio task-list head offsets and their source (test hook)" },
+    { "_task_link_counts", stack_task_link_counts, METH_NOARGS, "Return the strong and weak task link counts" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support
