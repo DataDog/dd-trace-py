@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openai: Fixes an issue where a streamed chat completion with ``n`` greater than 1 drops a content chunk
+    from the application's stream and from the traced output when ``stream_options`` is not set.
