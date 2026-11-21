@@ -4,6 +4,7 @@ import io
 import json
 from types import TracebackType
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 from urllib.parse import urlsplit
@@ -755,7 +756,9 @@ def wrapped_request_D8CB81E472AF98A2(
     return original_request_callable(*args, **kwargs)
 
 
-def wrapped_http_client_request(original_request_callable, instance, args, kwargs):
+def wrapped_http_client_request(
+    original_request_callable: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     """The same analysis for http.client.HTTPConnection.request, used by the httplib integration.
 
     Only urllib and urllib3 drive http.client; a call made from another client's hooks is a

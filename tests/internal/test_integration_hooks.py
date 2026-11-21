@@ -83,3 +83,22 @@ def test_anthropic_hook_is_registered():
     # registers the LLMObs subscribers and Anthropic spans lose their shadow tags.
     plugins = integration_hooks.get_entry_points(integration_hooks.GROUP)
     assert any(p.name == "anthropic" and p.value == "ddtrace.llmobs._contrib.anthropic" for p in plugins)
+
+
+def test_registry_is_published_only_once_complete():
+    hooks = MagicMock()
+    openai_ep = _make_entry_point("openai", "ddtrace", "ddtrace.llmobs._contrib.openai", MagicMock())
+    anthropic_ep = _make_entry_point("anthropic", "ddtrace", "ddtrace.llmobs._contrib.anthropic", hooks)
+    seen_during_discovery = []
+
+    def entry_points(group):
+        # A concurrent patch during discovery must not observe a partial registry.
+        yield openai_ep
+        seen_during_discovery.append(integration_hooks._entry_points)
+        yield anthropic_ep
+
+    with patch("ddtrace.internal.integration_hooks.get_entry_points", side_effect=entry_points):
+        integration_hooks.on_patch("anthropic")
+
+    assert seen_during_discovery == [None]
+    hooks.listen.assert_called_once_with()

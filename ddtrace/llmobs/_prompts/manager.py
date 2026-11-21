@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 import warnings
 
 from ddtrace import config
+from ddtrace.internal import feature_flags
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import Thread
@@ -358,9 +359,7 @@ class PromptManager:
             if self._ffe_rc_enabled:
                 return
             try:
-                from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
-
-                enable_featureflags_rc()
+                feature_flags.enable_remote_config()
                 self._ffe_rc_enabled = True
             except Exception:
                 log.debug("Failed to enable FFE Remote Config for prompt evaluation", exc_info=True)
@@ -371,13 +370,8 @@ class PromptManager:
             if self._ffe_provider_set:
                 return
             try:
-                from openfeature import api
-
-                from ddtrace.internal.openfeature._provider import DataDogProvider
-
-                # Non-blocking: registers for RC callbacks without waiting for config delivery.
                 # Scoped to our own domain so we don't replace the app's default provider.
-                api.set_provider(DataDogProvider(initialization_timeout=0), self._FFE_DOMAIN)
+                feature_flags.set_domain_provider(self._FFE_DOMAIN)
                 self._ffe_provider_set = True
             except Exception:
                 log.debug("Failed to register OpenFeature provider", exc_info=True)

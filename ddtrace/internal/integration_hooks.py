@@ -34,10 +34,13 @@ def _hooks_for(integration: str) -> list[IntegrationHooks]:
     global _entry_points
 
     if _entry_points is None:
-        _entry_points = defaultdict(list)
+        # Publish the registry only once it is complete: a concurrent patch reading a partial one
+        # would cache an empty hook list for its integration.
+        entry_points: dict[str, list[t.Any]] = defaultdict(list)
         for plugin in get_entry_points(GROUP):
             if is_trusted(plugin):
-                _entry_points[plugin.name].append(plugin)
+                entry_points[plugin.name].append(plugin)
+        _entry_points = entry_points
 
     # Hook modules are only imported once their integration is patched, so applications
     # that never patch it don't pay for importing the product.

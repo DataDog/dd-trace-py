@@ -16,6 +16,9 @@ Use `ddtrace.internal.core` events so optional products register their own liste
 - Preserve `allow_raise=True` where listener `Exception` subclasses must reach the caller.
   `BaseException` subclasses propagate regardless; see `ddtrace/internal/core/event_hub.py`.
 - Register listeners inside the product's enabled lifecycle, and convert provider objects there.
+- When a product must wrap the integration's target itself, register its `listen()`/`unlisten()`
+  under the `ddtrace.integration_hooks` entry point; the patch calls `integration_hooks.on_patch()`
+  after wrapping and `on_unpatch()` before unwrapping. See `ddtrace/internal/appsec/integration_hooks/`.
 - Check import direction with `dependency-direction-analysis` when crossing package boundaries,
   and check cycles with `circular-import-analysis` when adding or moving modules.
 
