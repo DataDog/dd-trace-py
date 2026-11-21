@@ -447,18 +447,15 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
+    from tests.suitespec import suite_job
+
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Collect stages from suite configurations
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
         # Extract stage from suite name prefix if present
-        suite_parts = suite_name.split("::")[-2:]
-        if len(suite_parts) == 2:
-            stage, clean_name = suite_parts
-        else:
-            stage = "core"
-            clean_name = suite_parts[-1]
+        stage, clean_name = suite_job(suite_name)
 
         stages.add(stage)
         # Store the stage in the suite config for later use
