@@ -309,6 +309,36 @@ def test_microvm_fork_no_collisions():
             os._exit(0)
 
 
+@pytest.mark.subprocess(env={"AWS_LAMBDA_INITIALIZATION_TYPE": "snap-start"})
+def test_snapstart_restored_processes_do_not_share_ids():
+    """Processes restored from the same SnapStart snapshot must not generate the same IDs.
+
+    Regression test for #21050. A raw libc fork() clones process memory without running at-fork
+    handlers, so the RNG is not reseeded in the child, which is what happens on a restore.
+    """
+    import ctypes
+    import os
+
+    from ddtrace.internal.native import rand64bits
+
+    libc = ctypes.CDLL(None)
+    rand64bits()
+
+    def restore():
+        r, w = os.pipe()
+        pid = libc.fork()
+        if pid == 0:
+            os.write(w, str(rand64bits()).encode())
+            os._exit(0)
+        os.close(w)
+        os.waitpid(pid, 0)
+        value = os.read(r, 32)
+        os.close(r)
+        return value
+
+    assert restore() != restore()
+
+
 def _test_tracer_usage_multiprocess_target(q):
     ids_list = list(chain.from_iterable(ids for ids in [_get_ids() for _ in range(100)]))
     q.put(ids_list)
