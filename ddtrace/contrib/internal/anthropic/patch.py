@@ -1,3 +1,4 @@
+import inspect
 import sys
 from typing import Any
 from typing import Callable
@@ -37,6 +38,80 @@ def _supported_versions() -> dict[str, str]:
 config._add("anthropic", {})
 
 
+def _is_wrapped_response(resp: Any) -> bool:
+    # messages.with_raw_response and messages.with_streaming_response return an
+    # APIResponse/LegacyAPIResponse wrapper; the parsed Message sits behind parse().
+    return resp is not None and hasattr(resp, "parse") and hasattr(resp, "http_response")
+
+
+def _close_wrapped_response(resp: Any) -> Any:
+    # with_streaming_response reads the body inside the SDK's __enter__/__aenter__, so when the
+    # read raises, the caller's __exit__ never runs and nothing else closes the response.
+    # AsyncAPIResponse.close() is a coroutine, which the async caller awaits.
+    try:
+        return resp.close()
+    except Exception:
+        log.debug("Failed to close anthropic response wrapper", exc_info=True)
+        return None
+
+
+def _parse_wrapped_response(resp: Any) -> Any:
+    """Return the parsed Message behind a raw or streaming response wrapper.
+
+    parse() caches its result on the wrapper, so the caller's own parse() returns
+    the same object. Any other response, or a failed parse, is returned unchanged.
+    A failed body read propagates: the stream is spent by then, so the caller would
+    only get StreamAlreadyConsumed in place of the transport error. LegacyAPIResponse
+    has no read() because its body is already in memory.
+    """
+    if not _is_wrapped_response(resp):
+        return resp
+    if hasattr(resp, "read"):
+        try:
+            resp.read()
+        except BaseException:
+            _close_wrapped_response(resp)
+            raise
+    try:
+        return resp.parse()
+    except Exception:
+        log.debug("Failed to parse anthropic response wrapper", exc_info=True)
+        return resp
+
+
+async def _async_parse_wrapped_response(resp: Any) -> Any:
+    """Async counterpart of _parse_wrapped_response.
+
+    AsyncAPIResponse.parse() is a coroutine, while LegacyAPIResponse.parse() stays
+    synchronous on the async client, so the result is awaited only when it is awaitable.
+    """
+    if not _is_wrapped_response(resp):
+        return resp
+    if hasattr(resp, "read"):
+        try:
+            body = resp.read()
+            if inspect.isawaitable(body):
+                await body
+        except BaseException:
+            closed = _close_wrapped_response(resp)
+            if inspect.isawaitable(closed):
+                # The coroutine only raises when awaited, outside _close_wrapped_response's
+                # handler, and a close error must not replace the read error being re-raised.
+                try:
+                    await closed
+                except Exception:
+                    log.debug("Failed to close anthropic response wrapper", exc_info=True)
+            raise
+    try:
+        parsed = resp.parse()
+        if inspect.isawaitable(parsed):
+            parsed = await parsed
+        return parsed
+    except Exception:
+        log.debug("Failed to parse anthropic response wrapper", exc_info=True)
+        return resp
+
+
 def _request_event(func: Callable[..., Any], instance: Any, kwargs: Any) -> LlmRequestEvent:
     model = kwargs.get("model", "")
     return LlmRequestEvent(
@@ -68,12 +143,17 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(resp, args, kwargs, ctx)
+        try:
+            parsed_resp = _parse_wrapped_response(resp) if not kwargs.get("stream") else resp
+        except BaseException:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         # Attach the response to the event before the after-hook so that an AI
         # Guard block raised by that hook still records the model output in
         # LLMObs, even though the block errors the span (APPSEC-68147).
-        event.response = resp
+        event.response = parsed_resp
         try:
-            core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
+            core.dispatch("anthropic.messages.create.after", (kwargs, parsed_resp), allow_raise=True)
         except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
@@ -93,12 +173,18 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(resp, args, kwargs, ctx)
+        try:
+            parsed_resp = await _async_parse_wrapped_response(resp) if not kwargs.get("stream") else resp
+        except BaseException:
+            # BaseException, so a cancelled body read still finishes the span.
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         # Attach the response to the event before the after-hook so that an AI
         # Guard block raised by that hook still records the model output in
         # LLMObs, even though the block errors the span (APPSEC-68147).
-        event.response = resp
+        event.response = parsed_resp
         try:
-            core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
+            core.dispatch("anthropic.messages.create.after", (kwargs, parsed_resp), allow_raise=True)
         except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
