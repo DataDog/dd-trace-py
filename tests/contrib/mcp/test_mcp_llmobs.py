@@ -10,6 +10,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
+from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -551,3 +552,107 @@ def test_respond_records_request_after_respond(mcp_setup):
 
     assert recorded_before_func == [{}]
     assert mock_instance._dd_ctx.event.request_kwargs == {"request_responder": mock_instance}
+
+
+def _server_tool_spans(test_spans):
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    return [s for s in spans if (get_llmobs_tags(s) or {}).get("mcp_tool_kind") == "server"]
+
+
+def test_conversation_id_capture(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def run_test():
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            tools = await client.list_tools()
+            first = await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+            conversation_id = first.content[-1].text.split('"')[1]
+            second = await client.call_tool(
+                "calculator",
+                {"operation": "add", "a": 1, "b": 2, "telemetry": {"conversation_id": conversation_id}},
+            )
+            return tools, first, second, conversation_id
+
+    with override_config("mcp", dict(capture_session=True)):
+        tools, first, second, conversation_id = asyncio.run(run_test())
+
+    schema = next(t for t in tools.tools if t.name == "calculator").inputSchema
+    assert schema["properties"]["telemetry"]["properties"]["conversation_id"]["type"] == "string"
+    assert schema["properties"]["telemetry"]["required"] == []
+    assert "intent" not in schema["required"]
+
+    assert len(conversation_id) == 32
+    assert len(first.content) == 2
+    assert len(second.content) == 1
+
+    first_span, second_span = _server_tool_spans(test_spans)
+    assert get_llmobs_session_id(first_span) == conversation_id
+    assert get_llmobs_session_id(second_span) == conversation_id
+    assert "telemetry" not in json.loads(get_llmobs_input_value(second_span))["params"]["arguments"]
+
+
+def test_conversation_id_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def run_test():
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            return await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+
+    result = asyncio.run(run_test())
+
+    assert len(result.content) == 1
+    (server_span,) = _server_tool_spans(test_spans)
+    assert get_llmobs_session_id(server_span) is None
+
+
+def test_intent_capture_lowlevel_server_validation(mcp_setup, mcp_llmobs, test_spans):
+    """Low-level servers validate calls against the listed tool objects, which must keep the tool's own schema."""
+    from mcp.server.lowlevel import Server
+    from mcp.shared.memory import create_connected_server_and_client_session
+    import mcp.types as types
+
+    server = Server("LowLevelServer")
+
+    @server.list_tools()
+    async def list_tools():
+        schema = {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]}
+        return [types.Tool(name="echo", inputSchema=schema)]
+
+    @server.call_tool()
+    async def call_tool(name, arguments):
+        return [types.TextContent(type="text", text=",".join(sorted(arguments)))]
+
+    async def run_test():
+        async with create_connected_server_and_client_session(server) as client:
+            tools = await client.list_tools()
+            result = await client.call_tool("echo", {"a": "x", "telemetry": {"intent": "Testing low-level servers"}})
+            return tools, result
+
+    with override_config("mcp", dict(capture_intent=True, capture_session=True)):
+        tools, result = asyncio.run(run_test())
+
+    assert "telemetry" in tools.tools[0].inputSchema["properties"]
+    assert not result.isError
+    assert result.content[0].text == "a"
+    (server_span,) = _server_tool_spans(test_spans)
+    assert _get_llmobs_data_metastruct(server_span)["meta"]["intent"] == "Testing low-level servers"
+
+
+def test_own_telemetry_argument_kept_with_capture_disabled(mcp_setup, mcp_llmobs, test_spans):
+    from mcp.server.fastmcp import FastMCP
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    server = FastMCP(name="TelemetryServer")
+
+    @server.tool(description="Records an event")
+    def record_event_disabled(telemetry: dict) -> dict:
+        return telemetry
+
+    async def run_test():
+        async with create_connected_server_and_client_session(server._mcp_server) as client:
+            return await client.call_tool("record_event_disabled", {"telemetry": {"event": "click"}})
+
+    result = asyncio.run(run_test())
+
+    assert not result.isError
+    assert json.loads(result.content[0].text) == {"event": "click"}

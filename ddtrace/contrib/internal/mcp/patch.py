@@ -16,6 +16,7 @@ from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAM
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_ARGUMENT_EVENT
+from ddtrace.contrib.internal.mcp._constants import TOOL_RESULT_EVENT
 from ddtrace.contrib.internal.mcp._constants import TOOLS_LIST_RESPONSE_EVENT
 from ddtrace.contrib.internal.mcp._tool_result import DEFAULT_TOOL_ERROR_MESSAGE
 from ddtrace.contrib.internal.mcp._tool_result import get_tool_error_message
@@ -23,6 +24,7 @@ from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.contrib.internal.mcp.utils import DatadogServerMiddleware
 from ddtrace.contrib.internal.mcp.utils import extract_distributed_headers_from_mcp_request
 from ddtrace.contrib.internal.mcp.utils import finish_request
+from ddtrace.contrib.internal.mcp.utils import get_transport_session_id
 from ddtrace.contrib.internal.mcp.utils import request_event
 from ddtrace.contrib.internal.mcp.utils import set_distributed_headers_into_mcp_request
 from ddtrace.contrib.internal.mcp.utils import start_request
@@ -48,6 +50,7 @@ config._add(
     {
         "distributed_tracing": asbool(env.get("DD_MCP_DISTRIBUTED_TRACING", default=True)),
         "capture_intent": asbool(env.get("DD_MCP_CAPTURE_INTENT", default=False)),
+        "capture_session": asbool(env.get("DD_MCP_CAPTURE_SESSION", default=False)),
     },
 )
 
@@ -193,7 +196,10 @@ def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
     setattr(instance, "_dd_span", span)
 
     if isinstance(request_root, CallToolRequest):
-        core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, request_root))
+        request_context = _get_attr(_get_attr(instance, "message_metadata", None), "request_context", None)
+        transport_session_id = get_transport_session_id(_get_attr(request_context, "headers", None))
+        connection = _get_attr(instance, "_session", None)
+        core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, request_root, transport_session_id, connection))
 
     return func(*args, **kwargs)
 
@@ -222,8 +228,10 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
     response = getattr(response_arg, "root", response_arg)
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
-    if config.mcp.capture_intent and isinstance(response, ListToolsResult):
+    if (config.mcp.capture_intent or config.mcp.capture_session) and isinstance(response, ListToolsResult):
         core.dispatch(TOOLS_LIST_RESPONSE_EVENT, (response,))
+    if span and config.mcp.capture_session and isinstance(response, CallToolResult):
+        core.dispatch(TOOL_RESULT_EVENT, (span, response))
 
     try:
         return await func(*args, **kwargs)
