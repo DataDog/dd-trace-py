@@ -1,10 +1,12 @@
 import importlib
 
 from ddtrace.constants import AUTO_KEEP
+from ddtrace.contrib.internal.protobuf import schema_iterator as protobuf_schema_iterator
 from ddtrace.contrib.internal.protobuf.patch import patch
 from ddtrace.contrib.internal.protobuf.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.datastreams import data_streams_processor
 from tests.contrib.protobuf.schemas import message_pb2
 from tests.contrib.protobuf.schemas import other_message_pb2
 
@@ -207,3 +209,43 @@ def test_advanced_schema_deserialize(protobuf, tracer, test_spans):
     assert tags[SCHEMA_TAGS.SCHEMA_OPERATION] == "deserialization"
     assert tags[SCHEMA_TAGS.SCHEMA_ID] == MESSAGE_SCHEMA_ID
     assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
+
+
+def _processor_then_none():
+    """Return the live processor once, then None, like a remote config disable mid-call."""
+    calls = []
+
+    def fake_data_streams_processor():
+        calls.append(None)
+        return data_streams_processor() if len(calls) == 1 else None
+
+    return fake_data_streams_processor
+
+
+def test_serialize_does_not_raise_when_processor_is_cleared_mid_call(protobuf, tracer, test_spans, monkeypatch):
+    monkeypatch.setattr(protobuf_schema_iterator, "data_streams_processor", _processor_then_none())
+    importlib.reload(other_message_pb2)
+    other_message = other_message_pb2.OtherMessage()
+    other_message.name.append("Alice")
+    other_message.age = 30
+
+    with tracer.trace("other_message.serialize") as span:
+        span.context.sampling_priority = AUTO_KEEP
+        assert other_message.SerializeToString()
+
+    tags = test_spans.spans[0].get_tags()
+    assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OTHER_MESSAGE_SCHEMA_DEF
+
+
+def test_serialize_skips_schema_tags_without_processor(protobuf, tracer, test_spans, monkeypatch):
+    monkeypatch.setattr(protobuf_schema_iterator, "data_streams_processor", lambda: None)
+    importlib.reload(other_message_pb2)
+    other_message = other_message_pb2.OtherMessage()
+    other_message.name.append("Alice")
+    other_message.age = 30
+
+    with tracer.trace("other_message.serialize") as span:
+        span.context.sampling_priority = AUTO_KEEP
+        assert other_message.SerializeToString()
+
+    assert SCHEMA_TAGS.SCHEMA_TYPE not in test_spans.spans[0].get_tags()

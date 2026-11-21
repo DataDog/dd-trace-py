@@ -106,3 +106,41 @@ def register_on_exit_signal(f: typing.Callable) -> typing.Optional[tuple[typing.
         log.debug("Encountered an exception while registering SIGINT", exc_info=True)
 
     return sigterm_handler, signal.getsignal(signal.SIGINT)
+
+
+class ExitSignalCallbacks:
+    """One exit-signal handler running a set of callbacks; re-installs only if the app replaced it."""
+
+    def __init__(self) -> None:
+        self._callbacks: set[typing.Callable[[], None]] = set()
+        # The SIGTERM and SIGINT handlers in place after the last installation.
+        self._installed_handlers: typing.Optional[tuple[typing.Any, typing.Any]] = None
+
+    def add(self, f: typing.Callable[[], None]) -> None:
+        self._callbacks.add(f)
+
+    def discard(self, f: typing.Callable[[], None]) -> None:
+        self._callbacks.discard(f)
+
+    def _run(self) -> None:
+        # Snapshot: a callback may discard itself while running.
+        for callback in list(self._callbacks):
+            # One failing callback must not skip the others.
+            try:
+                callback()
+            except Exception:
+                log.debug("Exit signal callback %r failed", callback, exc_info=True)
+                if _native_config.get_raise():
+                    raise
+
+    def install(self) -> None:
+        """Install the handler, again only if it never got installed or the app replaced it.
+
+        Installing only works on the main thread; elsewhere this is a no-op.
+        """
+        # Off the main thread nothing installs; keep the saved state so a later call does not chain.
+        if not is_main_thread():
+            return
+        current_handlers = (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT))
+        if self._installed_handlers is None or current_handlers != self._installed_handlers:
+            self._installed_handlers = register_on_exit_signal(self._run)

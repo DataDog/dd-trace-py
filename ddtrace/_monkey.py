@@ -126,6 +126,8 @@ PATCH_MODULES = {
     "valkey": True,
     "openai_agents": True,
     "ray": False,
+    # Patched only when DSM is on at startup: enabling DSM later via remote
+    # config leaves protobuf unpatched (accepted limitation).
     "protobuf": config._data_streams_enabled,
     "claude_agent_sdk": True,
 }

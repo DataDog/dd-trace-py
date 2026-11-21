@@ -912,13 +912,20 @@ suites:
       - '@core'
       - '@tracing'
       - '@datastreams'
+      - '@remoteconfig'
       - tests/datastreams/*
     matrix:
       command: pytest --no-cov {cmdargs} tests/datastreams/
       env:
         AGENT_VERSION: latest
       variants:
+        # TODO(py-315): confluent-kafka publishes no cp315 wheels; the confluent-kafka DSM
+        # tests are skipped on 3.15. Add it there once wheels exist.
         - name: datastreams-latest
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [msgpack, pytest-randomly, confluent-kafka]
+        - name: datastreams-latest
+          python: ['3.15']
           dependencies: [msgpack, pytest-randomly]
   ddtrace_api:
     paths:

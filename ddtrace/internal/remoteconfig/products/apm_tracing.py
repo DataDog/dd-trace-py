@@ -143,8 +143,13 @@ def enabled() -> bool:
 
 
 def start() -> None:
+    from ddtrace.internal.datastreams._exit_signal import exit_signal_callbacks
     from ddtrace.internal.products import manager
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    # Remote config can create a data streams processor on its worker thread,
+    # where signal handlers cannot be installed: install the shared one now.
+    exit_signal_callbacks.install()
 
     remoteconfig_poller.register_callback(
         RemoteConfigProduct.ApmTracing,
