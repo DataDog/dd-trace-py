@@ -112,7 +112,7 @@ current signatures and defaults.
 | Task | Skill or reference |
 |------|--------------------|
 | Test selection, execution, environment rebuilds | `run-tests`; `docs/contributing-testing.rst` |
-| Formatting, typing, quality checks | `lint`; `scripts/lint --help` |
+| Formatting, typing, quality checks; authoring or proposing lint/static-analysis rules | `lint`; `scripts/lint --help`; `.agents/skills/lint/references/authoring-rules.md` |
 | PR release-note decision | `releasenote`; `docs/releasenotes.rst` |
 | New or renamed configuration | `add-new-configuration` |
 | Contrib integration changes | `apm-integrations`; `.cursor/rules/isolated-responsibility.mdc` |
