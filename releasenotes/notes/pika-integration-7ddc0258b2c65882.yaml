@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    pika: Adds tracing and Data Streams Monitoring for the pika RabbitMQ client (``pika>=1.0``). Publishes and
+    message deliveries to ``basic_consume`` callbacks, ``basic_get`` and ``BlockingChannel.consume`` are traced
+    for every connection adapter, with trace context propagated in the message headers. With
+    ``DD_DATA_STREAMS_ENABLED=true``, publishes and consumes set Data Streams Monitoring checkpoints that link
+    with other RabbitMQ integrations. Disable it with ``DD_TRACE_PIKA_ENABLED=false``.

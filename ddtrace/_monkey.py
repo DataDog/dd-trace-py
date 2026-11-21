@@ -61,6 +61,7 @@ PATCH_MODULES = {
     "mariadb": True,
     "mcp": True,
     "mistralai": True,
+    "pika": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,

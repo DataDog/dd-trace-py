@@ -257,6 +257,7 @@ patcher
 perf
 Perfetto
 pid
+pika
 plugin
 posix
 postgres

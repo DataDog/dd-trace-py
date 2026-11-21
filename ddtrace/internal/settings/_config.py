@@ -146,6 +146,7 @@ INTEGRATION_CONFIGS = frozenset(
         "sqlalchemy",
         "langchain",
         "pymysql",
+        "pika",
         "psycopg",
         "graphql",
         "aiomysql",

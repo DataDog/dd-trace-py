@@ -532,6 +532,12 @@ pytest-benchmark
 ^^^^^^^^^^^^^^^^
 .. automodule:: ddtrace.testing.internal.pytest.benchmark
 
+.. _pika:
+
+pika
+^^^^
+.. automodule:: ddtrace.contrib.internal.pika
+
 .. _protobuf:
 
 protobuf
