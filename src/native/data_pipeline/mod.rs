@@ -10,6 +10,7 @@ use std::time::Duration;
 mod agent_response;
 mod exceptions;
 mod trace_buffer;
+use crate::gil::detach_or_hang_on_finalize;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
 use trace_buffer::TraceBufferPy;
@@ -350,7 +351,10 @@ impl TraceExporterPy {
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while
     /// sending the traces.
     fn send(&self, py: Python<'_>, data: PyBackedBytes) -> PyResult<String> {
-        py.detach(move || {
+        // Release the GIL for the blocking network send. If the interpreter starts
+        // finalizing while the GIL is released, this (non-main) thread hangs instead of
+        // re-acquiring the GIL, which would abort the process (see the gil module).
+        detach_or_hang_on_finalize(py, move || {
             match self
                 .inner
                 .as_ref()
