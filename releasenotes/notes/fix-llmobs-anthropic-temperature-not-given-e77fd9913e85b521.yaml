@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the Anthropic integration recorded ``temperature`` in span metadata as ``NOT_GIVEN`` when the caller passed ``anthropic.NOT_GIVEN``. The parameter is now left out of the metadata.
