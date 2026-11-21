@@ -3,6 +3,7 @@ import opensearchpy
 from tests.contrib.config import OPENSEARCH_CONFIG
 
 from .test_elasticsearch import ElasticsearchPatchTest
+from .test_elasticsearch import test_and_emit_get_version  # noqa: F401
 
 
 class OpenSearchPatchTest(ElasticsearchPatchTest):
