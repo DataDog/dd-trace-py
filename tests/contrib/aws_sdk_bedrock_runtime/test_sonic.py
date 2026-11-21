@@ -1141,3 +1141,95 @@ def test_named_modalities_follow_unknown_aggregate_across_turns(direction):
     assert metrics[-1][direction + "_tokens"] == 10
     assert metrics[-1][direction + "_audio_tokens"] == 5
     assert metrics[-1][direction + "_text_tokens"] == 5
+
+
+@pytest.mark.parametrize("gap_turns", [1, 2])
+@pytest.mark.parametrize("pending_input", [False, True])
+@pytest.mark.parametrize("initial,recovered", [(10, 30), (0, 0)])
+def test_entire_turn_without_usage_rebases_before_recovery(gap_turns, pending_input, initial, recovered):
+    sonic, integration = state()
+
+    def start(index):
+        sonic.pending.user_text = str(index)
+        sonic.received("contentStart", {"contentId": str(index), "role": "ASSISTANT", "type": "TEXT"}, index + 1)
+
+    start(0)
+    sonic.observe(named_usage(initial, initial, initial // 2, initial // 2, initial // 2, initial // 2))
+    for index in range(1, gap_turns + 1):
+        start(index)
+    # Input usage can move to the pending turn before its response starts.
+    if pending_input:
+        sonic.pending.user_text = "recovery"
+        sonic.observe(named_usage(recovered, None, recovered // 2, None, recovered // 2, None))
+    start(gap_turns + 1)
+    sonic.observe(named_usage(recovered, recovered, recovered // 2, recovered // 2, recovered // 2, recovered // 2))
+    sonic.observe(
+        named_usage(
+            recovered + 5, recovered + 5, recovered // 2 + 2, recovered // 2 + 2, recovered // 2 + 3, recovered // 2 + 3
+        )
+    )
+    start(gap_turns + 2)
+    sonic.observe(
+        named_usage(
+            recovered + 10,
+            recovered + 10,
+            recovered // 2 + 5,
+            recovered // 2 + 5,
+            recovered // 2 + 5,
+            recovered // 2 + 5,
+        )
+    )
+    sonic.finish()
+
+    metrics = [data(span)["metrics"] for span in llms(integration)]
+    assert metrics[0]["total_tokens"] == initial * 2
+    assert all(not counts for counts in metrics[1:-1])
+    assert metrics[-1] == {
+        "input_tokens": 5,
+        "output_tokens": 5,
+        "total_tokens": 10,
+        "input_text_tokens": 3,
+        "output_text_tokens": 3,
+        "input_audio_tokens": 2,
+        "output_audio_tokens": 2,
+    }
+
+
+def test_absent_usage_direction_preserves_independently_known_counts():
+    sonic, integration = state()
+    sonic.pending.user_text = "first"
+    # Before the first response, both directions belong to the pending turn.
+    sonic.observe(named_usage(10, 10, 5, 5, 5, 5))
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.pending.user_text = "second"
+    # Input belongs to the next turn, while output still belongs to the first.
+    sonic.observe(named_usage(20, 20, 10, 10, 10, 10))
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "TEXT"}, 2)
+    # The second turn receives no usageEvent. Its input is known from the earlier event.
+    sonic.pending.user_text = "third"
+    sonic.received("contentStart", {"contentId": "third", "role": "ASSISTANT", "type": "TEXT"}, 3)
+    sonic.observe(named_usage(30, 30, 15, 15, 15, 15))
+    sonic.finish()
+    first, second, third = [data(span)["metrics"] for span in llms(integration)]
+    assert first["total_tokens"] == 30
+    assert second == {"input_tokens": 10, "input_text_tokens": 5, "input_audio_tokens": 5}
+    assert third == {"input_tokens": 10, "input_text_tokens": 5, "input_audio_tokens": 5}
+
+
+def test_missing_input_usage_is_registered_before_pending_usage_advances_baseline():
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.pending.user_text = "second"
+    sonic.observe(named_usage(20, 10, 10, 5, 10, 5))
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "TEXT"}, 2)
+    sonic.observe(named_usage(30, 20, 15, 10, 15, 10))
+    sonic.pending.user_text = "third"
+    sonic.received("contentStart", {"contentId": "third", "role": "ASSISTANT", "type": "TEXT"}, 3)
+    sonic.observe(named_usage(40, 30, 20, 15, 20, 15))
+    sonic.finish()
+    first, second, third = [data(span)["metrics"] for span in llms(integration)]
+    for metrics in (first, second):
+        assert metrics == {"output_tokens": 10, "output_text_tokens": 5, "output_audio_tokens": 5}
+    assert third["input_tokens"] == 10
+    assert third["output_tokens"] == 10
+    assert third["total_tokens"] == 20
