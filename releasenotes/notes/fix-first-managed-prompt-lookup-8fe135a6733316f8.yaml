@@ -1,0 +1,4 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the first managed prompt lookup could
+    return the fallback even when the deployed prompt was already available locally.

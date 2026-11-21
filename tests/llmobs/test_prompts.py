@@ -2,6 +2,8 @@ from collections import UserList
 from contextlib import contextmanager
 import json
 import os
+from threading import Event
+from threading import current_thread
 from typing import Optional
 from typing import Union
 from unittest.mock import Mock
@@ -713,6 +715,29 @@ class TestPrompts:
         assert prompt.version == "ff-v1"
         assert prompt.template == "FF Hello!"
         assert prompt.config == {"model": "ff-model"}
+
+    def test_first_lookup_uses_already_delivered_prompt(self, monkeypatch):
+        from ddtrace.internal.openfeature._provider import DataDogProvider
+
+        caller = current_thread()
+        lookup_finished = Event()
+        initialize = DataDogProvider.initialize
+
+        def initialize_provider(provider, context):
+            # Exercise the ordering where background initialization runs after the lookup.
+            if current_thread() is not caller:
+                lookup_finished.wait(timeout=5)
+            return initialize(provider, context)
+
+        monkeypatch.setattr(DataDogProvider, "initialize", initialize_provider)
+        manager = _make_manager(app_key="")
+        with _ffe_enabled():
+            _deliver_prompt_flag("greeting", {"prompt_id": "greeting", "version": "v1", "template": "managed"})
+            try:
+                prompt = manager.get_prompt("greeting", fallback="backup")
+            finally:
+                lookup_finished.set()
+        assert prompt.format() == "managed"
 
     @pytest.mark.parametrize(
         "source,expected_source,provider_calls,rc_calls",
