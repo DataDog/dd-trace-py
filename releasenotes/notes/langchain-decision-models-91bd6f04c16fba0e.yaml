@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: The LangChain integration now traces decision model calls (``invoke`` and ``ainvoke``), such as ``OpenAIClassifier`` and ``TypeSafeClassifier``, with the questions, answers, and token usage.

@@ -14,6 +14,7 @@ OPERATION_EMBEDDING = "embedding"
 OPERATION_RETRIEVAL = "retrieval"
 OPERATION_TOOL = "tool"
 OPERATION_RUNNABLE_LAMBDA = "runnable_lambda"
+OPERATION_DECISION = "decision"
 
 # Key under which non-streamed chain inputs are passed in LlmRequestEvent.request_kwargs.
 CHAIN_INPUTS_KEY = "inputs"
