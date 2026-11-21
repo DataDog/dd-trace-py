@@ -92,7 +92,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
 def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
-    pin = function_vars.get("pin")
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
@@ -145,7 +144,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                 "botocore.patched_sqs_api_call",
                 parent=parent_ctx,
                 span_name=call_name,
-                service=schematize_service_name(f"{ext_service(pin, int_config=config.botocore)}.{endpoint_name}"),
+                service=schematize_service_name(f"{ext_service(None, int_config=config.botocore)}.{endpoint_name}"),
                 span_type=SpanTypes.HTTP,
                 child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 activate=True,
@@ -155,7 +154,6 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                 endpoint_name=endpoint_name,
                 operation=operation,
                 call_trace=False,
-                pin=pin,
                 integration_config=config.botocore,
             ) as ctx,
             span_from_context(ctx),
