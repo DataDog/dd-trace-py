@@ -732,6 +732,7 @@ def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> dict[str,
     tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: env.get("_CI_DD_GIT_REPOSITORY_URL") or env.get("DD_GIT_REPOSITORY_URL"),
         GitTag.COMMIT_SHA: env.get("DD_GIT_COMMIT_SHA"),
+        GitTag.COMMIT_HEAD_SHA: env.get("DD_GIT_COMMIT_HEAD_SHA"),
         GitTag.BRANCH: branch,
         GitTag.PULL_REQUEST_BASE_BRANCH: normalize_ref(env.get("DD_GIT_PULL_REQUEST_BASE_BRANCH")),
         GitTag.PULL_REQUEST_BASE_BRANCH_SHA: env.get("DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA"),

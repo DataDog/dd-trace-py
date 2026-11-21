@@ -106,12 +106,13 @@ MAIN_PACKAGE = "python_main_package"
 _RE_REFS = re.compile(r"^refs/(heads/)?")
 _RE_ORIGIN = re.compile(r"^origin/")
 _RE_TAGS = re.compile(r"^tags/")
+_RE_COMMIT_SHA = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 
 log = get_logger(__name__)
 
 
 def _normalize_commit_sha(value: Optional[str]) -> Optional[str]:
-    if value and re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", value):
+    if value and _RE_COMMIT_SHA.fullmatch(value):
         return value.lower()
     return value
 
@@ -138,7 +139,16 @@ def _get_ci_merge_commit_sha(environ: MutableMapping[str, str], provider: Option
         and re.fullmatch(r"[0-9]+", environ.get("TRAVIS_PULL_REQUEST", ""))
     ):
         sha = environ.get("TRAVIS_COMMIT")
-    return _normalize_commit_sha(sha) if sha and re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", sha) else None
+    elif (
+        provider == "appveyor"
+        and environ.get("APPVEYOR_REPO_PROVIDER") == "github"
+        and re.fullmatch(r"[0-9]+", environ.get("APPVEYOR_PULL_REQUEST_NUMBER", ""))
+    ):
+        head_sha = environ.get("APPVEYOR_PULL_REQUEST_HEAD_COMMIT", "")
+        repo_sha = environ.get("APPVEYOR_REPO_COMMIT", "")
+        if _RE_COMMIT_SHA.fullmatch(head_sha) and head_sha.lower() != repo_sha.lower():
+            sha = repo_sha
+    return _normalize_commit_sha(sha) if sha and _RE_COMMIT_SHA.fullmatch(sha) else None
 
 
 def _same_checkout_path(left: str, right: str) -> bool:
@@ -626,6 +636,7 @@ def extract_user_git_metadata(environ: Optional[MutableMapping[str, str]] = None
     tags = {}
     tags[REPOSITORY_URL] = environ.get("DD_GIT_REPOSITORY_URL")
     tags[COMMIT_SHA] = environ.get("DD_GIT_COMMIT_SHA")
+    tags[COMMIT_HEAD_SHA] = environ.get("DD_GIT_COMMIT_HEAD_SHA")
     tags[BRANCH] = branch
     tags[PULL_REQUEST_BASE_BRANCH] = pull_request_base_branch
     tags[PULL_REQUEST_BASE_BRANCH_SHA] = environ.get("DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA")

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    CI visibility: Set ``DD_GIT_COMMIT_HEAD_SHA`` to override the pull request head commit SHA reported by Test Optimization.
+fixes:
+  - |
+    CI visibility: Test Optimization now reports the pull request head commit on Azure Pipelines and identifies the merge commit in AppVeyor GitHub pull request builds.
