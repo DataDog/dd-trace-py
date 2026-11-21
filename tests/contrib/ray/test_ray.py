@@ -527,7 +527,7 @@ class TestRayWithoutInit(TracerTestCase):
         _submit_and_wait_for_job(self.dashboard_url, "service.py", metadata={"job_name": "my_model"})
 
 
-@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES, wait_for_num_spans=6)
 def test_service_name():
     """Test that DD_SERVICE environment variable is used as service name."""
     dashboard_url = _start_ray_cluster(env_vars={"DD_SERVICE": "test"}, ddtrace_run=True)
@@ -538,7 +538,7 @@ def test_service_name():
         _stop_ray_cluster()
 
 
-@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES, wait_for_num_spans=6)
 def test_use_entrypoint_service_name():
     """Test that entrypoint can be used as service name when configured."""
     dashboard_url = _start_ray_cluster(

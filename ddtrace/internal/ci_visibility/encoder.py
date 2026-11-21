@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 import json
 from typing import Any
+from typing import NoReturn
 from typing import Optional
 from typing import Protocol
 from typing import Union
@@ -80,22 +81,22 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         self._is_xdist_worker = env.get("PYTEST_XDIST_WORKER") is not None
         self._init_buffer()
 
-    def __len__(self):
+    def __len__(self) -> int:
         with self._lock:
             return len(self.buffer)
 
-    def set_metadata(self, event_type: str, metadata: dict[str, str]):
+    def set_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
         self._metadata.setdefault(event_type, {}).update(metadata)
 
-    def _init_buffer(self):
+    def _init_buffer(self) -> None:
         with self._lock:
-            self.buffer = []
+            self.buffer: list[Any] = []
 
-    def put(self, item):
+    def put(self, item: Any) -> None:
         with self._lock:
             self.buffer.append(item)
 
-    def encode_traces(self, traces):
+    def encode_traces(self, traces: Any) -> NoReturn:
         """
         Only used for LogWriter, not called for CI Visibility currently
         """
@@ -210,7 +211,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         )
 
     @staticmethod
-    def _pack_payload(payload):
+    def _pack_payload(payload: Any) -> bytes:
         return msgpack_packb(payload)
 
     def _convert_span(
@@ -239,7 +240,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return {"version": version, "type": event_type, "content": sp}
 
     @staticmethod
-    def _filter_ids(sp, new_parent_session_span_id=0):
+    def _filter_ids(sp: dict[str, Any], new_parent_session_span_id: int = 0) -> dict[str, Any]:
         """
         Remove trace/span/parent IDs if non-test event, move session/module/suite IDs from meta to outer content layer.
         """
@@ -297,10 +298,10 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     content_type = "multipart/form-data; boundary=%s" % boundary
     itr_suite_skipping_mode = False
 
-    def _set_itr_suite_skipping_mode(self, new_value):
+    def _set_itr_suite_skipping_mode(self, new_value: bool) -> None:
         self.itr_suite_skipping_mode = new_value
 
-    def put(self, item):
+    def put(self, item: list[_EncodableSpanProtocol]) -> None:
         spans_with_coverage = [
             span
             for span in item
@@ -401,7 +402,7 @@ class CIVisibilityCoverageReportEncoder:
     content_type = "multipart/form-data"
     ENDPOINT_TYPE = ENDPOINT.COVERAGE_REPORT
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.boundary = uuid4().hex
         self.content_type = f"multipart/form-data; boundary={self.boundary}"
 
@@ -418,7 +419,7 @@ class CIVisibilityCoverageReportEncoder:
         """
         return 0
 
-    def put(self, item) -> None:
+    def put(self, item: Any) -> None:
         """No-op: Coverage reports are uploaded directly, not buffered.
 
         This method exists for interface compatibility but is not used. Coverage reports
@@ -430,7 +431,7 @@ class CIVisibilityCoverageReportEncoder:
         """
         pass
 
-    def encode(self) -> list:
+    def encode(self) -> list[tuple[Optional[bytes], int]]:
         """Return empty list as this encoder doesn't buffer items.
 
         Coverage reports are uploaded immediately via encode_coverage_report() rather than
@@ -442,7 +443,7 @@ class CIVisibilityCoverageReportEncoder:
         """
         return []
 
-    def encode_coverage_report(self, report_bytes: bytes, coverage_format: str, event_data: dict) -> bytes:
+    def encode_coverage_report(self, report_bytes: bytes, coverage_format: str, event_data: dict[str, Any]) -> bytes:
         """Encode coverage report as multipart form data.
 
         Args:

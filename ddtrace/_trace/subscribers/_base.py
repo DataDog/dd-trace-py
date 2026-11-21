@@ -121,7 +121,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     override on_started/on_ended for their specific logic.
 
     Example:
-        class MySpanSubscriber(SpanTracingSubscriber):
+        class MySpanSubscriber(TracingSubscriber):
             event_names = ("my.span",)
 
             @classmethod
@@ -132,6 +132,8 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
             def on_ended(cls, ctx, exc_info):
                 if exc_info[1]:
                     span_from_context(ctx).set_tag("error", True)
+
+        MySpanSubscriber.register()
     """
 
     # Register here events that just create / finish spans
@@ -184,7 +186,6 @@ class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[Traci
 
 
 class SpanExceptionSubscriber(Subscriber):
-    auto_register = False
     event_names = (ContextExceptionEvent.event_name,)
 
     @classmethod

@@ -49,7 +49,7 @@ class _PromptOptimizationService(Protocol):
 log = get_logger(__name__)
 
 
-def validate_task(task):
+def validate_task(task: object) -> None:
     """Validate the task function signature.
 
     :raises TypeError: If task is not callable or missing required parameters.
@@ -62,7 +62,7 @@ def validate_task(task):
         raise TypeError("Task function must have 'input_data' and 'config' parameters.")
 
 
-def validate_optimization_task(optimization_task):
+def validate_optimization_task(optimization_task: object) -> None:
     """Validate the optimization_task function signature.
 
     :raises TypeError: If optimization_task is not callable or missing required parameters.
@@ -78,7 +78,7 @@ def validate_optimization_task(optimization_task):
         )
 
 
-def validate_dataset(dataset):
+def validate_dataset(dataset: object) -> None:
     """Validate that dataset is an LLMObs Dataset object.
 
     :raises TypeError: If dataset is not a Dataset instance.
@@ -87,7 +87,7 @@ def validate_dataset(dataset):
         raise TypeError("Dataset must be an LLMObs Dataset object.")
 
 
-def validate_test_dataset(test_dataset):
+def validate_test_dataset(test_dataset: object) -> None:
     """Validate the test_dataset parameter type.
 
     :raises TypeError: If test_dataset is provided but not a string.
@@ -96,7 +96,7 @@ def validate_test_dataset(test_dataset):
         raise TypeError("test_dataset must be a dataset name (string).")
 
 
-def validate_dataset_split(dataset_split, test_dataset):
+def validate_dataset_split(dataset_split: object, test_dataset: object) -> None:
     """Validate dataset_split parameter when it is a tuple of ratios.
 
     :raises ValueError: If tuple ratios are invalid, don't sum to 1.0, or are
@@ -123,7 +123,7 @@ def validate_dataset_split(dataset_split, test_dataset):
         raise ValueError("dataset_split tuple must have 2 or 3 elements.")
 
 
-def validate_evaluators(evaluators):
+def validate_evaluators(evaluators: Any) -> None:
     """Validate the list of evaluators.
 
     :raises TypeError: If evaluators is empty or contains invalid entries.
@@ -197,7 +197,7 @@ class OptimizationIteration:
         iteration: int,
         current_prompt: str,
         current_results: ExperimentResult,
-        optimization_task: Callable,
+        optimization_task: Callable[..., str],
         config: ConfigType,
         labelization_function: Optional[Callable[[dict[str, Any]], str]],
     ) -> None:
@@ -712,7 +712,7 @@ class PromptOptimization:
             _dne_client=self._dataset._dne_client,
         )
 
-    def _create_split_datasets(self) -> tuple:
+    def _create_split_datasets(self) -> tuple[Dataset, Dataset, Dataset]:
         """Split the dataset into train, valid, and test subsets.
 
         When ``test_dataset`` was provided, the main dataset is split into train/valid (80/20)
