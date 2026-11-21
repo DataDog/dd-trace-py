@@ -186,6 +186,10 @@ The following environment variables are supported:
 - ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``
   Defines the target endpoint for OTLP traces. The default is ``http://<agent_hostname>:4317``
   for gRPC and ``http://<agent_hostname>:4318/v1/traces`` for HTTP.
+  On Unix, all trace protocols also accept ``unix:///absolute/path/to/socket``. Use a literal absolute
+  socket path without a host, query, or fragment. This syntax also applies to the global
+  ``OTEL_EXPORTER_OTLP_ENDPOINT``. The socket path is used as-is; HTTP signal routes
+  are selected automatically.
 
 - ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_HEADERS``
   Optional comma-separated key-value pairs for OTLP export (default: empty).
@@ -198,7 +202,8 @@ The following environment variables are supported:
   support ``grpc``; traces also support ``grpc`` and ``http/json``. Signal-specific protocol
   configuration takes precedence over the global ``OTEL_EXPORTER_OTLP_PROTOCOL`` setting. Set
   ``OTEL_EXPORTER_OTLP_PROTOCOL=grpc`` to use a gRPC collector. gRPC
-  trace export currently requires an ``http://`` endpoint; ``https://`` is not supported.
+  trace export accepts ``http://`` endpoints and Unix socket endpoints on Unix;
+  ``https://`` is not supported.
   Protocol values are case-insensitive. Invalid or unsupported values for metrics and logs
   produce a warning and fall back to ``http/protobuf``.
 
