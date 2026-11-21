@@ -5,6 +5,8 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.contrib.internal.langgraph._constants import ASTREAM_OUTPUT
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
@@ -12,14 +14,13 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs.types import _SpanLink
-from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
@@ -45,40 +46,45 @@ ALLOWED_MODEL_SETTINGS_KEYS = [
 
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
-    _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[Span, dict[str, Any]] = WeakKeyDictionary()
+    _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[_LLMObsSpan, dict[str, Any]] = WeakKeyDictionary()
     _agent_manifests: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
-    _graph_spans_to_graph_instances: WeakKeyDictionary[Span, Any] = WeakKeyDictionary()
+    _graph_spans_to_graph_instances: WeakKeyDictionary[_LLMObsSpan, Any] = WeakKeyDictionary()
 
-    def trace(
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: LangGraph spans carry no provider or model tags."""
+
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
+        # Graph spans are agents, known at start for agent attribution.
+        if kwargs.get("operation") == "graph":
+            return "agent"
+        return super()._llmobs_span_kind(operation_id, span, **kwargs)
+
+    def _on_request_span_started(
         self,
-        operation_id: str,
-        submit_to_llmobs: bool = False,
-        instance=None,
-        **kwargs,
-    ) -> Span:
-        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
+        span: _LLMObsSpan,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        if operation != "graph" or instance is None:
+            return
+        self._graph_spans_to_graph_instances[span] = instance
 
-        if instance:
-            self._graph_spans_to_graph_instances[span] = instance
-
-        # Stamp agent name at start so children resolve the correct pagent_name.
-        # instance is captured before **kwargs so _llmobs_agent_name_at_start can't reach it;
-        # stamp here after super().trace() has already written the kind.
-        if submit_to_llmobs and self.llmobs_enabled and kwargs.get("kind") == "agent":
-            agent_name = getattr(instance, "name", None) if instance else None
+        # Stamp the agent name at start so children resolve the correct pagent_name: the LLMObs name is the
+        # graph's short name, while the APM span name is the long composed one.
+        if span.span_type == SpanTypes.LLM:
+            agent_name = getattr(instance, "name", None)
             if agent_name:
                 _annotate_llmobs_span_data(span, name=agent_name)
 
-        return span
-
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # oneof graph, node
-    ):
+    ) -> None:
         if not self.llmobs_enabled:
             return
 
@@ -98,7 +104,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links = invoked_node_span_links
         current_span_links: list[_SpanLink] = get_llmobs_span_links(span) or []
 
-        def maybe_format_langchain_io(messages):
+        def maybe_format_langchain_io(messages: Any) -> Any:
             if messages is None:
                 return None
             return format_langchain_io(messages)
@@ -115,13 +121,13 @@ class LangGraphIntegration(BaseLLMIntegration):
             kind=span_kind,
             input_value=format_langchain_io(inputs),
             output_value=maybe_format_langchain_io(response)
-            or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
+            or maybe_format_langchain_io(span._get_ctx_item(ASTREAM_OUTPUT)),
             name=invoked_node.get("name") or kwargs.get("name", span.name),
             span_links=current_span_links + span_links,
             agent_manifest=agent_manifest,
         )
 
-    def _get_agent_manifest(self, agent, args, config: dict[str, Any]) -> Optional[dict[str, Any]]:
+    def _get_agent_manifest(self, agent: Any, args: Any, config: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Gets the agent manifest for a given agent at the end of its execution."""
         if agent is None:
             return None
@@ -139,7 +145,8 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         if (
             "dependencies" not in agent_manifest
-            and isinstance(args, tuple)
+            # The shared LLMObs subscriber passes the request args as a list.
+            and isinstance(args, (list, tuple))
             and len(args) > 0
             and isinstance(args[0], dict)
         ):
@@ -147,7 +154,7 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         return agent_manifest
 
-    def _get_node_metadata_from_span(self, span: Span, instance_id: str) -> dict[str, Any]:
+    def _get_node_metadata_from_span(self, span: _LLMObsSpan, instance_id: str) -> dict[str, Any]:
         """
         Get the node metadata for a given span and its node instance id.
         Additionally, set the span and trace ids on its metadata should another node in a later
@@ -162,7 +169,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         invoked_node["span"] = {"trace_id": format_trace_id(span.trace_id), "span_id": str(span.span_id)}
         return invoked_node
 
-    def llmobs_handle_agent_manifest(self, agent, args: tuple, kwargs: dict):
+    def llmobs_handle_agent_manifest(self, agent: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
         """
         Handles the agent manifest for a given react agent (defined through `langgraph.prebuilt.create_react_agent`),
         and caches it for use when tagging the graph/agent span in the `_get_agent_manifest`.
@@ -201,8 +208,12 @@ class LangGraphIntegration(BaseLLMIntegration):
         self._agent_manifests[agent] = agent_manifest
 
     def llmobs_handle_pregel_loop_tick(
-        self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
-    ):
+        self,
+        finished_tasks: dict[str, Any],
+        next_tasks: dict[str, Any],
+        more_tasks: bool,
+        is_subgraph_node: bool = False,
+    ) -> None:
         """
         Compute incoming and outgoing span links between finished tasks and queued tasks in the graph.
         """
@@ -223,7 +234,9 @@ class LangGraphIntegration(BaseLLMIntegration):
         except Exception as e:
             logger.debug("Error in LangGraph span linking operation", exc_info=e)
 
-    def _handle_finished_graph(self, graph_span: Span, finished_tasks: dict[str, Any], is_subgraph_node: bool):
+    def _handle_finished_graph(
+        self, graph_span: _LLMObsSpan, finished_tasks: dict[str, Any], is_subgraph_node: bool
+    ) -> None:
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
         Generate the output-to-output span links for the last nodes in a pregel graph.
         If the graph isn't a subgraph, add a span link from the graph span to the calling LLMObs parent span.
@@ -254,7 +267,9 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         return
 
-    def _handle_intermediary_graph_tick(self, graph_span: Span, next_tasks: dict, finished_tasks: dict):
+    def _handle_intermediary_graph_tick(
+        self, graph_span: _LLMObsSpan, next_tasks: dict[str, Any], finished_tasks: dict[str, Any]
+    ) -> None:
         """
         Handle graph ticks that aren't at the end of the graph execution. Link all next tasks to their trigger tasks
         from the dict of finished tasks. Any finished tasks that do not trigger any queued tasks should be
@@ -262,7 +277,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         """
         task_trigger_channels_to_finished_tasks = _map_channel_writes_to_finished_tasks_ids(finished_tasks)
 
-        used_finished_task_ids: set[str] = set()
+        used_finished_task_ids: set[Optional[str]] = set()
         for task_id, task in next_tasks.items():
             queued_node = self._graph_nodes_for_graph_by_task_id.setdefault(graph_span, {}).setdefault(task_id, {})
             queued_node["name"] = _get_attr(task, "name", "")
@@ -276,11 +291,11 @@ class LangGraphIntegration(BaseLLMIntegration):
 
     def _link_task_to_triggers(
         self,
-        task,
-        queued_node,
-        graph_span: Span,
+        task: Any,
+        queued_node: dict[str, Any],
+        graph_span: _LLMObsSpan,
         task_trigger_channels_to_finished_tasks: dict[str, list[Union[str, tuple[str, str]]]],
-    ) -> list[str]:
+    ) -> list[Optional[str]]:
         """
         Create the span links for a queued task from its triggering trigger tasks.
 
@@ -307,8 +322,8 @@ class LangGraphIntegration(BaseLLMIntegration):
         return trigger_ids
 
     def _link_standalone_terminal_tasks(
-        self, graph_span: Span, finished_tasks: dict[str, Any], used_finished_tasks_ids: set[str]
-    ):
+        self, graph_span: _LLMObsSpan, finished_tasks: dict[str, Any], used_finished_tasks_ids: set[Optional[str]]
+    ) -> None:
         """
         Default handler that links any finished tasks not used as triggers for queued tasks to the outer graph span.
         """
@@ -333,7 +348,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(graph_span, span_links=graph_span_links)
 
 
-def _get_model_info(model) -> tuple[Optional[str], Optional[str], dict[str, Any]]:
+def _get_model_info(model: Any) -> tuple[Optional[str], Optional[str], dict[str, Any]]:
     """Get the model name, provider, and settings from a langchain llm"""
     if isinstance(model, str):
         # something like "openai:gpt-4"
@@ -346,27 +361,28 @@ def _get_model_info(model) -> tuple[Optional[str], Optional[str], dict[str, Any]
     return model_name, model_provider, model_settings
 
 
-def _get_model_provider(model) -> Optional[str]:
+def _get_model_provider(model: Any) -> Optional[str]:
     """Get the model provider from a langchain llm"""
     model_provider_info_fn = _get_attr(model, "_get_ls_params", None)
     if model_provider_info_fn is None or not callable(model_provider_info_fn):
         return None
 
     model_provider_info: dict[str, Any] = model_provider_info_fn()
-    return model_provider_info.get("ls_provider", None)
+    model_provider: Optional[str] = model_provider_info.get("ls_provider", None)
+    return model_provider
 
 
-def _get_model_settings(model) -> dict[str, Any]:
+def _get_model_settings(model: Any) -> dict[str, Any]:
     """Get the model settings from a langchain llm"""
     model_dict_fn = _get_attr(model, "dict", None)
     if model_dict_fn is None or not callable(model_dict_fn):
         return {}
 
-    model_dict: dict = model.dict()
+    model_dict: dict[str, Any] = model.dict()
     return {key: value for key, value in model_dict.items() if key in ALLOWED_MODEL_SETTINGS_KEYS and value}
 
 
-def _get_system_prompt_from_react_agent(system_prompt) -> Optional[str]:
+def _get_system_prompt_from_react_agent(system_prompt: Any) -> Optional[str]:
     """
     Get the system prompt from a react agent.
 
@@ -383,7 +399,8 @@ def _get_system_prompt_from_react_agent(system_prompt) -> Optional[str]:
     if isinstance(system_prompt, str):
         return system_prompt
 
-    return _get_attr(system_prompt, "content", None)
+    content: Optional[str] = _get_attr(system_prompt, "content", None)
+    return content
 
 
 def _get_tools_from_react_agent(tools: Any) -> Optional[list[dict[str, Any]]]:
@@ -405,7 +422,7 @@ def _get_tools_from_react_agent(tools: Any) -> Optional[list[dict[str, Any]]]:
     return _extract_tools(tools)
 
 
-def _get_tool_repr_from_langchain_base_tool(tool) -> Optional[dict[str, Any]]:
+def _get_tool_repr_from_langchain_base_tool(tool: Any) -> Optional[dict[str, Any]]:
     """Get the tool representation from a langchain base tool"""
     if tool is None or isinstance(tool, dict):
         return None
@@ -417,12 +434,12 @@ def _get_tool_repr_from_langchain_base_tool(tool) -> Optional[dict[str, Any]]:
     }
 
 
-def _is_tool_node(maybe_tool_node):
+def _is_tool_node(maybe_tool_node: Any) -> bool:
     """Check if a node is a tool node without a specific instance check"""
     return _get_attr(maybe_tool_node, "tools_by_name", None) is not None
 
 
-def _get_tools_from_graph(agent) -> list:
+def _get_tools_from_graph(agent: Any) -> list[dict[str, Any]]:
     """Get the tools from the ToolNode(s) of an agent/graph"""
     graph_tools: list[dict[str, Any]] = []
     if agent is None:
@@ -461,9 +478,9 @@ def _extract_tools(tools: Iterable[Any]) -> list[dict[str, Any]]:
 
 
 def _get_trigger_ids_from_finished_tasks(
-    queued_tasks,
+    queued_tasks: Any,
     task_trigger_channels_to_finished_tasks: dict[str, list[Union[str, tuple[str, str]]]],
-) -> list[str]:
+) -> list[Optional[str]]:
     """
     Return the set of task ids that are responsible for triggering the queued task, returning all the trigger nodes
     that wrote to the channel that the queued task consumes from.
@@ -475,7 +492,7 @@ def _get_trigger_ids_from_finished_tasks(
     task_triggers_from_task = _get_attr(queued_tasks, "triggers", [])
     task_triggers = task_triggers_from_task or []
 
-    trigger_ids: list[str] = []
+    trigger_ids: list[Optional[str]] = []
 
     for trigger in task_triggers:
         if trigger == PREGEL_PUSH:  # handle Pregel Send writes
@@ -490,7 +507,7 @@ def _get_trigger_ids_from_finished_tasks(
     return trigger_ids
 
 
-def _find_pregel_push_index(task, pregel_pushes: list[tuple[str, str]]) -> int:
+def _find_pregel_push_index(task: Any, pregel_pushes: list[tuple[str, str]]) -> int:
     """
     Find the index of a specific pregel push node in the list of pregel push nodes
     """
@@ -518,8 +535,10 @@ def _map_channel_writes_to_finished_tasks_ids(
 
 
 def _append_finished_task_to_channel_writes_map(
-    finished_task_id: str, write, channel_names_to_finished_tasks_ids: dict[str, list[Union[str, tuple[str, str]]]]
-):
+    finished_task_id: str,
+    write: Any,
+    channel_names_to_finished_tasks_ids: dict[str, list[Union[str, tuple[str, str]]]],
+) -> None:
     """
     Appends the finished task id to the map of channel names to finished tasks ids. If the write represents a
     `__pregel_tasks` write, then append both the node name it's writing to, and the finished task id.
@@ -539,7 +558,7 @@ def _append_finished_task_to_channel_writes_map(
         tasks_for_trigger.append(finished_task_id)
 
 
-def _default_span_link(span: Span) -> _SpanLink:
+def _default_span_link(span: _LLMObsSpan) -> _SpanLink:
     """
     Create a default input-to-input span link for a given span, if there are no
     referenced spans that represent the causal link. In this case, we assume

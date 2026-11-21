@@ -6,6 +6,9 @@ from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
 import pytest
 
+from tests.subprocesstest import ProcessResult
+from tests.subprocesstest import run_process
+
 
 def _validate_version_str(version_str: str, field_name: str, integration_name: str, dep_name: str) -> list[str]:
     errors = []
@@ -159,7 +162,10 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
 
             command = pip_command + ["index", "versions", dep_name]
             try:
-                result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30)
+                try:
+                    result = run_process(*command, text=True, timeout=30)
+                except subprocess.TimeoutExpired:
+                    result = run_process(*command, text=True, timeout=30)
 
                 if result.returncode != 0:
                     error_detail = f"Return Code: {result.returncode}"
@@ -184,3 +190,19 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
                 )
 
     assert not errors, "\n".join(errors)
+
+
+@pytest.mark.parametrize("outcome", ["recovery", "timeout", "missing"])
+def test_pypi_check_timeout_handling(mocker, outcome):
+    timeout = subprocess.TimeoutExpired("pip", 30)
+    success = ProcessResult("1.0", "", 0, 1)
+    missing = ProcessResult("", "No matching distribution found", 1, 1)
+    results = {"recovery": [timeout, success], "timeout": [timeout, timeout], "missing": [missing]}
+    run = mocker.patch(f"{__name__}.run_process", side_effect=results[outcome])
+    registry = [{"is_external_package": True, "integration_name": "example", "dependency_names": ["example"]}]
+    if outcome == "recovery":
+        test_external_dependencies_exist_on_pypi(registry)
+    else:
+        with pytest.raises(AssertionError, match="Timeout checking" if outcome == "timeout" else "No matching"):
+            test_external_dependencies_exist_on_pypi(registry)
+    assert run.call_count == (1 if outcome == "missing" else 2)

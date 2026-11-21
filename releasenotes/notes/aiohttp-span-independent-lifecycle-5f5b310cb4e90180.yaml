@@ -6,14 +6,11 @@ features:
     the handshake, independently of the socket lifetime.
 fixes:
   - |
-    aiohttp: Fixes unfinished request spans and loss of IAST sources when both a
-    parent application and its sub-application are instrumented with ``trace_app``.
+    aiohttp: Fixes unfinished request spans when both a parent application and its
+    sub-application are instrumented with ``trace_app``.
   - |
     aiohttp: Fixes missing response status, headers, and resource information on
     request spans when an earlier response preparation callback fails.
   - |
     aiohttp: Fixes missing or incorrect response metadata when timeout or other
     middleware runs request handlers in child tasks.
-  - |
-    aiohttp: Fixes missing IAST findings when request handlers return before
-    response headers are prepared.

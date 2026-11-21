@@ -22,12 +22,14 @@ from ddtrace._trace.pin import Pin
 # ownership contract on its definition in ddtrace/_trace/subscribers/http_client.py.
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.botocore.constants import BEDROCK_COMPONENT
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_api_operation
@@ -40,7 +42,6 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
-from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.propagation.http import HTTPPropagator
 
 from .services.bedrock import _resolve_inference_profile_in_progress
@@ -289,18 +290,21 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin().onto(botocore.parsers.ResponseParser)
     _PATCHED_SUBMODULES.clear()
+    # Let products (LLMObs) attach their own Bedrock LlmEvents subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(BEDROCK_COMPONENT)
 
 
 def unpatch():
     _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
         botocore.client._datadog_patch = False
+        integration_hooks.on_unpatch(BEDROCK_COMPONENT)
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
         # The before-sign handler is registered per-client on its own emitter
@@ -382,7 +386,6 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "params": params,
         "pin": pin,
         "trace_operation": trace_operation,
-        "integration": botocore._datadog_integration,
     }
 
     patching_fn = patched_api_call_fallback

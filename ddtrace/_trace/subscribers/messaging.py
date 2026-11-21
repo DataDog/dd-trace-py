@@ -13,7 +13,6 @@ from ddtrace.propagation.http import HTTPPropagator
 
 
 class MessagingProduceSubscriber(TracingSubscriber[MessagingProducerEvent]):
-    auto_register = False
     event_names = (MessagingProducerEvent.event_name,)
 
     @classmethod
@@ -38,7 +37,6 @@ class MessagingProduceSubscriber(TracingSubscriber[MessagingProducerEvent]):
 
 
 class MessagingConsumeSubscriber(TracingSubscriber[MessagingConsumeEvent]):
-    auto_register = False
     event_names = (MessagingConsumeEvent.event_name,)
 
     @classmethod
