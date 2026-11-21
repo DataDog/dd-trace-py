@@ -4,6 +4,10 @@ Paths are repository-relative. Read the closest current reference implementation
 copying a synthetic patch module. For a small edit to an existing integration, apply only the
 steps affected by the change.
 
+Before choosing interception points, use [behavioral validation](behavioral-validation.md) to map
+the library's operations and select applicable compatibility and lifecycle checks. Keep that evidence
+in tests and the PR description; no separate design document is required.
+
 ## Patch and configuration
 
 - Implement `patch()`, `unpatch()`, `get_version()`, and `_supported_versions()` in

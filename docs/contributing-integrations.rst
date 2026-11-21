@@ -30,26 +30,20 @@ and it's supported configurations. This module should be referenced in the ``doc
 What tools does an integration rely on?
 ---------------------------------------
 
-Integrations rely primarily on Wrapt, the Pin API, and the Core API.
+Choose interception points from the library's supported operations. Prefer a supported SDK hook or
+interceptor when it provides the necessary coverage. For Python functions that need wrapping, evaluate
+``ddtrace.internal.wrapping.wrap``, which preserves the function object by modifying its code.
 
-The `Wrapt <https://pypi.org/project/wrapt/>`_ library is the main piece of code that ``ddtrace`` uses to hook
-into the runtime execution of third-party libraries. The essential task of writing an integration is determining
-the functions in the third-party library that would serve as useful entrypoints and wrapping them with ``wrap_function_wrapper``.
-There are exceptions, but this is generally a useful starting point.
+Use `Wrapt <https://pypi.org/project/wrapt/>`_ when the target or compatibility requirements need it.
+Verify the chosen mechanism across supported Python versions and preserve patch/unpatch symmetry.
+The Pin API remains in existing integrations but should not be introduced into new integrations.
 
-The Pin API in ``ddtrace._trace.pin.Pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
-that can store configuration data in memory in a manner that is accessible from within functions wrapped by Wrapt.
-``Pin`` objects are most often used for storing configuration data scoped to a given integration, such as
-enable/disable flags and service name overrides.
+The Core API in ``ddtrace.internal.core`` separates integration code from Products.
+New standard integrations should emit typed events through ``core.context_with_event``;
+preserve the event/handler contract when extending existing ``core.context_with_data`` integrations.
 
-The Core API in ``ddtrace.internal.core`` is the abstraction layer between the integration code and code for
-Products. The integration builds and maintains a tree of ``ExecutionContext`` objects representing the state
-of the library's execution by calling ``core.context_with_data``. The integration also emits events indicating
-interesting occurrences in the library at runtime via ``core.dispatch``. This approach means that integrations
-do not need to include any code that references Products, like knowing about Spans or the WAF.
-
-The combination of these three tools lets integration code provide richly configured execution data to Product
-code while maintaining useful encapsulation.
+Hook selection is independent of this event lifecycle. Integrations emit execution data so
+Products can handle concerns such as spans and the WAF.
 
 
 What versions of a given library should an integration support?
