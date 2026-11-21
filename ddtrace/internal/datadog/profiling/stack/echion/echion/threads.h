@@ -43,6 +43,8 @@ class ThreadInfo
     uintptr_t thread_id;
     unsigned long native_id;
     FrameStack python_stack;
+    // Addresses of the frames read for python_stack, innermost first. Only filled for asyncio threads.
+    std::vector<PyObject*> python_stack_frame_addrs;
     UnwindResult python_stack_unwind_result = UnwindResult::Unknown();
     std::vector<std::unique_ptr<StackInfo>> current_tasks;
     std::vector<std::unique_ptr<StackInfo>> current_greenlets;

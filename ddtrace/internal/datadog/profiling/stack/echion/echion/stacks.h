@@ -61,13 +61,15 @@ class EchionSampler;
 // Disabling detection always returns Unknown. With detection enabled, only a
 // reportable frame beyond the limit proves Truncated; reaching the end proves
 // NotTruncated. An incomplete probe (read failure, cycle, or safety limit) stays Unknown.
+// When frame_addrs is set, the address of every frame read is appended to it, innermost first.
 UnwindResult
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
              size_t max_frames_to_add,
-             bool detect_truncation);
+             bool detect_truncation,
+             std::vector<PyObject*>* frame_addrs = nullptr);
 
 // Convenience variant that owns a local scratch set, for callers that have no
 // reusable scratch to share (fuzz harnesses and other callers outside the
@@ -81,8 +83,13 @@ unwind_frame(EchionSampler& echion,
 
 // ----------------------------------------------------------------------------
 // Failure to copy the initial C frame aborts unwinding before task/greenlet discovery.
+// When frame_addrs is set, it is replaced with the addresses of the frames read, innermost first.
 Result<UnwindResult>
-unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames);
+unwind_python_stack(EchionSampler& echion,
+                    PyThreadState* tstate,
+                    FrameStack& stack,
+                    size_t max_frames,
+                    std::vector<PyObject*>* frame_addrs = nullptr);
 
 // ----------------------------------------------------------------------------
 class StackInfo

@@ -53,7 +53,8 @@ unwind_frame(EchionSampler& echion,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
              size_t max_frames_to_add,
-             bool detect_truncation)
+             bool detect_truncation,
+             std::vector<PyObject*>* frame_addrs)
 {
     seen_frames.clear();
     // Having no remaining frame budget does not prove truncation: frame_addr
@@ -82,6 +83,9 @@ unwind_frame(EchionSampler& echion,
         }
 
         seen_frames.insert(current_frame_addr);
+        if (frame_addrs != nullptr) {
+            frame_addrs->push_back(current_frame_addr);
+        }
         bool is_in_gc = current_frame_addr == echion.current_gc_frame();
 
 #if PY_VERSION_HEX >= 0x030b0000
@@ -134,9 +138,16 @@ unwind_frame(EchionSampler& echion,
 }
 
 Result<UnwindResult>
-unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames)
+unwind_python_stack(EchionSampler& echion,
+                    PyThreadState* tstate,
+                    FrameStack& stack,
+                    size_t max_frames,
+                    std::vector<PyObject*>* frame_addrs)
 {
     stack.clear();
+    if (frame_addrs != nullptr) {
+        frame_addrs->clear();
+    }
 #if PY_VERSION_HEX >= 0x030b0000
     if (stack_chunk == nullptr) {
         stack_chunk = new StackChunk();
@@ -161,5 +172,5 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
-    return unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames, true);
+    return unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames, true, frame_addrs);
 }
