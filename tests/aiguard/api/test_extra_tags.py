@@ -68,7 +68,7 @@ def test_evaluate_id_from_backend_response_document(mock_execute_request, ai_gua
     # data.id, no extra_metastruct, and attributes the tracer does not read (global_prob).
     evaluate_id = "8f1c6a52-0a43-4c3e-9b8e-2d6f4f1e7a90"
     response = mock_evaluate_response("ALLOW", reason="No rule match.", tag_probs={"jailbreak": 0.01})
-    document = response.get_json.return_value
+    document = response.response.get_json.return_value
     document["data"].update({"id": evaluate_id, "type": "evaluations"})
     document["data"]["attributes"].update(
         {"global_prob": 0.01, "extra_tags": [{"key": "ai_guard.evaluate_id", "value": evaluate_id}]}
@@ -287,7 +287,7 @@ def test_extra_tags_unsupported_entries_are_skipped(mock_execute_request, ai_gua
         {"key": None, "value": "none key"},
         {"key": "", "value": "empty key"},
     ]
-    attributes = response.get_json.return_value["data"]["attributes"]
+    attributes = response.response.get_json.return_value["data"]["attributes"]
     attributes["extra_tags"] = malformed + _kv(
         {
             "ai_guard.none": None,
@@ -318,8 +318,8 @@ def test_extra_tags_unsupported_entries_are_skipped(mock_execute_request, ai_gua
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_extra_tags_null_is_ignored(mock_execute_request, ai_guard_client, test_spans):
     response = mock_evaluate_response("ALLOW")
-    response.get_json.return_value["data"]["attributes"]["extra_tags"] = None
-    response.get_json.return_value["data"]["attributes"]["extra_metastruct"] = None
+    response.response.get_json.return_value["data"]["attributes"]["extra_tags"] = None
+    response.response.get_json.return_value["data"]["attributes"]["extra_metastruct"] = None
     mock_execute_request.return_value = response
 
     assert ai_guard_client.evaluate(PROMPT)["action"] == "ALLOW"
@@ -353,7 +353,9 @@ def test_extra_tags_failure_inside_apply_does_not_fail_evaluation(mock_execute_r
             raise RuntimeError("boom")
 
     response = mock_evaluate_response("ALLOW")
-    response.get_json.return_value["data"]["attributes"]["extra_tags"] = ExplodingList([{"key": "a", "value": "b"}])
+    response.response.get_json.return_value["data"]["attributes"]["extra_tags"] = ExplodingList(
+        [{"key": "a", "value": "b"}]
+    )
     mock_execute_request.return_value = response
 
     assert ai_guard_client.evaluate(PROMPT)["action"] == "ALLOW"

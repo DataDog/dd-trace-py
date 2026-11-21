@@ -2,10 +2,12 @@
 
 from collections.abc import Iterator
 from copy import deepcopy
+from dataclasses import dataclass
 import json
 import re
 from typing import Any
 from typing import Optional
+from typing import Protocol
 from typing import TypedDict
 from urllib.parse import urlparse
 
@@ -36,10 +38,13 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils_base import set_client_address_tags
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal import agent
 from ddtrace.internal import core
+from ddtrace.internal import forksafe
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.agent import AGENT_CHECK_INTERVAL
 from ddtrace.internal.http import HTTPConnection
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.native import ConnectionFailedError
@@ -49,10 +54,14 @@ from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.otel_semantics import http as otel_http
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
+from ddtrace.internal.threads import Thread
+from ddtrace.internal.threads import original_Event
 from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.time import HourGlass
 from ddtrace.version import __version__
 
 
@@ -141,6 +150,10 @@ class AIGuardClientError(Exception):
         super().__init__(message)
 
 
+class _NoAgentRouteError(AIGuardClientError):
+    """No transport is available: no credentials, and no Agent advertising the AI Guard route."""
+
+
 class AIGuardAbortError(DDBlockException):
     """Exception to abort current execution due to security policy.
 
@@ -195,6 +208,23 @@ def _status_tag(status: Optional[int]) -> str:
     return str(status) if status in AI_GUARD.STATUSES else AI_GUARD.STATUS_OTHER
 
 
+# Error types that are transport outcomes; any other classification is tagged as other.
+_AGENT_ERROR_TYPES = frozenset((AI_GUARD.ERROR_TIMEOUT, AI_GUARD.ERROR_CONNECTION, AI_GUARD.ERROR_NETWORK))
+
+
+def _agent_status_tag(status: Optional[int]) -> str:
+    """Report the status of an Agent request, including success, clamped to a bounded allowlist."""
+    if status is None:
+        return AI_GUARD.STATUS_NONE
+    return str(status) if status in AI_GUARD.AGENT_STATUSES else AI_GUARD.AGENT_STATUS_OTHER
+
+
+def _agent_error_type(error_type: Optional[str]) -> str:
+    if error_type is None:
+        return AI_GUARD.AGENT_ERROR_NONE
+    return error_type if error_type in _AGENT_ERROR_TYPES else AI_GUARD.AGENT_ERROR_OTHER
+
+
 # What replaces an endpoint anywhere it would otherwise be reported.
 _REDACTED = "<endpoint>"
 
@@ -213,30 +243,151 @@ def _scrub_urls(text: str) -> str:
     return _URL_RE.sub(_REDACTED, text)
 
 
+@dataclass(frozen=True)
+class _TransportResponse:
+    response: Response
+    agent_error_code: Optional[str] = None
+    route_gone: bool = False
+
+
+class _AIGuardTransport(Protocol):
+    name: str
+    endpoint: str
+
+    def send(self, url: str, payload: Any) -> _TransportResponse: ...
+
+    def describe_bad_status(self, result: _TransportResponse) -> str: ...
+
+
+def _request_headers() -> dict[str, str]:
+    return {
+        "Content-Type": "application/json",
+        "DD-AI-GUARD-VERSION": __version__,
+        "DD-AI-GUARD-SOURCE": "SDK",
+        "DD-AI-GUARD-LANGUAGE": "python",
+    }
+
+
+def _post_json(
+    base_url: str, target: str, payload: Any, headers: dict[str, str], timeout: int, response_headers: tuple[str, ...]
+) -> tuple[Response, dict[str, Optional[str]]]:
+    conn = HTTPConnection(base_url, timeout=timeout)
+    try:
+        json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
+        conn.request("POST", target, json_body, headers)
+        resp = conn.getresponse()
+        return Response.from_http_response(resp), {name: resp.getheader(name) for name in response_headers}
+    finally:
+        conn.close()
+
+
+class _DirectTransport:
+    """Calls the AI Guard API with the service's own credentials."""
+
+    name: str = AI_GUARD.TRANSPORT_DIRECT
+
+    def __init__(self, endpoint: str, api_key: Optional[str], app_key: Optional[str]):
+        self.endpoint = endpoint
+        self._timeout = aiguard_config._ai_guard_timeout // 1000
+        self._headers = _request_headers()
+        # Each key is sent on its own, so a caller passing only one keeps the header it used to send.
+        if api_key:
+            self._headers["DD-API-KEY"] = api_key
+        if app_key:
+            self._headers["DD-APPLICATION-KEY"] = app_key
+
+    def send(self, url: str, payload: Any) -> _TransportResponse:
+        parsed = urlparse(url)
+        # Userinfo is dropped rather than forwarded: AI Guard authenticates with headers, and the
+        # transport logs and quotes the base URL it is given.
+        base_url = f"{parsed.scheme}://{parsed.netloc.rpartition('@')[2]}"
+        target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+        response, _ = _post_json(base_url, target, payload, self._headers, self._timeout, ())
+        return _TransportResponse(response)
+
+    def describe_bad_status(self, result: _TransportResponse) -> str:
+        return f"AI Guard service call failed, status: {result.response.status}"
+
+
+class _AgentTransport:
+    """Sends evaluations through the local Agent proxy route; the Agent attaches the credentials."""
+
+    name: str = AI_GUARD.TRANSPORT_AGENT
+    endpoint: str = f"{AI_GUARD.AGENT_PROXY_ENDPOINT}{AI_GUARD.AGENT_PROXY_API_PATH}"
+
+    def __init__(self, base_url: Optional[str] = None):
+        """base_url pins the Agent instead of using the process-wide discovery."""
+        self._base_url = base_url
+        self._timeout = aiguard_config._ai_guard_timeout // 1000
+        self._headers = _request_headers()
+
+    def resolve_base_url(self) -> str:
+        if self._base_url is not None:
+            return self._base_url
+        base_url, reason = _agent_route.resolve()
+        if base_url is None:
+            raise _NoAgentRouteError(
+                message=(
+                    "No way to reach AI Guard: provide DD_API_KEY and DD_APP_KEY, "
+                    f"or run an Agent configured with an application key ({reason})"
+                )
+            )
+        return base_url
+
+    def send(self, url: str, payload: Any) -> _TransportResponse:
+        # The native client keeps the path of an HTTP base URL, and for a Unix socket the base
+        # names the socket, so the target is the request path alone.
+        response, headers = _post_json(
+            self.resolve_base_url(),
+            url,
+            payload,
+            self._headers,
+            self._timeout,
+            (AI_GUARD.AGENT_ERROR_HEADER, AI_GUARD.AGENT_VERSION_HEADER),
+        )
+        # Only the Agent route sets its version header, so a 404 without it means the route is gone.
+        # A pinned Agent does not own the shared discovery state.
+        route_gone = (
+            response.status == 404 and headers[AI_GUARD.AGENT_VERSION_HEADER] is None and self._base_url is None
+        )
+        if route_gone:
+            _agent_route.invalidate("the Agent no longer advertises the AI Guard proxy route")
+        return _TransportResponse(response, headers[AI_GUARD.AGENT_ERROR_HEADER], route_gone)
+
+    def describe_bad_status(self, result: _TransportResponse) -> str:
+        status = result.response.status
+        if status in (401, 403):
+            return (
+                f"AI Guard rejected the Agent's credentials, status: {status}. The Agent's API key "
+                "and application key must be valid and allowed to evaluate AI Guard requests."
+            )
+        if result.route_gone:
+            return "The Agent no longer serves the AI Guard proxy route, status: 404"
+        return f"AI Guard service call failed, status: {status}"
+
+
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
-    def __init__(self, endpoint: str, api_key: str, app_key: str):
+    def __init__(
+        self,
+        endpoint: str = "",
+        api_key: Optional[str] = None,
+        app_key: Optional[str] = None,
+        transport: Optional[_AIGuardTransport] = None,
+    ):
         """Initialize AI Guard client.
 
         Args:
             endpoint: AI Guard service endpoint URL
             api_key: Datadog API key
             app_key: Datadog application key
+            transport: how evaluations reach AI Guard; defaults to calling endpoint directly
+                with the given keys
         """
-        self._endpoint = endpoint
-        self._headers = {
-            "Content-Type": "application/json",
-            "DD-API-KEY": api_key,
-            "DD-APPLICATION-KEY": app_key,
-            "DD-AI-GUARD-VERSION": __version__,
-            "DD-AI-GUARD-SOURCE": "SDK",
-            "DD-AI-GUARD-LANGUAGE": "python",
-        }
-
+        self._transport = transport or _DirectTransport(endpoint, api_key, app_key)
+        self._endpoint = self._transport.endpoint
         self._meta = {"service": config.service, "env": config.env}
-
-        self._timeout = aiguard_config._ai_guard_timeout // 1000
 
     @staticmethod
     def _call_path_tags(source: str, integration: str) -> tuple[tuple[str, str], ...]:
@@ -254,6 +405,28 @@ class AIGuardClient:
     @staticmethod
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.REQUESTS_METRIC, 1, tags)
+
+    def _add_transport_to_telemetry(self) -> None:
+        telemetry.telemetry_writer.add_gauge_metric(
+            TELEMETRY_NAMESPACE.AI_GUARD,
+            AI_GUARD.TRANSPORT_METRIC,
+            1,
+            ((AI_GUARD.TRANSPORT_TAG, self._transport.name),),
+        )
+
+    def _add_agent_request_to_telemetry(
+        self, status: Optional[int], error_type: Optional[str], agent_error: Optional[str] = None
+    ) -> None:
+        if self._transport.name != AI_GUARD.TRANSPORT_AGENT:
+            return
+        tags = (
+            (AI_GUARD.STATUS_CODE_TAG, _agent_status_tag(status)),
+            (AI_GUARD.ERROR_TYPE_TAG, _agent_error_type(error_type)),
+            (AI_GUARD.AGENT_ERROR_TAG, agent_error or AI_GUARD.AGENT_ERROR_NONE),
+        )
+        telemetry.telemetry_writer.add_count_metric(
+            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.AGENT_REQUESTS_METRIC, 1, tags
+        )
 
     @staticmethod
     def _add_error_to_telemetry(error_type: str, tags: tuple[tuple[str, str], ...], count: int = 1) -> None:
@@ -500,16 +673,25 @@ class AIGuardClient:
                     for middleware in _MIDDLEWARES:
                         _call_hook(middleware.pre_evaluate, context)
 
-                transport_error = None
+                self._add_transport_to_telemetry()
+                transport_error: Optional[AIGuardClientError] = None
                 try:
-                    response = self._execute_request(f"{self._endpoint}/evaluate", payload)
+                    sent = self._execute_request(f"{self._endpoint}/evaluate", payload)
+                except _NoAgentRouteError as e:
+                    # Nothing was sent, so there is no Agent request to count.
+                    error_type = AI_GUARD.ERROR_CONNECTION
+                    transport_error = e
                 except Exception as e:
                     error_type = _classify_transport_error(e)
                     transport_error = AIGuardClientError(message=self._describe_transport_error(e))
+                    self._add_agent_request_to_telemetry(None, error_type)
+                else:
+                    self._add_agent_request_to_telemetry(sent.response.status, None, sent.agent_error_code)
                 if transport_error is not None:
                     # Raised outside the handler on purpose: that leaves __cause__ and __context__
                     # empty, so nothing can render the transport failure or its endpoint again.
                     raise transport_error
+                response = sent.response
 
                 try:
                     result = response.get_json() or {}
@@ -593,7 +775,7 @@ class AIGuardClient:
                     error_type = AI_GUARD.ERROR_BAD_STATUS
                     error_status = response.status
                     raise AIGuardClientError(
-                        message=f"AI Guard service call failed, status: {response.status}",
+                        message=self._transport.describe_bad_status(sent),
                         status=response.status,
                         errors=result["errors"] if "errors" in result else None,
                     )
@@ -709,20 +891,127 @@ class AIGuardClient:
             logger.debug("Could not render AI Guard transport error message (%s)", type(exc).__name__)
             return header
 
-    def _execute_request(self, url: str, payload: Any) -> Response:
-        parsed = urlparse(url)
-        # Userinfo is dropped rather than forwarded: AI Guard authenticates with the DD-API-KEY and
-        # DD-APPLICATION-KEY headers, and the transport logs and quotes the base URL it is given.
-        base_url = f"{parsed.scheme}://{parsed.netloc.rpartition('@')[2]}"
-        conn = HTTPConnection(base_url, timeout=self._timeout)
+    def _execute_request(self, url: str, payload: Any) -> _TransportResponse:
+        return self._transport.send(url, payload)
+
+
+class _AgentRouteDiscovery:
+    """Process-wide discovery of the Agent AI Guard proxy route.
+
+    The route can appear after startup, so absence is re-checked at most once per
+    AGENT_CHECK_INTERVAL; transient failures are retried by the next evaluation.
+    """
+
+    def __init__(self) -> None:
+        self._lock = forksafe.Lock()
+        self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
+        self._base_url: Optional[str] = None
+        self._generation = 0
+        self._pending: Optional[original_Event] = None
+        self._started = False
+        self._reason = "the Agent has not been checked for the AI Guard proxy route yet"
+
+    def _probe(self, generation: int, completed: original_Event) -> None:
+        """Check the Agent outside the lock; a stale generation discards the result."""
+        unsupported = False
+        base_url, reason = None, "the Agent /info endpoint could not be read"
         try:
-            json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
-            target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
-            conn.request("POST", target, json_body, self._headers)
-            resp = conn.getresponse()
-            return Response.from_http_response(resp)
-        finally:
-            conn.close()
+            info = agent.info(raise_on_404=True)
+            if info is not None:
+                endpoints = {endpoint.lstrip("/") for endpoint in (info.get("endpoints") or [])}
+                unsupported = AI_GUARD.AGENT_PROXY_ENDPOINT.lstrip("/") not in endpoints
+                reason = "the Agent does not advertise the AI Guard proxy route" if unsupported else ""
+                base_url = agent_config.trace_agent_url.rstrip("/") if not unsupported else None
+        except agent.AgentInfoNotFoundError:
+            unsupported = True
+            reason = "the Agent does not expose the /info endpoint"
+        except Exception:
+            logger.debug("Could not read the Agent /info endpoint", exc_info=True)
+            unsupported = False
+            base_url, reason = None, "the Agent /info endpoint could not be read"
+
+        with self._lock:
+            if generation == self._generation:
+                self._base_url = base_url
+                self._reason = reason
+                self._pending = None
+                if unsupported:
+                    self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
+                    self._throttle.turn()
+        completed.set()
+
+    def resolve(self) -> tuple[Optional[str], str]:
+        """Return the Agent connection base, or None and why there is none."""
+        with self._lock:
+            if self._base_url is not None:
+                return self._base_url, ""
+            completed = self._pending
+            if completed is None and self._throttle.trickling():
+                return None, self._reason
+            probe = completed is None
+            if completed is None:
+                completed = self._pending = forksafe.Event()
+                self._reason = "the Agent AI Guard proxy discovery is still in progress"
+            generation = self._generation
+
+        if probe:
+            self._probe(generation, completed)
+        else:
+            # Share the in-flight probe, bounded in case its thread is delayed.
+            completed.wait(agent_config.trace_agent_timeout_seconds)
+
+        with self._lock:
+            return self._base_url, self._reason
+
+    def reset(self) -> None:
+        """Forget everything discovered so far, including the throttle. For tests."""
+        with self._lock:
+            self._base_url = None
+            self._generation += 1
+            self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
+            completed, self._pending = self._pending, None
+            self._started = False
+            self._reason = "the Agent has not been checked for the AI Guard proxy route yet"
+        if completed is not None:
+            completed.set()
+
+    def invalidate(self, reason: str) -> None:
+        """Forget the route and go back to discovery, as after the Agent was replaced."""
+        with self._lock:
+            self._base_url = None
+            self._generation += 1
+            completed, self._pending = self._pending, None
+            self._started = False
+            self._reason = reason
+            # A fresh glass: turn() on a running one flips it back and skips the delay.
+            self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
+            self._throttle.turn()
+        if completed is not None:
+            completed.set()
+
+    def start(self) -> None:
+        """Run the first check in the background, so a slow Agent cannot delay startup."""
+        with self._lock:
+            if self._started:
+                return
+            self._started = True
+            generation = self._generation
+
+        def discover() -> None:
+            self.resolve()
+
+        try:
+            thread = Thread(target=discover, name="ddtrace.aiguard.discovery")
+            thread.start()
+        except Exception:
+            with self._lock:
+                if generation == self._generation:
+                    self._started = False
+            raise
+
+
+_agent_route = _AgentRouteDiscovery()
+forksafe.register(_agent_route.reset)
 
 
 def new_ai_guard_client(
@@ -730,13 +1019,22 @@ def new_ai_guard_client(
 ) -> AIGuardClient:
     api_key = config._dd_api_key
     app_key = config._dd_app_key
-    if not api_key or not app_key:
-        raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
 
-    if not endpoint:
-        endpoint = aiguard_config._ai_guard_endpoint
-    if not endpoint:
-        site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
-        endpoint = f"https://{site}/api/v2/ai-guard"
+    # Credentials on the service win over the Agent route.
+    if api_key and app_key:
+        if not endpoint:
+            endpoint = aiguard_config._ai_guard_endpoint
+        if not endpoint:
+            site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
+            endpoint = f"https://{site}/api/v2/ai-guard"
+        return AIGuardClient(endpoint, api_key, app_key)
 
-    return AIGuardClient(endpoint, api_key, app_key)
+    # Without both keys, the Agent proxies AI Guard with its own credentials. An endpoint override
+    # names a direct endpoint, so it does not apply. The route is resolved per evaluation, so an
+    # Agent that is not ready yet does not prevent setup.
+    try:
+        _agent_route.start()
+    except (OSError, RuntimeError):
+        # Evaluations can still discover the Agent synchronously.
+        logger.debug("Could not start AI Guard Agent discovery in the background", exc_info=True)
+    return AIGuardClient(transport=_AgentTransport())

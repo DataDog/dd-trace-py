@@ -104,7 +104,7 @@ class TestErrorTelemetryTags:
     def test_rejection_carries_the_status(self, add_count_metric, ai_guard_client, status, expected_status):
         """401 (bad app key), 403/404 (entitlement or wrong endpoint) and 429 all used to look alike."""
         response = mock_evaluate_response("ALLOW")
-        response.status = status
+        response.response.status = status
 
         with patch.object(ai_guard_client, "_execute_request", return_value=response):
             with pytest.raises(AIGuardClientError):

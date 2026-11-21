@@ -809,7 +809,10 @@ AI Guard
        Master switch for AI Guard. When set to ``True``, the tracer evaluates LLM prompts, tool calls
        and tool results of the instrumented integrations with the Datadog AI Guard service. When set
        to ``False`` (default), AI Guard is not loaded and every other ``DD_AI_GUARD_*`` option is
-       ignored. Requires ``DD_API_KEY`` and ``DD_APP_KEY``.
+       ignored. With both ``DD_API_KEY`` and ``DD_APP_KEY`` set, evaluations go directly to
+       AI Guard. Otherwise, evaluations use the local Datadog Agent if it advertises the
+       AI Guard proxy and is configured with an application key. If neither transport is
+       available, client initialization succeeds but evaluations fail until a route becomes available.
 
    DD_AI_GUARD_ENDPOINT:
      type: String
@@ -817,7 +820,8 @@ AI Guard
      description: |
        Overrides the AI Guard service endpoint. When unset, the endpoint is
        ``https://app.<DD_SITE>/api/v2/ai-guard``, for example
-       ``https://app.datadoghq.com/api/v2/ai-guard``.
+       ``https://app.datadoghq.com/api/v2/ai-guard``. Applies only when both ``DD_API_KEY`` and
+       ``DD_APP_KEY`` are set; it does not override the Agent transport.
 
    DD_AI_GUARD_TIMEOUT:
      type: Integer
