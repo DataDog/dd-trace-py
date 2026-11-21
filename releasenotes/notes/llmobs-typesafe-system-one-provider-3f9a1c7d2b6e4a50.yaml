@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: TypeSafe System One spans now report the model provider of Microsoft Foundry (``azure``), Cloudflare,
+    Liquid, and meraGPT servers, detected from the client base URL, instead of ``typesafe``.
