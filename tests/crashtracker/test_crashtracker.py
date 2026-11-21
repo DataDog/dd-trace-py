@@ -459,10 +459,19 @@ def test_crashtracker_start_failure_reinstalls_segv_handler() -> None:
     # is_panic_exception matches on the module and class name of pyo3_runtime.PanicException.
     PanicException.__module__ = "pyo3_runtime"
 
+    # Load the real lock submodule first so crashtracking.start can import it
+    # after we replace the parent package with a stub.
+    import ddtrace.internal.datadog.profiling.stack._handler_swap_lock  # noqa: F401
+
     calls: list[str] = []
     stack_mod = types.ModuleType("ddtrace.internal.datadog.profiling.stack")
+    # start() only coordinates against a stack package with is_available=True
+    # (native extension present). pause_sampling False = sampler not running.
+    stack_mod.is_available = True  # type: ignore[attr-defined]
+    stack_mod.pause_sampling = lambda: False  # type: ignore[attr-defined]
     stack_mod.uninstall_segv_handler = lambda: calls.append("uninstall")  # type: ignore[attr-defined]
     stack_mod.reinstall_segv_handler = lambda: calls.append("reinstall")  # type: ignore[attr-defined]
+    stack_mod.resume_sampling = lambda: None  # type: ignore[attr-defined]
     sys.modules["ddtrace.internal.datadog.profiling.stack"] = stack_mod
 
     for exc_type in (RuntimeError, PanicException):
