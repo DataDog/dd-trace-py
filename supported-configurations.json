@@ -2370,6 +2370,16 @@
         "default": null
       }
     ],
+    "DD_KAFKA_PYTHON_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_KAFKA_PYTHON_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_KAFKA_SERVICE": [
       {
         "implementation": "A",
@@ -4622,6 +4632,13 @@
       }
     ],
     "DD_TRACE_KAFKA_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_KAFKA_PYTHON_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",

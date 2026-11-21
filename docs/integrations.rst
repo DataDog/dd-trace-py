@@ -345,6 +345,12 @@ Kafka
 
 .. automodule:: ddtrace.contrib.internal.kafka
 
+.. _kafka_python:
+
+kafka-python
+^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.kafka_python
+
 .. _kombu:
 
 kombu

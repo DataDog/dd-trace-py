@@ -1,0 +1,13 @@
+_v: 1
+name: kafka_python
+display_name: kafka-python
+description: Instruments kafka-python message publishing and consumption with distributed tracing and Data Streams Monitoring,
+  including consumer offset tracking.
+packages:
+- name: kafka-python
+category:
+- messaging.consumer
+- messaging.producer
+systems:
+- kafka
+creation_date: '2026-11-19'
