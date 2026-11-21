@@ -4,7 +4,6 @@ import inspect
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.internal.psycopg.async_connection import patched_connect_async_factory
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
@@ -114,8 +113,6 @@ def _patch(psycopg_module):
         return
     psycopg_module._datadog_patch = True
 
-    Pin(_config=config.psycopg).onto(psycopg_module)
-
     if psycopg_module.__name__ == "psycopg2":
         # patch all psycopg2 extensions
         _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
@@ -163,10 +160,6 @@ def _unpatch(psycopg_module):
                 psycopg_module.Connection.connect = _original_connect
             if _original_async_connect is not None:
                 psycopg_module.AsyncConnection.connect = _original_async_connect
-
-        pin = Pin.get_from(psycopg_module)
-        if pin:
-            pin.remove_from(psycopg_module)
 
 
 def init_cursor_from_connection_factory(psycopg_module):
