@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import sys
 from typing import Optional
 
 import mcp
@@ -94,7 +96,7 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
                 span.set_tag(ERROR_MSG, error_message)
 
         return result
-    except Exception:
+    except (Exception, asyncio.CancelledError, getattr(sys.modules.get("trio"), "Cancelled", Exception)):
         error = True
         raise
     finally:
