@@ -1,4 +1,12 @@
 rand64bits:
   func: rand64bits
+  snapstart: false
+rand64bits-snapstart:
+  func: rand64bits
+  snapstart: true
 rand128bits:
   func: rand128bits
+  snapstart: false
+rand128bits-snapstart:
+  func: rand128bits
+  snapstart: true
