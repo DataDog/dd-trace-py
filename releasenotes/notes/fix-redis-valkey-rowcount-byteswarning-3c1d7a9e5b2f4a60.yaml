@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    redis, valkey: Fixes a ``BytesWarning`` raised under ``python -b`` when a command that does not return rows
+    (for example ``INCR``) produced a non-bytes result. The row count is now only computed for row-returning commands.
