@@ -37,8 +37,8 @@ BASE_PLATFORMS = [
     "win_amd64",
 ]
 # Linux cp315 from "build linux" / "build linux serverless"; macOS cp315 from
-# "build macos". Windows still stops at 3.14. All of these are pruned from PyPI
-# until requires-python allows 3.15.
+# "build macos". Windows still stops at 3.14. UNSUPPORTED_TAGS is empty so
+# publish prune leaves these cp315 wheels alone.
 CP315_LINUX_PLATFORMS = [
     "manylinux2014_aarch64.manylinux_2_17_aarch64",
     "manylinux2014_x86_64.manylinux_2_17_x86_64",
@@ -136,19 +136,19 @@ def _listing(tmp_path, name):
     return sorted(p.name for p in (tmp_path / name).iterdir())
 
 
-def test_cp315_wheels_are_deleted_and_everything_else_survives(prune, tmp_path):
+def test_cp315_wheels_survive_when_unsupported_tags_is_empty(prune, tmp_path):
+    """cp315 is no longer in UNSUPPORTED_TAGS; prune must leave those wheels alone."""
     proc = prune("pywheels", contents={"pywheels": SUPPORTED_WHEELS + CP315_WHEELS + [SDIST]})
+    assert proc.returncode == 0
+    remaining = {p.name for p in (tmp_path / "pywheels").iterdir()}
+    assert remaining == set(SUPPORTED_WHEELS + CP315_WHEELS + [SDIST])
 
-    assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == sorted(SUPPORTED_WHEELS + [SDIST])
 
-
-def test_both_ddtrace_and_serverless_cp315_wheels_are_deleted(prune, tmp_path):
+def test_both_ddtrace_and_serverless_cp315_wheels_survive(prune, tmp_path):
     proc = prune("pywheels", contents={"pywheels": CP315_WHEELS})
-
-    assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == []
-    assert "ddtrace_serverless" in proc.stdout
+    assert proc.returncode == 0
+    remaining = {p.name for p in (tmp_path / "pywheels").iterdir()}
+    assert remaining == set(CP315_WHEELS)
 
 
 def test_pruning_is_a_no_op_when_no_cp315_is_present(prune, tmp_path):
@@ -167,7 +167,7 @@ def test_debug_symbol_archives_are_left_alone(prune, tmp_path):
     assert _listing(tmp_path, "pywheels") == sorted([symbols, SDIST])
 
 
-def test_several_directories_are_pruned_in_one_call(prune, tmp_path):
+def test_several_directories_are_accepted_in_one_call(prune, tmp_path):
     proc = prune(
         "pywheels",
         "pywheels-patched",
@@ -175,8 +175,8 @@ def test_several_directories_are_pruned_in_one_call(prune, tmp_path):
     )
 
     assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == [SDIST]
-    assert _listing(tmp_path, "pywheels-patched") == []
+    assert _listing(tmp_path, "pywheels") == sorted(CP315_WHEELS + [SDIST])
+    assert _listing(tmp_path, "pywheels-patched") == sorted(CP315_WHEELS)
 
 
 def test_an_empty_directory_is_accepted(prune, tmp_path):

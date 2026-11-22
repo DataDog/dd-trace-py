@@ -38,3 +38,17 @@ class TestVertexAIPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(vertexai.generative_models.GenerativeModel.generate_content_async)
         self.assert_not_double_wrapped(vertexai.generative_models.ChatSession.send_message)
         self.assert_not_double_wrapped(vertexai.generative_models.ChatSession.send_message_async)
+
+
+# google-cloud packages print a packages_distributions error and a FutureWarning on import under Python 3.9.
+@pytest.mark.subprocess(out=None, err=None)
+def test_patch_module_does_not_import_llmobs():
+    # patch() loads the LLMObs hooks through the ddtrace.integration_hooks entry point,
+    # but importing the contrib itself must not pull in the product.
+    import sys
+
+    import vertexai  # noqa: F401
+
+    import ddtrace.contrib.internal.vertexai.patch  # noqa: F401
+
+    assert "ddtrace.llmobs" not in sys.modules, [m for m in sys.modules if m.startswith("ddtrace.llmobs")]

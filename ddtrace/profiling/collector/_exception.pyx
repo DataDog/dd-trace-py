@@ -5,6 +5,7 @@ import threading
 import time
 from typing import Optional
 
+from ddtrace.internal import uwsgi as _uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
@@ -69,12 +70,12 @@ cdef _SamplerState _state = None
 cdef bint _collecting = False
 
 
-cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object frame) except *:
+cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object frame, int count) except *:
     if not ddup.is_available:
         return
 
     cdef object handle = ddup.SampleHandle()
-    handle.push_exceptioninfo(exc_type, 1)
+    handle.push_exceptioninfo(exc_type, count)
 
     # Custom exception __str__ can raise, so guard with fallbacks.
     if state.collect_message:
@@ -146,9 +147,10 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
             state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
         state.counter = 0
 
-        # At the raise site the head of the traceback is the raising frame;
-        # its f_back chain is the full Python stack up to the entry point.
-        _collect_exception(state, type(exception), exception, tb.tb_frame)
+        # Each sampled exception is weighted by sampling_interval (R) so the
+        # reported count is an unbiased estimator of the true exception volume
+        # E[k * R] = (N/R) * R = N.
+        _collect_exception(state, type(exception), exception, tb.tb_frame, state.sampling_interval)
     except Exception:
         LOG.debug("[profiling] Failed to collect exception", exc_info=True)
     finally:
@@ -186,6 +188,15 @@ class ExceptionCollector(collector.Collector):
 
         if not HAS_MONITORING:
             LOG.debug("[profiling] Exception profiling only supports Python 3.12+, skipping")
+            return
+
+        # Enabling the RAISE event walks the frames of every thread state, which can crash in such a worker.
+        if _uwsgi.forked_without_fork_hooks():
+            LOG.warning(
+                "Exception profiling is disabled in this uWSGI worker because the master forked it without "
+                "running the Python fork hooks. Enable the lazy-apps or py-call-uwsgi-fork-hooks uWSGI option "
+                "to restore this feature."
+            )
             return
 
         if _state is not None:

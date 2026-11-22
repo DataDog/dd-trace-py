@@ -1327,6 +1327,152 @@ class TestXdistAtrCrashRequeue:
         settings["flaky_test_retries_enabled"] = True
         settings["known_tests_enabled"] = True
 
+    @pytest.mark.parametrize("shared_ledger", [False, True])
+    @pytest.mark.parametrize("marker_scope", ["function", "class", "module", "parameter"])
+    def test_excluded_crash_is_not_requeued(
+        self, mock_server: MockCIVisibilityServer, test_project: Path, shared_ledger: bool, marker_scope: str
+    ) -> None:
+        settings = _settings_attributes()
+        self._enable_atr(settings)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+        attempt_file = test_project / "attempts.txt"
+        if not shared_ledger:
+            (test_project / "conftest.py").write_text(
+                textwrap.dedent("""\
+                    from pathlib import Path
+                    import pytest
+
+                    @pytest.hookimpl(tryfirst=True)
+                    def pytest_configure(config):
+                        if hasattr(config, "workerinput"):
+                            config.workerinput["dd_atr_crash_retry_state"] = str(
+                                Path(__file__).with_name("controller-only") / "crash_retries.json"
+                            )
+                """)
+            )
+        declarations = {
+            "function": "@pytest.mark.dd_no_auto_retry\ndef test_excluded_crash():\n    crash()\n",
+            "class": (
+                "@pytest.mark.dd_no_auto_retry\nclass TestExcluded:\n"
+                "    def test_excluded_crash(self):\n        crash()\n"
+            ),
+            "module": "pytestmark = pytest.mark.dd_no_auto_retry\ndef test_excluded_crash():\n    crash()\n",
+            "parameter": (
+                '@pytest.mark.parametrize("unused", [pytest.param(0, marks=pytest.mark.dd_no_auto_retry)])\n'
+                "def test_excluded_crash(unused):\n    crash()\n"
+            ),
+        }
+        (test_project / "test_excluded_crash.py").write_text(
+            textwrap.dedent("""\
+                import os
+                from pathlib import Path
+                import pytest
+
+                def crash():
+                    attempts = Path(__file__).with_name("attempts.txt")
+                    count = int(attempts.read_text()) if attempts.exists() else 0
+                    attempts.write_text(str(count + 1))
+                    os._exit(1)
+
+            """)
+            + declarations[marker_scope]
+        )
+        _git_commit(test_project)
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "1",
+            "--max-worker-restart=5",
+            env=_make_env(mock_server.url, extra={"DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "2"}),
+            timeout=90,
+        )
+
+        assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        assert attempt_file.read_text() == "1"
+        assert "xdist_worker_crash" not in result.stdout
+
+    def test_concurrent_crashes_retry_while_replacement_collects(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        settings = _settings_attributes()
+        self._enable_atr(settings)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+        (test_project / "conftest.py").write_text(
+            textwrap.dedent("""\
+            from pathlib import Path
+            import time
+            import pytest
+
+            ROOT = Path(__file__).parent
+
+            def pytest_configure_node(node):
+                if node.gateway.id == "gw2":
+                    (ROOT / "replacement-configured").touch()
+
+            def pytest_handlecrashitem(crashitem, report, sched):
+                if crashitem.endswith("::test_b"):
+                    (ROOT / "second-crash-handled").touch()
+
+            @pytest.hookimpl(tryfirst=True)
+            def pytest_sessionstart(session):
+                workerid = getattr(session.config, "workerinput", {}).get("workerid", "")
+                if workerid not in ("", "gw0", "gw1"):
+                    # Keep replacement collection pending until both original crashes are handled.
+                    deadline = time.monotonic() + 20
+                    while not (ROOT / "second-crash-handled").exists():
+                        assert time.monotonic() < deadline
+                        time.sleep(0.01)
+        """)
+        )
+        for name in ("a", "b"):
+            (test_project / f"test_{name}.py").write_text(
+                textwrap.dedent(f"""\
+                import os
+                import time
+                from pathlib import Path
+
+                ROOT = Path(__file__).parent
+
+                def wait_for(name):
+                    deadline = time.monotonic() + 20
+                    while not (ROOT / name).exists():
+                        assert time.monotonic() < deadline, name
+                        time.sleep(0.01)
+
+                def test_{name}():
+                    attempts = ROOT / "attempts-{name}"
+                    count = int(attempts.read_text()) if attempts.exists() else 0
+                    attempts.write_text(str(count + 1))
+                    if count == 0:
+                        (ROOT / "started-{name}").touch()
+                        wait_for("started-a")
+                        wait_for("started-b")
+                        if "{name}" == "b":
+                            wait_for("replacement-configured")
+                        os._exit(1)
+
+                def test_padding():
+                    pass
+            """)
+            )
+        _git_commit(test_project)
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "2",
+            "--dist=load",
+            "--max-worker-restart=5",
+            "-p",
+            "no:randomly",
+            env=_make_env(mock_server.url, extra={"DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "1"}),
+            timeout=90,
+        )
+        assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        assert (test_project / "attempts-a").read_text() == "2"
+        assert (test_project / "attempts-b").read_text() == "2"
+
     def test_thread_timeout_crash_is_requeued(self, mock_server: MockCIVisibilityServer, test_project: Path) -> None:
         pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
 

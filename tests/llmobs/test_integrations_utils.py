@@ -6,6 +6,8 @@ import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
+from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
+from ddtrace.internal.utils.openai import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
@@ -37,12 +39,11 @@ from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_mes
 from ddtrace.llmobs._integrations.utils import capture_plain_text_tool_usage
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
+from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_openai_server_tool_usage_metrics
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
-from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
-from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._integrations.utils import openai_get_metadata_from_response
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
@@ -2077,3 +2078,23 @@ class TestOpenAIServerToolUsageMetrics:
     def test_tool_usage_without_web_search_count_falls_back(self, tool_usage):
         resp = {"output": [_web_search_call(), _web_search_call(action_type="open_page")], "tool_usage": tool_usage}
         assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}
+
+
+@pytest.mark.parametrize(
+    "tool_input,expected_arguments",
+    [
+        ('{"city": "Paris"}', {"city": "Paris"}),
+        ({"city": "Paris"}, {"city": "Paris"}),
+        ("not json", {"input": "not json"}),
+        (["Paris"], {"input": ["Paris"]}),
+    ],
+)
+def test_get_final_message_converse_stream_message_tool_input(tool_input, expected_arguments):
+    message = {"role": "assistant", "content_block_indicies": [0]}
+    tool_blocks = {0: {"toolUseId": "tool-1", "name": "get_weather", "input": tool_input}}
+
+    result = get_final_message_converse_stream_message(message, {}, tool_blocks)
+
+    assert result["tool_calls"] == [
+        {"name": "get_weather", "tool_id": "tool-1", "arguments": expected_arguments, "type": "toolUse"}
+    ]

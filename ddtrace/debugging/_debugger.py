@@ -7,7 +7,6 @@ import linecache
 import os
 from pathlib import Path
 import sys
-import threading
 import time
 from types import FunctionType
 from types import ModuleType
@@ -56,6 +55,7 @@ from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.threads import current_thread
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
 
@@ -123,7 +123,7 @@ class DebuggerWrappingContext(WrappingContext):
 
         try:
             frame = self.__frame__
-            thread = threading.current_thread()
+            thread = current_thread()
 
             # Trigger the context creators first, so that the new context can be
             # consumed by the consumers.
@@ -357,7 +357,7 @@ class Debugger(Service):
                 signal = Signal.from_probe(
                     probe,
                     frame=sys._getframe(HOOK_FRAME_DEPTH),
-                    thread=threading.current_thread(),
+                    thread=current_thread(),
                     trace_context=self._tracer.current_trace_context(),
                     meter=self._probe_meter,
                 )

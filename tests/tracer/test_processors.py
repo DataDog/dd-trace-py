@@ -1,3 +1,4 @@
+from threading import Thread
 from unittest import mock
 
 import pytest
@@ -411,9 +412,9 @@ def test_aggregator_reset_with_args():
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
     assert aggr.writer._api_version == "v0.5"
-    # Expect the default value of apm_opt_out and compute_stats to be False
+    # Expect the default value of apm_opt_out to be False and compute_stats to be True
     assert aggr.sampling_processor.apm_opt_out is False
-    assert aggr.sampling_processor._compute_stats_enabled is False
+    assert aggr.sampling_processor._compute_stats_enabled is True
     # Reset the aggregator with new args and new user processors and expect the new values to be set
     aggr.reset(user_processors=[], compute_stats=True, reset_buffer=False)
     assert aggr.user_processors == []
@@ -689,12 +690,35 @@ def test_trace_128bit_processor(trace_id, tracer):
     ctx = Context(trace_id=trace_id, span_id=2**64 - 1)
     spans = [Span("hello", trace_id=ctx.trace_id, context=ctx, parent_id=ctx.span_id) for _ in range(10)]
 
-    spans = TraceTagsProcessor().process_trace(spans)
+    spans = TraceTagsProcessor(apm_opt_out=False).process_trace(spans)
 
     chunk_root = spans[0]
     assert chunk_root.trace_id == ctx.trace_id
     assert chunk_root.trace_id >= 2**64
     assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == f"{chunk_root.trace_id >> 64:016x}"
+
+
+@pytest.mark.parametrize("apm_opt_out", [False, True])
+def test_trace_tags_processor_opt_out_shadows_single_span_tagging(tracer, apm_opt_out):
+    """Standalone opt-out shadows the stats preference for single-span tag mirroring.
+
+    Single-sampled spans only outlive their dropped root when stats are actually
+    computed, so TraceTagsProcessor must not mirror the trace tags onto them while
+    opted out, and must when stats are active.
+    """
+    ctx = Context(trace_id=1, span_id=1)
+    root = Span("root", trace_id=ctx.trace_id, context=ctx)
+    single_sampled = Span("child", trace_id=ctx.trace_id, context=ctx, parent_id=ctx.span_id)
+    single_sampled._set_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+
+    with override_global_config(dict(_trace_compute_stats=True)):
+        TraceTagsProcessor(apm_opt_out=apm_opt_out).process_trace([root, single_sampled])
+
+    assert root.get_tag("language") == "python"
+    if apm_opt_out:
+        assert single_sampled.get_tag("language") is None
+    else:
+        assert single_sampled.get_tag("language") == "python"
 
 
 @pytest.mark.subprocess(
@@ -960,7 +984,7 @@ def assert_span_sampling_decision_tags(
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
-    if trace_sampling_priority:
+    if trace_sampling_priority is not None:
         assert span.get_metric(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
 
 
@@ -1001,6 +1025,21 @@ def test_endpoint_call_counter_processor_disabled():
     processor.on_span_finish(spanA)
 
     assert processor.reset()[0] == {}
+
+
+def test_endpoint_call_counter_processor_disable():
+    """Disabling the processor drops what it counted and stops counting"""
+    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
+    spanA._local_root = spanA
+
+    processor = EndpointCallCounterProcessor()
+    processor.enable()
+    processor.on_span_finish(spanA)
+
+    processor.disable()
+    processor.on_span_finish(spanA)
+
+    assert processor.reset() == ({}, {})
 
 
 def test_endpoint_call_counter_processor_real_tracer(tracer):
@@ -1066,7 +1105,8 @@ def test_register_unregister_span_processor(tracer):
     assert span.get_tag("on_finish") is None
 
 
-def test_configure_agentless_writer_releases_an_unstarted_exporter():
+@pytest.mark.parametrize("agentless", [False, True])
+def test_configure_agentless_writer_releases_an_unstarted_exporter(agentless):
     """Swapping away from a writer that never started must still release its native exporter.
 
     NativeWriter builds the exporter in __init__ rather than on first write, so stop() raises
@@ -1075,20 +1115,61 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter():
     """
     from ddtrace._trace.processor import SpanAggregator
 
-    with override_global_config(dict(_trace_agentless_enabled=True, _dd_api_key="an-api-key")):
-        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    tags = {"team": "core", "region": "us1", "workers": 7, 1: "invalid-key"}
+    with override_global_config(dict(_trace_agentless_enabled=agentless, _dd_api_key="an-api-key")):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1, tracer_tags=tags)
         old_writer = aggregator.writer
-        assert old_writer.agentless is True
+        assert old_writer.agentless is agentless
         assert old_writer.status is ServiceStatus.STOPPED, "writer should not have started yet"
 
         try:
             with mock.patch.object(type(old_writer), "shutdown_exporter", autospec=True) as shutdown:
-                assert aggregator.configure_agentless_writer(False) is True
+                assert aggregator.configure_agentless_writer(not agentless) is True
 
             assert shutdown.called, "the unstarted writer's exporter was never released"
-            assert aggregator.writer.agentless is False
+            assert aggregator.writer.agentless is not agentless
+            assert aggregator.writer._resource_attributes == {"team": "core", "region": "us1"}
         finally:
             try:
                 aggregator.writer.stop()
             except ServiceStatusError:
                 pass
+
+
+def test_resource_tags_update_during_writer_recreation():
+    writer = NativeWriter(
+        "http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces", resource_attributes={"team": "core"}
+    )
+    with mock.patch("ddtrace._trace.processor.create_trace_writer", return_value=writer):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    recreate = writer._recreate
+
+    def update_during_recreation(*args, **kwargs):
+        replacement = recreate(*args, **kwargs)
+        aggregator._set_resource_attributes({"team": "updated"})
+        return replacement
+
+    try:
+        with mock.patch.object(writer, "_recreate", side_effect=update_during_recreation):
+            aggregator.reset()
+        assert aggregator.writer is not writer
+        assert aggregator.writer._resource_attributes == {"team": "updated"}
+    finally:
+        aggregator.writer.shutdown_exporter()
+
+
+@pytest.mark.parametrize("otlp_endpoint", [None, "http://localhost:4318/v1/traces"])
+def test_resource_tags_update_does_not_wait_for_export(otlp_endpoint):
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint=otlp_endpoint, resource_attributes={"team": "core"})
+    with mock.patch("ddtrace._trace.processor.create_trace_writer", return_value=writer):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    update = Thread(target=aggregator._set_resource_attributes, args=({"team": "updated"},))
+    try:
+        with writer._exporter_lock:
+            update.start()
+            update.join(timeout=2)
+            assert not update.is_alive(), "Tag updates waited for the exporter while holding the aggregation lock"
+        assert writer._resource_attributes == {"team": "updated"}
+    finally:
+        update.join(timeout=2)
+        writer.shutdown_exporter()

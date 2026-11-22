@@ -21,7 +21,9 @@ import json
 from typing import Optional
 
 from aws_durable_execution_sdk_python.context import DurableContext
-from aws_durable_execution_sdk_python.identifier import OperationIdentifier
+from aws_durable_execution_sdk_python.lambda_service import OperationAction
+from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+from aws_durable_execution_sdk_python.lambda_service import OperationType
 from aws_durable_execution_sdk_python.lambda_service import OperationUpdate
 from aws_durable_execution_sdk_python.state import ExecutionState
 
@@ -111,12 +113,19 @@ def mark_trace_context_checkpoints_visited(state: ExecutionState) -> None:
     completed STEP ops that user code never visits, so without this they pin
     the SDK in REPLAY for the rest of the invocation — silently suppressing
     ``context.logger`` and anything else gated on ``is_replaying()``.
+
+    SDK 3.x has no ``track_replay``: each context finds its replay boundary by
+    looking ahead at its own next operation id, so checkpoints stored under other
+    ids cannot pin REPLAY and there is nothing to mark.
     """
+    track_replay = getattr(state, "track_replay", None)
+    if track_replay is None:
+        return
     op_id = None
     try:
         for op_id, op in list(state.operations.items()):
             if op.name and op.name.startswith(_CHECKPOINT_NAME_PREFIX):
-                state.track_replay(op_id)
+                track_replay(op_id)
     except Exception as e:
         log.debug(
             "mark_trace_context_checkpoints_visited failed at op_id=%s",
@@ -284,9 +293,18 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
         # Datadog span id here would raise InvalidParameterValueException.
         parent_id: Optional[str] = getattr(durable_context, "_parent_id", None)
 
-        identifier = OperationIdentifier(operation_id=operation_id, parent_id=parent_id, name=name)
         payload = json.dumps(headers, separators=(",", ":"))
-        update = OperationUpdate.create_step_succeed(identifier, payload)
+        # Build the update directly: OperationIdentifier and create_step_succeed
+        # changed signatures in SDK 3.x, but OperationUpdate's fields did not.
+        update = OperationUpdate(
+            operation_id=operation_id,
+            operation_type=OperationType.STEP,
+            action=OperationAction.SUCCEED,
+            parent_id=parent_id,
+            name=name,
+            sub_type=OperationSubType.STEP,
+            payload=payload,
+        )
 
         # Use Sync to avoid being abandoned: the SDK drops unflushed async
         # checkpoints on suspend.  Cost is negligible — it's suspending anyway.

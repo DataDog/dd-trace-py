@@ -436,6 +436,19 @@ def _extract_lines_and_imports(
     current_import_package: t.Optional[str] = None
 
     linestarts = dict(dis.findlinestarts(code))
+
+    # Most code objects, functions in particular, import nothing: without an IMPORT_NAME there is no import
+    # metadata (IMPORT_FROM follows an IMPORT_NAME, and only <module> records its package), so their lines come
+    # from the line table alone, with the same RESUME and CACHE exclusions as the scan below. Opcodes sit at the
+    # even offsets of the wordcode.
+    co_code = code.co_code
+    if not collect_imports or (code.co_name != "<module>" and IMPORT_NAME not in co_code[::2]):
+        if track_lines:
+            for offset, start_line in linestarts.items():
+                if start_line is not None and co_code[offset] != RESUME and co_code[offset] != CACHE:
+                    lines.add(start_line)
+        return lines, import_names
+
     line: t.Optional[int] = None
     package_dependency_recorded = False
 

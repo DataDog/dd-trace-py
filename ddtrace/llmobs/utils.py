@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Sequence
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
@@ -132,8 +133,12 @@ def _extract_image_part(image_part: dict[str, Any]) -> "ImagePart":
     return formatted_image_part
 
 
-def extract_tool_definitions(tool_definitions: list[dict[str, Any]]) -> list[ToolDefinition]:
-    """Return a list of validated tool definitions."""
+def extract_tool_definitions(tool_definitions: object) -> list[ToolDefinition]:
+    """Return a list of validated tool definitions.
+
+    tool_definitions is expected to be a list of dictionaries, but is typed as object because it comes from user
+    input and is validated at runtime.
+    """
     if not isinstance(tool_definitions, list):
         log.warning("tool_definitions must be a list of dictionaries.")
         return []
@@ -186,9 +191,13 @@ def extract_tool_definitions(tool_definitions: list[dict[str, Any]]) -> list[Too
 class Messages:
     def __init__(self, messages: Union[list[dict[str, Any]], dict[str, Any], str]):
         self.messages = []
-        if not isinstance(messages, list):
-            messages = [messages]  # type: ignore[list-item]
-        for message in messages:
+        # Elements are validated at runtime, so treat them as arbitrary objects.
+        message_list: Sequence[object]
+        if isinstance(messages, list):
+            message_list = messages
+        else:
+            message_list = [messages]
+        for message in message_list:
             if isinstance(message, str):
                 self.messages.append(Message(content=message))
                 continue
@@ -240,9 +249,13 @@ class Messages:
 class Documents:
     def __init__(self, documents: Union[list[DocumentType], DocumentType, str]):
         self.documents = []
-        if not isinstance(documents, list):
-            documents = [documents]  # type: ignore[list-item]
-        for document in documents:
+        # Elements are validated at runtime, so treat them as arbitrary objects.
+        document_list: Sequence[object]
+        if isinstance(documents, list):
+            document_list = documents
+        else:
+            document_list = [documents]
+        for document in document_list:
             if isinstance(document, str):
                 self.documents.append(Document(text=document))
                 continue

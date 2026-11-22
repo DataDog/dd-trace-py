@@ -194,3 +194,27 @@ def test_otel_metrics_export_does_not_generate_client_spans():
 
     assert "test.metric" in metric_names(metric_requests)
     assert trace_requests == []
+
+
+@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://127.0.0.1:14319/v1/metrics",
+    },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": [None, "", "http/protobuf"]},
+)
+def test_otel_metrics_export_defaults_to_http_protobuf():
+    from opentelemetry.metrics import get_meter
+    from opentelemetry.metrics import get_meter_provider
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+
+    from tests.opentelemetry.utils import _capture_http_requests
+    from tests.opentelemetry.utils import metric_names
+
+    with _capture_http_requests(14319, ExportMetricsServiceRequest) as requests:
+        get_meter("test.metrics").create_counter("test.default.protocol").add(1)
+        assert get_meter_provider().force_flush()
+
+    assert "test.default.protocol" in metric_names(requests)

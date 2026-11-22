@@ -65,6 +65,7 @@ def mock_test_environment(test_env: dict[str, str]) -> t.Iterator[None]:
 
 def get_mock_git_instance() -> Mock:
     mock_git_instance = Mock()
+    mock_git_instance.get_git_path.return_value = None
     mock_git_instance.get_latest_commits.return_value = []
     mock_git_instance.get_filtered_revisions.return_value = []
     mock_git_instance.pack_objects.return_value = iter([])
@@ -343,6 +344,7 @@ class PytestItemMockBuilder:
         mock_item = Mock()
         mock_item.nodeid = self._nodeid
         mock_item.add_marker = Mock()
+        mock_item.get_closest_marker.return_value = None
         mock_item.reportinfo.return_value = self._location
         mock_item.path = self._path
         mock_item.path.absolute.return_value.parent = Path(self._location[0]).parent

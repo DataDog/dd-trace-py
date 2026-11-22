@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
@@ -36,6 +37,7 @@ class ProfilingConfig(DDConfig):
     pytorch: ProfilingConfigPytorch
     exception: ProfilingConfigException
     install: bool
+    remote_config_experiment: bool
 
     def dump_settings(self) -> dict[str, Any]: ...
 
@@ -98,11 +100,12 @@ class ProfilingConfigException(DDConfig):
 config: ProfilingConfig
 ddup_failure_msg: Optional[str]
 ddup_is_available: bool
-stack_v2_failure_msg: Optional[str]
-stack_v2_is_available: bool
+stack_failure_msg: Optional[str]
+stack_is_available: bool
 exception_failure_msg: str
 exception_is_available: bool
 
 def config_str(config: ProfilingConfig) -> str: ...
 def _is_python_embedded() -> bool: ...
 def _is_platform_supported() -> tuple[str, bool]: ...
+def _should_arm(source: Mapping[str, str]) -> bool: ...

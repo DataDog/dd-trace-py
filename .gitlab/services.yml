@@ -12,7 +12,7 @@
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
-    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.68.0
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.69.1
     alias: testagent
     variables:
       LOG_LEVEL: ERROR
@@ -129,6 +129,9 @@
   azurecosmosemulator:
     name: registry.ddbuild.io/images/mirror/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
     alias: azurecosmosemulator
+    # The image runs `tdnf distro-sync` in the background at start, which replaces the Postgres files
+    # under the running server and breaks it (Azure/azure-cosmos-db-emulator-docker#390): skip it.
+    entrypoint: ["/bin/bash", "-c", "sed 's/^if command -v tdnf/if false \\&\\& command -v tdnf/' /home/cosmosdev/docker_entrypoint.sh > /tmp/entrypoint.sh && exec bash /tmp/entrypoint.sh"]
     variables:
       ACCEPT_EULA: "Y"
       BLOB_SERVER: azurite

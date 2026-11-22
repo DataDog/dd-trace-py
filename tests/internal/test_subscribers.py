@@ -1,5 +1,6 @@
 from dataclasses import InitVar
 from dataclasses import dataclass
+import sys
 
 import pytest
 
@@ -45,6 +46,7 @@ def test_base_subscriber():
         def on_event(cls, event_instance):
             called.append(event_instance.event_name)
 
+    DirectSubscriber.register()
     core.dispatch_event(SubscriberEvent())
 
     assert called == [SubscriberEvent.event_name], "subscriber should be called once with the event name; got %r" % (
@@ -62,9 +64,8 @@ def test_base_subscriber():
     assert called == [SubscriberEvent.event_name]
 
 
-def test_base_subscriber_can_defer_registration():
+def test_base_subscriber_requires_explicit_registration():
     class ExplicitSubscriber(Subscriber):
-        auto_register = False
         event_names = (SubscriberEvent.event_name,)
 
         @classmethod
@@ -94,6 +95,7 @@ def test_base_subscriber_inheritance():
         def on_event(cls, event_instance):
             called.append("child")
 
+    ChildSubscriber.register()
     core.dispatch_event(SubscriberEvent())
 
     assert called == ["parent", "child"], "parent and child subscribers should run in order; got %r" % (called,)
@@ -117,6 +119,7 @@ def test_base_subscriber_multiple_event_names():
         def on_event(cls, event_instance):
             called.append(event_instance.event_name)
 
+    MultiEventSubscriber.register()
     core.dispatch_event(SubscriberEventOne())
     core.dispatch_event(SubscriberEventTwo())
 
@@ -154,6 +157,11 @@ def test_base_context_subscriber():
 
     with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
         pass
+    assert called == []
+
+    DirectSubscriber.register()
+    with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
+        pass
 
     assert called == ["started", "foo", "ended"]
 
@@ -168,6 +176,29 @@ def test_base_context_subscriber():
     with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
         pass
     assert called == ["started", "foo", "ended"]
+
+
+@pytest.mark.parametrize("base", [Subscriber, ContextSubscriber, TracingSubscriber])
+@pytest.mark.parametrize("declare_event_names", [False, True])
+def test_subclass_definitions_do_not_register_listeners(base, declare_event_names):
+    class ParentSubscriber(base):
+        event_names = (SubscriberEvent.event_name,)
+
+    class ChildSubscriber(ParentSubscriber):
+        if declare_event_names:
+            event_names = (SubscriberEvent.event_name,)
+
+    prefixes = ("",) if base is Subscriber else ("context.started.", "context.ended.")
+    for prefix in prefixes:
+        assert not core.has_listeners(prefix + SubscriberEvent.event_name)
+
+    ChildSubscriber.register()
+    for prefix in prefixes:
+        assert core.has_listeners(prefix + SubscriberEvent.event_name)
+
+    ChildSubscriber.unregister()
+    for prefix in prefixes:
+        assert not core.has_listeners(prefix + SubscriberEvent.event_name)
 
 
 def test_base_context_subscriber_inheritance():
@@ -197,6 +228,7 @@ def test_base_context_subscriber_inheritance():
         def on_ended(cls, ctx, exc_info):
             called.append("child_ended")
 
+    ChildSubscriber.register()
     with core.context_with_event(TestContextEvent()):
         pass
 
@@ -219,6 +251,8 @@ def test_base_tracing_subscriber(test_spans):
 
     class TestTracingSubscriber(TracingSubscriber):
         event_names = (TestTracingEvent.event_name,)
+
+    TestTracingSubscriber.register()
 
     with core.context_with_event(
         TestTracingEvent(
@@ -252,6 +286,8 @@ def test_span_context_event_missing_required_field(test_spans):
     class TestTracingSubscriber(TracingSubscriber):
         event_names = (TestTracingEvent.event_name,)
 
+    TestTracingSubscriber.register()
+
     with pytest.raises(AttributeError):
         with core.context_with_event(TestTracingEvent(component="component", integration_config={})):
             pass
@@ -282,6 +318,8 @@ def test_span_context_event_with_custom_fields(test_spans):
         def on_ended(cls, ctx: core.ExecutionContext, exc_info) -> None:
             span = span_from_context(ctx)
             span._set_attribute("http.status_code", ctx.event.status_code)
+
+    TestSpanSubscriber.register()
 
     with core.context_with_event(
         TestTracingEvent(my_op="op", my_arg="arg", component="comp", status_code=200, integration_config={})
@@ -330,6 +368,8 @@ def test_span_context_event_inheritance(test_spans):
             span = span_from_context(ctx)
             span._set_attribute("http.method", ctx.event.method)
 
+    HTTPClientSubscriber.register()
+
     with core.context_with_event(
         HTTPClientEvent(url="http://example.com", component="http", method="GET", integration_config={})
     ):
@@ -357,6 +397,8 @@ def test_span_context_event_with_exception(test_spans):
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
 
+    TestSpanSubscriber.register()
+
     with pytest.raises(ValueError):
         with core.context_with_event(TestSpanEvent(component="test_component", integration_config={})):
             raise ValueError("test error")
@@ -382,6 +424,8 @@ def test_span_parent_child_default(test_spans):
 
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
+
+    TestSpanSubscriber.register()
 
     with tracer.trace("local.processing"):
         with core.context_with_event(
@@ -412,6 +456,8 @@ def test_span_context_event_no_active_context_with_distributed_context(test_span
 
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
+
+    TestSpanSubscriber.register()
 
     with tracer.trace("local.processing"):
         with core.context_with_event(
@@ -448,8 +494,64 @@ def test_span_context_event_end_span_false(test_spans):
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
 
+    TestSpanSubscriber.register()
+
     with core.context_with_event(TestSpanEvent(component="test_component", integration_config={})):
         pass
 
     # Span should be started but not finished
     test_spans.assert_span_count(0)
+
+
+@pytest.mark.parametrize("completed", [False, True])
+def test_context_exception_is_reported_synchronously(test_spans, completed):
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
+    from ddtrace._trace._registration import SPAN_SUBSCRIBERS
+    from ddtrace.contrib._events.exception import ContextExceptionEvent
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    core.reset_listeners(ContextExceptionEvent.event_name)
+    SPAN_SUBSCRIBERS.register()
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
+    event = TracingEvent.create(
+        operation_name="worker.run",
+        span_type="worker",
+        span_kind="internal",
+        component="test",
+        integration_config=IntegrationConfig(config, "test"),
+    )
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        if completed:
+            ctx.dispatch_ended_event()
+            assert ctx._event is None
+        try:
+            raise ValueError("operation failed")
+        except ValueError:
+            core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
+            assert span.error == 1
+            assert span.get_tag("error.type").endswith("ValueError")
+            assert "operation failed" in span.get_tag("error.stack")
+        ctx.dispatch_ended_event()
+    assert span.finished
+    test_spans.assert_span_count(1)
+
+
+def test_context_exception_does_not_create_or_borrow_span(test_spans):
+    from ddtrace._trace._registration import SPAN_EXCEPTION_SUBSCRIBERS
+    from ddtrace.contrib._events.exception import ContextExceptionEvent
+
+    SPAN_EXCEPTION_SUBSCRIBERS.register()
+    with tracer.trace("parent") as parent:
+        with core.context_with_data("without.span") as ctx:
+            assert ctx.get_item("_inner_span") is None
+            try:
+                raise ValueError("untraced operation failed")
+            except ValueError:
+                core.dispatch_event(ContextExceptionEvent(context=ctx, exc_info=sys.exc_info()))
+            assert ctx.get_item("_inner_span") is None
+            assert tracer.current_span() is parent
+            assert parent.error == 0
+    assert test_spans.pop() == [parent]

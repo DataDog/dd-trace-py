@@ -7,7 +7,6 @@ limit. It will measure operations being executed in a request and it will deacti
 from typing import Optional
 
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
-from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.rate_sampler import RateSampler
@@ -27,10 +26,9 @@ class OverheadControl:
     The goal is to do sampling at different levels of the IAST analysis (per process, per request, etc)
     """
 
-    _lock = threading.Lock()
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def reconfigure(self):
+    def reconfigure(self) -> None:
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def acquire_request(self, span: Optional[SpanData]) -> bool:

@@ -122,6 +122,10 @@ def _injection_enabled_has_profiler() -> bool:
     return any(tok.strip().lower() == "profiler" for tok in injection_enabled.split(","))
 
 
+def _should_arm(source: t.Mapping[str, str]) -> bool:
+    return source.get("DD_PROFILING_ENABLED", "").strip().lower() == "armed"
+
+
 def _parse_profiling_enabled(raw: str) -> bool:
     # DD_INJECTION_ENABLED=...,profiler,... takes precedence over the env var value.
     if _injection_enabled_has_profiler():
@@ -184,15 +188,22 @@ class ProfilingConfig(DDConfig):
         help_type="Boolean",
         help=(
             "Enable Datadog profiling when using ``ddtrace-run``. "
-            "Experimental: set this to ``armed`` to install profiling hooks "
-            "but not start the profiler right away."
+            "Experimental: Leave unset to let Remote Configuration start the profiler at runtime. "
+            "Set to ``false`` to prevent Remote Configuration from starting the profiler."
         ),
+    )
+
+    remote_config_experiment = DDConfig.v(
+        bool,
+        "remote_config_experiment",
+        default=True,
+        help_type="Boolean",
+        help="Enable the profiling remote-config experiment.",
+        private=True,
     )
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().__init__(*args, **kwargs)
-
-        self.install: bool = self.source.get("DD_PROFILING_ENABLED", "").strip().lower() == "armed"
 
         # When DD_PROFILING_ENABLED is not set, envier uses the default value directly
         # without invoking the parser. This means the DD_INJECTION_ENABLED check in
@@ -200,6 +211,17 @@ class ProfilingConfig(DDConfig):
         if not self.enabled and _injection_enabled_has_profiler():
             self.enabled = True
             self._value_source["DD_PROFILING_ENABLED"] = ValueSource.ENV_VAR
+
+        # An explicit DD_PROFILING_ENABLED=false also opts out of the remote config experiment, so that Remote Config
+        # cannot start the profiler.
+        if self.value_source("DD_PROFILING_ENABLED") != ValueSource.DEFAULT and not (
+            self.enabled or _should_arm(self.source)
+        ):
+            self.remote_config_experiment = False
+
+        # The remote config experiment can start the profiler at runtime, so like the armed mode it needs the stack
+        # profiler hooks installed at startup, to see the threads, event loops and greenlets created before that.
+        self.install: bool = self.remote_config_experiment or _should_arm(self.source)
 
     agentless = DDConfig.v(
         bool,
@@ -777,7 +799,8 @@ if config.stack.fast_copy and _is_python_embedded():
 # Report configuration after all availability overrides so telemetry
 # reflects the effective state.
 report_configuration(config)
-if config.install:
+# The remote config experiment also sets install, so check for the armed mode itself.
+if config.install and _should_arm(config.source):
     # The parsed value of DD_PROFILING_ENABLED is False in armed mode
     telemetry_writer.add_configuration(
         "DD_PROFILING_ENABLED",

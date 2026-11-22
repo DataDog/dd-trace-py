@@ -12,12 +12,15 @@ import pytest
 from ddtrace.internal.settings.asm import config as asm_config
 
 
-MODULES_ALWAYS_LOADED = ["ddtrace.appsec", "ddtrace.appsec._constants"]
-MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._ddwaf"]
+# The settings read their shared AppSec constants from here, whichever features are enabled.
+MODULES_ALWAYS_LOADED = ["ddtrace.internal.security._constants"]
+# Loaded whenever any AppSec feature runs, as the parent package of the ASM, IAST and SCA modules.
+MODULES_ANY_FEATURE = ["ddtrace.appsec"]
+MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._ddwaf", "ddtrace.appsec._constants"]
 MODULE_IAST_ONLY = [
     "ddtrace.appsec._iast",
     "ddtrace.appsec._iast._taint_tracking._native",
-    "ddtrace.appsec._shared._stacktrace",
+    "ddtrace.internal.security._stacktrace",
 ]
 
 MODULE_SCA_ONLY = [
@@ -72,21 +75,26 @@ def test_loading(appsec_enabled, iast_enabled, sca_enabled, aws_lambda):
                     print("got data", flush=True)
 
                     assert "appsec" in data
-                    # appsec is always enabled
+                    iast_loaded = bool(iast_enabled and not aws_lambda and asm_config._iast_supported)
                     for m in MODULES_ALWAYS_LOADED:
                         assert m in data["appsec"], f"{m} not in {data['appsec']}"
+                    for m in MODULES_ANY_FEATURE:
+                        if appsec_enabled == "true" or iast_loaded or sca_enabled:
+                            assert m in data["appsec"], f"{m} not in {data['appsec']}"
+                        else:
+                            assert m not in data["appsec"], f"{m} in {data['appsec']}"
                     for m in MODULE_ASM_ONLY:
                         if appsec_enabled == "true":
                             assert m in data["appsec"], f"{m} not in {data['appsec']} data:{data}"
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']} data:{data}"
                     for m in MODULE_IAST_ONLY:
-                        if iast_enabled and not aws_lambda and asm_config._iast_supported:
+                        if iast_loaded:
                             assert m in data["appsec"], f"{m} not in {data['appsec']}"
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']}"
                     for m in MODULE_SCA_ONLY:
-                        if sca_enabled and not aws_lambda:
+                        if sca_enabled:
                             assert m in data["appsec"], f"{m} not in {data['appsec']}"
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']}"

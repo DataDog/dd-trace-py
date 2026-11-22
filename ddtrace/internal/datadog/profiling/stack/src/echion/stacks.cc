@@ -139,10 +139,11 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
     stack.clear();
 #if PY_VERSION_HEX >= 0x030b0000
     if (stack_chunk == nullptr) {
-        stack_chunk = std::make_unique<StackChunk>();
+        stack_chunk = new StackChunk();
     }
 
     if (!stack_chunk->update(reinterpret_cast<_PyStackChunk*>(tstate->datastack_chunk))) {
+        delete stack_chunk;
         stack_chunk = nullptr;
     }
 #endif

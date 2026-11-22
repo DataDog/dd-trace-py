@@ -83,6 +83,13 @@ case "$cmd" in
     "$SCRIPT_DIR/lint" sg-test
     ;;
 
+  # --- environment preparation ---
+  # Create/update the shared .venv-lint environment up front so parallel
+  # lint invocations don't queue behind the uv environment lock.
+  prepare)
+    uv sync --only-group lint
+    ;;
+
   # --- individual checks ---
   typing)
     uv_lint mypy "$@"
@@ -90,11 +97,11 @@ case "$cmd" in
   spelling)
     if [[ $# -gt 0 ]]; then
       uv_lint codespell -I docs/spelling_wordlist.txt \
-        --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
+        --skip='ddwaf.h,*cassettes*,tests/internal/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
         "$@"
     else
       uv_lint codespell -I docs/spelling_wordlist.txt \
-        --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
+        --skip='ddwaf.h,*cassettes*,tests/internal/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
         ddtrace/ tests/ releasenotes/ docs/
     fi
     ;;
@@ -194,6 +201,7 @@ Subcommands:
 
   style [paths]             format_check + ruff check + cython-lint + cformat + cmakeformat
   checks                    Run all lint/type/spell/security/etc checks
+  prepare                   Create/update the shared lint venv (used before parallel checks)
 
   typing [args]             mypy
   spelling [paths]          codespell

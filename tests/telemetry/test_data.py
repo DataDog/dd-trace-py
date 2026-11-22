@@ -7,7 +7,7 @@ import pytest
 import ddtrace
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.runtime.container import CGroupInfo
+from ddtrace.internal.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
 from ddtrace.internal.telemetry.data import _get_os_version
@@ -157,7 +157,7 @@ def test_get_container_id_when_container_exists():
     validates the return value of _get_container_id when get_container_info()
     can parse /proc/{pid}/cgroup
     """
-    # mocks ddtrace.internal.runtime.container.get_container_info import in data.py
+    # mocks ddtrace.internal.container.get_container_info import in data.py
     with mock.patch("ddtrace.internal.telemetry.data.get_container_info") as gci:
         cgroupInfo = CGroupInfo()
         cgroupInfo.container_id = "d39b145254d1f9c337fdd2be132f6650c6f5bc274bfa28aaa204a908a1134096"
@@ -170,7 +170,7 @@ def test_get_container_id_when_container_does_not_exists():
     validates the return value of _get_container_id when get_container_info() CAN NOT
     parse /proc/{pid}/cgroup
     """
-    # mocks ddtrace.internal.runtime.container.get_container_info import in data.py
+    # mocks ddtrace.internal.container.get_container_info import in data.py
     with mock.patch("ddtrace.internal.telemetry.data.get_container_info") as gci:
         gci.return_value = None
         assert _get_container_id() == ""

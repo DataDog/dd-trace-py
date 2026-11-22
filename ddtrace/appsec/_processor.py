@@ -8,7 +8,6 @@ from typing import ClassVar
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.processor import SpanProcessor
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -19,7 +18,7 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._ddwaf import DDWafContext
-from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
+from ddtrace.appsec._metrics import log_waf_error
 from ddtrace.appsec._metrics import set_waf_init_metric
 from ddtrace.appsec._metrics import set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
@@ -36,8 +35,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.span_processor import SpanProcessor
 
 
 log = get_logger(__name__)
@@ -83,7 +84,7 @@ def _get_rate_limiter() -> RateLimiter:
 
 
 @dataclasses.dataclass(eq=False)
-class AppSecSpanProcessor(SpanProcessor):
+class AppSecSpanProcessor(SpanProcessor[SpanData]):
     rule_filename: str = dataclasses.field(default_factory=get_rules)
     obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
@@ -138,29 +139,47 @@ class AppSecSpanProcessor(SpanProcessor):
             raise
 
     def delayed_init(self) -> None:
+        ddwaf: Optional[DDWaf] = None
         try:
             if self._rules is not None and isinstance(self._ddwaf, _DDWafNotInitialized):
-                self._ddwaf = DDWaf(
+                ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
-                set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
+                self._ddwaf = ddwaf
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
             self._ddwaf = None
 
-        self._update_required()
+        if not self._refresh_required_addresses():
+            self._ddwaf = None
+            if ddwaf is not None:
+                set_waf_init_metric(ddwaf.info, False)
+            return
+
+        if ddwaf is not None:
+            set_waf_init_metric(ddwaf.info, ddwaf.initialized)
+
+    def _refresh_required_addresses(self) -> bool:
+        """Refresh the WAF addresses, reporting a failure instead of raising it."""
+        try:
+            self._update_required()
+        except Exception as e:
+            log.error("[DDAS-0005-00] WAF address discovery failed", exc_info=True)
+            version = self._ddwaf.info.version if isinstance(self._ddwaf, DDWaf) else ""
+            log_waf_error(f"appsec.waf.error::address_discovery::{type(e).__name__}::{e}", version or "")
+            return False
+        return True
 
     def _update_required(self) -> None:
         if not isinstance(self._ddwaf, DDWaf):
             return
-        self._addresses_to_keep.clear()
-        for address in self._ddwaf.required_data:
-            self._addresses_to_keep.add(address)
+        addresses = set(self._ddwaf.required_data)
         # we always need the request headers
-        self._addresses_to_keep.add(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
+        addresses.add(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
-        self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+        addresses.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+        self._addresses_to_keep = addresses
 
     def _update_rules(
         self, removals: Sequence[tuple[str, str]], updates: Sequence[tuple[str, str, PayloadType]]
@@ -173,8 +192,8 @@ class AppSecSpanProcessor(SpanProcessor):
         if asm_config._asm_static_rule_file is not None:
             return result
         result = self._ddwaf.update_rules(removals, updates)
+        result = self._refresh_required_addresses() and result
         set_waf_updates_metric(self._ddwaf.info, result)
-        self._update_required()
         return result
 
     @property

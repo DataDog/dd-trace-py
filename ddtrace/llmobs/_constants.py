@@ -87,6 +87,8 @@ BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
+CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY = "ephemeral_30m_input_tokens"
+CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY = "ephemeral_12h_input_tokens"
 
 # Server-side tool calls billed per call by the provider, on top of token costs.
 WEB_SEARCH_COUNT_METRIC_KEY = "web_search_count"
@@ -185,11 +187,13 @@ DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH = "on_openai_agent_span_finish"
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"
 
-LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
-
 PROXY_REQUEST = "llmobs.proxy_request"
 
 REQUEST_BASE_URL = "llmobs.request_base_url"
+
+# Kind of the LLM gateway that serves a request, such as "litellm". LLMObs sets it on the core
+# context of the request. Each LLMObs span that starts in that context keeps a copy.
+GATEWAY = "llmobs.gateway"
 
 # experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
@@ -267,6 +271,7 @@ class LLMOBS_STRUCT:
     MESSAGES: Final = "messages"
     DOCUMENTS: Final = "documents"
     AGENT_MANIFEST: Final = "agent_manifest"
+    GATEWAY: Final = "gateway"
     SPAN: Final = "span"
     KIND: Final = "kind"
     MODEL_NAME: Final = "model_name"

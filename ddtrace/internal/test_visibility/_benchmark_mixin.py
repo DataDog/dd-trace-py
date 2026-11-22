@@ -39,7 +39,7 @@ class BenchmarkTestMixin:
         item_id: TestId,
         benchmark_data: t.Optional[BenchmarkDurationData] = None,
         is_benchmark: bool = True,
-    ):
+    ) -> None:
         log.debug("Setting benchmark data for test %s: %s", item_id, benchmark_data)
         require_ci_visibility_service().get_test_by_id(item_id).set_benchmark_data(benchmark_data, is_benchmark)
 

@@ -144,6 +144,16 @@ def _set_route_resource_resolver(_span: Span, scope: Mapping[str, Any]) -> None:
 
 def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
     """Resolve a Starlette route template before ASGI finishes the request span."""
+    # FastAPI can resolve the route without populating resource_paths.
+    # Preserve named spans and apply the resolved template to unnamed mounted
+    # spans; fallback matching cannot traverse FastAPI's included routers.
+    effective_path = _get_fastapi_effective_path(scope)
+    if effective_path:
+        if not span._get_attribute(http.ROUTE):
+            _set_route_resource(span, scope.get("method"), effective_path)
+            span._set_attribute(http.ROUTE, effective_path)
+        return
+
     app = scope.get("app")
     route_match = _find_matching_route_path(getattr(app, "routes", None), scope)
     if route_match is None:
@@ -254,7 +264,7 @@ def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
     return False
 
 
-def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
+def _get_fastapi_effective_path(scope: Mapping[str, Any]) -> Optional[str]:
     effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
     if effective_route_context is None:
         return None

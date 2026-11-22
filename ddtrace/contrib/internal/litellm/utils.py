@@ -1,13 +1,20 @@
 from collections import defaultdict
 from dataclasses import FrozenInstanceError
+from functools import cache
 
+from ddtrace._monkey import _get_patched_modules
+from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
+from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
+from ddtrace.contrib.internal.litellm._constants import model_map
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
-from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
-from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.internal.utils.openai import openai_construct_completion_from_streamed_chunks
+from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
+from ddtrace.internal.utils.version import parse_version
 
 
 log = get_logger(__name__)
@@ -19,13 +26,97 @@ def extract_host_tag(kwargs):
     return None
 
 
+def is_completion_operation(operation: str) -> bool:
+    return operation in TEXT_COMPLETION_OPERATIONS
+
+
+def _openai_is_patched():
+    return "openai" in _get_patched_modules()
+
+
+@cache
+def _litellm_sends_openai_chat_with_post():
+    """Return True if litellm sends OpenAI chat requests with the post method of the OpenAI client."""
+    import litellm
+
+    version = getattr(getattr(litellm, "_version", None), "version", "")
+    return parse_version(version) >= (1, 108, 1)
+
+
+def has_downstream_openai_span(kwargs, model=None, operation=""):
+    """
+    Determine whether an LLM span will be submitted for the given request from outside the LiteLLM integration.
+
+    Currently, this only applies to the OpenAI integration when the following conditions are met:
+        - request is not streamed
+        - model provider is OpenAI/AzureOpenAI
+        - the OpenAI integration is enabled
+        - litellm sends the request with a create method of the OpenAI SDK. From 1.108.1, OpenAI chat requests use post.
+    """
+    stream = kwargs.get("stream", False)
+    model_lower = model.lower() if model else ""
+    # Detect litellm proxy routing — the OpenAI integration never fires when requests go through a proxy.
+    # Three mechanisms exist (v1.72.1+ for use_litellm_proxy):
+    #   1. model prefix:        model="litellm_proxy/<model>"
+    #   2. per-call kwarg:      use_litellm_proxy=True
+    #   3. module-level flag:   litellm.use_litellm_proxy = True  /  USE_LITELLM_PROXY env var
+    if model_lower.startswith("litellm_proxy/"):
+        return False
+    if kwargs.get("use_litellm_proxy"):
+        return False
+    import litellm
+
+    if getattr(litellm, "use_litellm_proxy", False) or env.get("USE_LITELLM_PROXY", "").lower() == "true":
+        return False
+    # OpenRouter routes through litellm's own HTTP handler, not the OpenAI SDK, so there's no
+    # downstream OpenAI span to defer to.
+    if model_lower.startswith("openrouter/"):
+        return False
+    # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
+    is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
+    if not (is_openai_model and not stream and _openai_is_patched()):
+        return False
+    if not _litellm_sends_openai_chat_with_post():
+        return True
+    # From litellm 1.108.1, the OpenAI chat handler calls post. The Azure and text completion handlers call create.
+    provider = kwargs.get("custom_llm_provider") or model_lower.partition("/")[0]
+    provider = provider.lower() if isinstance(provider, str) else ""
+    deployment_id = kwargs.get("deployment_id")
+    if provider == "azure" or kwargs.get("azure") is True or deployment_id is not None:
+        # litellm sends Azure o-series models to the OpenAI chat handler.
+        model_info = kwargs.get("model_info")
+        base_model = kwargs.get("base_model") or (
+            model_info.get("base_model") if isinstance(model_info, dict) else None
+        )
+        return not any(
+            series in str(base_model or deployment_id or model) for series in ("o1", "o3", "o4", "o_series/")
+        )
+    if provider in ("azure_text", "text-completion-openai") or model in getattr(
+        litellm, "open_ai_text_completion_models", ()
+    ):
+        return True
+    # litellm.text_completion() sends an OpenAI model that is not a chat model to the text completion handler.
+    name = model[len("openai/") :] if model_lower.startswith("openai/") else model
+    return is_completion_operation(operation) and name not in getattr(litellm, "open_ai_chat_completion_models", ())
+
+
 class BaseLiteLLMStreamHandler:
+    """Mixed into StreamHandler/AsyncStreamHandler, which provide chunks and options.
+
+    A Router call streams the response of the litellm call it makes, so one stream can
+    finish several requests. Each request is an execution context whose ended event this
+    handler dispatches once the stream is consumed or closed.
+    """
+
+    def __init__(self, ctx):
+        super().__init__(None, span_from_context(ctx), ctx.event.request_args, ctx.event.request_kwargs)
+        self.contexts = [ctx]
+
     def initialize_chunk_storage(self):
         return defaultdict(list)
 
-    def add_span(self, span, kwargs, instance):
-        kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
-        self.spans.append((span, kwargs))
+    def add_context(self, ctx):
+        self.contexts.append(ctx)
 
     def _process_chunk(self, chunk, iterator=None):
         # Capture the first non-empty response model. Only emitted as a span tag for azure/azure_text
@@ -44,39 +135,31 @@ class BaseLiteLLMStreamHandler:
             self.chunks[0].insert(0, chunk)
 
     def finalize_stream(self, exception=None):
-        formatted_completions = None
-        for span, kwargs in self.spans:
-            response_model = getattr(self, "response_model", None)
+        # handle_exception already recorded a stream error on the primary span.
+        response = self._process_finished_stream(self.contexts[0].event.operation)
+        response_model = getattr(self, "response_model", None)
+        for ctx in self.contexts:
+            event = ctx.event
             if response_model:
                 # Resolve the requested model from args or kwargs (callers may pass it positionally,
                 # e.g. litellm.completion("azure/<deployment>", ...)) so provider detection works.
-                requested_model = get_argument_value(self.request_args, kwargs, 0, "model", optional=True) or ""
-                _, provider = self.integration._model_map.get(requested_model, ("", ""))
+                requested_model = (
+                    get_argument_value(event.request_args, event.request_kwargs, 0, "model", optional=True) or ""
+                )
+                _, provider = model_map.get(requested_model, ("", ""))
                 if provider in ("azure", "azure_text"):
-                    span.set_tag("litellm.response.model", response_model)
-            if not formatted_completions:
-                formatted_completions = self._process_finished_stream(span)
-            self.integration.llmobs_set_tags(
-                span, args=self.request_args, kwargs=kwargs, response=formatted_completions, operation=span.resource
-            )
-            span.finish()
+                    span_from_context(ctx).set_tag(TAG_RESPONSE_MODEL, response_model)
+            event.response = response
+            ctx.dispatch_ended_event()
 
-    def _process_finished_stream(self, span):
+    def _process_finished_stream(self, operation):
         try:
-            operation = span.resource
-            formatted_completions = None
-            if self.integration.is_completion_operation(operation):
-                formatted_completions = [
-                    openai_construct_completion_from_streamed_chunks(choice) for choice in self.chunks.values()
-                ]
-            else:
-                formatted_completions = [
-                    openai_construct_message_from_streamed_chunks(choice) for choice in self.chunks.values()
-                ]
-            return formatted_completions
+            if is_completion_operation(operation):
+                return [openai_construct_completion_from_streamed_chunks(choice) for choice in self.chunks.values()]
+            return [openai_construct_message_from_streamed_chunks(choice) for choice in self.chunks.values()]
         except Exception:
             log.warning("Error processing streamed completion/chat response.", exc_info=True)
-            return formatted_completions
+            return None
 
 
 class LiteLLMStreamHandler(BaseLiteLLMStreamHandler, StreamHandler):

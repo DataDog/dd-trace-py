@@ -38,7 +38,8 @@ def test_native_span_sampling():
 
 
 @pytest.mark.parametrize("decision", [USER_KEEP, USER_REJECT, None])
-def test_native_span_override_sampling_decision(decision):
+@pytest.mark.parametrize("sampling_mechanism", [None, SamplingMechanism.MANUAL, SamplingMechanism.APPSEC])
+def test_native_span_override_sampling_decision(decision, sampling_mechanism):
     root = SpanData(name="root")
     root.context._publish_sampling_decision(1, 0.5, True)
     child = SpanData(name="child", context=root.context)
@@ -47,11 +48,15 @@ def test_native_span_override_sampling_decision(decision):
     for key in sampling_keys:
         root._set_attribute(key, 0.5)
 
-    child._override_sampling_decision(decision)
+    if sampling_mechanism is None:
+        child._override_sampling_decision(decision)
+    else:
+        child._override_sampling_decision(decision, sampling_mechanism=sampling_mechanism)
 
     assert child.context.sampling_priority == decision
     assert root.context.sampling_priority == decision
-    assert root.context._meta["_dd.p.dm"] == "-4"
+    mechanism = SamplingMechanism.MANUAL if sampling_mechanism is None else sampling_mechanism
+    assert root.context._meta["_dd.p.dm"] == f"-{mechanism}"
     assert root.context._otel_sampling_state_data == -1.0
     for key in sampling_keys:
         assert not root._has_attribute(key)

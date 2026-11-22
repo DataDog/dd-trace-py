@@ -1,5 +1,4 @@
 import json
-from queue import SimpleQueue as Queue
 import time
 import typing as t
 
@@ -7,9 +6,10 @@ from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._uploader import build_debugger_sender
-from ddtrace.internal import runtime
+from ddtrace.internal import _runtime_id as runtime
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import DebuggerTrackType
+from ddtrace.internal.threads import SimpleQueue as Queue
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
