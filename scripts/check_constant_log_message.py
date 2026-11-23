@@ -26,7 +26,6 @@ EXCEPTIONS = {
     "ddtrace/aiguard/integrations/_anthropic.py:67",
     # we added a constant check for the wrapping method of iast_error
     "ddtrace/appsec/_iast/_logs.py:41",
-    "ddtrace/appsec/_iast/_logs.py:45",
     # the non constant part is an object type
     "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:75",
     # _safelog wrapper function dispatches to log methods with variable message
@@ -62,11 +61,7 @@ class LogMessageChecker(ast.NodeVisitor):
         # Check for log.error() calls (simple check for .error() on any variable)
         is_log_error = isinstance(fn, ast.Attribute) and (fn.attr == "error" or fn.attr == "exception")
         # Check for iast_error calls
-        is_iast_log = isinstance(fn, ast.Name) and (
-            fn.id == "iast_error"
-            or fn.id == "iast_instrumentation_ast_patching_errorr_log"
-            or fn.id == "iast_propagation_error_log"
-        )
+        is_iast_log = isinstance(fn, ast.Name) and (fn.id == "iast_error" or fn.id == "iast_propagation_error_log")
         is_target = is_add_integration_error or is_log_error or is_iast_log
 
         if is_target and node.args:
