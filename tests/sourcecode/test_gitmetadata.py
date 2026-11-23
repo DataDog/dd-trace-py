@@ -2,9 +2,9 @@
 tests for git metadata embedding and processing.
 """
 
-import glob
 import os
 import subprocess
+import sys
 
 import pytest
 
@@ -13,28 +13,44 @@ from tests.utils import DDTRACE_PATH
 from tests.utils import TracerTestCase
 
 
+@pytest.fixture(scope="module")
+def installed_package(tmp_path_factory):
+    package_dir = tmp_path_factory.mktemp("gitmetadata-package")
+    subprocess.check_output(
+        ["git", "clone", "--shared", "--no-checkout", "--single-branch", str(DDTRACE_PATH), str(package_dir)]
+    )
+    subprocess.check_output(
+        ["git", "remote", "set-url", "origin", "https://username:password@github.com/companydotcom/repo.git"],
+        cwd=package_dir,
+    )
+    (package_dir / "mypackage").mkdir()
+    (package_dir / "mypackage" / "__init__.py").write_text('"0.0.1"')
+    (package_dir / "setup.py").write_text(
+        "import ddtrace.sourcecode.setuptools_auto\n"
+        "from setuptools import setup\n"
+        "setup(name='mypackage', version='0.0.1')\n"
+    )
+
+    build_env = os.environ.copy()
+    build_env.pop("DD_GIT_COMMIT_SHA", None)
+    build_env.pop("DD_GIT_REPOSITORY_URL", None)
+    subprocess.check_output([sys.executable, "setup.py", "bdist_wheel"], cwd=package_dir, env=build_env)
+    pkgfile = next((package_dir / "dist").glob("*.whl"))
+    envdir = package_dir / "run_env_dir"
+    subprocess.check_output(["uv", "pip", "install", "--target", str(envdir), str(pkgfile)], cwd=DDTRACE_PATH)
+    commit_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=package_dir, text=True).strip()
+    return envdir, commit_sha
+
+
 @pytest.fixture
-def preapare_test_env(mypackage_example, remove_git_repo_url_from_test_env):
-    subprocess.check_output("python setup.py bdist_wheel", shell=True)
-    pkgfile = glob.glob(os.path.join(mypackage_example, "dist", "*.whl"))[0]
-
-    os.environ["SHA_VALUE"] = subprocess.check_output("git rev-parse HEAD", shell=True).decode("utf-8").strip()
-
-    envdir = os.path.join(mypackage_example, "run_env_dir")
-    cwd = os.getcwd()
-    python_path = os.getenv("PYTHONPATH", None)
-    try:
-        subprocess.check_output(["uv", "pip", "install", "--target", envdir, pkgfile], cwd=DDTRACE_PATH)
-        os.chdir(envdir)
-        os.environ["PYTHONPATH"] = os.getenv("PYTHONPATH", "") + os.pathsep + envdir
-        yield
-    finally:
-        os.chdir(cwd)
-        if python_path is not None:
-            os.environ["PYTHONPATH"] = python_path
+def prepare_test_env(installed_package, monkeypatch, remove_git_repo_url_from_test_env):
+    envdir, commit_sha = installed_package
+    monkeypatch.setenv("SHA_VALUE", commit_sha)
+    monkeypatch.setenv("PYTHONPATH", os.getenv("PYTHONPATH", "") + os.pathsep + str(envdir))
+    monkeypatch.chdir(envdir)
 
 
-@pytest.mark.usefixtures("preapare_test_env")
+@pytest.mark.usefixtures("prepare_test_env")
 class GitMetadataTestCase(TracerTestCase):
     @run_in_subprocess(
         env_overrides=dict(
