@@ -136,11 +136,11 @@ def _capture_http_requests(port, request_type=None, include_headers=False):
             else:
                 request = request_type()
                 request.ParseFromString(body)
+            requests.append(request)
             self.send_response(200)
             self.send_header("Content-Length", "0")
             self.end_headers()
             self.wfile.flush()
-            requests.append(request)
 
         def log_message(self, format_string, *args):
             pass
