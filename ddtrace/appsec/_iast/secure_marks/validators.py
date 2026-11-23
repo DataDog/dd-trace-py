@@ -19,10 +19,10 @@ from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 def create_validator(
     vulnerability_types: list[VulnerabilityType],
     parameter_positions: Optional[list[int]],
-    wrapped: Callable,
+    wrapped: Callable[..., Any],
     instance: Any,
-    args: Sequence,
-    kwargs: dict,
+    args: Sequence[Any],
+    kwargs: dict[str, Any],
 ) -> Any:
     """Create a validator function wrapper that marks arguments as secure for a specific vulnerability type."""
     # Apply the validator function
@@ -46,7 +46,7 @@ def create_validator(
     return result
 
 
-def _keyword_positions(wrapped: Callable, instance: Any, kwargs: dict) -> dict[str, int]:
+def _keyword_positions(wrapped: Callable[..., Any], instance: Any, kwargs: dict[str, Any]) -> dict[str, int]:
     """Map keyword parameter names to their zero-based signature positions."""
     # Top-level imports of inspect can interfere with gevent's monkey patching
     import inspect
@@ -74,7 +74,9 @@ def _keyword_positions(wrapped: Callable, instance: Any, kwargs: dict) -> dict[s
     }
 
 
-def path_traversal_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def path_traversal_validator(
+    wrapped: Callable[..., Any], instance: Any, args: Sequence[Any], kwargs: dict[str, Any]
+) -> Any:
     """Validator for secure filename functions.
 
     Args:
@@ -84,12 +86,12 @@ def path_traversal_validator(wrapped: Callable, instance: Any, args: Sequence, k
         kwargs: Keyword arguments
 
     Returns:
-        True if validation passed, False otherwise
+        The result returned by the wrapped function
     """
     return create_validator([VulnerabilityType.PATH_TRAVERSAL], None, wrapped, instance, args, kwargs)
 
 
-def sqli_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def sqli_validator(wrapped: Callable[..., Any], instance: Any, args: Sequence[Any], kwargs: dict[str, Any]) -> Any:
     """Validator for SQL quoting functions.
 
     Args:
@@ -99,12 +101,12 @@ def sqli_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
         kwargs: Keyword arguments
 
     Returns:
-        True if validation passed, False otherwise
+        The result returned by the wrapped function
     """
     return create_validator([VulnerabilityType.SQL_INJECTION], None, wrapped, instance, args, kwargs)
 
 
-def cmdi_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def cmdi_validator(wrapped: Callable[..., Any], instance: Any, args: Sequence[Any], kwargs: dict[str, Any]) -> Any:
     """Validator for command quoting functions.
 
     Args:
@@ -114,12 +116,14 @@ def cmdi_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
         kwargs: Keyword arguments
 
     Returns:
-        True if validation passed, False otherwise
+        The result returned by the wrapped function
     """
     return create_validator([VulnerabilityType.COMMAND_INJECTION], None, wrapped, instance, args, kwargs)
 
 
-def unvalidated_redirect_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def unvalidated_redirect_validator(
+    wrapped: Callable[..., Any], instance: Any, args: Sequence[Any], kwargs: dict[str, Any]
+) -> Any:
     """Validator for unvalidated redirect functions.
 
     Args:
@@ -129,16 +133,18 @@ def unvalidated_redirect_validator(wrapped: Callable, instance: Any, args: Seque
         kwargs: Keyword arguments
 
     Returns:
-        True if validation passed, False otherwise
+        The result returned by the wrapped function
     """
     return create_validator([VulnerabilityType.UNVALIDATED_REDIRECT], None, wrapped, instance, args, kwargs)
 
 
-def header_injection_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def header_injection_validator(
+    wrapped: Callable[..., Any], instance: Any, args: Sequence[Any], kwargs: dict[str, Any]
+) -> Any:
     return create_validator([VulnerabilityType.HEADER_INJECTION], None, wrapped, instance, args, kwargs)
 
 
-def ssrf_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def ssrf_validator(wrapped: Callable[..., Any], instance: Any, args: Sequence[Any], kwargs: dict[str, Any]) -> Any:
     """Validator for ssrf functions.
 
     Args:
@@ -148,6 +154,6 @@ def ssrf_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
         kwargs: Keyword arguments
 
     Returns:
-        True if validation passed, False otherwise
+        The result returned by the wrapped function
     """
     return create_validator([VulnerabilityType.SSRF], None, wrapped, instance, args, kwargs)
