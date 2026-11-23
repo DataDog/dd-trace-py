@@ -410,6 +410,57 @@ async def test_create_agent_block_prevents_the_mcp_request(mock_execute_request,
     assert len(_mcp_requests(mock_execute_request)) == 1
 
 
+def _rewriting_agent(tools: list[Any], replies: list[AIMessage], args: dict[str, Any]) -> Any:
+    """create_agent whose tool-call middleware replaces the arguments after ToolNode evaluated them."""
+    from langchain.agents import create_agent
+    from langchain.agents.middleware import AgentMiddleware
+
+    class RewriteArgs(AgentMiddleware):
+        async def awrap_tool_call(self, request, handler):
+            return await handler(request.override(tool_call={**request.tool_call, "args": args}))
+
+    return create_agent(model=ScriptedChatModel(replies=replies), tools=tools, middleware=[RewriteArgs()])
+
+
+@requires_create_agent
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_create_agent_arguments_rewritten_by_middleware_are_checked_again(mock_execute_request, langchain):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    session = FakeSession()
+    (search,) = await _load(session, connection=_remote_connection(), server_name="docs")
+    agent = _rewriting_agent(
+        [search], [_tool_call_reply("search", {"query": "aiguard"}), AIMessage(content="done")], {"query": "rewritten"}
+    )
+
+    await agent.ainvoke({"messages": [HumanMessage(content="look it up")]})
+
+    assert session.calls == [("search", {"query": "rewritten"})]
+    toolnode_check, tool_check = _mcp_requests(mock_execute_request)
+    assert toolnode_check["messages"][-1]["tool_calls"][0]["function"]["arguments"] == '{"query": "aiguard"}'
+    assert tool_check["messages"][-1]["tool_calls"][0]["function"]["arguments"] == '{"query": "rewritten"}'
+
+
+@requires_create_agent
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_create_agent_block_of_rewritten_arguments_prevents_the_mcp_request(mock_execute_request, langchain):
+    def evaluate(*args: Any, **kwargs: Any):
+        return mock_evaluate_response("DENY" if "rewritten" in json.dumps(args[1]) else "ALLOW")
+
+    mock_execute_request.side_effect = evaluate
+    session = FakeSession()
+    (search,) = await _load(session, connection=_remote_connection(), server_name="docs")
+    agent = _rewriting_agent(
+        [search], [_tool_call_reply("search", {"query": "aiguard"}), AIMessage(content="done")], {"query": "rewritten"}
+    )
+
+    with pytest.raises(AIGuardAbortError):
+        await agent.ainvoke({"messages": [HumanMessage(content="look it up")]})
+
+    assert session.calls == []
+
+
 @requires_create_agent
 @pytest.mark.asyncio
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
@@ -578,7 +629,7 @@ def test_unpatch_restores_the_converter(langchain):
         assert not hasattr(adapter_tools.convert_mcp_tool_to_langchain_tool, "__wrapped__")
         converted = adapter_tools.convert_mcp_tool_to_langchain_tool(FakeSession(), SEARCH, server_name="docs")
         assert not hasattr(converted.coroutine, "_dd_ai_guard_mcp")
-        # The import hook is gone too: a fresh import of the module is not wrapped.
+        # A fresh import of the module is not wrapped either.
         package = sys.modules["langchain_mcp_adapters"]
         del sys.modules["langchain_mcp_adapters.tools"]
         try:
@@ -590,3 +641,22 @@ def test_unpatch_restores_the_converter(langchain):
             package.tools = adapter_tools
     finally:
         langchain_patch()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_tool_converted_before_unpatch_stops_evaluating(mock_execute_request, langchain):
+    from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
+    from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
+
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+    session = FakeSession()
+    (search,) = await _load(session, connection=_remote_connection(), server_name="docs")
+    langchain_unpatch()
+    try:
+        await search.ainvoke({"query": "aiguard"})
+    finally:
+        langchain_patch()
+
+    assert mock_execute_request.call_count == 0
+    assert session.calls == [("search", {"query": "aiguard"})]
