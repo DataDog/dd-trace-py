@@ -253,8 +253,11 @@ class _ImportHookChainedLoader:
         # Collect and run only the first hook that matches the module.
 
         _get_code = getattr(self.loader, "get_code", None)
-        # DEV: avoid re-wrapping the loader's get_code method (eg: in case of repeated importlib.reload() calls)
-        if _get_code is not None and not getattr(_get_code, "_dd_get_code", False):
+        # DEV: A loader can be shared by several modules (e.g. a zipimporter), so the wrapper must be bound to the
+        # module being executed now. Wrap the original get_code again instead of the previous wrapper, which
+        # also avoids stacking wrappers on repeated importlib.reload() calls.
+        _get_code = getattr(_get_code, "_dd_original_get_code", _get_code)
+        if _get_code is not None:
 
             def get_code(_loader, fullname):
                 code = _get_code(fullname)
@@ -265,6 +268,7 @@ class _ImportHookChainedLoader:
                 return code
 
             setattr(get_code, "_dd_get_code", True)
+            setattr(get_code, "_dd_original_get_code", _get_code)
 
             self.loader.get_code = get_code.__get__(self.loader, type(self.loader))  # type: ignore[union-attr]
 
