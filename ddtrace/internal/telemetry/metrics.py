@@ -143,7 +143,11 @@ class _PendingWorker:
 _RecorderKey = tuple[TELEMETRY_NAMESPACE, str, str, MetricTagType]
 _metric_recorders: "weakref.WeakValueDictionary[_RecorderKey, MetricRecorder]" = weakref.WeakValueDictionary()
 # Guards the registry and every transition of a recorder's binding.
-_recorder_lock = forksafe.Lock()
+# Reentrant because span finish records metrics through it, and integrations finish spans from
+# weakref.finalize callbacks: the cyclic GC can run such a finalizer on a thread that already holds
+# this lock (any allocation under it can trigger a collection). Re-entry at worst registers a
+# context twice or creates a duplicate recorder, which is benign compared to deadlocking the thread.
+_recorder_lock = forksafe.RLock()
 # Typed as object to avoid circular imports.
 _active_writer: Optional[object] = None
 _active_worker: Optional["TelemetryWorker"] = None

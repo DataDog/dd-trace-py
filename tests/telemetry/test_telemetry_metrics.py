@@ -3,6 +3,8 @@ import os
 import struct
 from time import sleep
 
+import pytest
+
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -666,3 +668,35 @@ HTTPPropagator.extract(malformed_headers)
     assert malformed_metrics[0]["type"] == "count"
     assert malformed_metrics[0]["points"][0][1] == 1.0
     assert "header_style:baggage" in malformed_metrics[0]["tags"]
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_recorder_lock_is_reentrant():
+    """Recording a metric while the recorder lock is held must not deadlock.
+
+    Span finish records telemetry metrics, and integrations finish spans from weakref.finalize
+    callbacks, which the cyclic GC can run on a thread already holding the recorder lock. Runs in a
+    subprocess so a regression fails on the timeout instead of wedging the lock for the whole suite.
+    """
+    from ddtrace.internal.telemetry import metrics
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+    class _FakeWorker:
+        def __init__(self):
+            self.points = []
+
+        def register_metric_context(self, *args):
+            return "ctx"
+
+        def add_point(self, context, value):
+            self.points.append((context, value))
+
+    worker = _FakeWorker()
+    recorder = metrics.get_metric_recorder(TELEMETRY_NAMESPACE.TRACERS, "test.reentrant_recorder_lock")
+    recorder._rebind(worker)
+
+    with metrics._recorder_lock:
+        assert metrics.get_metric_recorder(TELEMETRY_NAMESPACE.TRACERS, "test.reentrant_recorder_lock") is recorder
+        recorder.add(2)
+
+    assert worker.points == [("ctx", 2)]
