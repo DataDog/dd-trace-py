@@ -277,6 +277,27 @@ def safe_stdio_args(command: str, args: Sequence[str]) -> list[str]:
     return []
 
 
+def normalized_stdio_args(command: str, args: Any) -> list[str]:
+    """The args of an identity that safe_stdio_args already normalized: one package or one module, else none."""
+    if not isinstance(args, (list, tuple)) or len(args) != 1 or not isinstance(args[0], str):
+        return []
+    program = stdio_program(command)
+    if program in _PACKAGE_RUNNERS and _PACKAGE_ID.match(args[0]):
+        return [args[0]]
+    if _PYTHON.match(program) and _PYTHON_MODULE.match(args[0]):
+        return [args[0]]
+    return []
+
+
+# Names the openai-agents SDK generates when none is configured. They embed the stdio command or the raw URL,
+# so they are never reported; the command and URL origin are reported through their own fields.
+GENERATED_NAME_PREFIXES = ("stdio: ", "sse: ", "streamable_http: ")
+
+
+def is_generated_name(name: Any) -> bool:
+    return isinstance(name, str) and name.startswith(GENERATED_NAME_PREFIXES)
+
+
 def mcp_reference(server: MCPServer, tool_name: str, original_name: str) -> MCP:
     """Record tool_name as a tool of server and return the mcp object of its tool call."""
     server["tools"][tool_name] = original_name

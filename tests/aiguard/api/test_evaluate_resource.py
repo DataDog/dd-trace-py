@@ -401,6 +401,31 @@ def test_request_tags_reach_the_root_and_ai_guard_spans(mock_execute_request, ai
             id="stdio safe args only, no env or URL",
         ),
         pytest.param(
+            {"operation": "connect", "transport": "stdio", "command": "python3.12", "args": ["my_server.main"]},
+            {"operation": "connect", "transport": "stdio", "command": "python3.12", "args": ["my_server.main"]},
+            id="normalized python module is kept",
+        ),
+        pytest.param(
+            {
+                "operation": "connect",
+                "transport": "stdio",
+                "command": "python3",
+                "args": ["/home/me/server.py", "--key"],
+            },
+            {"operation": "connect", "transport": "stdio", "command": "python3"},
+            id="python script path and other args are dropped",
+        ),
+        pytest.param(
+            {
+                "operation": "connect",
+                "transport": "streamable_http",
+                "name": "streamable_http: https://user:secret@mcp.example.com/mcp?token=abc",
+                "url": "https://user:secret@mcp.example.com/mcp?token=abc",
+            },
+            {"operation": "connect", "transport": "streamable_http", "url": "https://mcp.example.com"},
+            id="SDK-generated name is dropped",
+        ),
+        pytest.param(
             {"operation": "connect", "transport": "carrier_pigeon", "name": "local-docs"},
             {"operation": "connect", "transport": "unknown", "name": "local-docs"},
             id="unknown transport",

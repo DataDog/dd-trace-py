@@ -27,6 +27,8 @@ from ddtrace.aiguard._types import ResourceEvaluation
 from ddtrace.aiguard._types import ResourceTarget
 from ddtrace.aiguard._types import ToolCall
 from ddtrace.aiguard.integrations._mcp import client_mcp_server
+from ddtrace.aiguard.integrations._mcp import is_generated_name
+from ddtrace.aiguard.integrations._mcp import normalized_stdio_args
 from ddtrace.aiguard.middleware import _MIDDLEWARES
 from ddtrace.aiguard.middleware import AIGuardContext
 from ddtrace.aiguard.middleware import AIGuardRequest
@@ -267,9 +269,10 @@ def _safe_target(target: Any) -> Optional[ResourceTarget]:
     transport = details.get("transport")
     if transport not in _MCP_TRANSPORTS:
         transport = AI_GUARD.MCP_TRANSPORT_UNKNOWN
+    name = details.get("name")
     entry = client_mcp_server(
         transport,
-        name=details.get("name"),
+        name=None if is_generated_name(name) else name,
         url=None if transport in _LOCAL_MCP_TRANSPORTS else details.get("url"),
         command=details.get("command"),
         args=details.get("args"),
@@ -277,9 +280,16 @@ def _safe_target(target: Any) -> Optional[ResourceTarget]:
     if entry is None:
         return None
     mcp_server = MCPServerTarget(operation=AI_GUARD.MCP_OPERATION_CONNECT, transport=transport)
-    for key in ("name", "url", "command", "args"):
-        if key in entry:
-            mcp_server[key] = entry[key]
+    if "name" in entry:
+        mcp_server["name"] = entry["name"]
+    if "url" in entry:
+        mcp_server["url"] = entry["url"]
+    if "command" in entry:
+        mcp_server["command"] = entry["command"]
+        # A target built from an mcp_servers entry already holds the normalized package or module.
+        args = entry.get("args") or normalized_stdio_args(entry["command"], details.get("args"))
+        if args:
+            mcp_server["args"] = args
     return ResourceTarget(type=AI_GUARD.TARGET_MCP_SERVER, mcp_server=mcp_server)
 
 
