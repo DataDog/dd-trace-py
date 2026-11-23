@@ -44,7 +44,14 @@ concrete probe types. The signals these probes emit are defined in
 of a new signal, a new subclass should be created that:
 
 1. implements the `line`, `enter`, `exit` methods as required
-2. registers the signal with the probe via `@probe_to_signal.register`
+2. declares the probe types it handles with the `probes` class keyword, e.g.
+   `class Snapshot(LogSignal, probes=(LogFunctionProbe, LogLineProbe))`, and
+   overrides the `create` class method if the signal needs more than the
+   default constructor arguments
+3. has its module imported by `ddtrace.debugging._signal.catalog`, which owns
+   the `signal_for_probe` entry point. Do not import signal modules from the
+   `ddtrace.debugging._signal` package `__init__`: concurrent imports of its
+   submodules can deadlock on Python 3.14+.
 
 Probe status is reported periodically. To avoid creating an additional thread,
 we let the RC signal received by the debugger do the check on whether new probe
