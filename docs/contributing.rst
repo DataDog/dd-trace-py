@@ -123,19 +123,24 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
    example ``docs: run fork PR #1234 through CI [DO NOT MERGE]``. Its description must say it exists
    only to run CI, must not be merged, and include ``Original PR: <URL>``.
 #. Add ``Closes: <shadow PR URL>`` to the original PR's description.
-#. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
-   it does not mean both PRs run in the same context or establish that the code is safe. That
-   assurance comes from the review before mirroring.
-#. Obtain the required approvals on the original PR. Once CI is green, verify its head SHA matches the tested
-   shadow PR, then comment ``/merge`` on the *original* fork PR.
-#. After the original PR closes, close the shadow PR without merging if it is still open, then
-   delete its branch.
+#. Wait for the shadow PR's test and build checks, including System Tests, to pass. An identical
+   SHA establishes source-commit parity, but the PRs run in different contexts; safety comes
+   from the review before mirroring.
+#. Obtain the required approvals on the original PR and verify its head SHA matches the tested shadow.
+#. Record the tested SHA and passing CI links on the original PR, then close the shadow without
+   merging. Leave only the original PR open for that head SHA across gated target branches so
+   MergeGate can evaluate it.
+#. Refresh merge checks as described below, then comment ``/merge`` on the *original* fork PR.
+   Delete the shadow branch after the original PR closes.
 
 Never mirror speculative or partially reviewed code merely to obtain CI results.
 
-If merge checks remain stale after closing a shadow whose CI passed, comment ``/code blockers``
-on the original PR to identify any remaining blockers, then ``/mergegate trigger`` to refresh
-MergeGate. Resolve missing approvals or actual CI failures; no branch update is needed to refresh.
+On the original PR, comment ``/code blockers`` to identify remaining blockers. If an approval is
+missing, verify that a required reviewer approved the current head on the original PR, not the
+shadow; request a fresh approval if needed.
+
+After closing the shadow or correcting approvals, comment ``/mergegate trigger`` on the original
+PR to refresh MergeGate without updating the branch. Check the bot's response for remaining blockers.
 
 For a merge request still waiting in the queue, maintainers with access can request a fresh
 mergeability check::
