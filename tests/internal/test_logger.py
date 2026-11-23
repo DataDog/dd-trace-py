@@ -1,3 +1,4 @@
+import io
 import logging
 import logging.handlers
 import time
@@ -531,3 +532,54 @@ def test_package_loggers_have_no_handler_when_stream_handler_disabled():
 
     for name in ("ddtrace", "_ddtrace_internal", "_ddtrace_coverage", "_ddtrace_native"):
         assert logging.getLogger(name).handlers == [], name
+
+
+def _product_log_output(*args, exc_message="boom", **kwargs):
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger = get_logger("ddtrace.test_product_log")
+    logger.addHandler(handler)
+    try:
+        with mock.patch.object(ddtrace.internal.logger, "_rate_limit", 0):
+            try:
+                raise ValueError(exc_message)
+            except ValueError:
+                logger.error(*args, **kwargs)
+    finally:
+        logger.removeHandler(handler)
+    return stream.getvalue()
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"_DD_INTERNAL_LOG_LEVEL": "DEBUG", "_DD_INTERNAL_COVERAGE_LOG_LEVEL": "ERROR"},
+        {"_DD_INTERNAL_COVERAGE_LOG_LEVEL": "ERROR", "_DD_INTERNAL_LOG_LEVEL": "DEBUG"},
+    ],
+    ids=["parent-first", "child-first"],
+)
+def test_logger_log_level_parent_and_child_in_any_order(monkeypatch, settings):
+    for name, level in settings.items():
+        monkeypatch.setenv(name, level)
+
+    with (
+        mock.patch.object(ddtrace.internal.logger, "LOG_LEVEL_TRIE", ddtrace.internal.logger.LoggerPrefix.build_trie()),
+        mock.patch.dict(logging.root.manager.loggerDict),
+    ):
+        assert get_logger("ddtrace.internal.module").level == logging.DEBUG
+        assert get_logger("ddtrace.internal.coverage.code").level == logging.ERROR
+
+
+def test_logger_log_level_falls_back_to_nearest_configured_ancestor(monkeypatch):
+    monkeypatch.setenv("_DD_INTERNAL_LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("_DD_INTERNAL_COVERAGE_DETAIL_LOG_LEVEL", "ERROR")
+
+    trie = ddtrace.internal.logger.LoggerPrefix.build_trie()
+
+    assert trie.lookup("ddtrace.internal.coverage.detail.x") == logging.ERROR
+    assert trie.lookup("ddtrace.internal.coverage.detail") == logging.ERROR
+    # Neither the intermediate node nor an unconfigured sibling has its own level: the ancestor's applies
+    assert trie.lookup("ddtrace.internal.coverage") == logging.DEBUG
+    assert trie.lookup("ddtrace.internal.coverage.other") == logging.DEBUG
+    assert trie.lookup("ddtrace.other") is None
