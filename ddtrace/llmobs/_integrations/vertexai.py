@@ -18,6 +18,8 @@ from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_vertex
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolDefinition
 
 
 class VertexAIIntegration(BaseLLMIntegration):
@@ -65,7 +67,14 @@ class VertexAIIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         metrics = self._extract_metrics_from_response(response) if response is not None else {}
         model_name = span.get_tag(TAG_MODEL)
         model_provider = span.get_tag(TAG_PROVIDER)
@@ -77,7 +86,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             model_provider=model_provider,
         )
 
-    def _extract_metrics_from_response(self, response):
+    def _extract_metrics_from_response(self, response: Any) -> Optional[dict[str, Any]]:
         """Extract metrics from the response."""
         if isinstance(response, list):
             for chunk in response:
@@ -98,7 +107,7 @@ class VertexAIIntegration(BaseLLMIntegration):
 
             token_counts = generations_dict.get("usage_metadata", None)
             if not token_counts:
-                return
+                return None
 
             input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
             # total_token_count includes tool-use prompt tokens, so count them as input
@@ -110,7 +119,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             output_tokens = candidates_tokens + thoughts_tokens
             total_tokens = _get_attr(token_counts, "total_token_count", 0)
 
-        metrics = {}
+        metrics: dict[str, Any] = {}
         if input_tokens is not None:
             metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
         if output_tokens is not None:
@@ -121,7 +130,9 @@ class VertexAIIntegration(BaseLLMIntegration):
             metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = thoughts_tokens
         return metrics
 
-    def _extract_input_message(self, contents, history, system_instruction=None) -> list[Message]:
+    def _extract_input_message(
+        self, contents: Any, history: Any, system_instruction: Optional[list[str]] = None
+    ) -> list[Message]:
         from vertexai.generative_models._generative_models import Part
 
         messages: list[Message] = []
@@ -151,12 +162,12 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.extend(self._extract_messages_from_content(content))
         return messages
 
-    def _extract_output_message(self, generations) -> list[Message]:
+    def _extract_output_message(self, generations: Any) -> list[Message]:
         output_messages: list[Message] = []
         # streamed responses will be a list of chunks
         if isinstance(generations, list):
             message_content = ""
-            tool_calls = []
+            tool_calls: list[ToolCall] = []
             role = "model"
             for chunk in generations:
                 for candidate in _get_attr(chunk, "candidates", []):
@@ -176,7 +187,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         return output_messages
 
     @staticmethod
-    def _extract_messages_from_content(content) -> list[Message]:
+    def _extract_messages_from_content(content: Any) -> list[Message]:
         messages: list[Message] = []
         role = _get_attr(content, "role", "")
         parts = _get_attr(content, "parts", [])
@@ -191,7 +202,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append(message)
         return messages
 
-    def _extract_tools(self, instance, arg_tools):
+    def _extract_tools(self, instance: Any, arg_tools: Any) -> list[ToolDefinition]:
         """
         Extracts tool definitions for a call, tools can be passed into a model instance or a generation call, so we
         handle both cases and remove duplicates.
@@ -199,15 +210,15 @@ class VertexAIIntegration(BaseLLMIntegration):
         tools = _get_attr(instance, "_tools", []) or []
         tool_set = set(tools)
         tool_set.update(arg_tools)
-        tool_definitions = []
+        tool_definitions: list[ToolDefinition] = []
         for tool in tool_set:
             tool_dict = tool.to_dict()
             function_declarations = _get_attr(tool_dict, "function_declarations", [])
             for function in function_declarations:
-                tool_definition_info = {
-                    "name": _get_attr(function, "name", "") or "",
-                    "description": _get_attr(function, "description", "") or "",
-                    "schema": _get_attr(function, "parameters", {}) or {},
-                }
+                tool_definition_info = ToolDefinition(
+                    name=_get_attr(function, "name", "") or "",
+                    description=_get_attr(function, "description", "") or "",
+                    schema=_get_attr(function, "parameters", {}) or {},
+                )
                 tool_definitions.append(tool_definition_info)
         return tool_definitions

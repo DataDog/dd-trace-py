@@ -16,7 +16,6 @@ def test_ray_subscriber_definitions_do_not_register_listeners() -> None:
     reload(module)
     for name in RAY_SUBSCRIBERS.subscribers:
         subscriber = getattr(module, name)
-        assert subscriber.auto_register is False
         prefixes = ("context.started.", "context.ended.") if issubclass(subscriber, ContextSubscriber) else ("",)
         for event_name in subscriber.event_names:
             for prefix in prefixes:

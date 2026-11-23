@@ -84,8 +84,9 @@ Pull requests are named according to the `conventional commit <https://www.conve
 standard, which is enforced by a continuous integration job. The standardized "scopes" we use
 in pull request names are enumerated :ref:`in the release notes documentation<release_notes_scope>`.
 
-Pull requests that change the library's public API require a :ref:`release note<release_notes>`.
-If your pull request doesn't change the public API, apply the ``no-changelog`` label.
+Pull requests with customer-facing changes require a :ref:`release note<release_notes>`; see that page for which
+changes qualify. If your pull request has no customer-facing impact, apply the ``changelog/no-changelog`` label
+(not required for ``ci``, ``test`` and ``docs`` PRs).
 Release notes should be written from the user's perspective and clearly explain the impact or benefit of the change.
 
 Once approved, pull requests should be merged with the "Squash and Merge" option.

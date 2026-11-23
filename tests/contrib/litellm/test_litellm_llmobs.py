@@ -1,3 +1,4 @@
+import inspect
 from unittest import mock
 
 import pytest
@@ -26,10 +27,18 @@ from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import assert_llmobs_span_data
+from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
 LITELLM_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"}
+
+
+def test_llmobs_test_writer_without_agent(tracer, monkeypatch, request):
+    monkeypatch.setattr("ddtrace.llmobs._writer._SHOULD_USE_AGENTLESS", None)
+    monkeypatch.setattr("ddtrace.llmobs._writer.agent.info", lambda: None)
+    request.getfixturevalue("litellm_llmobs")
+    assert isinstance(tracer._span_aggregator.writer, DummyWriter)
 
 
 def _gateway(span):
@@ -709,6 +718,7 @@ class TestLLMObsLiteLLM:
 
 
 _OPENAI_ENABLED = "ddtrace.contrib.internal.litellm.utils._openai_is_patched"
+_SENDS_POST = "ddtrace.contrib.internal.litellm.utils._litellm_sends_openai_chat_with_post"
 
 
 def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
@@ -801,6 +811,8 @@ def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled
         ("gpt-4o", False, True, True),
         ("azure/gpt-4", False, True, True),
         ("openai/gpt-4", False, True, True),
+        ("azure/my-deployment", False, True, True),
+        ("azure_ai/gpt-4o", False, True, True),
         # streaming disables downstream check
         ("gpt-4o", True, True, False),
         # OpenAI integration disabled disables downstream check
@@ -811,42 +823,112 @@ def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled
         ("openrouter/openai/gpt-oss-120b", False, True, False),
     ],
 )
-def test_has_downstream_openai_span(model, stream, openai_enabled, expected):
+@pytest.mark.parametrize("operation", ["completion", "text_completion"])
+# These kwargs do not change the result for litellm before 1.108.1.
+@pytest.mark.parametrize(
+    "extra_kwargs",
+    [{}, {"custom_llm_provider": "azure"}, {"base_model": "azure/o3-mini"}, {"deployment_id": "my-deploy"}],
+)
+def test_has_downstream_openai_span(model, stream, openai_enabled, expected, operation, extra_kwargs):
+    """litellm before 1.108.1 sends OpenAI chat requests with a create method of the OpenAI SDK."""
     from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 
-    kwargs = {"stream": stream}
-    with mock.patch(_OPENAI_ENABLED, return_value=openai_enabled):
-        assert has_downstream_openai_span(kwargs, model) is expected
+    kwargs = {"stream": stream, **extra_kwargs}
+    with mock.patch(_OPENAI_ENABLED, return_value=openai_enabled), mock.patch(_SENDS_POST, return_value=False):
+        assert has_downstream_openai_span(kwargs, model, operation) is expected
 
 
-def test_has_downstream_openai_span_use_litellm_proxy_kwarg():
+@pytest.mark.parametrize(
+    "model,operation,kwargs,openai_enabled,expected",
+    [
+        # OpenAI chat requests use the post method of the OpenAI client, so no OpenAI span exists.
+        ("gpt-4o", "completion", {}, True, False),
+        ("openai/gpt-4", "acompletion", {}, True, False),
+        ("gpt-3.5-turbo", "text_completion", {}, True, False),
+        ("gpt-4o", "atext_completion", {}, True, False),
+        ("openai/gpt-3.5-turbo-instruct", "completion", {}, True, False),
+        # litellm sends Azure AI requests with its own HTTP client, so no OpenAI span exists.
+        ("azure_ai/gpt-4o", "completion", {}, True, False),
+        # litellm sends Azure o-series models to the OpenAI chat handler.
+        ("azure/o3-mini", "completion", {}, True, False),
+        ("azure/o_series/my-deployment", "completion", {}, True, False),
+        ("azure/my-deployment", "completion", {"base_model": "azure/o3-mini"}, True, False),
+        ("azure/my-deployment", "completion", {"model_info": {"base_model": "azure/o1"}}, True, False),
+        ("gpt-4", "completion", {"deployment_id": "o3-mini-deploy"}, True, False),
+        # The Azure and text completion handlers call a create method of the OpenAI SDK.
+        ("azure/gpt-4", "completion", {}, True, True),
+        ("azure/gpt-4", "completion", {"custom_llm_provider": ""}, True, True),
+        ("gpt-4o", "completion", {"custom_llm_provider": "azure"}, True, True),
+        ("gpt-4o", "completion", {"azure": True}, True, True),
+        ("gpt-4", "completion", {"deployment_id": "my-deploy"}, True, True),
+        ("azure/o3-mini", "completion", {"deployment_id": "my-deploy"}, True, True),
+        ("gpt-35-turbo-instruct", "text_completion", {"custom_llm_provider": "azure_text"}, True, True),
+        ("gpt-3.5-turbo-instruct", "completion", {}, True, True),
+        ("text-completion-openai/gpt-3.5-turbo-instruct", "completion", {}, True, True),
+        ("gpt-3.5-turbo", "text_completion", {"custom_llm_provider": "text-completion-openai"}, True, True),
+        # litellm.text_completion() sends an OpenAI model that is not a chat model to the text completion handler.
+        ("openai/my-local-model", "text_completion", {}, True, True),
+        ("openai/my-local-model", "atext_completion", {}, True, True),
+        ("openai/myorg/gpt-4o", "text_completion", {}, True, True),
+        ("openai/GPT-4o", "text_completion", {}, True, True),
+        # The other checks do not change.
+        ("gpt-4o", "completion", {"stream": True}, True, False),
+        ("gpt-4o", "completion", {}, False, False),
+        ("litellm_proxy/gpt-4o", "completion", {}, True, False),
+        ("openrouter/openai/gpt-4o", "completion", {}, True, False),
+    ],
+)
+def test_has_downstream_openai_span_when_litellm_sends_chat_with_post(
+    model, operation, kwargs, openai_enabled, expected
+):
+    """litellm 1.108.1 and later send OpenAI chat requests with the post method of the OpenAI client."""
+    from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
+
+    with mock.patch(_OPENAI_ENABLED, return_value=openai_enabled), mock.patch(_SENDS_POST, return_value=True):
+        assert has_downstream_openai_span(kwargs, model, operation) is expected
+
+
+def test_litellm_sends_openai_chat_with_post_matches_litellm_source():
+    """The version check and a check of the installed litellm source code give the same result."""
+    import litellm.llms.openai.openai as litellm_openai
+
+    from ddtrace.contrib.internal.litellm.utils import _litellm_sends_openai_chat_with_post
+
+    calls_create = "chat.completions.with_raw_response.create" in inspect.getsource(litellm_openai)
+    assert _litellm_sends_openai_chat_with_post() is not calls_create
+
+
+@pytest.mark.parametrize("sends_post", [False, True])
+def test_has_downstream_openai_span_use_litellm_proxy_kwarg(sends_post):
     """use_litellm_proxy=True in kwargs suppresses downstream check regardless of model name."""
     from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 
     kwargs = {"stream": False, "use_litellm_proxy": True}
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
+    with mock.patch(_OPENAI_ENABLED, return_value=True), mock.patch(_SENDS_POST, return_value=sends_post):
         assert has_downstream_openai_span(kwargs, "gpt-4o") is False
 
 
-def test_has_downstream_openai_span_use_litellm_proxy_module_flag():
+@pytest.mark.parametrize("sends_post", [False, True])
+def test_has_downstream_openai_span_use_litellm_proxy_module_flag(sends_post):
     """litellm.use_litellm_proxy = True suppresses downstream check regardless of model name."""
     import litellm
 
     from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 
     kwargs = {"stream": False}
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
+    with mock.patch(_OPENAI_ENABLED, return_value=True), mock.patch(_SENDS_POST, return_value=sends_post):
         with mock.patch.object(litellm, "use_litellm_proxy", True, create=True):
             assert has_downstream_openai_span(kwargs, "gpt-4o") is False
 
 
-def test_has_downstream_openai_span_use_litellm_proxy_env_var(monkeypatch):
+@pytest.mark.parametrize("sends_post", [False, True])
+def test_has_downstream_openai_span_use_litellm_proxy_env_var(monkeypatch, sends_post):
     """USE_LITELLM_PROXY=true env var suppresses downstream check regardless of model name."""
     from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 
     monkeypatch.setenv("USE_LITELLM_PROXY", "true")
     kwargs = {"stream": False}
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
+    with mock.patch(_OPENAI_ENABLED, return_value=True), mock.patch(_SENDS_POST, return_value=sends_post):
         assert has_downstream_openai_span(kwargs, "gpt-4o") is False
 
 
@@ -876,19 +958,19 @@ def test_gateway_marker_keeps_cost_tags(litellm, request_vcr, litellm_llmobs, te
     err=None,
 )
 def test_gateway_marker_on_downstream_openai_llm_span():
-    """The OpenAI integration emits the llm span of a non-streamed OpenAI call that litellm makes.
+    """A non-streamed OpenAI call through litellm has one llm span, and this span has the gateway marker.
 
-    A new process patches litellm and openai before they are imported, so each run is deterministic.
+    Before litellm 1.108.1, the OpenAI span is the llm span. From litellm 1.108.1, the litellm span is the llm span.
     """
     import asyncio
     import inspect
     import os
     from unittest import mock
 
-    import pytest
-
     from ddtrace import patch
 
+    # This test runs in a new process. The process patches litellm and openai before it imports them,
+    # so each run gives the same result.
     patch(litellm=True, openai=True)
 
     import litellm
@@ -904,9 +986,8 @@ def test_gateway_marker_on_downstream_openai_llm_span():
     from tests.contrib.litellm.utils import model_list
     from tests.utils import DummyWriter
 
-    if "chat.completions.with_raw_response.create" not in inspect.getsource(litellm_openai):
-        pytest.skip("This litellm version does not call the OpenAI SDK create method, so no OpenAI span exists")
-
+    # The OpenAI integration makes a span only when litellm calls a create method of the OpenAI SDK.
+    calls_create = "chat.completions.with_raw_response.create" in inspect.getsource(litellm_openai)
     operation = os.environ["_TEST_LITELLM_OPERATION"]
     method = operation.split(".")[-1]
     use_router = operation.startswith("router.")
@@ -924,15 +1005,26 @@ def test_gateway_marker_on_downstream_openai_llm_span():
 
     spans = ddtrace.tracer._span_aggregator.writer.pop()
     summary = [(s.name, s.resource, s.span_type, get_llmobs_span_kind(s)) for s in spans]
-    assert len(spans) == (3 if use_router else 2), summary
-    openai_span = next(s for s in spans if s.name == "openai.request")
+    # Count the LLM Observability spans of the llm kind. The router span is a workflow span.
+    llm_spans = [s for s in spans if s.span_type == "llm" and get_llmobs_span_kind(s) == "llm"]
+    assert len(llm_spans) == 1, summary
     litellm_span = next(s for s in spans if s.resource == method)
-    # The litellm span is not an LLMObs span here, so the OpenAI span is the only llm span.
-    assert litellm_span.span_type is None, summary
-    assert openai_span.parent_id == litellm_span.span_id, summary
-    assert openai_span.span_type == "llm", summary
-    assert get_llmobs_span_kind(openai_span) == "llm", summary
-    assert get_llmobs_metadata(openai_span)["_dd"] == {"gateway": "litellm"}, summary
+    if calls_create:
+        assert len(spans) == (3 if use_router else 2), summary
+        openai_span = next(s for s in spans if s.name == "openai.request")
+        # The litellm span is not an LLMObs span here, so the OpenAI span is the only llm span.
+        assert litellm_span.span_type is None, summary
+        assert openai_span.parent_id == litellm_span.span_id, summary
+        assert openai_span.span_type == "llm", summary
+        assert get_llmobs_span_kind(openai_span) == "llm", summary
+        assert get_llmobs_metadata(openai_span)["_dd"] == {"gateway": "litellm"}, summary
+    else:
+        assert len(spans) == (2 if use_router else 1), summary
+        # No OpenAI span exists, so the litellm span is the only llm span.
+        assert not [s for s in spans if s.name == "openai.request"], summary
+        assert litellm_span.span_type == "llm", summary
+        assert get_llmobs_span_kind(litellm_span) == "llm", summary
+        assert get_llmobs_metadata(litellm_span)["_dd"] == {"gateway": "litellm"}, summary
     for span in spans:
         assert not [key for key in span.get_tags() if "gateway" in key], summary
     if use_router:

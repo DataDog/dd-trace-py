@@ -30,7 +30,7 @@ def safe_substitute(template: str, variables: Mapping[str, Any]) -> str:
     Missing variables and braces surrounding a placeholder are left as-is.
     """
 
-    def replace_var(match: re.Match) -> str:
+    def replace_var(match: re.Match[str]) -> str:
         var_name = match.group(1) or match.group(2)
         return str(variables.get(var_name, match.group(0)))
 
@@ -39,7 +39,9 @@ def safe_substitute(template: str, variables: Mapping[str, Any]) -> str:
 
 def extract_error_detail(body: str) -> str:
     try:
-        return json.loads(body).get("detail", body)
+        # API error responses carry a string "detail" field.
+        detail: str = json.loads(body).get("detail", body)
+        return detail
     except Exception:
         return body
 
