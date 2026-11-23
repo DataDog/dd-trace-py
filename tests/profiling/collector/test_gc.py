@@ -538,6 +538,7 @@ def test_gc_pause_samples_appear_in_profile() -> None:
 )
 def test_gc_dropped_pause_labels_in_profile() -> None:
     import os
+    from typing import Optional
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import gc as gc_collector
@@ -579,10 +580,10 @@ def test_gc_dropped_pause_labels_in_profile() -> None:
         )
     ]
     assert len(config_samples) == 1, config_samples
-    dropped: pprof_pb2.Label | None = pprof_utils.get_label_with_key(
+    dropped: Optional[pprof_pb2.Label] = pprof_utils.get_label_with_key(
         profile.string_table, config_samples[0], "gc dropped pauses"
     )
-    dropped_ns: pprof_pb2.Label | None = pprof_utils.get_label_with_key(
+    dropped_ns: Optional[pprof_pb2.Label] = pprof_utils.get_label_with_key(
         profile.string_table, config_samples[0], "gc dropped pause ns"
     )
     assert dropped is not None and dropped.num >= 5, config_samples[0]
