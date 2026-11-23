@@ -8,12 +8,6 @@ from tests.contrib.crewai.utils import requires_akickoff
 from tests.contrib.crewai.utils import sum_tool
 
 
-# The crewai 1.x hierarchical recording delegates only the first task, so it has its own snapshot.
-HIERARCHICAL_CREW_SNAPSHOT = "tests.contrib.crewai.test_crewai.test_hierarchical_crew" + (
-    "_v1" if CREWAI_VERSION >= (1, 0, 0) else ""
-)
-
-
 @pytest.mark.snapshot
 def test_basic_crew(crewai, basic_crew, request_vcr):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
@@ -98,25 +92,25 @@ async def test_conditional_crew_async(crewai, conditional_crew, request_vcr):
         await conditional_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token=HIERARCHICAL_CREW_SNAPSHOT)
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
 def test_hierarchical_crew(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token=HIERARCHICAL_CREW_SNAPSHOT)
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
 def test_hierarchical_crew_for_each(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
 
 
-@pytest.mark.snapshot(token=HIERARCHICAL_CREW_SNAPSHOT)
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
 async def test_hierarchical_crew_async(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token=HIERARCHICAL_CREW_SNAPSHOT)
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
 async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])

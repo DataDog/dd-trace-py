@@ -220,13 +220,6 @@ def _assert_async_crew_links(spans):
 
 
 def _assert_hierarchical_crew_events(spans):
-    if CREWAI_VERSION >= (1, 0, 0):
-        # The crewai 1.x recording delegates only the first task, and the coworker answers without its tool.
-        expected_span_kinds = ("workflow", "task", "agent", "task", "agent", "tool", "agent", "task", "agent")
-        assert len(spans) == len(expected_span_kinds)
-        for span, kind in zip(spans, expected_span_kinds):
-            assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind=kind, **EXPECTED_BASE_SPAN_DATA)
-        return
     assert len(spans) == 12
     expected_span_kinds = (
         "workflow",
@@ -250,15 +243,6 @@ def _assert_hierarchical_crew_events(spans):
 
 
 def _assert_hierarchical_crew_links(spans):
-    if CREWAI_VERSION >= (1, 0, 0):
-        _assert_span_link(spans[0], spans[1], "input", "input")
-        _assert_span_link(spans[1], spans[3], "output", "input")
-        _assert_span_link(spans[3], spans[7], "output", "input")
-        _assert_span_link(spans[7], spans[0], "output", "output")
-        for task_or_tool, agent in ((1, 2), (3, 4), (5, 6), (7, 8)):
-            _assert_span_link(spans[task_or_tool], spans[agent], "input", "input")
-            _assert_span_link(spans[agent], spans[task_or_tool], "output", "output")
-        return
     # span links for crew -> task
     _assert_span_link(spans[0], spans[1], "input", "input")
     _assert_span_link(spans[1], spans[3], "output", "input")
