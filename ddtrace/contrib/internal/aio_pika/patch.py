@@ -19,6 +19,7 @@ import aio_pika
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.events import TracingEvent
+from ddtrace._trace.span import Span
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
@@ -70,9 +71,11 @@ config._add(  # type: ignore[no-untyped-call]
     },
 )
 
-# Task-local identity of the IncomingMessage currently covered by a process span.
+# Task-local IncomingMessage currently covered by a process span, and that span.
 # Used only to suppress a nested message.process() span inside a traced callback.
-_PROCESSING_MESSAGE: ContextVar[Any] = ContextVar("ddtrace.aio_pika.processing_message", default=None)
+_PROCESSING_MESSAGE: ContextVar[Optional[tuple[Any, Span]]] = ContextVar(
+    "ddtrace.aio_pika.processing_message", default=None
+)
 
 
 def get_version() -> str:
@@ -279,17 +282,19 @@ def _is_iterator_callback(callback: Any) -> bool:
 
 
 @contextmanager
-def _mark_processing(message: Any) -> Iterator[None]:
-    token = _PROCESSING_MESSAGE.set(message)
+def _mark_processing(message: Any, span: Span) -> Iterator[None]:
+    token = _PROCESSING_MESSAGE.set((message, span))
     try:
         yield
     finally:
         _PROCESSING_MESSAGE.reset(token)
 
 
-def _process_event(message: Any) -> MessagingConsumeEvent:
+def _process_event(message: Any, queue: str = "") -> MessagingConsumeEvent:
     destination = _message_destination(message)
     tags = {**_message_tags(message), **_semantic_tags("process", destination)}
+    if queue:
+        tags[_QUEUE] = queue
     return _consume_event(message, _CONSUME, SpanDirection.PROCESSING, destination, tags)
 
 
@@ -314,7 +319,10 @@ def _traced_callback(callback: Callable[[Any], Any], queue: str) -> Callable[[An
 
     @wraps(callback)
     async def traced(message: Any) -> Any:
-        with _mark_processing(message), core.context_with_event(_process_event(message)) as ctx:
+        with (
+            core.context_with_event(_process_event(message, queue)) as ctx,
+            _mark_processing(message, span_from_context(ctx)),
+        ):
             _dispatch_receive(queue, message, ctx)
             return await _call_callback(callback, message)
 
@@ -350,10 +358,13 @@ def _attach_producer(event: TracingEvent, message: Any, headers: Optional[dict[s
         return None
     # HTTPPropagator.extract has no return annotation in the legacy propagation API.
     producer = cast(Context, HTTPPropagator.extract(headers))  # type: ignore[no-untyped-call]
-    if not (producer.trace_id and producer.span_id):
-        return None
+    has_ids = bool(producer.trace_id and producer.span_id)
     if _span_links_enabled():
-        return producer
+        return producer if has_ids else None
+    # With DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT=restart the context has no IDs but keeps the producer as a span
+    # link, plus any baggage; parenting on it starts a new trace that carries both.
+    if not (has_ids or producer._span_links or producer.get_all_baggage_items()):
+        return None
     event.distributed_context = producer
     event.use_active_context = False
     return None
@@ -413,14 +424,17 @@ async def _traced_anext(
 
 @asynccontextmanager
 async def _traced_process_context(original: Any, message: Any) -> AsyncIterator[Any]:
-    if _PROCESSING_MESSAGE.get() is message:
+    covering = _PROCESSING_MESSAGE.get()
+    # A task started by the callback inherits the marker; once the callback's span has finished, it no longer
+    # covers this processing.
+    if covering is not None and covering[0] is message and not covering[1].finished:
         async with original as incoming:
             yield incoming
         return
 
     previous = tracer.context_provider.active()
     try:
-        with _mark_processing(message), core.context_with_event(_process_event(message)):
+        with core.context_with_event(_process_event(message)) as ctx, _mark_processing(message, span_from_context(ctx)):
             async with original as incoming:
                 yield incoming
     finally:

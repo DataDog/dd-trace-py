@@ -63,6 +63,7 @@
          "out.host": "127.0.0.1",
          "out.vhost": "/",
          "rabbitmq.exchange": "",
+         "rabbitmq.queue": "ddtrace-aio-pika-callback-snapshot",
          "rabbitmq.redelivered": "false",
          "rabbitmq.routing_key": "ddtrace-aio-pika-callback-snapshot",
          "runtime-id": "9a00f4bc2fee4bfaa90a862d722bba43",

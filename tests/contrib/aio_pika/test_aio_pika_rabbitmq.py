@@ -8,6 +8,7 @@ import aiormq
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.trace import tracer
 from tests.contrib.aio_pika.conftest import AMQP_URL
 from tests.utils import override_config
@@ -72,6 +73,40 @@ async def test_callback_process_context_has_one_process_span(rabbitmq_connection
     assert len(actions) == 1
     assert active_span_names == ["rabbitmq.consume"]
     assert actions[0].parent_id == processes[0].span_id
+    assert processes[0].get_tag("rabbitmq.queue") == queue.name
+
+
+@pytest.mark.asyncio
+async def test_process_in_task_started_by_callback_gets_its_own_span(rabbitmq_connection, test_spans):
+    channel = await rabbitmq_connection.channel()
+    queue = await channel.declare_queue(exclusive=True, auto_delete=True)
+    callback_done = asyncio.Event()
+    tasks = []
+
+    async def handle(message):
+        await callback_done.wait()
+        async with message.process():
+            pass
+
+    async def callback(message):
+        # Hand the message to a background task and return before it is processed.
+        tasks.append(asyncio.ensure_future(handle(message)))
+        callback_done.set()
+
+    consumer_tag = await queue.consume(callback)
+    await channel.default_exchange.publish(aio_pika.Message(b"payload"), routing_key=queue.name)
+    await asyncio.wait_for(callback_done.wait(), timeout=2)
+    await asyncio.wait_for(asyncio.gather(*tasks), timeout=2)
+    await queue.cancel(consumer_tag)
+
+    callback_span, process_span = sorted(
+        (span for span in test_spans.spans if span.name == "rabbitmq.consume"), key=lambda span: span.start_ns
+    )
+    publish = next(span for span in test_spans.spans if span.name == "rabbitmq.publish")
+    ack = next(span for span in test_spans.spans if span.name == "rabbitmq.ack")
+    # Both consume spans activate the producer context, so each is a child of the publish span.
+    assert callback_span.parent_id == process_span.parent_id == publish.span_id
+    assert ack.parent_id == process_span.span_id
 
 
 @pytest.mark.asyncio
@@ -347,6 +382,28 @@ async def test_settlement_outside_process_links_producer_in_span_link_mode(rabbi
     ack = next(span for span in test_spans.spans if span.name == "rabbitmq.ack")
     assert ack.trace_id != publish.trace_id
     assert [(link.trace_id, link.span_id) for link in ack._get_links()] == [(publish.trace_id, publish.span_id)]
+
+
+@pytest.mark.asyncio
+async def test_restart_extraction_starts_linked_trace_with_baggage(rabbitmq_connection, test_spans):
+    channel = await rabbitmq_connection.channel()
+    queue = await channel.declare_queue(exclusive=True, auto_delete=True)
+    with tracer.trace("producer") as producer:
+        producer.context.set_baggage_item("tenant", "acme")
+        await channel.default_exchange.publish(aio_pika.Message(b"payload"), routing_key=queue.name)
+    publish = next(span for span in test_spans.spans if span.name == "rabbitmq.publish")
+
+    with mock.patch.object(config, "_propagation_behavior_extract", _PROPAGATION_BEHAVIOR_RESTART):
+        incoming = await queue.get(timeout=2)
+        await incoming.ack()
+
+    for name in ("rabbitmq.get", "rabbitmq.ack"):
+        span = next(span for span in test_spans.spans if span.name == name)
+        assert span.trace_id != publish.trace_id, name
+        assert [(link.trace_id, link.span_id) for link in span._get_links()] == [(publish.trace_id, publish.span_id)], (
+            name
+        )
+        assert span.context.get_baggage_item("tenant") == "acme", name
 
 
 @pytest.mark.asyncio
