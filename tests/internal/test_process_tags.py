@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.internal import _service_state
 from ddtrace.internal import process_tags
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_MODULE
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
@@ -19,7 +20,10 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
 
 
 @pytest.fixture(autouse=True)
-def _restore_process_tags():
+def _restore_process_tags(monkeypatch):
+    # Any Config() built earlier in the same worker (e.g. with DD_SERVICE set) leaves the
+    # module-level flag at True, which turns svc.auto into svc.user in the in-process tests.
+    monkeypatch.setattr(_service_state, "_is_user_provided_service", False)
     original = process_tags.process_tags
     original_list = process_tags.process_tags_list
     yield
@@ -177,8 +181,6 @@ def test_service_state_seeds_from_stable_config(monkeypatch):
     early seed in _service_state must consult stable config too. Regression: it used to read
     environment variables only, baking svc.auto into services provided solely via stable config.
     """
-    from ddtrace.internal import _service_state
-
     monkeypatch.delenv("DD_SERVICE", raising=False)
     monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
     monkeypatch.delenv("DD_TAGS", raising=False)
