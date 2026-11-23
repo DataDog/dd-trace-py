@@ -183,7 +183,11 @@ async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
     if not _claim_stream_error(span):
         return
     try:
-        _set_error_attrs(span, str(await call.code()), await call.details())
+        code = await call.code()
+        if code == grpc.StatusCode.OK:
+            span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(code))
+        else:
+            _set_error_attrs(span, str(code), await call.details())
     finally:
         span.finish()
 

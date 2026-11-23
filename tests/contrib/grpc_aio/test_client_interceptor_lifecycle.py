@@ -76,6 +76,27 @@ async def test_unary_cancellation_sets_error_metadata_before_finishing(tracer):
     assert span in _written_spans(tracer)
 
 
+async def test_unary_cancellation_after_success_preserves_ok_status(tracer, mocker):
+    interceptor = _UnaryUnaryClientInterceptor("localhost", 50051)
+    span = tracer.trace("grpc")
+    call = mocker.Mock()
+    call.code = mocker.AsyncMock(side_effect=[asyncio.CancelledError(), grpc.StatusCode.OK])
+    call.details = mocker.AsyncMock(return_value="")
+    call.cancel.return_value = False
+
+    async def continuation():
+        return call
+
+    with pytest.raises(asyncio.CancelledError):
+        await interceptor._wrap_unary_response(continuation, span)
+
+    assert span.error == 0
+    assert span.get_tag(constants.GRPC_STATUS_CODE_KEY) == "StatusCode.OK"
+    assert span.get_tag(ERROR_TYPE) is None
+    assert span.get_tag(ERROR_MSG) is None
+    assert span in _written_spans(tracer)
+
+
 @pytest.mark.parametrize(
     "interceptor,intercept_method,request_arg",
     [
