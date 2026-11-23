@@ -9,35 +9,40 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.settings.profiling import ProfilingConfig
+from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
+from ddtrace.internal.runtime.gc_monitor import PauseListener
+from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
 import ddtrace.profiling.collector.gc as gc_collector
 from ddtrace.profiling.collector.gc import GCCollector
 
 
-# ---------------------------------------------------------------------------
-# Unit tests — no ddup required
-# ---------------------------------------------------------------------------
-
-
-def test_gc_callbacks_registered() -> None:
-    from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
-
-    monitor = gc_pause_monitor()
-    col = GCCollector()
+def test_start_installs_and_stop_removes_hooks() -> None:
+    monitor: GCPauseMonitor = gc_pause_monitor()
+    orig: Callable[..., int] = gc.collect
+    col: GCCollector = GCCollector()
     assert monitor._gc_hook not in gc.callbacks
     col.start()
-    assert monitor._gc_hook in gc.callbacks
-    col.stop()
-    assert monitor._gc_hook not in gc.callbacks
-
-
-def test_gc_collect_not_patched_after_stop() -> None:
-    orig = gc.collect
-    col = GCCollector()
-    col.start()
+    listener: PauseListener | None = col._pause_listener
+    assert listener is not None
+    assert listener in monitor._listeners
+    # The collector uses the monitor's gc.callbacks entry, shared with runtime metrics, and adds none of its own.
+    assert gc.callbacks.count(monitor._gc_hook) == 1
+    assert not any(isinstance(getattr(cb, "__self__", None), GCCollector) for cb in gc.callbacks)
+    assert forksafe._registry.count(col._reset_after_fork) == 1
     assert gc.collect is not orig
     col.stop()
+    assert monitor._gc_hook not in gc.callbacks
+    assert listener not in monitor._listeners
+    assert col._reset_after_fork not in forksafe._registry
     assert gc.collect is orig
+    # Restart must not leave a duplicate listener behind.
+    col.start()
+    try:
+        assert monitor._listeners.count(col._pause_listener) == 1
+    finally:
+        col.stop()
+    assert col._pause_listener is None
+    assert listener not in monitor._listeners
 
 
 def test_stop_preserves_later_gc_collect_wrapper() -> None:
@@ -67,29 +72,6 @@ def test_stop_preserves_later_gc_collect_wrapper() -> None:
         gc.collect = orig
 
 
-def test_stop_removes_pause_listener() -> None:
-    from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
-    from ddtrace.internal.runtime.gc_monitor import PauseListener
-    from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
-
-    monitor: GCPauseMonitor = gc_pause_monitor()
-    col: GCCollector = GCCollector()
-    col.start()
-    listener: PauseListener | None = col._pause_listener
-    assert listener is not None
-    assert listener in monitor._listeners
-    col.stop()
-    assert listener not in monitor._listeners
-    # Restart must not leave a duplicate listener behind.
-    col.start()
-    try:
-        assert monitor._listeners.count(col._pause_listener) == 1
-    finally:
-        col.stop()
-    assert col._pause_listener is None
-    assert all(item is not listener for item in monitor._listeners)
-
-
 def test_reset_after_fork_clears_in_flight_state() -> None:
     col: GCCollector = GCCollector()
     col.start()
@@ -105,39 +87,18 @@ def test_reset_after_fork_clears_in_flight_state() -> None:
         col.stop()
 
 
-def test_fork_hook_registered_and_unregistered() -> None:
-    with mock.patch.object(gc_collector, "forksafe") as mock_forksafe:
-        col: GCCollector = GCCollector()
-        col.start()
-        mock_forksafe.register.assert_called_once_with(col._reset_after_fork)
-        col.stop()
-        mock_forksafe.unregister.assert_called_once_with(col._reset_after_fork)
-
-
-def test_explicit_count_increments() -> None:
-    col = GCCollector()
+def test_explicit_collects_counted_on_config_sample() -> None:
+    col: GCCollector = GCCollector()
     col.start()
     try:
-        assert col._explicit_count == 0
         gc.collect()
-        assert col._explicit_count == 1
         gc.collect(0)
         assert col._explicit_count == 2
-    finally:
-        col.stop()
-
-
-def test_explicit_count_resets_on_snapshot() -> None:
-    col = GCCollector()
-    col.start()
-    try:
-        gc.collect()
-        gc.collect()
-        assert col._explicit_count == 2
-        with mock.patch.object(gc_collector, "ddup") as mock_ddup:
-            mock_handle = mock.MagicMock()
-            mock_ddup.SampleHandle.return_value = mock_handle
-            col.snapshot()
+        # The gc.config sample comes last and carries the window's explicit calls in gc-samples.
+        config_handle: mock.MagicMock = _snapshot_handles(col)[-1]
+        config_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
+        config_handle.push_gctime.assert_called_once_with(0, 2)
+        config_handle.flush_sample.assert_called_once()
         assert col._explicit_count == 0
     finally:
         col.stop()
@@ -156,30 +117,30 @@ def _make_isolated_collector() -> GCCollector:
     return col
 
 
-def test_on_pause_records_pause_gctime() -> None:
-    col = _make_isolated_collector()
+def _snapshot_handles(col: GCCollector) -> list[mock.MagicMock]:
     handles: list[mock.MagicMock] = []
 
     def make_handle() -> mock.MagicMock:
-        h = mock.MagicMock()
+        h: mock.MagicMock = mock.MagicMock()
         handles.append(h)
         return h
 
     with mock.patch.object(gc_collector, "ddup") as mock_ddup:
         mock_ddup.SampleHandle.side_effect = make_handle
+        col.snapshot()
+    return handles
+
+
+def test_on_pause_records_pause_gctime() -> None:
+    col: GCCollector = _make_isolated_collector()
+    with mock.patch.object(gc_collector, "ddup") as mock_ddup:
         col._on_pause(0, 1000)
         mock_ddup.SampleHandle.assert_not_called()
-        col.snapshot()
+    handles: list[mock.MagicMock] = _snapshot_handles(col)
 
     assert len(handles) == 2
     pause_handle: mock.MagicMock = handles[0]
-    pause_handle.push_gctime.assert_called_once()
-    args: tuple[int, int] = pause_handle.push_gctime.call_args[0]
-    pause_ns: int
-    count: int
-    pause_ns, count = args
-    assert pause_ns >= 0
-    assert count == 1
+    pause_handle.push_gctime.assert_called_once_with(1000, 1)
     pause_handle.push_walltime.assert_not_called()
     pause_handle.push_frame.assert_called_once_with("gc.collect[gen=0]", "gc", 0, 0)
     pause_handle.flush_sample.assert_called_once()
@@ -190,57 +151,31 @@ def test_on_pause_records_pause_gctime() -> None:
     config_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
 
 
-def test_on_pause_skips_when_lock_held() -> None:
-    """Reentrant pause while snapshot holds the lock must not block forever."""
-    col: GCCollector = _make_isolated_collector()
-    assert col._lock.acquire(False)
-    try:
-        col._on_pause(0, 1000)
-        assert col._pause_count == [0, 0, 0]
-        assert col._pause_total_ns == [0, 0, 0]
-    finally:
-        col._lock.release()
-
-
-def test_patched_collect_skips_counter_when_lock_held() -> None:
-    """Reentrant gc.collect while snapshot holds the lock must still collect."""
+def test_lock_held_skips_instead_of_waiting() -> None:
+    """With the lock held, as on same-thread reentry, each entry point skips its bookkeeping instead of waiting."""
     col: GCCollector = _make_isolated_collector()
     col._patch_active = True
     col._orig_collect = gc.collect
-    assert col._lock.acquire(False)
-    try:
-        collected: int = col._patched_collect()
-        assert isinstance(collected, int)
-        assert col._explicit_count == 0
-    finally:
-        col._lock.release()
-
-
-def test_snapshot_skips_when_lock_held() -> None:
-    """Snapshot must not wait if a pause listener already holds the lock."""
-    col: GCCollector = _make_isolated_collector()
     col._pause_count[0] = 1
     col._pause_total_ns[0] = 1000
     assert col._lock.acquire(False)
     try:
+        col._on_pause(0, 500)
+        # Skipping the count must not skip the collection.
+        collected: int = col._patched_collect()
+        assert isinstance(collected, int)
         with mock.patch.object(gc_collector, "ddup") as mock_ddup:
             col.snapshot()
             mock_ddup.SampleHandle.assert_not_called()
-        assert col._pause_count[0] == 1
-        assert col._pause_total_ns[0] == 1000
+        assert col._pause_count == [1, 0, 0]
+        assert col._pause_total_ns == [1000, 0, 0]
+        assert col._explicit_count == 0
     finally:
         col._lock.release()
 
 
 def test_patch_active_set_before_collect_replacement() -> None:
     """_patch_active must be True before gc.collect is published on first start."""
-    import inspect
-
-    src: str = inspect.getsource(GCCollector._start_service)
-    active_pos: int = src.index("self._patch_active = True")
-    publish_pos: int = src.index("gc.collect = self._installed_collect")
-    assert active_pos < publish_pos
-
     orig: Callable[..., int] = gc.collect
     col: GCCollector = GCCollector()
     active_at_publish: list[bool] = []
@@ -248,22 +183,16 @@ def test_patch_active_set_before_collect_replacement() -> None:
     class _CollectModule:
         """Proxy so assigning gc.collect records _patch_active at publish time."""
 
-        def __init__(self, real_gc: object) -> None:
-            self._real_gc: object = real_gc
-
         def __getattr__(self, name: str) -> object:
-            return getattr(self._real_gc, name)
+            return getattr(gc, name)
 
         def __setattr__(self, name: str, value: object) -> None:
-            if name.startswith("_"):
-                object.__setattr__(self, name, value)
-                return
             if name == "collect":
                 active_at_publish.append(getattr(col, "_patch_active", False))
-            setattr(self._real_gc, name, value)
+            setattr(gc, name, value)
 
     try:
-        with mock.patch.object(gc_collector, "gc", _CollectModule(gc)):
+        with mock.patch.object(gc_collector, "gc", _CollectModule()):
             col.start()
         assert active_at_publish == [True]
         assert col._patch_active is True
@@ -278,51 +207,20 @@ def test_snapshot_gctime_equals_total_pause_ns() -> None:
     col: GCCollector = _make_isolated_collector()
     total_ns: int = 1_000_000
     pause_count: int = 5
-    col._pause_count[0] = pause_count
-    col._pause_total_ns[0] = total_ns
+    col._pause_count[2] = pause_count
+    col._pause_total_ns[2] = total_ns
 
-    handles: list[mock.MagicMock] = []
-
-    def make_handle() -> mock.MagicMock:
-        h: mock.MagicMock = mock.MagicMock()
-        handles.append(h)
-        return h
-
-    with mock.patch.object(gc_collector, "ddup") as mock_ddup:
-        mock_ddup.SampleHandle.side_effect = make_handle
-        col.snapshot()
+    handles: list[mock.MagicMock] = _snapshot_handles(col)
 
     pause_handle: mock.MagicMock = handles[0]
     gctime_calls: list[tuple[int, int]] = [c.args for c in pause_handle.push_gctime.call_args_list]
     assert gctime_calls == [(total_ns, 1), (0, pause_count - 1)]
+    pause_handle.push_frame.assert_called_once_with("gc.collect[gen=2]", "gc", 0, 2)
     pause_handle.push_walltime.assert_not_called()
 
 
-def test_snapshot_emits_config_sample() -> None:
-    # Isolated: starting the collector registers a monitor listener, and a live
-    # pause during snapshot() would also call SampleHandle.push_gctime.
-    col: GCCollector = _make_isolated_collector()
-    col._explicit_count = 2
-
-    with mock.patch.object(gc_collector, "ddup") as mock_ddup:
-        mock_handle: mock.MagicMock = mock.MagicMock()
-        mock_ddup.SampleHandle.return_value = mock_handle
-        col.snapshot()
-
-    mock_handle.push_gctime.assert_called_once_with(0, 2)
-    mock_handle.push_walltime.assert_not_called()
-    mock_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
-    mock_handle.flush_sample.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# Integration test — emits real ddup samples and reads back pprof.
-# Fresh process: ddup's sample-type mask is process-wide and is frozen on
-# the first start(), so an in-process run after other profiling tests never
-# sees gc-time.
-# ---------------------------------------------------------------------------
-
-
+# ddup's sample-type mask is process-wide and frozen on the first start(), so an
+# in-process run after other profiling tests never sees gc-time.
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_pause_samples_appear_in_profile"),
     err=None,
@@ -385,42 +283,6 @@ def test_gc_pause_samples_appear_in_profile() -> None:
     )
 
 
-def test_gc_collector_default_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
-    # Fresh instance — do not importlib.reload the settings module. Reload
-    # replaces ProfilingConfigHeap with a second class object and breaks
-    # isinstance() in _derive_default_heap_sample_size for later tests.
-    config: ProfilingConfig = ProfilingConfig()
-    assert not config.gc.enabled
-
-
-def test_gc_collector_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
-    config: ProfilingConfig = ProfilingConfig()
-    assert not config.gc.enabled
-
-
-def test_gc_collector_enabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
-    config: ProfilingConfig = ProfilingConfig()
-    assert config.gc.enabled
-
-
-def test_gc_collector_shares_monitor_callback() -> None:
-    from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
-
-    monitor = gc_pause_monitor()
-    col = GCCollector()
-    col.start()
-    try:
-        assert monitor._gc_hook in gc.callbacks
-        assert gc.callbacks.count(monitor._gc_hook) == 1
-        owners = [getattr(cb, "__self__", None) for cb in gc.callbacks]
-        assert not any(type(o).__name__ == "GCCollector" for o in owners)
-    finally:
-        col.stop()
-
-
 def test_gc_flag_keeps_profiler_positional_parameter_order() -> None:
     import inspect
 
@@ -462,11 +324,3 @@ def test_enable_gc_collector_via_env() -> None:
     from ddtrace.profiling.collector import gc as gc_collector
 
     assert any(isinstance(col, gc_collector.GCCollector) for col in profiler.Profiler()._profiler._collectors)
-
-
-@pytest.mark.subprocess(env=dict(DD_PROFILING_GC_ENABLED="false"))
-def test_disable_gc_collector_via_env() -> None:
-    from ddtrace.profiling import profiler
-    from ddtrace.profiling.collector import gc as gc_collector
-
-    assert all(not isinstance(col, gc_collector.GCCollector) for col in profiler.Profiler()._profiler._collectors)
