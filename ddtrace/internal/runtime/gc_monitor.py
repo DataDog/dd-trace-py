@@ -83,6 +83,9 @@ class _UnlockWork(NamedTuple):
     unregister_fork: bool
 
 
+_NO_UNLOCK_WORK: _UnlockWork = _UnlockWork(remove_callback=False, unregister_fork=False)
+
+
 class GCPauseMonitor:
     """Single gc.callbacks subscriber with refcounted install."""
 
@@ -162,18 +165,18 @@ class GCPauseMonitor:
     def _apply_one_release_locked(self) -> _UnlockWork:
         """Drop one refcount under the lock. Caller runs unlock work outside."""
         if self._refcount <= 0:
-            return _UnlockWork(False, False)
+            return _NO_UNLOCK_WORK
 
         self._refcount -= 1
         if self._refcount != 0:
-            return _UnlockWork(False, False)
+            return _NO_UNLOCK_WORK
 
         unregister_fork: bool = self._fork_registered
         # Drop in-flight starts so a later re-acquire cannot pair a
         # new stop with a stale timestamp from before uninstall.
         self._clear_starts()
         self._clear_window()
-        return _UnlockWork(True, unregister_fork)
+        return _UnlockWork(remove_callback=True, unregister_fork=unregister_fork)
 
     def _run_unlock_work(self, work_items: list[_UnlockWork]) -> None:
         item: _UnlockWork
