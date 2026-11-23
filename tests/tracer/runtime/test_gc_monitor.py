@@ -273,13 +273,15 @@ class _LockWithStop:
 
     Python signal handlers run on the main thread between bytecodes, so a profiler
     stop can land on the thread that holds the monitor lock: right after acquire()
-    returns, or right before release().
+    returns, or right before release(). after_release runs once the lock is free
+    again, before its caller goes on, so another thread can take the lock then.
     """
 
     def __init__(self, lock: Any) -> None:
         self._lock: Any = lock
         self.after_acquire: Optional[Callable[[], None]] = None
         self.before_release: Optional[Callable[[], None]] = None
+        self.after_release: Optional[Callable[[], None]] = None
 
     def acquire(self, blocking: bool = True) -> bool:
         acquired: bool = self._lock.acquire(blocking)
@@ -295,6 +297,10 @@ class _LockWithStop:
             self.before_release = None
             stop()
         self._lock.release()
+        after: Optional[Callable[[], None]] = self.after_release
+        if after is not None:
+            self.after_release = None
+            after()
 
 
 def _finishes(section: Callable[[], object]) -> bool:
@@ -333,7 +339,7 @@ def _assert_stopped(monitor: GCPauseMonitor, pause_listener: PauseListener) -> N
 
 
 @pytest.mark.parametrize("boundary", ["after_acquire", "before_release"])
-@pytest.mark.parametrize("section", ["_on_gc", "reset", "snapshot_and_reset"])
+@pytest.mark.parametrize("section", ["acquire", "_on_gc", "reset", "snapshot_and_reset"])
 def test_signal_stop_on_the_thread_that_holds_the_lock(section: str, boundary: str) -> None:
     """Stop must not wait for a lock its own thread holds, and must be done when the section returns."""
     monitor: GCPauseMonitor
@@ -350,6 +356,9 @@ def test_signal_stop_on_the_thread_that_holds_the_lock(section: str, boundary: s
             else:
                 getattr(monitor, section)()
 
+        if section == "acquire":
+            # Start from released, so that the stop cancels the acquire under test.
+            monitor.release()
         monitor._on_gc("start", {"generation": 0})
         lock: _LockWithStop = _LockWithStop(monitor._lock)
         setattr(lock, boundary, stop)
@@ -410,6 +419,88 @@ def test_stop_does_not_wait_for_another_thread_that_holds_the_lock(monkeypatch: 
             holder.join(timeout=5)
 
         assert not holder.is_alive()
+        _assert_stopped(monitor, pause_listener)
+
+
+@pytest.mark.parametrize("applied_by", ["release", "_on_gc"])
+def test_stop_does_not_wait_for_a_thread_that_takes_the_lock_after_it_is_applied(applied_by: str) -> None:
+    """Once the last release is applied, applying it must not take the lock again.
+
+    Another thread can enter reset() or snapshot_and_reset() right then. The stop is
+    applied by release() itself, or by a GC callback that held the lock when it landed.
+    """
+    monitor: GCPauseMonitor
+    pause_listener: PauseListener
+    with _acquired_monitor_with_listener() as (monitor, pause_listener):
+        raw_lock: Any = monitor._lock
+        lock: _LockWithStop = _LockWithStop(raw_lock)
+        go: threading.Event = threading.Event()
+        taken: threading.Event = threading.Event()
+        let_go: threading.Event = threading.Event()
+
+        def stop() -> None:
+            monitor.remove_listener(pause_listener)
+            monitor.release()
+
+        def collect() -> None:
+            monitor._on_gc("stop", {"generation": 0})
+
+        def hold() -> None:
+            go.wait(timeout=10)
+            with raw_lock:
+                taken.set()
+                let_go.wait(timeout=10)
+
+        def take_the_lock_once_stopped() -> None:
+            if monitor._refcount != 0:
+                lock.after_release = take_the_lock_once_stopped
+                return
+            go.set()
+            taken.wait(timeout=5)
+
+        section: Callable[[], None] = stop
+        if applied_by == "_on_gc":
+            lock.after_acquire = stop
+            section = collect
+        lock.after_release = take_the_lock_once_stopped
+        monitor._lock = lock  # type: ignore[assignment]
+        holder: threading.Thread = threading.Thread(target=hold, daemon=True)
+        holder.start()
+        try:
+            assert _finishes(section), "the stop waited for the thread that took the lock"
+            assert taken.is_set()
+        finally:
+            go.set()
+            let_go.set()
+            holder.join(timeout=5)
+
+        _assert_stopped(monitor, pause_listener)
+
+
+def test_acquire_right_after_the_last_release_is_applied_stays_installed() -> None:
+    """The last release must not remove what an acquire on another thread installs right after it."""
+    monitor: GCPauseMonitor
+    pause_listener: PauseListener
+    with _acquired_monitor_with_listener() as (monitor, pause_listener):
+        lock: _LockWithStop = _LockWithStop(monitor._lock)
+        acquired: list[bool] = []
+
+        def acquire_once_released() -> None:
+            if monitor._refcount != 0:
+                lock.after_release = acquire_once_released
+                return
+            acquired.append(_finishes(monitor.acquire))
+
+        lock.after_release = acquire_once_released
+        monitor._lock = lock  # type: ignore[assignment]
+        monitor.remove_listener(pause_listener)
+        monitor.release()
+
+        assert acquired == [True]
+        assert monitor._refcount == 1
+        assert [cb for cb in gc.callbacks if cb is monitor._gc_hook] == [monitor._gc_hook]
+        assert forksafe._registry.count(monitor._fork_hook) == 1
+        monitor.release()
         _assert_stopped(monitor, pause_listener)
 
 

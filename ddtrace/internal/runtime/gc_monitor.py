@@ -76,16 +76,6 @@ class GCPauseSnapshot(NamedTuple):
     max_ns: int
 
 
-class _UnlockWork(NamedTuple):
-    """Callback uninstall / fork-hook work that must run outside the lock."""
-
-    remove_callback: bool
-    unregister_fork: bool
-
-
-_NO_UNLOCK_WORK: _UnlockWork = _UnlockWork(remove_callback=False, unregister_fork=False)
-
-
 class GCPauseMonitor:
     """Single gc.callbacks subscriber with refcounted install."""
 
@@ -140,16 +130,14 @@ class GCPauseMonitor:
         while self._pending_removes or self._pending_releases:
             if not self._lock.acquire(False):
                 return
-            work: list[_UnlockWork] = []
             try:
                 while self._pending_removes:
                     self._apply_remove_listener_locked(self._pending_removes.popleft())
                 while self._pending_releases:
                     self._pending_releases.popleft()
-                    work.append(self._apply_one_release_locked())
+                    self._apply_one_release_locked()
             finally:
                 self._lock.release()
-            self._run_unlock_work(work)
 
     @contextmanager
     def _holding_lock(self) -> Iterator[None]:
@@ -162,31 +150,24 @@ class GCPauseMonitor:
     def _apply_remove_listener_locked(self, listener: PauseListener) -> None:
         self._listeners = tuple(item for item in self._listeners if item is not listener)
 
-    def _apply_one_release_locked(self) -> _UnlockWork:
-        """Drop one refcount under the lock. Caller runs unlock work outside."""
+    def _apply_one_release_locked(self) -> None:
+        """Drop one refcount under the lock, and uninstall when it reaches zero."""
         if self._refcount <= 0:
-            return _NO_UNLOCK_WORK
+            return
 
         self._refcount -= 1
         if self._refcount != 0:
-            return _NO_UNLOCK_WORK
+            return
 
-        unregister_fork: bool = self._fork_registered
+        if _gc_callbacks_supported():
+            _remove_gc_callback(self._gc_hook)
+        if self._fork_registered:
+            forksafe.unregister(self._fork_hook)
+            self._fork_registered = False
         # Drop in-flight starts so a later re-acquire cannot pair a
         # new stop with a stale timestamp from before uninstall.
         self._clear_starts()
         self._clear_window()
-        return _UnlockWork(remove_callback=True, unregister_fork=unregister_fork)
-
-    def _run_unlock_work(self, work_items: list[_UnlockWork]) -> None:
-        item: _UnlockWork
-        for item in work_items:
-            if item.remove_callback and _gc_callbacks_supported():
-                _remove_gc_callback(self._gc_hook)
-            if item.unregister_fork:
-                forksafe.unregister(self._fork_hook)
-                with self._holding_lock():
-                    self._fork_registered = False
 
     def add_listener(self, listener: PauseListener) -> None:
         with self._holding_lock():
@@ -198,6 +179,10 @@ class GCPauseMonitor:
         self._apply_pending()
 
     def acquire(self) -> None:
+        # Install in the same critical section as the increment, as
+        # _apply_one_release_locked uninstalls in the one that drops the refcount to
+        # zero. A stop that lands in here is applied when this unlocks, so it removes
+        # what this installed, and an install and an uninstall cannot interleave.
         with self._holding_lock():
             self._refcount += 1
             if self._refcount != 1:
@@ -205,15 +190,11 @@ class GCPauseMonitor:
             if not _gc_callbacks_supported():
                 return
 
-        with self._holding_lock():
-            fork_registered: bool = self._fork_registered
-        if not fork_registered:
-            forksafe.register(self._fork_hook)
-            with self._holding_lock():
+            if not self._fork_registered:
+                forksafe.register(self._fork_hook)
                 self._fork_registered = True
-
-        if not _gc_callback_installed(self._gc_hook):
-            gc.callbacks.append(self._gc_hook)
+            if not _gc_callback_installed(self._gc_hook):
+                gc.callbacks.append(self._gc_hook)
 
     def release(self) -> None:
         # Same as remove_listener: never wait for the lock.
