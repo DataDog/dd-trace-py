@@ -72,7 +72,6 @@ suites:
       - '@openai_agents'
       - ddtrace/internal/utils/http.py
       - tests/aiguard/openai_agents/*
-      - tests/aiguard/anthropic/mcp_echo_server.py
       - tests/aiguard/utils.py
       - tests/aiguard/suitespec.yml
     matrix:

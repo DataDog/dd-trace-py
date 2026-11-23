@@ -1,5 +1,5 @@
-"""MCP helpers for model SDK integrations. They build mcp_servers entries, server IDs and connection check targets.
-They also keep the decisions on the approval requests of OpenAI hosted MCP, and capture the transports of the MCP SDK.
+"""MCP helpers for model SDK integrations: mcp_servers entries and their server_id fingerprint,
+the decisions taken on OpenAI hosted MCP approval requests, and the MCP SDK client transport capture.
 """
 
 from collections import OrderedDict
@@ -13,15 +13,12 @@ from typing import NamedTuple
 from typing import Optional
 from weakref import WeakKeyDictionary
 
-from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._types import MCP
 from ddtrace.aiguard._types import Action
 from ddtrace.aiguard._types import MCPManagedBy
 from ddtrace.aiguard._types import MCPServer
-from ddtrace.aiguard._types import MCPServerTarget
 from ddtrace.aiguard._types import MCPTransport
 from ddtrace.aiguard._types import Message
-from ddtrace.aiguard._types import ResourceTarget
 from ddtrace.internal import forksafe
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.module import ModuleWatchdog
@@ -222,23 +219,6 @@ def client_mcp_server(
         safe_args = safe_stdio_args(command, stdio_args) if command else []
         return mcp_server("client", transport, name=name, command=command, args=safe_args)
     return mcp_server("client", transport, name=name, url=url if isinstance(url, str) else None)
-
-
-def mcp_connect_target(server: MCPServer) -> ResourceTarget:
-    """The connection check target of a client-managed server: the identity fields of its mcp_servers entry.
-
-    The target has no server ID, tools or managed_by, because the policy endpoint does not use them.
-    """
-    mcp_server = MCPServerTarget(operation=AI_GUARD.MCP_OPERATION_CONNECT, transport=server["transport"])
-    if "name" in server:
-        mcp_server["name"] = server["name"]
-    if "url" in server:
-        mcp_server["url"] = server["url"]
-    if "command" in server:
-        mcp_server["command"] = server["command"]
-    if "args" in server:
-        mcp_server["args"] = list(server["args"])
-    return ResourceTarget(type=AI_GUARD.TARGET_MCP_SERVER, mcp_server=mcp_server)
 
 
 def _transport_server(transport: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[MCPServer]:

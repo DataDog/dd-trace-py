@@ -1,7 +1,6 @@
-"""AIGuardClient._evaluate_resource: the runtime policy evaluation of one target, used by MCP connection checks."""
+"""AIGuardClient._evaluate_resource: the runtime policy evaluation of one target, such as an MCP server connection."""
 
 import logging
-import os
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -12,10 +11,7 @@ from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import middleware
-from ddtrace.aiguard._common import evaluate_resource_auto
 from ddtrace.aiguard._constants import AI_GUARD
-from ddtrace.aiguard.integrations._mcp import mcp_connect_target
-from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.middleware import AIGuardMiddleware
 from ddtrace.aiguard.middleware import register_middleware
 from ddtrace.constants import USER_KEEP
@@ -24,12 +20,8 @@ from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
-from ddtrace.internal.settings.aiguard import ENV_MCP_CONNECTIONS_ENABLED
-from ddtrace.internal.settings.aiguard import AIGuardConfig
 from tests.aiguard.utils import find_ai_guard_span
 from tests.aiguard.utils import mock_evaluate_resource_response
-from tests.aiguard.utils import override_ai_guard_config
-from tests.utils import override_env
 
 
 EXECUTE_REQUEST = "ddtrace.aiguard._api_client.AIGuardClient._execute_request"
@@ -156,7 +148,9 @@ def test_span_identifies_the_connection_evaluation(mock_execute_request, ai_guar
 
     with tracer.trace("agent"):
         with pytest.raises(AIGuardAbortError):
-            evaluate_resource_auto(ai_guard_client, target, AI_GUARD.INTEGRATION_OPENAI_AGENTS)
+            ai_guard_client._evaluate_resource(
+                target, Options(block=True), source=AI_GUARD.SOURCE_AUTO, integration=AI_GUARD.INTEGRATION_OPENAI_AGENTS
+            )
     target["mcp_server"]["command"] = "changed after the evaluation"
 
     (span,) = [span for span in test_spans.spans if span.name == AI_GUARD.RESOURCE_TYPE]
@@ -384,67 +378,3 @@ def test_middlewares_do_not_run_for_resource_evaluations(mock_execute_request, a
 
     assert recorder.calls == []
     mock_execute_request.assert_called_once()
-
-
-@pytest.mark.parametrize("local_block", [True, False])
-def test_evaluate_resource_auto_applies_the_auto_instrumentation_policy(local_block):
-    client = Mock()
-
-    with override_ai_guard_config(dict(_ai_guard_block=local_block)):
-        evaluate_resource_auto(client, TARGET, AI_GUARD.INTEGRATION_OPENAI_AGENTS)
-
-    client._evaluate_resource.assert_called_once_with(
-        TARGET, {"block": local_block}, source=AI_GUARD.SOURCE_AUTO, integration=AI_GUARD.INTEGRATION_OPENAI_AGENTS
-    )
-    client.evaluate.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    "entry,expected",
-    [
-        pytest.param(
-            mcp_server("client", "streamable_http", name="atlassian", url="https://user:pw@mcp.example.com/mcp?k=v"),
-            {
-                "operation": "connect",
-                "transport": "streamable_http",
-                "name": "atlassian",
-                "url": "https://mcp.example.com",
-            },
-            id="remote",
-        ),
-        pytest.param(
-            mcp_server("client", "stdio", name="local-docs", command="uvx", args=["mcp-example"]),
-            {
-                "operation": "connect",
-                "transport": "stdio",
-                "name": "local-docs",
-                "command": "uvx",
-                "args": ["mcp-example"],
-            },
-            id="stdio",
-        ),
-        pytest.param(
-            mcp_server("client", "stdio", command="python"),
-            {"operation": "connect", "transport": "stdio", "command": "python"},
-            id="stdio without args",
-        ),
-    ],
-)
-def test_connect_target_keeps_only_the_identity_of_the_server(entry, expected):
-    entry["tools"]["search"] = "search"
-
-    target = mcp_connect_target(entry)
-
-    # No server ID, tools or managed_by: the policy endpoint does not use them.
-    assert target == {"type": "mcp_server", "mcp_server": expected}
-    if "args" in expected:
-        assert target["mcp_server"]["args"] is not entry["args"]
-
-
-def test_connection_checks_gate_is_private_and_off_by_default():
-    assert ENV_MCP_CONNECTIONS_ENABLED == "_DD_AI_GUARD_MCP_CONNECTIONS_ENABLED"
-    without_gate = {key: value for key, value in os.environ.items() if key != ENV_MCP_CONNECTIONS_ENABLED}
-    with override_env(without_gate, replace_os_env=True):
-        assert AIGuardConfig()._ai_guard_mcp_connections_enabled is False
-    with override_env({ENV_MCP_CONNECTIONS_ENABLED: "true"}):
-        assert AIGuardConfig()._ai_guard_mcp_connections_enabled is True

@@ -36,7 +36,6 @@ from ddtrace.aiguard.integrations._langchain import _langchain_stream_finally
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_call_tool_before
-from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_connect_before
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_invoke_tool_before
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
@@ -141,10 +140,6 @@ def _openai_agents_listen(client: AIGuardClient) -> None:
         return
     core.on("openai_agents.mcp.invoke_tool.before", partial(_openai_agents_mcp_invoke_tool_before, client))
     core.on("openai_agents.mcp.call_tool.before", partial(_openai_agents_mcp_call_tool_before, client))
-    # The connection checks use a policy endpoint that is not available yet, so a private gate keeps them off.
-    # Without this listener, the contrib returns the transports of the MCP servers unchanged.
-    if aiguard_config._ai_guard_mcp_connections_enabled:
-        core.on("openai_agents.mcp.connect.before", partial(_openai_agents_mcp_connect_before, client))
 
 
 def _with_listed_tools(kwargs: dict[str, Any]) -> dict[str, Any]:
