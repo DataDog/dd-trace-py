@@ -1,9 +1,11 @@
+import asyncio
+
 import pytest
+from tests.contrib.litellm.utils import get_cassette_name
+from tests.utils import override_global_config
 
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.version import parse_version
-from tests.contrib.litellm.utils import get_cassette_name
-from tests.utils import override_global_config
 
 
 def test_global_tags(litellm, request_vcr, test_spans):
@@ -312,3 +314,79 @@ async def test_litellm_router_astream_handler_attribute(litellm, request_vcr, ro
         assert len(spans[0]) > 0, "Should have created at least one span"
         span = spans[0][0]
         assert span.duration > 0, "Span should be finished with a duration set"
+
+
+class _Interrupt(BaseException):
+    """Stands in for a failure that is not an ``Exception``, like ``KeyboardInterrupt``."""
+
+
+MESSAGES = [{"content": "Hey, what is up?", "role": "user"}]
+
+
+def _fail_before_the_stream_exists(monkeypatch, traced_function, *, hang):
+    """Replace what the integration's wrapper calls with a function that never produces a response: it hangs when
+    ``hang`` (to be cancelled) and raises an ``_Interrupt`` otherwise.
+    """
+
+    if hang:
+
+        async def never_responds(*args, **kwargs):
+            await asyncio.sleep(60)
+
+    else:
+
+        def never_responds(*args, **kwargs):
+            raise _Interrupt()
+
+    monkeypatch.setattr(traced_function, "__wrapped__", never_responds)
+
+
+def _assert_spans_ended_with_error(test_spans, error_type):
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1, "a trace is only flushed once every span of it has finished"
+    for span in traces[0]:
+        assert span.finished
+        assert span.error == 1
+        assert error_type in span.get_tag("error.type")
+
+
+def test_litellm_completion_stream_interrupted_before_stream_exists(litellm, monkeypatch, test_spans):
+    """A streamed call that fails with a ``BaseException`` before its stream exists still ends its span."""
+    _fail_before_the_stream_exists(monkeypatch, litellm.completion, hang=False)
+    with pytest.raises(_Interrupt):
+        litellm.completion(model="gpt-3.5-turbo", messages=MESSAGES, stream=True)
+
+    _assert_spans_ended_with_error(test_spans, "_Interrupt")
+
+
+async def test_litellm_acompletion_stream_cancelled_before_stream_exists(litellm, monkeypatch, test_spans):
+    """A streamed call cancelled before its stream exists still ends its span, so the trace is not lost."""
+    _fail_before_the_stream_exists(monkeypatch, litellm.acompletion, hang=True)
+    task = asyncio.ensure_future(litellm.acompletion(model="gpt-3.5-turbo", messages=MESSAGES, stream=True))
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    _assert_spans_ended_with_error(test_spans, "CancelledError")
+
+
+def test_litellm_router_completion_stream_interrupted_before_stream_exists(litellm, monkeypatch, router, test_spans):
+    _fail_before_the_stream_exists(monkeypatch, vars(litellm.Router)["completion"], hang=False)
+    with pytest.raises(_Interrupt):
+        router.completion(model="gpt-3.5-turbo", messages=MESSAGES, stream=True)
+
+    _assert_spans_ended_with_error(test_spans, "_Interrupt")
+
+
+async def test_litellm_router_acompletion_stream_cancelled_before_stream_exists(
+    litellm, monkeypatch, router, test_spans
+):
+    _fail_before_the_stream_exists(monkeypatch, vars(litellm.Router)["acompletion"], hang=True)
+    task = asyncio.ensure_future(router.acompletion(model="gpt-3.5-turbo", messages=MESSAGES, stream=True))
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    _assert_spans_ended_with_error(test_spans, "CancelledError")

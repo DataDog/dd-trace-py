@@ -91,7 +91,8 @@ def traced_completion(func, instance, args, kwargs):
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = func(*args, **kwargs)
-        except Exception:
+        except BaseException:
+            # BaseException, so a cancelled call (asyncio.CancelledError) ends its span too.
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         return make_traced_stream(resp, LiteLLMStreamHandler(ctx))
@@ -106,7 +107,8 @@ async def traced_acompletion(func, instance, args, kwargs):
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = await func(*args, **kwargs)
-        except Exception:
+        except BaseException:
+            # BaseException, so a cancelled call (asyncio.CancelledError) ends its span too.
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         return make_traced_stream(resp, LiteLLMAsyncStreamHandler(ctx))
@@ -121,7 +123,8 @@ def traced_router_completion(func, instance, args, kwargs):
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = func(*args, **kwargs)
-        except Exception:
+        except BaseException:
+            # BaseException, so a cancelled call (asyncio.CancelledError) ends its span too.
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         return _handle_router_stream_response(resp, ctx, is_async=False)
@@ -136,7 +139,8 @@ async def traced_router_acompletion(func, instance, args, kwargs):
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = await func(*args, **kwargs)
-        except Exception:
+        except BaseException:
+            # BaseException, so a cancelled call (asyncio.CancelledError) ends its span too.
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         return _handle_router_stream_response(resp, ctx, is_async=True)

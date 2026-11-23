@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    litellm: This fix resolves an issue where a streamed ``litellm`` call that was cancelled (``asyncio.CancelledError``)
+    or interrupted by another ``BaseException`` before its response stream was created never finished its span. The
+    span stayed open, so the whole trace containing it was never sent.
