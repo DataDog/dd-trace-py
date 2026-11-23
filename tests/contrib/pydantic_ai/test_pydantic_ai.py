@@ -1,8 +1,13 @@
+from types import SimpleNamespace
+from unittest import mock
+
 import pytest
 
 from ddtrace.contrib.internal.pydantic_ai import patch as pydantic_ai_patch
 from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
+from ddtrace.contrib.internal.pydantic_ai.wrappers import TracedPydanticStreamedRunResult
+from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from tests.contrib.pydantic_ai.utils import MODEL
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
 
@@ -87,3 +92,19 @@ def test_agent_with_tool_decorator(pydantic_ai, snapshot_context, request_vcr):
                 return x * x
 
             agent.run_sync("What is the square of 2?")
+
+
+def test_streamed_run_result_proxy_only_exposes_wrapped_stream_methods():
+    class LegacyResult:
+        def stream_responses(self):
+            pass
+
+    proxy = TracedPydanticStreamedRunResult(LegacyResult(), mock.MagicMock())
+    assert hasattr(proxy, "stream_responses")
+    assert not hasattr(proxy, "stream_response")
+    assert not hasattr(proxy, "stream_output")
+
+
+def test_model_response_text_ignores_non_string_content():
+    parts = [SimpleNamespace(content={"a": 1}), SimpleNamespace(content=["b"]), SimpleNamespace(content="done")]
+    assert PydanticAIIntegration._model_response_text(SimpleNamespace(parts=parts)) == "done"

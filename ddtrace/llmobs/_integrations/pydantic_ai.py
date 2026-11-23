@@ -184,7 +184,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         result = response
         if isinstance(result, AgentRun) and hasattr(result, "result"):
             result = getattr(result.result, "output", "")
-        elif isinstance(result, tuple) and len(result) == 2:
+        elif isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], ModelResponse):
             # stream_responses() below 2.x yields (response, is_last)
             result = self._model_response_text(result[0])
         elif isinstance(result, ModelResponse):
@@ -204,8 +204,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _model_response_text(model_response: Any) -> str:
         text = ""
         for part in getattr(model_response, "parts", []):
-            if hasattr(part, "content"):
-                text += part.content
+            content = getattr(part, "content", None)
+            if isinstance(content, str):
+                text += content
             elif hasattr(part, "args_as_json_str"):
                 text += part.args_as_json_str()
         return text
