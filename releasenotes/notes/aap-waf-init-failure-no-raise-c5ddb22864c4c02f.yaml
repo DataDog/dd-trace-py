@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AAP: Fixes an issue where an error while initializing the WAF could be raised in application code
+    during the first traced operation. AAP now logs an error and stays disabled for that process instead.

@@ -169,6 +169,23 @@ def test_consume_span_records_group_id(kafka_tracer, test_spans, producer, consu
     assert consume_span.get_tag("kafka.group_id") == group_id
 
 
+def test_consume_span_records_bootstrap_servers(kafka_tracer, test_spans, producer, consumer, kafka_topic):
+    """Verify bootstrap servers are tagged on consume spans (ignored in snapshots, so asserted explicitly)."""
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        message = consumer.poll()
+
+    assert message is not None
+    traces = test_spans.pop_traces()
+    consume_span = next(
+        (span for trace in traces for span in trace if span.get_tag("kafka.received_message") == "True"),
+        None,
+    )
+    assert consume_span is not None
+    assert consume_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
+
+
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_message(producer, consumer, tombstone, kafka_topic):
@@ -395,7 +412,7 @@ def _generate_in_subprocess(random_topic):
 
 @pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=SNAPSHOT_IGNORES)
 def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
-    code = """
+    code = f"""
 import sys
 import pytest
 from tests.contrib.kafka.test_kafka import _generate_in_subprocess
@@ -403,11 +420,11 @@ from tests.contrib.kafka.conftest import kafka_topic
 
 
 def test():
-    _generate_in_subprocess("{}")
+    _generate_in_subprocess("{kafka_topic}")
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(kafka_topic)
+    """
     env = os.environ.copy()
     env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
@@ -420,17 +437,17 @@ if __name__ == "__main__":
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
 def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):
-    code = """
+    code = f"""
 import sys
 import pytest
 from tests.contrib.kafka.test_kafka import _generate_in_subprocess
 
 def test():
-    _generate_in_subprocess("{}")
+    _generate_in_subprocess("{kafka_topic}")
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(kafka_topic)
+    """
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service
@@ -758,6 +775,14 @@ def test_traces_empty_poll_by_default(kafka_tracer, test_spans, consumer, kafka_
                 pass
 
     assert empty_poll_span_created is True
+
+    empty_poll_spans = [
+        span
+        for trace in traces
+        for span in trace
+        if span.name == "kafka.consume" and span.get_tag("kafka.received_message") == "False"
+    ]
+    assert all(span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS for span in empty_poll_spans)
 
 
 # Poll should not be traced when disabled

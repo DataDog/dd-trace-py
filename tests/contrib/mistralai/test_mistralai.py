@@ -1,7 +1,11 @@
+import asyncio
 import json
 
+import httpx
 import pytest
 
+from ddtrace.contrib.internal.mistralai.patch import traced_async_generate_stream
+from ddtrace.contrib.internal.mistralai.patch import traced_generate_stream
 from tests.contrib.mistralai.utils import CHAT_TOOLS
 from tests.contrib.mistralai.utils import FULL_CHAT_REQUEST_KWARGS
 from tests.contrib.mistralai.utils import FULL_EMBED_REQUEST_KWARGS
@@ -124,16 +128,21 @@ def test_mistralai_embed_create_error(mistral_client):
         )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.mistralai.test_mistralai.test_mistralai_embed_create",
-    ignores=["resource"],
-)
-async def test_mistralai_embed_create_async(mistral_client):
+async def test_mistralai_embed_create_async(mistral_client, test_spans):
     await mistral_client.embeddings.create_async(
         model="mistral-embed",
         inputs=["Why is the sky blue?", "What is your age?"],
         **FULL_EMBED_REQUEST_KWARGS,
     )
+
+    traces = test_spans.pop_traces()
+    spans = [s for trace in traces for s in trace]
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "mistralai.request"
+    assert span.resource == "Embeddings.create_async"
+    assert span.get_tag("mistralai.request.model") == "mistral-embed"
+    assert span.get_tag("mistralai.request.provider") == "mistral"
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -247,3 +256,77 @@ async def test_mistralai_chat_stream_with_tools_async(mistral_client):
         **FULL_CHAT_REQUEST_KWARGS,
     ):
         pass
+
+
+def test_stream_creation_base_exception(mistral_client, test_spans, monkeypatch):
+    def interrupted_send(*args, **kwargs):
+        raise KeyboardInterrupt("stream interrupted")
+
+    monkeypatch.setattr(httpx.Client, "send", interrupted_send)
+    with pytest.raises(KeyboardInterrupt, match="stream interrupted"):
+        mistral_client.chat.stream(
+            model="mistral-large-latest", messages=[{"role": "user", "content": "Why is the sky blue?"}]
+        )
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_tag("error.type") == "builtins.KeyboardInterrupt"
+
+
+async def test_async_stream_creation_cancelled(mistral_client, test_spans, monkeypatch):
+    async def cancelled_send(*args, **kwargs):
+        raise asyncio.CancelledError("stream cancelled")
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", cancelled_send)
+    with pytest.raises(asyncio.CancelledError, match="stream cancelled"):
+        await mistral_client.chat.stream_async(
+            model="mistral-large-latest", messages=[{"role": "user", "content": "Why is the sky blue?"}]
+        )
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_tag("error.type") == "asyncio.exceptions.CancelledError"
+
+
+@pytest.mark.parametrize("target", ["MistralAIStreamHandler", "make_traced_stream"])
+def test_stream_wrapping_error_finishes_span(mistral_client, test_spans, monkeypatch, target):
+    error = RuntimeError("stream wrapping failed")
+
+    def stream(**kwargs):
+        return object()
+
+    def fail(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr("ddtrace.contrib.internal.mistralai.patch." + target, fail)
+    with pytest.raises(RuntimeError) as exc:
+        traced_generate_stream(stream, mistral_client.chat, (), {"model": "mistral-large-latest"})
+
+    assert exc.value is error
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_tag("error.type") == "builtins.RuntimeError"
+
+
+@pytest.mark.parametrize("target", ["MistralAIAsyncStreamHandler", "make_traced_stream"])
+async def test_async_stream_wrapping_error_finishes_span(mistral_client, test_spans, monkeypatch, target):
+    error = RuntimeError("stream wrapping failed")
+
+    async def stream(**kwargs):
+        return object()
+
+    def fail(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr("ddtrace.contrib.internal.mistralai.patch." + target, fail)
+    with pytest.raises(RuntimeError) as exc:
+        await traced_async_generate_stream(stream, mistral_client.chat, (), {"model": "mistral-large-latest"})
+
+    assert exc.value is error
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_tag("error.type") == "builtins.RuntimeError"

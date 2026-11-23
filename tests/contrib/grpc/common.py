@@ -15,7 +15,7 @@ _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
 
 class GrpcBaseTestCase(TracerTestCase):
     def setUp(self):
-        super(GrpcBaseTestCase, self).setUp()
+        super().setUp()
         patch()
         self._start_server()
 
@@ -25,7 +25,7 @@ class GrpcBaseTestCase(TracerTestCase):
         self.pop_spans()
         # Unpatch grpc
         unpatch()
-        super(GrpcBaseTestCase, self).tearDown()
+        super().tearDown()
 
     def _start_server(self):
         self._server_pool = logging_pool.pool(1)

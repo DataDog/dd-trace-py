@@ -61,7 +61,7 @@ def default_sql_injector(dbm_comment: str, sql_statement: Union[str, bytes]) -> 
     return sql_statement
 
 
-class _DBM_Propagator(object):
+class _DBM_Propagator:
     def __init__(
         self,
         sql_pos,

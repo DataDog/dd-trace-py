@@ -1,13 +1,15 @@
 import json
+from unittest import mock
+from unittest.mock import patch as mock_patch
 
-import mock
-from mock import patch as mock_patch
 import pytest
 
+from ddtrace.contrib.internal.bedrock_inference_profiles import _clear_inference_profile_cache
+from ddtrace.contrib.internal.botocore.services.bedrock import _extract_streamed_response_metadata
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import _clear_inference_profile_cache
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
@@ -189,6 +191,40 @@ class TestLLMObsBedrock:
             test_spans,
             expected_metrics={"input_tokens": 18, "output_tokens": 51, "total_tokens": 69},
         )
+
+    def test_llmobs_amazon_nova_invoke_stream_token_usage(self, bedrock_client, bedrock_llmobs, test_spans):
+        # Nova streams report 0 tokens in amazon-bedrock-invocationMetrics; the real counts are in metadata.usage
+        body = {
+            "schemaVersion": "messages-v1",
+            "messages": [{"role": "user", "content": [{"text": "Say hello world."}]}],
+            "inferenceConfig": {"maxTokens": 20, "temperature": 0},
+        }
+        with get_request_vcr().use_cassette("amazon_nova_invoke_stream.yaml"):
+            response = bedrock_client.invoke_model_with_response_stream(
+                body=json.dumps(body), modelId="us.amazon.nova-micro-v1:0"
+            )
+            for _ in response.get("body"):
+                pass
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = _get_llmobs_data_metastruct(spans[0])["metrics"]
+        assert metrics["input_tokens"] == 4
+        assert metrics["output_tokens"] == 20
+        assert metrics["total_tokens"] == 24
+
+    @pytest.mark.parametrize("stream_metadata", [None, "unexpected", {"usage": None}])
+    def test_llmobs_invoke_stream_non_dict_metadata_keeps_invocation_metrics(self, stream_metadata):
+        request = {"model_provider": "amazon"}
+        streamed_body = [
+            {
+                "amazon-bedrock-invocationMetrics": {"inputTokenCount": 3, "outputTokenCount": 5},
+                "metadata": stream_metadata,
+            }
+        ]
+        result = _extract_streamed_response_metadata(request, streamed_body)
+        assert result["usage.prompt_tokens"] == 3
+        assert result["usage.completion_tokens"] == 5
+        assert request["usage"] == {"input_tokens": 3, "output_tokens": 5}
 
     def test_llmobs_anthropic_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(
@@ -395,6 +431,67 @@ class TestLLMObsBedrock:
             },
             tags=BEDROCK_TAGS,
         )
+
+    def test_llmobs_invoke_stream_aborted_keeps_partial_response(self, bedrock_client, bedrock_llmobs, test_spans):
+        """A stream abandoned part-way still carries the text received before the abort.
+
+        Throwing into the traced stream's generator is what a consumer-side cancellation looks
+        like from the handler's point of view. Before the fix the exception path tagged the span
+        with no response at all, so an interrupted request lost its output entirely.
+        """
+        body = json.dumps(_REQUEST_BODIES["anthropic_message"])
+        model = _MODELS["anthropic_message"]
+        partial = ""
+        with get_request_vcr().use_cassette("anthropic_message_invoke_stream.yaml"):
+            response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
+            stream = iter(response.get("body"))
+            for _ in range(3):
+                chunk = json.loads(next(stream)["chunk"]["bytes"])
+                if chunk.get("type") == "content_block_delta":
+                    partial += chunk["delta"].get("text", "")
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        assert partial
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) is not None
+        assert get_llmobs_output_messages(span) == [{"content": partial, "role": ""}]
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_stream_aborted_keeps_partial_response(
+        self, bedrock_client, request_vcr, bedrock_llmobs, test_spans
+    ):
+        """An aborted converse stream keeps its partial output *and* is marked as an error.
+
+        The partial output already survived — the converse handler feeds the accumulated
+        stream processor through on the error path — but the span was finished clean, so an
+        interrupted request was indistinguishable from a successful one.
+        """
+        request_params = create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
+        partial = ""
+        with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
+            response = bedrock_client.converse_stream(**request_params)
+            stream = iter(response["stream"])
+            for _ in range(5):
+                chunk = next(stream)
+                delta = chunk.get("contentBlockDelta", {}).get("delta", {})
+                partial += delta.get("text", "")
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        assert partial
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_output_messages(span)[0]["content"] == partial
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse_stream(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
@@ -1127,16 +1224,15 @@ def test_shadow_tags_invoke_when_llmobs_disabled(tracer):
 
     integration = BedrockIntegration(MagicMock())
 
-    ctx = MagicMock()
-    ctx.get_item.side_effect = lambda key: {
-        "llmobs.proxy_request": None,
-        "llmobs.usage": {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
+    # The request the botocore integration records for products.
+    request = {
+        "usage": {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
         "model_id": "anthropic.claude-v2",
         "model_name": "anthropic.claude-v2",
-    }.get(key)
+    }
 
     with tracer.trace("botocore.command") as span:
-        integration._set_apm_shadow_tags(span, [ctx], {}, response=None, operation="")
+        integration._set_apm_shadow_tags(span, [], request, response=None, operation="InvokeModel")
 
     assert span.get_tag("_dd.llmobs.span_kind") == "llm"
     assert span.get_tag("_dd.llmobs.model_name") == "anthropic.claude-v2"

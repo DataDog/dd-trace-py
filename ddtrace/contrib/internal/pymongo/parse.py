@@ -37,7 +37,7 @@ MAX_MSG_PARSE_LEN = 1024 * 1024
 header_struct = struct.Struct("<iiii")
 
 
-class Command(object):
+class Command:
     """Command stores information about a pymongo network command,"""
 
     __slots__ = ["name", "coll", "db", "tags", "metrics", "query"]

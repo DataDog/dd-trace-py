@@ -1,6 +1,7 @@
 import atexit
 import http.client as httplib
 import json
+from typing import Any
 from typing import TypedDict  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
@@ -40,7 +41,7 @@ class V2LogWriter(PeriodicService):
     """
 
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        super(V2LogWriter, self).__init__(interval=interval)
+        super().__init__(interval=interval)
         self._lock = RLock()
         self._buffer: list[V2LogEvent] = []
         # match the API limit
@@ -56,8 +57,8 @@ class V2LogWriter(PeriodicService):
         }
         logger.debug("started log writer to %r", self._url)
 
-    def start(self, *args, **kwargs):
-        super(V2LogWriter, self).start()
+    def start(self, *args: Any, **kwargs: Any) -> None:
+        super().start()
         atexit.register(self.on_shutdown)
 
     def enqueue(self, log: V2LogEvent) -> None:
@@ -67,7 +68,7 @@ class V2LogWriter(PeriodicService):
                 return
             self._buffer.append(log)
 
-    def on_shutdown(self):
+    def on_shutdown(self) -> None:  # type: ignore[override]  # base declares it as a staticmethod
         self.periodic()
 
     @property

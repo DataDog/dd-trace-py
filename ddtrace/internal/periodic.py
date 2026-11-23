@@ -1,11 +1,9 @@
-# -*- encoding: utf-8 -*-
 import typing
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal.threads import PeriodicThread
-from ddtrace.internal.threads import RLock
 
 
 class PeriodicService(service.Service):
@@ -47,8 +45,13 @@ class PeriodicService(service.Service):
     def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         """Stop the periodic collector."""
         if self._worker:
-            self._worker.stop()
-        super(PeriodicService, self)._stop_service(*args, **kwargs)  # type: ignore[safe-super]
+            if self._worker.cancel_if_not_started():
+                # The worker never started: its start was deferred by a fork and either
+                # failed or was just cancelled. There is nothing to stop or join.
+                self._worker = None
+            else:
+                self._worker.stop()
+        super()._stop_service(*args, **kwargs)  # type: ignore[safe-super]
 
     def join(
         self,
@@ -69,6 +72,7 @@ class AwakeablePeriodicService(PeriodicService):
     """A service that runs periodically but that can also be awakened on demand."""
 
     def awake(self) -> None:
+        """Request a run of periodic() as soon as possible, without waiting for it."""
         if self._worker:
             self._worker.awake()
 
@@ -109,7 +113,10 @@ class Timer:
 
     def __init__(self, interval: float) -> None:
         self._interval = interval
-        self._worker_lock = RLock()
+        # A timer might be started as a response to a signal coming from user
+        # code running in an application thread, so we need to make sure that
+        # locks are fork-safe.
+        self._worker_lock = forksafe.RLock()
         self._set_worker()
 
     def _set_worker(self) -> None:

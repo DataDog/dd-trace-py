@@ -1,8 +1,10 @@
 from http import client as httplib
 import json
+import time
 from urllib import parse
 
 from ddtrace import tracer
+from tests.webclient import PING_TRACE_ID
 
 
 def start_trace(token):
@@ -23,13 +25,31 @@ def clear_session(token):
     return resp.read()
 
 
-def _get_span(token):
+def _fetch_traces(token):
     client = _get_agent_client()
     client.request(
         "GET", "/test/session/traces?test_session_token=%s" % (token,), headers={"X-Datadog-Test-Session-Token": token}
     )
     resp = client.getresponse()
-    return json.loads(resp.read())
+    traces = json.loads(resp.read())
+    kept = [trace for trace in traces if not trace or trace[0].get("trace_id") != PING_TRACE_ID]
+    return kept, len(traces) - len(kept)
+
+
+def _get_span(token):
+    kept, dropped = _fetch_traces(token)
+    print(f"Dropped {dropped} readiness probe trace(s)")
+    return kept
+
+
+def _wait_for_traces(token, condition, timeout=20.0, interval=0.5):
+    deadline = time.monotonic() + timeout
+    kept, dropped = _fetch_traces(token)
+    while not condition(kept) and time.monotonic() < deadline:
+        time.sleep(interval)
+        kept, dropped = _fetch_traces(token)
+    print(f"Dropped {dropped} readiness probe trace(s)")
+    return kept
 
 
 def _get_agent_client():

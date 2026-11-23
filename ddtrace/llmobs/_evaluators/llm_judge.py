@@ -300,13 +300,13 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
         response = client.messages.create(**kwargs)
         content = getattr(response, "content", None)
         if content and isinstance(content, list):
-            block = content[0]
-            text = getattr(block, "text", None)
-            if text is not None:
-                return text
-            json_content = getattr(block, "json", None)
-            if json_content is not None:
-                return json.dumps(json_content)
+            # Models with extended/adaptive thinking may return [thinking, text], so skip non-text blocks.
+            for block in content:
+                if getattr(block, "type", None) != "text":
+                    continue
+                text = getattr(block, "text", None)
+                if isinstance(text, str):
+                    return text
         return ""
 
     return call
@@ -398,7 +398,7 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
             content = getattr(response.candidates[0], "content", None)
             parts = getattr(content, "parts", []) or []
             if parts and getattr(parts[0], "text", None):
-                return parts[0].text
+                return str(parts[0].text)
         return ""
 
     return call
@@ -506,7 +506,7 @@ def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> L
 
         for block in content_blocks:
             if "text" in block:
-                return block["text"]
+                return str(block["text"])
         return ""
 
     return call
@@ -868,7 +868,7 @@ class LLMJudge(BaseEvaluator):
                     return None
             return value
 
-        def replace(match: re.Match) -> str:
+        def replace(match: re.Match[str]) -> str:
             value = resolve(match.group(1).strip())
             if value is None:
                 return ""

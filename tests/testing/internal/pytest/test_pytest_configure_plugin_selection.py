@@ -12,6 +12,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.testing.internal.pytest.plugin import _EXTERNAL_RERUN_PLUGINS
 from ddtrace.testing.internal.pytest.plugin import _HOOKIMPL_SUPPORTS_SPECNAME
 from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
@@ -35,6 +36,11 @@ def disable_kill_switch():
 def _make_mock_config(plugin_names=(), atr_enabled=False, efd_enabled=False, atf_enabled=False):
     """Return a mock pytest.Config whose pluginmanager.hasplugin reflects plugin_names."""
     config = mock.MagicMock()
+    # The legacy --ddtrace-include-class-name option and ini are deprecated no-ops that
+    # pytest_configure checks; default the lookups to False so MagicMock truthiness does
+    # not spuriously trip the deprecation warning in every test.
+    config.getoption.return_value = False
+    config.getini.return_value = False
     config.stash = {}
     config.pluginmanager.hasplugin.side_effect = lambda name: name in plugin_names
     session_manager = mock.MagicMock()
@@ -156,10 +162,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = False
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = is_quarantined
-        test.is_disabled.return_value = is_disabled
-        test.is_attempt_to_fix.return_value = False
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = is_quarantined
+        test.should_disable.return_value = is_disabled
+        test.should_attempt_to_fix.return_value = False
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -175,10 +181,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = is_quarantined
-        test.is_disabled.return_value = is_disabled
-        test.is_attempt_to_fix.return_value = False
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = is_quarantined
+        test.should_disable.return_value = is_disabled
+        test.should_attempt_to_fix.return_value = False
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -198,10 +204,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = is_quarantined
-        test.is_disabled.return_value = is_disabled
-        test.is_attempt_to_fix.return_value = is_attempt_to_fix
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = is_quarantined
+        test.should_disable.return_value = is_disabled
+        test.should_attempt_to_fix.return_value = is_attempt_to_fix
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -231,10 +237,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = is_quarantined
-        test.is_disabled.return_value = is_disabled
-        test.is_attempt_to_fix.return_value = is_attempt_to_fix
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = is_quarantined
+        test.should_disable.return_value = is_disabled
+        test.should_attempt_to_fix.return_value = is_attempt_to_fix
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -253,10 +259,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = True
-        test.is_disabled.return_value = False
-        test.is_attempt_to_fix.return_value = False
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = True
+        test.should_disable.return_value = False
+        test.should_attempt_to_fix.return_value = False
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -274,10 +280,10 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
-        test.is_quarantined.return_value = False
-        test.is_disabled.return_value = False
-        test.is_attempt_to_fix.return_value = True
+        test = mock.MagicMock(no_auto_retry=False)
+        test.should_quarantine.return_value = False
+        test.should_disable.return_value = False
+        test.should_attempt_to_fix.return_value = True
 
         item = mock.MagicMock()
         item.user_properties = []
@@ -286,3 +292,89 @@ class TestPluginClassSelection:
 
         item.add_marker.assert_not_called()
         assert item.user_properties == []
+
+
+class TestLegacyPluginSelectionEnvVarDeprecation:
+    """The DD_PYTEST_USE_NEW_PLUGIN* env vars no longer select a plugin.
+
+    The legacy pytest plugin has been removed: any use of the variables must emit a
+    DDTraceDeprecationWarning via pytest's config-time warning API, but must have no
+    other effect on plugin selection or session setup.
+    """
+
+    @pytest.mark.parametrize("value", ["false", "0", "true", "1", "anything"])
+    def test_use_new_plugin_set_emits_deprecation_warning(self, monkeypatch, value):
+        monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN", value)
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 1
+        warning = config.issue_config_time_warning.call_args.args[0]
+        assert isinstance(warning, DDTraceDeprecationWarning)
+        assert "DD_PYTEST_USE_NEW_PLUGIN is deprecated" in str(warning)
+        assert "no longer has any effect" in str(warning)
+
+    @pytest.mark.parametrize("value", ["true", "1", "anything"])
+    def test_use_new_plugin_beta_set_emits_deprecation_warning(self, monkeypatch, value):
+        monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN_BETA", value)
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 1
+        warning = config.issue_config_time_warning.call_args.args[0]
+        assert isinstance(warning, DDTraceDeprecationWarning)
+        assert "DD_PYTEST_USE_NEW_PLUGIN_BETA is deprecated" in str(warning)
+        assert "no longer has any effect" in str(warning)
+
+    def test_both_vars_set_emits_two_warnings(self, monkeypatch):
+        monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN", "false")
+        monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN_BETA", "true")
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 2
+
+    def test_env_vars_unset_emit_no_warning(self, monkeypatch):
+        monkeypatch.delenv("DD_PYTEST_USE_NEW_PLUGIN", raising=False)
+        monkeypatch.delenv("DD_PYTEST_USE_NEW_PLUGIN_BETA", raising=False)
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        config.issue_config_time_warning.assert_not_called()
+
+
+class TestLegacyIncludeClassNameDeprecation:
+    """--ddtrace-include-class-name / ddtrace-include-class-name are deprecated no-ops."""
+
+    def test_option_set_emits_deprecation_warning(self):
+        config, _ = _make_mock_config()
+        config.getoption.return_value = True
+        config.getini.return_value = False
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 1
+        warning = config.issue_config_time_warning.call_args.args[0]
+        assert isinstance(warning, DDTraceDeprecationWarning)
+        assert "--ddtrace-include-class-name / ddtrace-include-class-name are deprecated" in str(warning)
+        assert "always included in test names" in str(warning)
+
+    def test_ini_set_emits_deprecation_warning(self):
+        config, _ = _make_mock_config()
+        config.getoption.return_value = False
+        config.getini.return_value = True
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 1
+
+    def test_option_and_ini_unset_emit_no_warning(self):
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        config.issue_config_time_warning.assert_not_called()

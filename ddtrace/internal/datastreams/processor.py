@@ -1,4 +1,3 @@
-# coding: utf-8
 from __future__ import annotations
 
 import base64
@@ -6,7 +5,6 @@ from collections import defaultdict
 from functools import partial
 import gzip
 import struct
-import threading
 import time
 from typing import Any
 from typing import NamedTuple
@@ -23,6 +21,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import local
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -70,7 +69,7 @@ PathwayAggrKey = tuple[
 ]
 
 
-class PathwayStats(object):
+class PathwayStats:
     """Aggregated pathway statistics."""
 
     __slots__ = ("full_pathway_latency", "edge_latency", "payload_size")
@@ -81,18 +80,23 @@ class PathwayStats(object):
         self.payload_size = DDSketch()
 
 
-PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int), ("cluster_id", str)])
-ConsumerPartitionKey = NamedTuple(
-    "ConsumerPartitionKey", [("group", str), ("topic", str), ("partition", int), ("cluster_id", str)]
-)
-Bucket = NamedTuple(
-    "Bucket",
-    [
-        ("pathway_stats", defaultdict[PathwayAggrKey, PathwayStats]),
-        ("latest_produce_offsets", defaultdict[PartitionKey, int]),
-        ("latest_commit_offsets", defaultdict[ConsumerPartitionKey, int]),
-    ],
-)
+class PartitionKey(NamedTuple):
+    topic: str
+    partition: int
+    cluster_id: str
+
+
+class ConsumerPartitionKey(NamedTuple):
+    group: str
+    topic: str
+    partition: int
+    cluster_id: str
+
+
+class Bucket(NamedTuple):
+    pathway_stats: defaultdict[PathwayAggrKey, PathwayStats]
+    latest_produce_offsets: defaultdict[PartitionKey, int]
+    latest_commit_offsets: defaultdict[ConsumerPartitionKey, int]
 
 
 class DataStreamsProcessor(PeriodicService):
@@ -107,7 +111,7 @@ class DataStreamsProcessor(PeriodicService):
     ):
         if interval is None:
             interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-        super(DataStreamsProcessor, self).__init__(interval=interval)
+        super().__init__(interval=interval)
         self._enabled: bool = True
         self._agent_url = agent_url or agent_config.trace_agent_url
         self._endpoint = "/v0.1/pipeline_stats"
@@ -128,7 +132,7 @@ class DataStreamsProcessor(PeriodicService):
         self._hostname = compat.ensure_text(get_hostname())
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
-        self._current_context = threading.local()
+        self._current_context = local()
         self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(

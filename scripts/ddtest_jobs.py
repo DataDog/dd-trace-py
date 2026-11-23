@@ -112,6 +112,7 @@ def emit_ddtest_jobs(
     services = list(dict.fromkeys(config.get("services") or []))
     env = dict(config.get("env") or {})
     retry = config.get("retry")
+    retry_policy = config.get("retry_policy")
     timeout = config.get("timeout")
     allow_failure = config.get("allow_failure", False)
     suite_name = config.get("pattern") or clean_name
@@ -164,30 +165,21 @@ def emit_ddtest_jobs(
             for key, value in extra.items():
                 print(f"    {key}: {value}", file=f)
 
-    def emit_needs_build_base_test_artifacts(needed_environments: list[tuple[str, str]]) -> None:
-        print("    - job: build_base_test_artifacts", file=f)
+    def emit_needs_extract_test_artifacts() -> None:
+        print("    - job: extract_test_artifacts", file=f)
         print("      artifacts: true", file=f)
-        print("      parallel:", file=f)
-        print("        matrix:", file=f)
-        # Dedup PYTHON_VERSIONs: several hashes share a Python version, but
-        # build_base_test_artifacts only needs to be downloaded once per version.
-        seen_py: set[str] = set()
-        for _h, py in needed_environments:
-            if py in seen_py:
-                continue
-            seen_py.add(py)
-            print(f'          - PYTHON_VERSION: "{py}"', file=f)
 
     # ---- plan job: single job per suite (groups hashes by Python version) ----
     # One plan job per suite (not per venv) to reduce CI runner contention.
     # The job prepares and plans hashes in parallel across Python versions,
     # partitioning the plan artifact by hash.
     print(f"{plan_name}:", file=f)
-    print(f"  extends: {plan_tpl}", file=f)
+    extends = f"[{plan_tpl}, {retry_policy}]" if retry_policy else plan_tpl
+    print(f"  extends: {extends}", file=f)
     print(f"  stage: {stage}", file=f)
     print("  needs:", file=f)
     print("    - prechecks", file=f)
-    emit_needs_build_base_test_artifacts(environments)
+    emit_needs_extract_test_artifacts()
     emit_services(plan=True)
     emit_before_script(plan=True)
     hash_python = " ".join(f"{h}:{py}:{metadata[h][0]}:{metadata[h][1]}" for h, py in environments)
@@ -210,9 +202,7 @@ def emit_ddtest_jobs(
 
     # ---- run jobs: K instances per venv, grouped by Python version ----
     # Matrix expressions are not available on all GitLab versions used by CI,
-    # so emit one run job per Python version instead of dynamically matching a
-    # need from the run matrix. This keeps each run job's artifact download
-    # limited to its own build_base_test_artifacts matrix entry.
+    # so emit one run job per Python version.
     environments_by_python: dict[str, list[tuple[str, str]]] = {}
     for environment in environments:
         environments_by_python.setdefault(environment[1], []).append(environment)
@@ -220,11 +210,12 @@ def emit_ddtest_jobs(
     for py, python_environments in environments_by_python.items():
         py_run_name = f"{run_name}-{py}"
         print(f"{py_run_name}:", file=f)
-        print(f"  extends: {run_tpl}", file=f)
+        extends = f"[{run_tpl}, {retry_policy}]" if retry_policy else run_tpl
+        print(f"  extends: {extends}", file=f)
         print(f"  stage: {stage}", file=f)
         print("  needs:", file=f)
         print("    - prechecks", file=f)
-        emit_needs_build_base_test_artifacts(python_environments)
+        emit_needs_extract_test_artifacts()
         # Each run downloads the single plan artifact (which contains all
         # hashes' plans, partitioned by hash) and restores its own hash's plan.
         print("    - job: " + plan_name, file=f)

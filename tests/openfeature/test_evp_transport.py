@@ -529,6 +529,7 @@ def test_direct_https_uses_datadog_proxy(monkeypatch):
 def test_direct_https_uses_standard_proxy(monkeypatch):
     monkeypatch.delenv("DD_PROXY_HTTPS", raising=False)
     monkeypatch.setenv("HTTPS_PROXY", "http://standard-proxy.example.test:8080")
+    monkeypatch.setenv("https_proxy", "http://standard-proxy.example.test:8080")
     monkeypatch.delenv("NO_PROXY", raising=False)
     monkeypatch.delenv("no_proxy", raising=False)
     selector, _ = _selector(endpoints=())
@@ -548,6 +549,7 @@ def test_direct_https_uses_standard_proxy(monkeypatch):
 def test_direct_https_honors_no_proxy(monkeypatch):
     monkeypatch.setenv("DD_PROXY_HTTPS", "http://proxy.example.test:8443")
     monkeypatch.setenv("NO_PROXY", ".datadoghq.com")
+    monkeypatch.setenv("no_proxy", ".datadoghq.com")
     selector, _ = _selector(endpoints=())
     route = selector.select()
     assert route is not None

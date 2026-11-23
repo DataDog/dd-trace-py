@@ -5,7 +5,7 @@ language: python
 files:
   - "ddtrace/**"
 ignores:
-  - "ddtrace/internal/threads.py"
+  - "ddtrace/internal/locks.py"
   - "ddtrace/internal/_unpatched.py"
   - "ddtrace/vendor/**"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"

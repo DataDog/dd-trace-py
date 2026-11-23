@@ -135,6 +135,45 @@ def test_dataclasses_not_unloaded():
     assert b
 
 
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_warnings_not_unloaded():
+    """``logging.captureWarnings()`` must keep working after module cleanup.
+
+    Regression test for #20875. ``logging`` is kept loaded (it is in
+    ``KEEP_MODULES``) but ``warnings`` used to be unloaded, so
+    ``logging.captureWarnings(True)`` patched a stale ``warnings`` module while
+    ``warnings.warn()`` used the freshly re-imported one. Warnings then bypassed
+    ``logging`` and were printed straight to stderr.
+    """
+    import ddtrace  # noqa
+
+    import ddtrace.auto  # noqa  (runs cleanup_loaded_modules())
+
+    import io
+    import logging
+    import sys
+    import warnings
+
+    assert logging.warnings is sys.modules["warnings"]
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger = logging.getLogger("py.warnings")
+    logger.addHandler(handler)
+    logger.setLevel(logging.WARNING)
+
+    logging.captureWarnings(True)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            warnings.warn("captureWarnings regression")
+    finally:
+        logging.captureWarnings(False)
+        logger.removeHandler(handler)
+
+    assert "captureWarnings regression" in stream.getvalue()
+
+
 def test_uwsgi_gevent():
     """
     Test that we support uwsgi + gevent when threads are patched.

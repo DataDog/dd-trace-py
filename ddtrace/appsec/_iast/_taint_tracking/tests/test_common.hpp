@@ -47,7 +47,7 @@ class PyEnvWithContext : public ::testing::Test
     }
 
   public:
-    std::optional<size_t> context_id;
+    std::optional<std::uint64_t> context_id;
 
     PyObject* StringToPyObjectStr(const string& ob) { return PyUnicode_FromString(ob.c_str()); }
     string PyObjectStrToString(PyObject* ob)

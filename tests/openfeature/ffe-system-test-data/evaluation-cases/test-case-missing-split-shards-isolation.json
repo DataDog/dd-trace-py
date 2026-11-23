@@ -1,0 +1,27 @@
+[
+  {
+    "description": "The malformed flag has a split that omits required shards. SDKs must return a parse error without poisoning the full configuration.",
+    "attributes": {},
+    "defaultValue": "default",
+    "flag": "missing-split-shards-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A valid flag in the same config must still evaluate after the missing-shards flag is skipped.",
+    "attributes": {},
+    "defaultValue": "default",
+    "flag": "valid-flag-after-invalid-config",
+    "result": {
+      "reason": "STATIC",
+      "value": "expected"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  }
+]

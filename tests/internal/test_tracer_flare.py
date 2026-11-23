@@ -154,7 +154,7 @@ class TracerFlareTests(unittest.TestCase):
 
         assert os.path.exists(self.flare_file_path)
 
-        with open(self.flare_file_path, "r") as file:
+        with open(self.flare_file_path) as file:
             for line in file:
                 assert app_log_line not in line, f"File {self.flare_file_path} contains excluded line: {app_log_line}"
 
@@ -182,7 +182,7 @@ class TracerFlareTests(unittest.TestCase):
         assert os.path.exists(self.flare_file_path)
 
         logs = []
-        with open(self.flare_file_path, "r") as file:
+        with open(self.flare_file_path) as file:
             for line in file:
                 data = json.loads(line)
                 assert isinstance(data, dict), f"Log line is not a JSON object: {line}"
@@ -897,7 +897,7 @@ def test_native_logs(tmp_path):
         native_flare_file_path = tmp_path / f"tracer_native_{os.getpid()}.log"
         assert os.path.exists(native_flare_file_path)
 
-        with open(native_flare_file_path, "r") as file:
+        with open(native_flare_file_path) as file:
             assert "debug log" in file.readline()
 
         # Sends request to testagent

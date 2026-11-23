@@ -33,8 +33,7 @@ layer built earlier in the pipeline. Runs whenever the `upload serverless` job h
 **`bp-runner.yml`** — `bp-runner` experiment definition used by the microbenchmark suite for
 scenarios that need a live Datadog agent — currently those whose names start with `flask_` or
 `django_`. It pins the agent to CPUs 24-25 and the benchmark to CPUs 26-47 so the two never share a
-core. All other scenarios bypass this file and run through the platform's `run-benchmarks.sh`
-directly.
+core. All other scenarios bypass this file and run through `steps/run-benchmarks.sh` directly.
 
 **`.gitlab/benchmarks/slos/<team>.yml`** — SLO thresholds for every microbenchmark scenario,
 currently one `execution_time` limit per scenario config. There is one file per team, each owned
@@ -49,29 +48,43 @@ scenarios — latency percentiles, throughput, CPU, and RSS per application conf
 by the macrobenchmark gate, with no generation step. `warning_range: 7` means a measurement landing
 within 7% of a threshold notifies Slack without failing the job.
 
+**`container/`** — Dockerfile and install script for the microbenchmark CI image. Built in this
+repository by the manual `build-benchmark-ci-images` job (see
+[microbenchmarks.md](microbenchmarks.md)).
+
 **`steps/`** — Shell steps called from the microbenchmark jobs.
 
 * `detect-baseline.sh` — decides which commit to compare against and writes `baseline.env`.
   On `main` and on release branches or tags it picks the latest non-rc tag; on a pull request
   branch it picks the merge base with the base branch.
 * `build-baseline.sh` — obtains the baseline wheel: from PyPI when the baseline is a released
-  tag, otherwise from the `dd-trace-py-builds` S3 bucket by commit SHA, and only failing that
-  builds it from source.
+  tag that is already published there, otherwise from the `dd-trace-py-builds` S3 bucket by
+  commit SHA, and only failing that builds it from source.
 * `combine-results.sh` — merges the per-config `results.*.json` files a scenario produces
   into one `results.json`, keeping a single copy of the shared metadata.
+
+The rest — `run-benchmarks.sh`, `run-baseline.sh`, `run-candidate.sh`,
+`capture-hardware-software-info.sh`, `analyze-results.sh`, `config-benchmark-analyzer.sh`,
+`update-dd-agent-config.sh`, `upload-results-to-s3.sh`,
+`upload-results-to-benchmarking-api.sh`, `post-pr-comment.sh`, `post-pr-comment-old.sh`, and
+`format-benchmark-results.py` — run and report the benchmarks themselves. They were migrated
+from the `dd-trace-py` branch of
+[DataDog/benchmarking-platform](https://github.com/DataDog/benchmarking-platform), so changing
+how a benchmark is executed or reported is now a pull request here.
 
 ## External
 
 Some of what runs is not visible from this directory.
 
-**Benchmarking Platform steps.** The scripts that actually run and report a benchmark —
-`run-benchmarks.sh`, `analyze-results.sh`, `capture-hardware-software-info.sh`,
-`upload-results-to-s3.sh`, `upload-results-to-benchmarking-api.sh`, `post-pr-comment.sh` —
-live in [DataDog/benchmarking-platform](https://github.com/DataDog/benchmarking-platform), not
-here. The microbenchmark jobs clone that repo at the pin in `microbenchmarks.yml`
-(`BENCHMARKING_BRANCH`, `BENCHMARKING_COMMIT_SHA`) and put `/platform/steps` on `PATH`. The
-macrobenchmark jobs clone its `python/macrobenchmarks` branch. Changing how a benchmark is
-executed or reported usually means a pull request there, followed by bumping the pin here.
+**Benchmarking Platform steps.** Now in `steps/` in this directory (see [Layout](#layout));
+the microbenchmark jobs put that directory on `PATH` and call the scripts by name. The
+macrobenchmark jobs still clone the platform's `python/macrobenchmarks` branch.
+
+**Microbenchmark image base layer.** `container/Dockerfile` builds on an intermediate image
+that is built from this repository's own `benchmarks/Dockerfile` by the `dd-trace-py` branch
+pipeline of [DataDog/benchmarking-platform](https://github.com/DataDog/benchmarking-platform)
+and published as `ci/benchmarking-platform:cache-dd-trace-py`. The `FROM` is pinned by digest;
+see [microbenchmarks.md](microbenchmarks.md) for how to update it.
 
 **Gate job template.** `.check-slo-breaches` and `.notify-slo-breaches` come from
 [DataDog/benchmarking-platform-tools](https://github.com/DataDog/benchmarking-platform-tools)
@@ -79,9 +92,14 @@ via `include:project:`. Both pipelines currently override the template's image w
 `benchmarking-platform-tools-ubuntu` tag; the override is temporary and marked as such in the
 YAML.
 
-**Competitor benchmarks.** The root `.gitlab-ci.yml` triggers
+**`apm-sdks-benchmarks` framework.** The root `.gitlab-ci.yml` triggers
 [DataDog/apm-reliability/apm-sdks-benchmarks](https://gitlab.ddbuild.io/DataDog/apm-reliability/apm-sdks-benchmarks)
 separately from anything in this directory. Its scenarios and thresholds are maintained there.
+
+The `apm-sdks-benchmarks` job runs automatically on release tags, release branches, `main`, and
+`performance/flaky-benchmarks-monitoring`. Everywhere else, nightly builds included, it stays
+manual: `apm-sdks-benchmarks` already runs its own nightly schedule in that project's own CI,
+independent of dd-trace-py's pipeline.
 
 **Generation.** `scripts/gen_gitlab_config.py` produces `microbenchmarks-gen.yml` and the
 filtered SLO file. Neither is committed; both are `tests-gen` artifacts.
@@ -101,7 +119,7 @@ For microbenchmarks, on every pipeline:
 2. **`microbenchmarks`** (root pipeline) triggers `microbenchmarks-gen.yml` as a child
    pipeline, after `tests-gen` and the `build linux` job that produces the candidate wheel.
 3. **`baseline:detect`** then **`baseline:build`** resolve and build the wheel to compare
-   against, while **`candidate`** picks the `cp39` wheel out of the parent pipeline's
+   against, while **`candidate`** picks the `cp312` wheel out of the parent pipeline's
    artifacts. Both are cached, `baseline:build` on the baseline commit SHA.
 4. **`microbenchmarks`** (child pipeline) runs each matrix entry's scenarios against both wheels,
    then `analyze-results.sh` and an S3 upload.
@@ -127,9 +145,9 @@ hardware is large enough to swamp the regressions these gates exist to catch.
 
 | Suite | Image | Why |
 |-------|-------|-----|
-| Microbenchmarks | `MICROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py` from the `486234852809` ECR registry | Built from the `dd-trace-py` branch of `benchmarking-platform` and carries the `bp-runner` tooling plus the Python versions the scenarios need. |
+| Microbenchmarks | `MICROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py-<pipeline id>` on `registry.ddbuild.io` | Built in this repo from `.gitlab/benchmarks/container/` by the manual `build-benchmark-ci-images` job; carries the `bp-runner` tooling plus the Python versions the scenarios need. See [microbenchmarks.md](microbenchmarks.md) for rebuilding and repinning. |
 | Microbenchmark wheel builds | `PACKAGE_IMAGE` — `pypa/manylinux2014_x86_64` | `baseline:build` and `candidate` only need a manylinux toolchain, so they use the same image as the release wheel builds instead of the heavier benchmarking image. |
-| Baseline detection | `GITHUB_CLI_IMAGE` — `dd-octo-sts-ci-base` | `baseline:detect` needs `gh` and `dd-octo-sts` to mint a GitHub token, and nothing else. |
+| Baseline detection | `GITHUB_CLI_IMAGE` — `dd-octo-sts-ci-base` | `baseline:detect` needs `dd-octo-sts` to mint a GitHub token, and nothing else. |
 | Macrobenchmarks | `MACROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py-macrobenchmarks` | Separate image because it bundles the Flask and Django applications under test and their load-generation harness. |
 | SLO gates | `benchmarking-platform-tools-ubuntu`, pinned by tag | Supplied by the `benchmarking-platform-tools` template; both pipelines pin a tag as a temporary override. |
 | Serverless | `SLS_CI_IMAGE` — `ci/serverless-tools` | The suite runs entirely in `DataDog/serverless-tools`; this repo only triggers it. |

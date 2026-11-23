@@ -1,9 +1,60 @@
 from functools import wraps
+import gc
 from pathlib import Path
+import weakref
 
 import pytest
 
+from ddtrace.internal.utils import inspection
 from ddtrace.internal.utils.inspection import undecorated
+
+
+def _compile_function(name="f"):
+    ns = {}
+    exec(compile(f"def {name}():\n    pass\n", "<test_utils_inspection>", "exec"), ns)
+    return ns[name]
+
+
+def test_functions_for_code_gc_does_not_conflate_structurally_identical_code():
+    # Two code objects compiled from identical source are == and hash equal
+    # (CodeType's __eq__/__hash__ is structural), which is exactly what a
+    # module reload with unchanged source produces. The cache must key on
+    # object identity, not equality, or looking up the second would return
+    # the (possibly stale) functions list cached for the first.
+    f1 = _compile_function()
+    f2 = _compile_function()
+
+    assert f1.__code__ == f2.__code__
+    assert f1.__code__ is not f2.__code__
+
+    assert inspection.functions_for_code(f1.__code__) == [f1]
+    assert inspection.functions_for_code(f2.__code__) == [f2]
+
+
+def test_functions_for_code_gc_cache_entry_collected_with_code_object():
+    f = _compile_function()
+    code = f.__code__
+    code_ref = weakref.ref(code)
+
+    inspection.functions_for_code(code)
+    assert code in inspection._functions_for_code_gc_cache
+
+    del f
+    del code
+    gc.collect()
+
+    if code_ref() is None:
+        # The finalizer on the code object's weakref should have dropped
+        # the entry entirely, so nothing keeps the now-dead function
+        # reachable.
+        assert len(inspection._functions_for_code_gc_cache._data) == 0
+    else:
+        # A tracing tool (observed with coverage.py on Python 3.14) can
+        # keep a dynamically-compiled code object alive past its last
+        # real reference -- an environment detail outside our control.
+        # What still must hold: the cache never resolves it back to the
+        # now-dead function.
+        assert inspection.functions_for_code(code_ref()) == []
 
 
 def test_undecorated():
@@ -210,6 +261,50 @@ def test_module_code_collector_keeps_entry_until_every_subscriber_releases():
 
 
 @pytest.mark.subprocess
+def test_module_code_collector_is_obfuscated_raises_without_registration():
+    import pytest
+
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    with pytest.raises(KeyError):
+        ModuleCodeCollector.is_obfuscated(custom_decorated_stuff)
+
+
+@pytest.mark.subprocess
+def test_module_code_collector_is_obfuscated_false_for_normal_module():
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    ModuleCodeCollector.register("test")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    assert ModuleCodeCollector.is_obfuscated(custom_decorated_stuff) is False
+
+
+@pytest.mark.subprocess
+def test_module_code_collector_does_not_retain_module_code():
+    # Keeping the top-level code object would pin all of its constants for as
+    # long as the entry lives.
+    import gc
+    from types import CodeType
+
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    ModuleCodeCollector.register("test")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    gc.collect()
+
+    entry = ModuleCodeCollector._instance._code[custom_decorated_stuff]
+    assert not any(
+        isinstance(o, CodeType) and o.co_name == "<module>" and o.co_filename == custom_decorated_stuff.__file__
+        for o in gc.get_referents(*entry)
+    )
+
+
+@pytest.mark.subprocess
 def test_module_code_collector_late_subscriber_is_not_pending():
     # A subscriber that registers after a module was compiled was not part of
     # that module's pending snapshot. It can still read the module's data, but
@@ -229,3 +324,27 @@ def test_module_code_collector_late_subscriber_is_not_pending():
 
     ModuleCodeCollector.release(custom_decorated_stuff, "a")
     assert custom_decorated_stuff not in ModuleCodeCollector._instance._code
+
+
+@pytest.mark.subprocess
+def test_module_code_collector_reload_keeps_unrelated_wrapped_functions():
+    # Reloading a module must not affect the lookup of functions in other
+    # modules whose code has been replaced by a wrapping context.
+    from importlib import reload
+
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+    from ddtrace.internal.utils.inspection import functions_for_code
+    from ddtrace.internal.wrapping.context import WrappingContext
+
+    ModuleCodeCollector.register("test")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+    import tests.submod.stuff as stuff
+
+    original_code = stuff.modulestuff.__code__
+    WrappingContext(stuff.modulestuff).wrap()
+    assert stuff.modulestuff.__code__ is not original_code
+
+    reload(custom_decorated_stuff)
+
+    assert functions_for_code(original_code) == [stuff.modulestuff]

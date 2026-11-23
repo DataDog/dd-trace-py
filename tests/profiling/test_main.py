@@ -1,12 +1,14 @@
-# -*- encoding: utf-8 -*-
 import multiprocessing
 import os
 from pathlib import Path
+import signal
+import subprocess
 import sys
 
 import pytest
 
 from ddtrace.internal.datadog.profiling import stack as _stack_ext
+from tests._ddtest_env_helpers import strip_ddtest_leaked_env
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
@@ -29,7 +31,7 @@ def test_call_script() -> None:
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-def test_call_script_gevent():
+def test_call_script_gevent() -> None:
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, pid = call_program(
@@ -154,8 +156,28 @@ def test_fork(tmp_path: Path) -> None:
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent() -> None:
     env = os.environ.copy()
-    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=env)
-    assert exitcode == 0
+    # This test sometimes hangs until the CI job times out. Run it in its own process group so that on a hang, both
+    # the parent and the forked child can be sent SIGABRT, which makes faulthandler print where they are stuck.
+    proc = subprocess.Popen(
+        ["python", os.path.join(os.path.dirname(__file__), "gevent_fork.py")],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=strip_ddtest_leaked_env(env),
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGABRT)
+        try:
+            stdout, stderr = proc.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            stdout, stderr = proc.communicate()
+        pytest.fail(
+            f"gevent_fork.py hung, thread dumps follow.\nstdout:\n{stdout.decode()}\nstderr:\n{stderr.decode()}"
+        )
+    assert proc.returncode == 0, (stdout, stderr)
 
 
 methods = multiprocessing.get_all_start_methods()
@@ -283,5 +305,86 @@ def test_stack_profiler_foreign_segv_handler_detection() -> None:
 
     stack.reinstall_segv_handler()
     assert stack.segv_handler_installed() is True
+
+    print("OK")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
+@pytest.mark.subprocess(
+    env=dict(_DD_PROFILING_STACK_FAST_COPY="1"),
+    out="OK\n",
+    err=None,
+)
+def test_unarmed_sigsegv_chains_to_crashtracker_and_keeps_handler() -> None:
+    # An unarmed SIGSEGV must reach the previous handler chain (Crash Tracking,
+    # then the Python-level handler) without removing ours: safe_memcpy must stay
+    # protected, so the sampler must not fall back to the syscall copy.
+    import signal
+    import time
+
+    import pytest
+
+    from ddtrace.internal.native._native import CrashtrackerConfiguration
+    from ddtrace.internal.native._native import CrashtrackerMetadata
+    from ddtrace.internal.native._native import CrashtrackerReceiverConfig
+    from ddtrace.internal.native._native import StacktraceCollection
+    from ddtrace.internal.native._native import crashtracker_init
+
+    handled: list[int] = []
+    signal.signal(signal.SIGSEGV, lambda signum, _frame: handled.append(signum))
+    crashtracker_init(
+        CrashtrackerConfiguration(
+            [],
+            False,
+            False,
+            100,
+            StacktraceCollection.Disabled,
+            False,
+            0,
+            None,
+            None,
+            None,
+            None,
+        ),
+        CrashtrackerReceiverConfig(["true"], {}, "/bin/true", None, None),
+        CrashtrackerMetadata("test", "0.0.0", "python", {}),
+    )
+
+    # Import after crashtracker_init so the profiler saves Crash Tracking as
+    # the previous SIGSEGV/SIGBUS disposition.
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    assert stack.segv_handler_installed() is True
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+    _stack._set_fast_copy_warmup_seconds(0.1)
+    stack.set_adaptive_sampling(False)
+    assert stack.start()
+
+    try:
+        saw_warmup: bool = False
+        upgrade_deadline: float = time.monotonic() + 10
+        while time.monotonic() < upgrade_deadline:
+            active: bool = _stack.fast_copy_memory_active()
+            if not saw_warmup:
+                saw_warmup = active is False
+            elif active is True:
+                break
+            time.sleep(0.01)
+        else:
+            pytest.fail("sampler never upgraded to safe_memcpy")
+
+        signal.raise_signal(signal.SIGSEGV)
+        assert handled == [signal.SIGSEGV]
+
+        # Give the sampler time to run its ownership check several times.
+        time.sleep(0.5)
+        assert stack.segv_handler_installed() is True
+        assert _stack.fast_copy_memory_active() is True
+    finally:
+        stack.stop()
 
     print("OK")

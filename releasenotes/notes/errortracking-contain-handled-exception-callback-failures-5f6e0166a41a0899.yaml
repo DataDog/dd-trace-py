@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    error tracking: Fixes an issue where an internal handled error reporting failure can
+    interrupt application exception handling on Python 3.12 and later.

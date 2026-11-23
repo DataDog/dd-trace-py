@@ -1,0 +1,13 @@
+_v: 1
+name: grpc
+display_name: gRPC
+description: Instruments synchronous and asynchronous gRPC client calls and server handlers, including unary and streaming
+  RPCs.
+packages:
+- name: grpcio
+category:
+- rpc.client
+- rpc.server
+systems:
+- grpc
+creation_date: '2018-10-19'

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes missed vulnerability reports when custom validators receive keyword arguments.

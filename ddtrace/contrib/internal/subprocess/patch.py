@@ -5,9 +5,9 @@ import os
 import re
 import shlex
 from shlex import join
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
-from typing import cast  # noqa:F401
+from typing import Optional
+from typing import Union
+from typing import cast
 
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.subprocess import SubprocessCommandEvent
@@ -15,8 +15,8 @@ from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._runtime_id import get_runtime_propagation_envs
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.runtime import get_runtime_propagation_envs
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._telemetry import config as telemetry_config

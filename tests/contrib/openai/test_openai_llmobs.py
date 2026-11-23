@@ -1,14 +1,15 @@
+import asyncio
 import json
+from unittest import mock
 
-import mock
 import openai as openai_module
 import pytest
 
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._integrations.utils import _inline_image_budget
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metadata
@@ -18,7 +19,10 @@ from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
+from tests.contrib.openai.utils import SERVER_TOOL_PROMPT
+from tests.contrib.openai.utils import SERVER_TOOL_VECTOR_STORE
 from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -57,6 +61,73 @@ EXPECTED_TOOL_DEFINITIONS = [
         },
     }
 ]
+
+
+DECISION_INPUT = "I was charged twice for my subscription this month."
+DECISION_QUESTIONS = [
+    {
+        "type": "choice",
+        "name": "department",
+        "instructions": "Which team should handle this request?",
+        "choices": [{"value": "billing"}, {"value": "technical"}, {"value": "sales"}],
+    },
+    {
+        "type": "score",
+        "name": "severity",
+        "instructions": "How severe is the issue?",
+        "levels": [{"label": "Minor"}, {"label": "Workaround available"}, {"label": "Blocking"}],
+    },
+    {"type": "predicate", "name": "needs_refund", "instructions": "Is the customer asking for a refund?"},
+    {"type": "predicate", "name": "legal_threat", "instructions": "Is the customer threatening legal action?"},
+]
+
+DECISION_EXPECTED_INPUT = {"model": "gpt-6-luna", "input": DECISION_INPUT, "questions": DECISION_QUESTIONS}
+DECISION_EXPECTED_OUTPUT = {
+    "model": "gpt-6-luna",
+    "answers": [
+        {
+            "type": "choice",
+            "name": "department",
+            "choice": "billing",
+            "probabilities": [
+                {"value": "billing", "probability": 1.0},
+                {"value": "technical", "probability": 0.0},
+                {"value": "sales", "probability": 0.0},
+            ],
+            "confidence": 1.0,
+        },
+        {
+            "type": "score",
+            "name": "severity",
+            "score": 0.7,
+            "probabilities": [
+                {"value": 0, "label": "Minor", "probability": 0.42},
+                {"value": 1, "label": "Workaround available", "probability": 0.46},
+                {"value": 2, "label": "Blocking", "probability": 0.12},
+            ],
+            "confidence": 0.19,
+        },
+        {"type": "predicate", "name": "needs_refund", "probability": 0.29},
+        {"type": "predicate", "name": "legal_threat", "probability": 0.0},
+    ],
+}
+
+DECISION_IMAGE_URL = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=="
+)
+DECISION_EXPECTED_INPUT_JSON = json.dumps(DECISION_EXPECTED_INPUT, sort_keys=True)
+DECISION_EXPECTED_OUTPUT_JSON = json.dumps(DECISION_EXPECTED_OUTPUT, sort_keys=True)
+
+
+def _decision_io(span):
+    """Return the decisions request and response bodies recorded on the span, parsed."""
+    input_messages = get_llmobs_input_messages(span)
+    output_messages = get_llmobs_output_messages(span)
+    assert len(input_messages) == 1 and input_messages[0]["role"] == "user"
+    assert len(output_messages) == 1
+    output = output_messages[0]["content"]
+    return json.loads(input_messages[0]["content"]), json.loads(output) if output else None
 
 
 class TestLLMObsOpenaiV1:
@@ -451,6 +522,7 @@ class TestLLMObsOpenaiV1:
             metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+        assert "decision_provider" not in get_llmobs_tags(spans[0])
 
     def test_chat_completion_multimodal_content(self, openai, openai_llmobs, test_spans):
         """Multimodal content renders as readable text, and input audio is captured as audio_parts."""
@@ -1507,7 +1579,7 @@ MUL: "*"
 
     def test_completion_error(self, openai, openai_llmobs, test_spans):
         """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception) as exc_info:
             with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_error.yaml"):
                 model = "babbage-002"
                 client = openai.OpenAI()
@@ -1534,7 +1606,7 @@ MUL: "*"
             metrics={},
             error={
                 "type": "openai.AuthenticationError",
-                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "message": str(exc_info.value),
                 "stack": spans[0].get_tag("error.stack"),
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
@@ -1542,7 +1614,7 @@ MUL: "*"
 
     def test_chat_completion_error(self, openai, openai_llmobs, test_spans):
         """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception) as exc_info:
             with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_error.yaml"):
                 model = "gpt-3.5-turbo"
                 client = openai.OpenAI()
@@ -1564,7 +1636,7 @@ MUL: "*"
             metrics={},
             error={
                 "type": "openai.AuthenticationError",
-                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "message": str(exc_info.value),
                 "stack": spans[0].get_tag("error.stack"),
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
@@ -1998,6 +2070,128 @@ MUL: "*"
         )
 
     @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    def test_chat_completion_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """A stream that errors part-way still reports the chunks it did receive.
+
+        Throwing into the traced stream's generator reproduces a consumer-side abort (a client
+        disconnect or cancellation surfacing at the `yield`). The span must be tagged as an error
+        *and* carry the input messages plus whatever output arrived before the abort.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = iter(resp)
+            partial = ""
+            for _ in range(3):
+                chunk = next(stream)
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) == input_messages
+        # The partial text survives the abort rather than being discarded wholesale.
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        # Token counts fall back to the estimate computed from the partial text.
+        metrics = get_llmobs_metrics(span)
+        assert metrics["output_tokens"] == _est_tokens(partial)
+        assert metrics["input_tokens"] > 0
+        # The abort is still recorded as an error on the span.
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    async def test_chat_completion_async_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """Async mirror of the sync partial-response-on-abort case."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = resp.__aiter__()
+            partial = ""
+            for _ in range(3):
+                chunk = await stream.__anext__()
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(ValueError):
+                await stream.athrow(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_input_messages(span) == input_messages
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        assert span.error == 1
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    async def test_chat_completion_async_stream_cancelled_keeps_partial_response(
+        self, openai, openai_llmobs, test_spans
+    ):
+        """A cancelled async stream is recorded as an error and keeps whatever output arrived.
+
+        `asyncio.CancelledError` derives from `BaseException`, so it is handled separately from
+        ordinary exceptions in the shared stream handler.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = resp.__aiter__()
+            partial = ""
+            for _ in range(3):
+                chunk = await stream.__anext__()
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(asyncio.CancelledError):
+                await stream.athrow(asyncio.CancelledError())
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_input_messages(span) == input_messages
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        assert get_llmobs_metrics(span)["output_tokens"] == _est_tokens(partial)
+        assert span.error == 1
+
+    @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
     def test_response(self, openai, openai_llmobs, test_spans):
@@ -2118,6 +2312,35 @@ MUL: "*"
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """A Responses API stream that errors part-way still produces an annotated LLM span.
+
+        The Responses path salvages the most recent whole `response` snapshot rather than
+        accumulating `output_text.delta` events, so a mid-stream abort recovers the request input
+        but not the partial output text. Before this was fixed the span had no annotations at all:
+        the token-estimation fallback tried to iterate the pydantic snapshot and raised, taking
+        every tag with it.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.create(model="gpt-4.1", input="Hello world", stream=True)
+            stream = iter(resp)
+            for _ in range(5):
+                next(stream)
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) == [{"content": "Hello world", "role": "user"}]
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
@@ -2294,11 +2517,214 @@ MUL: "*"
         )
 
     @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision(self, openai, openai_llmobs, test_spans):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_EXPECTED_INPUT_JSON, "role": "user"}],
+            output_messages=[{"content": DECISION_EXPECTED_OUTPUT_JSON, "role": "assistant"}],
+            metrics={
+                "input_tokens": 534,
+                "output_tokens": 0,
+                "total_tokens": 534,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
+        )
+        metadata = get_llmobs_metadata(spans[0]) or {}
+        assert "decisions" not in metadata
+        assert "questions" not in metadata
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision_generator_args(self, openai, openai_llmobs, test_spans):
+        """Generator questions and input are consumed by the SDK, so they must be captured before the request."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            client.decisions.create(
+                model="gpt-6-luna",
+                input=(m for m in [{"role": "user", "content": DECISION_INPUT}]),
+                questions=(q for q in DECISION_QUESTIONS),
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        request, _ = _decision_io(spans[0])
+        assert request == {
+            "model": "gpt-6-luna",
+            "input": [{"role": "user", "content": DECISION_INPUT}],
+            "questions": DECISION_QUESTIONS,
+        }
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    async def test_decision_async(self, openai, openai_llmobs, test_spans):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.AsyncOpenAI()
+            await client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_EXPECTED_INPUT_JSON, "role": "user"}],
+            output_messages=[{"content": DECISION_EXPECTED_OUTPUT_JSON, "role": "assistant"}],
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision_request_fields_and_parts(self, openai, openai_llmobs, test_spans):
+        """Known request fields in extra_body and every input part are recorded; other extra_body fields are not."""
+        decision_input = [
+            {"role": "developer", "content": "Route support tickets."},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": DECISION_INPUT},
+                    {"type": "input_json", "data": {"plan": "pro", "seats": 50}},
+                    {"type": "input_image", "image_url": DECISION_IMAGE_URL},
+                    {"type": "input_image", "image_url": "https://example.com/receipt.png"},
+                ],
+            },
+            {"type": "custom_tool_call", "call_id": "call_1", "name": "lookup", "input": "acct 42"},
+            {"type": "custom_tool_call_output", "call_id": "call_1", "output": "two charges on 2026-10-01"},
+        ]
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            client.decisions.create(
+                model="gpt-6-luna",
+                input=decision_input,
+                questions=DECISION_QUESTIONS,
+                extra_body={"prompt_cache_key": "tickets", "safety_identifier": "user-1", "provider_token": "secret"},
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        request, response = _decision_io(spans[0])
+        decision_input[1]["content"][2]["image_url"] = "([IMAGE DETECTED])"
+        assert request == {
+            "model": "gpt-6-luna",
+            "input": decision_input,
+            "questions": DECISION_QUESTIONS,
+            "prompt_cache_key": "tickets",
+            "safety_identifier": "user-1",
+        }
+        assert response == DECISION_EXPECTED_OUTPUT
+        image_parts = get_llmobs_input_messages(spans[0])[0]["image_parts"]
+        assert len(image_parts) == 1
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision_images_only_from_image_parts(self, openai, openai_llmobs, test_spans):
+        """Only input_image parts are read as images, also in SDK models; text and input_json data stay as sent."""
+        pydantic = pytest.importorskip("pydantic")
+
+        class InputImage(pydantic.BaseModel):
+            type: str
+            image_url: str
+
+        questions = [{"type": "predicate", "name": "log_line", "instructions": "data: is this a log line?"}]
+        decision_input = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "data: customer reports a duplicate charge"},
+                    {"type": "input_text", "text": DECISION_IMAGE_URL},
+                    InputImage(type="input_image", image_url=DECISION_IMAGE_URL),
+                    {"type": "input_image", "image_url": {"url": DECISION_IMAGE_URL}},
+                    {"type": "input_json", "data": {"type": "input_image", "image_url": DECISION_IMAGE_URL}},
+                    {"type": "input_json", "data": {"type": "input_image", "count": 3}},
+                ],
+            }
+        ]
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            client.decisions.create(model="gpt-6-luna", input=decision_input, questions=questions)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        request, _ = _decision_io(spans[0])
+        assert request == {
+            "model": "gpt-6-luna",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": "data: customer reports a duplicate charge"},
+                        {"type": "input_text", "text": DECISION_IMAGE_URL},
+                        {"type": "input_image", "image_url": "([IMAGE DETECTED])"},
+                        {"type": "input_image", "image_url": "([IMAGE DETECTED])"},
+                        {"type": "input_json", "data": {"type": "input_image", "image_url": DECISION_IMAGE_URL}},
+                        {"type": "input_json", "data": {"type": "input_image", "count": 3}},
+                    ],
+                }
+            ],
+            "questions": questions,
+        }
+        assert len(get_llmobs_input_messages(spans[0])[0]["image_parts"]) == 2
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision_error(self, openai, openai_llmobs, test_spans):
+        with pytest.raises(openai.AuthenticationError):
+            with get_openai_vcr(subdirectory_name="v1").use_cassette("decision_error.yaml"):
+                client = openai.OpenAI()
+                client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_data = _get_llmobs_data_metastruct(spans[0])
+        assert_llmobs_span_data(
+            span_data,
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_EXPECTED_INPUT_JSON, "role": "user"}],
+            output_messages=[{"content": ""}],
+            error=mock.ANY,
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
+        )
+        assert spans[0].error == 1
+
+    @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
     def test_response_error(self, openai, openai_llmobs, test_spans, snapshot_tracer):
         """Ensure erroneous llmobs records are emitted for response function call stream endpoints when configured."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception) as exc_info:
             with get_openai_vcr(subdirectory_name="v1").use_cassette("response_error.yaml"):
                 model = "gpt-4.1"
                 client = openai.OpenAI()
@@ -2318,7 +2744,7 @@ MUL: "*"
             metrics={},
             error={
                 "type": "openai.AuthenticationError",
-                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "message": str(exc_info.value),
                 "stack": spans[0].get_tag("error.stack"),
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
@@ -2450,18 +2876,20 @@ MUL: "*"
     def test_responses_prompt_caching_cache_write(self, openai, openai_llmobs, test_spans):
         """Test that cache write token metrics are captured for the responses API.
 
-        Newer OpenAI models (GPT-5.6+) report ``cache_write_tokens`` on
-        ``usage.input_tokens_details`` for the responses API.
+        Newer OpenAI models (GPT-5.6+) report cache_write_tokens on usage.input_tokens_details for the
+        responses API, split by cache TTL in cache_write_tokens_details. The openai SDK does not type
+        prompt_cache_options yet, so it is sent through extra_body.
         """
         client = openai.OpenAI()
         model = "gpt-5.6-sol"
         base_instructions = "You are an expert software engineer " * 200
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_5_6_cache_write.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_5_6_cache_write_ttl.yaml"):
             resp = client.responses.create(
                 model=model,
                 instructions=base_instructions,
                 input="What are the best practices for API design?",
                 max_output_tokens=100,
+                extra_body={"prompt_cache_options": {"ttl": "12h"}},
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -2478,7 +2906,9 @@ MUL: "*"
                 "total_tokens": 1320,
                 "cache_read_input_tokens": 0,
                 "cache_write_input_tokens": 1217,
-                "reasoning_output_tokens": 54,
+                "ephemeral_30m_input_tokens": 0,
+                "ephemeral_12h_input_tokens": 1217,
+                "reasoning_output_tokens": 62,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
@@ -2728,6 +3158,53 @@ MUL: "*"
                 "reasoning_output_tokens": 0,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_server_tool_usage(self, openai, openai_llmobs, test_spans):
+        """Web searches come from tool_usage.web_search.num_requests; file searches from file_search_call items."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_server_tool_usage.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                model="gpt-4.1",
+                tools=[{"type": "web_search"}, {"type": "file_search", "vector_store_ids": [SERVER_TOOL_VECTOR_STORE]}],
+                input=SERVER_TOOL_PROMPT,
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_provider="openai",
+            metrics={"web_search_count": 1, "storage_search_count": 1},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_server_tool_usage_stream(self, openai, openai_llmobs, test_spans):
+        """tool_usage arrives on the response.completed event of a streamed response."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_server_tool_usage_stream.yaml"):
+            client = openai.OpenAI()
+            stream = client.responses.create(
+                model="gpt-4.1",
+                tools=[{"type": "web_search"}, {"type": "file_search", "vector_store_ids": [SERVER_TOOL_VECTOR_STORE]}],
+                input=SERVER_TOOL_PROMPT,
+                stream=True,
+            )
+            for _ in stream:
+                pass
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_provider="openai",
+            metrics={"web_search_count": 1, "storage_search_count": 1},
         )
 
     @pytest.mark.skipif(
@@ -3297,12 +3774,10 @@ def test_shadow_tags_chat_completion_when_llmobs_disabled(tracer):
     """Verify shadow tags are set on OpenAI spans when LLMObs is disabled."""
     from unittest.mock import MagicMock
 
+    from ddtrace.contrib.internal.openai._constants import BASE_URL
     from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 
-    mock_openai = MagicMock()
-    mock_openai.version.VERSION = "1.0.0"
-    integration = OpenAIIntegration(MagicMock(), mock_openai)
-    integration._client = MagicMock(_base_url="https://api.openai.com/v1")
+    integration = OpenAIIntegration(MagicMock())
 
     response = MagicMock()
     response.usage.prompt_tokens = 10
@@ -3310,6 +3785,8 @@ def test_shadow_tags_chat_completion_when_llmobs_disabled(tracer):
     response.usage.total_tokens = 15
 
     with tracer.trace("openai.request") as span:
+        # The base URL the openai integration records for each request.
+        span._set_ctx_item(BASE_URL, "https://api.openai.com/v1")
         span._set_attribute("openai.response.model", "gpt-4o-mini")
         integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
 
@@ -3326,12 +3803,10 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
     """Verify cache-token shadow metrics propagate from openai usage to APM span."""
     from unittest.mock import MagicMock
 
+    from ddtrace.contrib.internal.openai._constants import BASE_URL
     from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 
-    mock_openai = MagicMock()
-    mock_openai.version.VERSION = "1.0.0"
-    integration = OpenAIIntegration(MagicMock(), mock_openai)
-    integration._client = MagicMock(_base_url="https://api.openai.com/v1")
+    integration = OpenAIIntegration(MagicMock())
 
     response = MagicMock()
     response.usage.prompt_tokens = 50
@@ -3344,6 +3819,8 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
     response.usage.input_tokens_details.cache_write_tokens = 34
 
     with tracer.trace("openai.request") as span:
+        # The base URL the openai integration records for each request.
+        span._set_ctx_item(BASE_URL, "https://api.openai.com/v1")
         span._set_attribute("openai.response.model", "gpt-4o-mini")
         integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
 

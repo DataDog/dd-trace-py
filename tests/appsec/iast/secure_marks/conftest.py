@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
+from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast.main import patch_iast
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
@@ -13,6 +14,7 @@ def iast_create_context():
         dict(_iast_enabled=True, _iast_is_testing=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
     ):
         patch_iast()
+        initialize_native_state()
         _start_iast_context_and_oce()
         try:
             yield

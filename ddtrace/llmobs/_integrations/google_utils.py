@@ -2,16 +2,20 @@ import json
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.google_genai._utils import (
+    GOOGLE_GENAI_DEFAULT_MODEL_ROLE as GOOGLE_GENAI_DEFAULT_MODEL_ROLE,
+)
+from ddtrace.contrib.internal.google_genai._utils import (
+    extract_provider_and_model_name as extract_provider_and_model_name,
+)
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
-from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -21,67 +25,7 @@ from ddtrace.llmobs.types import ToolResult
 log = get_logger(__name__)
 
 
-# Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,
-# we use "assistant" as the default role for model messages
-GOOGLE_GENAI_DEFAULT_MODEL_ROLE = "assistant"
-
-# https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
-# GeminiAPI: only exports google provided models
-# VertexAI: can map provided models to provider based on prefix, a best effort mapping
-# as huggingface exports hundreds of custom provided models
-KNOWN_MODEL_PREFIX_TO_PROVIDER = {
-    "gemini": "google",
-    "imagen": "google",
-    "veo": "google",
-    "text-embedding": "google",
-    "jamba": "ai21",
-    "claude": "anthropic",
-    "llama": "meta",
-    "mistral": "mistral",
-    "codestral": "mistral",
-    "deepseek": "deepseek",
-    "olmo": "ai2",
-    "tulu": "ai2",
-    "molmo": "ai2",
-    "specter": "ai2",
-    "cosmoo": "ai2",
-    "qodo": "qodo",
-    "mars": "camb.ai",
-}
-
-
-def extract_provider_and_model_name(
-    kwargs: Optional[dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
-) -> tuple[str, str]:
-    """
-    Function to extract provider and model name from either kwargs or instance attributes.
-    Args:
-        kwargs: Dictionary containing model information (used for google_genai)
-        instance: Model instance with attributes (used for vertexai)
-        model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name", used for vertexai)
-
-    Returns:
-        tuple of (provider_name, model_name)
-    """
-    model_path = ""
-    if kwargs is not None:
-        model_path = kwargs.get("model", "")
-    elif instance is not None and model_name_attr is not None:
-        model_path = _get_attr(instance, model_name_attr, "")
-
-    if not model_path or not isinstance(model_path, str):
-        return UNKNOWN_MODEL_PROVIDER, UNKNOWN_MODEL_NAME
-
-    model_name = model_path.split("/")[-1] if "/" in model_path else model_path
-
-    for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
-        if model_name.lower().startswith(prefix):
-            provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
-            return provider_name, model_name
-    return UNKNOWN_MODEL_PROVIDER, model_name if model_name else UNKNOWN_MODEL_NAME
-
-
-def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
+def normalize_contents_google_genai(contents: Any) -> list[dict[str, Any]]:
     """
     contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
@@ -95,7 +39,7 @@ def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
     This function normalizes all these variants into a list of dicts with format{"role": role, "parts": parts}
     """
 
-    def extract_content(content):
+    def extract_content(content: Any) -> dict[str, Any]:
         role = _get_attr(content, "role", None)
         parts = _get_attr(content, "parts", None)
 
@@ -116,7 +60,7 @@ def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
     return [extract_content(contents)]
 
 
-def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
+def extract_generation_metrics_google_genai(response: Any) -> dict[str, Any]:
     """
     Extract usage metrics from Google GenAI response or Google ADK Event object.
 
@@ -133,8 +77,13 @@ def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
     if not usage_metadata:
         return {}
 
-    usage = {}
+    usage: dict[str, Any] = {}
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
+
+    # total_token_count includes tool-use prompt tokens, so count them as input
+    tool_use_tokens = _get_attr(usage_metadata, "tool_use_prompt_token_count", None)
+    if input_tokens is not None or tool_use_tokens is not None:
+        input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
 
     candidates_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
     thought_tokens = _get_attr(usage_metadata, "thoughts_token_count", None)
@@ -162,10 +111,10 @@ def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
     return usage
 
 
-def extract_embedding_metrics_google_genai(response) -> dict[str, Any]:
+def extract_embedding_metrics_google_genai(response: Any) -> dict[str, Any]:
     if not response:
         return {}
-    usage = {}
+    usage: dict[str, Any] = {}
     metadata = _get_attr(response, "metadata", {})
     billable_character_count = _get_attr(metadata, "billable_character_count", None)
     input_tokens = 0
@@ -182,7 +131,7 @@ def extract_embedding_metrics_google_genai(response) -> dict[str, Any]:
     return usage
 
 
-def extract_message_from_part_google_genai(part, role: str) -> Message:
+def extract_message_from_part_google_genai(part: Any, role: str) -> Message:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
 
     returns a dict representing a message with format {"role": role, "content": content}
@@ -246,13 +195,13 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     inline_data = _get_attr(part, "inline_data", None)
     if inline_data:
         mime_type = str(_get_attr(inline_data, "mime_type", "") or "")
-        message["content"] = "[inline data: {}]".format(mime_type) if mime_type else "[inline data]"
+        message["content"] = f"[inline data: {mime_type}]" if mime_type else "[inline data]"
         return message
 
     file_data = _get_attr(part, "file_data", None)
     if file_data:
         descriptor = str(_get_attr(file_data, "file_uri", "") or _get_attr(file_data, "mime_type", "") or "")
-        message["content"] = "[file data: {}]".format(descriptor) if descriptor else "[file data]"
+        message["content"] = f"[file data: {descriptor}]" if descriptor else "[file data]"
         return message
 
     try:
@@ -271,7 +220,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     # inputs, so keep a placeholder rather than silently dropping them from the LLMObs I/O.
     file_uri = _get_attr(part, "uri", None)
     if file_uri:
-        message["content"] = "[file: {}]".format(file_uri)
+        message["content"] = f"[file: {file_uri}]"
         return message
 
     try:
@@ -283,12 +232,12 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         message["content"] = "[image]"
         return message
 
-    message["content"] = "[unsupported content: {}]".format(type(part).__name__)
+    message["content"] = f"[unsupported content: {type(part).__name__}]"
     return message
 
 
-def llmobs_get_metadata_vertexai(kwargs, instance):
-    metadata = {}
+def llmobs_get_metadata_vertexai(kwargs: dict[str, Any], instance: Any) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
     model_config = getattr(instance, "_generation_config", {}) or {}
     model_config = model_config.to_dict() if hasattr(model_config, "to_dict") else model_config
     request_config = kwargs.get("generation_config", {}) or {}
@@ -303,7 +252,7 @@ def llmobs_get_metadata_vertexai(kwargs, instance):
     return metadata
 
 
-def extract_message_from_part_vertexai(part, role=None) -> Message:
+def extract_message_from_part_vertexai(part: Any, role: Optional[str] = None) -> Message:
     text = _get_attr(part, "text", "")
     function_call = _get_attr(part, "function_call", None)
     function_response = _get_attr(part, "function_response", None)
@@ -340,7 +289,7 @@ def extract_message_from_part_vertexai(part, role=None) -> Message:
     return message
 
 
-def get_system_instructions_vertexai(model_instance):
+def get_system_instructions_vertexai(model_instance: Any) -> list[str]:
     """
     Extract system instructions from model and convert to []str for tagging.
     """
@@ -375,7 +324,7 @@ def get_system_instructions_vertexai(model_instance):
     return system_instructions
 
 
-def extract_messages_from_adk_events(events) -> list[Message]:
+def extract_messages_from_adk_events(events: Any) -> list[Message]:
     """
     Extract messages from Google ADK Event objects.
 

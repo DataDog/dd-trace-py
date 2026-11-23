@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    typesafe: Adds tracing support for ``TypeSafeClient.system_one`` and ``AsyncTypeSafeClient.system_one`` calls in
+    the TypeSafe Python SDK (``typesafe-sdk``).
+  - |
+    LLM Observability: Adds support for submitting LLM Observability spans for TypeSafe ``system_one`` calls,
+    capturing the request and response bodies and token usage. Images are recorded by reference, not by content.

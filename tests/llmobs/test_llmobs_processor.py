@@ -1,6 +1,7 @@
 """Tests for the LLMObs meta_struct + sampling rescue convergence."""
 
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace._trace.sampler import DatadogSampler

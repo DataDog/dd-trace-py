@@ -37,7 +37,7 @@ class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
         return {}
 
     def tearDown(self):
-        super(TornadoTestCase, self).tearDown()
+        super().tearDown()
         # unpatch Tornado
         unpatch()
         unpatch_futures()

@@ -3,11 +3,12 @@ import contextlib
 import copy
 import pathlib
 import types
+from unittest import mock
 
-import mock
 import pytest
 from wrapt import FunctionWrapper
 
+from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
 import ddtrace.appsec._common_module_patches as cmp
 from ddtrace.appsec._common_module_patches import _RaspContext
 from ddtrace.appsec._common_module_patches import _ScopedRaspContext
@@ -20,19 +21,22 @@ from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
 from ddtrace.internal.wrapping.hooks import _WRAPPING_CONTEXTS
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
 from ddtrace.internal.wrapping.hooks import try_wrap_context
+from tests.appsec.utils import assert_nested_request_isolated
+from tests.appsec.utils import local_http_server
 
 
 def test_patch_read():
@@ -40,7 +44,7 @@ def test_patch_read():
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
-    assert type(open) == types.BuiltinFunctionType
+    assert type(open) is types.BuiltinFunctionType
     assert not isinstance(open, FunctionWrapper)
     assert not isinstance(copy_open, FunctionWrapper)
     assert isinstance(open, types.BuiltinFunctionType)
@@ -53,7 +57,7 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) == FunctionWrapper
+        assert type(open) is FunctionWrapper
         assert isinstance(copy_open, FunctionWrapper)
         assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
@@ -274,6 +278,59 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     finally:
         httplib_unpatch()
         unpatch_common_modules()
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 11), reason="Pre-3.11 wrapping uses different failed-entry cleanup semantics")
+def test_blocked_recursive_call_restores_the_outer_call_storage():
+    """A block during a recursive call's entry must only unwind that call.
+
+    The contexts it already entered exit, and the outer call keeps its own storage.
+    """
+    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
+
+    exited = []
+
+    class _Entered(WrappingContext):
+        __priority__ = -1
+
+        def __enter__(self):
+            super().__enter__()
+            self.set("value", self.get_local("value"))
+            return self
+
+        def __exit__(self, *exc):
+            exited.append(self.get("value"))
+            super().__exit__(*exc)
+
+    class _Blocker(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            if self.get_local("value") == "inner":
+                raise BlockingException("blocked")
+            return self
+
+    def target(value):
+        if value == "outer":
+            outer_storage = [context._storage.get() for context in (entered, blocker, universal)]
+            with pytest.raises(BlockingException):
+                target("inner")
+            for context, storage in zip((entered, blocker, universal), outer_storage):
+                assert context._storage.get() is storage
+            assert entered.get("value") == "outer"
+        return value
+
+    entered = _Entered(target)
+    blocker = _Blocker(target)
+    entered.wrap()
+    blocker.wrap()
+    universal = _UniversalWrappingContext.extract(target)
+    try:
+        assert target("outer") == "outer"
+        assert exited == ["inner"]
+        assert all(context._storage.get() is None for context in (entered, blocker, universal))
+    finally:
+        blocker.unwrap()
+        entered.unwrap()
 
 
 def test_a_concurrent_request_does_not_consume_the_pending_block():
@@ -550,12 +607,14 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
         # Being registered is not enough: the hook must actually run under both orders, or
         # RASP silently stops inspecting downstream requests.
         entered = []
+        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
 
         class _Probe(_SsrfHttpConnectionRequest):
             def __enter__(self):
                 result = super().__enter__()
                 frame_locals = self._locals()
-                entered.append((frame_locals.get("method"), frame_locals.get("url")))
+                if frame_locals.get("self") is conn:
+                    entered.append((frame_locals.get("method"), frame_locals.get("url")))
                 return result
 
         request_fn = request_ctx.__wrapped__
@@ -565,7 +624,6 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
 
         # Both layers still deliver a working client: a refused connection must surface as
         # OSError, not as an instrumentation error.
-        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
         with pytest.raises(OSError):
             conn.request("GET", "/")
 
@@ -704,7 +762,7 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) == FunctionWrapper
+        assert type(original_func) is FunctionWrapper
         assert isinstance(copy_func, FunctionWrapper)
         assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")
@@ -761,7 +819,7 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
         with mock.patch.object(cmp, "get_rasp_capability", return_value=True):
             pool_manager = urllib3.PoolManager(num_pools=1)
             try:
-                response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port), timeout=10)
+                response = pool_manager.request("GET", f"http://127.0.0.1:{port}/source", timeout=10)
                 assert response.status == 200
             finally:
                 pool_manager.clear()
@@ -775,7 +833,7 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
 
     assert inspected, "no downstream request was inspected"
     # The redirected hop must be inspected as an absolute URL carrying the target host.
-    assert inspected[-1] == "http://127.0.0.1:{}/target".format(port), inspected
+    assert inspected[-1] == f"http://127.0.0.1:{port}/target", inspected
 
 
 def test_the_getresponse_context_releases_storage_when_rasp_is_off():
@@ -992,11 +1050,6 @@ def test_webbrowser_open_is_wrapped_with_a_context_not_wrapt():
 
 
 def test_each_webbrowser_call_gets_its_own_rasp_subcontext():
-    """open_rasp_subcontext_scope is reentrant, so it must be called per outgoing request.
-
-    Without a per-call core context the first call creates the holder and every later call in the
-    same request reuses it, so they are all grouped as one outgoing request.
-    """
     import webbrowser
 
     from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
@@ -1023,6 +1076,95 @@ def test_each_webbrowser_call_gets_its_own_rasp_subcontext():
     assert len(holders) == 2, holders
     assert all(holder is not None for holder in holders)
     assert holders[0] is not holders[1], "both calls shared one subcontext"
+
+
+def _request_with_requests(url):
+    import requests
+
+    requests.get(url, timeout=5)
+
+
+def _request_with_urllib(url):
+    import urllib.request
+
+    urllib.request.urlopen(url, timeout=5).read()
+
+
+@pytest.mark.parametrize("nested_request", [_request_with_requests, _request_with_urllib])
+def test_a_request_made_from_a_requests_hook_gets_its_own_rasp_subcontext(nested_request):
+    """libddwaf does not report a rule twice in one subcontext, so sharing would hide the nested match."""
+    import requests
+
+    calls = []
+
+    def record(addresses, rule_type=None, **kwargs):
+        calls.append((rule_type, addresses.get(EXPLOIT_PREVENTION.ADDRESS.SSRF), core.find_item(_RASP_SUBCONTEXT)))
+
+    def hook(response, **kwargs):
+        if response.url.endswith("/outer"):
+            nested_request(f"{base}/nested")
+
+    unpatch_common_modules()
+    try_wrap_function_wrapper("requests", "Session.request", cmp.wrapped_request_D8CB81E472AF98A2)
+    try:
+        patch_common_modules()
+        with (
+            local_http_server() as base,
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "should_analyze_body_response", return_value=False),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=record),
+            requests.Session() as session,
+        ):
+            session.hooks["response"].append(hook)
+            session.get(f"{base}/outer", timeout=5)
+    finally:
+        unpatch_common_modules()
+        try_unwrap("requests", "Session.request")
+
+    assert_nested_request_isolated(calls, f"{base}/nested")
+
+
+def test_a_urllib3_pool_request_from_another_clients_hook_gets_its_own_rasp_subcontext():
+    """urllib3 inherits only from the layers that drive it, so a bare pool call (the way botocore
+    uses urllib3) made from an httpx hook is a separate request.
+    """
+    from urllib.parse import urlsplit
+
+    import urllib3
+
+    from ddtrace.appsec._asm_request_context import SsrfLayer
+    from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
+
+    calls = []
+
+    def record(addresses, rule_type=None, **kwargs):
+        calls.append((rule_type, addresses.get(EXPLOIT_PREVENTION.ADDRESS.SSRF), core.find_item(_RASP_SUBCONTEXT)))
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        with (
+            local_http_server() as base,
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=record),
+            # The request context of an httpx request whose hooks are running.
+            core.context_with_data("test.httpx_hook"),
+        ):
+            open_rasp_subcontext_scope(SsrfLayer.HTTPX, inherit_from=())
+            httpx_holder = core.find_item(_RASP_SUBCONTEXT)
+            url = urlsplit(base)
+            with urllib3.HTTPConnectionPool(url.hostname, url.port) as pool:
+                pool.urlopen("GET", "/nested").read()
+    finally:
+        unpatch_common_modules()
+
+    nested_holders = [holder for _, ssrf_url, holder in calls if ssrf_url == f"{base}/nested"]
+    assert len(nested_holders) == 1, calls
+    assert nested_holders[0] is not None, calls
+    assert nested_holders[0] is not httpx_holder, calls
 
 
 def test_a_custom_installed_opener_still_publishes_the_url():
@@ -1127,64 +1269,62 @@ def test_a_rewriting_opener_publishes_the_url_it_actually_requests():
     assert "http://127.0.0.1:1/rewritten" in published, published
 
 
-def test_a_redirect_publishes_the_redirected_url():
+@pytest.mark.parametrize("httplib_enabled", [False, True])
+def test_a_redirect_publishes_the_redirected_url(httplib_enabled):
     """urllib follows a redirect by calling OpenerDirector.open again with the new URL.
 
     The deduplication must not suppress that hop: the redirect target is a different destination
     and has to be evaluated on its own. It works because the http.client hook discards full_url
     once it has consumed it, so the nested call no longer sees a matching URL.
+
+    Both hops and the final response still share one subcontext, including when the httplib
+    integration wraps http.client underneath urllib.
     """
-    from http.server import BaseHTTPRequestHandler
-    from http.server import ThreadingHTTPServer
-    import threading
     import urllib.request
 
-    class _Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            if self.path == "/source":
-                self.send_response(302)
-                self.send_header("Location", "/target")
-                self.end_headers()
-            else:
-                self.send_response(200)
-                self.send_header("Content-Length", "2")
-                self.end_headers()
-                self.wfile.write(b"ok")
-
-        def log_message(self, *args):
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-    port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
+    from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
 
     published = []
+    calls = []
     original = _ScopedRaspContext._open_core_context
+
+    def record(addresses, rule_type=None, **kwargs):
+        calls.append((rule_type, core.find_item(_RASP_SUBCONTEXT)))
 
     def recording_open(self, name, **kwargs):
         published.append(kwargs.get("full_url"))
         return original(self, name, **kwargs)
 
     unpatch_common_modules()
+    httplib_unpatch()
     try:
+        if httplib_enabled:
+            httplib_patch()
         patch_common_modules()
         with (
+            local_http_server() as base,
+            mock.patch.object(asm_config, "_asm_enabled", True),
+            mock.patch.object(asm_config, "_ep_enabled", True),
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
             mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
-            mock.patch.object(cmp, "call_waf_callback", return_value=None),
+            mock.patch.object(cmp, "should_analyze_body_response", return_value=False),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=record),
             mock.patch.object(_ScopedRaspContext, "_open_core_context", recording_open),
         ):
-            with contextlib.suppress(Exception):
-                urllib.request.urlopen("http://127.0.0.1:{}/source".format(port), timeout=5)
+            with urllib.request.urlopen(f"{base}/source", timeout=5) as response:
+                assert response.read() == b"{}"
     finally:
         unpatch_common_modules()
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+        httplib_unpatch()
 
-    assert "http://127.0.0.1:{}/source".format(port) in published, published
+    assert f"{base}/source" in published, published
     assert any(url and url.endswith("/target") for url in published), published
+    assert {rule_type for rule_type, _ in calls} == {EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_RES}
+    holders = [holder for _, holder in calls]
+    assert len(holders) >= 2 and holders[0] is not None
+    assert all(holder is holders[0] for holder in holders)
 
 
 def _v1_make_request(self, conn, method, url, timeout=None, chunked=False, **httplib_request_kw):

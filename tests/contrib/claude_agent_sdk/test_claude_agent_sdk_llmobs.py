@@ -4,7 +4,9 @@ from unittest.mock import MagicMock
 import claude_agent_sdk
 import pytest
 
+from ddtrace.contrib.internal.claude_agent_sdk.utils import llmobs_enabled
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import safe_json
@@ -1342,6 +1344,32 @@ class TestLLMObsClaudeAgentSdk:
         second = claude_agent_sdk.ClaudeSDKClient(options=options)
         assert getattr(second, "_dd_forced_partial", None) is True
 
+    async def test_llmobs_user_span_opened_while_iterating_parents_under_step(
+        self, claude_agent_sdk, mock_internal_client_tool_use_with_followup, claude_agent_sdk_llmobs, test_spans
+    ):
+        """The llm and tool spans stay open while the turn streams but are never activated, so an
+        LLMObs span the caller opens between messages parents under the step, not under them.
+        """
+        async for msg in claude_agent_sdk.query(prompt="Read /etc/hostname and tell me the hostname."):
+            with LLMObs.task(name="user_task_%s" % type(msg).__name__):
+                pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        step_spans = sorted((s for s in spans if s.name == "claude_agent_sdk.step"), key=lambda s: s.start_ns)
+        assert len(step_spans) == 2
+
+        def llmobs_parent(name):
+            return [
+                int(_get_llmobs_data_metastruct(s)["parent_id"])
+                for s in spans
+                if _get_llmobs_data_metastruct(s).get("name") == name
+            ]
+
+        # One user span per assistant turn, each under its step while that turn's llm span is open.
+        assert llmobs_parent("user_task_AssistantMessage") == [s.span_id for s in step_spans]
+        # The tool result opens the second turn.
+        assert llmobs_parent("user_task_UserMessage") == [step_spans[1].span_id]
+
     async def test_llmobs_disabled_does_not_force_partials(
         self, claude_agent_sdk, mock_internal_client_partial_messages
     ):
@@ -1350,8 +1378,7 @@ class TestLLMObsClaudeAgentSdk:
         include_partial_messages — the client leaves the flag alone and the query() path neither
         forces nor filters, so any partial events reach the caller untouched.
         """
-        integration = claude_agent_sdk._datadog_integration
-        assert integration.llmobs_enabled is False
+        assert llmobs_enabled() is False
 
         # client path: __init__ must not flip the flag on
         client = claude_agent_sdk.ClaudeSDKClient()
@@ -1366,6 +1393,19 @@ class TestLLMObsClaudeAgentSdk:
         assert any(
             t == "SystemMessage" and getattr(m, "subtype", None) == "status" for t, m in zip(type_names, messages)
         )
+
+    def test_llmobs_enabled_follows_llmobs_enabled_attribute(self, claude_agent_sdk, claude_agent_sdk_llmobs):
+        """Forcing partials must agree with LLMObs.enabled even when it is set directly, since span
+        tagging reads that same flag.
+        """
+        assert llmobs_enabled() is True
+        LLMObs.enabled = False
+        try:
+            assert llmobs_enabled() is False
+            client = claude_agent_sdk.ClaudeSDKClient()
+            assert getattr(client, "_dd_forced_partial", None) is False
+        finally:
+            LLMObs.enabled = True
 
     async def test_llmobs_forced_partials_passes_through_non_requesting_status(
         self, claude_agent_sdk, mock_internal_client_partial_messages_status_passthrough, claude_agent_sdk_llmobs

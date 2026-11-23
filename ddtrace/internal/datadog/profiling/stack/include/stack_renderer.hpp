@@ -108,6 +108,9 @@ class StackRenderer
     // Drop a partially-built sample without flushing it.
     void abort_sample();
 
+    // Forget the StringTable key to string ID mapping when the keys' string addresses may have been reused.
+    void clear_string_id_cache() { string_id_cache.clear(); }
+
     // Clear caches after fork to avoid using stale interned string/function IDs
     void postfork_child();
 };

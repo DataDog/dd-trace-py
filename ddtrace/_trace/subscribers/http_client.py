@@ -3,6 +3,9 @@ from types import TracebackType
 from typing import Optional
 from typing import cast
 
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
@@ -23,7 +26,7 @@ log = get_logger(__name__)
 _http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
 
 
-class HttpClientTracingSubscriber(TracingSubscriber):
+class HttpClientTracingSubscriber(TracingSubscriber[HttpClientRequestEvent]):
     """Shared tracing logic for ALL HTTP client integrations.
 
     httpx, requests, aiohttp, etc. all share this subscriber.
@@ -33,11 +36,15 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     event_names = (HttpClientRequestEvent.event_name, HttpClientEvents.HTTPX_REQUEST.value)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]) -> None:
         event: HttpClientRequestEvent = ctx.event
 
         if config._otel_trace_semantics_enabled and event.request_method:
-            span_from_context(ctx).resource = event.request_method.upper()
+            span = span_from_context(ctx)
+            set_method_tag(span, event.request_method)
+            # Preserve resources replaced by span-start callbacks.
+            record_initial_instrumentation_resource(span, event.resource)
+            set_otel_resource_for_method(span, event.request_method)
 
         if _http_propagation_suppressed.get():
             return
@@ -48,7 +55,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[HttpClientRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: HttpClientRequestEvent = ctx.event

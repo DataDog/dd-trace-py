@@ -1,5 +1,8 @@
 from abc import ABC
 from abc import abstractmethod
+from collections.abc import Awaitable
+from collections.abc import Iterator
+from collections.abc import Sequence
 from copy import copy
 from copy import deepcopy
 from dataclasses import dataclass
@@ -11,13 +14,10 @@ import time
 import traceback
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Awaitable
 from typing import Callable
-from typing import Iterator
 from typing import Literal
 from typing import Optional
 from typing import Protocol
-from typing import Sequence
 from typing import TypedDict
 from typing import Union
 from typing import cast
@@ -70,6 +70,8 @@ from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
+    import asyncio
+
     import pandas as pd
 
     from ddtrace.llmobs.types import ExportedLLMObsSpan
@@ -126,7 +128,7 @@ class _ExperimentsClient(Protocol):
         experiment_id: str,
         events: list[LLMObsExperimentEvalMetricEvent],
         tags: list[str],
-        spans: Optional[list[dict]] = None,
+        spans: Optional[list[dict[str, Any]]] = None,
     ) -> None: ...
 
 
@@ -589,7 +591,8 @@ class RemoteEvaluator(BaseEvaluator):
             context=self._transform_fn(context),
         )
 
-        value = result.get("value")
+        # The client response is untyped JSON.
+        value: JSONType = result.get("value")
         reasoning = result.get("reasoning")
         assessment = result.get("assessment")
         status = result.get("status")
@@ -907,7 +910,7 @@ if PydanticEvaluator is not None:
     from pydantic_evals.reporting import ReportCase as PydanticReportCase
     from pydantic_evals.reporting import ScalarResult as PydanticScalarResult
 
-    def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
+    def get_mapping_result(_eval_result: Mapping[str, Any]) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
         eval_result = EvaluatorResult(
             value=None,
@@ -1099,7 +1102,9 @@ if PydanticEvaluator is not None:
                 raise TypeError(
                     "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
                 )
-            return result.value
+            # pydantic_evals is untyped here; scalar result values are JSON-compatible.
+            scalar_value: JSONType = result.value
+            return scalar_value
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
         return wrapped_evaluator
@@ -1195,7 +1200,9 @@ if PydanticEvaluator is not None:
                 raise TypeError(
                     "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
                 )
-            return result.value
+            # pydantic_evals is untyped here; scalar result values are JSON-compatible.
+            scalar_value: JSONType = result.value
+            return scalar_value
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
         return wrapped_evaluator
@@ -1398,10 +1405,10 @@ class ExperimentRun:
                 "Please install it via `pip install pandas`."
             ) from e
 
-        column_tuples: set = set()
+        column_tuples: set[tuple[str, Any]] = set()
         data_rows = []
         for row in self.rows:
-            flat: dict = {}
+            flat: dict[tuple[str, Any], Any] = {}
 
             input_data = row.get("input", {})
             if isinstance(input_data, dict):
@@ -1464,7 +1471,7 @@ def _build_span_copies(
     prior_rows: list[ExperimentRowResult],
     new_experiment_id: str,
     base_tags: list[str],
-) -> tuple[list[dict], dict[str, str], str]:
+) -> tuple[list[dict[str, Any]], dict[str, str], str]:
     """Build semantically identical span dicts with fresh UUIDs and an offset timestamp.
 
     For each row with a span_id, a new span dict is produced with:
@@ -1499,7 +1506,7 @@ def _build_span_copies(
         tags.append(f"experiment_id:{new_experiment_id}")
         tags.append(f"parent_experiment_span_id:{row['span_id']}")
 
-        span: dict = {
+        span: dict[str, Any] = {
             "span_id": id_map[row["span_id"]],
             "trace_id": new_trace_id,
             "name": row.get("span_name") or "experiment_record",
@@ -1550,7 +1557,7 @@ def _task_results_from_previous(
     ]
 
 
-def _parse_experiment_result(response: dict) -> ExperimentResult:
+def _parse_experiment_result(response: dict[str, Any]) -> ExperimentResult:
     """Deserialise a backend ``/events`` response into an ``ExperimentResult``.
 
     Response shape (single JSON:API object):
@@ -1572,7 +1579,7 @@ def _parse_experiment_result(response: dict) -> ExperimentResult:
     rows: list[ExperimentRowResult] = []
     for i, span in enumerate(spans):
         meta = span.get("meta") or {}
-        metadata: dict = meta.get("metadata") or {}
+        metadata: dict[str, Any] = meta.get("metadata") or {}
 
         idx: int = i
 
@@ -1585,7 +1592,7 @@ def _parse_experiment_result(response: dict) -> ExperimentResult:
 
         # Convert eval_metrics list → evaluations dict keyed by label.
         # Multiple events per label are possible (original run + re-run); keep latest by timestamp_ms.
-        evaluations: dict = {}
+        evaluations: dict[str, Any] = {}
         latest_ts: dict[str, int] = {}
         for em in span.get("eval_metrics") or []:
             label = em.get("label", "")
@@ -1710,7 +1717,7 @@ class Dataset:
         deduplicate: bool = True,
         create_new_version: bool = True,
         bulk_upload: Optional[bool] = None,
-    ):
+    ) -> None:
         """Pushes any local changes in this dataset since the last push.
 
         :param deduplicate:
@@ -1740,17 +1747,13 @@ class Dataset:
     ) -> bool:
         if not self._id:
             raise ValueError(
-                (
-                    "Dataset ID is required to push data to Experiments. "
-                    "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
-                )
+                "Dataset ID is required to push data to Experiments. "
+                "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
             )
         if not self._dne_client:
             raise ValueError(
-                (
-                    "LLMObs client is required to push data to Experiments. "
-                    "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
-                )
+                "LLMObs client is required to push data to Experiments. "
+                "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
             )
 
         data_changed = False
@@ -2031,7 +2034,7 @@ class Dataset:
     def __iter__(self) -> Iterator[DatasetRecord]:
         return iter(self._records)
 
-    def as_dataframe(self) -> None:
+    def as_dataframe(self) -> "pd.DataFrame":
         try:
             import pandas as pd
         except ImportError as e:
@@ -2042,7 +2045,7 @@ class Dataset:
         column_tuples = set()
         data_rows = []
         for record in self._records:
-            flat_record = {}  # type: dict[Union[str, tuple[str, str]], Any]
+            flat_record: dict[Union[str, tuple[str, str]], Any] = {}
 
             input_data = record.get("input_data", {})
             if isinstance(input_data, dict):
@@ -2062,7 +2065,8 @@ class Dataset:
                 flat_record[("expected_output", "")] = expected_output
                 column_tuples.add(("expected_output", ""))
 
-            metadata = record.get("metadata", {})
+            # Typed as object: records loaded from the backend may carry malformed metadata.
+            metadata: object = record.get("metadata", {})
             if isinstance(metadata, dict):
                 for metadata_col, metadata_val in metadata.items():
                     flat_record[("metadata", metadata_col)] = metadata_val
@@ -2099,7 +2103,7 @@ class Experiment:
     _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
 
     @classmethod
-    def _NO_OP_TASK(cls, input_data, config):
+    def _NO_OP_TASK(cls, input_data: JSONType, config: Optional[ConfigType]) -> None:
         """No-op task used when initializing distributed experiment objects on remote hosts."""
         return None
 
@@ -2163,9 +2167,9 @@ class Experiment:
         self._dataset_id: Optional[str] = dataset._id if dataset is not None else None
         self._dataset_version: Optional[int] = dataset._version if dataset is not None else None
         self._run_name: Optional[str] = None
-        self.experiment_span: Optional["ExportedLLMObsSpan"] = None
+        self.experiment_span: Optional[ExportedLLMObsSpan] = None
         self.result: Optional[ExperimentResult] = None
-        self._run_results: list["ExperimentRun"] = []
+        self._run_results: list[ExperimentRun] = []
         self._interrupted: bool = False
         self._has_errors: bool = False
 
@@ -2245,7 +2249,7 @@ class Experiment:
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
-        eval_metric: "LLMObsExperimentEvalMetricEvent" = {
+        eval_metric: LLMObsExperimentEvalMetricEvent = {
             "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,
@@ -2345,7 +2349,7 @@ class Experiment:
         span_id = task_result.get("span_id", "")
         trace_id = task_result.get("trace_id", "")
         timestamp_ns = cast(int, task_result.get("timestamp", 0))
-        metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+        metrics: list[LLMObsExperimentEvalMetricEvent] = []
         for eval_name, eval_data in evaluations.items():
             if not eval_data:
                 continue
@@ -2382,7 +2386,7 @@ class Experiment:
             )
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
-            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
+            subset_name = f"[Test subset of {sample_size} records] {self._dataset.name}"
             return Dataset(
                 name=subset_name,
                 project=self._dataset.project,
@@ -2603,7 +2607,7 @@ class Experiment:
         if retry_delay is None:
             retry_delay = _default_retry_delay
         elif not callable(retry_delay):
-            raise TypeError("retry_delay must be a callable, got {}".format(type(retry_delay).__name__))
+            raise TypeError(f"retry_delay must be a callable, got {type(retry_delay).__name__}")
         if jobs < 1:
             raise ValueError("jobs must be at least 1")
         if max_retries < 0:
@@ -2651,7 +2655,7 @@ class Experiment:
         return result
 
     @staticmethod
-    def _build_result(run_results: list) -> ExperimentResult:
+    def _build_result(run_results: list[ExperimentRun]) -> ExperimentResult:
         return {
             "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
             "rows": run_results[0].rows if run_results else [],
@@ -2663,11 +2667,11 @@ class Experiment:
         parts: list[str] = []
 
         if self._interrupted:
-            parts.append("Experiment '{}' was interrupted after {}/{} runs.".format(self.name, len(runs), self._runs))
+            parts.append(f"Experiment '{self.name}' was interrupted after {len(runs)}/{self._runs} runs.")
 
         for run_idx, run in enumerate(runs):
             rows = run.rows
-            run_label = "Run {}/{}".format(run_idx + 1, self._runs) if self._runs > 1 else ""
+            run_label = f"Run {run_idx + 1}/{self._runs}" if self._runs > 1 else ""
             task_error_count = sum(
                 1 for row in rows if isinstance(row.get("error"), dict) and row["error"].get("message")
             )
@@ -2679,12 +2683,12 @@ class Experiment:
                     if isinstance(data, dict) and data.get("error"):
                         stats["errors"] += 1
 
-            header = "Experiment '{}'".format(self.name)
+            header = f"Experiment '{self.name}'"
             if run_label:
-                header += " - {}".format(run_label)
-            parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats)))
+                header += f" - {run_label}"
+            parts.append(f"{header}: {len(rows)} rows, {len(eval_stats)} evaluator(s).")
             if task_error_count:
-                parts.append("  Task errors: {}/{}".format(task_error_count, len(rows)))
+                parts.append(f"  Task errors: {task_error_count}/{len(rows)}")
             for eval_name, stats in eval_stats.items():
                 if stats["errors"]:
                     parts.append(
@@ -2708,7 +2712,9 @@ class Experiment:
                 err = row.get("error")
                 if isinstance(err, dict) and err.get("message"):
                     errors.append("{}: {}".format(err.get("type", "Error"), err["message"]))
-                for name, data in (row.get("evaluations") or {}).items():
+                for name, eval_data in (row.get("evaluations") or {}).items():
+                    # Typed as object: pulled rows may carry non-dict evaluation entries.
+                    data: object = eval_data
                     if not isinstance(data, dict):
                         continue
                     eval_err = data.get("error")
@@ -2729,7 +2735,7 @@ class Experiment:
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
-        semaphore,
+        semaphore: "asyncio.Semaphore",
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
@@ -2785,7 +2791,7 @@ class Experiment:
                 output_data = None
                 last_exc_info = None
                 record_metadata = record.get("metadata") or {}
-                task_args: list = [input_data, self._config]
+                task_args: list[Any] = [input_data, self._config]
                 if self._task_accepts_metadata:
                     task_args.append(record_metadata)
                 for attempt in range(1 + max_retries):
@@ -2799,9 +2805,7 @@ class Experiment:
                     except Exception as e:
                         last_exc_info = sys.exc_info()
                         if attempt < max_retries:
-                            self._retries.append(
-                                "task row {}: attempt {}/{} failed: {}".format(idx, attempt + 1, max_retries + 1, e)
-                            )
+                            self._retries.append(f"task row {idx}: attempt {attempt + 1}/{max_retries + 1} failed: {e}")
                             semaphore.release()
                             try:
                                 await asyncio.sleep(retry_delay(attempt))
@@ -2901,7 +2905,7 @@ class Experiment:
         self,
         record: DatasetRecord,
         task_result: TaskResult,
-        semaphore,
+        semaphore: "asyncio.Semaphore",
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
@@ -2990,9 +2994,8 @@ class Experiment:
                         eval_err = self._build_evaluator_error(e)
                         if attempt < max_retries:
                             self._retries.append(
-                                "evaluator '{}' row {}: attempt {}/{} failed: {}".format(
-                                    evaluator_name, idx, attempt + 1, max_retries + 1, e
-                                )
+                                f"evaluator '{evaluator_name}' row {idx}: "
+                                f"attempt {attempt + 1}/{max_retries + 1} failed: {e}"
                             )
                             semaphore.release()
                             try:
@@ -3080,7 +3083,7 @@ class Experiment:
             return [], []
         subset_dataset = self._get_subset_dataset(sample_size)
         semaphore = asyncio.Semaphore(jobs)
-        pending_evals: list["LLMObsExperimentEvalMetricEvent"] = []
+        pending_evals: list[LLMObsExperimentEvalMetricEvent] = []
         flush_threshold = jobs
 
         async def _process_and_evaluate(
@@ -3274,7 +3277,7 @@ class Experiment:
                 (cast(int, r.get("timestamp", 0)) for r in task_results),
                 default=0,
             )
-            metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+            metrics: list[LLMObsExperimentEvalMetricEvent] = []
             for name, summary_eval_data in evals_dict.items():
                 if not summary_eval_data:
                     continue
@@ -3509,6 +3512,8 @@ class SyncExperiment:
             max_retries=max_retries,
             retry_delay=retry_delay,
         )
+        # get_asyncio() is typed as a plain module, so asyncio.run() results are Any.
+        result: ExperimentResult
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -3647,7 +3652,7 @@ class SyncExperiment:
         asyncio = get_asyncio()
         if missing_task_strategy not in ("raise", "skip", "retry"):
             raise ValueError(
-                "missing_task_strategy must be 'raise', 'skip', or 'retry', got '{}'.".format(missing_task_strategy)
+                f"missing_task_strategy must be 'raise', 'skip', or 'retry', got '{missing_task_strategy}'."
             )
 
         # rerun produces a single child experiment with one run; only the first original run is rescored.
@@ -3703,9 +3708,9 @@ class SyncExperiment:
                 fallback_records[row["idx"]] = {
                     "record_id": row.get("record_id") or "",
                     "canonical_id": None,
-                    "input_data": cast(dict, row.get("input") or {}),
+                    "input_data": cast(dict[str, Any], row.get("input") or {}),
                     "expected_output": row.get("expected_output"),
-                    "metadata": cast(dict, row.get("metadata") or {}),
+                    "metadata": cast(dict[str, Any], row.get("metadata") or {}),
                     "tags": [],
                 }
 
@@ -3854,15 +3859,18 @@ class SyncExperiment:
                 rerun_exp._update_status("failed")
                 raise
 
+        # get_asyncio() is typed as a plain module, so asyncio.run() results are Any.
+        rerun: SyncExperiment
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(_run())
+            rerun = asyncio.run(_run())
         else:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                return pool.submit(asyncio.run, _run()).result()
+                rerun = pool.submit(asyncio.run, _run()).result()
+        return rerun
 
     async def _retry_failed_rows(
         self,
@@ -3909,8 +3917,8 @@ class SyncExperiment:
         self,
         experiment: Experiment,
         task_results: list[TaskResult],
-        evaluations: list,
-        span_copies: list,
+        evaluations: list[Any],
+        span_copies: list[Any],
         new_experiment_id: str,
     ) -> bool:
         """Post replay spans and eval metrics in a single experiment_eval_post call.
@@ -3921,7 +3929,7 @@ class SyncExperiment:
         if not experiment._llmobs_instance:
             return False
 
-        pending_metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+        pending_metrics: list[LLMObsExperimentEvalMetricEvent] = []
         for task_result, evaluation in zip(task_results, evaluations):
             if evaluation:
                 pending_metrics.extend(experiment._generate_metrics_for_record(task_result, evaluation))
@@ -3954,10 +3962,10 @@ class SyncExperiment:
         self,
         experiment: Experiment,
         task_results: list[TaskResult],
-        evaluations: list,
+        evaluations: list[Any],
         raise_errors: bool,
         jobs: int,
-    ) -> list:
+    ) -> list[Any]:
         """Run summary evaluators against the rerun clone.
 
         The clone already carries the override list (set in ``_rerun_evaluators._run``),

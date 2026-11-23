@@ -1,30 +1,40 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
+import math
 from types import FrameType
 from typing import Any
-from typing import Mapping
 from typing import Optional
 from typing import cast
 
+from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
+from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeEvalTiming
+from ddtrace.debugging._safety import safe_qualname
 from ddtrace.debugging._signal.log import LogSignal
-from ddtrace.debugging._signal.model import probe_to_signal
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
 
 
 @dataclass
-class MetricSample(LogSignal):
+class MetricSample(LogSignal, probes=(MetricFunctionProbe, MetricLineProbe)):
     """Wrapper for making a metric sample"""
 
     __default_timing__ = ProbeEvalTiming.ENTRY
 
     meter: Metrics.Meter = field(default_factory=lambda: probe_metrics.get_meter("probe"))
+
+    @classmethod
+    def create(
+        cls, probe: Probe, frame: FrameType, thread: Any, trace_context: Optional[Any], meter: Metrics.Meter
+    ) -> "MetricSample":
+        return cls(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)
 
     def enter(self, scope: Mapping[str, Any]) -> None:
         if self._timing is ProbeEvalTiming.ENTRY:
@@ -43,7 +53,26 @@ class MetricSample(LogSignal):
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        value = float(probe.value(scope)) if probe.value is not None else 1
+        if probe.value is None:
+            value = 1.0
+        else:
+            try:
+                raw = probe.value(scope)
+            except DDExpressionEvaluationError as e:
+                self._record_evaluation_error(e.dsl, e.error, SignalState.EVAL_ERROR)
+                return
+            try:
+                value = float(raw)
+            except Exception:
+                # Name only the type: the value itself may be sensitive and has not been redacted.
+                self._record_evaluation_error(
+                    probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", SignalState.EVAL_ERROR
+                )
+                return
+            if not math.isfinite(value):
+                # The statsd counter raises on these in int(), after this returns, which would drop the signal.
+                self._record_evaluation_error(probe.value.dsl, f"Value is not finite: {value}", SignalState.EVAL_ERROR)
+                return
 
         # TODO[perf]: We know the tags in advance so we can avoid the
         # list comprehension.
@@ -62,15 +91,3 @@ class MetricSample(LogSignal):
 
     def has_message(self) -> bool:
         return bool(self.errors)
-
-
-@probe_to_signal.register
-def _(
-    probe: MetricFunctionProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter
-) -> MetricSample:
-    return MetricSample(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)
-
-
-@probe_to_signal.register
-def _(probe: MetricLineProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter) -> MetricSample:
-    return MetricSample(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)

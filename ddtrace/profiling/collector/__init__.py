@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import typing
 
 from ddtrace.internal import service
@@ -51,6 +50,16 @@ class Collector(service.Service):
 
     def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         super().__init__(*args, **kwargs)
+
+    def _rollback_start(self) -> None:
+        """Rollback the start of the collector (after it failed to start)
+
+        This does not assume the collector started successfully. It may be
+        overridden by subclasses that need to perform additional cleanup.
+        """
+        with self._service_lock:
+            self._stop_service()
+            self.status = service.ServiceStatus.STOPPED
 
     @staticmethod
     def snapshot() -> None:

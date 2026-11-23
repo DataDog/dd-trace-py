@@ -2,11 +2,6 @@ import time as builtin_time
 from types import TracebackType
 from typing import Optional
 
-from ddtrace.internal.logger import get_logger
-
-
-log = get_logger(__name__)
-
 
 class Time:
     """
@@ -24,7 +19,7 @@ class Time:
     monotonic_ns = builtin_time.monotonic_ns
 
 
-class StopWatch(object):
+class StopWatch:
     """A simple timer/stopwatch helper class.
 
     Not thread-safe (when a single watch is mutated by multiple threads at
@@ -82,7 +77,7 @@ class StopWatch(object):
         return self
 
 
-class HourGlass(object):
+class HourGlass:
     """An implementation of an hourglass."""
 
     def __init__(self, duration: float) -> None:

@@ -2,12 +2,12 @@
 Tags for common CI attributes
 """
 
+from collections.abc import MutableMapping  # noqa:F401
 import json
 import logging
 import os
 import platform
 import re
-from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace.ext import git
@@ -57,6 +57,7 @@ NODE_LABELS = "ci.node.labels"
 
 # Workspace Path
 WORKSPACE_PATH = "ci.workspace_path"
+GIT_MERGE_COMMIT_SHA = git.CI_MERGE_COMMIT_SHA
 
 # Architecture
 OS_ARCHITECTURE = "os.architecture"
@@ -89,7 +90,7 @@ def _filter_sensitive_info(url: Optional[str]) -> Optional[str]:
     return _RE_URL.sub("\\1", url) if url is not None else None
 
 
-def _get_runtime_and_os_metadata():
+def _get_runtime_and_os_metadata() -> dict[str, str]:
     """Extract configuration facet tags for OS and Python runtime."""
     return {
         OS_ARCHITECTURE: platform.machine(),
@@ -109,19 +110,15 @@ def tags(environ: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] 
             tags = extract(environ)
             break
 
+    cwd = os.path.abspath(cwd or os.getcwd())
+    if merge_sha := git._get_ci_merge_commit_sha(environ, tags.get(PROVIDER_NAME)):
+        tags[GIT_MERGE_COMMIT_SHA] = merge_sha
+    provider_tags = tags.copy()
     git_info = git.extract_git_metadata(cwd=cwd)
 
-    # Whenever the HEAD commit SHA is present in the tags that come from the CI provider, we assume that
-    # the CI provider added a commit on top of the user's HEAD commit (e.g., GitHub Actions add a merge
-    # commit when triggered by a pull request). In that case, we extract the metadata for that commit specifically
-    # and add it to the tags.
-    head_commit_sha = tags.get(git.COMMIT_HEAD_SHA)
-    if head_commit_sha:
-        git_head_info = git.extract_git_head_metadata(head_commit_sha=head_commit_sha, cwd=cwd)
-        git_info.update(git_head_info)
-
     try:
-        git_info[WORKSPACE_PATH] = git.extract_workspace_path(cwd=cwd)
+        root = git.extract_workspace_path(cwd=cwd)
+        git_info[git.CHECKOUT_ROOT if git_info.get(git.COMMIT_SHA) else WORKSPACE_PATH] = root
     except git.GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:
@@ -129,14 +126,48 @@ def tags(environ: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] 
         stderr = str(e)
         log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
 
-    # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
-    # is None or "" should be overwritten.
-    tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
+    tags = git._select_checkout_tags(git_info, provider_tags)
 
     user_specified_git_info = git.extract_user_git_metadata(environ)
+    explicit_sha = user_specified_git_info.get(git.COMMIT_SHA)
+    if explicit_sha and explicit_sha.lower() != (tags.get(git.COMMIT_SHA) or "").lower():
+        if git.is_ref_a_tag(tags.get(git.BRANCH)):
+            tags.pop(git.BRANCH, None)
+        tags = {
+            key: value
+            for key, value in tags.items()
+            if key != git.TAG
+            and not (key.startswith("git.commit.") and key != git.COMMIT_SHA and not key.startswith("git.commit.head."))
+        }
+
+    if (
+        git_info.get(git.COMMIT_SHA)
+        and user_specified_git_info.get(git.BRANCH)
+        and not user_specified_git_info.get(git.TAG)
+    ):
+        tags.pop(git.TAG, None)
+    elif (
+        git_info.get(git.COMMIT_SHA)
+        and user_specified_git_info.get(git.TAG)
+        and not user_specified_git_info.get(git.BRANCH)
+    ):
+        tags.pop(git.BRANCH, None)
 
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
+
+    operation_tags = git._get_git_operation_tags(tags, provider_tags, user_specified_git_info)
+    if head_sha := operation_tags.get(git.COMMIT_HEAD_SHA):
+        tags.update(git.extract_git_head_metadata(head_commit_sha=head_sha, cwd=cwd))
+
+    for key in (
+        git.COMMIT_SHA,
+        git.COMMIT_HEAD_SHA,
+        git.PULL_REQUEST_BASE_BRANCH_SHA,
+        git.PULL_REQUEST_BASE_BRANCH_HEAD_SHA,
+    ):
+        if key in tags:
+            tags[key] = git._normalize_commit_sha(tags[key])
 
     # Allow JOB_ID environment variable to override job ID from any provider
     if environ.get("JOB_ID"):
@@ -294,7 +325,7 @@ def extract_buildkite(environ: MutableMapping[str, str]) -> dict[str, Optional[s
         if env_variable.startswith(buildkite_agent_meta_data_prefix):
             key = env_variable.replace(buildkite_agent_meta_data_prefix, "").lower()
             value = environ.get(env_variable)
-            node_label_list.append("{}:{}".format(key, value))
+            node_label_list.append(f"{key}:{value}")
     return {
         git.BRANCH: environ.get("BUILDKITE_BRANCH"),
         git.COMMIT_SHA: environ.get("BUILDKITE_COMMIT"),
@@ -430,9 +461,9 @@ def extract_jenkins(environ: MutableMapping[str, str]) -> dict[str, Optional[str
     branch = environ.get("GIT_BRANCH", "")
     name = environ.get("JOB_NAME")
     if name and branch:
-        name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
+        name = re.sub(f"/{git.normalize_ref(branch)}", "", name)
     if name:
-        name = "/".join((v for v in name.split("/") if v and "=" not in v))
+        name = "/".join(v for v in name.split("/") if v and "=" not in v)
     node_labels_list: list[str] = []
     node_labels_env: Optional[str] = environ.get("NODE_LABELS")
     if node_labels_env:

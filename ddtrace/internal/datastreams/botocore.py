@@ -74,8 +74,8 @@ def eventbridge_edge_tags(event_entry: dict[str, Any]) -> list[str]:
     """
     return [
         "direction:out",
-        "exchange:{}".format(get_eventbridge_bus_name(event_entry)),
-        "topic:{}".format(get_eventbridge_detail_type(event_entry)),
+        f"exchange:{get_eventbridge_bus_name(event_entry)}",
+        f"topic:{get_eventbridge_detail_type(event_entry)}",
         "type:eventbridge",
     ]
 
@@ -97,7 +97,7 @@ def inject_context(
 
     Set the data streams monitoring checkpoint and inject context to carrier
     """
-    path_type = "type:{}".format(endpoint_service)
+    path_type = f"type:{endpoint_service}"
 
     payload_size = 0
     if endpoint_service == "sqs":
@@ -113,7 +113,7 @@ def inject_context(
         log.debug("pathway being generated with unrecognized service: %r", dsm_identifier)
     set_produce_checkpoint(
         trace_data,
-        ["direction:out", "topic:{}".format(dsm_identifier), path_type],
+        ["direction:out", f"topic:{dsm_identifier}", path_type],
         payload_size,
     )
 
@@ -221,7 +221,7 @@ def get_datastreams_context(message: dict[str, Any]) -> Optional[dict[str, Any]]
         - message.messageAttributes._datadog.stringValue (SQS -> lambda)
     """
     context_json = None
-    message_body = message
+    message_body: Any = message
     message_attributes = message.get("MessageAttributes") or message.get("messageAttributes")
 
     # Fall back to the body for SNS -> SQS notifications, which carry their attributes there.
@@ -232,6 +232,9 @@ def get_datastreams_context(message: dict[str, Any]) -> Optional[dict[str, Any]]
                 message_body = json.loads(body)
         except (ValueError, TypeError):
             log.debug("Unable to parse message body as JSON, treat as non-json")
+        if not isinstance(message_body, dict):
+            log.debug("DataStreams skipped message with non-object JSON body: %r", message)
+            return None
         message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
 
     if not message_attributes or "_datadog" not in message_attributes:
@@ -294,10 +297,12 @@ def record_data_streams_path_for_kinesis_stream(
     payload_size = calculate_kinesis_payload_size(record)
     if (p := processor()) is not None:
         ctx = DsmPathwayCodec.decode(context_json, p)
+        # The arrival time is only a fallback start for records that carry no upstream DSM context.
+        start_override = None if ctx.hash else time_estimate
         ctx.set_checkpoint(
             ["direction:in", "topic:" + stream, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
+            edge_start_sec_override=start_override,
+            pathway_start_sec_override=start_override,
             payload_size=payload_size,
         )
 

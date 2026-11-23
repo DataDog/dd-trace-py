@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from itertools import chain
@@ -7,7 +8,6 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import ClassVar
-from typing import Mapping
 from typing import Optional
 from typing import cast
 
@@ -31,11 +31,9 @@ from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import SignalTrack
-from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
-from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.utils.time import HourGlass
 from ddtrace.internal.utils.time import Time
@@ -116,7 +114,7 @@ _EMPTY_CAPTURED_CONTEXT: dict[str, Any] = {"arguments": {}, "locals": {}, "stati
 
 
 @dataclass
-class Snapshot(LogSignal):
+class Snapshot(LogSignal, probes=(LogFunctionProbe, LogLineProbe)):
     """Raw snapshot.
 
     Used to collect the minimum amount of information from a firing probe.
@@ -233,17 +231,7 @@ class Snapshot(LogSignal):
                 }
 
         return {
-            "stack": self._stack,
+            "stack": self._stack or [],
             "captures": captures,
             "duration": self.duration,
         }
-
-
-@probe_to_signal.register
-def _(probe: LogFunctionProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter) -> Snapshot:
-    return Snapshot(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
-
-
-@probe_to_signal.register
-def _(probe: LogLineProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter) -> Snapshot:
-    return Snapshot(probe=probe, frame=frame, thread=thread, trace_context=trace_context)

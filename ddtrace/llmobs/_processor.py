@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Optional
 from typing import cast
 
 from ddtrace._trace.processor import TraceProcessor
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.standalone import standalone_config
@@ -14,6 +14,7 @@ from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._sampler import LLMObsSamplingResolver
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._writer import LLMObsSpanWriter
@@ -52,7 +53,7 @@ class LLMObsProcessor(TraceProcessor):
         self._keep_meta_struct = keep_meta_struct
         self._sampling_resolver = sampling_resolver
 
-    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
+    def process_trace(self, trace: list[Any]) -> Optional[list[Any]]:
         # Two decisions, deliberately separate. No APM trace can carry an LLMObs event once APM
         # tracing is off, including in standalone, where it survives but is rate limited to 1/min.
         no_apm_carrier = not standalone_config.apm_tracing_enabled or not self._tracer.enabled
@@ -60,7 +61,7 @@ class LLMObsProcessor(TraceProcessor):
             self._stamp_sampling_decisions(trace)
         except Exception:
             log.debug("Failed to stamp LLMObs sampling decisions.", exc_info=True)
-        for span in trace:
+        for span in cast(list[_LLMObsSpan], trace):
             if span.span_type != SpanTypes.LLM:
                 continue
             try:
@@ -73,7 +74,7 @@ class LLMObsProcessor(TraceProcessor):
             return None
         return trace
 
-    def _stamp_sampling_decisions(self, trace: list[Span]) -> None:
+    def _stamp_sampling_decisions(self, trace: list[_LLMObsSpan]) -> None:
         """Resolve each LLMObs trace in this chunk and write its decision onto every span.
 
         This is the last point at which the decision can still be influenced by the root's tags.
@@ -86,7 +87,7 @@ class LLMObsProcessor(TraceProcessor):
         if self._sampling_resolver is None or not self._sampling_resolver.resolves_late:
             return
 
-        groups: dict[str, list[Span]] = {}
+        groups: dict[str, list[_LLMObsSpan]] = {}
         for span in trace:
             if span.span_type != SpanTypes.LLM:
                 continue
@@ -107,7 +108,7 @@ class LLMObsProcessor(TraceProcessor):
                     self._write_sampling_decision(span, sample_rate, sampling_decision)
 
     @staticmethod
-    def _write_sampling_decision(span: Span, sample_rate: str, sampling_decision: str) -> None:
+    def _write_sampling_decision(span: _LLMObsSpan, sample_rate: str, sampling_decision: str) -> None:
         """Write the decision into both places a span can be exported from.
 
         ``_llmobs_span_event`` shallow-copies the meta_struct ``_dd`` block into the event, so the
@@ -123,17 +124,17 @@ class LLMObsProcessor(TraceProcessor):
             dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
             dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
 
-    def _scrub(self, span: Span) -> None:
+    def _scrub(self, span: _LLMObsSpan) -> None:
         if not self._keep_meta_struct and span._get_struct_tag(LLMOBS_STRUCT.KEY) is not None:
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
 
-    def _predicted_drop(self, span: Span) -> bool:
+    def _predicted_drop(self, span: _LLMObsSpan) -> bool:
         # APM_AGENT only: the local agent drops traces whose root priority <= 0.
         root = span._local_root or span
         priority = root.context.sampling_priority
         return priority is not None and priority <= 0
 
-    def _route_span(self, span: Span, no_apm_carrier: bool) -> None:
+    def _route_span(self, span: _LLMObsSpan, no_apm_carrier: bool) -> None:
         event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
         if event is None:
             # Half-built payload: scrub so a partial never rides the APM trace.
@@ -161,4 +162,4 @@ class LLMObsProcessor(TraceProcessor):
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._scrub(span)
             self._llmobs_span_writer.enqueue(event)
-        telemetry.record_span_created(span, mode)
+        telemetry.record_span_created(cast(Any, span), mode)

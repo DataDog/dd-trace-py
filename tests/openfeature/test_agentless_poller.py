@@ -1,13 +1,21 @@
 import gzip
 import json
+import logging
 import socket
+from types import SimpleNamespace
+from urllib.parse import parse_qsl
+from urllib.parse import urlsplit
 
 import pytest
 
+from ddtrace import config as ddconfig
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace.internal.native import ConnectionFailedError
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import MAX_POLL_INTERVAL_SECONDS
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+import ddtrace.internal.openfeature._native as native_mod
+from tests.utils import override_global_config
 
 
 ENDPOINT = "https://ufc-server.ff-cdn.datadoghq.com/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"
@@ -89,7 +97,7 @@ class _FakeConn:
 def harness(monkeypatch):
     """Return a factory building a poller with a scripted fake HTTP layer."""
 
-    def build(responses, api_key=None, poll_interval=30.0, sock=None):
+    def build(responses, api_key=None, poll_interval=30.0, sock=None, env=None, endpoint=ENDPOINT):
         requests: list = []
         applied: list = []
         conns: list = []
@@ -100,12 +108,14 @@ def harness(monkeypatch):
             return conn
 
         monkeypatch.setattr(source_mod, "get_connection", fake_get_connection)
+        monkeypatch.setattr(source_mod, "_get_ffe_snapshot", lambda: object() if applied else None)
 
         src = AgentlessConfigurationSource(
-            endpoint=ENDPOINT,
+            endpoint=endpoint,
             apply_configuration=applied.append,
             api_key=api_key,
             poll_interval=poll_interval,
+            env=env,
         )
         # Keep retries instant.
         monkeypatch.setattr(src, "_retry_delay", lambda attempt: 0.0)
@@ -222,6 +232,74 @@ def test_api_key_header_present_and_absent(harness):
     assert "DD-API-KEY" not in without_key._requests[0]["headers"]
 
 
+@pytest.mark.parametrize(
+    "capabilities, expected",
+    [
+        ((), None),
+        (("unknown-feature-v1",), None),
+        (("dependent-flag-variant-key-v1",), "v1"),
+        (["unknown-feature-v1", "dependent-flag-variant-key-v1"], "v1"),
+    ],
+)
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        ENDPOINT,
+        "https://flags.example.test/custom",
+        "https://flags.example.test/custom?tag=a%2fb&tag=c%20d&empty=&token=a%2Bb#ignored",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v2",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v1&cap_dependent-flags-variant-key=v1",
+        ENDPOINT + "&%63ap_dependent-flags-variant-key=v1",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo",
+        ENDPOINT + "&ap_dependent-flags-variant-key=v1&invalid=foo",
+    ],
+)
+def test_evaluator_capability_query_on_initial_and_conditional_requests(
+    harness, monkeypatch, capabilities, expected, endpoint
+):
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)], endpoint=endpoint)
+    src.periodic()
+    src.periodic()
+
+    assert len(src._requests) == 2
+    capability_param = "cap_dependent-flags-variant-key"
+    original = urlsplit(endpoint)
+    expected_query = parse_qsl(original.query, keep_blank_values=True)
+    if expected is not None:
+        expected_query = [(key, value) for key, value in expected_query if key != capability_param]
+        expected_query.append((capability_param, expected))
+    for request in src._requests:
+        target = urlsplit(request["target"])
+        assert target.path == original.path
+        assert parse_qsl(target.query, keep_blank_values=True) == expected_query
+        assert not target.fragment
+        assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in request["headers"]
+        if expected is None or "custom" in original.path:
+            expected_raw_query = original.query
+            if expected is not None:
+                expected_raw_query += ("&" if expected_raw_query else "") + "cap_dependent-flags-variant-key=v1"
+            assert target.query == expected_raw_query
+    assert src._requests[0]["target"] == src._requests[1]["target"]
+    assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
+
+
+@pytest.mark.parametrize("endpoint", [ENDPOINT, ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo"])
+def test_missing_native_capability_reporter_preserves_query(harness, monkeypatch, endpoint):
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace())
+    src = harness([_FakeResponse(200, _ufc_body())], endpoint=endpoint)
+    src.periodic()
+    assert src._requests[0]["target"] == urlsplit(endpoint)._replace(scheme="", netloc="").geturl()
+    assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
+
+
+def test_linked_evaluator_does_not_advertise_dependent_flags():
+    # The native dependency does not implement prerequisite evaluation yet.
+    # Enabling its token requires updating the evaluator and its integration tests.
+    assert native_mod.ffe.get_evaluator_capabilities() == []
+    assert "dependent-flag-variant-key-v1" not in native_mod.get_evaluator_capabilities()
+
+
 def test_client_library_headers_and_gzip_accept(harness):
     src = harness([_FakeResponse(304)])
     src.periodic()
@@ -231,10 +309,383 @@ def test_client_library_headers_and_gzip_accept(harness):
     assert headers["DD-Client-Library-Version"]
 
 
+def _has_service_header(request):
+    return any(name.lower() == "dd-service" for name in request["headers"])
+
+
+def test_dd_service_header_sent_on_every_poll(harness):
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)])
+    with override_global_config({"service": "checkout"}):
+        src.periodic()
+        src.periodic()
+
+    assert len(src._requests) == 2
+    assert src._requests[0]["headers"]["DD-Service"] == "checkout"
+    assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
+    assert src._requests[1]["headers"]["DD-Service"] == "checkout"
+
+
+@pytest.mark.parametrize("service", [None, ""])
+def test_dd_service_header_omitted_without_service(harness, caplog, service):
+    src = harness([_FakeResponse(200, _ufc_body())])
+    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert len(src._applied) == 1  # Polling continues.
+    # No service is not a rejected service, so there is no log.
+    assert not any("DD-Service header not sent" in m for m in caplog.messages)
+
+
+def test_dd_service_header_follows_service_changes_after_start(harness):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    for service in (None, "checkout", "My Billing"):
+        with override_global_config({"service": service}):
+            src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert src._requests[1]["headers"]["DD-Service"] == "checkout"
+    assert src._requests[2]["headers"]["DD-Service"] == "my_billing"
+
+
+# Each row: DD_SERVICE_MAPPING, the service of the spans, and the DD-Service header.
+_MAPPED_SERVICES = [
+    ({"checkout": "store"}, "store", "store"),
+    ({"checkout": "My Store"}, "My Store", "my_store"),
+    # The mapping renames other services only, so the spans keep checkout.
+    ({"mysql": "checkout-db"}, "checkout", "checkout"),
+]
+
+
+@pytest.mark.parametrize("mapping, span_service, header", _MAPPED_SERVICES, ids=[repr(m[0]) for m in _MAPPED_SERVICES])
+def test_dd_service_header_is_the_mapped_span_service(harness, monkeypatch, tracer, mapping, span_service, header):
+    monkeypatch.setattr(ddconfig, "service_mapping", mapping)
+    src = harness([_FakeResponse(304)])
+    with override_global_config({"service": "checkout"}):
+        src.periodic()
+        with tracer.trace("op") as span:
+            assert span.service == span_service
+
+    assert src._requests[0]["headers"]["DD-Service"] == header
+
+
+def test_dd_service_header_follows_mapping_changes(harness, monkeypatch):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    with override_global_config({"service": "checkout"}):
+        for mapping in ({}, {"checkout": "store"}, {"checkout": "payments"}):
+            monkeypatch.setattr(ddconfig, "service_mapping", mapping)
+            src.periodic()
+
+    assert [r["headers"]["DD-Service"] for r in src._requests] == ["checkout", "store", "payments"]
+
+
+_USAGE_SERVICE_REJECTED = "Feature Flags: service %r has an empty normalized name; DD-Service header not sent"
+
+
+# Each row: the service, the name that APM shows, and the DD-Service header (None: no header).
+# The APM names are the output of the Agent's NormalizeService
+# (datadog-agent pkg/trace/traceutil/normalize v0.82.3).
+# "" is an empty result. The Agent replaces it with a placeholder name.
+# The header is the APM name if it is not empty. Otherwise there is no header.
+_AGENT_SERVICE_NAMES = [
+    ("checkout", "checkout", "checkout"),
+    ("My Service", "my_service", "my_service"),
+    ("My-API", "my-api", "my-api"),
+    ("UPPER", "upper", "upper"),
+    ("bad\nvalue", "bad_value", "bad_value"),
+    ("a\tb", "a_b", "a_b"),
+    ("a  b!", "a_b", "a_b"),
+    ("svc ", "svc", "svc"),
+    (" svc", "_svc", "_svc"),
+    ("a_", "a", "a"),
+    ("svc-", "svc-", "svc-"),
+    ("a..b", "a..b", "a..b"),
+    ("2fa-service", "2fa-service", "2fa-service"),
+    ("9lives", "9lives", "9lives"),
+    ("unnamed-service", "unnamed-service", "unnamed-service"),
+    ("svc_name.v2:api/edge-1", "svc_name.v2:api/edge-1", "svc_name.v2:api/edge-1"),
+    ("my__service", "my_service", "my_service"),
+    ("Default Web Site/Shop", "default_web_site/shop", "default_web_site/shop"),
+    ("a" + "b" * 99, "a" + "b" * 99, "a" + "b" * 99),
+    ("a" + "b" * 100, "a" + "b" * 99, "a" + "b" * 99),
+    ("a" * 100 + " b", "a" * 100, "a" * 100),
+    ("a" * 99 + "é", "a" * 99, "a" * 99),  # 101 bytes. The cut splits the "é", so it is dropped.
+    ("_svc", "_svc", "_svc"),
+    ("-svc", "-svc", "-svc"),
+    (".svc", ".svc", ".svc"),
+    (":svc", ":svc", ":svc"),
+    ("café-api", "café-api", "café-api"),
+    ("Café", "café", "café"),
+    ("支付", "支付", "支付"),
+    ("a🐶b", "a_b", "a_b"),
+    ("İstanbul", "İstanbul", "İstanbul"),
+    ("é" * 60, "é" * 50, "é" * 50),
+    ("___", "", None),
+    ("-", "-", "-"),
+    ("", "", None),
+    ("   ", "", None),
+]
+
+
+@pytest.mark.parametrize(
+    "service, apm_name, header", _AGENT_SERVICE_NAMES, ids=[repr(case[0]) for case in _AGENT_SERVICE_NAMES]
+)
+def test_dd_service_header_is_the_name_apm_shows_or_nothing(harness, caplog, service, apm_name, header):
+    assert source_mod._normalize_service(service) == apm_name
+
+    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src = harness([_FakeResponse(200, _ufc_body())])
+        src.periodic()
+        # Only the header value changes. The tracer service does not change.
+        assert ddconfig.service == service
+
+    if header is None:
+        assert not _has_service_header(src._requests[0])
+    else:
+        assert src._requests[0]["headers"]["DD-Service"] == header
+    assert len(src._applied) == 1  # Polling continues.
+    rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
+    # No service is not a rejected service, so there is no log.
+    assert rejected == ([_USAGE_SERVICE_REJECTED % (service,)] if service and header is None else [])
+
+
+def test_dd_service_header_omitted_for_a_name_that_is_not_valid_text(harness):
+    # os.environ gives a lone surrogate for bytes that are not UTF-8.
+    # It has no UTF-8 form, so the APM name is not known. The poll must not fail.
+    with override_global_config({"service": "svc\udcff"}):
+        src = harness([_FakeResponse(200, _ufc_body())])
+        src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert len(src._applied) == 1
+
+
+def test_dd_service_normalized_once_when_source_is_built(harness, monkeypatch):
+    calls = []
+    normalize = source_mod._normalize_service
+    monkeypatch.setattr(source_mod, "_normalize_service", lambda name: calls.append(name) or normalize(name))
+
+    with override_global_config({"service": "My Service"}):
+        src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304), _FakeResponse(304)])
+        assert calls == ["My Service"]
+        for _ in range(3):
+            src.periodic()
+
+    assert calls == ["My Service"]  # Not again on each poll.
+    assert [r["headers"]["DD-Service"] for r in src._requests] == ["my_service"] * 3
+
+
+def test_dd_service_rejection_logged_once_per_value(harness, caplog):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        for service in ("___", "___", "!!!"):
+            with override_global_config({"service": service}):
+                src.periodic()
+
+    rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
+    assert rejected == [_USAGE_SERVICE_REJECTED % (service,) for service in ("___", "!!!")]
+
+
 def test_self_tracing_suppressed(harness):
     src = harness([_FakeResponse(304)])
     src.periodic()
     assert src._requests[0]["no_trace"] is True
+
+
+def _debug_messages(caplog):
+    return [r.getMessage() for r in caplog.records if r.levelno == logging.DEBUG]
+
+
+def test_debug_logs_each_attempt_and_its_outcome(harness, caplog):
+    src = harness([_FakeResponse(503), TimeoutError(), _FakeResponse(200, _ufc_body(), {"ETag": '"v1"'})], env="prod")
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    messages = _debug_messages(caplog)
+    assert messages == [
+        "Feature Flags: agentless configuration poll attempt 1/3",
+        "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 503; retrying in 0.0s",
+        "Feature Flags: agentless configuration poll attempt 2/3",
+        "Feature Flags: agentless configuration poll attempt 2/3 failed: TimeoutError; retrying in 0.0s",
+        "Feature Flags: agentless configuration poll attempt 3/3",
+        "Feature Flags: agentless configuration poll attempt 3/3 returned HTTP 200",
+        "Feature Flags: agentless configuration applied successfully (1 flag(s), sdk_env=prod, requested_env=prod, "
+        'configuration_env=production, created_at=2024-01-01T00:00:00Z, etag="v1")',
+    ], messages
+
+
+@pytest.mark.parametrize("recovers", [True, False], ids=["successful-retry", "exhausted-retries"])
+@pytest.mark.parametrize("scheme", ["https:", "http:", ""])
+def test_poll_failure_logs_redact_transport_urls(harness, caplog, recovers, scheme):
+    endpoint = f"{scheme}//user:secret-password@flags.example.test/secret-path?token=secret-query"
+    error_message = f"error sending request for url ({endpoint})"
+    responses = [ConnectionFailedError(error_message)]
+    if recovers:
+        responses.append(_FakeResponse(200, _ufc_body()))
+    else:
+        responses.extend([ConnectionFailedError(error_message), ConnectionFailedError(error_message)])
+    src = harness(responses)
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    diagnostic = "ConnectionFailedError: error sending request for url (<endpoint>)"
+    assert (f"Feature Flags: agentless configuration poll attempt 1/3 failed: {diagnostic}; retrying in 0.0s") in (
+        _debug_messages(caplog)
+    )
+    for sensitive in ("secret-password", "secret-path", "secret-query", "flags.example.test"):
+        assert sensitive not in caplog.text
+    if recovers:
+        assert len(src._applied) == 1
+        assert "Feature Flags: agentless configuration poll attempt 2/3 returned HTTP 200" in caplog.messages
+    else:
+        assert src._applied == []
+        assert f"Feature Flagging agentless request failed after 3 attempts: {diagnostic}" in caplog.messages
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        ("connection refused", "connection refused"),
+        ("", ""),
+        (
+            "failed for 'https://user:secret@host/path?token=secret'",
+            "failed for '<endpoint>'",
+        ),
+        (
+            "failed for https://host/path'secret?token=secret",
+            "failed for <endpoint>",
+        ),
+        (
+            "redirect from https://host/secret to https://other/secret failed",
+            "redirect from <endpoint> to <endpoint> failed",
+        ),
+        ("bad path host//secret?token=secret", "bad path host<endpoint>"),
+        ("bad url 1https://host/secret", "bad url 1https:<endpoint>"),
+    ],
+)
+def test_describe_error_redacts_urls(message, expected):
+    error = ConnectionFailedError(message)
+    assert source_mod._describe_error(error) == (
+        f"ConnectionFailedError: {expected}" if expected else "ConnectionFailedError"
+    )
+
+
+def test_describe_error_handles_broken_str():
+    class BrokenError(Exception):
+        def __str__(self):
+            raise ValueError("https://host/secret")
+
+    assert source_mod._describe_error(BrokenError()) == "BrokenError"
+
+
+def test_debug_logs_unchanged_304(harness, caplog):
+    src = harness([_FakeResponse(304)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 304 (unchanged)" in (
+        _debug_messages(caplog)
+    )
+
+
+def test_debug_logs_unset_env_and_attempt_count_restarts_per_poll(harness, caplog):
+    src = harness([_FakeResponse(200, _ufc_body()), _FakeResponse(304)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+        src.periodic()
+
+    messages = _debug_messages(caplog)
+    assert (
+        "Feature Flags: agentless configuration applied successfully (1 flag(s), sdk_env=unset, requested_env=prod, "
+        "configuration_env=production, created_at=2024-01-01T00:00:00Z, etag=None)"
+    ) in messages
+    assert messages.count("Feature Flags: agentless configuration poll attempt 1/3") == 2, messages
+
+
+def test_debug_logs_terminal_status_and_warns(harness, caplog):
+    src = harness([_FakeResponse(404)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    messages = _debug_messages(caplog)
+    assert "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 404; not retrying" in messages
+    assert (
+        "Feature Flags: agentless configuration poll failed; no configuration is active, so evaluations return "
+        "default values"
+    ) in messages
+    assert any(
+        m.startswith("Feature Flagging agentless endpoint returned HTTP 404. Possible causes: ")
+        for m in caplog.messages
+    ), caplog.messages
+
+
+def test_debug_logs_retained_configuration_and_recovery(harness, caplog):
+    src = harness(
+        [
+            _FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}),
+            _FakeResponse(500),
+            _FakeResponse(500),
+            _FakeResponse(500),
+            _FakeResponse(304),
+        ]
+    )
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+        src.periodic()
+        src.periodic()
+
+    messages = _debug_messages(caplog)
+    assert "Feature Flags: agentless configuration poll attempt 3/3 returned HTTP 500; not retrying" in messages
+    assert (
+        "Feature Flags: agentless configuration poll failed; the previously applied configuration remains active"
+    ) in messages
+    assert "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 304 (unchanged)" in messages
+    assert messages[-1] == 'Feature Flags: agentless configuration delivery recovered (etag="v1")'
+
+
+def test_debug_logs_malformed_payload_reason(harness, caplog):
+    src = harness([_FakeResponse(200, b"not json")])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert "Feature Flags: agentless configuration payload rejected: ValueError: Malformed UFC payload" in (
+        _debug_messages(caplog)
+    )
+
+
+@pytest.mark.parametrize(
+    "endpoint,api_key,requested_env,api_key_header",
+    [
+        (ENDPOINT, "secret", "prod", "sent"),
+        ("https://flags.example.test/custom/path", None, "not sent", "not sent"),
+    ],
+    ids=["managed", "custom"],
+)
+def test_debug_logs_effective_settings_on_start(harness, caplog, endpoint, api_key, requested_env, api_key_header):
+    src = harness([_FakeResponse(304)], api_key=api_key, env="prod", endpoint=endpoint)
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.start()
+        src.stop()
+        src.join()
+
+    assert (
+        f"Feature Flags: agentless configuration source settings: sdk_env=prod, requested_env={requested_env}, "
+        f"DD-API-KEY header {api_key_header}, poll interval 30.0s, request timeout 5.0s"
+    ) in _debug_messages(caplog)
+    assert "secret" not in caplog.text
+
+
+def test_debug_does_not_report_rejected_payload_as_applied(harness, caplog, monkeypatch):
+    src = harness([_FakeResponse(200, _ufc_body())])
+
+    def reject(_):
+        raise ValueError("rejected")
+
+    monkeypatch.setattr(src, "_apply_configuration", reject)
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert not any("applied successfully" in m for m in _debug_messages(caplog))
 
 
 def _spy_waits(src, monkeypatch):

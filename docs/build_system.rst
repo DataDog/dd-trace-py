@@ -88,7 +88,7 @@ with an editable or `PYTHONPATH` install would not find the one in the repositor
 
 .. code-block:: bash
 
-    python -m ddtrace.commands.ddtrace_run python my_traced_app.py
+    python -m ddtrace_commands.ddtrace_run python my_traced_app.py
 
 Using `sccache` to Speed Up Builds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -283,6 +283,27 @@ These environment variables modify aspects of the build process.
         Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
         is set.
 
+Verifying the bundled libddwaf
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each libddwaf archive is checked against the SHA-256 checksum pinned for it in ``LIBDDWAF_CHECKSUMS`` in ``setup.py``,
+both right after a download and before an archive from the download cache is reused. A cached archive that does not
+match is downloaded again; a downloaded archive that does not match fails the build and is not cached. A library already
+extracted in the source tree is only reused if it was extracted from an archive with the pinned checksum.
+
+Bumping ``LIBDDWAF_VERSION`` therefore means replacing every entry of ``LIBDDWAF_CHECKSUMS`` with the checksum of the
+matching archive of the new release. This script does both:
+
+.. code-block:: bash
+
+    python scripts/update-libddwaf-checksums.py <version>
+
+It takes each checksum from the digest GitHub computed when the archive was uploaded, requires it to match the
+``.sha256`` asset published next to the archive, and only rewrites ``setup.py`` when every archive the build bundles
+checks out. Set ``GITHUB_TOKEN`` to avoid the GitHub API rate limit.
+
+A unit test fails if the table has no entry for an archive the build uses, or an entry for one it does not.
+
 Using a system-provided libddwaf
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -330,11 +351,18 @@ What the packaging must guarantee
 If the library cannot be loaded, or is not 2.x, AppSec logs a warning and disables itself; the rest of the tracer is
 unaffected. The version actually loaded is reported in telemetry, so a mismatch is visible.
 
-Linux only: elsewhere the runtime has no system library to fall back to, so the build fails rather than produce a package
-whose AppSec cannot load.
+Linux and FreeBSD only: elsewhere the runtime has no system library to fall back to, so the build fails rather than
+produce a package that AppSec cannot load.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With ``DD_USE_SCCACHE=1``, setup reports each cache-server health-check attempt,
+its duration, and any failure on stderr before falling back to compilation without caching.
+The ``ext_hashes`` command skips this check because hashing does not compile anything.
+CI wheel builds retain the complete output in ``debugwheelhouse/build_*.log`` and
+stream cache health messages to the job log. On stalled macOS ``amd64`` jobs, the watchdog
+also prints the latest build log's last 100 lines before collecting process samples.
 
 The build system compiles many native extensions (CMake C++, Cython, Rust). In CI,
 ``ext_cache.py`` caches compiled ``.so`` files between runs. On a warm run (extensions

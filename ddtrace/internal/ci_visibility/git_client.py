@@ -3,9 +3,11 @@ from enum import IntEnum
 import json
 from multiprocessing import Process
 from multiprocessing import Value
+from multiprocessing.sharedctypes import Synchronized
 import os
 import time
 from typing import Optional
+from typing import Union
 from urllib.parse import urljoin
 
 from ddtrace.ext import ci
@@ -76,7 +78,7 @@ FINISHED_METADATA_UPLOAD_STATUSES = [
 ]
 
 
-class CIVisibilityGitClientSerializerV1(object):
+class CIVisibilityGitClientSerializerV1:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
@@ -85,7 +87,7 @@ class CIVisibilityGitClientSerializerV1(object):
             {"meta": {"repository_url": repo_url}, "data": [{"id": sha, "type": "commit"} for sha in latest_commits]}
         )
 
-    def search_commits_decode(self, payload: str) -> list[str]:
+    def search_commits_decode(self, payload: Union[str, bytes]) -> list[str]:
         res: list[str] = []
         try:
             if isinstance(payload, bytes):
@@ -131,7 +133,7 @@ class CIVisibilityGitClientSerializerV1(object):
         return "multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), CRLF.join(body)
 
 
-class CIVisibilityGitClient(object):
+class CIVisibilityGitClient:
     def __init__(
         self,
         api_key: str,
@@ -164,7 +166,8 @@ class CIVisibilityGitClient(object):
             return None
 
     def upload_git_metadata(self, cwd: Optional[str] = None) -> None:
-        if not self._get_git_dir(cwd=cwd):
+        cwd = self._get_git_dir(cwd=cwd)
+        if not cwd:
             log.debug("Missing .git directory; skipping git metadata upload")
             self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
             return
@@ -181,10 +184,10 @@ class CIVisibilityGitClient(object):
         else:
             log.debug("git metadata upload worker already started: %s", self._worker)
 
-    def metadata_upload_finished(self):
+    def metadata_upload_finished(self) -> bool:
         return self._metadata_upload_status.value in FINISHED_METADATA_UPLOAD_STATUSES
 
-    def _wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
+    def _wait_for_metadata_upload(self, timeout: float = DEFAULT_METADATA_UPLOAD_TIMEOUT) -> None:
         log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
         if self._worker is None:
             log.debug("No git metadata upload worker started")
@@ -216,24 +219,33 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _run_protocol(
         cls,
-        serializer,  # CIVisibilityGitClientSerializerV1
-        requests_mode,  # int
-        base_url,  # str
-        _metadata_upload_status,  # METADATA_UPLOAD_STATUS
-        _tags=None,  # Optional[dict[str, str]]
-        _response=None,  # Optional[Response]
-        cwd=None,  # Optional[str]
-        log_level=0,  # int
+        serializer: CIVisibilityGitClientSerializerV1,
+        requests_mode: int,
+        base_url: str,
+        _metadata_upload_status: "Synchronized[int]",
+        _tags: Optional[dict[str, str]] = None,
+        _response: Optional[Response] = None,
+        cwd: Optional[str] = None,
+        log_level: int = 0,
     ) -> None:
         log.setLevel(log_level)
         _metadata_upload_status.value = METADATA_UPLOAD_STATUS.IN_PROCESS
         try:
             if _tags is None:
                 _tags = {}
+            commit_sha = _tags.get(ci.git.COMMIT_SHA)
+            if not commit_sha:
+                log.debug("No selected Git commit, skipping metadata upload")
+                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
+                return
             repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
 
             # If all latest commits are known to our gitdb backend, assume that unshallowing is unnecessary
-            latest_commits = cls._get_latest_commits(cwd=cwd)
+            latest_commits = cls._get_latest_commits(cwd=cwd, commit_sha=commit_sha)
+            if commit_sha and not latest_commits:
+                log.warning("Selected Git commit is unavailable, skipping metadata upload")
+                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
+                return
             backend_commits = cls._search_commits(
                 requests_mode, base_url, repo_url, latest_commits, serializer, _response
             )
@@ -253,11 +265,14 @@ class CIVisibilityGitClient(object):
             if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
                 log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
                 try:
-                    cls._unshallow_repository(cwd=cwd)
+                    if commit_sha:
+                        cls._unshallow_repository(cwd=cwd, commit_sha=commit_sha)
+                    else:
+                        cls._unshallow_repository(cwd=cwd)
                 except ValueError:
                     log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
-            latest_commits = cls._get_latest_commits(cwd=cwd)
+            latest_commits = cls._get_latest_commits(cwd=cwd, commit_sha=commit_sha)
             backend_commits = cls._search_commits(
                 requests_mode, base_url, repo_url, latest_commits, serializer, _response
             )
@@ -269,7 +284,10 @@ class CIVisibilityGitClient(object):
             commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
             rev_list = cls._get_filtered_revisions(
-                excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
+                excluded_commits=backend_commits,
+                included_commits=commits_not_in_backend,
+                cwd=cwd,
+                commit_sha=commit_sha,
             )
             if rev_list:
                 log.debug("Building and uploading packfiles for revision list: %s", rev_list)
@@ -279,7 +297,14 @@ class CIVisibilityGitClient(object):
                     )
                     if packfiles_details.returncode == 0:
                         if cls._upload_packfiles(
-                            requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                            requests_mode,
+                            base_url,
+                            repo_url,
+                            packfiles_prefix,
+                            serializer,
+                            _response,
+                            cwd=cwd,
+                            commit_sha=_tags.get(ci.git.COMMIT_SHA),
                         ):
                             _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
                             return
@@ -300,14 +325,18 @@ class CIVisibilityGitClient(object):
         result = tags.get(ci.git.REPOSITORY_URL, "")
         if not result:
             result = extract_remote_url(cwd=cwd)
-        return result
+        return ci._filter_sensitive_info(result) or ""
 
     @classmethod
-    def _get_latest_commits(cls, cwd: Optional[str] = None) -> list[str]:
-        latest_commits, stderr, duration, returncode = _extract_latest_commits_with_details(cwd=cwd)
+    def _get_latest_commits(cls, cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> list[str]:
+        latest_commits, stderr, duration, returncode = _extract_latest_commits_with_details(
+            cwd=cwd, commit_sha=commit_sha
+        )
         record_git_command(GIT_TELEMETRY_COMMANDS.GET_LOCAL_COMMITS, duration, returncode)
         if returncode == 0:
             return latest_commits.split("\n") if latest_commits else []
+        if commit_sha:
+            return []
         raise ValueError(stderr)
 
     @classmethod
@@ -362,10 +391,10 @@ class CIVisibilityGitClient(object):
         endpoint: str,
         payload: str,
         serializer: CIVisibilityGitClientSerializerV1,
-        headers: Optional[dict] = None,
+        headers: Optional[dict[str, str]] = None,
         timeout: int = DEFAULT_TIMEOUT,
     ) -> Response:
-        url = "{}/repository{}".format(base_url, endpoint)
+        url = f"{base_url}/repository{endpoint}"
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
         }
@@ -390,13 +419,17 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_filtered_revisions(
-        cls, excluded_commits: list[str], included_commits: Optional[list[str]] = None, cwd: Optional[str] = None
+        cls,
+        excluded_commits: list[str],
+        included_commits: Optional[list[str]] = None,
+        cwd: Optional[str] = None,
+        commit_sha: Optional[str] = None,
     ) -> str:
         filtered_revisions, _, duration, returncode = _get_rev_list_with_details(
-            excluded_commits, included_commits, cwd=cwd
+            excluded_commits, included_commits, cwd=cwd, commit_sha=commit_sha
         )
         record_git_command(GIT_TELEMETRY_COMMANDS.GET_OBJECTS, duration, returncode if returncode != 0 else None)
-        return filtered_revisions
+        return filtered_revisions if returncode == 0 else ""
 
     @classmethod
     def _upload_packfiles(
@@ -408,8 +441,9 @@ class CIVisibilityGitClient(object):
         serializer: CIVisibilityGitClientSerializerV1,
         _response: Optional[Response],
         cwd: Optional[str] = None,
+        commit_sha: Optional[str] = None,
     ) -> bool:
-        sha = extract_commit_sha(cwd=cwd)
+        sha = commit_sha or extract_commit_sha(cwd=cwd)
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
         rand = parts[-1]
@@ -455,7 +489,7 @@ class CIVisibilityGitClient(object):
             packfiles_uploaded_bytes,
         )
 
-        return response.status == 204
+        return bool(response.status == 204)
 
     @classmethod
     def _is_shallow_repository(cls, cwd: Optional[str] = None) -> bool:
@@ -464,7 +498,7 @@ class CIVisibilityGitClient(object):
         return is_shallow_repository
 
     @classmethod
-    def _unshallow_repository(cls, cwd: Optional[str] = None) -> None:
+    def _unshallow_repository(cls, cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> None:
         with StopWatch() as stopwatch:
             error_exit_code = None
             try:
@@ -472,6 +506,15 @@ class CIVisibilityGitClient(object):
                 if exit_code != 0:
                     error_exit_code = exit_code
                     log.debug("Failed to get default remote: %s", stderr)
+                    return
+
+                if commit_sha and commit_sha.lower() != extract_commit_sha(cwd=cwd).lower():
+                    _, stderr, _, exit_code = _unshallow_repository_with_details(
+                        cwd=cwd, repo=remote, refspec=commit_sha
+                    )
+                    if exit_code != 0:
+                        error_exit_code = exit_code
+                        raise ValueError(stderr)
                     return
 
                 try:

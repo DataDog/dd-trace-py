@@ -14,6 +14,7 @@ from tests.appsec.appsec_utils import gunicorn_flask_server
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.flask_tests.utils import flask_version
 from tests.appsec.integrations.utils_testagent import _get_span
+from tests.appsec.integrations.utils_testagent import _wait_for_traces
 
 
 _GEVENT_SERVERS_SCENARIOS = (
@@ -69,7 +70,7 @@ def test_iast_stacktrace_error(iast_test_token, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -222,7 +223,7 @@ def test_iast_cmdi(server, iast_test_token, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -325,7 +326,7 @@ def test_iast_header_injection_secure(server, iast_test_token, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 0
 
 
@@ -353,21 +354,17 @@ def test_iast_header_injection(server, iast_test_token, free_port):
         assert response.status_code == 500
         assert response.headers.get("X-Vulnerable-Header") is None
         assert response.headers.get("Inject-Header") is None
-        assert len(spans_with_iast) == 2
-        assert len(vulnerabilities) == 0
     else:
         if server.__name__ == "flask_server":
             assert response.status_code == 200
             assert response.headers.get("X-Vulnerable-Header") == "value"
             assert response.headers.get("Inject-Header") == "1234"
-            assert len(spans_with_iast) == 2
-            assert len(vulnerabilities) == 0
         else:
             assert response.status_code == 400
             assert response.headers.get("X-Vulnerable-Header") is None
             assert response.headers.get("Inject-Header") is None
-            assert len(spans_with_iast) == 2
-            assert len(vulnerabilities) == 0
+    assert len(spans_with_iast) == 1
+    assert len(vulnerabilities) == 0
 
 
 @pytest.mark.parametrize("server", ((gunicorn_flask_server, flask_server)))
@@ -393,7 +390,7 @@ def test_iast_code_injection_with_stacktrace(server, iast_test_token, free_port)
                 metastruct = span.get("meta_struct", {})
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -427,7 +424,7 @@ def test_iast_unvalidated_redirect(server, iast_test_token, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     # There’s one vulnerability, but it depends on the config/CI execution.
     # IAST treats the path "sqlalchemy_pytest-randomly_flask~22/bin/gunicorn" as a client folder and
     # reports a second vulnerability
@@ -442,13 +439,24 @@ def test_iast_unvalidated_redirect(server, iast_test_token, free_port):
     assert vulnerability["hash"]
 
 
+_DOWNSTREAM_MIN_SPANS = 19
+_DOWNSTREAM_IAST_SPANS = 2
+
+
+def _downstream_spans_arrived(traces):
+    spans = [span for trace in traces for span in trace]
+    iast_spans = [span for span in spans if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0]
+    return len(spans) >= _DOWNSTREAM_MIN_SPANS and len(iast_spans) >= _DOWNSTREAM_IAST_SPANS
+
+
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("apm_tracing_enabled", ("true", "false"))
 def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled, iast_test_token, free_port):
     """Gevent has a lot of problematic interactions with the tracer. When IAST applies AST transformations to a file
     and reloads the module using compile and exec, it can interfere with Gevent’s monkey patching
     """
-    config["env"].update({"DD_TRACE_URLLIB3_ENABLED": "true"})
+    config = dict(config)
+    config["env"] = {**config["env"], "DD_TRACE_URLLIB3_ENABLED": "true"}
     with server(
         iast_enabled="true",
         appsec_enabled="false",
@@ -480,7 +488,8 @@ def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled,
         assert downstream_headers["X-Datadog-Sampling-Priority"] == "2"
         assert downstream_headers["X-Datadog-Trace-Id"] == "1212121212121212121"
 
-    response_tracer = _get_span(iast_test_token)
+        response_tracer = _wait_for_traces(iast_test_token, _downstream_spans_arrived)
+
     spans = []
     spans_with_iast = []
     vulnerabilities = []
@@ -493,8 +502,8 @@ def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled,
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
             spans.append(span)
 
-    assert len(spans) >= 28, f"Incorrect number of spans ({len(spans)}):\n{spans}"
-    assert len(spans_with_iast) == 3
+    assert len(spans) >= _DOWNSTREAM_MIN_SPANS, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+    assert len(spans_with_iast) == _DOWNSTREAM_IAST_SPANS
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     for vulnerability in vulnerabilities[0]:

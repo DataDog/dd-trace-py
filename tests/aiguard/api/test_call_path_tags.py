@@ -12,13 +12,14 @@ import pathlib
 
 import pytest
 
+import ddtrace
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 
-INTEGRATIONS_DIR = pathlib.Path(__file__).parents[3] / "ddtrace" / "aiguard" / "integrations"
+INTEGRATIONS_DIR = pathlib.Path(ddtrace.__file__).resolve().parent / "aiguard" / "integrations"
 
 # litellm resolves block per request from its own dynamic guardrail params, so it tags its
 # evaluate() call explicitly instead of going through evaluate_auto.
@@ -29,8 +30,16 @@ class _FakeClient:
     def __init__(self):
         self.calls = []
 
-    def evaluate(self, messages, options=None, source=None, integration=None):
-        self.calls.append({"messages": messages, "options": options, "source": source, "integration": integration})
+    def evaluate(self, messages, options=None, source=None, integration=None, mcp_servers=None):
+        self.calls.append(
+            {
+                "messages": messages,
+                "options": options,
+                "source": source,
+                "integration": integration,
+                "mcp_servers": mcp_servers,
+            }
+        )
 
 
 def test_evaluate_auto_reports_the_package_as_the_call_path():
@@ -45,6 +54,7 @@ def test_evaluate_auto_reports_the_package_as_the_call_path():
             "options": {"block": aiguard_config._ai_guard_block},
             "source": AI_GUARD.SOURCE_AUTO,
             "integration": AI_GUARD.INTEGRATION_OPENAI,
+            "mcp_servers": None,
         }
     ]
 

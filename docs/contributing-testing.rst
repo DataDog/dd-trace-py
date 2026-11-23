@@ -83,16 +83,63 @@ List the matching environments before selecting one by hash. The runner starts a
     $ scripts/run-tests --list tests/contrib/django/
     $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-After a successful first run, pass ``-s`` before ``--`` to reuse the selected environment's existing ddtrace
-installation while refreshing its suite dependencies. Omit it after changing native code or project metadata, or
-after updating from main.
+Matching test environments are reused by default. Pass ``-r`` before ``--`` after changing native code or build
+configuration, or after updating from main when those inputs may have changed. This recreates the environment and
+refreshes the editable ddtrace build.
 
 .. code-block:: bash
 
-    $ scripts/run-tests -s --venv <environment-hash> -- -k test_specific_function
+    $ scripts/run-tests -r --venv <environment-hash> -- -k test_specific_function
 
-An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
-remains supported for existing workflows.
+An ``-s`` after ``--`` still belongs to the test command and disables output capture.
+The legacy runner option ``-s`` before ``--`` is a no-op; use ``-r`` to refresh the installation.
+
+Nightly coverage report upload
+------------------------------
+
+Nightly test environments enable coverage report upload by default only on Python 3.15. This focuses reports on
+new Python support without paying the collection and reporting cost on every Python version. Other nightly
+Python versions explicitly disable report upload; suites without a Python 3.15 environment do not fall back to
+another version. The full test matrix and the separate ITR coverage policy are unchanged.
+
+The version selection is defined by ``NIGHTLY_COVERAGE_PYTHON_VERSIONS`` in ``tests/suitespec.py``. Add versions
+there when expanding nightly report coverage. Explicit matrix, variant, and run environment overrides retain
+their existing precedence, including suites that disable report upload. Non-nightly defaults are unchanged.
+
+OpenFeature fixtures
+--------------------
+
+The OpenFeature suite loads the checked-in snapshot in
+``tests/openfeature/ffe-system-test-data/``. A fresh clone includes the fixtures;
+running the tests requires no submodule initialization or fixture download.
+
+Add or change shared evaluation cases in
+`DataDog/ffe-system-test-data <https://github.com/DataDog/ffe-system-test-data>`_
+first. To refresh the snapshot from a reviewed upstream commit, run:
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --ref <upstream-commit>
+    $ scripts/run-tests --list tests/openfeature/
+    $ scripts/run-tests --venv <environment-hash>
+
+``SOURCE.md`` records the upstream commit. Do not edit the generated fixture files
+locally. Only ``ufc-config.json`` and ``evaluation-cases/*.json`` are copied;
+unexpected entries inside ``evaluation-cases/`` are rejected.
+
+The ``Check FFE fixtures`` PR check fetches the exact commit recorded in
+``SOURCE.md`` and compares the copied filenames and contents. It does not update
+the snapshot. To run the same check locally (requires network access):
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --check
+
+The weekly or manually dispatched ``Update FFE fixtures`` workflow opens a signed
+draft PR when the copied contents change. If an update PR is already open, it
+leaves that branch untouched so evaluator fixes added there are preserved. New
+cases may expose evaluator bugs; fix those before merging the update, and change
+fixture expectations upstream only when the shared expectation is incorrect.
 
 Why are my tests failing with 404 errors?
 -----------------------------------------
@@ -107,33 +154,27 @@ To fix this:
 Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
 
-On Linux systems, when running tests with ``scripts/ddtest`` or ``scripts/run-tests``, you may encounter permission errors or file ownership issues. This happens because the container user's ID and group ID must match your local user's IDs.
+On Linux, Docker bind mounts keep the host's file ownership, so the container user must be able to write to
+your checkout. The test image runs as ``bits`` (user ID 1000). When your host user ID is not 1000,
+``scripts/ddtest`` (and therefore ``scripts/run-tests``) automatically runs the container command with your host
+user ID and group ID instead.
 
-To fix this, create a ``docker-compose.override.yml`` file in the repository root with the following contents:
-
-.. code-block:: yaml
-
-    services:
-      testrunner:
-        user: "${UID}:${GID}"
-
-Then, ensure your shell has the ``UID`` and ``GID`` environment variables set:
+To choose the IDs explicitly, set ``DD_TEST_USER``:
 
 .. code-block:: bash
 
-    export UID="$(id -u)"
-    export GID="$(id -g)"
+    $ DD_TEST_USER=1234:1234 scripts/ddtest
 
-You can add these exports to your shell profile (e.g., ``.bashrc``, ``.zshrc``) to make them persistent across sessions.
-
-After setting this up, run your tests normally:
+Set ``DD_TEST_USER`` to an empty value to keep the image's default ``bits`` user:
 
 .. code-block:: bash
 
-    $ scripts/ddtest
-    $ scripts/run-tests
+    $ DD_TEST_USER= scripts/ddtest
 
-The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
+If you previously added a ``docker-compose.override.yml`` that sets ``user: "${UID}:${GID}"`` for the
+``testrunner`` service, you can delete it. ``scripts/ddtest`` now handles this itself, and that override does
+not work with the current image, because the image's home directory, which holds the Python and Rust
+installations, is not accessible to other users.
 
 Build issues when running tests
 -------------------------------
@@ -144,13 +185,11 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run the environment without ``-s`` so that the ddtrace installation is refreshed:
+Then rebuild the environment so that the ddtrace installation is refreshed:
 
 .. code-block:: bash
 
-    $ scripts/run-tests --venv <environment-hash> -- -vv -k test_name
-
-Once the build succeeds, you can use ``-s`` again for faster subsequent runs.
+    $ scripts/run-tests -r --venv <environment-hash> -- -vv -k test_name
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
@@ -162,8 +201,15 @@ the locks and commit both changes:
 
   $ scripts/test-requirements lock <environment-name>
 
-Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
+The name is a variant name or an integration name; an integration name selects every variant that tests it
+(``pytest`` locks ``testing``, ``pytest:flaky`` and the other pytest variants).
+Omit the name to generate all missing locks and prune locks that no longer have a corresponding
 environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
+On Apple Silicon, select that image architecture explicitly:
+
+.. code-block:: bash
+
+  $ DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/ddtest scripts/test-requirements lock <environment-name>
 
 Use ``scripts/test-requirements`` to inspect and maintain locks:
 
@@ -213,10 +259,6 @@ How do I add a new test suite?
 Add the suite and its dependency variants to the nearest ``suitespec.yml`` file, then regenerate the dependency
 locks. See ``tests/README.md`` for the schema and use ``scripts/run-tests`` for local validation.
 
-Until the test-runner migration is complete, mirror environment changes in ``riotfile.py``. The
-`test_uv_suitespec_matches_riot <https://github.com/DataDog/dd-trace-py/blob/main/tests/contrib/integration_registry/test_riotfile.py>`_
-regression test verifies that the suitespec and Riot definitions remain equivalent.
-
 How do I update a test environment to use the latest version of a package?
 ----------------------------------------------------------------------------
 
@@ -257,6 +299,71 @@ finding and fixing the root cause of the unreliable behavior. Upholding this res
 suite's coverage meaningfully broad while skipping tests.
 
 
+How does CI retry service startup failures?
+-------------------------------------------
+
+``tests/wait-for-services.py`` exits with status 75 (``EX_TEMPFAIL``) when a known service
+fails its readiness checks after polling. The failure log includes the service name and
+the underlying exception. Missing client libraries and usage errors exit with status 1.
+
+Azure test suites select ``.retry_on_infrastructure_or_service_failure`` using the
+``retry_policy`` key in their ``suitespec.yml`` definitions. This shared policy retries
+a job up to twice when either the existing infrastructure failure rules match or the job
+exits with status 75, including on ``main``. Ordinary test failures do not match this policy.
+Other suites keep their existing retry behavior.
+
+The shared policy also enables ``FF_USE_NEW_BASH_EVAL_STRATEGY`` so GitLab Runner preserves
+the readiness command's exit status. The legacy Bash evaluator can turn status 75 into 1,
+which would prevent the service-failure retry rule from matching.
+
+
+How do I find out if a slow or timed-out CI job ran on a slow machine?
+-----------------------------------------------------------------------
+
+Maintainers can read the resource metrics of the pod that ran a CI job in Datadog.
+Use the pod metrics first. They need no change to the pipeline, and they work for a job that already finished.
+
+1. Open the job in GitLab. Note the job id from the URL, the start time, and the end time.
+2. In the job log, find the line ``Running on <pod> via <runner>``. Read the ``Waiting for pod``
+   lines above it. A reason such as ``Unschedulable`` means that the job waited for a machine,
+   not for tests.
+3. In Datadog Metrics, query the pod metrics with the ``ci-job-id`` tag and the container name
+   ``build``. Use the time from 2 minutes before the job start to 1 minute after the job end.
+   Compare the CPU usage with the CPU request and limit. Compare the memory working set with the
+   memory limit. Check the OOM event count. Group the query by the ``host`` tag to see the node
+   that ran the job.
+4. To explain a slow start, query the pod phase, ready, and unschedulable metrics with the pod name.
+   These metrics do not carry the job id. Search the Kubernetes events for the same pod name to
+   find scheduling failures.
+
+Do not trust the CPU throttling counters. The counters can read zero when a container uses more
+CPU than its limit. Compare the CPU usage with the limit instead.
+
+If the pod metrics do not explain the result, turn on the runtime probe. The root ``conftest.py``
+contains the probe. When the probe is on, it prints a ``RUNTIME PROBE`` block in the job log at
+the start and at the end of each pytest session.
+The block shows the CPU count and affinity, the cgroup CPU and memory limits and counters, and
+the results of three short benchmarks.
+Use the block to compare the machine against the machines of other jobs in the same pipeline.
+
+The probe is off by default because the benchmarks add a fraction of a second to each pytest session.
+To turn the probe on for a CI run, start a new pipeline for your branch and set the pipeline
+variable ``DD_TEST_RUNTIME_PROBE`` to ``1``.
+In GitLab, use **Build > Pipelines > New pipeline** and add the variable in the form.
+The ``run-tests-trigger`` job passes the variable to the test jobs in the child pipeline.
+A retry of a single job does not accept new variables, so a retry does not turn on the probe.
+
+To turn the probe on for a local run, set the variable before you run the tests::
+
+    $ DD_TEST_RUNTIME_PROBE=1 scripts/run-tests --venv <hash>
+
+``scripts/ddtest`` passes the variable into the test container.
+
+The probe does not run in ``pytest-xdist`` workers.
+When the GitLab job timeout or an out-of-memory kill stops a job, pytest does not run its
+session-end hook. In that case, the log contains only the block from the session start.
+
+
 How do I enable debug logs for just a specific part of the library?
 -------------------------------------------------------------------
 
@@ -266,3 +373,59 @@ environment variables. For example, to enable debug logs just for
 ``ddtrace.debugging``, one can set ```_DD_DEBUGGING_LOG_LEVEL=DEBUG```. This
 will set the ``DEBUG`` log level for any logger whose name is prefixed with
 ``ddtrace.debugging``.
+
+Isolated Python tests
+---------------------
+
+Use ``@pytest.mark.subprocess`` for isolated test logic and ``python_process``
+for applications with parent-side assertions:
+
+.. code-block:: python
+
+    @pytest.mark.subprocess(env={"DD_SERVICE": "example"})
+    def test_startup():
+        from ddtrace import config
+
+        assert config.service == "example"
+
+    def test_application(python_process):
+        out, err, status, pid = python_process("print('ready')", ddtrace_run=True)
+        assert status == 0, err
+        assert out == b"ready\n"
+
+Module-level scenarios need their imports inside the body. Class methods run
+through a minimal pytest session in the child, including setup and cleanup.
+Project ``conftest.py`` files, third-party plugins, and unrelated fixtures are
+not loaded. Pytest handles the ``unittest.TestCase`` lifecycle, including
+class/module setup and cleanups.
+Async unittest classes must inherit from ``unittest.IsolatedAsyncioTestCase``
+(or ``tests.contrib.asyncio.utils.AsyncioTestCase`` for tracer assertions), using
+``asyncSetUp`` and ``asyncTearDown`` for async fixtures. No event-loop wrapper is needed.
+Parent fixtures run only when explicitly requested with ``usefixtures``.
+
+The marker's ``env`` overrides inherited variables; a value of ``None`` removes
+that variable. ``python_process`` follows the standard subprocess ``env`` behavior:
+omit it to inherit the environment, or supply the complete child environment.
+
+Marked tests expect exit status zero and empty stdout/stderr unless ``status``,
+``out``, or ``err`` says otherwise. Processes time out after 60 seconds by default.
+
+
+Snapshot tests
+--------------
+
+Use ``@pytest.mark.snapshot`` or the ``snapshot_context`` fixture. Each attempt
+gets a unique capture token while keeping its baseline filename. Capture,
+comparison, and cleanup use that token; pass ``snapshot.token`` to external
+producers in the ``X-Datadog-Test-Session-Token`` header. Child processes must inherit
+``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` from inside the snapshot context.
+Other test traffic gets a background token to keep it out of active snapshots.
+
+Finish spans and join background producers before leaving the context. Comparison
+runs once after successful execution, and mismatches fail the test. Concurrent
+contexts sharing a global writer remain unsupported; the agent also retains its
+legacy timing-based handling of untagged requests.
+
+Local runs create missing baselines; review the generated JSON. CI requires existing
+baselines. For custom agent mounts, set ``DD_TEST_AGENT_SNAPSHOT_DIR`` to the snapshot
+directory inside the agent.

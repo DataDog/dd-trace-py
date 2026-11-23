@@ -82,14 +82,6 @@ impl ResultType {
             ResultType::Undefined => "RESULT_UNDEFINED",
         }
     }
-
-    fn __repr__(&self) -> String {
-        format!("<ResultType.{}: {}>", self.name(), self.value())
-    }
-
-    fn __int__(&self) -> i32 {
-        self.value()
-    }
 }
 
 fn get_missing_event(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {

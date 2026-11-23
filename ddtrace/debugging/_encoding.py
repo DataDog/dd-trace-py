@@ -1,15 +1,15 @@
 import abc
+from collections.abc import Iterator
 from dataclasses import dataclass
 from heapq import heapify
 from heapq import heappop
 from heapq import heappush
 import json
 import os
-from threading import Thread
 from types import FrameType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import Iterator
 from typing import Optional
 from typing import Union
 
@@ -23,10 +23,14 @@ from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
 
 
+if TYPE_CHECKING:
+    from threading import Thread
+
+
 log = get_logger(__name__)
 
 
-class JsonBuffer(object):
+class JsonBuffer:
     def __init__(self, max_size: Optional[int] = None) -> None:
         self.max_size = max_size
         self._reset()
@@ -77,7 +81,7 @@ class BufferedEncoder(abc.ABC):
         """Flush the buffer and return the encoded data."""
 
 
-def _logs_track_logger_details(thread: Thread, frame: FrameType) -> dict[str, Any]:
+def _logs_track_logger_details(thread: "Thread", frame: FrameType) -> dict[str, Any]:
     code = frame.f_code
 
     return {

@@ -4,9 +4,16 @@ baseline: &base
   ntests: 1000
   nmodules: 5
   ddtrace: false
+  coverage: false
 
-# Primary: plugin active, hermetic offline mode (NoOp backend, all features off).
-# This is the config that detects per-test overhead regressions/improvements.
+# Plugin active, hermetic offline mode, with backend features disabled.
 ddtrace:
   <<: *base
   ddtrace: true
+
+# Product path exercised by Test Impact Analysis on Python 3.12+: the pytest
+# plugin collects file-level coverage for every test through sys.monitoring.
+ddtrace_coverage:
+  <<: *base
+  ddtrace: true
+  coverage: true

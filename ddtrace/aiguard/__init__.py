@@ -13,6 +13,7 @@ from typing import Any
 # its ddtrace.config/telemetry chain) even when DD_AI_GUARD_ENABLED=false,
 # regressing the zero-overhead disabled path. Keep these imports lazy.
 if TYPE_CHECKING:
+    from ._api_client import MCP
     from ._api_client import AIGuardAbortError
     from ._api_client import AIGuardClient
     from ._api_client import AIGuardClientError
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from ._api_client import Evaluation
     from ._api_client import Function
     from ._api_client import ImageURL
+    from ._api_client import MCPServer
     from ._api_client import Message
     from ._api_client import Options
     from ._api_client import ToolCall
@@ -35,6 +37,8 @@ __all__ = [
     "Evaluation",
     "Function",
     "ImageURL",
+    "MCP",
+    "MCPServer",
     "Message",
     "Options",
     "ToolCall",

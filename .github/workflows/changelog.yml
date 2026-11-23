@@ -24,6 +24,7 @@ jobs:
       # Ensure a new reno release note was added in this PR.
       # Use `reno new <slug>` to add a new note to `releasenotes/notes`,
       #   or add `changelog/no-changelog` label if no release note is needed.
+      # PRs titled `ci`, `test` or `docs` do not need either.
       - name: Ensure release note added
         # Only run this on pull requests
         if: github.event_name == 'pull_request'
@@ -42,7 +43,7 @@ jobs:
           rst2html CHANGELOG.rst CHANGELOG.html
 
       - name: Upload CHANGELOG.rst
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: ./.github/actions/upload-artifact
         with:
           name: changelog
           path: |

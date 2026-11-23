@@ -5,10 +5,12 @@ import functools
 import json
 from pathlib import Path
 from typing import Any
+from typing import Callable
 from typing import Generic
 from typing import Optional
 from typing import TypeVar
 from typing import Union
+from typing import cast
 
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
@@ -32,6 +34,7 @@ from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
+from ddtrace.internal.ci_visibility.utils import get_relative_path
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
@@ -73,7 +76,7 @@ class TestVisibilitySessionSettings:
     ci_provider_name: Optional[str] = None
     is_auto_injected: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not isinstance(self.tracer, Tracer):
             raise TypeError("tracer must be a ddtrace.trace.Tracer")
         if not isinstance(self.workspace_path, Path):
@@ -91,28 +94,30 @@ class SPECIAL_STATUS(Enum):
 
 CIDT = TypeVar("CIDT", TestModuleId, TestSuiteId, TestId)  # Child item ID types
 ITEMT = TypeVar("ITEMT", bound="TestVisibilityItemBase")  # All item types
+# Methods guarded by the decorators below, which skip the call (returning None) when the guard fails.
+_GuardedMethodT = TypeVar("_GuardedMethodT", bound=Callable[..., None])
 
 
-def _require_not_finished(func):
+def _require_not_finished(func: _GuardedMethodT) -> _GuardedMethodT:
     @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> None:
         if self.is_finished():
             log.warning("Method %s called on item %s, but it is already finished", func, self)
             return
         return func(self, *args, **kwargs)
 
-    return wrapper
+    return cast(_GuardedMethodT, wrapper)
 
 
-def _require_span(func):
+def _require_span(func: _GuardedMethodT) -> _GuardedMethodT:
     @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> None:
         if self._span is None:
             log.warning("Method %s called on item %s, but self._span is None", func, self)
             return
         return func(self, *args, **kwargs)
 
-    return wrapper
+    return cast(_GuardedMethodT, wrapper)
 
 
 class TestVisibilityItemBase(abc.ABC):
@@ -126,11 +131,11 @@ class TestVisibilityItemBase(abc.ABC):
         session_settings: TestVisibilitySessionSettings,
         operation_name: str,
         initial_tags: Optional[dict[str, Any]] = None,
-        parent: Optional["TestVisibilityParentItem"] = None,
+        parent: Optional["TestVisibilityParentItem[Any, Any]"] = None,
         resource: Optional[str] = None,
     ) -> None:
         self.name: str = name
-        self.parent: Optional["TestVisibilityParentItem"] = parent
+        self.parent: Optional[TestVisibilityParentItem[Any, Any]] = parent
         self._status: TestStatus = TestStatus.FAIL
         self._session_settings: TestVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer
@@ -163,7 +168,7 @@ class TestVisibilityItemBase(abc.ABC):
         for tag, tag_value in self._tags.items():
             self._add_tag_to_span(tag, tag_value)
 
-    def _add_tag_to_span(self, tag, tag_value):
+    def _add_tag_to_span(self, tag: str, tag_value: Any) -> None:
         if self._span is None:
             return
 
@@ -268,12 +273,11 @@ class TestVisibilityItemBase(abc.ABC):
         if self._source_file_info is not None:
             if self._source_file_info.path:
                 # Set source file path to be relative to the root directory
-                try:
-                    relative_path = self._source_file_info.path.relative_to(self._session_settings.workspace_path)
-                except ValueError:
+                relative = get_relative_path(self._source_file_info.path, self._session_settings.workspace_path)
+                if relative is None:
                     log.debug("Source file path is not within the root directory, replacing with absolute path")
-                    relative_path = self._source_file_info.path
-                self.set_tag(test.SOURCE_FILE, str(relative_path))
+                    relative = str(self._source_file_info.path)
+                self.set_tag(test.SOURCE_FILE, relative)
             if self._source_file_info.start_line is not None:
                 self.set_tag(test.SOURCE_START, self._source_file_info.start_line)
             if self._source_file_info.end_line is not None:
@@ -311,7 +315,7 @@ class TestVisibilityItemBase(abc.ABC):
         """Quarantine tags are only set at the test or session level"""
         pass
 
-    def _set_span_tags(self):
+    def _set_span_tags(self) -> None:
         """This is effectively a callback method for exceptional cases where the item span
         needs to be modified directly by the class
 
@@ -332,12 +336,13 @@ class TestVisibilityItemBase(abc.ABC):
 
         if source_file_info_value is None:
             return
-        if source_file_info_value.path is None:
-            # Source file info is invalid if path is None
-            return
+        # Runtime guard for callers of the public API that pass another type; checked before reading its path.
         if not isinstance(source_file_info_value, TestSourceFileInfo):
-            log.warning("Source file info must be of type TestSourceFileInfo")
+            log.warning("Source file info must be of type TestSourceFileInfo")  # type: ignore[unreachable]
             return
+        if source_file_info_value.path is None:
+            # Source file info is invalid if path is None, which only a later reassignment of path can cause.
+            return  # type: ignore[unreachable]
         if not source_file_info_value.path.is_absolute():
             # Note: this should effectively be unreachable code because the TestSourceFileInfoBase class enforces
             # that paths be absolute at creation time
@@ -374,12 +379,12 @@ class TestVisibilityItemBase(abc.ABC):
         self.set_tags(self._collect_hierarchy_tags())
 
     @abc.abstractmethod
-    def _telemetry_record_event_created(self):
+    def _telemetry_record_event_created(self) -> None:
         # Telemetry for events created has specific tags for item types
         raise NotImplementedError("This method must be implemented by the subclass")
 
     @abc.abstractmethod
-    def _telemetry_record_event_finished(self):
+    def _telemetry_record_event_finished(self) -> None:
         # Telemetry for events created has specific tags for item types
         raise NotImplementedError("This method must be implemented by the subclass")
 
@@ -564,7 +569,7 @@ class TestVisibilityChildItem(TestVisibilityItemBase, Generic[CIDT]):
     pass
 
 
-CITEMT = TypeVar("CITEMT", bound="TestVisibilityChildItem")
+CITEMT = TypeVar("CITEMT", bound="TestVisibilityChildItem[Any]")
 
 
 class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):

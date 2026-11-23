@@ -27,6 +27,24 @@
 
 using namespace Datadog;
 
+// Reads as "does not own SIGBUS" or "no longer owns SIGSEGV and SIGBUS". The check that
+// sent us here and this description are separate reads of the dispositions, so both
+// signals can be ours again by the time we get here, leaving nothing specific to name.
+static std::string
+lost_ownership_clause(const char* verb, const std::string& foreign_signals) noexcept
+{
+    // Outside the sampling try/catch: if string allocation fails, degrade the
+    // warning text rather than let the exception crash the process.
+    try {
+        if (foreign_signals.empty()) {
+            return "cannot confirm it owns SIGSEGV and SIGBUS";
+        }
+        return std::string(verb) + " " + foreign_signals;
+    } catch (...) {
+        return {};
+    }
+}
+
 static void
 update_fast_copy_stats(ProfilerStats& stats)
 {
@@ -34,6 +52,7 @@ update_fast_copy_stats(ProfilerStats& stats)
     stats.set_fast_copy_memory_capable(safe_memcpy_initialized);
     stats.set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
     stats.set_fast_copy_memory_enabled(fast_copy_active);
+    stats.set_fast_copy_memory_desired(fast_copy_desired);
 }
 
 void
@@ -260,11 +279,24 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
 {
     auto* const runtime = &_PyRuntime;
 
+    interpreter_candidates.clear();
+    const bool all_interpreter_data_captured =
+      for_each_interp(runtime, [&](InterpreterInfo& interp) { interpreter_candidates.push_back(interp); });
+#if PY_VERSION_HEX >= 0x030e0000
+    // This lock-free snapshot can race with code destruction during the sampling cycle. In that case, the current
+    // cycle may use stale frame metadata; the next cycle observes the generation change and clears the cache.
+    if (!echion->validate_code_object_generations(interpreter_candidates, all_interpreter_data_captured)) {
+        return;
+    }
+#else
+    (void)all_interpreter_data_captured;
+#endif
+
     // When max_threads_per_sample is set, we collect all threads first, then apply
     // reservoir sampling (Algorithm R) to select a uniform random subset, and only
     // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
     if (max_threads_per_sample == 0) {
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+        for (auto& interp : interpreter_candidates) {
             PyObject* gc_frame = gc_tracking_enabled_ ? GCFrameTracker::get().capture(interp.interp) : nullptr;
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 auto gc_frame_scope = echion->use_gc_frame(gc_frame);
@@ -273,16 +305,16 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
             });
-        });
+        }
     } else {
         thread_candidates.clear();
 
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+        for (auto& interp : interpreter_candidates) {
             PyObject* gc_frame = gc_tracking_enabled_ ? GCFrameTracker::get().capture(interp.interp) : nullptr;
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
                 thread_candidates.push_back({ *tstate, gc_frame });
             });
-        });
+        }
 
         // Algorithm R: if we have more threads than the cap, select a uniform random subset.
         // Selected threads are placed in [0, sample_count). Overflow threads remain in
@@ -377,18 +409,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
 {
     seed_fast_copy_profiler_stats();
 
-    // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them.
-    //
-    // safe_memcpy recovers only when our handler owns BOTH signals (see danger.cc).
-    // We can chain on top of handlers we coordinate with (faulthandler, crashtracker:
-    // pause + uninstall/reinstall in stack.cpp / crashtracking.py). Libraries such as
-    // abseil (vLLM/gRPC) or PyTorch/CUDA install their own handlers independently—often
-    // lazily on other threads—so overwriting them breaks their crash path and faults
-    // during sampling may still reach their handler instead of our siglongjmp (PROF-14568).
-    // If a foreign owner is already authoritative, leave it in place and fall back to
-    // the syscall copy rather than reclaiming on top.
+    // (Re)install once only if we still own both handlers. Coordinated chains
+    // (faulthandler/crashtracker) are fine; foreign owners (abseil/vLLM, PyTorch/CUDA)
+    // must not be overwritten -- leave them and use the syscall copy.
     static std::once_flag segv_handler_once;
-    if (fast_copy_active) {
+    if (fast_copy_handler_ops_enabled()) {
         std::call_once(segv_handler_once, []() {
             if (segv_handler_installed()) {
                 init_segv_catcher();
@@ -400,22 +425,18 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
-    // safe_memcpy recovery needs us to own both handlers (PROF-14568): warm up on the
-    // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    const bool fast_copy_desired = fast_copy_active;
+    // Warm up on syscall copy; upgrade only if we still own both handlers.
+    // Keep fast_copy_desired set so faulthandler reclaim can reinstall during warmup.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
     const bool syscall_copy_available = true; // mach_vm_read_overwrite is always available
 #endif
-    // Warm up only when fast copy is wanted and a safe fallback path exists to run on.
-    const bool fast_copy_warmup = fast_copy_desired && syscall_copy_available;
+    const bool fast_copy_warmup = fast_copy_handler_ops_enabled() && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
-    bool handler_fallback_done = false;
     const auto fast_copy_warmup_deadline =
       sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
-        // Drop to the safe syscall copy for the startup window.
         set_fast_copy_enabled(false);
     }
 
@@ -443,52 +464,46 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Foreign handler handling (see notes before the loop); faulthandler's
-        // transient swaps are safe since the sampler is paused around them.
-        if (fast_copy_desired) {
+        // Foreign-handler checks; faulthandler swaps are paused around (see notes above).
+        if (fast_copy_handler_ops_enabled()) {
             if (!fast_copy_upgraded) {
-                // Warmup window: still on the safe syscall copy. Once it elapses,
-                // upgrade to safe_memcpy only if we still own the handlers.
                 if (sample_time_now >= fast_copy_warmup_deadline) {
                     fast_copy_upgraded = true; // decide once
                     if (segv_handler_installed()) {
                         set_fast_copy_enabled(true);
                     } else {
-                        // Another component already owns a handler; stay on the safe
-                        // syscall copy (already active from warmup) for the life of
-                        // the process.
-                        handler_fallback_done = true;
+                        // Foreign owner: stay on syscall copy for this process and forks.
                         mark_fast_copy_syscall_fallback();
-                        std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
-                                     "handler; keeping the syscall-based memory copy to avoid crashing."
-                                  << std::endl;
+                        const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                        std::cerr << "ddtrace stack profiler: "
+                                  << lost_ownership_clause("does not own", ownership.foreign)
+                                  << "; keeping the syscall-based memory copy to avoid crashing. "
+                                  << "Handler owners: " << ownership.owners << std::endl;
                     }
                 }
-            } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
-                // A handler was taken over after upgrading; fall back permanently
-                // (no debounce). This is not free: it pins the process to the slower
-                // syscall copy for its remaining lifetime, which can meaningfully
-                // degrade sample quality (e.g. on asyncio workloads). We still prefer
-                // it over the alternative, which is crashing under a foreign handler.
-                handler_fallback_done = true;
+            } else if (fast_copy_active && !segv_handler_installed()) {
+                // Post-upgrade foreign takeover: permanent syscall fallback beats crashing.
                 mark_fast_copy_syscall_fallback();
-                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component; falling back to syscall-based memory copy to avoid crashing."
-                          << std::endl;
+                const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                std::cerr << "ddtrace stack profiler: " << lost_ownership_clause("no longer owns", ownership.foreign)
+                          << "; falling back to syscall-based memory copy to avoid crashing. "
+                          << "Handler owners: " << ownership.owners << std::endl;
                 if (!set_fast_copy_enabled(false)) {
-                    // No safe fallback available (e.g. process_vm_readv blocked), so
-                    // safe_memcpy is still active; reading under a foreign handler would
-                    // crash - stop sampling instead.
+                    // No syscall fallback left; stop rather than read under a foreign handler.
                     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                                 "stopping stack sampling to avoid crashing."
-                              << std::endl;
+                                 "stopping stack sampling to avoid crashing. "
+                              << "Handler owners: " << ownership.owners << std::endl;
+                    // mark_fast_copy_syscall_fallback() snapshotted enabled while still
+                    // active; we break before the end-of-cycle update, so reseed here.
+                    seed_fast_copy_profiler_stats();
+                    sampler_active_.store(false);
                     break;
                 }
             }
         }
 
-        // Reset per-cycle asyncio task accumulator before iterating sampled threads
-        echion->reset_asyncio_task_count();
+        // Reset per-cycle asyncio accumulators before iterating sampled threads.
+        echion->reset_asyncio_counts();
 
         try {
             capture_samples(wall_time_us);
@@ -526,7 +541,17 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 borrow.stats().increment_sampling_event_count();
                 borrow.stats().set_string_table_count(echion->string_table().size());
                 update_fast_copy_stats(borrow.stats());
+                borrow.stats().set_asyncio_initialized(echion->asyncio_initialized());
+                borrow.stats().set_asyncio_loop_tracked(echion->asyncio_loop_tracked());
                 borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
+#if PY_VERSION_HEX >= 0x030e0000
+                const size_t asyncio_interpreter_offset = echion->asyncio_interpreter_tasks_head_offset();
+                const size_t asyncio_thread_offset = echion->asyncio_thread_tasks_head_offset();
+                borrow.stats().set_asyncio_runtime_offsets_discovered(asyncio_interpreter_offset != 0 &&
+                                                                      asyncio_thread_offset != 0);
+                borrow.stats().set_asyncio_interpreter_tasks_head_offset(asyncio_interpreter_offset);
+                borrow.stats().set_asyncio_thread_tasks_head_offset(asyncio_thread_offset);
+#endif
                 borrow.stats().set_greenlet_count(greenlet_count);
 
                 if (copy_errors > 0) {
@@ -618,8 +643,10 @@ Sampler::Sampler()
 Sampler&
 Sampler::get()
 {
-    static Sampler instance;
-    return instance;
+    // uWSGI may call exit without running the atexit hooks that stop the sampler.
+    // Making this a raw pointer prevents crashes at exit.
+    static Sampler* const instance = new Sampler();
+    return *instance;
 }
 
 void
@@ -641,6 +668,11 @@ Sampler::postfork_child()
     new (&pause_mutex_) std::mutex();
     new (&pause_cv_) std::condition_variable();
 
+    // The parent sampling thread may have been mutating these vectors when fork took its snapshot. Abandon their
+    // inherited storage instead of traversing potentially inconsistent state in clear() or push_back().
+    new (&interpreter_candidates) std::vector<InterpreterInfo>();
+    new (&thread_candidates) std::vector<ThreadCandidate>();
+
     // Drop any error inherited from the parent: the parent reports its own errors, and
     // reporting it again here would attribute it to the wrong process.
     new (&sampling_thread_error_mutex_) std::mutex();
@@ -652,16 +684,28 @@ Sampler::postfork_child()
     }
 
     // Note: the Thread Info Map has been reset in EchionSampler::postfork_child.
-    auto& thread_info_map = echion->thread_info_map();
-
     // Refresh the ThreadInfo for the current (only) Thread.
     // The pthread_t (thread_id) is preserved across fork, but native_id and
     // cpu_clock_id/mach_port must be updated for the child process.
+    register_current_thread_if_missing();
+}
+
+void
+Sampler::register_current_thread_if_missing()
+{
+    const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
+    auto& thread_info_map = echion->thread_info_map();
+
 #if defined PL_LINUX
     auto current_thread_id = static_cast<uintptr_t>(pthread_self());
 #elif defined PL_DARWIN
     auto current_thread_id = reinterpret_cast<uintptr_t>(pthread_self());
 #endif
+
+    // The thread registered from Python (with its real native id) wins.
+    if (thread_info_map.find(current_thread_id) != thread_info_map.end()) {
+        return;
+    }
 
     // After fork, the current thread is the main (and only) thread,
     // so native_id == pid.
@@ -739,8 +783,8 @@ stack_atfork_child()
     // Recreate synchronization and discard any pre-fork fallback GC frame.
     GCFrameTracker::get().postfork_child();
 
-    // Clean up Sampler state, do not start the Sampler yet.
-    stack_postfork_cleanup();
+    // The Sampler state was already cleaned up by the handler of
+    // register_fork_cleanup.
 
     // Restart the sampler if it was running before fork.
     // OriginTaskLinks was left disabled in postfork_child; re-enable when the
@@ -763,7 +807,19 @@ Sampler::one_time_setup()
 {
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
-    stack_postfork_cleanup();
+    // Only do it after a fork: the threads, asyncio loops and greenlets registered before the first start (e.g. when
+    // the hooks are installed at startup with DD_PROFILING_ENABLED=armed) must be kept.
+    if (pid != getpid()) {
+        stack_postfork_cleanup();
+    } else {
+        // When threading is monkey-patched (e.g. by gevent), the threads registered from Python do not have the
+        // real pthread id, so this is the only registration that lets the sampler find the current thread.
+        register_current_thread_if_missing();
+    }
+
+    // Must be registered before stack_atfork_child, which expects the state to be cleaned up when it restarts the
+    // sampler.
+    register_fork_cleanup();
 
     // ProfilerState::start registers
     // dd_wrapper's pthread_atfork handler before Sampler::start is called,
@@ -772,6 +828,16 @@ Sampler::one_time_setup()
     // sampling thread restarts and calls intern_string.
     // More details in https://github.com/DataDog/dd-trace-py/pull/17183
     pthread_atfork(stack_atfork_prepare, stack_atfork_parent, stack_atfork_child);
+}
+
+void
+Sampler::register_fork_cleanup()
+{
+    // The hooks can take the Sampler locks with the GIL released before the sampler is first started (e.g. with
+    // DD_PROFILING_ENABLED=armed), so the child must get fresh locks and state even if the sampler never ran.
+    // This handler does not depend on dd_wrapper, so it can run before the dd_wrapper child handler.
+    static std::once_flag once;
+    std::call_once(once, []() { pthread_atfork(nullptr, nullptr, stack_postfork_cleanup); });
 }
 
 void
@@ -796,6 +862,12 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
     } else {
         auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
         if (maybe_thread_info) {
+            // The living threads are registered again on each profiler start: keep the asyncio loop that was linked
+            // to the thread before, unless the thread id now belongs to another thread.
+            if (it->second->native_id == native_id) {
+                (*maybe_thread_info)->asyncio_loop = it->second->asyncio_loop;
+                (*maybe_thread_info)->using_uvloop = it->second->using_uvloop;
+            }
             it->second = std::move(*maybe_thread_info);
         } else {
             if (!has_errored) {
@@ -820,6 +892,13 @@ Sampler::start()
 {
     static std::once_flag once;
     std::call_once(once, [this]() { this->one_time_setup(); });
+
+#if defined PL_LINUX
+    if (failed_safe_copy) {
+        sampler_active_.store(false);
+        return false;
+    }
+#endif
 
     sampler_active_.store(true);
 
@@ -940,15 +1019,24 @@ Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eag
 void
 Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
+    // Only sampling removes the links of the tasks that are done, so the links would accumulate while it is stopped.
+    if (!sampler_active_.load(std::memory_order_acquire)) {
+        return;
+    }
+
     std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->task_link_map()[child] = parent;
+    echion->link_task(parent, child);
 }
 
 void
 Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
 {
+    if (!sampler_active_.load(std::memory_order_acquire)) {
+        return;
+    }
+
     std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->weak_task_link_map()[child] = parent;
+    echion->weak_link_task(parent, child);
 }
 
 void

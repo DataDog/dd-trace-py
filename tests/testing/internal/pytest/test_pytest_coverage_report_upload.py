@@ -767,7 +767,7 @@ class TestCoverageConfigurationEdgeCases:
                 mock_client,
                 COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
-                ["--ddtrace", "--cov", "-v", "-s"],
+                ["--ddtrace", "--cov=.", "-v", "-s"],
             )
 
         # Should handle gracefully even with no tests
@@ -828,3 +828,90 @@ class TestCoverageConfigurationEdgeCases:
         encoded = lcov_content.encode("utf-8")
         decoded = encoded.decode("utf-8")
         assert decoded == lcov_content
+
+
+@pytest.mark.subprocess
+def test_report_upload_coverage_measures_installed_library() -> None:
+    """The report-upload coverage measures a library installed in a venv.
+
+    Newer coverage.py excludes recognized third-party locations (a venv's
+    site-packages) from measurement even inside a directory passed as source.
+    A [run] source_pkgs entry in the coverage configuration names the library
+    under test so the uploaded report includes it; this exercises the real
+    admission and LCOV remap path with a real venv interpreter inside the
+    workspace, calling start_coverage exactly the way the plugin does.
+    """
+    from pathlib import Path
+    import subprocess
+    import sys
+    import sysconfig
+    import tempfile
+
+    base = Path(tempfile.mkdtemp())
+    repo = base / "repo"
+    (repo / "tests").mkdir(parents=True)
+    (repo / "tests/test_x.py").write_text("value = 1\n")
+
+    # A real venv inside the workspace: pyvenv.cfg makes coverage.py treat its
+    # site-packages as third-party. The library under test is installed there.
+    venv = repo / ".cache/uv-test-environments/abc"
+    result = subprocess.run([sys.executable, "-m", "venv", str(venv)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    pyver = ".".join(str(p) for p in sys.version_info[:2])
+    site = venv / f"lib/python{pyver}/site-packages"
+    site.joinpath("installedlib").mkdir(parents=True)
+    site.joinpath("installedlib/__init__.py").write_text("def bump():\n    return 42\n")
+    (repo / ".coveragerc").write_text(
+        "[run]\n"
+        "source_pkgs = installedlib\n"
+        "\n"
+        "[paths]\n"
+        "installedlib =\n"
+        "    installedlib/\n"
+        "    */site-packages/installedlib/\n"
+    )
+
+    probe = base / "probe.py"
+    probe.write_text(
+        "import os\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "\n"
+        "# ddtrace and coverage.py resolve from the test environment, not this venv.\n"
+        f"sys.path.insert(0, {str(Path(sysconfig.get_paths()['purelib']))!r})\n"
+        "os.chdir(sys.argv[1])\n"
+        "\n"
+        "from ddtrace.contrib.internal.coverage.patch import start_coverage\n"
+        "\n"
+        "cov = start_coverage(source=[sys.argv[1]], data_file=sys.argv[2])\n"
+        "assert cov is not None, 'coverage.py failed to start'\n"
+        "\n"
+        "import installedlib\n"
+        "\n"
+        "assert installedlib.bump() == 42\n"
+        "exec(compile(open(sys.argv[1] + '/tests/test_x.py').read(),\n"
+        "     sys.argv[1] + '/tests/test_x.py', 'exec'))\n"
+        "cov.stop()\n"
+        "\n"
+        "measured = cov.get_data().measured_files()\n"
+        "lib_files = [f for f in measured if f.endswith('installedlib/__init__.py')]\n"
+        "assert lib_files, 'installed library was not measured: %r' % (measured,)\n"
+        "test_files = [f for f in measured if f.endswith('tests/test_x.py')]\n"
+        "assert test_files, 'workspace tests were not measured: %r' % (measured,)\n"
+        "\n"
+        "from ddtrace.contrib.internal.coverage.lcov import report_lcov\n"
+        "from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths\n"
+        "\n"
+        "lcov = sys.argv[2] + '.lcov'\n"
+        "report_lcov(cov, outfile=lcov, ignore_errors=True)\n"
+        "_remap_lcov_paths(Path(lcov), cov)\n"
+        "content = Path(lcov).read_text()\n"
+        "assert 'SF:installedlib/__init__.py' in content, content\n"
+    )
+
+    result = subprocess.run(
+        [str(venv / "bin/python"), str(probe), str(repo), str(base / ".coverage.probe")],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr

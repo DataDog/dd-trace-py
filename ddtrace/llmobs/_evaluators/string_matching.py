@@ -1,10 +1,10 @@
 """String matching evaluators for LLMObs."""
 
 import re
+from re import Pattern
 from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import Pattern
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
@@ -199,7 +199,7 @@ class RegexMatchEvaluator(BaseEvaluator):
             raise ValueError(f"match_mode must be 'search', 'match', or 'fullmatch', got: {match_mode}")
 
         try:
-            self.pattern: Pattern = re.compile(pattern, flags)
+            self.pattern: Pattern[str] = re.compile(pattern, flags)
         except re.error as e:
             raise ValueError(f"Invalid regex pattern: {e}")
 

@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import opentelemetry
 from opentelemetry.trace import set_span_in_context
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator

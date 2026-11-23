@@ -1,7 +1,7 @@
 from .utils.cache import cachedmethod
 
 
-class GlobMatcher(object):
+class GlobMatcher:
     """This is a backtracking implementation of the glob matching algorithm.
     The glob pattern language supports `*` as a multiple character wildcard which includes matches on `""`
     and `?` as a single character wildcard, but no escape sequences.
@@ -9,14 +9,12 @@ class GlobMatcher(object):
     The match method will be cached for quicker matching and is in a class to keep it from being global.
     """
 
-    def __init__(self, pattern):
-        # type: (str) -> None
+    def __init__(self, pattern: str) -> None:
         self.pattern = pattern.lower()
         self.wildcards_only = not (set(self.pattern) - {"?", "*"})
 
     @cachedmethod()
-    def match(self, subject):
-        # type: (str) -> bool
+    def match(self, subject: str) -> bool:
         pattern = self.pattern
         subject = subject.lower()
         px = 0  # [p]attern inde[x]
@@ -53,10 +51,10 @@ class GlobMatcher(object):
             return False
         return True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"GlobMatcher(pattern={self.pattern})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, GlobMatcher):
             return self.pattern == other.pattern
         return False

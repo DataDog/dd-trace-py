@@ -155,8 +155,8 @@ class JSONEvaluator(BaseEvaluator):
 
     def __init__(
         self,
-        required_keys: Optional[list] = None,
-        output_extractor: Optional[Callable[[Any], Union[str, dict, list, None]]] = None,
+        required_keys: Optional[list[str]] = None,
+        output_extractor: Optional[Callable[[Any], Union[str, dict[str, Any], list[Any], None]]] = None,
         name: Optional[str] = None,
     ):
         """Initialize the JSONEvaluator evaluator.

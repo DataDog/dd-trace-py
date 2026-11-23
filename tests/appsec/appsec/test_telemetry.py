@@ -11,7 +11,6 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 import ddtrace.appsec._ddwaf.ddwaf_types
 import ddtrace.appsec._ddwaf.waf
-from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import AppSecCallback
 from ddtrace.appsec._utils import DDWaf_result
@@ -21,6 +20,7 @@ from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.appsec.product import _disable_asm
 from ddtrace.internal.appsec.product import _enable_asm
+from ddtrace.internal.security._deduplications import deduplication
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.trace import tracer
@@ -171,7 +171,7 @@ def _assert_generate_metrics(generate_metrics, is_rule_triggered=False, is_block
             assert "framework:test" in metric["tags"] or "framework:flask" in metric["tags"], metric["tags"]
             assert len(metric["tags"]) == 1
         else:
-            pytest.fail("Unexpected generate_metrics {}".format(metric_name))
+            pytest.fail(f"Unexpected generate_metrics {metric_name}")
 
 
 def test_metrics_when_appsec_doesnt_runs(telemetry_writer, test_agent_session, tracer):
@@ -344,7 +344,7 @@ def test_log_metric_error_ddwaf_init(telemetry_writer, test_agent_session):
         """{"missing key 'conditions'": ['crs-913-110'], "missing key 'tags'": ['crs-942-100']}"""
     ]
     assert len(init_logs) == 1
-    assert "waf_version:{}".format(asm_config._ddwaf_version) in init_logs[0]["tags"]
+    assert f"waf_version:{asm_config._ddwaf_version}" in init_logs[0]["tags"]
 
 
 def test_log_metric_error_ddwaf_timeout(telemetry_writer, test_agent_session, tracer):
@@ -378,7 +378,7 @@ def test_log_metric_error_ddwaf_update(telemetry_writer, test_agent_session):
     list_metrics_logs = _get_appsec_logs(test_agent_session, telemetry_writer)
     update_logs = [log for log in list_metrics_logs if log["message"] == invalid_error]
     assert len(update_logs) == 1
-    assert "waf_version:{}".format(asm_config._ddwaf_version) in update_logs[0]["tags"]
+    assert f"waf_version:{asm_config._ddwaf_version}" in update_logs[0]["tags"]
 
 
 unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_context_eval

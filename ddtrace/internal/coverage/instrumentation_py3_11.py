@@ -49,7 +49,7 @@ class Instruction:
         self.offset = offset
         self.opcode = opcode
         self.arg = arg
-        self.targets: list["Branch"] = []
+        self.targets: list[Branch] = []
 
 
 class Branch:

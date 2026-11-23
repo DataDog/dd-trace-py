@@ -1,17 +1,15 @@
-import json
 import os
 from pathlib import Path
 import sys
+from unittest import mock
 from warnings import warn
 
-import mock
 import pytest
 
+import ddtrace
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
-import tests.test_module
-from tests.utils import DDTRACE_PATH
 from tests.utils import _build_env
 
 
@@ -76,14 +74,6 @@ def test_watchdog_install_uninstall():
     assert not any(isinstance(m, _UniversalModuleWatchdog) for m in sys.meta_path)
 
 
-def test_import_origin_hook_for_imported_module(module_watchdog):
-    hook = mock.Mock()
-    module = sys.modules[__name__]
-    module_watchdog.register_origin_hook(origin(module), hook)
-
-    hook.assert_called_once_with(module)
-
-
 def test_import_module_hook_for_imported_module(module_watchdog):
     hook = mock.Mock()
     module = sys.modules[__name__]
@@ -92,55 +82,63 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-def test_after_module_imported_decorator(module_watchdog):
-    hook = mock.Mock()
-    module = sys.modules[__name__]
-    module_watchdog.after_module_imported(module.__name__)(hook)
+@pytest.mark.parametrize("pre_exec_falls_back", [False, True])
+def test_pre_exec_hook_runs_wrapt_post_import_hooks(pre_exec_falls_back, run_python_code_in_subprocess):
+    # A pre-exec hook (e.g. IAST) must not skip the post-import hooks of a wrapt loader
+    # wrapped by the watchdog loader, whether it executes the module itself or falls back
+    # to the wrapped loader. The hooks must run exactly once.
+    code = f"""
+from pathlib import Path
+import sys
+import tempfile
 
-    hook.assert_called_once_with(module)
+from wrapt.importer import ImportHookFinder
+from wrapt.importer import register_post_import_hook
+
+from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.module import _UniversalModuleWatchdog
+
+module_name = "dd_wrapt_pre_exec_target"
+module_dir = tempfile.mkdtemp()
+Path(module_dir, module_name + ".py").write_text("source_executed = True\\n")
+sys.path.insert(0, module_dir)
+
+calls = []
+register_post_import_hook(lambda module: calls.append(module.__name__), module_name)
 
 
-@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
-def test_import_origin_hook_for_module_not_yet_imported():
-    import os
-    from pathlib import Path
-    import sys
+def pre_exec_hook(loader, module):
+    if {pre_exec_falls_back}:
+        loader.loader.exec_module(module)
+    else:
+        exec(compile("source_executed = False\\n", module.__file__, "exec"), module.__dict__)
 
-    from mock import mock
 
-    from ddtrace.internal.module import ModuleWatchdog
+ModuleWatchdog.register_pre_exec_module_hook(lambda name: name == module_name, pre_exec_hook)
 
-    name = "tests.test_module"
-    path = Path(os.getenv("MODULE_ORIGIN"))
-    hook = mock.Mock()
 
-    ModuleWatchdog.register_origin_hook(path, hook)
+class LateWatchdog(ModuleWatchdog):
+    pass
 
-    hook.assert_not_called()
-    assert str(path) in ModuleWatchdog._instance._hook_map
-    assert name not in sys.modules
 
-    # Check that we are not triggering hooks on the wrong module
-    import tests.internal  # noqa:F401
+# Registering a watchdog after wrapt's finder moves the watchdog finder ahead of it.
+LateWatchdog.install()
+wrapt_finder = next(f for f in sys.meta_path if isinstance(f, ImportHookFinder))
+assert sys.meta_path.index(_UniversalModuleWatchdog._instance) < sys.meta_path.index(wrapt_finder)
 
-    hook.assert_not_called()
+module = __import__(module_name)
 
-    # We import multiple times to check that the hook is called once only
-    __import__(name)
-    __import__(name)
-
-    assert name in sys.modules
-
-    hook.assert_called_once_with(sys.modules[name])
-
-    ModuleWatchdog.uninstall()
+assert module.source_executed is {pre_exec_falls_back}
+assert calls == [module_name], calls
+"""
+    out, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, (out, err)
 
 
 @pytest.mark.subprocess
 def test_import_module_hook_for_module_not_yet_imported():
     import sys
-
-    from mock import mock
+    from unittest import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 
@@ -166,74 +164,6 @@ def test_import_module_hook_for_module_not_yet_imported():
     hook.assert_called_once_with(sys.modules[name])
 
     ModuleWatchdog.uninstall()
-
-
-@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(json))))
-def test_module_deleted():
-    import gc
-    import os
-    from pathlib import Path
-    import sys
-
-    from ddtrace.internal.module import ModuleWatchdog
-
-    if "json" in sys.modules:
-        del sys.modules["json"]
-        gc.collect()
-
-    name = "json"
-    path = Path(os.getenv("MODULE_ORIGIN")).resolve()
-
-    class Counter(object):
-        count = 0
-
-        def __call__(self, _):
-            self.count += 1
-
-    hook = Counter()
-
-    ModuleWatchdog.register_origin_hook(path, hook)
-    ModuleWatchdog.register_module_hook(name, hook)
-
-    __import__(name)
-
-    assert hook.count == 2, hook.count
-
-    assert str(path) in ModuleWatchdog._instance._origin_map
-
-    del sys.modules[name]
-    gc.collect()
-    assert name not in sys.modules
-
-    assert str(path) not in ModuleWatchdog._instance._origin_map
-
-    # We are not deleting the registered hooks, so if we re-import the module
-    # new hook calls are triggered
-    __import__(name)
-
-    assert hook.count == 4
-
-    ModuleWatchdog.uninstall()
-
-
-def test_module_unregister_origin_hook(module_watchdog):
-    hook = mock.Mock()
-    path = origin(sys.modules[__name__])
-
-    module_watchdog.register_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[str(path)] == [hook]
-
-    module_watchdog.register_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[str(path)] == [hook, hook]
-
-    module_watchdog.unregister_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[str(path)] == [hook]
-
-    module_watchdog.unregister_origin_hook(path, hook)
-
-    assert module_watchdog._instance._hook_map[str(path)] == []
-
-    module_watchdog.unregister_origin_hook(path, hook)
 
 
 def test_module_unregister_module_hook(module_watchdog):
@@ -291,7 +221,7 @@ def test_module_import_hierarchy():
 
         def after_import(self, module):
             self.imports.add(module.__name__)
-            return super(ImportCatcher, self).after_import(module)
+            return super().after_import(module)
 
     ImportCatcher.install()
 
@@ -318,10 +248,6 @@ def test_post_run_module_hook():
     post_run_module = True  # noqa:F841
 
 
-def test_get_by_origin(module_watchdog):
-    assert module_watchdog.get_by_origin(Path(__file__.replace(".pyc", ".py"))) is sys.modules[__name__]
-
-
 @pytest.mark.subprocess
 def test_module_watchdog_propagation():
     # Test that the module watchdog propagates the module hooks to each
@@ -331,13 +257,13 @@ def test_module_watchdog_propagation():
     class BaseCollector(ModuleWatchdog):
         def __init__(self):
             self.__modules__ = set()
-            super(BaseCollector, self).__init__()
+            super().__init__()
 
         def after_import(self, module):
             # We save the module name as proof that the after_import method
             # was called on the subclass instance.
             self.__modules__.add(module.__name__)
-            return super(BaseCollector, self).after_import(module)
+            return super().after_import(module)
 
     class Alice(BaseCollector):
         pass
@@ -369,17 +295,17 @@ def test_module_watchdog_after_import_hook_isolation():
 
     class Failing(ModuleWatchdog):
         def after_import(self, module):
-            super(Failing, self).after_import(module)
+            super().after_import(module)
             raise ValueError("boom")
 
     class Collector(ModuleWatchdog):
         def __init__(self):
             self.__modules__ = set()
-            super(Collector, self).__init__()
+            super().__init__()
 
         def after_import(self, module):
             self.__modules__.add(module.__name__)
-            return super(Collector, self).after_import(module)
+            return super().after_import(module)
 
     Failing.install()
     Collector.install()
@@ -427,20 +353,6 @@ def test_module_watchdog_no_lazy_force_load():
         lazy.__spec__
     except AttributeError:
         pass
-
-
-@pytest.mark.subprocess(ddtrace_run=True)
-def test_module_watchdog_weakref():
-    """Check that we can ignore entries in sys.modules that cannot be weakref'ed."""
-    import sys
-
-    sys.modules["bogus"] = str.__init__  # Cannot create weak ref to method_descriptor
-
-    from ddtrace.internal.module import ModuleWatchdog
-
-    instance = ModuleWatchdog._instance
-    instance._om = None
-    assert ModuleWatchdog._instance._origin_map
 
 
 def test_module_watchdog_namespace_import():
@@ -577,7 +489,7 @@ def test_public_modules_in_ddtrace_contrib():
     """Ensures that integration implementation details are not accidentally added to our public api.
     By default, integrations should be defined in ddtrace/contrib/internal/<integration_name>/
     """
-    contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
+    contrib_dir = Path(ddtrace.__file__).resolve().parent / "contrib"
 
     public_modules = set()
     for directory, _, file_names in os.walk(contrib_dir):
@@ -739,7 +651,16 @@ def test_universal_module_watchdog_constant_find_spec_calls():
             sys.modules.pop("tests.submod.stuff", None)
 
 
+@pytest.mark.subprocess
 def test_universal_module_watchdog_first_registered_wins():
+    # DEV: Run in an isolated subprocess. Otherwise other pre_exec_module hooks
+    # already registered by product code elsewhere in the test session, or
+    # "tests.submod.stuff" already being cached in sys.modules from an unrelated
+    # test, can make this test flaky.
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+
     calls = []
 
     class First(ModuleWatchdog):
@@ -758,9 +679,6 @@ def test_universal_module_watchdog_first_registered_wins():
             lambda name: name == "tests.submod.stuff", lambda loader, module: calls.append("second")
         )
 
-        # Ensure the module is not already cached from a prior test so that the
-        # import below actually executes the module body and triggers the
-        # pre_exec hooks.
         sys.modules.pop("tests.submod.stuff", None)
         import tests.submod.stuff  # noqa:F401
 

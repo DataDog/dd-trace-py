@@ -1,10 +1,6 @@
 # this module must not load any other unsafe appsec module directly
 
-from _io import BytesIO
-from _io import StringIO
 import os
-from re import Match
-import sys
 from typing import Literal  # noqa:F401
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
@@ -12,30 +8,21 @@ from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.constants import Constant_Class  # noqa:F401
-
-
-TEXT_TYPES = (str, bytes, bytearray)
-
-TAINTEABLE_TYPES = TEXT_TYPES + (Match, BytesIO, StringIO)
-
-# Python 3.14+ template strings support
-if sys.version_info >= (3, 14):
-    from string.templatelib import Template as TemplateType
-
-    TAINTEABLE_TYPES += (TemplateType,)
+from ddtrace.internal.security._constants import ENABLED_ORIGIN
+from ddtrace.internal.security._constants import LOGIN_EVENTS_MODE as LOGIN_EVENTS_MODE
+from ddtrace.internal.security._constants import STACK_TRACE as STACK_TRACE
+from ddtrace.internal.security._constants import WAF_DEFAULTS
 
 
 class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
-    AGENTIC_ONBOARDING: Literal["DD_APPSEC_AGENTIC_ONBOARDING"] = "DD_APPSEC_AGENTIC_ONBOARDING"
-    RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
-    ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
-    ENABLED_ORIGIN_DEFAULT: Literal["default"] = "default"
-    ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
-    ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
+    ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = ENABLED_ORIGIN.UNKNOWN
+    ENABLED_ORIGIN_DEFAULT: Literal["default"] = ENABLED_ORIGIN.DEFAULT
+    ENABLED_ORIGIN_RC: Literal["remote_config"] = ENABLED_ORIGIN.RC
+    ENABLED_ORIGIN_ENV: Literal["env_var"] = ENABLED_ORIGIN.ENV
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -82,21 +69,6 @@ class APPSEC(metaclass=Constant_Class):
     AUTO_LOGIN_EVENTS_COLLECTION_MODE: Literal["_dd.appsec.user.collection_mode"] = "_dd.appsec.user.collection_mode"
     BLOCKED: Literal["appsec.blocked"] = "appsec.blocked"
     EVENT: Literal["appsec.event"] = "appsec.event"
-    AUTO_USER_INSTRUMENTATION_MODE: Literal["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = (
-        "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
-    )
-    AUTO_USER_INSTRUMENTATION_MODE_ENABLED: Literal["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = (
-        "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"
-    )
-    USER_MODEL_LOGIN_FIELD: Literal["DD_USER_MODEL_LOGIN_FIELD"] = "DD_USER_MODEL_LOGIN_FIELD"
-    USER_MODEL_EMAIL_FIELD: Literal["DD_USER_MODEL_EMAIL_FIELD"] = "DD_USER_MODEL_EMAIL_FIELD"
-    USER_MODEL_NAME_FIELD: Literal["DD_USER_MODEL_NAME_FIELD"] = "DD_USER_MODEL_NAME_FIELD"
-    OBFUSCATION_PARAMETER_KEY_REGEXP: Literal["DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"] = (
-        "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
-    )
-    OBFUSCATION_PARAMETER_VALUE_REGEXP: Literal["DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"] = (
-        "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
-    )
     RC_CLIENT_ID: Literal["_dd.rc.client_id"] = "_dd.rc.client_id"
     WAF_ERROR: Literal["_dd.appsec.waf.error"] = "_dd.appsec.waf.error"
     RASP_ERROR: Literal["_dd.appsec.rasp.error"] = "_dd.appsec.rasp.error"
@@ -105,73 +77,6 @@ class APPSEC(metaclass=Constant_Class):
     UNSUPPORTED_EVENT_TYPE: Literal["_dd.appsec.unsupported_event_type"] = "_dd.appsec.unsupported_event_type"
     SERVERLESS_TRACER_ENABLED: Literal["_dd.appsec.serverless.tracer"] = "_dd.appsec.serverless.tracer"
     SECURITY_RESPONSE_ID: Literal["[security_response_id]"] = "[security_response_id]"
-
-
-TELEMETRY_OFF_NAME = "OFF"
-TELEMETRY_DEBUG_NAME = "DEBUG"
-TELEMETRY_MANDATORY_NAME = "MANDATORY"
-TELEMETRY_INFORMATION_NAME = "INFORMATION"
-IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT = 250
-
-TELEMETRY_DEBUG_VERBOSITY = 10
-TELEMETRY_INFORMATION_VERBOSITY = 20
-TELEMETRY_MANDATORY_VERBOSITY = 30
-TELEMETRY_OFF_VERBOSITY = 40
-
-
-class IAST(metaclass=Constant_Class):
-    """Specific constants for IAST"""
-
-    ENV: Literal["DD_IAST_ENABLED"] = "DD_IAST_ENABLED"
-    ENV_DEBUG: Literal["DD_IAST_DEBUG"] = "DD_IAST_DEBUG"
-    ENV_PROPAGATION_ENABLED: Literal["DD_IAST_PROPAGATION_ENABLED"] = "DD_IAST_PROPAGATION_ENABLED"
-    ENV_SINK_POINTS_ENABLED: Literal["DD_IAST_SINK_POINTS_ENABLED"] = "DD_IAST_SINK_POINTS_ENABLED"
-    ENV_PROPAGATION_DEBUG: Literal["DD_IAST_PROPAGATION_DEBUG"] = "DD_IAST_PROPAGATION_DEBUG"
-    ENV_REQUEST_SAMPLING: Literal["DD_IAST_REQUEST_SAMPLING"] = "DD_IAST_REQUEST_SAMPLING"
-    DD_IAST_VULNERABILITIES_PER_REQUEST: Literal["DD_IAST_VULNERABILITIES_PER_REQUEST"] = (
-        "DD_IAST_VULNERABILITIES_PER_REQUEST"
-    )
-    DD_IAST_MAX_CONCURRENT_REQUESTS: Literal["DD_IAST_MAX_CONCURRENT_REQUESTS"] = "DD_IAST_MAX_CONCURRENT_REQUESTS"
-    ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
-    ENV_DD_IAST_TRUNCATION_MAX_VALUE_LENGTH: Literal["DD_IAST_TRUNCATION_MAX_VALUE_LENGTH"] = (
-        "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH"
-    )
-    LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
-    JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
-    STRUCT: Literal["iast"] = "iast"
-    ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
-    PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
-    ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
-    DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
-    SEP_MODULES: Literal[","] = ","
-    PATCH_ADDED_SYMBOL_PREFIX: Literal["_ddtrace_"] = "_ddtrace_"
-    REDACTION_ENABLED: Literal["DD_IAST_REDACTION_ENABLED"] = "DD_IAST_REDACTION_ENABLED"
-    REDACTION_NAME_PATTERN: Literal["DD_IAST_REDACTION_NAME_PATTERN"] = "DD_IAST_REDACTION_NAME_PATTERN"
-    REDACTION_VALUE_PATTERN: Literal["DD_IAST_REDACTION_VALUE_PATTERN"] = "DD_IAST_REDACTION_VALUE_PATTERN"
-    REDACTION_VALUE_NUMERAL: Literal["DD_IAST_REDACTION_VALUE_NUMERAL"] = "DD_IAST_REDACTION_VALUE_NUMERAL"
-    STACK_TRACE_ENABLED: Literal["DD_IAST_STACK_TRACE_ENABLED"] = "DD_IAST_STACK_TRACE_ENABLED"
-
-    METRICS_REPORT_LVLS = (
-        (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),
-        (TELEMETRY_INFORMATION_VERBOSITY, TELEMETRY_INFORMATION_NAME),
-        (TELEMETRY_MANDATORY_VERBOSITY, TELEMETRY_MANDATORY_NAME),
-        (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
-    )
-
-    TEXT_TYPES = TEXT_TYPES
-    TAINTEABLE_TYPES = TAINTEABLE_TYPES
-    REQUEST_CONTEXT_KEY: Literal["_iast_env"] = "_iast_env"
-
-
-class IAST_SPAN_TAGS(metaclass=Constant_Class):
-    """Specific constants for IAST span tags"""
-
-    TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
-    TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
-    TELEMETRY_SUPPRESSED_VULNERABILITY: Literal["_dd.iast.telemetry.suppressed.vulnerabilities"] = (
-        "_dd.iast.telemetry.suppressed.vulnerabilities"
-    )
-    TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
 class WAF_DATA_NAMES(metaclass=Constant_Class):
@@ -277,8 +182,6 @@ class API_SECURITY(metaclass=Constant_Class):
 
     ENABLED: Literal["_dd.appsec.api_security.enabled"] = "_dd.appsec.api_security.enabled"
     NORMALIZED_ROUTE: Literal["_dd.appsec.normalized_route"] = "_dd.appsec.normalized_route"
-    ENV_VAR_ENABLED: Literal["DD_API_SECURITY_ENABLED"] = "DD_API_SECURITY_ENABLED"
-    PARSE_RESPONSE_BODY: Literal["DD_API_SECURITY_PARSE_RESPONSE_BODY"] = "DD_API_SECURITY_PARSE_RESPONSE_BODY"
     REQUEST_HEADERS_NO_COOKIES: Literal["_dd.appsec.s.req.headers"] = "_dd.appsec.s.req.headers"
     REQUEST_COOKIES: Literal["_dd.appsec.s.req.cookies"] = "_dd.appsec.s.req.cookies"
     REQUEST_QUERY: Literal["_dd.appsec.s.req.query"] = "_dd.appsec.s.req.query"
@@ -287,7 +190,6 @@ class API_SECURITY(metaclass=Constant_Class):
     RESPONSE_HEADERS_NO_COOKIES: Literal["_dd.appsec.s.res.headers"] = "_dd.appsec.s.res.headers"
     RESPONSE_BODY: Literal["_dd.appsec.s.res.body"] = "_dd.appsec.s.res.body"
     SAMPLE_RATE: Literal["DD_API_SECURITY_REQUEST_SAMPLE_RATE"] = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
-    SAMPLE_DELAY: Literal["DD_API_SECURITY_SAMPLE_DELAY"] = "DD_API_SECURITY_SAMPLE_DELAY"
     MAX_PAYLOAD_SIZE: Literal[0x1000000] = 0x1000000  # 16MB maximum size
     ENDPOINT_COLLECTION: Literal["DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED"] = (
         "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED"
@@ -334,54 +236,19 @@ class PRODUCTS(metaclass=Constant_Class):
     ASM_FEATURES: Literal["ASM_FEATURES"] = "ASM_FEATURES"
 
 
-class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
-    """
-    string identifier for the mode of the user login events. Can be:
-    DISABLED: automatic login events are disabled. Can still be enabled by Remote Config.
-    ANONYMIZATION: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
-    EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
-    email, ...).
-    SDK: manually issued login events using the SDK.
-    """
-
-    DISABLED: Literal["disabled"] = "disabled"
-    IDENT: Literal["identification"] = "identification"
-    ANON: Literal["anonymization"] = "anonymization"
-    SDK: Literal["sdk"] = "sdk"
-    AUTO: Literal["auto"] = "auto"
-
-
 class DEFAULT(metaclass=Constant_Class):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
     TRACE_RATE_LIMIT = 100
-    WAF_TIMEOUT = 5.0  # float (milliseconds)
-    APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
-        r"(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer[_-]?"
-        r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\.net[_-]sessionid|sid|jwt"
-    )
-    APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
-        r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
-        r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
-        r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-        r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})'
-        r"|gh[opsu]_([0-9a-zA-Z]{36})"
-        r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
-        r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})"
-    )
+    WAF_TIMEOUT = WAF_DEFAULTS.TIMEOUT
+    APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = WAF_DEFAULTS.OBFUSCATION_PARAMETER_KEY_REGEXP
+    APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = WAF_DEFAULTS.OBFUSCATION_PARAMETER_VALUE_REGEXP
     ENDPOINT_COLLECTION_LIMIT = 300
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     BLOCKING: Literal["exploit_prevention"] = "exploit_prevention"
     STACK_TRACE_ID: Literal["stack_id"] = "stack_id"
-    EP_ENABLED: Literal["DD_APPSEC_RASP_ENABLED"] = "DD_APPSEC_RASP_ENABLED"
-    STACK_TRACE_ENABLED: Literal["DD_APPSEC_STACK_TRACE_ENABLED"] = "DD_APPSEC_STACK_TRACE_ENABLED"
-    MAX_STACK_TRACES: Literal["DD_APPSEC_MAX_STACK_TRACES"] = "DD_APPSEC_MAX_STACK_TRACES"
-    MAX_STACK_TRACE_DEPTH: Literal["DD_APPSEC_MAX_STACK_TRACE_DEPTH"] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
-    STACK_TOP_PERCENT: Literal["DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT"] = (
-        "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT"
-    )
 
     class TYPE(metaclass=Constant_Class):
         CMDI: Literal["command_injection"] = "command_injection"
@@ -407,12 +274,6 @@ class FINGERPRINTING(metaclass=Constant_Class):
     HEADER = PREFIX + "http.header"
     NETWORK = PREFIX + "http.network"
     SESSION = PREFIX + "session"
-
-
-class STACK_TRACE(metaclass=Constant_Class):
-    RASP = "exploit"
-    IAST = "vulnerability"
-    TAG: Literal["_dd.stack"] = "_dd.stack"
 
 
 # AI_GUARD constants moved to ddtrace/aiguard/_constants.py to align with the

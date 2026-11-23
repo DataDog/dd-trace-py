@@ -12,9 +12,9 @@ functions and enable taint tracking and vulnerability detection.
 """
 
 import functools
+from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import Text
 
 from wrapt import FunctionWrapper
 
@@ -25,10 +25,10 @@ from ddtrace.appsec._iast.secure_marks.configuration import SC_SANITIZER
 from ddtrace.appsec._iast.secure_marks.configuration import SC_VALIDATOR
 from ddtrace.appsec._iast.secure_marks.sanitizers import create_sanitizer
 from ddtrace.appsec._iast.secure_marks.validators import create_validator
-from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
-from ddtrace.appsec._patch_utils import wrap_object
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
+from ddtrace.internal.security._patch_utils import wrap_object
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -70,7 +70,7 @@ class IASTFunction:
         self.force = force
 
     @staticmethod
-    def force_wrapper(module: Text, name: Text, wrapper: Callable):
+    def force_wrapper(module: str, name: str, wrapper: Callable):
         """Force immediate wrapping of a module's function.
 
         This method attempts to immediately wrap a function in a module, regardless of
@@ -129,7 +129,7 @@ class WrapFunctonsForIAST:
         self.functions: set[IASTFunction] = set()
         self.testing: bool = asm_config._iast_is_testing
 
-    def wrap_function(self, name, function, hook):
+    def wrap_function(self, name: str, function: str, hook: Callable[..., Any]) -> None:
         """Add a function for lazy patching.
 
         Args:
@@ -149,7 +149,7 @@ class WrapFunctonsForIAST:
         """
         self.functions.add(IASTFunction(name, function, hook, True))
 
-    def patch(self):
+    def patch(self) -> None:
         """Apply patches to all registered functions.
 
         This method attempts to patch all functions in the functions set. If in testing
@@ -213,6 +213,7 @@ def _apply_security_control(iast_funcs: WrapFunctonsForIAST, control: SecurityCo
         control: SecurityControl object containing the configuration
     """
     # Create the appropriate wrapper function
+    wrapper_func: Callable[..., object]
     if control.control_type == SC_SANITIZER:
         wrapper_func = functools.partial(create_sanitizer, control.vulnerability_types)
     elif control.control_type == SC_VALIDATOR:

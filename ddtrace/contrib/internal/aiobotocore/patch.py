@@ -16,6 +16,8 @@ from ddtrace.constants import SPAN_KIND
 # wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+from ddtrace.contrib.internal.botocore.patch import _remove_before_sign_handler
+from ddtrace.contrib.internal.botocore.patch import _service_disabled_in_progress
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -93,12 +95,12 @@ def unpatch():
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
     def __init__(self, body, parent_span):
-        super(WrappedClientResponseContentProxy, self).__init__(body)
+        super().__init__(body)
         self._self_parent_span = parent_span
 
     async def read(self, *args, **kwargs):
         # async read that must be child of the parent span operation
-        operation_name = "{}.read".format(self._self_parent_span.name)
+        operation_name = f"{self._self_parent_span.name}.read"
 
         with tracer.start_span(name=operation_name, child_of=self._self_parent_span) as span:
             span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
@@ -133,16 +135,29 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    fallback_service = config._get_service(default="aws.{}".format(endpoint_name))
+    # Service disabled via DD_TRACE_AWS_SDK_<SERVICE>_ENABLED=false: no span and no propagation headers.
+    if endpoint_name in config.botocore["disabled_services"]:
+        _remove_before_sign_handler(instance)
+        token = _http_propagation_suppressed.set(True)
+        disabled_token = _service_disabled_in_progress.set(True)
+        try:
+            return await original_func(*args, **kwargs)
+        finally:
+            _service_disabled_in_progress.reset(disabled_token)
+            _http_propagation_suppressed.reset(token)
+
+    # An explicit integration service (service or service_name) is used as-is; otherwise match botocore's
+    # ``aws.<endpoint>`` rather than falling back to DD_SERVICE.
+    service = ext_service(None, config.aiobotocore)
+    if service is None:
+        service = schematize_service_name(f"aws.{endpoint_name}")
     with tracer.trace(
-        schematize_cloud_api_operation(
-            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
-        ),
+        schematize_cloud_api_operation(f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
         set_service_and_source(
             span,
-            ext_service(None, config.aiobotocore, default=schematize_service_name(fallback_service)),
+            service,
             config.aiobotocore,
         )
         span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
@@ -156,7 +171,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             operation = get_argument_value(args, kwargs, 0, "operation_name")
             params = get_argument_value(args, kwargs, 1, "api_params")
 
-            span.resource = "{}.{}".format(endpoint_name, operation.lower())
+            span.resource = f"{endpoint_name}.{operation.lower()}"
 
             if params and not config.aiobotocore["tag_no_params"]:
                 aws._add_api_param_span_tags(span, endpoint_name, params)
