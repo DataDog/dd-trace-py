@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security: Fixes an issue where custom security controls configured through
+    ``DD_IAST_SECURITY_CONTROLS_CONFIGURATION`` with the documented ``CMDI`` alias for
+    ``COMMAND_INJECTION`` were rejected and not applied.

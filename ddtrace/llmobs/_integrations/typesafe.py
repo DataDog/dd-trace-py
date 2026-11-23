@@ -166,7 +166,7 @@ def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Option
     aliases = {} if aliases is None else aliases
     found = {} if found is None else found
     if value is None or isinstance(value, (str, bytes, bytearray)):
-        return load_data_value(value)  # type: ignore[no-untyped-call]
+        return load_data_value(value)
     if isinstance(value, Mapping):
         return {str(k): _to_data(v, aliases, found) for k, v in value.items()}
     if isinstance(value, Sequence):
@@ -196,4 +196,4 @@ def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Option
             for name, field in model_fields.items()
             if getattr(value, name, None) is not None
         }
-    return load_data_value(value)  # type: ignore[no-untyped-call]
+    return load_data_value(value)

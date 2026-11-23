@@ -1,5 +1,6 @@
 from collections import defaultdict
 from dataclasses import FrozenInstanceError
+from functools import cache
 
 from ddtrace._monkey import _get_patched_modules
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
@@ -13,6 +14,7 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.openai import openai_construct_completion_from_streamed_chunks
 from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
+from ddtrace.internal.utils.version import parse_version
 
 
 log = get_logger(__name__)
@@ -32,7 +34,16 @@ def _openai_is_patched():
     return "openai" in _get_patched_modules()
 
 
-def has_downstream_openai_span(kwargs, model=None):
+@cache
+def _litellm_sends_openai_chat_with_post():
+    """Return True if litellm sends OpenAI chat requests with the post method of the OpenAI client."""
+    import litellm
+
+    version = getattr(getattr(litellm, "_version", None), "version", "")
+    return parse_version(version) >= (1, 108, 1)
+
+
+def has_downstream_openai_span(kwargs, model=None, operation=""):
     """
     Determine whether an LLM span will be submitted for the given request from outside the LiteLLM integration.
 
@@ -40,6 +51,7 @@ def has_downstream_openai_span(kwargs, model=None):
         - request is not streamed
         - model provider is OpenAI/AzureOpenAI
         - the OpenAI integration is enabled
+        - litellm sends the request with a create method of the OpenAI SDK. From 1.108.1, OpenAI chat requests use post.
     """
     stream = kwargs.get("stream", False)
     model_lower = model.lower() if model else ""
@@ -62,7 +74,30 @@ def has_downstream_openai_span(kwargs, model=None):
         return False
     # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
     is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
-    return is_openai_model and not stream and _openai_is_patched()
+    if not (is_openai_model and not stream and _openai_is_patched()):
+        return False
+    if not _litellm_sends_openai_chat_with_post():
+        return True
+    # From litellm 1.108.1, the OpenAI chat handler calls post. The Azure and text completion handlers call create.
+    provider = kwargs.get("custom_llm_provider") or model_lower.partition("/")[0]
+    provider = provider.lower() if isinstance(provider, str) else ""
+    deployment_id = kwargs.get("deployment_id")
+    if provider == "azure" or kwargs.get("azure") is True or deployment_id is not None:
+        # litellm sends Azure o-series models to the OpenAI chat handler.
+        model_info = kwargs.get("model_info")
+        base_model = kwargs.get("base_model") or (
+            model_info.get("base_model") if isinstance(model_info, dict) else None
+        )
+        return not any(
+            series in str(base_model or deployment_id or model) for series in ("o1", "o3", "o4", "o_series/")
+        )
+    if provider in ("azure_text", "text-completion-openai") or model in getattr(
+        litellm, "open_ai_text_completion_models", ()
+    ):
+        return True
+    # litellm.text_completion() sends an OpenAI model that is not a chat model to the text completion handler.
+    name = model[len("openai/") :] if model_lower.startswith("openai/") else model
+    return is_completion_operation(operation) and name not in getattr(litellm, "open_ai_chat_completion_models", ())
 
 
 class BaseLiteLLMStreamHandler:
