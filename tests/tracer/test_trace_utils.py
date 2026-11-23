@@ -1,5 +1,6 @@
 from ipaddress import ip_network
 from unittest import mock
+import wsgiref.headers
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -529,7 +530,7 @@ def test_set_http_meta_custom_errors_via_env():
         assert span3.error == 0
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     assert int_config.myint.is_header_tracing_configured is False
     trace_utils.set_http_meta(
@@ -544,7 +545,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
@@ -573,7 +574,7 @@ def test_set_http_meta_headers_useragent_tracing_enabled(
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -586,7 +587,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -802,6 +803,37 @@ def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, e
     assert ip == expected
 
 
+@pytest.mark.parametrize(
+    "configured_header,header_lines,expected",
+    [
+        (None, [("X-Forwarded-For", "1.1.1.1"), ("x-forwarded-for", "10.0.0.1, 8.8.8.8")], "1.1.1.1"),
+        (
+            None,
+            [("X-Forwarded-For", "10.0.0.1"), ("X-Real-Ip", "4.4.4.4"), ("X-Forwarded-For", "10.0.0.2")],
+            "10.0.0.1",
+        ),
+        (
+            None,
+            [("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1"), ("x-forwarded-for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        (
+            None,
+            [("X_Forwarded_For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1"), ("x_forwarded_for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        ("X-Use-This", [("X-Use-This", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X-Use-This", "4.4.4.4")], "4.4.4.4"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X_Use_This", "1.1.1.1")], ""),
+    ],
+)
+def test_get_request_header_client_ip_repeated_and_respelled_header_lines(configured_header, header_lines, expected):
+    headers = wsgiref.headers.Headers(header_lines)
+    with override_global_config(dict(_client_ip_header=configured_header)):
+        assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
+
+
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
     with override_global_config(dict(_asm_enabled=False)):
         int_config.myint.http._header_tags = {"enabled": True}
@@ -859,7 +891,7 @@ def test_ip_subnet_regression():
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
@@ -884,7 +916,7 @@ def test_set_http_meta_headers_useragent_tracing_disabled(
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils.log")
+@mock.patch("ddtrace._trace.http_meta.log")
 @pytest.mark.parametrize(
     "val, bad",
     [

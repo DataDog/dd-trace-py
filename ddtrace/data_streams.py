@@ -1,8 +1,19 @@
+from typing import Callable
+from typing import Optional
+from typing import Union
+
 from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
+from ddtrace.internal.datastreams.processor import DataStreamsCtx
 
 
-def set_consume_checkpoint(typ, source, carrier_get, manual_checkpoint=True, tags=None):
+def set_consume_checkpoint(
+    typ: str,
+    source: str,
+    carrier_get: Callable[[str], Optional[Union[str, bytes]]],
+    manual_checkpoint: bool = True,
+    tags: Optional[list[str]] = None,
+) -> Optional[DataStreamsCtx]:
     """
     :param typ: The type of the checkpoint, usually the streaming technology being used.
         Examples include kafka, kinesis, sns etc. (str)
@@ -26,9 +37,15 @@ def set_consume_checkpoint(typ, source, carrier_get, manual_checkpoint=True, tag
         if tags:
             edge_tags.extend(tags)
         return processor.set_checkpoint(edge_tags)
+    return None
 
 
-def set_produce_checkpoint(typ, target, carrier_set, tags=None):
+def set_produce_checkpoint(
+    typ: str,
+    target: str,
+    carrier_set: Callable[[str, str], object],
+    tags: Optional[list[str]] = None,
+) -> Optional[DataStreamsCtx]:
     """
     :param typ: The type of the checkpoint, usually the streaming technology being used. Examples include
         kafka, kinesis, sns etc. (str)
@@ -50,3 +67,4 @@ def set_produce_checkpoint(typ, target, carrier_set, tags=None):
         if pathway is not None:
             carrier_set(PROPAGATION_KEY_BASE_64, pathway.encode_b64())
         return pathway
+    return None

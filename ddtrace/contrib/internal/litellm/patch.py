@@ -57,7 +57,7 @@ def _request_event(operation, args, kwargs, router=None):
         model=model,
         tags=tags,
         # Router spans are always submitted; plain calls defer to the OpenAI integration's span when there is one.
-        submit_to_llmobs=router is not None or not has_downstream_openai_span(kwargs, model),
+        submit_to_llmobs=router is not None or not has_downstream_openai_span(kwargs, model, operation),
         request_args=args,
         request_kwargs=request_kwargs,
         operation=operation,

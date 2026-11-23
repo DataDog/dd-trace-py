@@ -43,14 +43,14 @@ class LLMObsTelemetryMetrics:
     COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
 
-def _find_tag_value_from_tags(tags, tag_key):
+def _find_tag_value_from_tags(tags: list[str], tag_key: str) -> Optional[str]:
     tag_string = next((tag for tag in tags if tag.startswith(f"{tag_key}:")), None)
     if not tag_string:
         return None
     return tag_string.split(f"{tag_key}:")[-1]
 
 
-def _get_tags_from_span_event(event: LLMObsSpanEvent):
+def _get_tags_from_span_event(event: LLMObsSpanEvent) -> list[tuple[str, str]]:
     span_kind = event.get("meta", {}).get("span", {}).get("kind", "")
     integration = _find_tag_value_from_tags(event.get("tags", []), "integration")
     ml_app = _find_tag_value_from_tags(event.get("tags", []), "ml_app")
@@ -65,7 +65,7 @@ def _get_tags_from_span_event(event: LLMObsSpanEvent):
     ]
 
 
-def _base_tags(error: Optional[str]):
+def _base_tags(error: Optional[str]) -> list[tuple[str, str]]:
     tags = [("error", "1" if error else "0")]
     if error:
         tags.append(("error_type", error))
@@ -81,7 +81,7 @@ def record_llmobs_enabled(
     instrumented_proxy_urls: Optional[set[str]],
     ml_app: Optional[str],
     sample_rate: float,
-):
+) -> None:
     tags = _base_tags(error)
     tags.extend(
         [
@@ -102,13 +102,13 @@ def record_llmobs_enabled(
     )
 
 
-def record_span_started():
+def record_span_started() -> None:
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_STARTED, value=1
     )
 
 
-def record_span_created(span: _LLMObsSpan, export_mode: LLMObsExportMode):
+def record_span_created(span: _LLMObsSpan, export_mode: LLMObsExportMode) -> None:
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
@@ -139,7 +139,7 @@ def record_span_created(span: _LLMObsSpan, export_mode: LLMObsExportMode):
     )
 
 
-def record_span_event_raw_size(event: LLMObsSpanEvent, raw_event_size: int):
+def record_span_event_raw_size(event: LLMObsSpanEvent, raw_event_size: int) -> None:
     telemetry_writer.add_distribution_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.RAW_SPAN_SIZE,
@@ -148,7 +148,7 @@ def record_span_event_raw_size(event: LLMObsSpanEvent, raw_event_size: int):
     )
 
 
-def record_span_event_size(event: LLMObsSpanEvent, event_size: int):
+def record_span_event_size(event: LLMObsSpanEvent, event_size: int) -> None:
     tags = _get_tags_from_span_event(event)
     truncated = DROPPED_IO_COLLECTION_ERROR in event.get("collection_errors", [])
     tags.append(("truncated", str(int(truncated))))
@@ -157,7 +157,7 @@ def record_span_event_size(event: LLMObsSpanEvent, event_size: int):
     )
 
 
-def record_dropped_payload(num_events: int, event_type: str, error: str):
+def record_dropped_payload(num_events: int, event_type: str, error: str) -> None:
     name = (
         LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS
         if event_type == "evaluation_metric"
@@ -172,7 +172,7 @@ def record_dropped_payload(num_events: int, event_type: str, error: str):
     )
 
 
-def record_llmobs_annotate(span: Optional[_LLMObsSpan], error: Optional[str]):
+def record_llmobs_annotate(span: Optional[_LLMObsSpan], error: Optional[str]) -> None:
     tags = _base_tags(error)
     span_kind = "N/A"
     is_root_span = "0"
@@ -227,7 +227,7 @@ def record_llmobs_user_processor_called(error: bool) -> None:
     )
 
 
-def record_llmobs_submit_evaluation(join_on: dict[str, Any], metric_type: str, error: Optional[str]):
+def record_llmobs_submit_evaluation(join_on: dict[str, Any], metric_type: str, error: Optional[str]) -> None:
     _metric_type = metric_type if metric_type in ("categorical", "score", "boolean", "json") else "other"
     custom_joining_key = str(int(join_on.get("tag") is not None))
     tags = _base_tags(error)
@@ -237,7 +237,7 @@ def record_llmobs_submit_evaluation(join_on: dict[str, Any], metric_type: str, e
     )
 
 
-def record_llmobs_submit_feedback(target_type: str, metric_type: str, error: Optional[str]):
+def record_llmobs_submit_feedback(target_type: str, metric_type: str, error: Optional[str]) -> None:
     _metric_type = metric_type if metric_type in ("categorical", "score", "boolean", "json", "text") else "other"
     _target_type = target_type if target_type in ("span_id", "trace_id", "session_id", "feedback_join_key") else "other"
     tags = _base_tags(error)
@@ -250,7 +250,7 @@ def record_llmobs_submit_feedback(target_type: str, metric_type: str, error: Opt
     )
 
 
-def record_span_exported(span: Optional[_LLMObsSpan], error: Optional[str]):
+def record_span_exported(span: Optional[_LLMObsSpan], error: Optional[str]) -> None:
     tags = _base_tags(error)
     span_kind = "N/A"
     is_root_span = "0"
@@ -263,28 +263,28 @@ def record_span_exported(span: Optional[_LLMObsSpan], error: Optional[str]):
     )
 
 
-def record_user_flush(error: Optional[str]):
+def record_user_flush(error: Optional[str]) -> None:
     tags = _base_tags(error)
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.USER_FLUSHES, value=1, tags=tuple(tags)
     )
 
 
-def record_inject_distributed_headers(error: Optional[str]):
+def record_inject_distributed_headers(error: Optional[str]) -> None:
     tags = _base_tags(error)
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.INJECT_HEADERS, value=1, tags=tuple(tags)
     )
 
 
-def record_activate_distributed_headers(error: Optional[str]):
+def record_activate_distributed_headers(error: Optional[str]) -> None:
     tags = _base_tags(error)
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ACTIVATE_HEADERS, value=1, tags=tuple(tags)
     )
 
 
-def record_prompt_source(source: PromptSource):
+def record_prompt_source(source: PromptSource) -> None:
     """Record the source of a prompt fetch."""
     tags = [("from", source.value)]
     telemetry_writer.add_count_metric(
@@ -295,7 +295,7 @@ def record_prompt_source(source: PromptSource):
     )
 
 
-def record_prompt_fetch_error(error_type: str):
+def record_prompt_fetch_error(error_type: str) -> None:
     """Record a prompt fetch error."""
     tags = [("error_type", error_type)]
     telemetry_writer.add_count_metric(
@@ -306,7 +306,7 @@ def record_prompt_fetch_error(error_type: str):
     )
 
 
-def record_prompt_crud_error(method: str, error_type: str, status: int):
+def record_prompt_crud_error(method: str, error_type: str, status: int) -> None:
     """Record a prompt CRUD API error."""
     tags = [("method", method), ("error_type", error_type), ("status", str(status))]
     telemetry_writer.add_count_metric(
