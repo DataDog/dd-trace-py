@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    pydantic_ai: Adds tracing and LLM Observability support for ``pydantic-ai-slim`` 2.x, including
+    streamed output from ``StreamedRunResult.stream_output()`` and ``StreamedRunResult.stream_response()``,
+    and history processors, tool preparation and native tools configured as agent capabilities.
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the Pydantic AI agent span had no output value when the
+    streamed result was consumed with ``StreamedRunResult.stream_output()``.

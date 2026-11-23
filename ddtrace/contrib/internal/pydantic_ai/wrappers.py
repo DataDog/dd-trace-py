@@ -90,6 +90,15 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
         self._generator = TracedPydanticGenerator(self.__wrapped__.stream_responses(*args, **kwargs), self._dd_ctx)
         return self._generator
 
+    # 2.x removed stream, stream_structured and stream_responses in favor of these two.
+    def stream_output(self, *args, **kwargs):
+        self._generator = TracedPydanticGenerator(self.__wrapped__.stream_output(*args, **kwargs), self._dd_ctx)
+        return self._generator
+
+    def stream_response(self, *args, **kwargs):
+        self._generator = TracedPydanticGenerator(self.__wrapped__.stream_response(*args, **kwargs), self._dd_ctx)
+        return self._generator
+
     async def get_output(self):
         result = await self.__wrapped__.get_output()
         finish_request(self._dd_ctx, result)
