@@ -1,7 +1,7 @@
 from concurrent import futures
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler
-from http.server import HTTPServer
+from http.server import ThreadingHTTPServer
 import socket
 from threading import Event
 from threading import Thread
@@ -114,37 +114,51 @@ def _capture_http_traces(port):
         yield requests
 
 
+class _CapturedHTTPRequests(list):
+    port: int
+
+
 @contextmanager
 def _capture_http_requests(port, request_type=None, include_headers=False):
-    requests = []
+    requests = _CapturedHTTPRequests()
 
     class RequestHandler(BaseHTTPRequestHandler):
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(5)
+
         def do_POST(self):
             body = self.rfile.read(int(self.headers["Content-Length"]))
             if include_headers:
-                requests.append((self.path, dict(self.headers), body))
+                request = (self.path, dict(self.headers), body)
             elif request_type is None:
-                requests.append(body)
+                request = body
             else:
                 request = request_type()
                 request.ParseFromString(body)
-                requests.append(request)
             self.send_response(200)
             self.send_header("Content-Length", "0")
             self.end_headers()
+            self.wfile.flush()
+            requests.append(request)
 
         def log_message(self, format_string, *args):
             pass
 
-    server = HTTPServer(("127.0.0.1", port), RequestHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", port), RequestHandler)
+    server.daemon_threads = False
+    requests.port = server.server_port
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
         yield requests
     finally:
-        server.shutdown()
-        thread.join()
-        server.server_close()
+        try:
+            server.shutdown()
+            thread.join(timeout=5)
+        finally:
+            server.server_close()
+        assert not thread.is_alive(), "HTTP test receiver did not stop"
 
 
 @contextmanager

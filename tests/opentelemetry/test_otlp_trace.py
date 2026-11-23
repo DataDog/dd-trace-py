@@ -132,34 +132,13 @@ def test_otlp_traces_sent_via_grpc_with_global_protocol():
 )
 def test_otlp_traces_sent_via_http():
     """With OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/json, traces are exported as OTLP JSON."""
-    from http.server import BaseHTTPRequestHandler
     import json
     import os
-    import queue
-    import socketserver
-    import threading
 
-    received = queue.Queue()
+    from tests.opentelemetry.utils import _capture_http_requests
 
-    class OtlpHandler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
-            received.put((self.path, self.headers.get("Content-Type", ""), body))
-            self.send_response(200)
-            self.end_headers()
-
-        def log_message(self, *args):
-            pass
-
-    with socketserver.TCPServer(("127.0.0.1", 0), OtlpHandler) as server:
-        port = server.server_address[1]
-        # Set the endpoint before importing ddtrace so the NativeWriter picks it up at init time.
-        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
-
-        t = threading.Thread(target=server.serve_forever)
-        t.daemon = True
-        t.start()
+    with _capture_http_requests(0, include_headers=True) as received:
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{received.port}/v1/traces"
 
         from ddtrace.trace import tracer
 
@@ -179,10 +158,10 @@ def test_otlp_traces_sent_via_http():
             pass
 
         tracer.flush()
-        server.shutdown()
 
-    assert not received.empty(), "No OTLP payload received by mock server"
-    path, content_type, body = received.get_nowait()
+    assert received, "No OTLP payload received by mock server"
+    path, headers, body = received[0]
+    content_type = headers.get("Content-Type", headers.get("content-type", ""))
     assert path == "/v1/traces", f"Unexpected path: {path}"
     assert "json" in content_type, f"Expected JSON content type, got: {content_type}"
     payload = json.loads(body)
@@ -232,41 +211,16 @@ def test_otlp_trace_metrics_exported_via_http():
     Service identity is reported as resource attributes; a span whose service differs from the
     configured default additionally carries service.name on its data point.
     """
-    from http.server import BaseHTTPRequestHandler
-    from http.server import ThreadingHTTPServer
     import json
     import os
-    import queue
-    import threading
     import time
 
-    received = queue.Queue()
+    from tests.opentelemetry.utils import _capture_http_requests
 
-    class OtlpHandler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            length = int(self.headers.get("Content-Length", 0))
-            request = (self.path, self.headers.get("Content-Type", ""), self.rfile.read(length))
-            self.send_response(200)
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            self.wfile.flush()
-            received.put(request)
-
-        def log_message(self, *args):
-            pass
-
-    with ThreadingHTTPServer(("127.0.0.1", 0), OtlpHandler) as server:
-        port = server.server_address[1]
-        # OTEL_EXPORTER_OTLP_METRICS_ENDPOINT is used as-is (full path) by libdatadog.
-        os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/metrics"
-        # Route traces to the mock server too so the native writer doesn't log send failures.
-        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
-        # The flush cadence is fixed at 10s; shorten it for the test so the bucket exports quickly.
+    with _capture_http_requests(0, include_headers=True) as received:
+        os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{received.port}/v1/metrics"
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{received.port}/v1/traces"
         os.environ["_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL"] = "1000"
-
-        t = threading.Thread(target=server.serve_forever)
-        t.daemon = True
-        t.start()
 
         from ddtrace.trace import tracer
 
@@ -278,22 +232,19 @@ def test_otlp_trace_metrics_exported_via_http():
         tracer.flush()
 
         metrics_payload = None
-        deadline = time.time() + 15
-        while time.time() < deadline:
-            try:
-                path, content_type, body = received.get(timeout=1)
-            except queue.Empty:
-                continue
-            if path == "/v1/metrics":
-                metrics_payload = (content_type, body)
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            metrics_payload = next((request for request in received if request[0] == "/v1/metrics"), None)
+            if metrics_payload is not None:
                 break
+            time.sleep(0.01)
 
         # Drain and stop the native exporter while its local endpoint is still available.
         tracer.shutdown()
-        server.shutdown()
 
     assert metrics_payload is not None, "No OTLP metrics payload received by mock server"
-    content_type, body = metrics_payload
+    _, headers, body = metrics_payload
+    content_type = headers.get("Content-Type", headers.get("content-type", ""))
     assert "json" in content_type, f"Expected JSON content type, got: {content_type}"
     payload = json.loads(body)
     resource_metrics = payload["resourceMetrics"][0]
@@ -317,33 +268,12 @@ def test_otlp_trace_metrics_exported_via_http():
 )
 def test_otlp_traces_sent_via_http_protobuf_default():
     """With no protocol configured, OTLP traces default to http/protobuf on the HTTP endpoint."""
-    from http.server import BaseHTTPRequestHandler
     import os
-    import queue
-    import socketserver
-    import threading
 
-    received = queue.Queue()
+    from tests.opentelemetry.utils import _capture_http_requests
 
-    class OtlpHandler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
-            received.put((self.path, self.headers.get("Content-Type", ""), body))
-            self.send_response(200)
-            self.end_headers()
-
-        def log_message(self, *args):
-            pass
-
-    with socketserver.TCPServer(("127.0.0.1", 0), OtlpHandler) as server:
-        port = server.server_address[1]
-        # Set the endpoint before importing ddtrace so the NativeWriter picks it up at init time.
-        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
-
-        t = threading.Thread(target=server.serve_forever)
-        t.daemon = True
-        t.start()
+    with _capture_http_requests(0, include_headers=True) as received:
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{received.port}/v1/traces"
 
         from ddtrace.trace import tracer
 
@@ -351,10 +281,10 @@ def test_otlp_traces_sent_via_http_protobuf_default():
             pass
 
         tracer.flush()
-        server.shutdown()
 
-    assert not received.empty(), "No OTLP payload received by mock server"
-    path, content_type, body = received.get_nowait()
+    assert received, "No OTLP payload received by mock server"
+    path, headers, body = received[0]
+    content_type = headers.get("Content-Type", headers.get("content-type", ""))
     assert path == "/v1/traces", f"Unexpected path: {path}"
     assert "protobuf" in content_type, f"Expected protobuf content type, got: {content_type}"
     # Decode-free protobuf checks (opentelemetry-proto isn't a dependency of this venv): an OTLP

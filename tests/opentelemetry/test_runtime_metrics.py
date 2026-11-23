@@ -19,7 +19,6 @@ OTLP_RUNTIME_METRICS_ENV = {
     "DD_RUNTIME_METRICS_ENABLED": "true",
     "DD_METRICS_OTEL_ENABLED": "true",
     "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
-    "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://127.0.0.1:14321/v1/metrics",
     "DD_DOGSTATSD_URL": "udp://127.0.0.1:18125",
 }
 
@@ -27,8 +26,7 @@ OTLP_RUNTIME_METRICS_ENV = {
 @requires_exporter
 @pytest.mark.subprocess(ddtrace_run=True, env=OTLP_RUNTIME_METRICS_ENV)
 def test_runtime_metrics_exported_over_otlp():
-    from opentelemetry.metrics import get_meter_provider
-    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+    import os
 
     from ddtrace.internal.runtime import get_runtime_id
     from ddtrace.runtime import RuntimeMetrics
@@ -37,14 +35,20 @@ def test_runtime_metrics_exported_over_otlp():
     from tests.opentelemetry.utils import metric_names
 
     with capture_dogstatsd_packets(18125) as dogstatsd_packets:
-        with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
+        with _capture_http_requests(0) as requests:
+            port = requests.port
+            os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/metrics"
+            from opentelemetry.metrics import get_meter_provider
+            from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+
             assert get_meter_provider().force_flush()
+        requests = [ExportMetricsServiceRequest.FromString(body) for body in requests]
         # A DogStatsD worker would flush when the runtime metrics are disabled.
         RuntimeMetrics.disable()
-        with _capture_http_requests(14321, ExportMetricsServiceRequest) as disabled_requests:
+        with _capture_http_requests(port, ExportMetricsServiceRequest) as disabled_requests:
             assert get_meter_provider().force_flush()
         RuntimeMetrics.enable()
-        with _capture_http_requests(14321, ExportMetricsServiceRequest) as enabled_again_requests:
+        with _capture_http_requests(port, ExportMetricsServiceRequest) as enabled_again_requests:
             assert get_meter_provider().force_flush()
         # Leave nothing to export at exit, once the capturing server is gone.
         RuntimeMetrics.disable()
@@ -184,9 +188,9 @@ def test_runtime_metrics_exported_when_the_application_exits(python_process):
     env = os.environ.copy()
     env.update(OTLP_RUNTIME_METRICS_ENV)
     # The application exits before its first export interval, so only the export at shutdown can reach the server.
-    env["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = "http://127.0.0.1:14322/v1/metrics"
     env["OTEL_METRIC_EXPORT_INTERVAL"] = "60000"
-    with _capture_http_requests(14322, ExportMetricsServiceRequest) as requests:
+    with _capture_http_requests(0, ExportMetricsServiceRequest) as requests:
+        env["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{requests.port}/v1/metrics"
         # Enabled at startup, then again once the meter provider has registered its exit handler.
         code = (
             "import opentelemetry\n"
@@ -232,15 +236,17 @@ def test_runtime_metrics_of_a_child_forked_before_opentelemetry_is_imported():
     if pid == 0:
         exit_code = 1
         try:
-            from opentelemetry.metrics import get_meter_provider
-            from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
-
             from ddtrace.runtime import RuntimeMetrics
             from tests.opentelemetry.utils import _capture_http_requests
 
-            with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
+            with _capture_http_requests(0) as requests:
+                os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{requests.port}/v1/metrics"
+                from opentelemetry.metrics import get_meter_provider
+                from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+
                 flushed = get_meter_provider().force_flush()
-            RuntimeMetrics.disable()
+                RuntimeMetrics.disable()
+            requests = [ExportMetricsServiceRequest.FromString(body) for body in requests]
             runtime_ids = {
                 attribute.value.string_value
                 for request in requests
