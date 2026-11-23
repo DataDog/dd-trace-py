@@ -200,7 +200,9 @@ class EvaluatorResult:
         :param metadata: Optional dictionary of additional metadata about the evaluation
         :param tags: Optional dictionary of tags to categorize or label the evaluation
         :param higher_is_better: For numeric scores, set to ``False`` when a decrease is an improvement,
-            or ``True`` when an increase is an improvement. Omit to use the default experiment comparison.
+            or ``True`` when an increase is an improvement. This argument takes precedence over metadata.
+            When omitted, experiment comparisons use a boolean ``metadata["higher_is_better"]`` if present.
+            Otherwise, higher numeric scores are better.
         """
         if higher_is_better is not None:
             if not isinstance(higher_is_better, bool):

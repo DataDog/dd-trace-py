@@ -3,4 +3,6 @@ features:
   - |
     LLM Observability: Set ``higher_is_better=False`` on a numeric ``EvaluatorResult``
     when a decrease is an improvement, or ``True`` when an increase is an improvement.
-    Omit this option to use the default experiment comparison.
+    The argument takes precedence over a boolean ``higher_is_better`` in the evaluator's metadata.
+    SDK versions that support evaluator metadata can use ``EvaluatorResult(value=3, metadata={"higher_is_better": False})``.
+    When neither supplies a boolean, experiment comparisons treat higher scores as better.
