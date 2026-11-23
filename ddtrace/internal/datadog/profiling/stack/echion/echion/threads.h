@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #if defined PL_LINUX
@@ -66,9 +67,9 @@ class ThreadInfo
     [[nodiscard]] Result<void> unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
 
     // Number of frames in python_stack from the asyncio boundary frame (inclusive) up to the root,
-    // that is to say the asyncio machinery plus the synchronous entry point. Returns the size of the
-    // whole stack when the boundary frame is not there.
-    [[nodiscard]] size_t find_upper_python_stack_size(EchionSampler&) const;
+    // that is to say the asyncio machinery plus the synchronous entry point. Returns nullopt when the
+    // boundary frame is not there.
+    [[nodiscard]] std::optional<size_t> find_upper_python_stack_size(EchionSampler&) const;
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX

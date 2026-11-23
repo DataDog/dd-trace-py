@@ -54,12 +54,9 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
 }
 
 // ----------------------------------------------------------------------------
-size_t
+std::optional<size_t>
 ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 {
-    // Defaults to the full Python stack size (and updated if we find the boundary frame)
-    size_t upper_python_stack_size = python_stack.size();
-
     // Check if the Python stack contains the asyncio boundary frame.
     // For regular asyncio, this is "Handle._run" from asyncio/events.py.
     // For uvloop, this is "Runner.run" from asyncio/runners.py (uvloop uses asyncio.Runner internally).
@@ -134,20 +131,29 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
         }
 
         if (is_boundary_frame) {
-            upper_python_stack_size = python_stack.size() - i;
-            break;
+            return python_stack.size() - i;
         }
     }
 
-    return upper_python_stack_size;
+    return std::nullopt;
 }
 
 // ----------------------------------------------------------------------------
 Result<void>
 ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
 {
+    const auto boundary_python_stack_size = find_upper_python_stack_size(echion);
+
     // The size of the "pure Python" stack (before asyncio Frames).
-    const size_t upper_python_stack_size = find_upper_python_stack_size(echion);
+    const size_t upper_python_stack_size = boundary_python_stack_size.value_or(python_stack.size());
+
+    // Without the boundary frame, no Task is running and the whole thread stack is the event loop waiting for
+    // events, but only if the walk reached the outermost frame of the thread. The thread keeps running while its
+    // stack is read, so a walk can also end at a coroutine that suspended or returned in the meantime. That
+    // stack holds the frames of the Task that was running then, and these belong to none of the Tasks read
+    // below.
+    const bool use_upper_python_stack =
+      boundary_python_stack_size.has_value() || python_stack_unwind_result.truncation == TruncationStatus::NotTruncated;
 
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
@@ -388,21 +394,23 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         // Finish off with the remaining thread stack
         // If we have seen an on-CPU Task, then upper_python_stack_size will be set and will include the sync entry
         // point and the asyncio machinery Frames. Otherwise, we are in `select` (idle) and we should push all the
-        // Frames.
+        // Frames, unless the walk ended before the outermost frame (see use_upper_python_stack).
 
         // There could be a race condition where relevant partial Python Thread Stack ends up being different from the
         // one we saw in TaskInfo::unwind. This is extremely unlikely, I believe, but failing to account for it would
         // cause an underflow, so let's be conservative.
-        size_t start_index = 0;
-        if (python_stack.size() >= upper_python_stack_size) {
-            start_index = python_stack.size() - upper_python_stack_size;
-        }
-        for (size_t i = start_index; i < python_stack.size(); i++) {
-            auto python_frame = python_stack[i];
-            if (!stack_info->on_cpu) {
-                python_frame.is_in_gc = false;
+        if (use_upper_python_stack) {
+            size_t start_index = 0;
+            if (python_stack.size() >= upper_python_stack_size) {
+                start_index = python_stack.size() - upper_python_stack_size;
             }
-            stack.push_back(python_frame);
+            for (size_t i = start_index; i < python_stack.size(); i++) {
+                auto python_frame = python_stack[i];
+                if (!stack_info->on_cpu) {
+                    python_frame.is_in_gc = false;
+                }
+                stack.push_back(python_frame);
+            }
         }
 
         current_tasks.push_back(std::move(stack_info));

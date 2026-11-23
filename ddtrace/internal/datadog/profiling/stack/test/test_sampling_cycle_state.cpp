@@ -19,6 +19,7 @@ struct StackCaptureContext
     EchionSampler* echion;
     FrameStack stack;
     std::optional<UnwindResult> unwind_result;
+    size_t max_frames = 2;
 };
 
 PyObject*
@@ -29,7 +30,8 @@ capture_stack(PyObject* capsule, PyObject* Py_UNUSED(args))
         return nullptr;
     }
 
-    auto unwind_result = unwind_python_stack(*context->echion, PyThreadState_Get(), context->stack, 2);
+    auto unwind_result =
+      unwind_python_stack(*context->echion, PyThreadState_Get(), context->stack, context->max_frames);
     if (!unwind_result) {
         PyErr_SetString(PyExc_RuntimeError, "failed to unwind test stack");
         return nullptr;
@@ -370,6 +372,111 @@ TEST(StackUnwind, ProbeBudgetExhaustionRemainsUnknown)
     EXPECT_EQ(result.truncation, TruncationStatus::Unknown);
 }
 #endif
+
+TEST(StackUnwind, RunningCoroutineReachesOutermostFrame)
+{
+    if (!Py_IsInitialized()) {
+        Py_Initialize();
+    }
+    _set_pid(getpid());
+
+    EchionSampler echion;
+    StackCaptureContext context{ &echion, {}, std::nullopt, MAX_STACK_UNWIND_SAFETY_LIMIT };
+    PyObject* capsule = PyCapsule_New(&context, STACK_CAPTURE_CONTEXT, nullptr);
+    ASSERT_NE(capsule, nullptr);
+
+    static PyMethodDef capture_method = {
+        "capture_stack",
+        capture_stack,
+        METH_NOARGS,
+        nullptr,
+    };
+    PyObject* capture = PyCFunction_NewEx(&capture_method, capsule, nullptr);
+    ASSERT_NE(capture, nullptr);
+
+    PyObject* globals = PyDict_New();
+    ASSERT_NE(globals, nullptr);
+    ASSERT_EQ(PyDict_SetItemString(globals, "__builtins__", PyEval_GetBuiltins()), 0);
+    ASSERT_EQ(PyDict_SetItemString(globals, "capture_stack", capture), 0);
+
+    // A running coroutine links to the frame that resumed it, so the walk goes on to the module frame.
+    PyObject* result = PyRun_String(R"(
+async def running():
+    capture_stack()
+coro = running()
+try:
+    coro.send(None)
+except StopIteration:
+    pass
+)",
+                                    Py_file_input,
+                                    globals,
+                                    globals);
+    if (result == nullptr) {
+        PyErr_Print();
+    }
+    ASSERT_NE(result, nullptr);
+    ASSERT_TRUE(context.unwind_result.has_value());
+    EXPECT_EQ(context.stack.size(), 2);
+    EXPECT_EQ(context.unwind_result->truncation, TruncationStatus::NotTruncated);
+
+    Py_DECREF(result);
+    Py_DECREF(globals);
+    Py_DECREF(capture);
+    Py_DECREF(capsule);
+}
+
+TEST(StackUnwind, ChainEndingAtSuspendedCoroutineRemainsUnknown)
+{
+    if (!Py_IsInitialized()) {
+        Py_Initialize();
+    }
+    _set_pid(getpid());
+
+    PyObject* globals = PyDict_New();
+    ASSERT_NE(globals, nullptr);
+    ASSERT_EQ(PyDict_SetItemString(globals, "__builtins__", PyEval_GetBuiltins()), 0);
+
+    PyObject* result = PyRun_String(R"(
+import types
+@types.coroutine
+def suspend():
+    yield
+async def suspended():
+    await suspend()
+coro = suspended()
+coro.send(None)
+)",
+                                    Py_file_input,
+                                    globals,
+                                    globals);
+    if (result == nullptr) {
+        PyErr_Print();
+    }
+    ASSERT_NE(result, nullptr);
+
+    PyObject* coro = PyDict_GetItemString(globals, "coro");
+    ASSERT_NE(coro, nullptr);
+#if PY_VERSION_HEX >= 0x030b0000
+    auto* frame_addr = reinterpret_cast<PyObject*>(reinterpret_cast<char*>(coro) + offsetof(PyGenObject, gi_iframe));
+#else
+    auto* frame_addr = reinterpret_cast<PyObject*>(reinterpret_cast<PyGenObject*>(coro)->gi_frame);
+#endif
+
+    // This is what a thread stack walk sees when the coroutine suspends after the walk read its callee: the
+    // chain ends at the coroutine frame, before the outermost frame of the thread.
+    EchionSampler echion;
+    FrameStack stack;
+    auto unwind_result = unwind_frame(echion, frame_addr, stack, MAX_STACK_UNWIND_SAFETY_LIMIT, true);
+    EXPECT_EQ(unwind_result.frames_added, 1);
+    EXPECT_EQ(unwind_result.truncation, TruncationStatus::Unknown);
+
+    PyObject* close_result = PyObject_CallMethod(coro, "close", nullptr);
+    EXPECT_NE(close_result, nullptr);
+    Py_XDECREF(close_result);
+    Py_DECREF(result);
+    Py_DECREF(globals);
+}
 
 TEST(SamplingCycleState, GreenletSwitchPreservesLinkedParentFrame)
 {

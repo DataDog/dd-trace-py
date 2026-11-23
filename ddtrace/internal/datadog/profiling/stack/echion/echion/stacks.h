@@ -60,7 +60,8 @@ class EchionSampler;
 // seen_frames is cleared on entry.
 // Disabling detection always returns Unknown. With detection enabled, only a
 // reportable frame beyond the limit proves Truncated; reaching the end proves
-// NotTruncated. An incomplete probe (read failure, cycle, or safety limit) stays Unknown.
+// NotTruncated. An incomplete probe (read failure, cycle, safety limit, or a chain
+// that ends at a generator frame, which has no caller once suspended) stays Unknown.
 UnwindResult
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,

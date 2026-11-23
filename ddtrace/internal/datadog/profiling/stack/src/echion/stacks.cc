@@ -64,6 +64,10 @@ unwind_frame(EchionSampler& echion,
 
     auto result = UnwindResult::Unknown();
     size_t frames_probed_after_limit = 0;
+    // A generator frame only links to its caller while it runs. The walk reads the stack while the thread
+    // keeps running, so a generator that suspends or returns in the meantime ends the chain before the
+    // outermost frame of the thread. Such a stack is incomplete even though the chain ended.
+    bool last_frame_is_generator = false;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
         const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_STACK_UNWIND_SAFETY_LIMIT;
@@ -87,9 +91,10 @@ unwind_frame(EchionSampler& echion,
 #if PY_VERSION_HEX >= 0x030b0000
         auto maybe_frame = Frame::read(echion,
                                        reinterpret_cast<_PyInterpreterFrame*>(current_frame_addr),
-                                       reinterpret_cast<_PyInterpreterFrame**>(&current_frame_addr));
+                                       reinterpret_cast<_PyInterpreterFrame**>(&current_frame_addr),
+                                       &last_frame_is_generator);
 #else
-        auto maybe_frame = Frame::read(echion, current_frame_addr, &current_frame_addr);
+        auto maybe_frame = Frame::read(echion, current_frame_addr, &current_frame_addr, &last_frame_is_generator);
 #endif
         if (!maybe_frame) {
             return result;
@@ -114,7 +119,7 @@ unwind_frame(EchionSampler& echion,
         result.frames_added++;
     }
 
-    if (detect_truncation) {
+    if (detect_truncation && !last_frame_is_generator) {
         result.truncation = TruncationStatus::NotTruncated;
     }
     return result;
