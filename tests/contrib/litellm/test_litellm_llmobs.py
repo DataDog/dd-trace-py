@@ -1506,7 +1506,7 @@ def test_completion_with_openai_fallback_defers_to_openai_span(litellm, litellm_
         traced_completion(inner_completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
         return traced_completion(openai_completion, None, (), {"model": openai_model, "messages": FALLBACK_MESSAGES})
 
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
+    with mock.patch(_OPENAI_ENABLED, return_value=True), mock.patch(_SENDS_POST, return_value=False):
         traced_completion(
             completion,
             None,
