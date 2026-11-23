@@ -1191,3 +1191,42 @@ def test_exception_captures_full_python_stack(tmp_path: Path) -> None:
         ),
         print_samples_on_failure=True,
     )
+
+
+def test_sampled_exception_count_scales_to_real_volume(tmp_path: Path) -> None:
+    """With sampling_interval=10 and 1000 exceptions, the reported count should
+    approximate the real volume thanks to the per-sample weight.
+
+    Each sampled exception is weighted by the number of exceptions since the
+    previous sample (the counter value), so the sum of weights should track the
+    true count. With 1000 exceptions and Poisson sampling at rate 10, we expect
+    ~100 samples whose weights sum to ~1000. I'm gonna choose to use 700, ~3 sigma
+    below the expected 1000.
+    """
+    output_filename = _setup_profiler(tmp_path, "test_scaled_count")
+    n_exceptions = 1000
+
+    with exception.ExceptionCollector(sampling_interval=10):
+        for _ in range(n_exceptions):
+            try:
+                raise ValueError("scaled count test")
+            except ValueError:
+                pass
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    sample_type_idx = pprof_utils.get_sample_type_index(profile, "exception-samples")
+    total_reported = 0
+    for s in samples:
+        label = pprof_utils.get_label_with_key(profile.string_table, s, "exception type")
+        if label is not None and "ValueError" in profile.string_table[label.str]:
+            total_reported += s.value[sample_type_idx]
+
+    assert total_reported >= 700, (
+        f"Expected scaled exception count >= 700 (from {n_exceptions} real exceptions "
+        f"with sampling_interval=10), got {total_reported}"
+    )
