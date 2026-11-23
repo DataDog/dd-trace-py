@@ -133,7 +133,7 @@ def _format_args(record: logging.LogRecord) -> None:
             record.msg, record.args = record.getMessage(), None
         if record.exc_info:
             record.exc_text, record.exc_info = logging.Formatter().formatException(record.exc_info), None
-    except Exception:
+    except Exception:  # nosec B110
         pass  # The handler reports the error
 
 
