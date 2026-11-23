@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import sys
 from types import TracebackType
 from typing import TYPE_CHECKING
@@ -18,6 +17,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.compat import iscoroutinefunction
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
@@ -104,7 +104,7 @@ def _wrap_response_callback(ctx: core.ExecutionContext[WebFrameworkRequestEvent]
         _update_request_event(ctx, response)
         return r
 
-    if asyncio.iscoroutinefunction(callback):
+    if iscoroutinefunction(callback):
         return wrap_async(callback)
 
     return wrap_sync(callback)
