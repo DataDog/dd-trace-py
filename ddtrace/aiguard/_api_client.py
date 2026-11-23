@@ -1,7 +1,6 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
 from collections.abc import Iterator
-from collections.abc import Mapping
 from copy import deepcopy
 import json
 import re
@@ -20,15 +19,11 @@ from ddtrace.aiguard._types import Evaluation
 from ddtrace.aiguard._types import Function
 from ddtrace.aiguard._types import ImageURL
 from ddtrace.aiguard._types import MCPServer
-from ddtrace.aiguard._types import MCPServerTarget
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import Policy
 from ddtrace.aiguard._types import ResourceEvaluation
 from ddtrace.aiguard._types import ResourceTarget
 from ddtrace.aiguard._types import ToolCall
-from ddtrace.aiguard.integrations._mcp import client_mcp_server
-from ddtrace.aiguard.integrations._mcp import is_generated_name
-from ddtrace.aiguard.integrations._mcp import normalized_stdio_args
 from ddtrace.aiguard.middleware import _MIDDLEWARES
 from ddtrace.aiguard.middleware import AIGuardContext
 from ddtrace.aiguard.middleware import AIGuardRequest
@@ -249,48 +244,6 @@ def _policy_field(policy: Any, key: str) -> Optional[str]:
         return None
     # An empty string identifies nothing, so it gives no tag, as an empty reason does.
     return str(value) if value != "" else None
-
-
-_MCP_TRANSPORTS = frozenset(("streamable_http", "sse", "stdio", "in_process", "unknown"))
-# Local transports have no URL to report.
-_LOCAL_MCP_TRANSPORTS = frozenset(("stdio", "in_process"))
-
-
-def _safe_target(target: Any) -> Optional[ResourceTarget]:
-    """A copy of target with only the safe MCP server identity, by the rules of the MCP metadata.
-
-    Returns None for an unsupported target type or operation, or when no safe identifier remains.
-    """
-    if not isinstance(target, Mapping) or target.get("type") != AI_GUARD.TARGET_MCP_SERVER:
-        return None
-    details = target.get("mcp_server")
-    if not isinstance(details, Mapping) or details.get("operation") != AI_GUARD.MCP_OPERATION_CONNECT:
-        return None
-    transport = details.get("transport")
-    if transport not in _MCP_TRANSPORTS:
-        transport = AI_GUARD.MCP_TRANSPORT_UNKNOWN
-    name = details.get("name")
-    entry = client_mcp_server(
-        transport,
-        name=None if is_generated_name(name) else name,
-        url=None if transport in _LOCAL_MCP_TRANSPORTS else details.get("url"),
-        command=details.get("command"),
-        args=details.get("args"),
-    )
-    if entry is None:
-        return None
-    mcp_server = MCPServerTarget(operation=AI_GUARD.MCP_OPERATION_CONNECT, transport=transport)
-    if "name" in entry:
-        mcp_server["name"] = entry["name"]
-    if "url" in entry:
-        mcp_server["url"] = entry["url"]
-    if "command" in entry:
-        mcp_server["command"] = entry["command"]
-        # A target built from an mcp_servers entry already holds the normalized package or module.
-        args = entry.get("args") or normalized_stdio_args(entry["command"], details.get("args"))
-        if args:
-            mcp_server["args"] = args
-    return ResourceTarget(type=AI_GUARD.TARGET_MCP_SERVER, mcp_server=mcp_server)
 
 
 # What replaces an endpoint anywhere it would otherwise be reported.
@@ -725,11 +678,6 @@ class AIGuardClient:
 
         Raises AIGuardAbortError if the decision must block, and AIGuardClientError if the evaluation fails.
         """
-        # The request and the span get only the safe identity, whatever the caller passes.
-        safe_target = _safe_target(target)
-        if safe_target is None:
-            raise ValueError("The target must be an MCP server connection with a safe name, URL or command")
-        target = safe_target
         tracer = self._get_tracer()
         call_path_tags = self._call_path_tags(source, integration)
         (_, clamped_source), (_, clamped_integration) = call_path_tags

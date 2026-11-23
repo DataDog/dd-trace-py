@@ -246,7 +246,6 @@ _RUNNER_FLAGS = frozenset(("-y", "--yes", "-q", "--quiet"))
 _PACKAGE_ID = re.compile(r"^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*(@[a-z0-9][a-z0-9._+-]*)?$", re.IGNORECASE)
 _PYTHON = re.compile(r"^python(\d+(\.\d+)?)?$")
 _PYTHON_MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
-_PYTHON_FILE_SUFFIXES = (".py", ".pyc", ".pyw", ".pyz")
 
 
 def stdio_program(command: str) -> str:
@@ -276,28 +275,6 @@ def safe_stdio_args(command: str, args: Sequence[str]) -> list[str]:
         module = args[1]
         return [module] if isinstance(module, str) and _PYTHON_MODULE.match(module) else []
     return []
-
-
-def normalized_stdio_args(command: str, args: Any) -> list[str]:
-    """The args of an identity that safe_stdio_args already normalized: one package or one module, else none."""
-    if not isinstance(args, (list, tuple)) or len(args) != 1 or not isinstance(args[0], str):
-        return []
-    program = stdio_program(command)
-    if program in _PACKAGE_RUNNERS and _PACKAGE_ID.match(args[0]):
-        return [args[0]]
-    # A raw "python server.py" names a script file, not a module: never report it.
-    if _PYTHON.match(program) and _PYTHON_MODULE.match(args[0]) and not args[0].endswith(_PYTHON_FILE_SUFFIXES):
-        return [args[0]]
-    return []
-
-
-# Names the openai-agents SDK generates when none is configured. They embed the stdio command or the raw URL,
-# so they are never reported; the command and URL origin are reported through their own fields.
-GENERATED_NAME_PREFIXES = ("stdio: ", "sse: ", "streamable_http: ")
-
-
-def is_generated_name(name: Any) -> bool:
-    return isinstance(name, str) and name.startswith(GENERATED_NAME_PREFIXES)
 
 
 def mcp_reference(server: MCPServer, tool_name: str, original_name: str) -> MCP:

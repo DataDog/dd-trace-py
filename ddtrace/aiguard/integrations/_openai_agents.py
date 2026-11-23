@@ -24,7 +24,6 @@ from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import MCPTransport
 from ddtrace.aiguard.integrations._mcp import client_mcp_server
-from ddtrace.aiguard.integrations._mcp import is_generated_name
 from ddtrace.aiguard.integrations._mcp import local_tool_call_id
 from ddtrace.aiguard.integrations._mcp import mcp_reference
 import ddtrace.internal.logger as ddlogger
@@ -39,6 +38,9 @@ _TRANSPORT_BY_SERVER_CLASS: dict[str, MCPTransport] = {
     "MCPServerSse": AI_GUARD.MCP_TRANSPORT_SSE,
     "MCPServerStreamableHttp": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
 }
+# Names the SDK generates when none is configured. They embed the stdio command or the raw URL,
+# so they are never reported; the command and URL origin are reported through their own fields.
+_GENERATED_NAME_PREFIXES = ("stdio: ", "sse: ", "streamable_http: ")
 
 
 def _server_entry(server: Any) -> Optional[MCPServer]:
@@ -52,7 +54,7 @@ def _server_entry(server: Any) -> Optional[MCPServer]:
         AI_GUARD.MCP_TRANSPORT_UNKNOWN,
     )
     name = getattr(server, "name", None)
-    if is_generated_name(name):
+    if isinstance(name, str) and name.startswith(_GENERATED_NAME_PREFIXES):
         name = None
     params = getattr(server, "params", None)
     if transport == AI_GUARD.MCP_TRANSPORT_STDIO:
