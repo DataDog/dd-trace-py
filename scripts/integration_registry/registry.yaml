@@ -75,7 +75,7 @@ integrations:
   tested_versions_by_dependency:
     algoliasearch:
       min: 2.6.3
-      max: 3.0.0
+      max: 4.52.0
 
 - integration_name: anthropic
   is_external_package: true
@@ -701,7 +701,7 @@ integrations:
   tested_versions_by_dependency:
     mistralai:
       min: 2.0.5
-      max: 2.10.1
+      max: 3.7.0
 
 - integration_name: mlflow
   is_external_package: true
@@ -1019,7 +1019,7 @@ integrations:
   tested_versions_by_dependency:
     starlette:
       min: 0.14.2
-      max: 1.8.0
+      max: 1.10.0
 
 - integration_name: structlog
   is_external_package: true

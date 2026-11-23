@@ -58,7 +58,6 @@ log = get_logger(__name__)
 class RayJobStartSubscriber(TracingSubscriber[RayJobEvent]):
     """Subscriber for ray.job context"""
 
-    auto_register = False
     event_names = (RayEvents.RAY_JOB.value,)
 
     @classmethod
@@ -111,7 +110,6 @@ class RayJobStartSubscriber(TracingSubscriber[RayJobEvent]):
 class RayExecutionSubscriber(TracingSubscriber[RayExecutionEvent]):
     """Subscriber for ray.execute context"""
 
-    auto_register = False
     event_names = (RayEvents.RAY_EXECUTE.value,)
 
     @classmethod
@@ -162,7 +160,6 @@ class RayExecutionSubscriber(TracingSubscriber[RayExecutionEvent]):
 class RayCoreAPITracingSubscriber(TracingSubscriber[RayCoreAPIEvent]):
     """Subscriber for core API calls (ray.get/wait/put)."""
 
-    auto_register = False
     event_names = (RayEvents.RAY_CORE_API.value,)
 
     @classmethod
@@ -199,7 +196,6 @@ class RayCoreAPITracingSubscriber(TracingSubscriber[RayCoreAPIEvent]):
 class RaySubmissionSubscriber(TracingSubscriber[RaySubmissionEvent]):
     """Subscriber for task and actor method submission tracing."""
 
-    auto_register = False
     event_names = (RayEvents.RAY_SUBMIT.value,)
 
     @classmethod
@@ -264,7 +260,6 @@ class RaySubmissionSubscriber(TracingSubscriber[RaySubmissionEvent]):
 class RayContextInjectionSubscriber(Subscriber):
     """Prepare context for task/actor submission before submitting to Ray."""
 
-    auto_register = False
     event_names = (RayEvents.RAY_CONTEXT_INJECTION.value,)
 
     @classmethod

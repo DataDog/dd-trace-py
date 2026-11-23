@@ -33,7 +33,6 @@ class HttpClientTracingSubscriber(TracingSubscriber[HttpClientRequestEvent]):
     Adding a feature here applies to every HTTP client integration.
     """
 
-    auto_register = False
     event_names = (HttpClientRequestEvent.event_name, HttpClientEvents.HTTPX_REQUEST.value)
 
     @classmethod
