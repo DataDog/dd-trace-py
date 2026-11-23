@@ -1832,17 +1832,20 @@ def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
     assert child.get_tag(_HOSTNAME_KEY) is None
 
 
-@mock.patch("ddtrace.internal.hostname.get_hostname")
-def test_get_report_hostname_default(get_hostname, tracer, test_spans):
-    get_hostname.return_value = "test-hostname"
-    with override_global_config(dict(_report_hostname=False)):
-        with tracer.trace("span"):
-            with tracer.trace("child"):
+@pytest.mark.subprocess(env={"DD_TRACE_REPORT_HOSTNAME": None, "DD_AGENTLESS_ENABLED": None}, err=None)
+def test_get_report_hostname_default():
+    from unittest import mock
+
+    from ddtrace import config
+    from ddtrace.constants import _HOSTNAME_KEY
+    from ddtrace.trace import tracer
+
+    assert config._report_hostname is False
+    with mock.patch("ddtrace.internal.hostname.get_hostname", return_value="test-hostname"):
+        with tracer.trace("span") as root:
+            with tracer.trace("child") as child:
                 pass
 
-    spans = test_spans.pop()
-    root = spans[0]
-    child = spans[1]
     assert root.get_tag(_HOSTNAME_KEY) is None
     assert child.get_tag(_HOSTNAME_KEY) is None
 

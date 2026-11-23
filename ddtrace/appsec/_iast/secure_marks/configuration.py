@@ -21,6 +21,7 @@ log = get_logger(__name__)
 VULNERABILITY_TYPE_MAPPING = {
     "CODE_INJECTION": VulnerabilityType.CODE_INJECTION,
     "COMMAND_INJECTION": VulnerabilityType.COMMAND_INJECTION,
+    "CMDI": VulnerabilityType.COMMAND_INJECTION,  # Alias
     "HEADER_INJECTION": VulnerabilityType.HEADER_INJECTION,
     "UNVALIDATED_REDIRECT": VulnerabilityType.UNVALIDATED_REDIRECT,
     "INSECURE_COOKIE": VulnerabilityType.INSECURE_COOKIE,

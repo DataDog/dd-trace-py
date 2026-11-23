@@ -44,7 +44,7 @@ def _cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     if magnitude1 == 0 or magnitude2 == 0:
         return 0.0
 
-    return dot / (magnitude1 * magnitude2)
+    return float(dot / (magnitude1 * magnitude2))
 
 
 class SemanticSimilarityEvaluator(BaseEvaluator):
