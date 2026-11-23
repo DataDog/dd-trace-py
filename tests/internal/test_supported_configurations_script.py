@@ -78,6 +78,7 @@ def test_package_source_roots_finds_installed_package(tmp_path, monkeypatch):
     package = tmp_path / "_ddtrace_internal"
     package.mkdir()
     (package / "__init__.py").write_text("")
+    monkeypatch.delitem(sys.modules, "_ddtrace_internal", raising=False)
     monkeypatch.syspath_prepend(str(tmp_path))
     importlib.invalidate_caches()
     _MODULE._package_source_roots.cache_clear()
