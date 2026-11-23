@@ -984,7 +984,7 @@ def assert_span_sampling_decision_tags(
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
-    if trace_sampling_priority:
+    if trace_sampling_priority is not None:
         assert span.get_metric(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
 
 

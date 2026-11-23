@@ -54,7 +54,7 @@ class BaseLLMIntegration:
         return is_enabled()
 
     @abc.abstractmethod
-    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Set default LLM span attributes when possible."""
         pass
 
@@ -63,7 +63,7 @@ class BaseLLMIntegration:
             return
         _annotate_llmobs_span_data(span, tags={LLMOBS_STRUCT.INTEGRATION: self._integration_name})
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> _LLMObsSpan:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> _LLMObsSpan:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -214,7 +214,7 @@ class BaseLLMIntegration:
     def _apply_shadow_metrics(
         self,
         span: _LLMObsSpan,
-        metrics: Optional[dict],
+        metrics: Optional[dict[str, Any]],
         span_kind: str,
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
@@ -251,7 +251,7 @@ class BaseLLMIntegration:
                 if value is not None:
                     span._set_attribute(shadow_key, value)
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Any) -> Optional[str]:
         return None
 
     def _llmobs_gateway(self, request_kwargs: dict[str, Any]) -> Optional[str]:

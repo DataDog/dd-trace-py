@@ -16,6 +16,8 @@ If you're trying to set up a local development environment, read `this <https://
 
 `Library design documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-design.rst>`_.
 
+`Architectural constraints for fork safety, background threads and layering <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-architecture.rst>`_.
+
 `Fuzzing native code documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-fuzzing.rst>`_.
 
 Thanks for working with us!
@@ -82,8 +84,9 @@ Pull requests are named according to the `conventional commit <https://www.conve
 standard, which is enforced by a continuous integration job. The standardized "scopes" we use
 in pull request names are enumerated :ref:`in the release notes documentation<release_notes_scope>`.
 
-Pull requests that change the library's public API require a :ref:`release note<release_notes>`.
-If your pull request doesn't change the public API, apply the ``no-changelog`` label.
+Pull requests with customer-facing changes require a :ref:`release note<release_notes>`; see that page for which
+changes qualify. If your pull request has no customer-facing impact, apply the ``changelog/no-changelog`` label
+(not required for ``ci``, ``test`` and ``docs`` PRs).
 Release notes should be written from the user's perspective and clearly explain the impact or benefit of the change.
 
 Once approved, pull requests should be merged with the "Squash and Merge" option.
@@ -91,6 +94,10 @@ At this time, do not use the merge queue option.
 
 Merging Pull Requests from Forks
 ---------------------------------
+
+Strongly prefer branches in ``DataDog/dd-trace-py`` whenever you have push access. Open a fork PR
+only when the contributor lacks permission to push a branch here; fork PRs require the extra CI
+workflow below.
 
 Pull requests opened from a fork (i.e. by an external contributor) cannot run all required CI
 directly. GitLab does not mirror branches from external forks. Pushing the fork's commit to a
@@ -116,15 +123,33 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
    example ``docs: run fork PR #1234 through CI [DO NOT MERGE]``. Its description must say it exists
    only to run CI, must not be merged, and include ``Original PR: <URL>``.
 #. Add ``Closes: <shadow PR URL>`` to the original PR's description.
-#. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
-   it does not mean both PRs run in the same context or establish that the code is safe. That
-   assurance comes from the review before mirroring.
-#. Once the checks are green, verify that the original PR's head SHA still matches the tested
-   shadow PR, then comment ``/merge`` on the *original* fork PR.
-#. After the original PR closes, close the shadow PR without merging if it is still open, then
-   delete its branch.
+#. Wait for the shadow PR's test and build checks, including System Tests, to pass. An identical
+   SHA establishes source-commit parity, but the PRs run in different contexts; safety comes
+   from the review before mirroring.
+#. Obtain the required approvals on the original PR and verify its head SHA matches the tested shadow.
+#. Record the tested SHA and passing CI links on the original PR, then close the shadow without
+   merging. Leave only the original PR open for that head SHA across gated target branches so
+   MergeGate can evaluate it.
+#. Refresh merge checks as described below, then comment ``/merge`` on the *original* fork PR.
+   Delete the shadow branch after the original PR closes.
 
 Never mirror speculative or partially reviewed code merely to obtain CI results.
+
+On the original PR, comment ``/code blockers`` to identify remaining blockers. If an approval is
+missing, verify that a required reviewer approved the current head on the original PR, not the
+shadow; request a fresh approval if needed.
+
+After closing the shadow or correcting approvals, comment ``/mergegate trigger`` on the original
+PR to refresh MergeGate without updating the branch. Check the bot's response for remaining blockers.
+
+The PRs share a commit, so missing or incomplete checks on the shadow can also block the original
+PR. After closing the tested shadow, maintainers with access should refresh a waiting merge request
+to reevaluate the original PR's ability to merge::
+
+    ddr devflow mergequeue check-mergeability --pr <original PR URL>
+
+Refreshing merge status does not rerun canceled jobs. If closing the shadow canceled required
+CI, rerun those jobs on the reviewed SHA before relying on its results.
 
 Backporting
 -----------
@@ -242,6 +267,7 @@ in its output. A Datadog maintainer must add the key to the registry before the 
     :hidden:
 
     contributing-design
+    contributing-architecture
     contributing-integrations
     contributing-testing
     contributing-fuzzing

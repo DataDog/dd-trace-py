@@ -2,6 +2,8 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
+from ddtrace._trace._inferred_proxy import _set_inferred_proxy_tags
+from ddtrace._trace.http_meta import set_http_meta
 from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
@@ -9,9 +11,7 @@ from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
-from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal import trace_utils
+from ddtrace._trace.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
@@ -24,7 +24,6 @@ log = get_logger(__name__)
 class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent]):
     """Shared tracing logic for web framework integrations."""
 
-    auto_register = False
     event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
@@ -42,6 +41,18 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             if event.request_route:
                 span._set_attribute(otel_http.ROUTE, event.request_route)
             set_otel_resource_for_method(span, event.request_method, event.request_route)
+
+        if event.tag_request_on_start:
+            try:
+                set_http_meta(
+                    span=span_from_context(ctx),
+                    integration_config=event.integration_config,
+                    request_headers=event.request_headers,
+                    headers_are_case_sensitive=event.headers_case_sensitive,
+                    peer_ip=event.peer_ip,
+                )
+            except Exception:
+                log.debug("%s: error adding request tags", event.integration_config.integration_name, exc_info=True)
 
     @classmethod
     def on_ended(
@@ -77,8 +88,9 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             log.debug("%s: error reading response headers", event.integration_config.integration_name, exc_info=True)
             response_headers = None
 
+        request_tagged = event.tag_request_on_start
         try:
-            trace_utils.set_http_meta(
+            set_http_meta(
                 span=span,
                 integration_config=event.integration_config,
                 method=method,
@@ -86,10 +98,11 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
                 query=event.query,
                 trace_query_string=event.trace_query_string,
                 status_code=status_code,
-                request_headers=event.request_headers,
+                request_headers=None if request_tagged else event.request_headers,
                 response_headers=response_headers,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
+                peer_ip=None if request_tagged else event.peer_ip,
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
