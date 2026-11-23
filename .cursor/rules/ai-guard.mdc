@@ -146,6 +146,33 @@ Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic
 - Do not wrap async generator functions with `ddtrace.internal.wrapping.wrap`: its trampoline calls
   `athrow` on the inner generator while it is awaiting (for example on anyio cancellation).
 
+LangChain client-managed MCP (`managed_by: client`) is captured in `_langchain.py` by wrapping
+`langchain_mcp_adapters.tools.convert_mcp_tool_to_langchain_tool` with a plain `wrap()` on
+`langchain.patch` (skipped when the package is missing). Known gap: when an app imports
+`langchain_mcp_adapters.tools` before any other LangChain module, the patch fires while that module is
+half-imported and the converter stays unwrapped (no MCP checks). Supported: `langchain-mcp-adapters`
+>= 0.2.0 (first release with `connection`, `server_name` and `tool_name_prefix`; `load_mcp_tools` and
+`MultiServerMCPClient.get_tools` reach the converter through the module global). Not supported yet:
+`langchain.mcp.MCPAdapter` (FastMCP). Keep these rules:
+- The server and original tool name ride on the converted tool's own `coroutine` (wrapped with
+  `functools.wraps` so runtime injection is unchanged); never on `metadata` or in a name-keyed map.
+- Server keys: url origin (sse, streamable HTTP, websocket), else stdio `command` plus
+  `safe_stdio_args` (the package or module of `npx`/`uvx`/`python -m`-style launchers, never other
+  `args`, `env`, `headers` or `auth`), else `server_name`. A session-only tool with no server name
+  stays ordinary. Use the same `_mcp.py` helpers as Anthropic so both report the same `server_id`.
+- In a `create_agent` run the model-response evaluation runs as before, without MCP metadata (it
+  cannot tell MCP tools apart). The `ToolNode._arun_one` check is the MCP-aware tool-permission
+  check: it evaluates the call with the conversation and `mcp_servers` even when the response
+  evaluation already covered it, then sets `_TOOLNODE_MCP_TOOL` to that tool's guarded coroutine and
+  the evaluated arguments. The tool skips its own check only when both match (identity, never name),
+  so arguments rewritten by `awrap_tool_call` middleware are checked again.
+- Outside ToolNode the converted tool evaluates a single assistant tool call, with no conversation
+  context and a generated id unless a runtime carries one, before the MCP session is used. Legacy
+  `AgentExecutor` (langchain-classic) MCP tools therefore get the response check plus this in-tool
+  check. MCP tools are async only.
+- Known gap: the adapter's own `tool_interceptors` run inside the converted tool, after the check, and
+  can change the tool name or arguments sent to the MCP session; those rewrites are not re-evaluated.
+
 ## How AI Guard Works: High-Level Architecture
 
 ### 1. Lazy, opt-in initialization

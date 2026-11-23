@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-import httpx
+from mistralai.client.httpclient import httpx  # httpx2 in mistralai 3.x, httpx before
 import pytest
 
 from ddtrace.contrib.internal.mistralai.patch import traced_async_generate_stream

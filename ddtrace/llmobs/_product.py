@@ -19,7 +19,7 @@ APMCapabilities = (RemoteConfigCapabilities.LlmObsActivation,)
 def enabled() -> bool:
     from ddtrace import config
 
-    return config._llmobs_enabled
+    return bool(config._llmobs_enabled)
 
 
 def activated() -> bool:
@@ -63,7 +63,7 @@ def post_preload() -> None:
     telemetry_writer.add_configuration("llmobs_oneclick_supported", llm_oneclick_supported, origin="code")
 
 
-def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
+def apm_tracing_rc(lib_config: dict[str, t.Any], dd_config: t.Any) -> None:
     """Handle APM_TRACING RC payloads for LLMObs fields.
 
     Expected lib_config shape:
