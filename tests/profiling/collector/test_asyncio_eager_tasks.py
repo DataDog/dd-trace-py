@@ -28,30 +28,25 @@ def test_asyncio_eager_task_first_step_is_sampled_once() -> None:
 
     worker = os.environ["WORKER"]
     task_ids: dict[str, int] = {}
-    p = profiler.Profiler()
 
     def eager_step_work() -> None:
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    def profile_eager_step() -> None:
-        eager_step_work()
-        # Stop before the eager task can finish between the sampler's stack and task reads.
-        p.stop()
-
     async def eager_grandchild() -> None:
         task_ids["grandchild"] = id(asyncio.current_task())
-        profile_eager_step()
+        eager_step_work()
 
     async def eager_child() -> None:
         task_ids["child"] = id(asyncio.current_task())
         if worker == "grandchild":
             await asyncio.create_task(eager_grandchild())
         else:
-            profile_eager_step()
+            eager_step_work()
 
     async def creator() -> None:
+        task_ids["creator"] = id(asyncio.current_task())
         loop = asyncio.get_running_loop()
         loop.set_task_factory(asyncio.eager_task_factory)  # type: ignore[attr-defined]
         try:
@@ -59,8 +54,10 @@ def test_asyncio_eager_task_first_step_is_sampled_once() -> None:
         finally:
             loop.set_task_factory(None)
 
+    p = profiler.Profiler()
     p.start()
     asyncio.run(creator())
+    p.stop()
 
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
     wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -77,8 +74,19 @@ def test_asyncio_eager_task_first_step_is_sampled_once() -> None:
         for sample in samples
     )
     assert set(samples_per_tick.values()) == {1}, samples_per_tick
+
+    def end_timestamp_ns(sample: pprof_utils.pprof_pb2.Sample) -> int:
+        timestamp = pprof_utils.get_num_label(profile, sample, "end_timestamp_ns")
+        assert timestamp is not None
+        return timestamp
+
     # The creators are also running during the step. They must not get their own copies of the sample.
-    assert all(pprof_utils.get_num_label(profile, sample, "task id") == task_ids[worker] for sample in samples)
+    # The sampler reads the stack before the Tasks, so if the step ends in between, that tick's sample keeps the
+    # step's stack but is labelled with a creator. Only the step's last sample can see that.
+    samples.sort(key=end_timestamp_ns)
+    task_ids_seen = [pprof_utils.get_num_label(profile, sample, "task id") for sample in samples]
+    assert all(task_id == task_ids[worker] for task_id in task_ids_seen[:-1]), task_ids_seen
+    assert task_ids_seen[-1] in task_ids.values(), task_ids_seen
     callers = ["eager_grandchild", "eager_child"] if worker == "grandchild" else ["eager_child"]
     for sample in samples:
         pprof_utils.assert_sample_has_locations(
@@ -86,7 +94,7 @@ def test_asyncio_eager_task_first_step_is_sampled_once() -> None:
             sample,
             [
                 pprof_utils.StackLocation(function_name=name, filename="", line_no=-1)
-                for name in ["eager_step_work", "profile_eager_step", *callers, "creator"]
+                for name in ["eager_step_work", *callers, "creator"]
             ],
         )
 
