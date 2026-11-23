@@ -52,6 +52,7 @@ _MAX_CACHE_BYTES = 12 * 1024 * 1024
 _AUDIO_WAIT = 5.0
 _TRANSCRIPT_WAIT = 2.5
 _PLAYBACK_WAIT = 120.0
+_PLAYBACK_TIMESTAMP_TOLERANCE_NS = 20_000_000
 _MAX_ATTEMPTS = 2
 _MAX_RETRIEVAL_TASKS = 2
 _RETRIEVAL_EVENT_OVERHEAD = 16 * 1024
@@ -74,6 +75,7 @@ class _Item:
     expected: set[int] = field(default_factory=set)
     parts: dict[int, str] = field(default_factory=dict)
     transcripts: dict[int, str] = field(default_factory=dict)
+    generated_transcripts: dict[int, str] = field(default_factory=dict)
     caps: dict[int, float] = field(default_factory=dict)
     last_index: int = sys.maxsize
     complete: bool = False
@@ -206,10 +208,32 @@ class _AgentsRealtimeState(_RealtimeState):
 
     def _handle_response_delta(self, event: Any, event_type: str) -> None:
         entry = self.entries.get(_get_attr(event, "response_id", None) or "")
-        if self.sideband and entry and entry.truncated:
-            # Buffered generation events do not describe the acknowledged playback
-            # prefix. Only a stored item snapshot may restore that prefix.
-            return
+        if self.sideband and entry:
+            if entry.truncated and event_type in ("response.audio.delta", "response.output_audio.delta"):
+                return
+            if event_type in (
+                "response.audio_transcript.delta",
+                "response.output_audio_transcript.delta",
+                "response.audio_transcript.done",
+                "response.output_audio_transcript.done",
+                "response.text.delta",
+                "response.output_text.delta",
+                "response.text.done",
+                "response.output_text.done",
+            ):
+                item = self.items.get(_get_attr(event, "item_id", None) or "")
+                index = _get_attr(event, "content_index", 0)
+                if item and item.entry is entry and type(index) is int and 0 <= index < _MAX_ITEMS:
+                    delta = event_type.endswith(".delta")
+                    field = "delta" if delta else "transcript" if "transcript" in event_type else "text"
+                    text = _get_attr(event, field, None)
+                    if isinstance(text, str) and text:
+                        previous = item.generated_transcripts.get(index, "")
+                        text = previous + text if delta else text
+                        if not previous.startswith(text):
+                            item.generated_transcripts[index] = text
+                        self._refresh_transcript(entry)
+                    return
         super()._handle_response_delta(event, event_type)
 
     def _finish_response(self, response_id: Optional[str], response: Any) -> None:
@@ -259,9 +283,9 @@ class _AgentsRealtimeState(_RealtimeState):
                             transcripts.append(part["transcript"])
                         if isinstance(part.get("text"), str):
                             texts.append(part["text"])
-            if transcripts and not entry.truncated:
+            if any(transcripts):
                 entry.turn.transcript = "".join(transcripts)
-            if texts and not entry.truncated:
+            if any(texts):
                 entry.turn.text = "".join(texts)
             self._preparing_response = entry
             try:
@@ -384,6 +408,8 @@ class _AgentsRealtimeState(_RealtimeState):
         onset = entry.turn.input.speech_start_ns or entry.turn.input.audio.start_ns
         if onset is not None and entry.turn.root_span is not None:
             entry.turn.root_span.start_ns = min(entry.turn.root_span.start_ns, onset)
+        if entry.start_ns is not None and entry.turn.root_span is not None:
+            entry.turn.root_span.start_ns = min(entry.turn.root_span.start_ns, entry.start_ns)
         try:
             super()._finalize_turn(entry.turn, force=True)
         finally:
@@ -687,8 +713,10 @@ class _AgentsRealtimeState(_RealtimeState):
             text = part.get("transcript")
             if not isinstance(text, str):
                 text = part.get("text")
-            if isinstance(text, str) and index <= item.last_index and index not in item.caps:
-                item.transcripts[index] = text
+            if isinstance(text, str) and text:
+                previous = item.generated_transcripts.get(index, "")
+                if not previous.startswith(text):
+                    item.generated_transcripts[index] = text
         self._want_item(item)
         if self._preparing_response is not entry:
             self._rebuild(item)
@@ -733,22 +761,8 @@ class _AgentsRealtimeState(_RealtimeState):
         item.expected.update(expected)
         status = data.get("status")
         stable = status == "completed" or (status == "incomplete" and item.generation_done)
-        if item.entry and item.entry.truncated and not item.input_audio:
-            # An incomplete item can retain its generated caption after its audio
-            # was truncated. Only completed items may restore the cut part's
-            # caption; uncut parts keep theirs. Zero-length parts have no heard text.
-            transcripts = {
-                index: text
-                for index, text in transcripts.items()
-                if stable
-                and index <= item.last_index
-                and item.caps.get(index) != 0
-                and (index not in item.caps or status == "completed")
-            }
-        if stable and (transcripts or (item.entry and item.entry.truncated)):
+        if stable:
             item.transcripts = transcripts
-            if item.entry and not item.input_audio and item.entry.truncated:
-                item.entry.turn.transcript = ""
         else:
             item.transcripts.update(transcripts)
         # Release the accumulator and old snapshot before accounting a replacement.
@@ -787,6 +801,18 @@ class _AgentsRealtimeState(_RealtimeState):
                 )
         self._check(item.entry)
 
+    def _refresh_transcript(self, entry: _Playback) -> None:
+        # Generation output and delivered media are separate evidence. Stored
+        # conversation snapshots can be shortened or emptied after truncation.
+        texts: list[str] = []
+        for item_id in entry.items:
+            item = self.items.get(item_id)
+            if item:
+                parts = {**item.transcripts, **item.generated_transcripts}
+                texts.extend(parts[index] for index in sorted(parts))
+        if any(texts):
+            entry.turn.transcript = "".join(texts)
+
     def _rebuild(self, item: _Item) -> None:
         entry = item.entry
         owned = [self.items[k] for k in entry.items if k in self.items] if entry and item.side is entry.turn else [item]
@@ -794,16 +820,7 @@ class _AgentsRealtimeState(_RealtimeState):
         audio.clear()
         audio.present = any(i.expected for i in owned)
         if entry and item.side is entry.turn:
-            texts = [
-                current.transcripts[k]
-                for current in owned
-                for k in sorted(current.transcripts)
-                if 0 <= k <= current.last_index
-            ]
-            if texts or entry.truncated:
-                entry.turn.transcript = "".join(texts)
-            if entry.truncated:
-                entry.turn.text = ""
+            self._refresh_transcript(entry)
 
         selected: list[tuple[_Item, int, str]] = []
         complete = bool(owned)
@@ -907,14 +924,18 @@ class _AgentsRealtimeState(_RealtimeState):
             if member.has_audio and (not audio.chunks or audio.oversize or not duration):
                 return
             durations.append(duration or 0)
-        if sum(durations) > end - start + 1_000_000:
+        # Receipt timestamps can differ slightly from complete clip durations.
+        # Bound the adjustment rather than stretching an unproven window.
+        if sum(durations) > end - start + _PLAYBACK_TIMESTAMP_TOLERANCE_NS:
             return
         cursor = end
         for index in range(len(window) - 1, -1, -1):
             member = window[index]
             if not durations[index]:
                 continue
-            member.start_ns = start if index == 0 else max(start, cursor - durations[index])
+            member.start_ns = (
+                min(start, cursor - durations[index]) if index == 0 else max(start, cursor - durations[index])
+            )
             member.end_ns = min(cursor, member.start_ns + durations[index]) if index == 0 else cursor
             member.derived = len(window) > 1
             cursor = member.start_ns
@@ -973,19 +994,6 @@ class _AgentsRealtimeState(_RealtimeState):
                 ):
                     item.caps[index] = min(item.caps.get(index, end_ms), end_ms)
                     item.last_index = min(item.last_index, index)
-                    if item.entry and not item.input_audio:
-                        rate = _bytes_per_second(item.mime, item.rate)
-                        part = item.parts.get(index)
-                        cut = (
-                            not item.complete
-                            or rate is None
-                            or part is None
-                            or int(end_ms * rate / 1000) < _decoded_b64_len(part)
-                        )
-                        for part_index in list(item.transcripts):
-                            if part_index > index or (part_index == index and cut):
-                                item.transcripts.pop(part_index, None)
-                        item.entry.turn.transcript = ""
                     if item.entry:
                         item.entry.truncated = True
                         after = False
@@ -994,7 +1002,6 @@ class _AgentsRealtimeState(_RealtimeState):
                             if other and after:
                                 other.last_index = -1
                                 other.parts.clear()
-                                other.transcripts.clear()
                                 other.wanted = False
                             after |= item_id == item.id
                     self._rebuild(item)

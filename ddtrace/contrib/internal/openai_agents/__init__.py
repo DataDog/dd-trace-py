@@ -42,9 +42,9 @@ network arrival spacing cannot. Output usage bounds account for playback speed. 
 are marked with ``output_audio_capture=omitted`` in span metadata. Successful replies remain unchanged and can add audio to ``RealtimeSession`` history
 for the session's lifetime. Disable additional retrieval to avoid that extra history retention.
 
-After an interruption, a complete audio prefix can be retained even when the stored item is marked
-incomplete. Its truncated part's caption is omitted in that case because it may include speech
-the caller did not hear.
+Text output records the model's generated response, including content beyond an interruption.
+Recorded audio is independently capped to acknowledged playback, so it can be shorter than the text.
+Shortened conversation snapshots do not replace the generated transcript.
 
 Retained turns and retrieved audio are bounded. Recordings that are incomplete, malformed, too
 large, or have inconsistent audio formats are omitted while available transcripts are retained. The integration

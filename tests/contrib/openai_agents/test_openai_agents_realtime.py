@@ -627,7 +627,7 @@ async def test_realtime_preserves_wrapt_handles(
 
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
 @pytest.mark.asyncio
-async def test_realtime_multipart_truncation_discards_later_parts(agents, openai_agents_llmobs, test_spans, socket):
+async def test_realtime_multipart_truncation_keeps_generated_text(agents, openai_agents_llmobs, test_spans, socket):
     model = await connect(socket, {"call_id": "truncated"})
     await socket.feed(created())
     await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
@@ -639,7 +639,7 @@ async def test_realtime_multipart_truncation_discards_later_parts(agents, openai
     await model.close()
     span, _ = llm_span(test_spans)
     message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
-    assert message["content"] == "heard"
+    assert message["content"] == "hellounheard"
     raw = base64.b64decode(message["audio_parts"][0]["content"])
     assert raw[-48:] == b"\1\0" * 24
     assert len(raw) == 44 + 48
@@ -1346,7 +1346,7 @@ async def test_realtime_provisional_snapshot_refreshes_after_bounded_completion(
     await model.close()
     span, _ = llm_span(test_spans)
     message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
-    assert message["content"] == transcript
+    assert message["content"] == "generated full text"
     assert base64.b64decode(message["audio_parts"][0]["content"])[44:] == b"\2\0" * 2400
 
 
@@ -1813,9 +1813,9 @@ async def test_realtime_usage_capture_places_preamble_and_played_continuation(
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
-@pytest.mark.parametrize("cut_ms,transcript", [(500, ""), (1000, "hello")])
+@pytest.mark.parametrize("cut_ms", [500, 1000])
 async def test_realtime_prefetched_reply_keeps_only_heard_audio_after_barge_in(
-    agents, openai_agents_llmobs, test_spans, socket, cut_ms, transcript
+    agents, openai_agents_llmobs, test_spans, socket, cut_ms
 ):
     model = await connect(socket, {"call_id": "prefetch-then-interrupt"})
     await socket.feed(created())
@@ -1828,7 +1828,7 @@ async def test_realtime_prefetched_reply_keeps_only_heard_audio_after_barge_in(
     await model.close()
     span, _ = llm_span(test_spans)
     message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
-    assert message["content"] == transcript
+    assert message["content"] == "hello"
     raw = base64.b64decode(message["audio_parts"][0]["content"])
     assert len(raw) == 44 + 48 * cut_ms
     assert raw[44:] == b"\1\0" * (24 * cut_ms)
@@ -1854,7 +1854,7 @@ async def test_realtime_caller_retrieved_without_transcription(agents, openai_ag
 
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
 @pytest.mark.asyncio
-async def test_realtime_uncached_zero_truncation_discards_generated_text(
+async def test_realtime_uncached_zero_truncation_keeps_generated_text(
     agents, openai_agents_llmobs, test_spans, socket, monkeypatch
 ):
     monkeypatch.setenv("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "false")
@@ -1867,8 +1867,16 @@ async def test_realtime_uncached_zero_truncation_discards_generated_text(
     await model.close()
     span, spans = llm_span(test_spans)
     root = next(s for s in spans if s.resource == "createRealtimeTurn")
-    for exported in (span, root):
-        assert "unheard" not in json.dumps(_get_llmobs_data_metastruct(exported)["meta"].get("output"))
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
+        output_messages=[{"role": "assistant", "content": "unheard firstunheard second"}],
+    )
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(root),
+        span_kind="workflow",
+        output_value="unheard firstunheard second",
+    )
     assert not [e for e in socket.sent if e["type"] == "conversation.item.retrieve"]
 
 
@@ -1993,11 +2001,11 @@ async def test_realtime_primary_text_is_captured_once(agents, openai_agents_llmo
 
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
 @pytest.mark.parametrize(
-    "late_event", ["item_done", "response_done", "transcript_delta", "new_item", "evicted_summary"]
+    "late_event", ["item_done", "response_done", "transcript_delta", "audio_delta", "new_item", "evicted_summary"]
 )
 @pytest.mark.parametrize("retrieved_prefix", [False, True])
 @pytest.mark.asyncio
-async def test_realtime_truncation_survives_late_generation(
+async def test_realtime_truncation_preserves_late_generation_text(
     agents, openai_agents_llmobs, test_spans, socket, monkeypatch, late_event, retrieved_prefix
 ):
     monkeypatch.setenv("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "false")
@@ -2034,6 +2042,16 @@ async def test_realtime_truncation_survives_late_generation(
                 "item": output_item("a2" if late_event == "new_item" else "a1", transcript="unheard generated text"),
             }
         )
+    elif late_event == "audio_delta":
+        await socket.feed(
+            {
+                "type": "response.output_audio.delta",
+                "response_id": "r1",
+                "item_id": "a1",
+                "content_index": 0,
+                "delta": base64.b64encode(b"\2\0" * 2400).decode(),
+            }
+        )
     else:
         await socket.feed(
             {
@@ -2047,15 +2065,19 @@ async def test_realtime_truncation_survives_late_generation(
     await model.close()
     span, spans = llm_span(test_spans)
     root = next(s for s in spans if s.resource == "createRealtimeTurn")
-    for exported in (span, root):
-        assert "unheard" not in json.dumps(_get_llmobs_data_metastruct(exported)["meta"].get("output"))
+    expected = "unheard generated text"
+    if late_event in ("new_item", "evicted_summary"):
+        expected += "unheard evicting item" if late_event == "evicted_summary" else "unheard generated text"
+    elif late_event == "transcript_delta":
+        expected += "unheard late caption"
+    message = {"role": "assistant", "content": expected}
     if retrieved_prefix:
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(span),
-            span_kind="llm",
-            output_messages=[{"role": "assistant", "content": "heard", "audio_parts": mock.ANY}],
-        )
-        assert_llmobs_span_data(_get_llmobs_data_metastruct(root), span_kind="workflow", output_value="heard")
+        message["audio_parts"] = mock.ANY
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="llm", output_messages=[message])
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(root), span_kind="workflow", output_value=expected)
+    if retrieved_prefix:
+        audio = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]["audio_parts"][0]
+        assert base64.b64decode(audio["content"])[44:] == b"\1\0" * 24
 
 
 def test_realtime_disabled_before_patch(agents, monkeypatch):
@@ -2090,9 +2112,10 @@ def test_realtime_disabled_before_lazy_import():
 
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
 @pytest.mark.parametrize("earlier_part", [False, True])
+@pytest.mark.parametrize("stored_caption", ["Unfortunately,", ""])
 @pytest.mark.asyncio
-async def test_realtime_incomplete_truncated_snapshot_preserves_audio_not_caption(
-    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, earlier_part
+async def test_realtime_incomplete_truncated_snapshot_preserves_generation_and_audio(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, earlier_part, stored_caption
 ):
     monkeypatch.setenv("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "false")
     model = await connect(socket, {"call_id": "cancelled-prefix"})
@@ -2111,7 +2134,7 @@ async def test_realtime_incomplete_truncated_snapshot_preserves_audio_not_captio
     await socket.feed(
         {"type": "conversation.item.truncated", "item_id": "a1", "content_index": int(earlier_part), "audio_end_ms": 20}
     )
-    snapshot = retrieved(audio=clipped, transcript="Unfortunately,")
+    snapshot = retrieved(audio=clipped, transcript=stored_caption)
     snapshot["item"]["status"] = "incomplete"
     if earlier_part:
         snapshot["item"]["content"].insert(
@@ -2122,7 +2145,53 @@ async def test_realtime_incomplete_truncated_snapshot_preserves_audio_not_captio
     await model.close()
     span, spans = llm_span(test_spans)
     message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
-    assert message["content"] == ("Heard." if earlier_part else "")
+    expected = ("Heard." if earlier_part else "") + "Unfortunately,"
+    assert message["content"] == expected
     assert base64.b64decode(message["audio_parts"][0]["content"])[44:] == prefix + clipped
-    for exported in spans:
-        assert "Unfortunately," not in json.dumps(_get_llmobs_data_metastruct(exported)["meta"].get("output"))
+    root = next(s for s in spans if s.resource == "createRealtimeTurn")
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(root), span_kind="workflow", output_value=expected)
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("shortfall_ms", [0, 7.122, 20, 20.001])
+@pytest.mark.asyncio
+async def test_realtime_shared_playback_window_tolerates_bounded_timestamp_jitter(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, shortfall_ms
+):
+    now = [1_000_000_000]
+    monkeypatch.setattr(_realtime.time, "time_ns", lambda: now[0])
+    monkeypatch.setenv("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "false")
+    model = await connect(socket, {"call_id": "playback-jitter"})
+    expected = {"r1": b"\1\0" * 148800, "r2": b"\2\0" * 153600}
+    for response_id, item_id in [("r1", "a1"), ("r2", "a2")]:
+        await socket.feed(created(response_id))
+        turn = model._dd_realtime_state.entries[response_id].turn
+        turn.root_span.start_ns = turn.span.start_ns = now[0]
+        if response_id == "r1":
+            await socket.feed({"type": "output_audio_buffer.started", "response_id": response_id})
+        await socket.feed(done(response_id, [output_item(item_id)]))
+        await socket.feed(retrieved(item_id, expected[response_id]))
+    now[0] += 12_600_000_000 - round(shortfall_ms * 1_000_000)
+    await socket.feed({"type": "output_audio_buffer.stopped", "response_id": "r2"})
+    await model.close()
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    speech = sorted([s for s in spans if s.resource == "createRealtimeAgentSpeech"], key=lambda s: s.start_ns)
+    if shortfall_ms <= 20:
+        assert len(speech) == 2
+        assert [s.duration_ns for s in speech] == [6_200_000_000, 6_400_000_000]
+        assert speech[0].start_ns + speech[0].duration_ns == speech[1].start_ns
+        assert speech[1].start_ns + speech[1].duration_ns == now[0]
+        for child in speech:
+            parent = next(s for s in spans if s.span_id == child.parent_id)
+            assert parent.start_ns <= child.start_ns
+    else:
+        assert not speech, "unproven playback boundaries must not be synthesized"
+    models = [s for s in spans if s.resource == "createRealtimeResponse"]
+    assert len(models) == 2
+    captured = [
+        base64.b64decode(_get_llmobs_data_metastruct(s)["meta"]["output"]["messages"][0]["audio_parts"][0]["content"])[
+            44:
+        ]
+        for s in models
+    ]
+    assert sorted(captured) == sorted(expected.values())
