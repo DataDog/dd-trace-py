@@ -20,6 +20,8 @@ If you're trying to set up a local development environment, read `this <https://
 
 `Fuzzing native code documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-fuzzing.rst>`_.
 
+`Python profiler documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/ddtrace/internal/datadog/profiling/docs/README.md>`_.
+
 Thanks for working with us!
 
 Coding assistant skills
