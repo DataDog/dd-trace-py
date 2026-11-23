@@ -10,7 +10,6 @@ MOLTEN_ROUTE = "molten.route"
 
 
 class MoltenRouteSubscriber(Subscriber):
-    auto_register = False
     event_names = (MoltenRouteEvent.event_name,)
 
     @classmethod
