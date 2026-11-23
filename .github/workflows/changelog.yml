@@ -24,6 +24,7 @@ jobs:
       # Ensure a new reno release note was added in this PR.
       # Use `reno new <slug>` to add a new note to `releasenotes/notes`,
       #   or add `changelog/no-changelog` label if no release note is needed.
+      # PRs titled `ci`, `test` or `docs` do not need either.
       - name: Ensure release note added
         # Only run this on pull requests
         if: github.event_name == 'pull_request'

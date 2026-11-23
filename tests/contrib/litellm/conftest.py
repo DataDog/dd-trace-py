@@ -37,6 +37,7 @@ def litellm_llmobs(tracer, monkeypatch):
         {
             "_llmobs_ml_app": "<ml-app-name>",
             "_dd_api_key": "<not-a-real-key>",
+            "_llmobs_agentless_enabled": False,
         }
     ):
         LLMObs.enable(_tracer=tracer, integrations_enabled=False)

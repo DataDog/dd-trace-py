@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    internal: Fixes an intermittent ``KeyError`` at startup that could prevent products, such as App and API
-    Protection, from being enabled through remote configuration when module unloading is active (the default
-    when gevent is installed).
