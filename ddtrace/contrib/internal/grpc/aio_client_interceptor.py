@@ -1,8 +1,7 @@
 import asyncio
 import functools
-from typing import Callable  # noqa:F401
-from typing import Optional
-from typing import Union  # noqa:F401
+from typing import Callable
+from typing import Union
 
 import grpc
 from grpc import aio
@@ -80,8 +79,8 @@ def _claim_stream_error(span: Span) -> bool:
 async def _finish_stream_terminal_state(
     call: aio.Call,
     span: Span,
-    fallback_code: Optional[grpc.StatusCode],
-    fallback_details: Optional[str],
+    fallback_code: Union[grpc.StatusCode, None],
+    fallback_details: Union[str, None],
 ) -> None:
     if not _claim_stream_error(span):
         return
@@ -129,10 +128,7 @@ def _done_callback_stream(span: Span) -> Callable[[aio.Call], None]:
             # we need to call __repr__ as we cannot call code() or details() since they are both async
             code, _details = utils._parse_rpc_repr_string(call.__repr__(), grpc)
         except ValueError:
-            # ValueError is thrown from _parse_rpc_repr_string
-            log.warning("Unable to parse async grpc string for status code and details.")
-            span.finish()
-            return
+            code, _details = None, None
         if code != grpc.StatusCode.OK:
             # A stream may never be consumed, so no iterator-side handler may run.
             # Use async accessors for authoritative terminal details and let the
@@ -314,6 +310,7 @@ class _ClientInterceptor:
                 _set_error_attrs(span, str(grpc.StatusCode.CANCELLED), "Locally cancelled by application!")
                 span.finish()
             else:
+                call.cancel()
                 await _handle_cancelled_error(call, span)
             raise
 
