@@ -95,8 +95,7 @@ def try_unwrap(module: Any, name: str) -> None:
     try:
         (parent, attribute, _) = resolve_path(module, name)
         if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
-            original = _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
-            apply_patch(parent, attribute, original)
+            _set_attribute(parent, attribute, _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)])
             del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
     except (ModuleNotFoundError, AttributeError):
         log.debug("ERROR unwrapping %s.%s ", module, name)
@@ -129,20 +128,27 @@ def wrap_object(
     return wrapper
 
 
+def _set_attribute(parent: Any, attribute: str, value: Any) -> None:
+    try:
+        setattr(parent, attribute, value)
+    except (TypeError, AttributeError):
+        patch_builtins(parent, attribute, value)
+
+
 def apply_patch(parent: Any, attribute: str, replacement: Any) -> None:
     try:
         _, _, current_attribute = resolve_path(parent, attribute)
-        # Avoid overwriting the original function if we call this twice
-        if (parent, attribute) not in _DD_ORIGINAL_ATTRIBUTES:
-            _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)] = current_attribute
-        elif isinstance(replacement, FunctionWrapper) and (
-            getattr(replacement, "_self_wrapper", None) is getattr(current_attribute, "_self_wrapper", None)
-        ):
-            # Avoid double patching
-            return
-        setattr(parent, attribute, replacement)
     except (TypeError, AttributeError):
         patch_builtins(parent, attribute, replacement)
+        return
+    if isinstance(replacement, FunctionWrapper) and (
+        getattr(replacement, "_self_wrapper", None) is getattr(current_attribute, "_self_wrapper", None)
+    ):
+        # Avoid double patching
+        return
+    # Avoid overwriting the original function if we call this twice
+    _DD_ORIGINAL_ATTRIBUTES.setdefault((parent, attribute), current_attribute)
+    _set_attribute(parent, attribute, replacement)
 
 
 def patchable_builtin(klass: type[Any]) -> Any:

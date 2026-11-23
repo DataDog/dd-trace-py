@@ -21,11 +21,15 @@ def _module_with_target():
         def static_method():
             return "static"
 
+    class Sub(Target):
+        pass
+
     def function():
         return "function"
 
     module = types.ModuleType("security_patch_utils_target")
     module.Target = Target
+    module.Sub = Sub
     module.function = function
     return module
 
@@ -36,6 +40,10 @@ def _counting_hook(calls):
         return wrapped(*args, **kwargs)
 
     return hook
+
+
+def _parent(module, path):
+    return module.Target if path.startswith("Target.") else module
 
 
 @pytest.mark.parametrize(
@@ -49,7 +57,7 @@ def _counting_hook(calls):
 )
 def test_unwrap_after_double_patch_restores_original(path, call, expected):
     module = _module_with_target()
-    parent = module.Target if path.startswith("Target.") else module
+    parent = _parent(module, path)
     attribute = path.split(".")[-1]
     original = vars(parent)[attribute]
     calls = []
@@ -83,32 +91,60 @@ def test_unwrap_after_patching_with_two_hooks_restores_original():
     try_unwrap(module, "Target.method")
 
     assert vars(module.Target)["method"] is original
+    assert (module.Target, "method") not in _DD_ORIGINAL_ATTRIBUTES
     calls.clear()
     assert module.Target().method() == "method"
     assert calls == []
 
 
-@pytest.mark.parametrize("path", ["Target.method", "function"])
-def test_unwrap_restores_a_wrapper_installed_elsewhere(path):
+@pytest.mark.parametrize(
+    "path,call",
+    [
+        ("Target.method", lambda module: module.Target().method()),
+        ("function", lambda module: module.function()),
+    ],
+)
+def test_unwrap_restores_a_wrapper_installed_elsewhere(path, call):
     module = _module_with_target()
-    parent = module.Target if path.startswith("Target.") else module
+    parent = _parent(module, path)
     attribute = path.split(".")[-1]
     foreign_calls = []
     calls = []
     foreign = FunctionWrapper(vars(parent)[attribute], _counting_hook(foreign_calls))
     setattr(parent, attribute, foreign)
-    call = (lambda: module.Target().method()) if parent is module.Target else (lambda: module.function())
 
     wrap_object(module, path, FunctionWrapper, (_counting_hook(calls),))
-    call()
+    call(module)
     assert len(calls) == 1
     assert len(foreign_calls) == 1
 
     try_unwrap(module, path)
 
     assert vars(parent)[attribute] is foreign
+    assert (parent, attribute) not in _DD_ORIGINAL_ATTRIBUTES
     calls.clear()
     foreign_calls.clear()
-    call()
+    call(module)
     assert calls == []
     assert len(foreign_calls) == 1
+
+
+def test_patching_base_and_subclass_with_the_same_hook_wraps_once():
+    module = _module_with_target()
+    original = vars(module.Target)["method"]
+    calls = []
+    hook = _counting_hook(calls)
+
+    wrap_object(module, "Target.method", FunctionWrapper, (hook,))
+    wrap_object(module, "Sub.method", FunctionWrapper, (hook,))
+    assert module.Sub().method() == "method"
+    assert len(calls) == 1
+
+    try_unwrap(module, "Sub.method")
+    try_unwrap(module, "Target.method")
+
+    assert vars(module.Target)["method"] is original
+    assert "method" not in vars(module.Sub)
+    calls.clear()
+    assert module.Sub().method() == "method"
+    assert calls == []
