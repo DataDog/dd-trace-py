@@ -62,9 +62,10 @@ class GCCollector(collector.Collector):
       not also added to the window totals. The last slots before the
       per-interval cap only take pauses of 10 ms or more, and pauses past
       the cap fall back to the totals. The callback only writes into a
-      preallocated ring. It records the native thread id with each kept
-      pause, since the thread may exit before snapshot(); the thread name
-      is resolved at snapshot() time.
+      preallocated ring, and reads the clock and thread ids only for the
+      pauses it keeps. It records the native thread id then, since the
+      thread may exit before snapshot(); the thread name is resolved at
+      snapshot() time.
     - A gc.config snapshot sample per flush carrying the interval's explicit
       gc.collect() tally in the native gc-samples field. When pauses missed
       the event cap, numeric "gc dropped pauses" and "gc dropped pause ns"
@@ -195,8 +196,6 @@ class GCCollector(collector.Collector):
             return
         if pause_ns < 0:
             return
-        end_ns: int = time.monotonic_ns()
-        thread_id: int = _thread.get_ident()
         # Skip when snapshot() already holds the lock. Waiting would block
         # forever if GC re-entered on this same thread (same as
         # GCPauseMonitor._on_gc).
@@ -208,8 +207,8 @@ class GCCollector(collector.Collector):
                 if i < _MAX_PAUSE_EVENTS and (i < _SHORT_PAUSE_EVENT_LIMIT or pause_ns >= _LONG_PAUSE_NS):
                     self._event_gen[i] = gen
                     self._event_pause_ns[i] = pause_ns
-                    self._event_end_ns[i] = end_ns
-                    self._event_thread_id[i] = thread_id
+                    self._event_end_ns[i] = time.monotonic_ns()
+                    self._event_thread_id[i] = _thread.get_ident()
                     self._event_native_id[i] = _thread.get_native_id()
                     self._event_count = i + 1
                     return

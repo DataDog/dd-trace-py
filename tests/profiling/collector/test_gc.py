@@ -462,6 +462,28 @@ def test_on_pause_does_not_grow_event_buffers() -> None:
     assert col._pause_count == [0, 0, 0]
 
 
+def test_on_pause_reads_clock_and_thread_ids_only_for_kept_events() -> None:
+    col: GCCollector = _make_isolated_collector(pause_event_threshold_ms=1.0)
+    mock_time: mock.MagicMock = mock.MagicMock()
+    mock_time.monotonic_ns.return_value = 123
+    mock_thread: mock.MagicMock = mock.MagicMock()
+    mock_thread.get_ident.return_value = 456
+    mock_thread.get_native_id.return_value = 789
+    with mock.patch.object(gc_collector, "time", mock_time), mock.patch.object(gc_collector, "_thread", mock_thread):
+        # Below the event threshold, then past the event cap.
+        col._on_pause(0, 500_000)
+        col._event_count = gc_collector._MAX_PAUSE_EVENTS
+        col._on_pause(2, 20_000_000)
+        assert col._pause_count == [1, 0, 1]
+        mock_time.monotonic_ns.assert_not_called()
+        mock_thread.get_ident.assert_not_called()
+        mock_thread.get_native_id.assert_not_called()
+
+        col._event_count = 0
+        col._on_pause(2, 20_000_000)
+    assert (col._event_end_ns[0], col._event_thread_id[0], col._event_native_id[0]) == (123, 456, 789)
+
+
 def test_snapshot_emits_config_sample() -> None:
     # Isolated: starting the collector registers a monitor listener, and a live
     # pause during snapshot() would also call SampleHandle.push_gctime.
