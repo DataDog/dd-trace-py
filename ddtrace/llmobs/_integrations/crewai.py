@@ -105,7 +105,9 @@ class CrewAIIntegration(BaseLLMIntegration):
         elif operation == "flow_method":
             self._llmobs_set_tags_flow_method(span, args, kwargs, response)
 
-    def _llmobs_set_tags_crew(self, span, args, kwargs, response):
+    def _llmobs_set_tags_crew(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         crew_instance = kwargs.pop("_dd.instance", None)
         crew_id = _get_crew_id(span, "crew")
         task_span_ids = self._crews_to_task_span_ids.get(crew_id, [])
@@ -134,7 +136,9 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, output_value=getattr(response, "raw", ""))
 
-    def _llmobs_set_tags_task(self, span, args, kwargs, response):
+    def _llmobs_set_tags_task(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         crew_id = _get_crew_id(span, "task")
         task_instance = kwargs.pop("_dd.instance", None)
         task_id = getattr(task_instance, "id", None)
@@ -150,8 +154,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         computed_span_links = None
         if task_id:
             span_links = self._crews_to_tasks[crew_id].get(str(task_id), {}).get("span_links", [])
-            if self._is_planning_task(span):
-                parent_span = _get_nearest_llmobs_ancestor(span)
+            parent_span = _get_nearest_llmobs_ancestor(span) if self._is_planning_task(span) else None
+            if parent_span is not None:
                 span_link = _SpanLink(
                     span_id=str(parent_span.span_id),
                     trace_id=format_trace_id(span.trace_id),
@@ -171,7 +175,9 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, output_value=getattr(response, "raw", ""))
 
-    def _llmobs_set_tags_agent(self, span, args, kwargs, response):
+    def _llmobs_set_tags_agent(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         """Set span links and metadata for agent spans.
         Agent spans are 1:1 with its parent (task/tool) span, so we link them directly here, even on the parent itself.
         """
@@ -181,31 +187,40 @@ class CrewAIIntegration(BaseLLMIntegration):
         task_description = getattr(kwargs.get("task"), "description", "")
         context = get_argument_value(args, kwargs, 1, "context", optional=True) or ""
 
+        span_links = get_llmobs_span_links(span) or []
         parent_span = _get_nearest_llmobs_ancestor(span)
-        parent_span_link = _SpanLink(
-            span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
-            attributes={"from": "output", "to": "output"},
-        )
-        curr_span_links = get_llmobs_span_links(parent_span) or []
-        _annotate_llmobs_span_data(parent_span, span_links=curr_span_links + [parent_span_link])
-        span_link = _SpanLink(
-            span_id=str(parent_span.span_id),
-            trace_id=format_trace_id(span.trace_id),
-            attributes={"from": "input", "to": "input"},
-        )
-        curr_span_links = get_llmobs_span_links(span) or []
+        if parent_span is not None:
+            parent_span_link = _SpanLink(
+                span_id=str(span.span_id),
+                trace_id=format_trace_id(span.trace_id),
+                attributes={"from": "output", "to": "output"},
+            )
+            curr_span_links = get_llmobs_span_links(parent_span) or []
+            _annotate_llmobs_span_data(parent_span, span_links=curr_span_links + [parent_span_link])
+            span_link = _SpanLink(
+                span_id=str(parent_span.span_id),
+                trace_id=format_trace_id(span.trace_id),
+                attributes={"from": "input", "to": "input"},
+            )
+            span_links = span_links + [span_link]
         _annotate_llmobs_span_data(
             span,
             name=agent_role if agent_role else "CrewAI Agent",
             input_value={"context": context, "input": task_description},
-            span_links=curr_span_links + [span_link],
+            span_links=span_links,
         )
         if span.error:
             return
         _annotate_llmobs_span_data(span, output_value=response)
 
-    def _llmobs_set_tags_tool(self, span, args, kwargs, response, unpack_input):
+    def _llmobs_set_tags_tool(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any],
+        unpack_input: bool,
+    ) -> None:
         tool_instance = kwargs.pop("_dd.instance", None)
         tool_call_id = kwargs.pop("_dd.tool_call_id", None)
         tool_name = getattr(tool_instance, "name", "")
@@ -237,11 +252,11 @@ class CrewAIIntegration(BaseLLMIntegration):
             (tool_name, safe_json(tool_input), "function", span, tool_call_id),
         )
 
-    def _tag_agent_manifest(self, span, agent):
+    def _tag_agent_manifest(self, span: _LLMObsSpan, agent: Any) -> None:
         if not agent:
             return
 
-        manifest = {}
+        manifest: dict[str, Any] = {}
         manifest["framework"] = "CrewAI"
         manifest["name"] = agent.role if hasattr(agent, "role") and agent.role else "CrewAI Agent"
         if hasattr(agent, "goal"):
@@ -251,7 +266,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         if hasattr(agent, "llm"):
             if hasattr(agent.llm, "model"):
                 manifest["model"] = agent.llm.model
-            model_settings = {}
+            model_settings: dict[str, Any] = {}
             if hasattr(agent.llm, "max_tokens"):
                 model_settings["max_tokens"] = agent.llm.max_tokens
             if hasattr(agent.llm, "temperature"):
@@ -260,7 +275,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 manifest["model_settings"] = model_settings
         if hasattr(agent, "allow_delegation"):
             manifest["handoffs"] = {"allow_delegation": agent.allow_delegation}
-        code_execution_permissions = {}
+        code_execution_permissions: dict[str, Any] = {}
         if hasattr(agent, "allow_code_execution"):
             manifest["code_execution_permissions"] = {"allow_code_execution": agent.allow_code_execution}
         if hasattr(agent, "code_execution_mode"):
@@ -274,12 +289,12 @@ class CrewAIIntegration(BaseLLMIntegration):
 
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
-    def _get_agent_tools(self, tools):
+    def _get_agent_tools(self, tools: Any) -> list[dict[str, Any]]:
         if not tools or not isinstance(tools, list):
             return []
         formatted_tools = []
         for tool in tools:
-            tool_dict = {}
+            tool_dict: dict[str, Any] = {}
             if hasattr(tool, "name"):
                 tool_dict["name"] = tool.name
             if hasattr(tool, "description"):
@@ -287,14 +302,18 @@ class CrewAIIntegration(BaseLLMIntegration):
             formatted_tools.append(tool_dict)
         return formatted_tools
 
-    def _llmobs_set_tags_flow(self, span, args, kwargs, response):
+    def _llmobs_set_tags_flow(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or {}
         _annotate_llmobs_span_data(span, name=span.name or "CrewAI Flow", input_value=inputs)
         if span.error:
             return
         _annotate_llmobs_span_data(span, output_value=str(response))
 
-    def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):
+    def _llmobs_set_tags_flow_method(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         flow_instance = kwargs.pop("_dd.instance", None)
         initial_flow_state = kwargs.pop("_dd.initial_flow_state", {})
         input_dict = {
@@ -302,14 +321,14 @@ class CrewAIIntegration(BaseLLMIntegration):
             "kwargs": {k: safe_json(v) for k, v in kwargs.items()},
             "flow_state": initial_flow_state,
         }
-        span_links = (
-            self._flow_span_to_method_to_span_dict.get(span._parent, {}).get(span.name, {}).get("span_links", [])
-        )
+        flow_span = span._parent
+        method_to_span_dict = self._flow_span_to_method_to_span_dict.get(flow_span, {}) if flow_span is not None else {}
+        span_links = method_to_span_dict.get(span.name, {}).get("span_links", [])
         start_methods, routers, _ = _get_flow_structure(flow_instance)
-        if span.name in start_methods and span._parent is not None:
+        if span.name in start_methods and flow_span is not None:
             span_links.append(
                 _SpanLink(
-                    span_id=str(span._parent.span_id),
+                    span_id=str(flow_span.span_id),
                     trace_id=format_trace_id(span.trace_id),
                     attributes={"from": "input", "to": "input"},
                 )
@@ -318,7 +337,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         if not span.error and span.name in routers:
             # For router methods the downstream trigger is the router's result, not the method name.
             # We store the span info keyed by that result so it can be linked to future listener spans.
-            span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(str(response), {})
+            span_dict = method_to_span_dict.setdefault(str(response), {})
             span_dict.update({"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)})
 
         _annotate_llmobs_span_data(span, name=span.name or "Flow Method", input_value=input_dict, span_links=span_links)
@@ -336,7 +355,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         except (KeyError, AttributeError):
             pass
 
-    def _llmobs_set_span_link_on_flow(self, flow_span, args, kwargs, flow_instance):
+    def _llmobs_set_span_link_on_flow(self, flow_span: _LLMObsSpan, args: Any, kwargs: Any, flow_instance: Any) -> None:
         """
         Set span links for the next queued listener method(s) in a CrewAI flow.
 
@@ -468,7 +487,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         queued_task_node["span_links"] = span_links
         return
 
-    def _is_planning_task(self, span):
+    def _is_planning_task(self, span: _LLMObsSpan) -> bool:
         """Check if the current task is a planning task, since we need to add span links manually for planning tasks.
         This is done by checking if the task span is the first task in the crew execution and
         planning is enabled on the crew instance.
@@ -481,7 +500,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         return crew_id in self._planning_crew_ids
 
 
-def _extract_tool_description_field(tool_description: str):
+def _extract_tool_description_field(tool_description: str) -> str:
     fields = tool_description.rsplit("Tool Description: ", 1)
     if len(fields) == 1:
         return tool_description
@@ -542,13 +561,14 @@ def _satisfying_methods(
     return next((result for result in satisfied if trigger_method in result), satisfied[0] if satisfied else None)
 
 
-def _get_crew_id(span, operation):
+def _get_crew_id(span: _LLMObsSpan, operation: str) -> str:
     """Return the crew ID from a crew or task span."""
     if operation == "crew":
         return f"crew_{span.trace_id}_{span.span_id}"
     if operation == "task":
         parent_id = get_llmobs_parent_id(span)
         if parent_id is None:
-            parent_id = span.parent_id
+            # parent_id is not part of the _LLMObsSpan protocol, but is present on tracer spans.
+            parent_id = getattr(span, "parent_id", None)
         return f"crew_{span.trace_id}_{parent_id}"
     return f"{span.trace_id}"

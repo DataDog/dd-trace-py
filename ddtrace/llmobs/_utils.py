@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -8,9 +9,12 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 import re
+from types import ModuleType
+from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 
@@ -22,6 +26,7 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import safe_json as safe_json
@@ -79,6 +84,8 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+_T = TypeVar("_T")
+
 ValidatedPromptDict = dict[
     str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message], list[ChatTemplateItem]]
 ]
@@ -107,7 +114,7 @@ def resolve_llmobs_git_metadata() -> tuple[str, str]:
     return repository_url, commit_sha
 
 
-def get_asyncio():
+def get_asyncio() -> ModuleType:
     # asyncio must NOT be imported at module level — this module is
     # loaded at ddtrace.auto startup and an early asyncio import corrupts the
     # event loop on some platforms.  See test_lazyimport.py.
@@ -240,20 +247,30 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
 
 
 class AnnotationContext:
-    def __init__(self, _register_annotator, _deregister_annotator):
+    def __init__(self, _register_annotator: Callable[[], object], _deregister_annotator: Callable[[], object]) -> None:
         self._register_annotator = _register_annotator
         self._deregister_annotator = _deregister_annotator
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self._register_annotator()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self._deregister_annotator()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         self._register_annotator()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self._deregister_annotator()
 
 
@@ -315,7 +332,7 @@ def _sanitize_span_event_data(obj: Any) -> Any:
     return _walk(obj, 0, "")
 
 
-def load_data_value(value):
+def load_data_value(value: Any) -> Any:
     if isinstance(value, (list, tuple, set)):
         return [load_data_value(item) for item in value]
     elif isinstance(value, dict):
@@ -325,7 +342,8 @@ def load_data_value(value):
     elif hasattr(value, "model_dump"):
         # model_dump() can leave non-primitive field values (datetime, Enum, ...) unconverted.
         return load_data_value(value.model_dump(exclude_none=True))
-    elif is_dataclass(value):
+    elif is_dataclass(value) and not isinstance(value, type):
+        # Dataclass types were already handled above; the isinstance check only narrows for asdict().
         # asdict() deep-copies non-dataclass field types as-is, leaving them unconverted.
         return load_data_value(asdict(value))
     elif isinstance(value, (int, float, str, bool)) or value is None:
@@ -386,7 +404,7 @@ class _TrackedPromptStr(str):
     dd_prompt: Prompt
 
 
-class _TrackedPromptList(list):
+class _TrackedPromptList(list[Message]):
     dd_prompt: Prompt
 
 
@@ -394,8 +412,11 @@ def attach_prompt(rendered_value: Union[str, list[Message]], prompt: Prompt) -> 
     """Wrap a ManagedPrompt.format() render so it carries its prompt metadata into the LLM call."""
     if not config._llmobs_enabled:
         return rendered_value
-    tracked_cls = _TrackedPromptStr if isinstance(rendered_value, str) else _TrackedPromptList
-    tracked = tracked_cls(rendered_value)
+    tracked: Union[_TrackedPromptStr, _TrackedPromptList]
+    if isinstance(rendered_value, str):
+        tracked = _TrackedPromptStr(rendered_value)
+    else:
+        tracked = _TrackedPromptList(rendered_value)
     tracked.dd_prompt = prompt
     return tracked
 
@@ -435,7 +456,9 @@ def get_llmobs_span_kind(span: _LLMObsSpan) -> Optional[str]:
     return kind
 
 
-def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optional[str]]:
+def _resolve_parent_agent(
+    active: Optional[Union[SpanData, Context]],
+) -> tuple[Optional[str], Optional[str], Optional[str]]:
     """Resolve (parent_agent_name, parent_agent_span_id, parent_agent_version) from the active LLMObs parent.
 
     active is the result of _llmobs_context_provider.active():
@@ -455,21 +478,21 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optiona
 
     if isinstance(active, SpanData):
         # Span is the only SpanData type, so this is an LLMObs span; a Protocol cannot be checked at runtime.
-        active = cast(_LLMObsSpan, active)
+        span = cast(_LLMObsSpan, active)
         # Read the meta_struct once: this runs on every span activation (hot path).
-        data = _get_llmobs_data_metastruct(active)
+        data = _get_llmobs_data_metastruct(span)
         kind = data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
         if kind == "agent":
-            version = active._get_ctx_item(AGENT_VERSION) or active._get_ctx_item(PARENT_AGENT_VERSION)
+            version = span._get_ctx_item(AGENT_VERSION) or span._get_ctx_item(PARENT_AGENT_VERSION)
             return (
-                data.get(LLMOBS_STRUCT.NAME) or active.name,
-                str(active.span_id),
+                data.get(LLMOBS_STRUCT.NAME) or span.name,
+                str(span.span_id),
                 str(version) if version else None,
             )
         return (
             data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME),
             data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID),
-            active._get_ctx_item(PARENT_AGENT_VERSION),
+            span._get_ctx_item(PARENT_AGENT_VERSION),
         )
 
     # Context parent (distributed). Keys land on context._meta via _dd.p.* propagation.
@@ -487,7 +510,7 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optiona
 _AGENT_ATTRIBUTION_TAGSET_BUDGET = 485
 
 
-def _is_propagation_tags_within_budget(meta: dict) -> bool:
+def _is_propagation_tags_within_budget(meta: dict[str, str]) -> bool:
     """Return True if the ``_dd.p.*`` propagation tags in ``meta`` encode within budget.
 
     Mirrors the propagator's own key filter (``key.startswith("_dd.p.")``) and encoder, so the
@@ -503,7 +526,7 @@ def _is_propagation_tags_within_budget(meta: dict) -> bool:
         return False
 
 
-def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_id: Optional[str]) -> None:
+def _stamp_agent_attribution(meta: dict[str, str], agent_name: Optional[str], agent_span_id: Optional[str]) -> None:
     """Write the agent id/name ``_dd.p.*`` tags onto ``meta`` without overflowing x-datadog-tags.
 
     A ``TagsetMaxSizeEncodeError`` at inject time drops the ENTIRE header (taking ml_app,
@@ -641,7 +664,7 @@ def get_llmobs_metrics(span: _LLMObsSpan) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
 
 
-def get_llmobs_span_links(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_span_links(span: _LLMObsSpan) -> Optional[list[Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS)
 
 
@@ -653,11 +676,11 @@ def get_llmobs_input_value(span: _LLMObsSpan) -> Optional[str]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.VALUE)
 
 
-def get_llmobs_input_messages(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_input_messages(span: _LLMObsSpan) -> Optional[list[Any]]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.MESSAGES)
 
 
-def get_llmobs_input_documents(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_input_documents(span: _LLMObsSpan) -> Optional[list[Any]]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
 
 
@@ -670,17 +693,19 @@ def get_llmobs_output(span: _LLMObsSpan) -> _MetaIO:
 
 
 def get_llmobs_output_value(span: _LLMObsSpan) -> Optional[str]:
-    output_data = get_llmobs_output(span)
+    # Typed as object because the meta_struct output may hold a non-dict value at runtime.
+    output_data: object = get_llmobs_output(span)
     if not isinstance(output_data, dict):
         return None
-    return output_data.get(LLMOBS_STRUCT.VALUE)
+    value: Optional[str] = output_data.get(LLMOBS_STRUCT.VALUE)
+    return value
 
 
-def get_llmobs_output_messages(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_output_messages(span: _LLMObsSpan) -> Optional[list[Any]]:
     return get_llmobs_output(span).get(LLMOBS_STRUCT.MESSAGES)
 
 
-def get_llmobs_output_documents(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_output_documents(span: _LLMObsSpan) -> Optional[list[Any]]:
     return get_llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
 
 
@@ -711,7 +736,7 @@ def get_tool_version_from_llm_span(llm_span: _LLMObsSpan, tool_name: str) -> Opt
     return None
 
 
-def _sanitize_metric_key(key):
+def _sanitize_metric_key(key: object) -> str:
     """Replace dots in a metric key with underscores.
 
     LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
@@ -918,7 +943,7 @@ def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     return [f"{key}:{value}" for key, value in tags.items()]
 
 
-def _batched(iterable: Sequence, n: int) -> Iterator[Sequence]:
+def _batched(iterable: Sequence[_T], n: int) -> Iterator[Sequence[_T]]:
     for i in range(0, len(iterable), n):
         yield iterable[i : i + n]
 

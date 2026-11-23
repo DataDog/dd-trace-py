@@ -42,7 +42,7 @@ Implement only the extraction helpers needed by the provider. Register exported 
 
 ## Patch lifecycle (`LlmRequestEvent`)
 
-Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `SpanLifecycleEvents` (`ddtrace/contrib/_events/span_lifecycle.py`) so product subscribers can add tags and extract LLMObs data.
+Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `SpanLifecycleEvents` (`ddtrace/internal/core/span_lifecycle.py`) so product subscribers can add tags and extract LLMObs data.
 
 Key points:
 - Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)`; the registered LLMObs integration tags the span through product subscribers, so contrib does not import LLMObs
@@ -81,7 +81,7 @@ LLMObs tagging runs in the finishing phase, before the span records an exception
 span at an earlier time, set `ctx.event._end_span = False`, dispatch the ended event, then call
 `span.finish(finish_time=...)` (Google ADK's abandoned tool streams).
 
-Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans; keep their creation, extraction, and finishing under one owner.
+Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as agent/tool child spans; keep their creation, extraction, and finishing under one owner. Sessions that only a product observes, such as OpenAI Realtime connections, hand a product-supplied observer to contrib through a typed core event (`ddtrace/contrib/_events/openai_realtime.py`), so contrib forwards events without importing the product.
 
 ## LLMObs subscribers and registration
 
@@ -244,16 +244,16 @@ customize the two hooks below instead of stamping kind at finish time.
 
 **`_llmobs_span_kind(self, operation_id, span, **kwargs) -> Optional[str]`**
 
-Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI, `interface_type="agent"` for Bedrock). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
+Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI and Bedrock agents). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
 
 **`_llmobs_agent_name_at_start(self, span, **kwargs) -> Optional[str]`**
 
 Return the agent's LLMObs display name when it can be determined at `trace()` call time. Return `None` to fall back to the span resource name. Override when the integration can resolve the name from kwargs (e.g. Google ADK passes `_dd_agent=<agent_instance>` and the integration reads `agent.name`).
 
-If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph),
-`_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. Stamp the name directly
-in the integration's `trace()` override after calling `super().trace()` and before returning
-the span. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
+For subscriber-based integrations, the shared SPAN_STARTED subscriber does not pass the event's
+instance to `_llmobs_agent_name_at_start`. When the name comes from the instance (e.g. LangGraph's
+graph name), stamp it in `_on_request_span_started()`, which receives the instance and runs before
+children start. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
 `ddtrace/llmobs/_integrations/google_adk.py` when the instance is available to the agent-name hook.
 
 ## Hosted voice conversations: ElevenLabs Agents

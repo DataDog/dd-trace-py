@@ -698,7 +698,7 @@ def test_set_tag_visible_via_get_attribute():
 
 def test_set_metric_visible_via_get_attribute():
     s = Span(name="test.span")
-    s._set_attribute("key", 3.14)
+    s.set_metric("key", 3.14)  # ast-grep-ignore: span-set-metric
     assert s._get_attribute("key") == 3.14
 
 

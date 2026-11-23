@@ -6,9 +6,11 @@ from typing import Any
 from typing import Optional
 import zlib
 
+from ddtrace.appsec._iast import _report_types
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.appsec._iast_context import is_iast_request_enabled
@@ -22,8 +24,9 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
-ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
 EVIDENCES_WITH_NO_SOURCES = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
+# Types renamed after release keep hashing with their old name, so existing findings keep their hash.
+_LEGACY_HASH_TYPES = {VULN_UNTRUSTED_SERIALIZATION: "UNTRUSTED_SERIALIZATION"}
 
 # Default truncation length if environment variable is not set
 DEFAULT_EVIDENCE_TRUNCATION_LENGTH = 250
@@ -37,40 +40,6 @@ def _truncate_evidence_value(value: Optional[str]) -> Optional[str]:
     if len(value) > max_length:
         return value[:max_length]
     return value
-
-
-class NotNoneDictable:
-    def _to_dict(self):
-        return dataclasses.asdict(
-            self,
-            dict_factory=lambda x: {k: v for k, v in x if v is not None and k not in ATTRS_TO_SKIP},
-        )
-
-
-@dataclasses.dataclass(eq=False)
-class Evidence(NotNoneDictable):
-    dialect: Optional[str] = None
-    value: Optional[str] = None
-    _ranges: list[dict] = dataclasses.field(default_factory=list)
-    valueParts: Optional[list] = None
-
-    def _valueParts_hash(self):
-        if not self.valueParts:
-            return
-
-        _hash = 0
-        for part in self.valueParts:
-            json_str = json.dumps(part, sort_keys=True)
-            part_hash = zlib.crc32(json_str.encode())
-            _hash ^= part_hash
-
-        return _hash
-
-    def __hash__(self):
-        return hash((self.value, self._valueParts_hash()))
-
-    def __eq__(self, other):
-        return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -108,12 +77,13 @@ class Location:
 @dataclasses.dataclass(unsafe_hash=True)
 class Vulnerability:
     type: str
-    evidence: Evidence
+    evidence: _report_types.Evidence
     location: Location
     hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in env), repr=False)
 
     def __post_init__(self):
-        self.hash = zlib.crc32(repr(self).encode())
+        hash_type = _LEGACY_HASH_TYPES.get(self.type, self.type)
+        self.hash = zlib.crc32(f"Vulnerability(type='{hash_type}', location={self.location})".encode())
 
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
@@ -129,7 +99,7 @@ class Vulnerability:
 
 
 @dataclasses.dataclass
-class Source(NotNoneDictable):
+class Source(_report_types.NotNoneDictable):
     origin: str
     name: str
     redacted: Optional[bool] = dataclasses.field(default=None, repr=False)
@@ -149,7 +119,7 @@ class Source(NotNoneDictable):
 
 
 @dataclasses.dataclass
-class IastSpanReporter(NotNoneDictable):
+class IastSpanReporter(_report_types.NotNoneDictable):
     """
     Class representing an IAST span reporter.
     """
@@ -269,8 +239,7 @@ class IastSpanReporter(NotNoneDictable):
                     if "value" in part:
                         part["value"] = _truncate_evidence_value(part["value"])
                 redacted_sources = scrubbing_result["redacted_sources"]
-                i = 0
-                for source in self.sources:
+                for i, source in enumerate(self.sources):
                     if i in redacted_sources:
                         source.value = None
                 vuln.evidence.valueParts = redacted_value_parts
