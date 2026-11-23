@@ -63,9 +63,6 @@ _TOOLNODE_MCP_TOOL: contextvars.ContextVar[Optional[tuple[Callable[..., Any], st
     "ai_guard_langchain_toolnode_mcp_tool", default=None
 )
 
-# Client of the active patch; cleared on unpatch so tools converted earlier stop evaluating.
-_mcp_client: Optional[AIGuardClient] = None
-
 # Attribute of a converted MCP tool's coroutine holding its (server, original MCP tool name).
 _MCP_ATTR = "_dd_ai_guard_mcp"
 
@@ -112,10 +109,8 @@ def _langchain_patch(client: AIGuardClient) -> None:
         logger.debug("Failed to instrument langgraph ToolNode", exc_info=True)
 
     # Client-managed MCP tools; skipped when langchain-mcp-adapters is not installed.
-    global _mcp_client
-    _mcp_client = client
     try:
-        wrap(_MCP_ADAPTER_MODULE, "convert_mcp_tool_to_langchain_tool", _langchain_mcp_convert_tool)
+        wrap(_MCP_ADAPTER_MODULE, "convert_mcp_tool_to_langchain_tool", partial(_langchain_mcp_convert_tool, client))
     except Exception:
         logger.debug("Failed to instrument langchain-mcp-adapters", exc_info=True)
 
@@ -160,8 +155,6 @@ def _langchain_unpatch() -> None:
     except Exception:
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
 
-    global _mcp_client
-    _mcp_client = None
     try:
         module = sys.modules.get(_MCP_ADAPTER_MODULE)
         if module is not None:
@@ -717,7 +710,9 @@ def _add_mcp_reference(tool_call: ToolCall, mcp: tuple[MCPServer, str]) -> list[
     return [server]
 
 
-def _langchain_mcp_convert_tool(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+def _langchain_mcp_convert_tool(
+    client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
     """convert_mcp_tool_to_langchain_tool wrapper: tag the converted tool with its MCP server.
 
     The server rides on the tool's own coroutine, which also checks calls made outside ToolNode.
@@ -725,13 +720,13 @@ def _langchain_mcp_convert_tool(func: Callable[..., Any], instance: Any, args: A
     tool = func(*args, **kwargs)
     try:
         if aiguard_config._ai_guard_mcp_enabled:
-            _guard_mcp_tool(tool, get_argument_value(args, kwargs, 1, "tool"), kwargs)
+            _guard_mcp_tool(client, tool, get_argument_value(args, kwargs, 1, "tool"), kwargs)
     except Exception:
         logger.debug("AI Guard langchain: failed to read the MCP tool metadata", exc_info=True)
     return tool
 
 
-def _guard_mcp_tool(tool: Any, mcp_tool: Any, kwargs: Any) -> None:
+def _guard_mcp_tool(client: AIGuardClient, tool: Any, mcp_tool: Any, kwargs: Any) -> None:
     original_name = getattr(mcp_tool, "name", None)
     name = getattr(tool, "name", None)
     coroutine = getattr(tool, "coroutine", None)
@@ -747,9 +742,8 @@ def _guard_mcp_tool(tool: Any, mcp_tool: Any, kwargs: Any) -> None:
     # wraps keeps the signature, so langchain and ToolNode still inject runtime as before.
     @functools.wraps(wrapped)
     async def guarded_call_tool(*call_args: Any, **call_kwargs: Any) -> Any:
-        client = _mcp_client
         arguments = try_format_json({key: value for key, value in call_kwargs.items() if key != "runtime"})
-        if client is not None and _TOOLNODE_MCP_TOOL.get() != (guarded_call_tool, arguments):
+        if _TOOLNODE_MCP_TOOL.get() != (guarded_call_tool, arguments):
             current_name = getattr(tool, "name", None)
             name = current_name if isinstance(current_name, str) and current_name else model_name
             await _evaluate_direct_mcp_call(client, name, mcp, call_kwargs.get("runtime"), arguments)

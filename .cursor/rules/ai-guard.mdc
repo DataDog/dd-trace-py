@@ -163,12 +163,15 @@ half-imported and the converter stays unwrapped (no MCP checks). Supported: `lan
 - In a `create_agent` run the model-response evaluation runs as before, without MCP metadata (it
   cannot tell MCP tools apart). The `ToolNode._arun_one` check is the MCP-aware tool-permission
   check: it evaluates the call with the conversation and `mcp_servers` even when the response
-  evaluation already covered it, then sets `_TOOLNODE_MCP_TOOL` to that tool's guarded coroutine so
-  the tool skips its own check (by identity, never by name).
+  evaluation already covered it, then sets `_TOOLNODE_MCP_TOOL` to that tool's guarded coroutine and
+  the evaluated arguments. The tool skips its own check only when both match (identity, never name),
+  so arguments rewritten by `awrap_tool_call` middleware are checked again.
 - Outside ToolNode the converted tool evaluates a single assistant tool call, with no conversation
   context and a generated id unless a runtime carries one, before the MCP session is used. Legacy
   `AgentExecutor` (langchain-classic) MCP tools therefore get the response check plus this in-tool
   check. MCP tools are async only.
+- Known gap: the adapter's own `tool_interceptors` run inside the converted tool, after the check, and
+  can change the tool name or arguments sent to the MCP session; those rewrites are not re-evaluated.
 
 ## How AI Guard Works: High-Level Architecture
 

@@ -641,22 +641,3 @@ def test_unpatch_restores_the_converter(langchain):
             package.tools = adapter_tools
     finally:
         langchain_patch()
-
-
-@pytest.mark.asyncio
-@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-async def test_tool_converted_before_unpatch_stops_evaluating(mock_execute_request, langchain):
-    from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
-    from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
-
-    mock_execute_request.return_value = mock_evaluate_response("DENY")
-    session = FakeSession()
-    (search,) = await _load(session, connection=_remote_connection(), server_name="docs")
-    langchain_unpatch()
-    try:
-        await search.ainvoke({"query": "aiguard"})
-    finally:
-        langchain_patch()
-
-    assert mock_execute_request.call_count == 0
-    assert session.calls == [("search", {"query": "aiguard"})]
