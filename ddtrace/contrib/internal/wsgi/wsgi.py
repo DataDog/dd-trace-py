@@ -9,6 +9,7 @@ from typing import Any
 from typing import Callable
 from typing import Iterable
 from typing import Optional
+from typing import TypeVar
 
 from ddtrace._trace.events import WebFrameworkResponseEvent
 from ddtrace._trace.http_tags import set_instrumentation_resource
@@ -32,6 +33,8 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal._context_watcher import context_switches_require_fallback
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import COMPONENT
@@ -64,6 +67,24 @@ def get_version() -> str:
 
 def _supported_versions() -> dict[str, str]:
     return {"wsgi": "*"}
+
+
+_T = TypeVar("_T")
+
+
+def _run_in_context(context: Context, callback: Callable[..., _T], *args: Any) -> _T:
+    if not context_switches_require_fallback():
+        return context.run(callback, *args)
+
+    def invoke() -> _T:
+        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+        return callback(*args)
+
+    try:
+        return context.run(invoke)
+    finally:
+        # Context.run restores Python's context without activating its spans.
+        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
 
 
 class _WSGIResponseIterable:
@@ -104,7 +125,7 @@ class _WSGIResponseIterable:
 
     def __next__(self) -> Any:
         if self._context is not None:
-            return self._context.run(self._next)
+            return _run_in_context(self._context, self._next)
         return self._next()
 
     def _next(self) -> Any:
@@ -124,7 +145,7 @@ class _WSGIResponseIterable:
             return
         self._closed = True
         if self._context is not None:
-            self._context.run(self._close_response)
+            _run_in_context(self._context, self._close_response)
         else:
             self._close_response()
 
@@ -221,7 +242,7 @@ class _DDWSGIMiddlewareBase:
         if "werkzeug.debug.preserve_context" in environ or environ.get("flask._preserve_context"):
             return self._execute_request(environ, start_response, None)
         execution_context = copy_context()
-        return execution_context.run(self._execute_request, environ, start_response, execution_context)
+        return _run_in_context(execution_context, self._execute_request, environ, start_response, execution_context)
 
     def _execute_request(
         self, environ: dict[str, Any], start_response: Callable[..., Any], execution_context: Optional[Context]

@@ -4,6 +4,7 @@ from contextvars import copy_context
 import os
 from typing import Any
 from typing import Callable
+from typing import Optional
 from unittest import mock
 
 import pytest
@@ -23,6 +24,7 @@ from ddtrace.contrib.internal.wsgi.wsgi import _WSGIResponseIterable
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from ddtrace.internal import core
+from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.span_bus import span_from_context
@@ -1532,3 +1534,56 @@ def test_otel_semantics_server_span_attributes():
         assert_otel_server_span(
             span, method="GET", status=200, path="/ok", query="q=1", resource="GET", client_attributes=False
         )
+
+
+@pytest.mark.parametrize(
+    "fallback_required,preserve_context",
+    [(True, None), (False, None), (True, "werkzeug.debug.preserve_context"), (True, "flask._preserve_context")],
+)
+def test_wsgi_context_switch_notifications(
+    fallback_required: bool, preserve_context: Optional[str], tracer: Any
+) -> None:
+    value: ContextVar[str] = ContextVar("wsgi_context_switch", default="caller")
+    notifications: list[str] = []
+
+    original_dispatch = core.dispatch
+
+    def dispatch(event_name: str, *args: Any, **kwargs: Any) -> Any:
+        # Count manual publication, excluding native watcher events on Python 3.14+.
+        if event_name == PYTHON_CONTEXT_SWITCH_EVENT:
+            notifications.append(value.get())
+        return original_dispatch(event_name, *args, **kwargs)
+
+    def application(environ: dict[str, Any], start_response: Any) -> Iterator[bytes]:
+        value.set("request")
+        start_response("200 OK", [])
+        return iter([b"one", b"two"])
+
+    environ: dict[str, Any] = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/stream",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    if preserve_context:
+        environ[preserve_context] = True
+    middleware = DDWSGIMiddleware(application)
+    token = value.set("caller")
+    try:
+        # The shared predicate covers both native watching and absent listeners.
+        with (
+            mock.patch.object(wsgi_module, "context_switches_require_fallback", return_value=fallback_required),
+            mock.patch.object(core, "dispatch", side_effect=dispatch),
+        ):
+            response = middleware(environ, lambda *args: None)
+            assert next(response) == b"one"
+            response.close()
+            response.close()
+        assert notifications == (
+            ["caller", "caller", "request", "caller", "request", "caller"]
+            if fallback_required and not preserve_context
+            else []
+        )
+    finally:
+        value.reset(token)

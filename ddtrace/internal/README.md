@@ -218,6 +218,9 @@ resolved at span creation; deferred completion preserves later changes to the li
 request span instead of resolving its service again.
 
 Application execution, iteration, and closure normally run in one copied Context.
+When native context watching is unavailable, these transitions publish the shared
+context-switch event on entry and after caller restoration, including exceptional
+exits, so native trace correlation follows the active Python context.
 When Werkzeug requests context preservation, including a preserved Flask test
 client, they remain in the caller's Context so Flask can safely re-push and pop its
 saved context objects. The legacy Flask preservation flag follows the same rule.

@@ -85,7 +85,9 @@ Do not retain exception objects in deferred callbacks; record errors synchronous
 and allow cancellation to complete without requiring a response or tagging it as an error.
 
 Flask and WSGI use the same web request subscriber and defer their shared request context
-through response iteration.
+through response iteration. When entering a copied Context, publish the shared
+context-switch event inside it and after restoration if context_switches_require_fallback()
+requires it; application, iteration and close paths must all restore native correlation.
 The iterable reports completion without owning spans; the tracing-owned
 `ddtrace._trace.events.WebFrameworkResponseEvent` lets tracing create the response child.
 Keep new tracing lifecycle contracts outside contrib so subscriber initialization does not
