@@ -4,6 +4,7 @@ The buffer exports from a libdatadog worker thread, so every assertion about del
 rather than assuming the send already happened.
 """
 
+import builtins
 import contextlib
 import socket
 import threading
@@ -1879,3 +1880,44 @@ def test_write_sets_the_otlp_trace_context(make_writer, agent):
     for span in (root, child):
         assert span.get_metric("_sampling_priority_v1") == 1
         assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
+
+
+def test_meta_struct_is_packed_without_importing_ddtrace():
+    # The native buffer calls the packb that Python registered at import time. It must not import
+    # ddtrace.internal._encoding itself, because the extension is shipped as a package that imports no
+    # ddtrace module, and some sandboxes (e.g. Temporal) block imports after startup.
+    span = Span(name="op", trace_id=1, span_id=1)
+    span._set_struct_tag("k", {"v": 1})
+    span.finish()
+
+    real_import = builtins.__import__
+
+    def _restricted_import(name, *args, **kwargs):
+        if name.startswith("ddtrace"):
+            raise ImportError(f"sandbox blocked import of {name!r}")
+        return real_import(name, *args, **kwargs)
+
+    with capture_server() as handler:
+        with buffer_writer(handler.port, api_version="v0.4") as writer:
+            with mock.patch.object(builtins, "__import__", side_effect=_restricted_import):
+                reason = writer._buffer.write([span], None)
+            writer.flush_queue()
+            body = _wait_for_payload(handler)
+
+    assert reason is None
+    [[wire_span]] = msgpack.unpackb(body, raw=False, strict_map_key=False)
+    assert msgpack.unpackb(wire_span["meta_struct"]["k"], raw=False) == {"v": 1}
+
+
+def test_register_packb_keeps_the_first_registration():
+    # A later registration is ignored, so a stray call cannot swap the packer under live writers.
+    from ddtrace.internal.native import TraceBuffer
+
+    TraceBuffer._register_packb(lambda obj: b"not msgpack")
+
+    span = Span(name="op", trace_id=1, span_id=1)
+    span._set_struct_tag("k", {"v": 1})
+    span.finish()
+
+    wire_span = _encode_v04(span)
+    assert msgpack.unpackb(wire_span["meta_struct"]["k"], raw=False) == {"v": 1}

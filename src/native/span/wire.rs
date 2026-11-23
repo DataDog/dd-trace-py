@@ -61,22 +61,15 @@ fn wire_str(py: Python<'_>, s: PyBackedString) -> PyBackedString {
         .expect("a newly created PyString is valid UTF-8")
 }
 
-/// Cached once on first use: `ddtrace.internal._encoding.packb`.
+/// The msgpack packer for meta_struct values, handed over by `TraceBuffer._register_packb`.
+///
+/// Python owns the packer (`ddtrace.internal._encoding.packb`), so this crate never imports ddtrace
+/// modules itself. The first registration wins.
 static PACKB: std::sync::OnceLock<Py<PyAny>> = std::sync::OnceLock::new();
 
-fn get_packb(py: Python<'_>) -> Option<&'static Py<PyAny>> {
-    // OnceLock::get_or_try_init is unstable, so use get-then-set. A lost race just means two imports
-    // of the same already-imported module, and `set` keeps the first winner.
-    if let Some(f) = PACKB.get() {
-        return Some(f);
-    }
-    let f = py
-        .import("ddtrace.internal._encoding")
-        .and_then(|m| m.getattr("packb"))
-        .map(|a| a.unbind())
-        .ok()?;
-    let _ = PACKB.set(f);
-    PACKB.get()
+/// Register the packer that [`pack_meta_struct_value`] calls. Later calls are ignored.
+pub(crate) fn register_packb(packb: Py<PyAny>) {
+    let _ = PACKB.set(packb);
 }
 
 /// Log the first dropped meta_struct entry of the process.
@@ -93,11 +86,13 @@ fn log_meta_struct_drop(reason: &str) {
 
 /// Pack one meta_struct value into msgpack with the existing Python packer.
 ///
-/// Returns None when the packer is unavailable or rejects the value. The caller runs inside
+/// Returns None when no packer is registered or the packer rejects the value. The caller runs inside
 /// `span.finish()` on an application thread, so an error raised from here escapes into user code.
 fn pack_meta_struct_value(py: Python<'_>, obj: &Bound<'_, PyAny>) -> Option<Bytes> {
-    let Some(packb) = get_packb(py) else {
-        log_meta_struct_drop("ddtrace.internal._encoding.packb is unavailable");
+    let Some(packb) = PACKB.get() else {
+        log_meta_struct_drop(
+            "no packer is registered (TraceBuffer._register_packb was not called)",
+        );
         return None;
     };
     let packed = match packb.call1(py, (obj,)) {

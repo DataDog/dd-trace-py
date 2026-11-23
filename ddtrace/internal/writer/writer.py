@@ -48,6 +48,7 @@ from .. import process_tags
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
+from .._encoding import packb
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..constants import DEFAULT_TIMEOUT
@@ -84,6 +85,13 @@ class _SpanWithContext(Protocol):
 
 
 log = get_logger(__name__)
+
+# The native TraceBuffer packs meta_struct values with this packer but does not import it itself.
+# It is registered here rather than in ddtrace.internal.native because _encoding depends on the
+# settings, which import ddtrace.internal.native: registering there would be an import cycle.
+# This module is the only one that builds a TraceBuffer, so registering at import time also
+# happens before any write(), and keeps working in environments that block later imports.
+native.TraceBuffer._register_packb(packb)
 
 LOG_ERR_INTERVAL = 60
 _OTLP_TRACER_TAG_RESERVED_KEYS = frozenset({"service", "env", "version", "runtime_id", "runtime-id"})

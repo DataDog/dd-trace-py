@@ -32,7 +32,7 @@ use pyo3::prelude::*;
 use super::TraceExporterBuilderPy;
 use crate::py_string::{PyBackedString, PyTraceData};
 use crate::shared_runtime::SharedRuntimePy;
-use crate::span::wire::build_wire_span;
+use crate::span::wire::{build_wire_span, register_packb};
 use crate::span::SpanData;
 
 /// The wire span the buffer stores. Every string in it is a Python object the span keeps alive, so
@@ -222,6 +222,17 @@ impl TraceBufferPy {
 
 #[pymethods]
 impl TraceBufferPy {
+    /// Register the msgpack packer used for meta_struct values.
+    ///
+    /// Python calls this once at import time, so the native code never imports ddtrace modules
+    /// itself. The first registration wins; later calls are ignored. Until a packer is registered,
+    /// `write` drops each meta_struct entry and logs one warning, because it must never raise into
+    /// user code.
+    #[staticmethod]
+    fn _register_packb(packb: Py<PyAny>) {
+        register_packb(packb);
+    }
+
     /// Consume `builder` and start a buffer with its own worker.
     ///
     /// `builder` carries the exporter configuration only. The buffer owns the flush cadence, the byte

@@ -901,6 +901,14 @@ class TraceExporterBuilder:
 class TraceBuffer:
     """Buffer finished trace chunks and export them from a libdatadog worker."""
 
+    @staticmethod
+    def _register_packb(packb: Callable[[Any], bytes]) -> None:
+        """Register the msgpack packer for meta_struct values. The first registration wins.
+
+        Until one is registered, write() drops each meta_struct entry and logs one warning.
+        """
+        ...
+
     def __init__(
         self,
         builder: TraceExporterBuilder,
