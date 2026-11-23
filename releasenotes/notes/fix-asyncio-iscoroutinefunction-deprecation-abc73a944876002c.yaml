@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    asgi: Fixes a ``DeprecationWarning`` about ``asyncio.iscoroutinefunction`` that is emitted
+    on Python 3.14+ when an ASGI application is traced.
+  - |
+    sanic: Fixes a ``DeprecationWarning`` about ``asyncio.iscoroutinefunction`` that is emitted
+    on Python 3.14+ when a Sanic request is traced.
+  - |
+    LLM Observability: Fixes a ``DeprecationWarning`` about ``asyncio.iscoroutinefunction`` that
+    is emitted on Python 3.14+ when running experiments.

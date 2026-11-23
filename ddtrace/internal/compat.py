@@ -1,4 +1,5 @@
 from functools import singledispatchmethod
+import inspect
 import ipaddress
 import sys
 from types import TracebackType
@@ -17,6 +18,7 @@ __all__ = [
     "PYTHON_VERSION_INFO",
     "is_at_least_py",
     "is_at_most_py",
+    "iscoroutinefunction",
     "is_supported_python_version",
 ]
 
@@ -168,3 +170,19 @@ else:
 
 def is_wrapted(o: object) -> bool:
     return isinstance(o, wrapt_class)
+
+
+def iscoroutinefunction(func: Any) -> bool:
+    """Drop-in replacement for the deprecated asyncio.iscoroutinefunction.
+
+    asyncio.iscoroutinefunction warns on Python 3.14+ and goes away in 3.16. Besides
+    inspect.iscoroutinefunction, it also accepts objects tagged with the legacy
+    asyncio.coroutines._is_coroutine marker. asgiref uses that marker on Python < 3.12
+    (for example on sync_to_async wrappers), and so does unittest.mock.AsyncMock on
+    Python < 3.10. Keep accepting it so the result matches on every supported version.
+    The marker is read from sys.modules so this never imports asyncio by itself.
+    """
+    if inspect.iscoroutinefunction(func):
+        return True
+    marker = getattr(sys.modules.get("asyncio.coroutines"), "_is_coroutine", None)
+    return marker is not None and getattr(func, "_is_coroutine", None) is marker
