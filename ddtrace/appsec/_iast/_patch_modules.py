@@ -213,6 +213,7 @@ def _apply_security_control(iast_funcs: WrapFunctonsForIAST, control: SecurityCo
         control: SecurityControl object containing the configuration
     """
     # Create the appropriate wrapper function
+    wrapper_func: Callable[..., object]
     if control.control_type == SC_SANITIZER:
         wrapper_func = functools.partial(create_sanitizer, control.vulnerability_types)
     elif control.control_type == SC_VALIDATOR:
