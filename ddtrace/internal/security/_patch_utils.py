@@ -129,9 +129,17 @@ def wrap_object(
     return wrapper
 
 
+def _raw_attribute(parent: Any, attribute: str) -> Any:
+    if isinstance(parent, type):
+        for klass in parent.__mro__:
+            if attribute in vars(klass):
+                return vars(klass)[attribute]
+    return getattr(parent, attribute)
+
+
 def apply_patch(parent: Any, attribute: str, replacement: Any) -> None:
     try:
-        current_attribute = getattr(parent, attribute)
+        current_attribute = _raw_attribute(parent, attribute)
         # Avoid overwriting the original function if we call this twice
         if not isinstance(current_attribute, FunctionWrapper):
             _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)] = current_attribute
