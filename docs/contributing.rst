@@ -90,10 +90,14 @@ changes qualify. If your pull request has no customer-facing impact, apply the `
 Release notes should be written from the user's perspective and clearly explain the impact or benefit of the change.
 
 Once approved, pull requests should be merged with the "Squash and Merge" option.
-For fork PRs, follow `Merging Pull Requests from Forks`_ below. Do not use GitHub's merge queue button.
+At this time, do not use the merge queue option.
 
 Merging Pull Requests from Forks
 ---------------------------------
+
+Strongly prefer branches in ``DataDog/dd-trace-py`` whenever you have push access. Open a fork PR
+only when the contributor lacks permission to push a branch here; fork PRs require the extra CI
+workflow below.
 
 Pull requests opened from a fork (i.e. by an external contributor) cannot run all required CI
 directly. GitLab does not mirror branches from external forks. Pushing the fork's commit to a
@@ -119,54 +123,31 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
    example ``docs: run fork PR #1234 through CI [DO NOT MERGE]``. Its description must say it exists
    only to run CI, must not be merged, and include ``Original PR: <URL>``.
 #. Add ``Closes: <shadow PR URL>`` to the original PR's description.
-#. Keep both PRs at the same reviewed head SHA. If the contributor pushes updates, review them
-   before mirroring the new head and waiting for its CI results. Results from an older head do
-   not validate the updated PR.
-#. Wait for all correctness checks on that SHA, including GitLab jobs, wheel builds, and System
-   Tests. Inspect failed jobs directly; ``devflow/mergegate`` and ``ensure-ci-success`` summarize
-   merge readiness and can be blocked by approvals or draft status rather than a test failure.
-#. Record the tested SHA and a link to the passing shadow CI on the original PR. Obtain the
-   required approvals on the original PR; approvals on the shadow do not replace them.
-#. Verify that the original PR's head SHA still matches the tested shadow PR, then comment
-   ``/merge`` on the *original* fork PR. Keep the shadow as a draft and never merge it.
+#. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
+   it does not mean both PRs run in the same context or establish that the code is safe. That
+   assurance comes from the review before mirroring.
+#. Obtain the required approvals on the original PR. Once CI is green, verify its head SHA matches the tested
+   shadow PR, then comment ``/merge`` on the *original* fork PR.
 #. After the original PR closes, close the shadow PR without merging if it is still open, then
    delete its branch.
 
-An identical SHA establishes source-commit parity, but the two PRs run in different CI contexts.
-Safety comes from the review before mirroring. Never mirror speculative or partially reviewed
-code merely to obtain CI results.
+Never mirror speculative or partially reviewed code merely to obtain CI results.
 
-If the queue requires pre-merge CI that cannot run on the fork, a maintainer authorized to skip
-those checks can comment ``/merge -f --reason CI passed on shadow PR <shadow PR URL>`` on the
-original PR after verifying its approvals, head SHA, and passing shadow CI.
+If pre-merge CI cannot run on the fork, an authorized maintainer can use
+``/merge -f --reason CI passed on shadow PR <shadow PR URL>`` on the original PR after verifying
+its approvals and matching tested SHA. This skips pre-merge CI; it does not rerun tests.
 
-This skips pre-merge CI; it does not rerun tests or fix missing approvals. Use it only when the
-recorded shadow results cover the exact commit being merged.
+If merge checks remain stale after closing a shadow whose CI passed, comment ``/code blockers``
+on the original PR to identify any remaining blockers, then ``/mergegate trigger`` to refresh
+MergeGate. Resolve missing approvals or actual CI failures; no branch update is needed to refresh.
 
-Refreshing merge checks without changing the branch
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+For a merge request still waiting in the queue, maintainers with access can request a fresh
+mergeability check::
 
-Prefer closing the shadow after the original PR merges. If the shadow has already been closed
-after its CI passed, keep the tested SHA and CI links available. Stale merge checks on the original
-PR can be refreshed without pushing an empty commit, rebasing, or merging ``main`` again.
-
-#. Comment ``/code blockers`` on the original PR to identify the current blockers. Complete any
-   missing approvals or resolve actual CI failures before requesting another evaluation.
-#. Comment ``/mergegate trigger`` on the original PR to reevaluate ``devflow/mergegate`` against
-   its current reviews and checks. Wait for the bot's response and inspect any remaining blockers.
-#. If an existing merge request is still waiting after its blockers are resolved, maintainers
-   with access can request a queue mergeability check using the commands below. Check the queue's
-   status before submitting another merge request.
-
-The equivalent MergeGate command and the queue refresh commands are::
-
-    ddr devflow mergegate trigger --pr <original PR URL>
-    ddr devflow mergequeue status --pr <original PR URL>
     ddr devflow mergequeue check-mergeability --pr <original PR URL>
 
-These commands reevaluate merge readiness without changing either branch. They do not rerun
-failed or cancelled test jobs. If closing the shadow cancelled required CI, rerun the affected
-jobs on the reviewed SHA before relying on its results.
+Refreshing merge status does not rerun cancelled jobs. If closing the shadow cancelled required
+CI, rerun those jobs on the reviewed SHA before relying on its results.
 
 Backporting
 -----------
