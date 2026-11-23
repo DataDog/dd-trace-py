@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import sys
 from types import ModuleType
+from types import SimpleNamespace
 
 import pytest
 
@@ -42,3 +43,28 @@ def test_add_request_injects_trace_headers_by_version(vllm_patch, tracer, monkey
     context = HTTPPropagator.extract(headers)
     assert context.trace_id == (parent.trace_id if inject else None)
     assert context.span_id == (parent.span_id if inject else None)
+
+
+def test_input_processor_injects_trace_headers_for_vllm_033(vllm_patch, tracer, monkeypatch):
+    monkeypatch.setattr(vllm_patch, "tracer", tracer)
+    monkeypatch.setattr(vllm_patch.vllm, "__version__", "0.33.0", raising=False)
+    monkeypatch.setattr(vllm_patch.vllm, vllm_patch.ATTR_DATADOG_PATCH, True, raising=False)
+
+    async def process_inputs_async(*, trace_headers):
+        return trace_headers
+
+    processor = SimpleNamespace()
+
+    def initialize():
+        processor.process_inputs_async = process_inputs_async
+
+    vllm_patch.traced_input_processor_init(initialize, processor, (), {})
+    incoming = {"x-request-id": "test-request"}
+    with tracer.trace("caller") as parent:
+        headers = asyncio.run(processor.process_inputs_async(trace_headers=incoming))
+
+    assert headers["x-request-id"] == "test-request"
+    assert incoming == {"x-request-id": "test-request"}
+    context = HTTPPropagator.extract(headers)
+    assert context.trace_id == parent.trace_id
+    assert context.span_id == parent.span_id

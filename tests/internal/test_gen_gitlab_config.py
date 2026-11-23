@@ -95,6 +95,9 @@ def test_parallelism_defaults_to_one_job(gen_gitlab_config_mod):
         ("ddtrace/llmobs/_integrations/vllm_utils.py", "feature", "false", set(), True),
         ("tests/contrib/vllm/test_api_app.py", "feature", "false", set(), True),
         ("tests/snapshots/tests.contrib.vllm.test_generate.json", "feature", "false", set(), True),
+        ("tests/llmobs/suitespec.yml", "feature", "false", set(), True),
+        ("tests/requirements_locks/vllm-lock.txt", "feature", "false", set(), True),
+        ("tests/requirements_locks/other-lock.txt", "feature", "false", set(), False),
         ("README.md", "main", "false", set(), True),
         ("README.md", "feature", "true", set(), True),
         ("README.md", "feature", "false", {"llmobs::vllm"}, True),
@@ -108,6 +111,10 @@ def test_vllm_pr_paths(gen_gitlab_config_mod, monkeypatch, path, ref, nightly, s
     needs_testrun = types.ModuleType("needs_testrun")
     needs_testrun.pr_matches_patterns = lambda patterns: any(fnmatch.fnmatchcase(path, p) for p in patterns)
     monkeypatch.setitem(sys.modules, "needs_testrun", needs_testrun)
+    spec_module = types.ModuleType("tests.suitespec")
+    vllm_env = types.SimpleNamespace(lockfile=pathlib.Path("tests/requirements_locks/vllm-lock.txt"))
+    spec_module.get_test_environments = mock.Mock(return_value={"llmobs::vllm": [vllm_env]})
+    monkeypatch.setitem(sys.modules, "tests.suitespec", spec_module)
     monkeypatch.setenv("CI_COMMIT_REF_NAME", ref)
     monkeypatch.setenv("NIGHTLY_BUILD", nightly)
     monkeypatch.delenv("CI_COMMIT_TAG", raising=False)

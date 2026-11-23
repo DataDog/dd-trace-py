@@ -77,12 +77,13 @@ suite specification and resolve the components after that.
 
 A suite can use `pr_paths` to override GitLab PR selection when its normal
 `paths` would trigger an expensive job for unrelated changes. List file globs
-directly in `pr_paths`. The generator does not expand component references or
-import dependencies for this list. Main, nightly, and explicitly requested
-suite runs can still run the full suite.
+directly in `pr_paths`. For a nonempty list, the generator also checks the
+suite's dependency lockfiles. Main, nightly, and explicitly requested suite
+runs can still run the full suite.
 
 The vLLM mock suite runs on every PR without vLLM or CUDA. The GPU matrix still
-runs on main and on PRs that change the vLLM integration, GPU tests, or snapshots.
+runs on main and on PRs that change the vLLM integration, GPU tests, snapshots,
+LLMObs suite configuration, or vLLM dependency lockfiles.
 Request it explicitly with `ci:llmobs::vllm` in the commit message.
 
 A suite's `paths` only need the code it tests, plus the dependencies that

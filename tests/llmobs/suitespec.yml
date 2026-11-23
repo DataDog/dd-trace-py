@@ -547,6 +547,7 @@ suites:
       - tests/contrib/vllm/*
       - tests/snapshots/tests.contrib.vllm.*
     pr_paths:
+      - tests/llmobs/suitespec.yml
       - ddtrace/contrib/internal/vllm/*
       - ddtrace/llmobs/_contrib/vllm/*
       - ddtrace/llmobs/_integrations/vllm.py

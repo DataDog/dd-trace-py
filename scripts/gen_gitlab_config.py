@@ -350,6 +350,7 @@ def _apply_pr_paths(
     suites: dict, required_suites: list[str], git_selections: set[str], commit_message: str
 ) -> list[str]:
     from needs_testrun import pr_matches_patterns
+    from tests.suitespec import get_test_environments
 
     # Apply the narrower PR selection after broad dependency and CI Visibility expansion.
     # Explicit full runs keep their existing coverage. A failed PR diff lookup also runs the suite.
@@ -365,7 +366,11 @@ def _apply_pr_paths(
         pr_paths = config.get("pr_paths")
         if pr_paths is None:
             continue
-        if full_run or suite in git_selections or not pr_paths or pr_matches_patterns(set(pr_paths)):
+        if full_run or suite in git_selections or not pr_paths:
+            selected.add(suite)
+            continue
+        lock_paths = {env.lockfile.as_posix() for env in get_test_environments(nightly=False).get(suite, ())}
+        if pr_matches_patterns(set(pr_paths) | lock_paths):
             selected.add(suite)
         else:
             selected.discard(suite)
