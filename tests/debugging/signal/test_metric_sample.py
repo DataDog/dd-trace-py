@@ -82,9 +82,9 @@ def test_slow_value_times_out(call, _mock_meter):
     evaluation_timeout_ms, records an error and emits no metric.
     """
     probe = _make_probe(slow_timed_expr())
-    sample = _make_sample(probe)
 
     with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        sample = _make_sample(probe)
         start = time.monotonic()
         getattr(sample, call)(SLOW_SCOPE)
         elapsed = time.monotonic() - start

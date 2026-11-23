@@ -11,6 +11,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._expressions import EvalBudget
 from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.debugging._redaction import DDTimedRedactedExpression
 from ddtrace.internal.compat import maybe_stringify
@@ -241,15 +242,17 @@ class MetricFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, MetricProbe
 @dataclass
 class TemplateSegment(abc.ABC):
     @abc.abstractmethod
-    def eval(self, scope: Mapping[str, Any]) -> str:
-        pass
+    def eval(self, scope: Mapping[str, Any], budget: Optional[EvalBudget] = None) -> str:
+        """Evaluate the segment, within budget if not None (see
+        DDTimedRedactedExpression.eval).
+        """
 
 
 @dataclass
 class LiteralTemplateSegment(TemplateSegment):
     str_value: str
 
-    def eval(self, scope: Mapping[str, Any]) -> str:
+    def eval(self, scope: Mapping[str, Any], budget: Optional[EvalBudget] = None) -> str:
         return self.str_value
 
 
@@ -257,8 +260,8 @@ class LiteralTemplateSegment(TemplateSegment):
 class ExpressionTemplateSegment(TemplateSegment):
     expr: DDRedactedExpression
 
-    def eval(self, scope: Mapping[str, Any]) -> Any:
-        return self.expr.eval(scope)
+    def eval(self, scope: Mapping[str, Any], budget: Optional[EvalBudget] = None) -> Any:
+        return self.expr.eval(scope, budget)
 
 
 @dataclass
@@ -266,11 +269,17 @@ class StringTemplate:
     template: str
     segments: list[TemplateSegment]
 
-    def render(self, scope: Mapping[str, Any], serializer: Callable[[Any], str]) -> str:
+    def render(
+        self, scope: Mapping[str, Any], serializer: Callable[[Any], str], budget: Optional[EvalBudget] = None
+    ) -> str:
+        """Render the template, with its segments evaluated within budget if
+        not None (see DDTimedRedactedExpression.eval).
+        """
+
         def _to_str(value: Any) -> str:
             return value if _isinstance(value, str) else serializer(value)
 
-        return "".join([_to_str(s.eval(scope)) for s in self.segments])
+        return "".join([_to_str(s.eval(scope, budget)) for s in self.segments])
 
 
 @dataclass

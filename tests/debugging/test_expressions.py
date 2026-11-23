@@ -9,14 +9,12 @@ import pytest
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import DDExpressionCompilationError
-from ddtrace.debugging._expressions import EvalDeadline
 from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._expressions import _bounded
 from ddtrace.debugging._expressions import _is_one_shot_iterator
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._expressions import instanceof
 from ddtrace.debugging._expressions import isdefined
-from ddtrace.debugging._expressions import set_eval_deadline
 from ddtrace.internal.safety import SafeObjectProxy
 
 
@@ -448,20 +446,15 @@ def test_isdefined_does_not_swallow_evaluation_timeout():
     # A preemption timeout landing inside isDefined() must propagate: the
     # deadline does not fire again, so swallowing it would let the rest of
     # the expression run unbounded.
-    def predicate(_locals):
+    def predicate(_locals, _deadline):
         raise EvaluationTimeoutError()
 
     with pytest.raises(EvaluationTimeoutError):
-        isdefined(predicate, {})
+        isdefined(predicate, {}, None)
 
 
-@pytest.fixture
-def eval_deadline():
-    def _set(timeout_ms):
-        set_eval_deadline(EvalDeadline(perf_counter_ns() + int(timeout_ms * 1_000_000)))
-
-    yield _set
-    set_eval_deadline(None)
+def _deadline(timeout_ms):
+    return perf_counter_ns() + int(timeout_ms * 1_000_000)
 
 
 class _CountingList(list[Any]):
@@ -487,36 +480,36 @@ class _CountingList(list[Any]):
     "make",
     [list, tuple, set, frozenset, lambda r: dict.fromkeys(r).items(), lambda r: iter(list(r)), _CountingList],
 )
-def test_bounded_yields_every_element(eval_deadline, make, size):
-    eval_deadline(10_000)
+def test_bounded_yields_every_element(make, size):
+    deadline = _deadline(10_000)
     coll = make(range(size))
-    assert sorted(e[0] if isinstance(e, tuple) else e for e in _bounded(coll)) == list(range(size))
+    assert sorted(e[0] if isinstance(e, tuple) else e for e in _bounded(coll, deadline)) == list(range(size))
 
 
-def test_bounded_does_not_call_user_len(eval_deadline):
-    eval_deadline(10_000)
+def test_bounded_does_not_call_user_len():
+    deadline = _deadline(10_000)
     coll = _CountingList(range(100))
 
-    assert any(e == 50 for e in _bounded(coll))
+    assert any(e == 50 for e in _bounded(coll, deadline))
     assert coll.len_calls == 0
 
 
-def test_bounded_does_not_pull_ahead_of_consumer(eval_deadline):
+def test_bounded_does_not_pull_ahead_of_consumer():
     # User iteration code must not run for elements the predicate never asks for.
-    eval_deadline(10_000)
+    deadline = _deadline(10_000)
     coll = _CountingList(range(1000))
 
-    assert any(e == 9 for e in _bounded(coll))
+    assert any(e == 9 for e in _bounded(coll, deadline))
     assert coll.pulled == 10
 
 
-def test_bounded_sized_visits_elements_added_while_iterating(eval_deadline):
+def test_bounded_sized_visits_elements_added_while_iterating():
     # The length of sized built-ins is taken upfront; growth must not cut
     # the iteration short.
-    eval_deadline(10_000)
+    deadline = _deadline(10_000)
     coll = list(range(10))
     seen = []
-    for e in _bounded(coll):
+    for e in _bounded(coll, deadline):
         seen.append(e)
         if e < 20:
             coll.append(e + 10)
@@ -524,13 +517,13 @@ def test_bounded_sized_visits_elements_added_while_iterating(eval_deadline):
 
 
 @pytest.mark.parametrize("make", [list, _CountingList, lambda r: dict.fromkeys(r).items()])
-def test_bounded_times_out(eval_deadline, make):
-    eval_deadline(20)
+def test_bounded_times_out(make):
+    deadline = _deadline(20)
     coll = make(range(10**7))
     start = perf_counter_ns()
 
     with pytest.raises(EvaluationTimeoutError):
-        for _ in _bounded(coll):
+        for _ in _bounded(coll, deadline):
             pass
 
     assert perf_counter_ns() - start < 1_000_000_000
@@ -538,46 +531,46 @@ def test_bounded_times_out(eval_deadline, make):
 
 def test_bounded_without_deadline_is_passthrough():
     coll = _CountingList(range(3))
-    assert _bounded(coll) is coll
+    assert _bounded(coll, None) is coll
 
 
 @pytest.mark.parametrize("coll", [(1, 2), frozenset({1, 2, 3}), range(4), "abcd"])
-def test_bounded_returns_small_immutable_collections_as_is(eval_deadline, coll):
+def test_bounded_returns_small_immutable_collections_as_is(coll):
     # No deadline check would happen before the end of these anyway.
-    eval_deadline(10_000)
-    assert _bounded(coll) is coll
+    deadline = _deadline(10_000)
+    assert _bounded(coll, deadline) is coll
 
 
-def test_bounded_small_list_growing_is_still_bounded(eval_deadline):
+def test_bounded_small_list_growing_is_still_bounded():
     # A small list can grow while it is iterated, so it is never returned
     # as-is: the growth must stay under the deadline.
-    eval_deadline(20)
+    deadline = _deadline(20)
     coll = [0]
 
     with pytest.raises(EvaluationTimeoutError):
-        for e in _bounded(coll):
+        for e in _bounded(coll, deadline):
             coll.append(e + 1)
 
 
-def test_bounded_small_collection_past_deadline_times_out(eval_deadline):
+def test_bounded_small_collection_past_deadline_times_out():
     # Nested iterations over short collections never reach a chunk check, so
     # the short path checks the deadline itself.
-    eval_deadline(-1)
+    deadline = _deadline(-1)
 
     with pytest.raises(EvaluationTimeoutError):
-        _bounded((1, 2))
+        _bounded((1, 2), deadline)
 
 
 @pytest.mark.parametrize("make", [dict.items, set])
-def test_bounded_preserves_size_change_error(eval_deadline, make):
+def test_bounded_preserves_size_change_error(make):
     # A dict or set that changes size mid-iteration reports a zero length
     # hint; that must not be mistaken for exhaustion.
-    eval_deadline(10_000)
+    deadline = _deadline(10_000)
     d = dict.fromkeys(range(10))
     coll = make(d) if make is dict.items else set(d)
 
     with pytest.raises(RuntimeError):
-        for i, _ in enumerate(_bounded(coll)):
+        for i, _ in enumerate(_bounded(coll, deadline)):
             if i == 3:
                 if make is dict.items:
                     d[100] = None
@@ -585,9 +578,9 @@ def test_bounded_preserves_size_change_error(eval_deadline, make):
                     coll.add(100)
 
 
-def test_bounded_range_longer_than_maxsize(eval_deadline):
-    eval_deadline(10_000)
-    assert any(e == 0 for e in _bounded(range(sys.maxsize * 4)))
+def test_bounded_range_longer_than_maxsize():
+    deadline = _deadline(10_000)
+    assert any(e == 0 for e in _bounded(range(sys.maxsize * 4), deadline))
 
 
 class _UnhashableMeta(type):
@@ -599,9 +592,9 @@ class _UnhashableTypeIterable(metaclass=_UnhashableMeta):
         return iter([1, 2, 3])
 
 
-def test_bounded_unhashable_metaclass(eval_deadline):
-    eval_deadline(10_000)
-    assert list(_bounded(_UnhashableTypeIterable())) == [1, 2, 3]
+def test_bounded_unhashable_metaclass():
+    deadline = _deadline(10_000)
+    assert list(_bounded(_UnhashableTypeIterable(), deadline)) == [1, 2, 3]
 
 
 def test_filter_unhashable_metaclass():

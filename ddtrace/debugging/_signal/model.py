@@ -15,6 +15,7 @@ from typing import Protocol
 from typing import cast
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvalBudget
 from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
@@ -89,6 +90,12 @@ class Signal(abc.ABC):
     Used to model the data carried by the signal emitted by a probe when it is
     triggered.
 
+    A signal holds the evaluation budget of its probe invocation and passes
+    it to every expression it evaluates, at entry and at exit alike, so that
+    evaluation_timeout_ms bounds them all together. Only evaluations are
+    charged, not the work in between, such as serializing a snapshot, which
+    capture_timeout_ms bounds separately.
+
     Probes with an evaluation timing will trigger the following logic:
 
     - If the timing is on ENTRY, the probe will trigger on entry and on exit,
@@ -115,6 +122,11 @@ class Signal(abc.ABC):
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=uuid4, init=False)
     _eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
+    _eval_budget: EvalBudget = field(
+        default_factory=lambda: EvalBudget(int(di_config.evaluation_timeout_ms * 1_000_000)),
+        init=False,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         probe = self.probe
@@ -145,7 +157,7 @@ class Signal(abc.ABC):
         error: Optional[tuple[str, str]] = None
         error_state = SignalState.COND_ERROR
         try:
-            result = bool(condition.eval(scope))
+            result = bool(condition.eval(scope, self._eval_budget))
         except EvaluationTimeoutError:
             error = (condition.dsl, f"Condition evaluation timed out after {eval_timeout_ms}ms")
             error_state = SignalState.COND_TIMEOUT

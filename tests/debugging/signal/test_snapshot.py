@@ -147,9 +147,9 @@ def test_slow_segment_times_out():
             LiteralTemplateSegment(" after"),
         ],
     )
-    snap = _make_snapshot(probe)
 
     with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
         start = time.monotonic()
         snap.line(SLOW_SCOPE)
         elapsed = time.monotonic() - start
@@ -217,9 +217,9 @@ def test_capture_expression_timeout_does_not_kill_event():
         line=1,
         capture_expressions=[_good_capture_expression(), _slow_capture_expression()],
     )
-    snap = _make_snapshot(probe)
 
     with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
         start = time.monotonic()
         snap.line(SLOW_SCOPE)
         elapsed = time.monotonic() - start
@@ -317,10 +317,76 @@ def test_entry_segment_timeout_survives_fast_return():
         template="{slow}",
         segments=[ExpressionTemplateSegment(slow_timed_expr())],
     )
-    snap = _make_snapshot(probe)
 
     with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
         snap.enter(SLOW_SCOPE)
         snap.exit(None, _NO_EXC, 0, {"big": range(3)})
 
     assert snap._segment_timed_out
+
+
+# ---------------------------------------------------------------------------
+# One evaluation budget per probe invocation
+# ---------------------------------------------------------------------------
+
+
+class _CountingIterable:
+    def __init__(self, n):
+        self.n = n
+        self.produced = 0
+
+    def __iter__(self):
+        for i in range(self.n):
+            self.produced += 1
+            yield i
+
+
+def _counting_segment():
+    return ExpressionTemplateSegment(
+        DDTimedRedactedExpression.compile({"dsl": "xs", "json": {"any": [{"ref": "xs"}, {"eq": [{"ref": "@it"}, -1]}]}})
+    )
+
+
+def test_template_segments_share_the_invocation_budget():
+    """Once a segment has used up the budget, later iterating segments of the
+    same invocation time out without being evaluated.
+    """
+    probe = create_log_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        template="{slow}{xs}",
+        segments=[ExpressionTemplateSegment(slow_timed_expr()), _counting_segment()],
+    )
+    xs = _CountingIterable(10)
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
+        snap.line(dict(SLOW_SCOPE, xs=xs))
+
+    assert snap._message == "ERRORERROR"
+    assert xs.produced == 0
+
+
+def test_entry_and_exit_share_the_invocation_budget():
+    """An entry-timed function probe evaluates its template at entry and at
+    exit, both within the one budget of the invocation.
+    """
+    probe = create_log_function_probe(
+        probe_id="test",
+        module="tests.submod.stuff",
+        func_qname="mutator",
+        template="{slow}{xs}",
+        segments=[ExpressionTemplateSegment(slow_timed_expr()), _counting_segment()],
+    )
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
+        # At entry only the slow segment iterates for long
+        snap.enter(dict(SLOW_SCOPE, xs=range(3)))
+        xs = _CountingIterable(10)
+        snap.exit(None, _NO_EXC, 0, {"big": range(3), "xs": xs})
+
+    assert xs.produced == 0
+    assert snap._eval_budget.remaining_ns <= 0

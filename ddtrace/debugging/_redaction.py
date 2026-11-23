@@ -1,14 +1,11 @@
-from time import perf_counter_ns
 import typing as t
 
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
-from ddtrace.debugging._expressions import EvalDeadline
+from ddtrace.debugging._expressions import EvalBudget
 from ddtrace.debugging._expressions import EvaluationTimeoutError
-from ddtrace.debugging._expressions import get_eval_deadline
 from ddtrace.debugging._expressions import iterates
-from ddtrace.debugging._expressions import set_eval_deadline
 from ddtrace.internal.settings.dynamic_instrumentation import config
 from ddtrace.internal.settings.dynamic_instrumentation import normalize_ident
 from ddtrace.internal.utils.cache import cached
@@ -162,24 +159,19 @@ class DDRedactedExpression(DDExpression):
 
 
 class DDTimedRedactedExpression(DDRedactedExpression):
-    """A DDRedactedExpression whose evaluation is bounded by
-    di_config.evaluation_timeout_ms -- used for anything that budget is meant
-    to cover (probe conditions, log-message templates, metric-probe value
-    expressions), as opposed to snapshot capture expressions, which have
-    their own, separate cooperative HourGlass-based timing under
-    capture_timeout_ms.
+    """A DDRedactedExpression bounded by an EvalBudget (by default the full
+    evaluation_timeout_ms).
 
-    The bound is cooperative: the expression helpers that iterate check the
-    deadline as they go (see _expressions._bounded), so the timeout is
-    raised synchronously from our own code, never into user code. On timeout
-    this always raises a bare EvaluationTimeoutError, never one wrapped in a
-    DDExpressionEvaluationError, so callers need a single except clause.
+    The bound is cooperative: the iterating operators check the deadline as
+    they go (see _expressions._bounded), so the timeout is raised from our
+    own code, never into user code, as a bare EvaluationTimeoutError.
     """
 
     # Only expressions that iterate can overrun in a way we can stop, so the
-    # deadline is not even set up for the rest (most conditions). True unless
-    # compile() finds out otherwise.
-    iterates: bool = True
+    # deadline is not even set up for the rest (most conditions). Set by
+    # compile(): an expression built from any other callable can't take the
+    # deadline, so it is never bounded.
+    iterates: bool = False
 
     @classmethod
     def compile(cls, expr: t.Mapping[str, t.Any]) -> "DDTimedRedactedExpression":
@@ -187,34 +179,21 @@ class DDTimedRedactedExpression(DDRedactedExpression):
         compiled.iterates = iterates(expr["json"])
         return compiled
 
-    def eval(self, scope: t.Mapping[str, t.Any]) -> t.Any:
+    def eval(self, scope: t.Mapping[str, t.Any], budget: t.Optional[EvalBudget] = None) -> t.Any:
+        """Evaluate within what is left of budget, consuming the time the
+        evaluation takes, or within the full evaluation_timeout_ms if None.
+        """
         eval_timeout_ms = config.evaluation_timeout_ms
         if not self.iterates or eval_timeout_ms <= 0:
             return super().eval(scope)
 
-        outer = get_eval_deadline()
-        deadline_ns = perf_counter_ns() + int(eval_timeout_ms * 1_000_000)
-        if outer is not None:
-            # Nested evaluation (e.g. a probe hit from code the outer
-            # expression calls into): the outer budget still applies. Its ns
-            # is None if it was inherited from an evaluation that has ended.
-            outer_ns = outer.ns
-            if outer_ns is not None and outer_ns < deadline_ns:
-                deadline_ns = outer_ns
-        deadline = EvalDeadline(deadline_ns)
-        set_eval_deadline(deadline)
-        try:
-            result = super().eval(scope)
-            # A short-circuiting any()/all() never resumes the iteration to
-            # reach its next check, so an overrun can still end here.
-            if perf_counter_ns() > deadline_ns:
-                raise EvaluationTimeoutError()
-            return result
-        except DDExpressionEvaluationError as e:
-            if isinstance(e.__cause__, EvaluationTimeoutError):
-                raise e.__cause__ from None
-            raise
-        finally:
-            # Invalidates any copy of the context captured during evaluation
-            deadline.ns = None
-            set_eval_deadline(outer)
+        if budget is None:
+            budget = EvalBudget(int(eval_timeout_ms * 1_000_000))
+
+        with budget as deadline_ns:
+            try:
+                return self.callable(scope, deadline_ns)
+            except EvaluationTimeoutError:
+                raise
+            except Exception as e:
+                raise DDExpressionEvaluationError(self.dsl, e) from e

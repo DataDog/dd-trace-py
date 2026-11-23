@@ -3,6 +3,8 @@ capture_pairs() to record the first capture.incomplete reason at the exact
 point each guardrail limit is decided.
 """
 
+from unittest import mock
+
 from ddtrace.debugging._signal.utils import IncompleteCapture
 from ddtrace.debugging._signal.utils import capture_pairs
 from ddtrace.debugging._signal.utils import capture_value
@@ -70,6 +72,14 @@ def test_incomplete_capture_unrecognized_stopping_cond_maps_to_other():
 
     incomplete = IncompleteCapture()
     capture_value([1, 2, 3], stopping_cond=some_other_budget, incomplete=incomplete)
+    assert incomplete.reason == "other"
+
+
+def test_incomplete_capture_unresolvable_fields():
+    incomplete = IncompleteCapture()
+    with mock.patch("ddtrace.debugging._signal.utils._fields_of", side_effect=RuntimeError("boom")):
+        captured = capture_value(_TwoFields(), incomplete=incomplete)
+    assert captured["notCapturedReason"] == "unresolvableFields"
     assert incomplete.reason == "other"
 
 

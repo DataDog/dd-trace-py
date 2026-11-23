@@ -53,14 +53,15 @@ class MetricSample(LogSignal):
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        if probe.value is None:
+        value_expr = probe.value
+        if value_expr is None:
             value = 1.0
         else:
             try:
-                raw = probe.value(scope)
+                raw = value_expr.eval(scope, self._eval_budget)
             except EvaluationTimeoutError:
                 self._record_evaluation_error(
-                    probe.value.dsl,
+                    value_expr.dsl,
                     f"Metric value evaluation timed out after {di_config.evaluation_timeout_ms}ms",
                     SignalState.EVAL_TIMEOUT,
                 )
@@ -73,12 +74,12 @@ class MetricSample(LogSignal):
             except Exception:
                 # Name only the type: the value itself may be sensitive and has not been redacted.
                 self._record_evaluation_error(
-                    probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", SignalState.EVAL_ERROR
+                    value_expr.dsl, f"Value is not a number: {safe_qualname(type(raw))}", SignalState.EVAL_ERROR
                 )
                 return
             if not math.isfinite(value):
                 # The statsd counter raises on these in int(), after this returns, which would drop the signal.
-                self._record_evaluation_error(probe.value.dsl, f"Value is not finite: {value}", SignalState.EVAL_ERROR)
+                self._record_evaluation_error(value_expr.dsl, f"Value is not finite: {value}", SignalState.EVAL_ERROR)
                 return
 
         # TODO[perf]: We know the tags in advance so we can avoid the

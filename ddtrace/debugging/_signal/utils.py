@@ -320,6 +320,7 @@ class IncompleteCapture:
         "collectionSize": "collectionSize",
         "timeout": "timeout",
         "concurrentModification": "other",
+        "unresolvableFields": "other",
     }
 
     __slots__ = ("reason",)
@@ -539,6 +540,8 @@ def capture_value(
     try:
         fields = _fields_of(value)
     except Exception:
+        if incomplete is not None:
+            incomplete.record("unresolvableFields")
         return {
             "type": _type.__qualname__,
             "notCapturedReason": "unresolvableFields",

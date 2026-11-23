@@ -131,7 +131,7 @@ class Snapshot(LogSignal):
             if isinstance(segment, LiteralTemplateSegment):
                 return segment.eval(_locals)
             return serialize(
-                segment.eval(_locals),
+                segment.eval(_locals, self._eval_budget),
                 level=capture.max_level,
                 maxsize=capture.max_size,
                 maxlen=capture.max_len,
@@ -205,7 +205,7 @@ class Snapshot(LogSignal):
             captured: dict[str, Any] = {}
             for e in exprs:
                 try:
-                    value = e.expr.eval(scope)
+                    value = e.expr.eval(scope, self._eval_budget)
                 except EvaluationTimeoutError:
                     if self._capture_expr_error_reason is None:
                         self._capture_expr_error_reason = "timeout"

@@ -142,7 +142,7 @@ class SpanDecoration(LogSignal):
             log.debug("Decorating span %r according to span decoration probe %r", span, probe)
             for d in probe.decorations:
                 try:
-                    if not (d.when is None or d.when(scope)):
+                    if not (d.when is None or d.when.eval(scope, self._eval_budget)):
                         continue
                 except EvaluationTimeoutError:
                     self.errors.append(
@@ -159,7 +159,7 @@ class SpanDecoration(LogSignal):
                     continue
                 for tag in d.tags:
                     try:
-                        tag_value = tag.value.render(scope, serialize)
+                        tag_value = tag.value.render(scope, serialize, self._eval_budget)
                     except EvaluationTimeoutError:
                         span._set_attribute(
                             "_dd.di.%s.evaluation_error" % tag.name,

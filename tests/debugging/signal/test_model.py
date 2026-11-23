@@ -179,9 +179,9 @@ def test_slow_condition_times_out():
     evaluation_timeout_ms rather than running to completion.
     """
     probe = create_snapshot_line_probe(probe_id="test", source_file="test.py", line=1, condition=slow_timed_expr())
-    signal = _make_signal(probe)
-
     with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        # The budget is set when the signal is created
+        signal = _make_signal(probe)
         start = monotonic()
         result = signal._eval_condition(SLOW_SCOPE)
         elapsed = monotonic() - start
