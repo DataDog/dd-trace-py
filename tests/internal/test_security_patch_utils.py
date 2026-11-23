@@ -86,3 +86,29 @@ def test_unwrap_after_patching_with_two_hooks_restores_original():
     calls.clear()
     assert module.Target().method() == "method"
     assert calls == []
+
+
+@pytest.mark.parametrize("path", ["Target.method", "function"])
+def test_unwrap_restores_a_wrapper_installed_elsewhere(path):
+    module = _module_with_target()
+    parent = module.Target if path.startswith("Target.") else module
+    attribute = path.split(".")[-1]
+    foreign_calls = []
+    calls = []
+    foreign = FunctionWrapper(vars(parent)[attribute], _counting_hook(foreign_calls))
+    setattr(parent, attribute, foreign)
+    call = (lambda: module.Target().method()) if parent is module.Target else (lambda: module.function())
+
+    wrap_object(module, path, FunctionWrapper, (_counting_hook(calls),))
+    call()
+    assert len(calls) == 1
+    assert len(foreign_calls) == 1
+
+    try_unwrap(module, path)
+
+    assert vars(parent)[attribute] is foreign
+    calls.clear()
+    foreign_calls.clear()
+    call()
+    assert calls == []
+    assert len(foreign_calls) == 1
