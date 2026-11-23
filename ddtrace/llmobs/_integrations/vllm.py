@@ -22,8 +22,8 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.vllm_utils import parse_prompt_to_messages
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.utils import Document
 
 
 class VLLMIntegration(BaseLLMIntegration):
@@ -136,7 +136,14 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return ctx
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         data = kwargs.get("request_data")
         if data is None:
             return

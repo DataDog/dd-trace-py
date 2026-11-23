@@ -14,7 +14,7 @@ from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 logger = get_logger(__name__)
 
 
-class LLMObsTraceProcessor(TracingProcessor):
+class LLMObsTraceProcessor(TracingProcessor):  # type: ignore[misc]  # agents is untyped (Any) for mypy
     def __init__(self, integration: OpenAIAgentsIntegration) -> None:
         super().__init__()
         self._integration = integration

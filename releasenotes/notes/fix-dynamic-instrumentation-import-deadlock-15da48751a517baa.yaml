@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes an issue where Dynamic Instrumentation could fail to start with an
+    import deadlock or a "partially initialized module" import error, most often on Python 3.14, when
+    Code Origin for Spans or Exception Replay was enabled at the same time.

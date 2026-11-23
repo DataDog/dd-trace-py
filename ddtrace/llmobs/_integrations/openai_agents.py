@@ -53,7 +53,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         self,
         operation_id: str = "",
         submit_to_llmobs: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> _LLMObsSpan:
         oai_trace = kwargs.get("oai_trace")
         oai_span = kwargs.get("oai_span")
@@ -272,7 +272,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             _annotate_llmobs_span_data(span, metadata=oai_span.llmobs_metadata)
 
     def _llmobs_get_trace_info(
-        self, oai_trace_or_span: Union[OaiSpanAdapter, OaiTraceAdapter]
+        self, oai_trace_or_span: Optional[Union[OaiSpanAdapter, OaiTraceAdapter]]
     ) -> Optional[LLMObsTraceInfo]:
         """Get trace info for a span
 
@@ -324,7 +324,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if not agent or not self.llmobs_enabled:
             return
 
-        manifest = {}
+        manifest: dict[str, Any] = {}
         manifest["framework"] = "OpenAI"
         if hasattr(agent, "name"):
             manifest["name"] = agent.name
@@ -354,7 +354,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
-    def _extract_model_settings_from_agent(self, agent):
+    def _extract_model_settings_from_agent(self, agent: Any) -> Optional[dict[str, Any]]:
         if not hasattr(agent, "model_settings"):
             return None
 
@@ -374,13 +374,13 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             if key in ALLOWED_MODEL_SETTINGS_KEYS and is_flat_scalar_value(value)
         }
 
-    def _extract_tools_from_agent(self, agent):
+    def _extract_tools_from_agent(self, agent: Any) -> Optional[list[dict[str, Any]]]:
         if not hasattr(agent, "tools") or not agent.tools:
             return None
 
-        tools = []
+        tools: list[dict[str, Any]] = []
         for tool in agent.tools:
-            tool_dict = {}
+            tool_dict: dict[str, Any] = {}
             tool_name = getattr(tool, "name", None)
             if tool_name:
                 tool_dict["name"] = tool_name
@@ -427,9 +427,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                 if hasattr(tool, "params_json_schema"):
                     parameter_schema = tool.params_json_schema
                     required_params = {param: True for param in parameter_schema.get("required", [])}
-                    parameters = {}
+                    parameters: dict[str, dict[str, Any]] = {}
                     for param, schema in parameter_schema.get("properties", {}).items():
-                        param_dict = {}
+                        param_dict: dict[str, Any] = {}
                         if "type" in schema:
                             param_dict["type"] = schema["type"]
                         if "title" in schema:
@@ -442,13 +442,13 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         return tools
 
-    def _extract_handoffs_from_agent(self, agent):
+    def _extract_handoffs_from_agent(self, agent: Any) -> Optional[list[dict[str, Any]]]:
         if not hasattr(agent, "handoffs") or not agent.handoffs:
             return None
 
-        handoffs = []
+        handoffs: list[dict[str, Any]] = []
         for handoff in agent.handoffs:
-            handoff_dict = {}
+            handoff_dict: dict[str, Any] = {}
             if hasattr(handoff, "handoff_description") or hasattr(handoff, "tool_description"):
                 handoff_dict["handoff_description"] = getattr(handoff, "handoff_description", None) or getattr(
                     handoff, "tool_description", None
@@ -462,8 +462,8 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         return handoffs
 
-    def _extract_guardrails_from_agent(self, agent):
-        guardrails = []
+    def _extract_guardrails_from_agent(self, agent: Any) -> list[Any]:
+        guardrails: list[Any] = []
         if hasattr(agent, "input_guardrails"):
             guardrails.extend([getattr(guardrail, "name", "") for guardrail in agent.input_guardrails])
         if hasattr(agent, "output_guardrails"):

@@ -49,6 +49,8 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
     assert "ddtrace._trace.product" not in sys.modules
     assert "ddtrace.contrib" not in sys.modules
     assert "ddtrace._trace.trace_handlers" not in sys.modules
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    assert "ddtrace._trace.http_meta" not in sys.modules
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
     assert not core.has_listeners("web.response")

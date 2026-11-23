@@ -27,10 +27,18 @@ from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import assert_llmobs_span_data
+from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
 LITELLM_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"}
+
+
+def test_llmobs_test_writer_without_agent(tracer, monkeypatch, request):
+    monkeypatch.setattr("ddtrace.llmobs._writer._SHOULD_USE_AGENTLESS", None)
+    monkeypatch.setattr("ddtrace.llmobs._writer.agent.info", lambda: None)
+    request.getfixturevalue("litellm_llmobs")
+    assert isinstance(tracer._span_aggregator.writer, DummyWriter)
 
 
 def _gateway(span):
