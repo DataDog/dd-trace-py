@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gc
+import threading
 from typing import Callable
 from unittest import mock
 
@@ -162,11 +163,13 @@ def _make_isolated_collector(pause_event_threshold_ms: float = 1.0) -> GCCollect
     col._event_pause_ns = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._event_end_ns = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._event_thread_id = [0] * gc_collector._MAX_PAUSE_EVENTS
+    col._event_native_id = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._event_count = 0
     col._snap_event_gen = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._snap_event_pause_ns = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._snap_event_end_ns = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._snap_event_thread_id = [0] * gc_collector._MAX_PAUSE_EVENTS
+    col._snap_event_native_id = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._dropped_pause_count = 0
     col._dropped_pause_ns = 0
     col._explicit_count = 0
@@ -346,6 +349,18 @@ def test_long_pause_emitted_as_timestamped_event() -> None:
     assert sum(h.push_gctime.call_args_list[0].args[0] for h in pause_handles) == 5_000_100
 
 
+def test_pause_event_keeps_native_id_after_thread_exits() -> None:
+    col: GCCollector = _make_isolated_collector(pause_event_threshold_ms=1.0)
+    worker: threading.Thread = threading.Thread(target=col._on_pause, args=(2, 5_000_000))
+    worker.start()
+    worker.join()
+
+    events: list[mock.MagicMock] = [h for h in _pause_handles(_snapshot_handles(col)) if h.push_gc_event.called]
+    assert len(events) == 1
+    threadinfo: tuple[int, int, str] = events[0].push_threadinfo.call_args[0]
+    assert threadinfo[:2] == (worker.ident, worker.native_id)
+
+
 def test_pause_events_past_cap_roll_into_aggregates() -> None:
     col: GCCollector = _make_isolated_collector(pause_event_threshold_ms=1.0)
     with mock.patch.object(gc_collector, "_MAX_PAUSE_EVENTS", 2):
@@ -435,11 +450,13 @@ def test_on_pause_does_not_grow_event_buffers() -> None:
     pause_id: int = id(col._event_pause_ns)
     end_id: int = id(col._event_end_ns)
     thread_id_buf: int = id(col._event_thread_id)
+    native_id_buf: int = id(col._event_native_id)
     col._on_pause(1, 2_000_000)
     assert id(col._event_gen) == gen_id
     assert id(col._event_pause_ns) == pause_id
     assert id(col._event_end_ns) == end_id
     assert id(col._event_thread_id) == thread_id_buf
+    assert id(col._event_native_id) == native_id_buf
     assert len(col._event_gen) == gc_collector._MAX_PAUSE_EVENTS
     assert col._event_count == 1
     assert col._pause_count == [0, 0, 0]

@@ -62,8 +62,9 @@ class GCCollector(collector.Collector):
       not also added to the window totals. The last slots before the
       per-interval cap only take pauses of 10 ms or more, and pauses past
       the cap fall back to the totals. The callback only writes into a
-      preallocated ring; thread name and native id are resolved at
-      snapshot() time.
+      preallocated ring. It records the native thread id with each kept
+      pause, since the thread may exit before snapshot(); the thread name
+      is resolved at snapshot() time.
     - A gc.config snapshot sample per flush carrying the interval's explicit
       gc.collect() tally in the native gc-samples field. When pauses missed
       the event cap, numeric "gc dropped pauses" and "gc dropped pause ns"
@@ -79,11 +80,13 @@ class GCCollector(collector.Collector):
     _event_pause_ns: list[int]
     _event_end_ns: list[int]
     _event_thread_id: list[int]
+    _event_native_id: list[int]
     _event_count: int
     _snap_event_gen: list[int]
     _snap_event_pause_ns: list[int]
     _snap_event_end_ns: list[int]
     _snap_event_thread_id: list[int]
+    _snap_event_native_id: list[int]
     _event_threshold_ns: int
     _dropped_pause_count: int
     _dropped_pause_ns: int
@@ -110,6 +113,7 @@ class GCCollector(collector.Collector):
         self._event_pause_ns = [0] * _MAX_PAUSE_EVENTS
         self._event_end_ns = [0] * _MAX_PAUSE_EVENTS
         self._event_thread_id = [0] * _MAX_PAUSE_EVENTS
+        self._event_native_id = [0] * _MAX_PAUSE_EVENTS
         self._event_count = 0
         # Snapshot scratch mirrors the ring so we never slice/allocate under
         # the lock (a GC pause while we hold it would be dropped).
@@ -117,6 +121,7 @@ class GCCollector(collector.Collector):
         self._snap_event_pause_ns = [0] * _MAX_PAUSE_EVENTS
         self._snap_event_end_ns = [0] * _MAX_PAUSE_EVENTS
         self._snap_event_thread_id = [0] * _MAX_PAUSE_EVENTS
+        self._snap_event_native_id = [0] * _MAX_PAUSE_EVENTS
         self._dropped_pause_count = 0
         self._dropped_pause_ns = 0
         self._explicit_count = 0
@@ -205,6 +210,7 @@ class GCCollector(collector.Collector):
                     self._event_pause_ns[i] = pause_ns
                     self._event_end_ns[i] = end_ns
                     self._event_thread_id[i] = thread_id
+                    self._event_native_id[i] = _thread.get_native_id()
                     self._event_count = i + 1
                     return
                 self._dropped_pause_count += 1
@@ -235,6 +241,7 @@ class GCCollector(collector.Collector):
                 self._snap_event_pause_ns[i] = self._event_pause_ns[i]
                 self._snap_event_end_ns[i] = self._event_end_ns[i]
                 self._snap_event_thread_id[i] = self._event_thread_id[i]
+                self._snap_event_native_id[i] = self._event_native_id[i]
             explicit: int = self._explicit_count
             dropped_count: int = self._dropped_pause_count
             dropped_ns: int = self._dropped_pause_ns
@@ -262,8 +269,7 @@ class GCCollector(collector.Collector):
             event_handle.push_monotonic_ns(self._snap_event_end_ns[i])
             # push_threadinfo drops all three labels when the name is empty.
             thread_name: str = _threading.get_thread_name(thread_id) or str(thread_id)
-            native_id: int = _threading.get_thread_native_id(thread_id)
-            event_handle.push_threadinfo(thread_id, native_id, thread_name)
+            event_handle.push_threadinfo(thread_id, self._snap_event_native_id[i], thread_name)
             event_handle.flush_sample()
 
         pause_count: tuple[int, int, int] = (c0, c1, c2)
