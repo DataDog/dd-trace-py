@@ -133,10 +133,6 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
 
 Never mirror speculative or partially reviewed code merely to obtain CI results.
 
-If pre-merge CI cannot run on the fork, an authorized maintainer can use
-``/merge -f --reason CI passed on shadow PR <shadow PR URL>`` on the original PR after verifying
-its approvals and matching tested SHA. This skips pre-merge CI; it does not rerun tests.
-
 If merge checks remain stale after closing a shadow whose CI passed, comment ``/code blockers``
 on the original PR to identify any remaining blockers, then ``/mergegate trigger`` to refresh
 MergeGate. Resolve missing approvals or actual CI failures; no branch update is needed to refresh.
