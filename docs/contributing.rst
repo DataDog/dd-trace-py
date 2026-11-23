@@ -142,8 +142,9 @@ shadow; request a fresh approval if needed.
 After closing the shadow or correcting approvals, comment ``/mergegate trigger`` on the original
 PR to refresh MergeGate without updating the branch. Check the bot's response for remaining blockers.
 
-For a merge request still waiting in the queue, maintainers with access can request a fresh
-mergeability check::
+The PRs share a commit, so missing or incomplete checks on the shadow can also block the original
+PR. After closing the tested shadow, maintainers with access should refresh a waiting merge request
+to reevaluate the original PR's mergeability::
 
     ddr devflow mergequeue check-mergeability --pr <original PR URL>
 
