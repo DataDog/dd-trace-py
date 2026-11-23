@@ -225,6 +225,39 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
+    // An eager Task runs its first step inside create_task, while the Task that called create_task is still running.
+    // Both look on CPU. The eager Task owns the sample, so that the step is sampled once. With nested eager steps, the
+    // innermost eager Task owns it: its coroutine frame is the one closest to the top of the thread stack.
+    const TaskInfo* eager_owner = nullptr;
+    std::vector<const TaskInfo*> eager_on_cpu;
+    for (const auto& task : leaf_tasks) {
+        if (task.get().is_on_cpu && task.get().in_eager_step) {
+            eager_on_cpu.push_back(&task.get());
+        }
+    }
+    if (eager_on_cpu.size() > 1) {
+        const size_t lower_python_stack_size =
+          python_stack.size() > upper_python_stack_size ? python_stack.size() - upper_python_stack_size : 0;
+        for (size_t i = 0; i < lower_python_stack_size && eager_owner == nullptr; i++) {
+            for (const auto* task : eager_on_cpu) {
+                auto it = task_coro_stacks.find(task->origin);
+                if (it != task_coro_stacks.end() && !it->second.empty() &&
+                    it->second.front().cache_key == python_stack[i].cache_key) {
+                    eager_owner = task;
+                    break;
+                }
+            }
+        }
+    }
+    if (eager_owner == nullptr && !eager_on_cpu.empty()) {
+        eager_owner = eager_on_cpu.front();
+    }
+    if (eager_owner != nullptr) {
+        std::erase_if(leaf_tasks, [eager_owner](const TaskInfo::Ref& task) {
+            return task.get().is_on_cpu && &task.get() != eager_owner;
+        });
+    }
+
     // Swap the on-CPU task to slot 0 so it is always retained by reservoir sampling.
     bool found_on_cpu = false;
     for (size_t i = 0; i < leaf_tasks.size(); i++) {
@@ -298,6 +331,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             // ran in it.
             const bool leaf_owns_gc_marker = task_chain_depth == 1 && stack_info->on_cpu;
 
+            // The thread stack below the asyncio boundary already holds the eager Task's frames and its creators'.
+            // Push it whole, without the coroutine stack or the Task's parents, which would repeat frames.
+            const bool is_eager_owner = task_chain_depth == 1 && &task == eager_owner;
+
             // Look up the pre-computed coroutine stack for this task.
             // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
             // python_stack must be appended before coroutine frames.
@@ -306,7 +343,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             const FrameStack* task_stack = nullptr;
             size_t task_stack_size = 0;
             size_t task_frames_to_push = 0;
-            if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
+            if (auto it = task_coro_stacks.find(task.origin); !is_eager_owner && it != task_coro_stacks.end()) {
                 task_stack = &it->second;
                 task_stack_size = task_stack->size();
                 if (stack.size() < MAX_STACK_UNWIND_SAFETY_LIMIT) {
@@ -353,6 +390,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
             // Task labels are rendered separately from frames; do not add a synthetic
             // frame for the task name here.
+
+            if (is_eager_owner) {
+                break;
+            }
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
@@ -522,7 +563,10 @@ ThreadInfo::get_task_addresses_from_linked_list(uintptr_t head_addr)
 }
 
 Result<void>
-ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, const TaskAddressCallback& callback)
+ThreadInfo::for_each_task_address(EchionSampler& echion,
+                                  PyThreadState* tstate,
+                                  const TaskAddressCallback& callback,
+                                  std::unordered_set<PyObject*>* eager_task_origins)
 {
     if (this->asyncio_loop == 0)
         return Result<void>::ok();
@@ -578,6 +622,9 @@ ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, 
 
         auto eager_tasks = std::move(*maybe_eager_tasks);
         for (auto task_addr : eager_tasks) {
+            if (eager_task_origins != nullptr) {
+                eager_task_origins->insert(task_addr);
+            }
             auto result = callback(reinterpret_cast<TaskObj*>(task_addr));
             if (!result) {
                 return result.error();
@@ -590,7 +637,10 @@ ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, 
 #else
 // Before Python 3.14, asyncio tracks tasks through Python weak sets.
 Result<void>
-ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState*, const TaskAddressCallback& callback)
+ThreadInfo::for_each_task_address(EchionSampler& echion,
+                                  PyThreadState*,
+                                  const TaskAddressCallback& callback,
+                                  std::unordered_set<PyObject*>* eager_task_origins)
 {
     if (this->asyncio_loop == 0)
         return Result<void>::ok();
@@ -634,6 +684,9 @@ ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState*, const T
 
         auto eager_tasks = std::move(*maybe_eager_tasks);
         for (auto task_addr : eager_tasks) {
+            if (eager_task_origins != nullptr) {
+                eager_task_origins->insert(task_addr);
+            }
             auto result = callback(reinterpret_cast<TaskObj*>(task_addr));
             if (!result) {
                 return result.error();
@@ -649,16 +702,26 @@ Result<std::vector<TaskInfo::Ptr>>
 ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     std::vector<TaskInfo::Ptr> tasks;
-    auto result = for_each_task_address(echion, tstate, [&](TaskObj* task_addr) -> Result<void> {
-        auto maybe_task_info = TaskInfo::create(echion, task_addr);
-        if (maybe_task_info && reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
-            tasks.push_back(std::move(*maybe_task_info));
-        }
-        // Individual unreadable Tasks are expected in a lock-free snapshot and remain best effort.
-        return Result<void>::ok();
-    });
+    std::unordered_set<PyObject*> eager_task_origins;
+    auto result = for_each_task_address(
+      echion,
+      tstate,
+      [&](TaskObj* task_addr) -> Result<void> {
+          auto maybe_task_info = TaskInfo::create(echion, task_addr);
+          if (maybe_task_info && reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
+              tasks.push_back(std::move(*maybe_task_info));
+          }
+          // Individual unreadable Tasks are expected in a lock-free snapshot and remain best effort.
+          return Result<void>::ok();
+      },
+      &eager_task_origins);
     if (!result) {
         return result.error();
+    }
+    if (!eager_task_origins.empty()) {
+        for (auto& task : tasks) {
+            task->in_eager_step = eager_task_origins.count(task->origin) > 0;
+        }
     }
 
 #if PY_VERSION_HEX >= 0x030e0000

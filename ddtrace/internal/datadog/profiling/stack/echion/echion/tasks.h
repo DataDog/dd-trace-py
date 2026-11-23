@@ -125,6 +125,10 @@ class TaskInfo
     // This will not be true if the Task is currently awaiting another Task, and this other Task is on CPU.
     bool is_on_cpu = false;
 
+    // Whether the Task is running its first, eager step, i.e. it is in asyncio's eager Task set. Only set on Python
+    // 3.12 and 3.13: from 3.14, native Tasks are not added to that set.
+    bool in_eager_step = false;
+
     // The coroutine wrapped by the Task, i.e. the coroutine passed to asyncio.create_task
     // or equivalent (e.g. asyncio.run, etc.)
     GenInfo::Ptr coro = nullptr;

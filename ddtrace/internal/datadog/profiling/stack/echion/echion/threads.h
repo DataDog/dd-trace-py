@@ -17,6 +17,7 @@
 #include <functional>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 #if defined PL_LINUX
 #include <ctime>
@@ -130,9 +131,11 @@ class ThreadInfo
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
     void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long, microsecond_t wall_time_us);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);
+    // When eager_task_origins is set, the Tasks read from the eager Task set are added to it.
     [[nodiscard]] Result<void> for_each_task_address(EchionSampler&,
                                                      PyThreadState* tstate,
-                                                     const TaskAddressCallback& callback);
+                                                     const TaskAddressCallback& callback,
+                                                     std::unordered_set<PyObject*>* eager_task_origins = nullptr);
 #if PY_VERSION_HEX >= 0x030e0000
     [[nodiscard]] Result<void> for_each_task_address_from_thread_list(EchionSampler&,
                                                                       const TaskAddressCallback& callback);
