@@ -350,6 +350,7 @@ def _apply_pr_paths(
     suites: dict, required_suites: list[str], git_selections: set[str], commit_message: str
 ) -> list[str]:
     from needs_testrun import pr_matches_patterns
+
     from tests.suitespec import get_test_environments
 
     # Apply the narrower PR selection after broad dependency and CI Visibility expansion.
