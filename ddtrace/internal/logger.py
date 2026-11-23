@@ -135,18 +135,6 @@ _handoff: Optional[LogHandoff] = None
 class HandoffLogger(logging.Logger):
     """A ddtrace logger whose records a LogHandoff can take over."""
 
-    def isEnabledFor(self, level: int) -> bool:
-        if self.disabled:
-            return False
-        try:
-            return self._cache[level]  # type: ignore[attr-defined]
-        except KeyError:
-            pass
-        if (handoff := _handoff) is None or handoff.runs_inline():
-            return super().isEnabledFor(level)
-        # Same as the base class, without the logging lock it takes to fill the cache.
-        return level > self.manager.disable and level >= self.getEffectiveLevel()
-
     def handle(self, record: logging.LogRecord) -> None:
         if (handoff := _handoff) is None or handoff.runs_inline() or not handoff.put(self, record):
             super().handle(record)
@@ -179,11 +167,26 @@ class _HandoffLoggerClass:
         return (_handoff_logger_class(cls) if _is_ddtrace(name) else cls)(name)
 
 
+def _is_enabled_for(self: logging.Logger, level: int) -> bool:
+    if self.disabled:
+        return False
+    try:
+        return self._cache[level]  # type: ignore[attr-defined]
+    except KeyError:
+        pass
+    if (handoff := _handoff) is None or handoff.runs_inline():
+        return logging.Logger.isEnabledFor(self, level)
+    # Same as the base class, without the logging lock it takes to fill the cache.
+    return level > self.manager.disable and level >= self.getEffectiveLevel()
+
+
 def set_log_handoff(handoff: LogHandoff) -> None:
     """Let the handoff take over the records of the ddtrace loggers."""
     global _handoff
 
     _handoff = handoff
+    # Only set with a handoff, so that ddtrace loggers otherwise answer like the base class, also when it is patched.
+    HandoffLogger.isEnabledFor = _is_enabled_for  # type: ignore[method-assign]
     # Convert the ddtrace loggers created before the logger class was set.
     for logger in list(logging.Logger.manager.loggerDict.values()):
         if isinstance(logger, logging.Logger) and not isinstance(logger, HandoffLogger) and _is_ddtrace(logger.name):

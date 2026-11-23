@@ -541,8 +541,9 @@ patched `threading`, the logging lock and the handler locks are gevent locks. A
 native ddtrace thread that waits for one depends on the main thread's hub,
 which can be waiting for that thread, e.g. joining it before a fork.
 `main_hub_logging` in `ddtrace.contrib.internal.gevent.logger` breaks that
-cycle. Module cloning installs it, and it plugs into ddtrace loggers through
-the generic `LogHandoff` seam of `ddtrace.internal.logger`:
+cycle. The gevent integration installs it when it patches gevent, and it plugs
+into ddtrace loggers through the generic `LogHandoff` seam of
+`ddtrace.internal.logger`:
 
 - Once gevent creates the hub of the main thread, records logged by ddtrace
   loggers on other threads are queued, and a single greenlet on the main hub
@@ -554,7 +555,9 @@ the generic `LogHandoff` seam of `ddtrace.internal.logger`:
   manager to `_HandoffLoggerClass` when it is imported. Changing the class of
   an existing logger makes its attribute lookups slower on Python 3.12+, so
   only the ddtrace loggers created before are converted, when the hub is
-  created.
+  created. The `isEnabledFor` override, which skips the logging lock off the
+  main thread, is also only set then, so that without a handoff ddtrace loggers
+  answer like `logging.Logger`, also when a test patches it.
 - Records are formatted when queued, so mutable arguments and exceptions are
   captured as logged.
 - After fork, the child resets it with a `forksafe.register` hook and logs

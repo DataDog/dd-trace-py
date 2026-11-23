@@ -149,8 +149,20 @@ def _reset_after_fork() -> None:
         hub.loop.run_callback(main_hub_logging.set_hub, hub, gevent_hub.spawn_raw)
 
 
-def install() -> None:
-    """Hand the records of ddtrace threads to the main hub once gevent creates it. Called by module cloning."""
+_installed = False
+
+
+def install(gevent_hub: Any) -> None:
+    """Hand the records of ddtrace threads to the main hub once gevent creates it. Called when gevent is patched.
+
+    Kept on unpatch, as unpatching gevent doesn't make the logging locks native again.
+    """
+    global _installed
+
+    if _installed:
+        return
+    _installed = True
+
     forksafe.register(_reset_after_fork)
 
     @ModuleWatchdog.after_module_imported("multiprocessing.util")
@@ -158,14 +170,13 @@ def install() -> None:
         # A multiprocessing child exits with os._exit once these finalizers have run, and skips atexit.
         mp_util.register_after_fork(main_hub_logging, lambda m: mp_util.Finalize(m, m.flush_at_exit, exitpriority=0))
 
-    @ModuleWatchdog.after_module_imported("gevent.hub")
-    def _(gevent_hub: Any) -> None:
-        hub_init = gevent_hub.Hub.__init__
+    hub_init = gevent_hub.Hub.__init__
 
-        def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
-            hub_init(self, *args, **kwargs)
-            main_hub_logging.set_hub(self, gevent_hub.spawn_raw)
+    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
+        hub_init(self, *args, **kwargs)
+        main_hub_logging.set_hub(self, gevent_hub.spawn_raw)
 
-        gevent_hub.Hub.__init__ = __init__
-        if (hub := gevent_hub._get_hub()) is not None:
-            main_hub_logging.set_hub(hub, gevent_hub.spawn_raw)
+    gevent_hub.Hub.__init__ = __init__
+    # gevent might have been imported, and its main hub created, before ddtrace patched it.
+    if (hub := gevent_hub._get_hub()) is not None:
+        main_hub_logging.set_hub(hub, gevent_hub.spawn_raw)

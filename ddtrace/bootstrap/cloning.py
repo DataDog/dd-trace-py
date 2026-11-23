@@ -35,9 +35,6 @@ def cleanup_loaded_modules() -> None:
     if not enabled:
         return
 
-    # Imported before the modules are unloaded, like the ones that preload imports.
-    from ddtrace.contrib.internal.gevent.logger import install as install_main_hub_logging
-
     def drop(module_name: str) -> None:
         module = sys.modules.get(module_name)
         # Don't delete modules that are currently being imported (they might be None or incomplete)
@@ -124,10 +121,6 @@ def cleanup_loaded_modules() -> None:
     @ModuleWatchdog.after_module_imported("threading")
     def _(threading):
         logging.threading = threading  # type: ignore[attr-defined]
-
-    # Sharing logging also shares the gevent locks it gets once gevent patches
-    # threading, so ddtrace threads hand their records to the main hub instead.
-    install_main_hub_logging()
 
     # Do module cloning only once
     enabled = False
