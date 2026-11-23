@@ -43,6 +43,7 @@ The suite schema is as follows:
     timeout: # The timeout for the job
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
+    pr_paths: # Optional PR override with literal globs. An empty list runs on every PR.
     services: # The services to start before running the suite, defined in .gitlab/services.yml
     no_proxy: # Add the suite's external test domains to NO_PROXY and no_proxy
     matrix: # Shared configuration and named dependency variants
@@ -73,6 +74,16 @@ generator will aggregate all the components and suites to build the full test
 suite specification and resolve the components after that.
 
 ### Discovered dependencies
+
+A suite can use `pr_paths` to override GitLab PR selection when its normal
+`paths` would trigger an expensive job for unrelated changes. List file globs
+directly in `pr_paths`. The generator does not expand component references or
+import dependencies for this list. Main, nightly, and explicitly requested
+suite runs can still run the full suite.
+
+The vLLM mock suite runs on every PR without vLLM or CUDA. The GPU matrix still
+runs on main and on PRs that change the vLLM integration, GPU tests, or snapshots.
+Request it explicitly with `ci:llmobs::vllm` in the commit message.
 
 A suite's `paths` only need the code it tests, plus the dependencies that
 imports cannot reveal. A reference to a component declared in the same

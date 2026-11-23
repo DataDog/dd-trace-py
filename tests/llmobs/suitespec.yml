@@ -46,6 +46,9 @@ components:
     - ddtrace/contrib/internal/pydantic_ai/*
   vllm:
     - ddtrace/contrib/internal/vllm/*
+    - ddtrace/llmobs/_contrib/vllm/*
+    - ddtrace/llmobs/_integrations/vllm.py
+    - ddtrace/llmobs/_integrations/vllm_utils.py
 suites:
   elevenlabs:
     venvs_per_job: 2
@@ -540,6 +543,14 @@ suites:
     paths:
       - '@bootstrap'
       - '@llmobs'
+      - '@vllm'
+      - tests/contrib/vllm/*
+      - tests/snapshots/tests.contrib.vllm.*
+    pr_paths:
+      - ddtrace/contrib/internal/vllm/*
+      - ddtrace/llmobs/_contrib/vllm/*
+      - ddtrace/llmobs/_integrations/vllm.py
+      - ddtrace/llmobs/_integrations/vllm_utils.py
       - tests/contrib/vllm/*
       - tests/snapshots/tests.contrib.vllm.*
     gpu: true
@@ -557,3 +568,13 @@ suites:
         - name: vllm
           python: ['3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
+  vllm_mocked:
+    paths:
+      - '@vllm'
+      - tests/contrib/vllm_mocked/*
+    pr_paths: []
+    matrix:
+      command: pytest {cmdargs} tests/contrib/vllm_mocked
+      variants:
+        - name: vllm-mocked
+          python: ['3.12']

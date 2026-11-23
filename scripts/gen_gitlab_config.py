@@ -299,6 +299,8 @@ def gen_required_suites() -> None:
     suites = suitespec.get_suites()
 
     required_suites: list[str] = []
+    git_selections: set[str] = set()
+    commit_message = os.getenv("CI_COMMIT_MESSAGE", "")
 
     if args.suites:
         # --suite: explicit suite selection, bypass PR/file detection entirely
@@ -325,10 +327,11 @@ def gen_required_suites() -> None:
         from needs_testrun import extract_git_commit_selections
         from needs_testrun import for_each_testrun_needed
 
+        git_selections = extract_git_commit_selections(commit_message)
         for_each_testrun_needed(
             suites=sorted(suites.keys()),
             action=lambda suite: required_suites.append(suite),
-            git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
+            git_selections=git_selections,
         )
 
     # If the ci_visibility suite is in the list of required suites, we need to run all suites
@@ -336,8 +339,37 @@ def gen_required_suites() -> None:
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
 
+    if not args.suites:
+        required_suites = _apply_pr_paths(suites, required_suites, git_selections, commit_message)
+
     _gen_tests(suites, required_suites)
     _gen_benchmarks(suites, required_suites)
+
+
+def _apply_pr_paths(
+    suites: dict, required_suites: list[str], git_selections: set[str], commit_message: str
+) -> list[str]:
+    from needs_testrun import pr_matches_patterns
+
+    # Apply the narrower PR selection after broad dependency and CI Visibility expansion.
+    # Explicit full runs keep their existing coverage. A failed PR diff lookup also runs the suite.
+    full_run = not args.files and (
+        os.getenv("CI_COMMIT_REF_NAME") == "main"
+        or bool(os.getenv("CI_COMMIT_TAG"))
+        or _get_bool_env("NIGHTLY_BUILD") == "true"
+        or "all" in git_selections
+        or "itr:noskip" in commit_message.lower()
+    )
+    selected = set(required_suites)
+    for suite, config in suites.items():
+        pr_paths = config.get("pr_paths")
+        if pr_paths is None:
+            continue
+        if full_run or suite in git_selections or not pr_paths or pr_matches_patterns(set(pr_paths)):
+            selected.add(suite)
+        else:
+            selected.discard(suite)
+    return sorted(selected)
 
 
 def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
@@ -523,6 +555,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             clean_name = suite_config.pop("_clean_name", suite)
             suite_config.pop("matrix", None)
             suite_config.pop("integration", None)
+            suite_config.pop("pr_paths", None)
             suite_config["suite"] = suite
 
             if suite_config.get("ddtest"):
