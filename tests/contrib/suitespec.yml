@@ -258,7 +258,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, 'aiobotocore~=2.0.0']
         - name: aiobotocore
-          dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, aiobotocore]
+          dependencies: [pytest-asyncio, 'async_generator~=1.10', pytest-randomly, aiobotocore]
   aiohttp:
     venvs_per_job: 8
     pattern: ^aiohttp$
@@ -421,6 +421,8 @@ suites:
           dependencies: ['urllib3~=1.26.15', pytest-randomly, 'algoliasearch~=2.6']
         - name: algoliasearch
           dependencies: [pytest-randomly, 'algoliasearch~=3.0']
+        - name: algoliasearch
+          dependencies: [pytest-randomly, 'algoliasearch~=4.0']
   anyio:
     paths:
       - '@bootstrap'
@@ -860,7 +862,7 @@ suites:
       variants:
         - name: celery
           python: ['3.9']
-          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery~=5.2.0', 'redis~=3.5']
+          dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery~=5.2.0', 'kombu~=5.2.0', 'redis~=3.5']
         - name: celery
           python: ['3.9']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery[redis]']
@@ -1897,7 +1899,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mysqlclient]
   opentelemetry:
-    venvs_per_job: 8
+    venvs_per_job: 7
     timeout: 30m
     paths:
       - '@bootstrap'
@@ -2494,27 +2496,28 @@ suites:
         - name: starlette
           python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.20.0', 'httpx~=0.22.0']
+        # pytest<9.2 on rows with Python 3.10+: pytest 9.2+ breaks the pinned pytest-asyncio 0.21.1.
         - name: starlette
           python: ['3.9', '3.11']
-          dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.33.0', 'httpx~=0.22.0']
+          dependencies: ['pytest-asyncio==0.21.1', 'pytest<9.2', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.33.0', 'httpx~=0.22.0']
         - name: starlette
           python: ['3.10']
-          dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.15.0', 'httpx~=0.27.0']
+          dependencies: ['pytest-asyncio==0.21.1', 'pytest<9.2', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.15.0', 'httpx~=0.27.0']
         - name: starlette
           python: ['3.10']
-          dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.20.0', 'httpx~=0.27.0']
+          dependencies: ['pytest-asyncio==0.21.1', 'pytest<9.2', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.20.0', 'httpx~=0.27.0']
         - name: starlette
           python: ['3.10']
-          dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.33.0', 'httpx~=0.27.0']
+          dependencies: ['pytest-asyncio==0.21.1', 'pytest<9.2', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.33.0', 'httpx~=0.27.0']
         - name: starlette
           python: ['3.11']
-          dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.21.0', 'httpx~=0.22.0']
+          dependencies: ['pytest-asyncio==0.21.1', 'pytest<9.2', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', 'starlette~=0.21.0', 'httpx~=0.22.0']
         - name: starlette
           python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', starlette, 'httpx~=0.22.0']
         - name: starlette
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, anyio, starlette, httpx2]
+          dependencies: ['pytest-asyncio==0.21.1', 'pytest<9.2', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, anyio, starlette, httpx2]
   stdlib:
     venvs_per_job: 16
     retry: 2
@@ -2631,10 +2634,10 @@ suites:
           dependencies: ['pytest<=8', pytest-randomly, 'tornado~=6.2']
         - name: tornado
           python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-randomly, 'tornado==6.2']
+          dependencies: ['pytest<=8', pytest-randomly, 'tornado==6.2']
         - name: tornado
           python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-randomly, 'tornado==6.3.1']
+          dependencies: ['pytest<=8', pytest-randomly, 'tornado==6.3.1']
         - name: tornado
           python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, tornado]

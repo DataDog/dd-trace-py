@@ -57,6 +57,38 @@ PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 # the x-datadog-tags budget (see _utils.py).
 PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
 PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
+
+# W3C baggage carrier for distributed LLMObs context (independent of APM trace headers).
+BAGGAGE_PARENT_ID_KEY = "llmobs.parent_id"
+BAGGAGE_LLMOBS_TRACE_ID_KEY = "llmobs.trace_id"
+BAGGAGE_ML_APP_KEY = "llmobs.ml_app"
+BAGGAGE_SESSION_ID_KEY = "llmobs.session_id"
+BAGGAGE_SAMPLE_RATE_KEY = "llmobs.sample_rate"
+BAGGAGE_SAMPLING_DECISION_KEY = "llmobs.sampling_decision"
+BAGGAGE_PARENT_AGENT_ID_KEY = "llmobs.parent_agent_span_id"
+BAGGAGE_PARENT_AGENT_NAME_KEY = "llmobs.parent_agent_name"
+
+# Limits on encoded (percent-escaped) bytes, because that is what the 8192-byte baggage budget counts.
+# The agent name is truncated to its limit. Any other value over its limit is not sent: one oversized
+# value would otherwise stop the encoder and drop every item after it.
+BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES = 128
+BAGGAGE_VALUE_MAX_ENCODED_BYTES = 512
+
+# Process-local slot for the canonical hex LLMObs trace ID on an LLMObs parent Context. Not
+# `_dd.p.`-prefixed, so it is never injected. Local reads use this, never `llmobs.*` baggage:
+# baggage is shared by the whole trace, so a value read back from it can belong to another trace.
+LLMOBS_TRACE_ID_HEX_CTX_KEY = "_ml_obs.llmobs_trace_id_hex"
+
+PROPAGATED_KEY_TO_BAGGAGE_KEY = {
+    PROPAGATED_PARENT_ID_KEY: BAGGAGE_PARENT_ID_KEY,
+    PROPAGATED_ML_APP_KEY: BAGGAGE_ML_APP_KEY,
+    PROPAGATED_SESSION_ID_KEY: BAGGAGE_SESSION_ID_KEY,
+    PROPAGATED_SAMPLE_RATE: BAGGAGE_SAMPLE_RATE_KEY,
+    PROPAGATED_SAMPLING_DECISION: BAGGAGE_SAMPLING_DECISION_KEY,
+    PROPAGATED_PARENT_AGENT_ID_KEY: BAGGAGE_PARENT_AGENT_ID_KEY,
+    PROPAGATED_PARENT_AGENT_NAME_KEY: BAGGAGE_PARENT_AGENT_NAME_KEY,
+}
+
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"

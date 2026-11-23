@@ -2,3 +2,11 @@
 # data races from ddog_ArrayQueue and Datadog::Sample operations
 race:ddog_ArrayQueue
 race:Datadog::Sample::
+
+# The fork handler cancels an in-flight upload from the forking thread. The cancellation
+# wakes the exporter's tokio runtime by writing to its eventfd, and the upload thread then
+# closes that eventfd when it drops the exporter. tokio orders the two with atomic reference
+# counts inside libdatadog, which TSan cannot see. TSan only sees the ordering when the
+# upload thread wakes up from epoll_wait after the write, so it reports a false race on the
+# file descriptor when the upload thread notices the cancellation without waking up that way.
+race:tokio::runtime::driver::Handle

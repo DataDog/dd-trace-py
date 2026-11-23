@@ -133,8 +133,8 @@ def test_otlp_protocol_parsing_exports(
         other_signal = "metrics" if signal == "logs" else "logs"
         assert "opentelemetry " + signal + " exporter protocol" not in diagnostic, diagnostic
         assert "opentelemetry " + other_signal + " exporter protocol" in diagnostic, diagnostic
-        # Both ddtrace-run and the target process construct their own configuration.
-        assert diagnostic.count("unsupported") == 2, diagnostic
+        # Only the target process constructs the configuration.
+        assert diagnostic.count("unsupported") == 1, diagnostic
 
 
 @pytest.mark.parametrize("signal", ["logs", "metrics"])
@@ -180,8 +180,8 @@ def test_otlp_compression_parsing_exports(
         assert "unsupported" in diagnostic or "not supported" in diagnostic or "invalid" in diagnostic, diagnostic
     elif global_compression == "not-a-compression":
         diagnostic = stderr.decode().lower()
-        # The other signal warns once in ddtrace-run and once in the target process.
-        assert diagnostic.count("not-a-compression") == 2, diagnostic
+        # The other signal warns once in the target process.
+        assert diagnostic.count("not-a-compression") == 1, diagnostic
         assert "for otel_exporter_otlp_compression" in diagnostic, diagnostic
 
 

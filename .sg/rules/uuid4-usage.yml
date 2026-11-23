@@ -10,7 +10,6 @@ ignores:
   - "ddtrace/testing/**"
   # TODO: Switch these to ddtrace.internal.native.uuid4.
   - "ddtrace/aiguard/integrations/_langchain.py"
-  - "ddtrace/contrib/internal/openai/_realtime.py"
   - "ddtrace/contrib/internal/pytorch/_utils.py"
   - "ddtrace/internal/_runtime_id.py"
   - "ddtrace/internal/ci_visibility/_api_client.py"

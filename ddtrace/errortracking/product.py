@@ -8,12 +8,12 @@ from ddtrace.internal.settings.errortracking import config
 requires = ["tracer"]
 
 
-def post_preload():
+def post_preload() -> None:
     pass
 
 
 def enabled() -> bool:
-    return config.enabled
+    return bool(config.enabled)
 
 
 def start() -> None:
@@ -26,7 +26,7 @@ def restart(join: bool = False) -> None:
     pass
 
 
-def stop(join: bool = False):
+def stop(join: bool = False) -> None:
     from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
 
     HandledExceptionCollector.disable()

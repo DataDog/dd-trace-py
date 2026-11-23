@@ -2,7 +2,9 @@ from collections.abc import Generator
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal import core
+from ddtrace.contrib.internal.botocore.constants import BEDROCK_AGENT_TRACES
+from ddtrace.contrib.internal.botocore.constants import BEDROCK_CONVERSE_STREAM_CONSUMER
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
@@ -37,9 +39,38 @@ log = get_logger(__name__)
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: the botocore integration sets the Bedrock model tags."""
+
     def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
-        # interface_type="agent" is set only by the top-level Bedrock agent trace() call.
-        return "agent" if kwargs.get("interface_type") == "agent" else None
+        # operation="agent" is set only by the top-level Bedrock agent request.
+        return "agent" if kwargs.get("operation") == "agent" else None
+
+    def _on_request_span_started(
+        self,
+        span: _LLMObsSpan,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        # Only build the streamed output when it will be submitted, so APM-only streams buffer nothing.
+        if operation == "ConverseStream" and span.span_type == SpanTypes.LLM:
+            consumer = self._converse_output_stream_processor()
+            next(consumer)
+            span._set_ctx_item(BEDROCK_CONVERSE_STREAM_CONSUMER, consumer)
+
+    def llmobs_set_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        # Embedding requests are traced, but carry no LLMObs data or APM shadow tags.
+        if operation != "agent" and "embed" in (kwargs.get("model_name") or ""):
+            return
+        super().llmobs_set_tags(span, args, kwargs, response=response, operation=operation)
 
     def _llmobs_set_tags(
         self,
@@ -49,37 +80,37 @@ class BedrockIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        """Extract prompt/response attributes from an execution context.
+        """Extract prompt/response attributes from a Bedrock runtime request.
 
-        ctx is a required argument of the shape:
+        operation is oneof("Converse", "ConverseStream", "InvokeModel", "InvokeModelWithResponseStream"), or
+        "agent" for Bedrock agents. For runtime requests, kwargs is the request the botocore integration records:
         {
-            "resource": str, # oneof("Converse", "ConverseStream", "InvokeModel")
+            "model_id": str,
             "model_name": str,
             "model_provider": str,
-            "llmobs.request_params": {"prompt": str | list[dict],
-                                "temperature": Optional[float],
-                                "max_tokens": Optional[int]
-                                "top_p": Optional[int]}
-            "llmobs.usage": Optional[dict],
-            "llmobs.stop_reason": Optional[str],
-            "llmobs.proxy_request": Optional[bool],
+            "request_params": {"prompt": str | list[dict],
+                               "temperature": Optional[float],
+                               "max_tokens": Optional[int]
+                               "top_p": Optional[int]},
+            "usage": Optional[dict],
+            "stop_reason": Optional[str],
         }
         """
         if operation == "agent":
-            return self._llmobs_set_tags_agent(span, args, kwargs, response)
+            self._llmobs_set_tags_agent(span, args, kwargs, response)
+            return
 
         metadata = {}
         usage_metrics = {}
-        ctx = args[0]
 
-        span_kind = "workflow" if ctx.get_item(PROXY_REQUEST) else "llm"
+        span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 
-        request_params = ctx.get_item("llmobs.request_params") or {}
+        request_params = kwargs.get("request_params") or {}
 
-        if ctx.get_item("llmobs.stop_reason"):
-            metadata["stop_reason"] = ctx["llmobs.stop_reason"]
-        if ctx.get_item("llmobs.usage"):
-            usage_metrics = ctx["llmobs.usage"]
+        if kwargs.get("stop_reason"):
+            metadata["stop_reason"] = kwargs["stop_reason"]
+        if kwargs.get("usage"):
+            usage_metrics = kwargs["usage"]
 
         normalize_input_tokens(usage_metrics)
 
@@ -95,7 +126,7 @@ class BedrockIntegration(BaseLLMIntegration):
 
         prompt = request_params.get("prompt", "")
 
-        is_converse = ctx["resource"] in ("Converse", "ConverseStream")
+        is_converse = operation in ("Converse", "ConverseStream")
         # Converse wraps definitions in `toolConfig.tools[].toolSpec`; InvokeModel carries
         # the provider's own format, which for Anthropic models is `tools[]`.
         tool_definitions = (
@@ -109,9 +140,9 @@ class BedrockIntegration(BaseLLMIntegration):
 
         output_messages: list[Message] = [Message(content="")]
         if response is not None:
-            if ctx["resource"] == "Converse":
+            if operation == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
-            elif ctx["resource"] == "ConverseStream":
+            elif operation == "ConverseStream":
                 """
                 At this point, we signal to `_converse_output_stream_processor` that we're done with the stream
                 and ready to get the final results. This causes `_converse_output_stream_processor` to break out of the
@@ -129,7 +160,7 @@ class BedrockIntegration(BaseLLMIntegration):
             else:
                 output_messages = self._extract_output_message(response)
 
-        model_id = ctx.get_item("model_id") or ctx.get_item("model_name") or ""
+        model_id = kwargs.get("model_id") or kwargs.get("model_name") or ""
 
         _annotate_llmobs_span_data(
             span,
@@ -144,15 +175,21 @@ class BedrockIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions if tool_definitions else None,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         if operation == "agent":
             span_kind = "agent"
-            usage_metrics = {}
+            usage_metrics: dict[str, Any] = {}
             model_id = None
         else:
-            ctx = args[0]
-            span_kind = "workflow" if ctx.get_item(PROXY_REQUEST) else "llm"
-            usage_metrics = dict(ctx.get_item("llmobs.usage") or {})
+            span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
+            usage_metrics = dict(kwargs.get("usage") or {})
             normalize_input_tokens(usage_metrics)
             if "total_tokens" not in usage_metrics and (
                 "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
@@ -160,7 +197,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 usage_metrics["total_tokens"] = usage_metrics.get("input_tokens", 0) + usage_metrics.get(
                     "output_tokens", 0
                 )
-            model_id = ctx.get_item("model_id") or ctx.get_item("model_name")
+            model_id = kwargs.get("model_id") or kwargs.get("model_name")
         self._apply_shadow_metrics(
             span,
             usage_metrics,
@@ -169,9 +206,15 @@ class BedrockIntegration(BaseLLMIntegration):
             model_provider="bedrock",
         )
 
-    def _llmobs_set_tags_agent(self, span, args, kwargs, response):
+    def _llmobs_set_tags_agent(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         if not self.llmobs_enabled or not span:
             return
+        try:
+            self.translate_bedrock_traces(span._get_ctx_item(BEDROCK_AGENT_TRACES), span)
+        except Exception:
+            log.error("Error translating Bedrock traces", exc_info=True)
         input_args = get_argument_value(args, kwargs, 1, "inputArgs", optional=True) or {}
         input_value = input_args.get("inputText", "")
         agent_id = input_args.get("agentId", "")
@@ -188,7 +231,7 @@ class BedrockIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, output_value=str(response))
 
-    def translate_bedrock_traces(self, traces, root_span) -> None:
+    def translate_bedrock_traces(self, traces: Any, root_span: _LLMObsSpan) -> None:
         """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
         if not traces or not self.llmobs_enabled:
             return
@@ -225,7 +268,7 @@ class BedrockIntegration(BaseLLMIntegration):
             step_span.finish(finish_time=step_finish_ns / 1e9)
 
     @staticmethod
-    def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:
+    def _extract_input_message_for_converse(prompt: Any) -> list[Message]:
         """Extract input messages from the stored prompt for converse
 
         `prompt` is an array of `message` objects. Each `message` has a role and content field.
@@ -250,7 +293,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message_for_converse(response: dict[str, Any]):
+    def _extract_output_message_for_converse(response: dict[str, Any]) -> list[Message]:
         """Extract output messages from the stored prompt for converse
 
         `response` contains an `output` field that stores a nested `message` field.
@@ -273,7 +316,7 @@ class BedrockIntegration(BaseLLMIntegration):
     @staticmethod
     def _converse_output_stream_processor() -> Generator[
         None,
-        dict[str, Any],
+        Optional[dict[str, Any]],
         tuple[list[Message], dict[str, str], dict[str, int]],
     ]:
         """
@@ -374,7 +417,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return messages, metadata, usage_metrics
 
     @staticmethod
-    def _extract_input_message(prompt) -> list[Message]:
+    def _extract_input_message(prompt: Any) -> list[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
@@ -422,7 +465,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message(response) -> list[Message]:
+    def _extract_output_message(response: Any) -> list[Message]:
         """Extract output messages from the stored response.
 
         Most Bedrock providers return plain text. Anthropic models return an
@@ -441,16 +484,11 @@ class BedrockIntegration(BaseLLMIntegration):
                 return get_messages_from_anthropic_content("assistant", resp_text)
         return []
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Any) -> Optional[str]:
         instance = kwargs.get("instance")
         endpoint = getattr(instance, "_endpoint", None)
         endpoint_host = getattr(endpoint, "host", None) if endpoint else None
         return str(endpoint_host) if endpoint_host else None
-
-    def _tag_proxy_request(self, ctx: core.ExecutionContext) -> None:
-        base_url = self._get_base_url(instance=ctx.find_item("instance"))
-        if self._is_instrumented_proxy_url(base_url):
-            ctx.set_item(PROXY_REQUEST, True)
 
     def _extract_tool_definitions(self, tool_config: dict[str, Any]) -> list[ToolDefinition]:
         """Extract tool definitions from the stored tool config."""
