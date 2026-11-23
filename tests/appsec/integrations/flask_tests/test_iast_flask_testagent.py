@@ -14,6 +14,7 @@ from tests.appsec.appsec_utils import gunicorn_flask_server
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.flask_tests.utils import flask_version
 from tests.appsec.integrations.utils_testagent import _get_span
+from tests.appsec.integrations.utils_testagent import _wait_for_spans
 
 
 _GEVENT_SERVERS_SCENARIOS = (
@@ -477,7 +478,8 @@ def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled,
         assert downstream_headers["X-Datadog-Sampling-Priority"] == "2"
         assert downstream_headers["X-Datadog-Trace-Id"] == "1212121212121212121"
 
-    response_tracer = _get_span(iast_test_token)
+        response_tracer = _wait_for_spans(iast_test_token, min_spans=19)
+
     spans = []
     spans_with_iast = []
     vulnerabilities = []

@@ -1,5 +1,6 @@
 from http import client as httplib
 import json
+import time
 from urllib import parse
 
 from ddtrace import tracer
@@ -34,6 +35,15 @@ def _get_span(token):
     kept = [trace for trace in traces if not trace or trace[0].get("trace_id") != PING_TRACE_ID]
     print(f"Dropped {len(traces) - len(kept)} readiness probe trace(s)")
     return kept
+
+
+def _wait_for_spans(token, min_spans, timeout=20.0, interval=0.5):
+    deadline = time.monotonic() + timeout
+    traces = _get_span(token)
+    while sum(len(trace) for trace in traces) < min_spans and time.monotonic() < deadline:
+        time.sleep(interval)
+        traces = _get_span(token)
+    return traces
 
 
 def _get_agent_client():
