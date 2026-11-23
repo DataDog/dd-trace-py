@@ -162,21 +162,37 @@ def conditional_crew(crewai):
 def hierarchical_crew(crewai):
     data_analysis_task = Task(
         name="Calculate participants' average ages",
-        description="Analyze the given dataset and calculate the average age of participants. Ages: {ages}",
+        description="Ask the Python Data Analyst: what is the average age of the participants? Ages: {ages}",
         expected_output="A complete sentence showing the question and the answer.",
     )
     recommend_task = Task(
         name="Recommend fun activities",
-        description="Given the average age of participants, recommend a fun activity for the group.",
+        description="Ask the Tour Guide: given the average age of the participants, "
+        "which fun activities do you recommend for the group?",
         expected_output="Blog post with 3 bullet points of recommended activities.",
         context=[data_analysis_task],
     )
+    # Pin every model of the crew: crewai changes its default model between releases.
+    analyst = Agent(
+        role=analytics_agent.role,
+        goal=analytics_agent.goal,
+        backstory=analytics_agent.backstory,
+        tools=[calculate_average_tool],
+        llm="gpt-4o-mini",
+    )
+    guide = Agent(
+        role=recommender_agent.role,
+        goal=recommender_agent.goal,
+        backstory=recommender_agent.backstory,
+        llm="gpt-4o-mini",
+    )
     yield Crew(
-        agents=[analytics_agent, recommender_agent],
+        agents=[analyst, guide],
         tasks=[data_analysis_task, recommend_task],
         process=Process.hierarchical,
-        manager_llm="gpt-4o-mini",  # the model the crewai 1.x hierarchical recording was made with
+        manager_llm="gpt-4o-mini",
         planning=True,
+        planning_llm="gpt-4o-mini",
     )
 
 

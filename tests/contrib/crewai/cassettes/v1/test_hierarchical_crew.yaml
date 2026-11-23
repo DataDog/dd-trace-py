@@ -1,15 +1,62 @@
 interactions:
 - request:
-    body: '{"messages":[{"role":"system","content":"You are Task Execution Planner. Planner agent for crew planning\nYour personal goal is: Your goal is to create an extremely detailed, step-by-step plan based on the tasks and tools available to each agent so that they can perform the tasks in an exemplary manner"},{"role":"user","content":"\nCurrent Task: Based on these tasks summary: \n                Task Number 1 - Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]\n                \"task_description\": Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]\n                \"task_expected_output\": A complete sentence showing the question and the answer.\n                \"agent\": None\n                \"agent_goal\": None\n                \"task_tools\": []\n                \"agent_tools\": \"agent has no tools\" \n                Task Number 2 - Given the average age of participants, recommend a fun activity for the group.\n                \"task_description\": Given the average age of participants, recommend a fun activity for the group.\n                \"task_expected_output\": Blog post with 3 bullet points of recommended activities.\n                \"agent\": None\n                \"agent_goal\": None\n                \"task_tools\": []\n                \"agent_tools\": \"agent has no tools\" \n Create the most descriptive plan based on the tasks descriptions, tools available, and agents'' goals for them to execute their goals with perfection.\n\nThis is the expected criteria for your final answer: Step by step plan on how the agents can execute their tasks using the available tools with mastery\nyou MUST return the actual complete content as the final answer, not a summary.\nFormat your final answer according to the following OpenAPI schema: {\n  \"description\": \"Output format for task planning results.\",\n  \"properties\": {\n    \"list_of_plans_per_task\": {\n      \"description\": \"Step by step plan on how the agents can execute their tasks using the available tools with mastery\",\n      \"items\": {\n        \"description\": \"Represents a plan for a specific task.\",\n        \"properties\": {\n          \"task_number\": {\n            \"description\": \"The 1-indexed task number this plan corresponds to\",\n            \"minimum\": 1,\n            \"title\": \"Task Number\",\n            \"type\": \"integer\"\n          },\n          \"task\": {\n            \"description\": \"The task for which the plan is created\",\n            \"title\": \"Task\",\n            \"type\": \"string\"\n          },\n          \"plan\": {\n            \"description\": \"The step by step plan on how the agents can execute their tasks using the available tools with mastery\",\n            \"title\": \"Plan\",\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\n          \"task_number\",\n          \"task\",\n          \"plan\"\n        ],\n        \"title\": \"PlanPerTask\",\n        \"type\": \"object\",\n        \"additionalProperties\": false\n      },\n      \"title\": \"List Of Plans Per Task\",\n      \"type\": \"array\"\n    }\n  },\n  \"required\": [\n    \"list_of_plans_per_task\"\n  ],\n  \"title\": \"PlannerTaskPydanticOutput\",\n  \"type\": \"object\",\n  \"additionalProperties\": false\n}\n\nIMPORTANT: Preserve the original content exactly as-is. Do NOT rewrite, paraphrase, or modify the meaning of the content. Only structure it to match the schema format.\n\nDo not include the OpenAPI schema in the final output. Ensure the final output does not include any code block markers like ```json or ```python.\n\nProvide your complete response:"}],"model":"gpt-5.4-mini","response_format":{"type":"json_schema","json_schema":{"schema":{"$defs":{"PlanPerTask":{"description":"Represents a plan for a specific task.","properties":{"task_number":{"description":"The 1-indexed task number this plan corresponds to","minimum":1,"title":"Task Number","type":"integer"},"task":{"description":"The task for which the plan is created","title":"Task","type":"string"},"plan":{"description":"The step by step plan on how the agents can execute their tasks using the available tools with mastery","title":"Plan","type":"string"}},"required":["task_number","task","plan"],"title":"PlanPerTask","type":"object","additionalProperties":false}},"description":"Output format for task planning results.","properties":{"list_of_plans_per_task":{"description":"Step by step plan on how the agents can execute their tasks using the available tools with mastery","items":{"$ref":"#/$defs/PlanPerTask"},"title":"List Of Plans Per Task","type":"array"}},"required":["list_of_plans_per_task"],"title":"PlannerTaskPydanticOutput","type":"object","additionalProperties":false},"name":"PlannerTaskPydanticOutput","strict":true}},"stream":false}'
+    body: '{"messages":[{"role":"system","content":"You are Task Execution Planner.
+      Planner agent for crew planning\nYour personal goal is: Your goal is to create
+      an extremely detailed, step-by-step plan based on the tasks and tools available
+      to each agent so that they can perform the tasks in an exemplary manner"},{"role":"user","content":"\nCurrent
+      Task: Based on these tasks summary: \n                Task Number 1 - Ask the
+      Python Data Analyst: what is the average age of the participants? Ages: [10,
+      12, 14, 16, 18]\n                \"task_description\": Ask the Python Data Analyst:
+      what is the average age of the participants? Ages: [10, 12, 14, 16, 18]\n                \"task_expected_output\":
+      A complete sentence showing the question and the answer.\n                \"agent\":
+      None\n                \"agent_goal\": None\n                \"task_tools\":
+      []\n                \"agent_tools\": \"agent has no tools\" \n                Task
+      Number 2 - Ask the Tour Guide: given the average age of the participants, which
+      fun activities do you recommend for the group?\n                \"task_description\":
+      Ask the Tour Guide: given the average age of the participants, which fun activities
+      do you recommend for the group?\n                \"task_expected_output\": Blog
+      post with 3 bullet points of recommended activities.\n                \"agent\":
+      None\n                \"agent_goal\": None\n                \"task_tools\":
+      []\n                \"agent_tools\": \"agent has no tools\" \n Create the most
+      descriptive plan based on the tasks descriptions, tools available, and agents''
+      goals for them to execute their goals with perfection.\n\nThis is the expected
+      criteria for your final answer: Step by step plan on how the agents can execute
+      their tasks using the available tools with mastery\nyou MUST return the actual
+      complete content as the final answer, not a summary.\nFormat your final answer
+      according to the following OpenAPI schema: {\n  \"description\": \"Output format
+      for task planning results.\",\n  \"properties\": {\n    \"list_of_plans_per_task\":
+      {\n      \"description\": \"Step by step plan on how the agents can execute
+      their tasks using the available tools with mastery\",\n      \"items\": {\n        \"description\":
+      \"Represents a plan for a specific task.\",\n        \"properties\": {\n          \"task_number\":
+      {\n            \"description\": \"The 1-indexed task number this plan corresponds
+      to\",\n            \"minimum\": 1,\n            \"title\": \"Task Number\",\n            \"type\":
+      \"integer\"\n          },\n          \"task\": {\n            \"description\":
+      \"The task for which the plan is created\",\n            \"title\": \"Task\",\n            \"type\":
+      \"string\"\n          },\n          \"plan\": {\n            \"description\":
+      \"The step by step plan on how the agents can execute their tasks using the
+      available tools with mastery\",\n            \"title\": \"Plan\",\n            \"type\":
+      \"string\"\n          }\n        },\n        \"required\": [\n          \"task_number\",\n          \"task\",\n          \"plan\"\n        ],\n        \"title\":
+      \"PlanPerTask\",\n        \"type\": \"object\",\n        \"additionalProperties\":
+      false\n      },\n      \"title\": \"List Of Plans Per Task\",\n      \"type\":
+      \"array\"\n    }\n  },\n  \"required\": [\n    \"list_of_plans_per_task\"\n  ],\n  \"title\":
+      \"PlannerTaskPydanticOutput\",\n  \"type\": \"object\",\n  \"additionalProperties\":
+      false\n}\n\nIMPORTANT: Preserve the original content exactly as-is. Do NOT rewrite,
+      paraphrase, or modify the meaning of the content. Only structure it to match
+      the schema format.\n\nDo not include the OpenAPI schema in the final output.
+      Ensure the final output does not include any code block markers like ```json
+      or ```python.\n\nProvide your complete response:"}],"model":"gpt-4o-mini","response_format":{"type":"json_schema","json_schema":{"schema":{"$defs":{"PlanPerTask":{"description":"Represents
+      a plan for a specific task.","properties":{"task_number":{"description":"The
+      1-indexed task number this plan corresponds to","minimum":1,"title":"Task Number","type":"integer"},"task":{"description":"The
+      task for which the plan is created","title":"Task","type":"string"},"plan":{"description":"The
+      step by step plan on how the agents can execute their tasks using the available
+      tools with mastery","title":"Plan","type":"string"}},"required":["task_number","task","plan"],"title":"PlanPerTask","type":"object","additionalProperties":false}},"description":"Output
+      format for task planning results.","properties":{"list_of_plans_per_task":{"description":"Step
+      by step plan on how the agents can execute their tasks using the available tools
+      with mastery","items":{"$ref":"#/$defs/PlanPerTask"},"title":"List Of Plans
+      Per Task","type":"array"}},"required":["list_of_plans_per_task"],"title":"PlannerTaskPydanticOutput","type":"object","additionalProperties":false},"name":"PlannerTaskPydanticOutput","strict":true}},"stream":false}'
     headers:
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '4907'
       content-type:
       - application/json
       host:
@@ -42,30 +89,79 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\"id\":\"chatcmpl-EfrgmlrWh9Z7iRuDPDaf0tgZesrsS\",\"object\":\"chat.completion\",\"created\":1793646536,\"model\":\"gpt-5.4-mini-2026-03-17\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"{\\\"list_of_plans_per_task\\\":[{\\\"task_number\\\":1,\\\"task\\\":\\\"Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]\\\",\\\"plan\\\":\\\"1. Read the task carefully and identify the exact dataset provided: Ages = [10, 12, 14, 16, 18].\\\\n2. Since no tools are available, perform the calculation manually using arithmetic.\\\\n3. Add all ages together: 10 + 12 + 14 + 16 + 18 = 70.\\\\n4. Count the number of participants: 5.\\\\n5. Compute the average age by dividing the sum by the count: 70 \xF7 5 = 14.\\\\n6. Prepare the final response as a complete sentence that includes both the question and the answer.\\\\n7. Verify that the output is concise, accurate, and directly answers the task.\\\\n8. Deliver the final sentence in a clear format, such as: 'The average age of the participants is 14.'\\\"},{\\\"task_number\\\":2,\\\"task\\\":\\\"Given the average age of participants, recommend a fun activity for the group.\\\",\\\"plan\\\":\\\"1. Use the average age from Task 1, which is 14, as the key input for choosing age-appropriate activities.\\\\n2. Since no tools are available, rely on reasoning about what is generally engaging for early teenagers.\\\\n3. Select activities that are active, social, and enjoyable for a mixed group around age 14.\\\\n4. Ensure the recommendation is suitable, safe, and broadly appealing to participants of this age group.\\\\n5. Structure the response as a blog post with exactly 3 bullet points of recommended activities.\\\\n6. Make each bullet point distinct and practical, for example focusing on group games, outdoor activities, or creative challenges.\\\\n7. Keep the tone positive and engaging while making sure the output stays concise and relevant.\\\\n8. Review the final response to confirm it includes 3 bullet points and clearly recommends fun activities for the group.\\\"}]}\",\"refusal\":null,\"annotations\":[]},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":955,\"completion_tokens\":439,\"total_tokens\":1394,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"service_tier\":\"default\",\"system_fingerprint\":null}"
+      string: "{\"id\":\"chatcmpl-EnT0xOIZIORRmmuJHvH6haDdOtPhf\",\"object\":\"chat.completion\",\"created\":1795458311,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"{\\\"list_of_plans_per_task\\\":[{\\\"task_number\\\":1,\\\"task\\\":\\\"Ask
+        the Python Data Analyst: what is the average age of the participants? Ages:
+        [10, 12, 14, 16, 18]\\\",\\\"plan\\\":\\\"1. Identify the purpose of the task:
+        Determine the average age of the participants based on the given ages.\\\\n2.
+        List the ages provided: [10, 12, 14, 16, 18].\\\\n3. Calculate the sum of
+        the ages: 10 + 12 + 14 + 16 + 18 = 70.\\\\n4. Count the number of participants:
+        There are 5 participants.\\\\n5. Calculate the average age by dividing the
+        total sum by the number of participants: 70 / 5 = 14.\\\\n6. Construct a complete
+        sentence that includes the question and the computed average: \\\\\\\"The
+        average age of the participants is 14 years.\\\\\\\".\\\"},{\\\"task_number\\\":2,\\\"task\\\":\\\"Ask
+        the Tour Guide: given the average age of the participants, which fun activities
+        do you recommend for the group?\\\",\\\"plan\\\":\\\"1. Take note of the average
+        age calculated in the previous task, which is 14 years.\\\\n2. Identify the
+        purpose of the task: To receive recommendations for fun activities suitable
+        for a group of participants averaging 14 years old.\\\\n3. Research general
+        activities that are popular among 14-year-olds to prepare for the question
+        to the Tour Guide.\\\\n4. Prepare the question to ask the Tour Guide clearly
+        mentioning the average age: \\\\\\\"Given that the average age of the participants
+        is 14, which fun activities do you recommend for the group?\\\\\\\".\\\\n5.
+        Wait for the Tour Guide\u2019s response, ensuring it is tailored to the age
+        group.\\\\n6. Format the response into a blog post with three bullet points
+        detailing the recommended activities: - Activity 1: Engage participants in
+        an outdoor scavenger hunt.\\\\n- Activity 2: Organize a sports day featuring
+        team games.\\\\n- Activity 3: Set up a creative arts and crafts workshop.\\\\n7.
+        Ensure to conclude the activities section warmly to engage readers.\\\"}]}\",\"refusal\":null,\"annotations\":[]},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":983,\"completion_tokens\":443,\"total_tokens\":1426,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"service_tier\":\"default\",\"system_fingerprint\":\"fp_03cfc9828c\"}"
     headers:
-      content-length:
-      - '2386'
       content-type:
       - application/json
       date:
-      - Mon, 02 Nov 2026 19:08:55 GMT
+      - Mon, 23 Nov 2026 18:25:11 GMT
       vary:
       - Accept-Encoding
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Crew Manager. You are a seasoned manager with a knack for getting the best out of your team.\\nYou are also known for your ability to delegate work to the right people, and to ask the right questions to get the best out of your team.\\nEven though you don't perform tasks by yourself, you have a lot of experience in the field, which allows you to properly evaluate the work of your team members.\\nYour personal goal is: Manage the team to complete the task in the best way possible.\"},{\"role\":\"user\",\"content\":\"\\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]1. Read the task carefully and identify the exact dataset provided: Ages = [10, 12, 14, 16, 18].\\n2. Since no tools are available, perform the calculation manually using arithmetic.\\n3. Add all ages together: 10 + 12 + 14 + 16 + 18 = 70.\\n4. Count the number of participants: 5.\\n5. Compute the average age by dividing the sum by the count: 70 \xF7 5 = 14.\\n6. Prepare the final response as a complete sentence that includes both the question and the answer.\\n7. Verify that the output is concise, accurate, and directly answers the task.\\n8. Deliver the final sentence in a clear format, such as: 'The average age of the participants is 14.'\\n\\nThis is the expected criteria for your final answer: A complete sentence showing the question and the answer.\\nyou MUST return the actual complete content as the final answer, not a summary.\"}],\"model\":\"gpt-4o-mini\",\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"delegate_work_to_coworker\",\"description\":\"Delegate a specific task to one of the following coworkers: Python Data Analyst, Tour Guide\\nThe input to this tool should be the coworker, the task you want them to do, and ALL necessary context to execute the task, they know nothing about the task, so share absolutely everything you know, don't reference things but instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"task\":{\"description\":\"The task to delegate\",\"type\":\"string\"},\"context\":{\"description\":\"The context for the task\",\"type\":\"string\"},\"coworker\":{\"description\":\"The role/name of the coworker to delegate to\",\"type\":\"string\"}},\"required\":[\"task\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}},{\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"description\":\"Ask a specific question to one of the following coworkers: Python Data Analyst, Tour Guide\\nThe input to this tool should be the coworker, the question you have for them, and ALL necessary context to ask the question properly, they know nothing about the question, so share absolutely everything you know, don't reference things but instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"question\":{\"description\":\"The question to ask\",\"type\":\"string\"},\"context\":{\"description\":\"The context for the question\",\"type\":\"string\"},\"coworker\":{\"description\":\"The role/name of the coworker to ask\",\"type\":\"string\"}},\"required\":[\"question\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}}]}"
+    body: '{"messages":[{"role":"system","content":"You are Crew Manager. You are
+      a seasoned manager with a knack for getting the best out of your team.\nYou
+      are also known for your ability to delegate work to the right people, and to
+      ask the right questions to get the best out of your team.\nEven though you don''t
+      perform tasks by yourself, you have a lot of experience in the field, which
+      allows you to properly evaluate the work of your team members.\nYour personal
+      goal is: Manage the team to complete the task in the best way possible."},{"role":"user","content":"\nCurrent
+      Task: Ask the Python Data Analyst: what is the average age of the participants?
+      Ages: [10, 12, 14, 16, 18]1. Identify the purpose of the task: Determine the
+      average age of the participants based on the given ages.\n2. List the ages provided:
+      [10, 12, 14, 16, 18].\n3. Calculate the sum of the ages: 10 + 12 + 14 + 16 +
+      18 = 70.\n4. Count the number of participants: There are 5 participants.\n5.
+      Calculate the average age by dividing the total sum by the number of participants:
+      70 / 5 = 14.\n6. Construct a complete sentence that includes the question and
+      the computed average: \"The average age of the participants is 14 years.\".\n\nThis
+      is the expected criteria for your final answer: A complete sentence showing
+      the question and the answer.\nyou MUST return the actual complete content as
+      the final answer, not a summary."}],"model":"gpt-4o-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"delegate_work_to_coworker","description":"Delegate
+      a specific task to one of the following coworkers: Python Data Analyst, Tour
+      Guide\nThe input to this tool should be the coworker, the task you want them
+      to do, and ALL necessary context to execute the task, they know nothing about
+      the task, so share absolutely everything you know, don''t reference things but
+      instead explain them.","strict":true,"parameters":{"properties":{"task":{"description":"The
+      task to delegate","type":"string"},"context":{"description":"The context for
+      the task","type":"string"},"coworker":{"description":"The role/name of the coworker
+      to delegate to","type":"string"}},"required":["task","context","coworker"],"type":"object","additionalProperties":false}}},{"type":"function","function":{"name":"ask_question_to_coworker","description":"Ask
+      a specific question to one of the following coworkers: Python Data Analyst,
+      Tour Guide\nThe input to this tool should be the coworker, the question you
+      have for them, and ALL necessary context to ask the question properly, they
+      know nothing about the question, so share absolutely everything you know, don''t
+      reference things but instead explain them.","strict":true,"parameters":{"properties":{"question":{"description":"The
+      question to ask","type":"string"},"context":{"description":"The context for
+      the question","type":"string"},"coworker":{"description":"The role/name of the
+      coworker to ask","type":"string"}},"required":["question","context","coworker"],"type":"object","additionalProperties":false}}}]}'
     headers:
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '3133'
       content-type:
       - application/json
       host:
@@ -96,30 +192,40 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\"id\":\"chatcmpl-EfrgpoRyvwtj9kjoKvvpjkbhdv1NX\",\"object\":\"chat.completion\",\"created\":1793646539,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_aCX9SbR1M6XLBXuk2tPrSumS\",\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"arguments\":\"{\\\"question\\\":\\\"Analyze the given dataset and calculate the average age of participants. Provide a complete response in a clear format. Include the ages as the dataset: [10, 12, 14, 16, 18]. You need to add all ages together, count the number of participants, and compute the average age. Finally, prepare the response in the format: 'The average age of the participants is X.'\\\",\\\"context\\\":\\\"The dataset provided is ages: [10, 12, 14, 16, 18]. First, add all ages together: 10 + 12 + 14 + 16 + 18 = 70. Next, count the number of participants which is 5. Finally, compute the average age by dividing the sum by the count: 70 \xF7 5 = 14. The expected output should be a complete sentence that answers the initial question directly and with clarity.\\\",\\\"coworker\\\":\\\"Python Data Analyst\\\"}\"}}],\"refusal\":null,\"annotations\":[]},\"logprobs\":null,\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":601,\"completion_tokens\":210,\"total_tokens\":811,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"service_tier\":\"default\",\"system_fingerprint\":\"fp_5201f99262\"}"
+      string: '{"id":"chatcmpl-EnT14OvbmnK24KzM1A5eomsiStcHK","object":"chat.completion","created":1795458318,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_g7qu1mSfXwD7uLvfTvAoT08t","type":"function","function":{"name":"ask_question_to_coworker","arguments":"{\"question\":\"What
+        is the average age of the participants? Ages: [10, 12, 14, 16, 18]. The calculation
+        is as follows: The sum of the ages is 10 + 12 + 14 + 16 + 18, which equals
+        70. There are 5 participants. Therefore, the average age is 70 divided by
+        5, which equals 14. \\\"The average age of the participants is 14 years.\\\"\",\"context\":\"Determine
+        the average age of the participants based on the provided ages and the calculations
+        made to reach the conclusion.\",\"coworker\":\"Python Data Analyst\"}"}}],"refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":577,"completion_tokens":143,"total_tokens":720,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_f6d5921f1d"}'
     headers:
-      content-length:
-      - '1522'
       content-type:
       - application/json
       date:
-      - Mon, 02 Nov 2026 19:08:58 GMT
+      - Mon, 23 Nov 2026 18:25:17 GMT
       vary:
       - Accept-Encoding
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Python Data Analyst. You are an experienced data analyst with strong Python skills.\\nYour personal goal is: Analyze data and provide insights using Python\"},{\"role\":\"user\",\"content\":\"\\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Provide a complete response in a clear format. Include the ages as the dataset: [10, 12, 14, 16, 18]. You need to add all ages together, count the number of participants, and compute the average age. Finally, prepare the response in the format: 'The average age of the participants is X.'\\n\\nThis is the expected criteria for your final answer: Your best answer to your coworker asking you this, accounting for the context shared.\\nyou MUST return the actual complete content as the final answer, not a summary.\\n\\nThis is the context you're working with:\\nThe dataset provided is ages: [10, 12, 14, 16, 18]. First, add all ages together: 10 + 12 + 14 + 16 + 18 = 70. Next, count the number of participants which is 5. Finally, compute the average age by dividing the sum by the count: 70 \xF7 5 = 14. The expected output should be a complete sentence that answers the initial question directly and with clarity.\"}],\"model\":\"gpt-4.1-mini\",\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"average_calculator\",\"description\":\"This tool returns the average of a list of numbers.\",\"strict\":true,\"parameters\":{\"properties\":{\"entries\":{\"items\":{\"type\":\"number\"},\"type\":\"array\"}},\"required\":[\"entries\"],\"type\":\"object\",\"additionalProperties\":false}}}]}"
+    body: '{"messages":[{"role":"system","content":"You are Python Data Analyst. You
+      are an experienced data analyst with strong Python skills.\nYour personal goal
+      is: Analyze data and provide insights using Python"},{"role":"user","content":"\nCurrent
+      Task: What is the average age of the participants? Ages: [10, 12, 14, 16, 18].
+      The calculation is as follows: The sum of the ages is 10 + 12 + 14 + 16 + 18,
+      which equals 70. There are 5 participants. Therefore, the average age is 70
+      divided by 5, which equals 14. \"The average age of the participants is 14 years.\"\n\nThis
+      is the expected criteria for your final answer: Your best answer to your coworker
+      asking you this, accounting for the context shared.\nyou MUST return the actual
+      complete content as the final answer, not a summary.\n\nThis is the context
+      you''re working with:\nDetermine the average age of the participants based on
+      the provided ages and the calculations made to reach the conclusion."}],"model":"gpt-4o-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"average_calculator","description":"This
+      tool returns the average of a list of numbers.","strict":true,"parameters":{"properties":{"entries":{"items":{"type":"number"},"type":"array"}},"required":["entries"],"type":"object","additionalProperties":false}}}]}'
     headers:
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '1583'
       content-type:
       - application/json
       host:
@@ -150,30 +256,34 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: '{"id":"chatcmpl-EfrgrAq3LJm5vWk0cH8dYtN2sP6xU","object":"chat.completion","created":1793646540,"model":"gpt-4.1-mini-2025-04-14","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_4ZDIboEUKz8e9dTQDtD7BWuw","type":"function","function":{"name":"average_calculator","arguments":"{\"entries\":[10,12,14,16,18]}"}}],"refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":331,"completion_tokens":24,"total_tokens":355,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_29c32828f7"}'
+      string: '{"id":"chatcmpl-EnT164uAqk1zEQQOPByd1324ub3dD","object":"chat.completion","created":1795458320,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_c6tsEVtezTs8dTJouj1v4aEm","type":"function","function":{"name":"average_calculator","arguments":"{\"entries\":[10,12,14,16,18]}"}}],"refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":250,"completion_tokens":23,"total_tokens":273,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_05ca79a5f8"}'
     headers:
-      content-length:
-      - '759'
       content-type:
       - application/json
       date:
-      - Mon, 02 Nov 2026 19:09:02 GMT
+      - Mon, 23 Nov 2026 18:25:19 GMT
       vary:
       - Accept-Encoding
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Python Data Analyst. You are an experienced data analyst with strong Python skills.\\nYour personal goal is: Analyze data and provide insights using Python\"},{\"role\":\"user\",\"content\":\"\\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Provide a complete response in a clear format. Include the ages as the dataset: [10, 12, 14, 16, 18]. You need to add all ages together, count the number of participants, and compute the average age. Finally, prepare the response in the format: 'The average age of the participants is X.'\\n\\nThis is the expected criteria for your final answer: Your best answer to your coworker asking you this, accounting for the context shared.\\nyou MUST return the actual complete content as the final answer, not a summary.\\n\\nThis is the context you're working with:\\nThe dataset provided is ages: [10, 12, 14, 16, 18]. First, add all ages together: 10 + 12 + 14 + 16 + 18 = 70. Next, count the number of participants which is 5. Finally, compute the average age by dividing the sum by the count: 70 \xF7 5 = 14. The expected output should be a complete sentence that answers the initial question directly and with clarity.\"},{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_4ZDIboEUKz8e9dTQDtD7BWuw\",\"type\":\"function\",\"function\":{\"name\":\"average_calculator\",\"arguments\":\"{\\\"entries\\\":[10,12,14,16,18]}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_4ZDIboEUKz8e9dTQDtD7BWuw\",\"name\":\"average_calculator\",\"content\":\"14.0\"}],\"model\":\"gpt-4.1-mini\",\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"average_calculator\",\"description\":\"This tool returns the average of a list of numbers.\",\"strict\":true,\"parameters\":{\"properties\":{\"entries\":{\"items\":{\"type\":\"number\"},\"type\":\"array\"}},\"required\":[\"entries\"],\"type\":\"object\",\"additionalProperties\":false}}}]}"
+    body: '{"messages":[{"role":"system","content":"You are Python Data Analyst. You
+      are an experienced data analyst with strong Python skills.\nYour personal goal
+      is: Analyze data and provide insights using Python"},{"role":"user","content":"\nCurrent
+      Task: What is the average age of the participants? Ages: [10, 12, 14, 16, 18].
+      The calculation is as follows: The sum of the ages is 10 + 12 + 14 + 16 + 18,
+      which equals 70. There are 5 participants. Therefore, the average age is 70
+      divided by 5, which equals 14. \"The average age of the participants is 14 years.\"\n\nThis
+      is the expected criteria for your final answer: Your best answer to your coworker
+      asking you this, accounting for the context shared.\nyou MUST return the actual
+      complete content as the final answer, not a summary.\n\nThis is the context
+      you''re working with:\nDetermine the average age of the participants based on
+      the provided ages and the calculations made to reach the conclusion."},{"role":"assistant","content":null,"tool_calls":[{"id":"call_c6tsEVtezTs8dTJouj1v4aEm","type":"function","function":{"name":"average_calculator","arguments":"{\"entries\":[10,12,14,16,18]}"}}]},{"role":"tool","tool_call_id":"call_c6tsEVtezTs8dTJouj1v4aEm","name":"average_calculator","content":"14.0"}],"model":"gpt-4o-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"average_calculator","description":"This
+      tool returns the average of a list of numbers.","strict":true,"parameters":{"properties":{"entries":{"items":{"type":"number"},"type":"array"}},"required":["entries"],"type":"object","additionalProperties":false}}}]}'
     headers:
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '1885'
       content-type:
       - application/json
       host:
@@ -204,30 +314,71 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: '{"id":"chatcmpl-EfrgtnsvzNNUGgpM7oTdXyGAPaDmt","object":"chat.completion","created":1793646543,"model":"gpt-4.1-mini-2025-04-14","choices":[{"index":0,"message":{"role":"assistant","content":"The average age of the participants is 14.0.","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":352,"completion_tokens":13,"total_tokens":365,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_29c32828f7"}'
+      string: '{"id":"chatcmpl-EnT17XRX40JAP2kflXWP8ogr5eNo8","object":"chat.completion","created":1795458321,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":"The
+        average age of the participants is 14 years. To calculate this, we sum the
+        ages of the participants: 10 + 12 + 14 + 16 + 18, which equals 70. Since there
+        are 5 participants, we then divide the total sum by the number of participants:
+        70 divided by 5 equals 14. Therefore, the average age of the participants
+        is 14 years.","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":285,"completion_tokens":86,"total_tokens":371,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_05ca79a5f8"}'
     headers:
-      content-length:
-      - '637'
       content-type:
       - application/json
       date:
-      - Mon, 02 Nov 2026 19:09:02 GMT
+      - Mon, 23 Nov 2026 18:25:21 GMT
       vary:
       - Accept-Encoding
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Crew Manager. You are a seasoned manager with a knack for getting the best out of your team.\\nYou are also known for your ability to delegate work to the right people, and to ask the right questions to get the best out of your team.\\nEven though you don't perform tasks by yourself, you have a lot of experience in the field, which allows you to properly evaluate the work of your team members.\\nYour personal goal is: Manage the team to complete the task in the best way possible.\"},{\"role\":\"user\",\"content\":\"\\nCurrent Task: Analyze the given dataset and calculate the average age of participants. Ages: [10, 12, 14, 16, 18]1. Read the task carefully and identify the exact dataset provided: Ages = [10, 12, 14, 16, 18].\\n2. Since no tools are available, perform the calculation manually using arithmetic.\\n3. Add all ages together: 10 + 12 + 14 + 16 + 18 = 70.\\n4. Count the number of participants: 5.\\n5. Compute the average age by dividing the sum by the count: 70 \xF7 5 = 14.\\n6. Prepare the final response as a complete sentence that includes both the question and the answer.\\n7. Verify that the output is concise, accurate, and directly answers the task.\\n8. Deliver the final sentence in a clear format, such as: 'The average age of the participants is 14.'\\n\\nThis is the expected criteria for your final answer: A complete sentence showing the question and the answer.\\nyou MUST return the actual complete content as the final answer, not a summary.\"},{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_aCX9SbR1M6XLBXuk2tPrSumS\",\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"arguments\":\"{\\\"question\\\":\\\"Analyze the given dataset and calculate the average age of participants. Provide a complete response in a clear format. Include the ages as the dataset: [10, 12, 14, 16, 18]. You need to add all ages together, count the number of participants, and compute the average age. Finally, prepare the response in the format: 'The average age of the participants is X.'\\\",\\\"context\\\":\\\"The dataset provided is ages: [10, 12, 14, 16, 18]. First, add all ages together: 10 + 12 + 14 + 16 + 18 = 70. Next, count the number of participants which is 5. Finally, compute the average age by dividing the sum by the count: 70 \xF7 5 = 14. The expected output should be a complete sentence that answers the initial question directly and with clarity.\\\",\\\"coworker\\\":\\\"Python Data Analyst\\\"}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_aCX9SbR1M6XLBXuk2tPrSumS\",\"name\":\"ask_question_to_coworker\",\"content\":\"The average age of the participants is 14.0.\"}],\"model\":\"gpt-4o-mini\",\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"delegate_work_to_coworker\",\"description\":\"Delegate a specific task to one of the following coworkers: Python Data Analyst, Tour Guide\\nThe input to this tool should be the coworker, the task you want them to do, and ALL necessary context to execute the task, they know nothing about the task, so share absolutely everything you know, don't reference things but instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"task\":{\"description\":\"The task to delegate\",\"type\":\"string\"},\"context\":{\"description\":\"The context for the task\",\"type\":\"string\"},\"coworker\":{\"description\":\"The role/name of the coworker to delegate to\",\"type\":\"string\"}},\"required\":[\"task\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}},{\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"description\":\"Ask a specific question to one of the following coworkers: Python Data Analyst, Tour Guide\\nThe input to this tool should be the coworker, the question you have for them, and ALL necessary context to ask the question properly, they know nothing about the question, so share absolutely everything you know, don't reference things but instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"question\":{\"description\":\"The question to ask\",\"type\":\"string\"},\"context\":{\"description\":\"The context for the question\",\"type\":\"string\"},\"coworker\":{\"description\":\"The role/name of the coworker to ask\",\"type\":\"string\"}},\"required\":[\"question\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}}]}"
+    body: '{"messages":[{"role":"system","content":"You are Crew Manager. You are
+      a seasoned manager with a knack for getting the best out of your team.\nYou
+      are also known for your ability to delegate work to the right people, and to
+      ask the right questions to get the best out of your team.\nEven though you don''t
+      perform tasks by yourself, you have a lot of experience in the field, which
+      allows you to properly evaluate the work of your team members.\nYour personal
+      goal is: Manage the team to complete the task in the best way possible."},{"role":"user","content":"\nCurrent
+      Task: Ask the Python Data Analyst: what is the average age of the participants?
+      Ages: [10, 12, 14, 16, 18]1. Identify the purpose of the task: Determine the
+      average age of the participants based on the given ages.\n2. List the ages provided:
+      [10, 12, 14, 16, 18].\n3. Calculate the sum of the ages: 10 + 12 + 14 + 16 +
+      18 = 70.\n4. Count the number of participants: There are 5 participants.\n5.
+      Calculate the average age by dividing the total sum by the number of participants:
+      70 / 5 = 14.\n6. Construct a complete sentence that includes the question and
+      the computed average: \"The average age of the participants is 14 years.\".\n\nThis
+      is the expected criteria for your final answer: A complete sentence showing
+      the question and the answer.\nyou MUST return the actual complete content as
+      the final answer, not a summary."},{"role":"assistant","content":null,"tool_calls":[{"id":"call_g7qu1mSfXwD7uLvfTvAoT08t","type":"function","function":{"name":"ask_question_to_coworker","arguments":"{\"question\":\"What
+      is the average age of the participants? Ages: [10, 12, 14, 16, 18]. The calculation
+      is as follows: The sum of the ages is 10 + 12 + 14 + 16 + 18, which equals 70.
+      There are 5 participants. Therefore, the average age is 70 divided by 5, which
+      equals 14. \\\"The average age of the participants is 14 years.\\\"\",\"context\":\"Determine
+      the average age of the participants based on the provided ages and the calculations
+      made to reach the conclusion.\",\"coworker\":\"Python Data Analyst\"}"}}]},{"role":"tool","tool_call_id":"call_g7qu1mSfXwD7uLvfTvAoT08t","name":"ask_question_to_coworker","content":"The
+      average age of the participants is 14 years. To calculate this, we sum the ages
+      of the participants: 10 + 12 + 14 + 16 + 18, which equals 70. Since there are
+      5 participants, we then divide the total sum by the number of participants:
+      70 divided by 5 equals 14. Therefore, the average age of the participants is
+      14 years."}],"model":"gpt-4o-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"delegate_work_to_coworker","description":"Delegate
+      a specific task to one of the following coworkers: Python Data Analyst, Tour
+      Guide\nThe input to this tool should be the coworker, the task you want them
+      to do, and ALL necessary context to execute the task, they know nothing about
+      the task, so share absolutely everything you know, don''t reference things but
+      instead explain them.","strict":true,"parameters":{"properties":{"task":{"description":"The
+      task to delegate","type":"string"},"context":{"description":"The context for
+      the task","type":"string"},"coworker":{"description":"The role/name of the coworker
+      to delegate to","type":"string"}},"required":["task","context","coworker"],"type":"object","additionalProperties":false}}},{"type":"function","function":{"name":"ask_question_to_coworker","description":"Ask
+      a specific question to one of the following coworkers: Python Data Analyst,
+      Tour Guide\nThe input to this tool should be the coworker, the question you
+      have for them, and ALL necessary context to ask the question properly, they
+      know nothing about the question, so share absolutely everything you know, don''t
+      reference things but instead explain them.","strict":true,"parameters":{"properties":{"question":{"description":"The
+      question to ask","type":"string"},"context":{"description":"The context for
+      the question","type":"string"},"coworker":{"description":"The role/name of the
+      coworker to ask","type":"string"}},"required":["question","context","coworker"],"type":"object","additionalProperties":false}}}]}'
     headers:
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '4244'
       content-type:
       - application/json
       host:
@@ -258,30 +409,73 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: '{"id":"chatcmpl-EfrguQEF2HB8RLdGyDPfPwBFc8Xe9","object":"chat.completion","created":1793646544,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":"The average age of the participants is 14.0.","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":836,"completion_tokens":13,"total_tokens":849,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_5201f99262"}'
+      string: '{"id":"chatcmpl-EnT19PUp033sHHoA8sqapIRtZvBUq","object":"chat.completion","created":1795458323,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":"I
+        have received the answer from the Python Data Analyst. Here is the complete
+        content:\n\n\"The average age of the participants is 14 years. To calculate
+        this, we sum the ages of the participants: 10 + 12 + 14 + 16 + 18, which equals
+        70. Since there are 5 participants, we then divide the total sum by the number
+        of participants: 70 divided by 5 equals 14. Therefore, the average age of
+        the participants is 14 years.\"","refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":818,"completion_tokens":103,"total_tokens":921,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_f6d5921f1d"}'
     headers:
-      content-length:
-      - '636'
       content-type:
       - application/json
       date:
-      - Mon, 02 Nov 2026 19:09:03 GMT
+      - Mon, 23 Nov 2026 18:25:22 GMT
       vary:
       - Accept-Encoding
     status:
       code: 200
       message: OK
 - request:
-    body: '{"messages":[{"role":"system","content":"You are Crew Manager. You are a seasoned manager with a knack for getting the best out of your team.\nYou are also known for your ability to delegate work to the right people, and to ask the right questions to get the best out of your team.\nEven though you don''t perform tasks by yourself, you have a lot of experience in the field, which allows you to properly evaluate the work of your team members.\nYour personal goal is: Manage the team to complete the task in the best way possible."},{"role":"user","content":"\nCurrent Task: Given the average age of participants, recommend a fun activity for the group.1. Use the average age from Task 1, which is 14, as the key input for choosing age-appropriate activities.\n2. Since no tools are available, rely on reasoning about what is generally engaging for early teenagers.\n3. Select activities that are active, social, and enjoyable for a mixed group around age 14.\n4. Ensure the recommendation is suitable, safe, and broadly appealing to participants of this age group.\n5. Structure the response as a blog post with exactly 3 bullet points of recommended activities.\n6. Make each bullet point distinct and practical, for example focusing on group games, outdoor activities, or creative challenges.\n7. Keep the tone positive and engaging while making sure the output stays concise and relevant.\n8. Review the final response to confirm it includes 3 bullet points and clearly recommends fun activities for the group.\n\nThis is the expected criteria for your final answer: Blog post with 3 bullet points of recommended activities.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you''re working with:\nThe average age of the participants is 14.0."}],"model":"gpt-4o-mini","tool_choice":"auto","tools":[{"type":"function","function":{"name":"delegate_work_to_coworker","description":"Delegate a specific task to one of the following coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be the coworker, the task you want them to do, and ALL necessary context to execute the task, they know nothing about the task, so share absolutely everything you know, don''t reference things but instead explain them.","strict":true,"parameters":{"properties":{"task":{"description":"The task to delegate","type":"string"},"context":{"description":"The context for the task","type":"string"},"coworker":{"description":"The role/name of the coworker to delegate to","type":"string"}},"required":["task","context","coworker"],"type":"object","additionalProperties":false}}},{"type":"function","function":{"name":"ask_question_to_coworker","description":"Ask a specific question to one of the following coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be the coworker, the question you have for them, and ALL necessary context to ask the question properly, they know nothing about the question, so share absolutely everything you know, don''t reference things but instead explain them.","strict":true,"parameters":{"properties":{"question":{"description":"The question to ask","type":"string"},"context":{"description":"The context for the question","type":"string"},"coworker":{"description":"The role/name of the coworker to ask","type":"string"}},"required":["question","context","coworker"],"type":"object","additionalProperties":false}}}]}'
+    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Crew Manager.
+      You are a seasoned manager with a knack for getting the best out of your team.\\nYou
+      are also known for your ability to delegate work to the right people, and to
+      ask the right questions to get the best out of your team.\\nEven though you
+      don't perform tasks by yourself, you have a lot of experience in the field,
+      which allows you to properly evaluate the work of your team members.\\nYour
+      personal goal is: Manage the team to complete the task in the best way possible.\"},{\"role\":\"user\",\"content\":\"\\nCurrent
+      Task: Ask the Tour Guide: given the average age of the participants, which fun
+      activities do you recommend for the group?1. Take note of the average age calculated
+      in the previous task, which is 14 years.\\n2. Identify the purpose of the task:
+      To receive recommendations for fun activities suitable for a group of participants
+      averaging 14 years old.\\n3. Research general activities that are popular among
+      14-year-olds to prepare for the question to the Tour Guide.\\n4. Prepare the
+      question to ask the Tour Guide clearly mentioning the average age: \\\"Given
+      that the average age of the participants is 14, which fun activities do you
+      recommend for the group?\\\".\\n5. Wait for the Tour Guide\u2019s response,
+      ensuring it is tailored to the age group.\\n6. Format the response into a blog
+      post with three bullet points detailing the recommended activities: - Activity
+      1: Engage participants in an outdoor scavenger hunt.\\n- Activity 2: Organize
+      a sports day featuring team games.\\n- Activity 3: Set up a creative arts and
+      crafts workshop.\\n7. Ensure to conclude the activities section warmly to engage
+      readers.\\n\\nThis is the expected criteria for your final answer: Blog post
+      with 3 bullet points of recommended activities.\\nyou MUST return the actual
+      complete content as the final answer, not a summary.\\n\\nThis is the context
+      you're working with:\\nI have received the answer from the Python Data Analyst.
+      Here is the complete content:\\n\\n\\\"The average age of the participants is
+      14 years. To calculate this, we sum the ages of the participants: 10 + 12 +
+      14 + 16 + 18, which equals 70. Since there are 5 participants, we then divide
+      the total sum by the number of participants: 70 divided by 5 equals 14. Therefore,
+      the average age of the participants is 14 years.\\\"\"}],\"model\":\"gpt-4o-mini\",\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"delegate_work_to_coworker\",\"description\":\"Delegate
+      a specific task to one of the following coworkers: Python Data Analyst, Tour
+      Guide\\nThe input to this tool should be the coworker, the task you want them
+      to do, and ALL necessary context to execute the task, they know nothing about
+      the task, so share absolutely everything you know, don't reference things but
+      instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"task\":{\"description\":\"The
+      task to delegate\",\"type\":\"string\"},\"context\":{\"description\":\"The context
+      for the task\",\"type\":\"string\"},\"coworker\":{\"description\":\"The role/name
+      of the coworker to delegate to\",\"type\":\"string\"}},\"required\":[\"task\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}},{\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"description\":\"Ask
+      a specific question to one of the following coworkers: Python Data Analyst,
+      Tour Guide\\nThe input to this tool should be the coworker, the question you
+      have for them, and ALL necessary context to ask the question properly, they
+      know nothing about the question, so share absolutely everything you know, don't
+      reference things but instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"question\":{\"description\":\"The
+      question to ask\",\"type\":\"string\"},\"context\":{\"description\":\"The context
+      for the question\",\"type\":\"string\"},\"coworker\":{\"description\":\"The
+      role/name of the coworker to ask\",\"type\":\"string\"}},\"required\":[\"question\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}}]}"
     headers:
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '3424'
       content-type:
       - application/json
       host:
@@ -312,30 +506,43 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: '{"id":"chatcmpl-EfrgvAb1TqXc4Yh7JkL0mNpRsDeWf","object":"chat.completion","created":1793646540,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_Qm7TnX2vLk9PzR4sWd8YbH3c","type":"function","function":{"name":"ask_question_to_coworker","arguments":"{\"question\":\"Recommend a fun activity for the group. Write a blog post with 3 bullet points of recommended activities, suited to participants whose average age is 14.\",\"context\":\"The average age of the participants is 14.0. The expected output is a blog post with 3 bullet points of recommended activities.\",\"coworker\":\"Tour Guide\"}"}}],"refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":611,"completion_tokens":98,"total_tokens":709,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_29c32828f7"}'
+      string: '{"id":"chatcmpl-EnT1BkHimyyLawDBtlgX7xVnfIPwP","object":"chat.completion","created":1795458325,"model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_Qfy2VsxLDkmDLN8o1VJvEBnF","type":"function","function":{"name":"ask_question_to_coworker","arguments":"{\"question\":\"Given
+        that the average age of the participants is 14, which fun activities do you
+        recommend for the group?\",\"context\":\"The average age of the participants
+        is 14 years. The purpose of this task is to receive recommendations for fun
+        activities suitable for a group of participants averaging 14 years old. Popular
+        activities for 14-year-olds often include interactive and engaging options
+        that cater to their energy and creativity. I aim to gather suggestions that
+        the Tour Guide believes will resonate well with this age group.\",\"coworker\":\"Tour
+        Guide\"}"}}],"refusal":null,"annotations":[]},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":742,"completion_tokens":123,"total_tokens":865,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"service_tier":"default","system_fingerprint":"fp_f6d5921f1d"}'
     headers:
-      content-length:
-      - '1078'
       content-type:
       - application/json
       date:
-      - Mon, 02 Nov 2026 19:09:04 GMT
+      - Mon, 23 Nov 2026 18:25:24 GMT
       vary:
       - Accept-Encoding
     status:
       code: 200
       message: OK
 - request:
-    body: '{"messages":[{"role":"system","content":"You are Tour Guide. You are a tour guide with a passion for finding the best activities for groups of people.\nYour personal goal is: Recommend fun activities for a group of humans."},{"role":"user","content":"\nCurrent Task: Recommend a fun activity for the group. Write a blog post with 3 bullet points of recommended activities, suited to participants whose average age is 14.\n\nThis is the expected criteria for your final answer: Your best answer to your coworker asking you this, accounting for the context shared.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you''re working with:\nThe average age of the participants is 14.0. The expected output is a blog post with 3 bullet points of recommended activities."}],"model":"gpt-4.1-mini","stream":false}'
+    body: '{"messages":[{"role":"system","content":"You are Tour Guide. You are a
+      tour guide with a passion for finding the best activities for groups of people.\nYour
+      personal goal is: Recommend fun activities for a group of humans."},{"role":"user","content":"\nCurrent
+      Task: Given that the average age of the participants is 14, which fun activities
+      do you recommend for the group?\n\nThis is the expected criteria for your final
+      answer: Your best answer to your coworker asking you this, accounting for the
+      context shared.\nyou MUST return the actual complete content as the final answer,
+      not a summary.\n\nThis is the context you''re working with:\nThe average age
+      of the participants is 14 years. The purpose of this task is to receive recommendations
+      for fun activities suitable for a group of participants averaging 14 years old.
+      Popular activities for 14-year-olds often include interactive and engaging options
+      that cater to their energy and creativity. I aim to gather suggestions that
+      the Tour Guide believes will resonate well with this age group.\n\nProvide your
+      complete response:"}],"model":"gpt-4o-mini"}'
     headers:
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '858'
       content-type:
       - application/json
       host:
@@ -366,30 +573,140 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\"id\":\"chatcmpl-EfrgxZy9WvUt3SrQ5PoNmLkJiHgFe\",\"object\":\"chat.completion\",\"created\":1793646540,\"model\":\"gpt-4.1-mini-2025-04-14\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"# Fun Activities for a Group of 14-Year-Olds\\n\\nEngaging a group of early teenagers can be a blast when activities are active, social, and suitable for their age. Here are three recommendations that are sure to bring excitement and fun to the gathering!\\n\\n- **Ultimate Frisbee**: This fast-paced, action-packed game is perfect for participants around age 14. Ultimate Frisbee combines elements of soccer and football, fostering teamwork and communication while getting everyone on their feet. It\u2019s a great way to enjoy the outdoors and encourage friendly competition!\\n\\n- **Escape Room Challenge**: Organizing an escape room activity caters to the problem-solving and teamwork skills of 14-year-olds. Participants can work together to solve puzzles and riddles within a time limit, making it thrilling and intellectually stimulating. It promotes communication and collaboration in a fun and interactive setting!\\n\\n- **Creative Arts and Crafts Station**: Set up a space with supplies for painting, tie-dyeing, or crafting unique items. This hands-on activity allows participants to express their creativity and create something they can take home! It\u2019s a more relaxed environment where they can socialize and unwind while making art.\\n\\nBy incorporating these activities, the group will have a memorable time filled with laughter and engagement!\",\"refusal\":null,\"annotations\":[]},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":214,\"completion_tokens\":211,\"total_tokens\":425,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"service_tier\":\"default\",\"system_fingerprint\":\"fp_29c32828f7\"}"
+      string: "{\"id\":\"chatcmpl-EnT1DA0MjbPpxo0J48X5e44MMgPdI\",\"object\":\"chat.completion\",\"created\":1795458327,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Certainly!
+        For a group of participants averaging 14 years old, there are plenty of exciting
+        and engaging activities that will resonate well with their energy and creativity.
+        Here are some fun recommendations:\\n\\n1. **Outdoor Scavenger Hunt**: Organize
+        a scavenger hunt in a local park or public area. Set up teams and provide
+        them with a list of items to find or tasks to complete. This encourages teamwork
+        and adds an element of adventure!\\n\\n2. **Escape Room Challenge**: Book
+        a session at an escape room where participants can solve puzzles and work
+        together to \\\"escape\\\" within a time limit. It's a fantastic way to promote
+        teamwork and critical thinking in a fun environment.\\n\\n3. **Laser Tag or
+        Paintball**: Engage the group in a session of laser tag or paintball. These
+        activities are not only thrilling but also help build camaraderie and strategic
+        skills.\\n\\n4. **Creative Workshops**: Consider organizing workshops where
+        participants can learn something new, such as pottery, painting, or photography.
+        This allows them to express their creativity in a fun and relaxed setting.\\n\\n5.
+        **Sports Day**: Host a sports day featuring various fun games and contests\u2014like
+        relay races, tug-of-war, or obstacle courses. This allows for physical activity
+        and friendly competition, which can be a real highlight for this age group!\\n\\n6.
+        **Cooking or Baking Class**: Arrange a fun cooking or baking class where they
+        can learn to make their favorite dishes or desserts. This can be a deliciously
+        rewarding experience!\\n\\n7. **Trampoline Park**: Visit a trampoline park
+        where everyone can experience the joy of bouncing around, playing dodgeball,
+        or trying out aerial tricks. It\u2019s energetic and lots of fun!\\n\\n8.
+        **Movie Night Under the Stars**: Host an outdoor movie night complete with
+        blankets, snacks, and a projector. Choose a selection of films that are popular
+        among their age group to make it enjoyable for all.\\n\\n9. **Virtual Reality
+        Gaming**: If accessible, a visit to a VR arcade can offer thrilling experiences
+        ranging from games to simulated adventures, providing excitement and a taste
+        of the latest technology.\\n\\n10. **Community Volunteer Project**: Engage
+        the group in a fun volunteer activity, like a park cleanup or helping at a
+        local animal shelter. It's rewarding to give back to the community while having
+        fun together.\\n\\nThese activities cater to the interests and energies of
+        14-year-olds, ensuring that they have a memorable and enjoyable experience
+        together.\",\"refusal\":null,\"annotations\":[]},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":204,\"completion_tokens\":491,\"total_tokens\":695,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"service_tier\":\"default\",\"system_fingerprint\":\"fp_15014e7912\"}"
     headers:
-      content-length:
-      - '1945'
       content-type:
       - application/json
       date:
-      - Mon, 02 Nov 2026 19:09:02 GMT
+      - Mon, 23 Nov 2026 18:25:26 GMT
       vary:
       - Accept-Encoding
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Crew Manager. You are a seasoned manager with a knack for getting the best out of your team.\\nYou are also known for your ability to delegate work to the right people, and to ask the right questions to get the best out of your team.\\nEven though you don't perform tasks by yourself, you have a lot of experience in the field, which allows you to properly evaluate the work of your team members.\\nYour personal goal is: Manage the team to complete the task in the best way possible.\"},{\"role\":\"user\",\"content\":\"\\nCurrent Task: Given the average age of participants, recommend a fun activity for the group.1. Use the average age from Task 1, which is 14, as the key input for choosing age-appropriate activities.\\n2. Since no tools are available, rely on reasoning about what is generally engaging for early teenagers.\\n3. Select activities that are active, social, and enjoyable for a mixed group around age 14.\\n4. Ensure the recommendation is suitable, safe, and broadly appealing to participants of this age group.\\n5. Structure the response as a blog post with exactly 3 bullet points of recommended activities.\\n6. Make each bullet point distinct and practical, for example focusing on group games, outdoor activities, or creative challenges.\\n7. Keep the tone positive and engaging while making sure the output stays concise and relevant.\\n8. Review the final response to confirm it includes 3 bullet points and clearly recommends fun activities for the group.\\n\\nThis is the expected criteria for your final answer: Blog post with 3 bullet points of recommended activities.\\nyou MUST return the actual complete content as the final answer, not a summary.\\n\\nThis is the context you're working with:\\nThe average age of the participants is 14.0.\"},{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_Qm7TnX2vLk9PzR4sWd8YbH3c\",\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"arguments\":\"{\\\"question\\\":\\\"Recommend a fun activity for the group. Write a blog post with 3 bullet points of recommended activities, suited to participants whose average age is 14.\\\",\\\"context\\\":\\\"The average age of the participants is 14.0. The expected output is a blog post with 3 bullet points of recommended activities.\\\",\\\"coworker\\\":\\\"Tour Guide\\\"}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_Qm7TnX2vLk9PzR4sWd8YbH3c\",\"name\":\"ask_question_to_coworker\",\"content\":\"# Fun Activities for a Group of 14-Year-Olds\\n\\nEngaging a group of early teenagers can be a blast when activities are active, social, and suitable for their age. Here are three recommendations that are sure to bring excitement and fun to the gathering!\\n\\n- **Ultimate Frisbee**: This fast-paced, action-packed game is perfect for participants around age 14. Ultimate Frisbee combines elements of soccer and football, fostering teamwork and communication while getting everyone on their feet. It\u2019s a great way to enjoy the outdoors and encourage friendly competition!\\n\\n- **Escape Room Challenge**: Organizing an escape room activity caters to the problem-solving and teamwork skills of 14-year-olds. Participants can work together to solve puzzles and riddles within a time limit, making it thrilling and intellectually stimulating. It promotes communication and collaboration in a fun and interactive setting!\\n\\n- **Creative Arts and Crafts Station**: Set up a space with supplies for painting, tie-dyeing, or crafting unique items. This hands-on activity allows participants to express their creativity and create something they can take home! It\u2019s a more relaxed environment where they can socialize and unwind while making art.\\n\\nBy incorporating these activities, the group will have a memorable time filled with laughter and engagement!\"}],\"model\":\"gpt-4o-mini\",\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"delegate_work_to_coworker\",\"description\":\"Delegate a specific task to one of the following coworkers: Python Data Analyst, Tour Guide\\nThe input to this tool should be the coworker, the task you want them to do, and ALL necessary context to execute the task, they know nothing about the task, so share absolutely everything you know, don't reference things but instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"task\":{\"description\":\"The task to delegate\",\"type\":\"string\"},\"context\":{\"description\":\"The context for the task\",\"type\":\"string\"},\"coworker\":{\"description\":\"The role/name of the coworker to delegate to\",\"type\":\"string\"}},\"required\":[\"task\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}},{\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"description\":\"Ask a specific question to one of the following coworkers: Python Data Analyst, Tour Guide\\nThe input to this tool should be the coworker, the question you have for them, and ALL necessary context to ask the question properly, they know nothing about the question, so share absolutely everything you know, don't reference things but instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"question\":{\"description\":\"The question to ask\",\"type\":\"string\"},\"context\":{\"description\":\"The context for the question\",\"type\":\"string\"},\"coworker\":{\"description\":\"The role/name of the coworker to ask\",\"type\":\"string\"}},\"required\":[\"question\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}}]}"
+    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Crew Manager.
+      You are a seasoned manager with a knack for getting the best out of your team.\\nYou
+      are also known for your ability to delegate work to the right people, and to
+      ask the right questions to get the best out of your team.\\nEven though you
+      don't perform tasks by yourself, you have a lot of experience in the field,
+      which allows you to properly evaluate the work of your team members.\\nYour
+      personal goal is: Manage the team to complete the task in the best way possible.\"},{\"role\":\"user\",\"content\":\"\\nCurrent
+      Task: Ask the Tour Guide: given the average age of the participants, which fun
+      activities do you recommend for the group?1. Take note of the average age calculated
+      in the previous task, which is 14 years.\\n2. Identify the purpose of the task:
+      To receive recommendations for fun activities suitable for a group of participants
+      averaging 14 years old.\\n3. Research general activities that are popular among
+      14-year-olds to prepare for the question to the Tour Guide.\\n4. Prepare the
+      question to ask the Tour Guide clearly mentioning the average age: \\\"Given
+      that the average age of the participants is 14, which fun activities do you
+      recommend for the group?\\\".\\n5. Wait for the Tour Guide\u2019s response,
+      ensuring it is tailored to the age group.\\n6. Format the response into a blog
+      post with three bullet points detailing the recommended activities: - Activity
+      1: Engage participants in an outdoor scavenger hunt.\\n- Activity 2: Organize
+      a sports day featuring team games.\\n- Activity 3: Set up a creative arts and
+      crafts workshop.\\n7. Ensure to conclude the activities section warmly to engage
+      readers.\\n\\nThis is the expected criteria for your final answer: Blog post
+      with 3 bullet points of recommended activities.\\nyou MUST return the actual
+      complete content as the final answer, not a summary.\\n\\nThis is the context
+      you're working with:\\nI have received the answer from the Python Data Analyst.
+      Here is the complete content:\\n\\n\\\"The average age of the participants is
+      14 years. To calculate this, we sum the ages of the participants: 10 + 12 +
+      14 + 16 + 18, which equals 70. Since there are 5 participants, we then divide
+      the total sum by the number of participants: 70 divided by 5 equals 14. Therefore,
+      the average age of the participants is 14 years.\\\"\"},{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_Qfy2VsxLDkmDLN8o1VJvEBnF\",\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"arguments\":\"{\\\"question\\\":\\\"Given
+      that the average age of the participants is 14, which fun activities do you
+      recommend for the group?\\\",\\\"context\\\":\\\"The average age of the participants
+      is 14 years. The purpose of this task is to receive recommendations for fun
+      activities suitable for a group of participants averaging 14 years old. Popular
+      activities for 14-year-olds often include interactive and engaging options that
+      cater to their energy and creativity. I aim to gather suggestions that the Tour
+      Guide believes will resonate well with this age group.\\\",\\\"coworker\\\":\\\"Tour
+      Guide\\\"}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_Qfy2VsxLDkmDLN8o1VJvEBnF\",\"name\":\"ask_question_to_coworker\",\"content\":\"Certainly!
+      For a group of participants averaging 14 years old, there are plenty of exciting
+      and engaging activities that will resonate well with their energy and creativity.
+      Here are some fun recommendations:\\n\\n1. **Outdoor Scavenger Hunt**: Organize
+      a scavenger hunt in a local park or public area. Set up teams and provide them
+      with a list of items to find or tasks to complete. This encourages teamwork
+      and adds an element of adventure!\\n\\n2. **Escape Room Challenge**: Book a
+      session at an escape room where participants can solve puzzles and work together
+      to \\\"escape\\\" within a time limit. It's a fantastic way to promote teamwork
+      and critical thinking in a fun environment.\\n\\n3. **Laser Tag or Paintball**:
+      Engage the group in a session of laser tag or paintball. These activities are
+      not only thrilling but also help build camaraderie and strategic skills.\\n\\n4.
+      **Creative Workshops**: Consider organizing workshops where participants can
+      learn something new, such as pottery, painting, or photography. This allows
+      them to express their creativity in a fun and relaxed setting.\\n\\n5. **Sports
+      Day**: Host a sports day featuring various fun games and contests\u2014like
+      relay races, tug-of-war, or obstacle courses. This allows for physical activity
+      and friendly competition, which can be a real highlight for this age group!\\n\\n6.
+      **Cooking or Baking Class**: Arrange a fun cooking or baking class where they
+      can learn to make their favorite dishes or desserts. This can be a deliciously
+      rewarding experience!\\n\\n7. **Trampoline Park**: Visit a trampoline park where
+      everyone can experience the joy of bouncing around, playing dodgeball, or trying
+      out aerial tricks. It\u2019s energetic and lots of fun!\\n\\n8. **Movie Night
+      Under the Stars**: Host an outdoor movie night complete with blankets, snacks,
+      and a projector. Choose a selection of films that are popular among their age
+      group to make it enjoyable for all.\\n\\n9. **Virtual Reality Gaming**: If accessible,
+      a visit to a VR arcade can offer thrilling experiences ranging from games to
+      simulated adventures, providing excitement and a taste of the latest technology.\\n\\n10.
+      **Community Volunteer Project**: Engage the group in a fun volunteer activity,
+      like a park cleanup or helping at a local animal shelter. It's rewarding to
+      give back to the community while having fun together.\\n\\nThese activities
+      cater to the interests and energies of 14-year-olds, ensuring that they have
+      a memorable and enjoyable experience together.\"}],\"model\":\"gpt-4o-mini\",\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"delegate_work_to_coworker\",\"description\":\"Delegate
+      a specific task to one of the following coworkers: Python Data Analyst, Tour
+      Guide\\nThe input to this tool should be the coworker, the task you want them
+      to do, and ALL necessary context to execute the task, they know nothing about
+      the task, so share absolutely everything you know, don't reference things but
+      instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"task\":{\"description\":\"The
+      task to delegate\",\"type\":\"string\"},\"context\":{\"description\":\"The context
+      for the task\",\"type\":\"string\"},\"coworker\":{\"description\":\"The role/name
+      of the coworker to delegate to\",\"type\":\"string\"}},\"required\":[\"task\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}},{\"type\":\"function\",\"function\":{\"name\":\"ask_question_to_coworker\",\"description\":\"Ask
+      a specific question to one of the following coworkers: Python Data Analyst,
+      Tour Guide\\nThe input to this tool should be the coworker, the question you
+      have for them, and ALL necessary context to ask the question properly, they
+      know nothing about the question, so share absolutely everything you know, don't
+      reference things but instead explain them.\",\"strict\":true,\"parameters\":{\"properties\":{\"question\":{\"description\":\"The
+      question to ask\",\"type\":\"string\"},\"context\":{\"description\":\"The context
+      for the question\",\"type\":\"string\"},\"coworker\":{\"description\":\"The
+      role/name of the coworker to ask\",\"type\":\"string\"}},\"required\":[\"question\",\"context\",\"coworker\"],\"type\":\"object\",\"additionalProperties\":false}}}]}"
     headers:
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '5399'
       content-type:
       - application/json
       host:
@@ -420,14 +737,27 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\"id\":\"chatcmpl-EfrgzMn8BvCx5Zq2WsEdRtYgHjUiO\",\"object\":\"chat.completion\",\"created\":1793646540,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"# Fun Activities for a Group of 14-Year-Olds\\n\\nEngaging a group of early teenagers can be a blast when activities are active, social, and suitable for their age. Here are three recommendations that are sure to bring excitement and fun to the gathering!\\n\\n- **Ultimate Frisbee**: This fast-paced, action-packed game is perfect for participants around age 14. Ultimate Frisbee combines elements of soccer and football, fostering teamwork and communication while getting everyone on their feet. It\u2019s a great way to enjoy the outdoors and encourage friendly competition!\\n\\n- **Escape Room Challenge**: Organizing an escape room activity caters to the problem-solving and teamwork skills of 14-year-olds. Participants can work together to solve puzzles and riddles within a time limit, making it thrilling and intellectually stimulating. It promotes communication and collaboration in a fun and interactive setting!\\n\\n- **Creative Arts and Crafts Station**: Set up a space with supplies for painting, tie-dyeing, or crafting unique items. This hands-on activity allows participants to express their creativity and create something they can take home! It\u2019s a more relaxed environment where they can socialize and unwind while making art.\\n\\nBy incorporating these activities, the group will have a memorable time filled with laughter and engagement!\",\"refusal\":null,\"annotations\":[]},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":905,\"completion_tokens\":211,\"total_tokens\":1116,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"service_tier\":\"default\",\"system_fingerprint\":\"fp_29c32828f7\"}"
+      string: "{\"id\":\"chatcmpl-EnT1JSy5ejVKo0qHj9fRZ9yefOOTf\",\"object\":\"chat.completion\",\"created\":1795458333,\"model\":\"gpt-4o-mini-2024-07-18\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"###
+        Recommended Fun Activities for 14-Year-Old Participants\\n\\nGiven that the
+        average age of the participants is 14, here are some exciting and engaging
+        activities that will resonate with their energy and creativity:\\n\\n- **Activity
+        1: Outdoor Scavenger Hunt**  \\n  Organize a scavenger hunt in a local park
+        or public area. Set up teams and provide them with a list of items to find
+        or tasks to complete. This encourages teamwork and adds an element of adventure!\\n\\n-
+        **Activity 2: Escape Room Challenge**  \\n  Book a session at an escape room
+        where participants can solve puzzles and work together to \\\"escape\\\" within
+        a time limit. It's a fantastic way to promote teamwork and critical thinking
+        in a fun environment.\\n\\n- **Activity 3: Sports Day**  \\n  Host a sports
+        day featuring various fun games and contests\u2014like relay races, tug-of-war,
+        or obstacle courses. This allows for physical activity and friendly competition,
+        which can be a real highlight for this age group!\\n\\nThese activities are
+        designed to be both fun and engaging, ensuring that all participants can enjoy
+        their time together. Let's make it a memorable experience!\",\"refusal\":null,\"annotations\":[]},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1369,\"completion_tokens\":230,\"total_tokens\":1599,\"prompt_tokens_details\":{\"cached_tokens\":0,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"audio_tokens\":0,\"accepted_prediction_tokens\":0,\"rejected_prediction_tokens\":0}},\"service_tier\":\"default\",\"system_fingerprint\":\"fp_f6d5921f1d\"}"
     headers:
-      content-length:
-      - '1945'
       content-type:
       - application/json
       date:
-      - Mon, 02 Nov 2026 19:09:04 GMT
+      - Mon, 23 Nov 2026 18:25:32 GMT
       vary:
       - Accept-Encoding
     status:
