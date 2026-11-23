@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -8,9 +9,12 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 import re
+from types import ModuleType
+from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 
@@ -22,6 +26,8 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import safe_json as safe_json
 from ddtrace.llmobs._constants import AGENT_VERSION
@@ -70,7 +76,6 @@ from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import _ToolField
-from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:
@@ -78,6 +83,8 @@ if TYPE_CHECKING:
 
 
 log = get_logger(__name__)
+
+_T = TypeVar("_T")
 
 ValidatedPromptDict = dict[
     str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message], list[ChatTemplateItem]]
@@ -107,7 +114,7 @@ def resolve_llmobs_git_metadata() -> tuple[str, str]:
     return repository_url, commit_sha
 
 
-def get_asyncio():
+def get_asyncio() -> ModuleType:
     # asyncio must NOT be imported at module level — this module is
     # loaded at ddtrace.auto startup and an early asyncio import corrupts the
     # event loop on some platforms.  See test_lazyimport.py.
@@ -240,24 +247,34 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
 
 
 class AnnotationContext:
-    def __init__(self, _register_annotator, _deregister_annotator):
+    def __init__(self, _register_annotator: Callable[[], object], _deregister_annotator: Callable[[], object]) -> None:
         self._register_annotator = _register_annotator
         self._deregister_annotator = _deregister_annotator
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self._register_annotator()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self._deregister_annotator()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         self._register_annotator()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self._deregister_annotator()
 
 
-def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
+def _get_nearest_llmobs_ancestor(span: _LLMObsSpan) -> Optional[_LLMObsSpan]:
     """Return the nearest LLMObs-type ancestor span of a given span."""
     parent = span._parent
     while parent:
@@ -315,7 +332,7 @@ def _sanitize_span_event_data(obj: Any) -> Any:
     return _walk(obj, 0, "")
 
 
-def load_data_value(value):
+def load_data_value(value: Any) -> Any:
     if isinstance(value, (list, tuple, set)):
         return [load_data_value(item) for item in value]
     elif isinstance(value, dict):
@@ -325,7 +342,8 @@ def load_data_value(value):
     elif hasattr(value, "model_dump"):
         # model_dump() can leave non-primitive field values (datetime, Enum, ...) unconverted.
         return load_data_value(value.model_dump(exclude_none=True))
-    elif is_dataclass(value):
+    elif is_dataclass(value) and not isinstance(value, type):
+        # Dataclass types were already handled above; the isinstance check only narrows for asdict().
         # asdict() deep-copies non-dataclass field types as-is, leaving them unconverted.
         return load_data_value(asdict(value))
     elif isinstance(value, (int, float, str, bool)) or value is None:
@@ -354,7 +372,7 @@ def format_tool_call_arguments(tool_args: str) -> str:
     return formatted_tool_args
 
 
-def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
+def add_span_link(span: _LLMObsSpan, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
     current_span_links: list[_SpanLink] = get_llmobs_span_links(span) or []
     current_span_links.append(
         _SpanLink(
@@ -366,7 +384,7 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
     _annotate_llmobs_span_data(span, span_links=current_span_links)
 
 
-def _get_parent_prompt(span: Span) -> Optional[Prompt]:
+def _get_parent_prompt(span: _LLMObsSpan) -> Optional[Prompt]:
     """Check the nearest LLMObs ancestor's _store for a prompt to inherit.
     We check span._store instead of meta_struct because span._store is guaranteed to exist on the parent,
     while meta_struct is scrubbed at span finish time.
@@ -386,7 +404,7 @@ class _TrackedPromptStr(str):
     dd_prompt: Prompt
 
 
-class _TrackedPromptList(list):
+class _TrackedPromptList(list[Message]):
     dd_prompt: Prompt
 
 
@@ -394,8 +412,11 @@ def attach_prompt(rendered_value: Union[str, list[Message]], prompt: Prompt) -> 
     """Wrap a ManagedPrompt.format() render so it carries its prompt metadata into the LLM call."""
     if not config._llmobs_enabled:
         return rendered_value
-    tracked_cls = _TrackedPromptStr if isinstance(rendered_value, str) else _TrackedPromptList
-    tracked = tracked_cls(rendered_value)
+    tracked: Union[_TrackedPromptStr, _TrackedPromptList]
+    if isinstance(rendered_value, str):
+        tracked = _TrackedPromptStr(rendered_value)
+    else:
+        tracked = _TrackedPromptList(rendered_value)
     tracked.dd_prompt = prompt
     return tracked
 
@@ -435,7 +456,9 @@ def get_llmobs_span_kind(span: _LLMObsSpan) -> Optional[str]:
     return kind
 
 
-def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optional[str]]:
+def _resolve_parent_agent(
+    active: Optional[Union[SpanData, Context]],
+) -> tuple[Optional[str], Optional[str], Optional[str]]:
     """Resolve (parent_agent_name, parent_agent_span_id, parent_agent_version) from the active LLMObs parent.
 
     active is the result of _llmobs_context_provider.active():
@@ -453,21 +476,23 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optiona
     if active is None:
         return None, None, None
 
-    if isinstance(active, Span):
+    if isinstance(active, SpanData):
+        # Span is the only SpanData type, so this is an LLMObs span; a Protocol cannot be checked at runtime.
+        span = cast(_LLMObsSpan, active)
         # Read the meta_struct once: this runs on every span activation (hot path).
-        data = _get_llmobs_data_metastruct(active)
+        data = _get_llmobs_data_metastruct(span)
         kind = data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
         if kind == "agent":
-            version = active._get_ctx_item(AGENT_VERSION) or active._get_ctx_item(PARENT_AGENT_VERSION)
+            version = span._get_ctx_item(AGENT_VERSION) or span._get_ctx_item(PARENT_AGENT_VERSION)
             return (
-                data.get(LLMOBS_STRUCT.NAME) or active.name,
-                str(active.span_id),
+                data.get(LLMOBS_STRUCT.NAME) or span.name,
+                str(span.span_id),
                 str(version) if version else None,
             )
         return (
             data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME),
             data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID),
-            active._get_ctx_item(PARENT_AGENT_VERSION),
+            span._get_ctx_item(PARENT_AGENT_VERSION),
         )
 
     # Context parent (distributed). Keys land on context._meta via _dd.p.* propagation.
@@ -485,7 +510,7 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optiona
 _AGENT_ATTRIBUTION_TAGSET_BUDGET = 485
 
 
-def _is_propagation_tags_within_budget(meta: dict) -> bool:
+def _is_propagation_tags_within_budget(meta: dict[str, str]) -> bool:
     """Return True if the ``_dd.p.*`` propagation tags in ``meta`` encode within budget.
 
     Mirrors the propagator's own key filter (``key.startswith("_dd.p.")``) and encoder, so the
@@ -501,7 +526,7 @@ def _is_propagation_tags_within_budget(meta: dict) -> bool:
         return False
 
 
-def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_id: Optional[str]) -> None:
+def _stamp_agent_attribution(meta: dict[str, str], agent_name: Optional[str], agent_span_id: Optional[str]) -> None:
     """Write the agent id/name ``_dd.p.*`` tags onto ``meta`` without overflowing x-datadog-tags.
 
     A ``TagsetMaxSizeEncodeError`` at inject time drops the ENTIRE header (taking ml_app,
@@ -639,7 +664,7 @@ def get_llmobs_metrics(span: _LLMObsSpan) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
 
 
-def get_llmobs_span_links(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_span_links(span: _LLMObsSpan) -> Optional[list[Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS)
 
 
@@ -651,11 +676,11 @@ def get_llmobs_input_value(span: _LLMObsSpan) -> Optional[str]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.VALUE)
 
 
-def get_llmobs_input_messages(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_input_messages(span: _LLMObsSpan) -> Optional[list[Any]]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.MESSAGES)
 
 
-def get_llmobs_input_documents(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_input_documents(span: _LLMObsSpan) -> Optional[list[Any]]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
 
 
@@ -668,17 +693,19 @@ def get_llmobs_output(span: _LLMObsSpan) -> _MetaIO:
 
 
 def get_llmobs_output_value(span: _LLMObsSpan) -> Optional[str]:
-    output_data = get_llmobs_output(span)
+    # Typed as object because the meta_struct output may hold a non-dict value at runtime.
+    output_data: object = get_llmobs_output(span)
     if not isinstance(output_data, dict):
         return None
-    return output_data.get(LLMOBS_STRUCT.VALUE)
+    value: Optional[str] = output_data.get(LLMOBS_STRUCT.VALUE)
+    return value
 
 
-def get_llmobs_output_messages(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_output_messages(span: _LLMObsSpan) -> Optional[list[Any]]:
     return get_llmobs_output(span).get(LLMOBS_STRUCT.MESSAGES)
 
 
-def get_llmobs_output_documents(span: _LLMObsSpan) -> Optional[list]:
+def get_llmobs_output_documents(span: _LLMObsSpan) -> Optional[list[Any]]:
     return get_llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
 
 
@@ -709,7 +736,7 @@ def get_tool_version_from_llm_span(llm_span: _LLMObsSpan, tool_name: str) -> Opt
     return None
 
 
-def _sanitize_metric_key(key):
+def _sanitize_metric_key(key: object) -> str:
     """Replace dots in a metric key with underscores.
 
     LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
@@ -755,6 +782,7 @@ def _annotate_llmobs_span_data(
     session_id: Optional[str] = None,
     span_links: Optional[list[_SpanLink]] = None,
     agent_manifest: Optional[dict[str, Any]] = None,
+    gateway: Optional[str] = None,
     config: Optional[dict[str, Any]] = None,
     expected_output: Optional[Any] = None,
     experiment_input: Optional[str] = None,
@@ -813,16 +841,23 @@ def _annotate_llmobs_span_data(
             # Metadata keys are serialized as strings, so coerce non-string keys here. Values are
             # left as-is for in-process consumers; _sanitize_span_event_data handles them at finish.
             meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
-        if agent_manifest is not None or cost_tags is not None:
+        if agent_manifest is not None or cost_tags is not None or gateway is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
-            metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            existing_dd = meta[LLMOBS_STRUCT.METADATA].get(LLMOBS_STRUCT.METADATA_DD)
+            # Copy: metadata keeps the caller's _dd by reference, and other spans can share it. A value that is not
+            # a dict is replaced, because _dd is reserved.
+            metadata_dd = dict(existing_dd) if isinstance(existing_dd, dict) else {}
+            meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD] = metadata_dd
             if agent_manifest is not None:
                 metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
             if cost_tags is not None:
-                existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
+                existing_cost_tags = list(metadata_dd.get(LLMOBS_STRUCT.COST_TAGS) or [])
                 for cost_tag in cost_tags:
                     if cost_tag not in existing_cost_tags:
                         existing_cost_tags.append(cost_tag)
+                metadata_dd[LLMOBS_STRUCT.COST_TAGS] = existing_cost_tags
+            if gateway is not None:
+                metadata_dd[LLMOBS_STRUCT.GATEWAY] = gateway
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
@@ -908,7 +943,7 @@ def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     return [f"{key}:{value}" for key, value in tags.items()]
 
 
-def _batched(iterable: Sequence, n: int) -> Iterator[Sequence]:
+def _batched(iterable: Sequence[_T], n: int) -> Iterator[Sequence[_T]]:
     for i in range(0, len(iterable), n):
         yield iterable[i : i + n]
 
@@ -941,8 +976,8 @@ class LinkTracker:
     def __init__(self) -> None:
         self._tool_calls: dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
         self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
-        self._active_guardrail_spans: set[Span] = set()
-        self._last_llm_span: Optional[Span] = None
+        self._active_guardrail_spans: set[_LLMObsSpan] = set()
+        self._last_llm_span: Optional[_LLMObsSpan] = None
 
     def on_llm_tool_choice(
         self,
@@ -974,7 +1009,7 @@ class LinkTracker:
         self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
 
     def on_tool_call(
-        self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, tool_id: Optional[str] = None
+        self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: _LLMObsSpan, tool_id: Optional[str] = None
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
@@ -1007,7 +1042,7 @@ class LinkTracker:
         self._tool_calls[tool_id].tool_kind = tool_kind
         self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)
 
-    def on_tool_call_output_used(self, tool_id: str, llm_span: Span) -> None:
+    def on_tool_call_output_used(self, tool_id: str, llm_span: _LLMObsSpan) -> None:
         """
         Called when an LLM span finishes. This is used to link the output of a tool call to the input of an
         LLM span.
@@ -1027,7 +1062,7 @@ class LinkTracker:
             "input",
         )
 
-    def on_llm_span_finish(self, span: Span) -> None:
+    def on_llm_span_finish(self, span: _LLMObsSpan) -> None:
         """
         Called when an LLM span event is created. If the LLM span is the first LLM span,
         it will consume all active guardrail links.
@@ -1047,7 +1082,7 @@ class LinkTracker:
                 spans_to_remove.add(guardrail_span)
         self._active_guardrail_spans -= spans_to_remove
 
-    def on_guardrail_span_start(self, span: Span) -> None:
+    def on_guardrail_span_start(self, span: _LLMObsSpan) -> None:
         """
         Called when a guardrail span starts. This is used to track the active guardrail
         spans and link the output of the last LLM span to the input of the guardrail span.
@@ -1085,7 +1120,7 @@ _TOKEN_METRIC_KEYS = (
 )
 
 
-def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
+def set_gen_ai_apm_tags(span: _LLMObsSpan, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
     """Write the scalar gen_ai.* attributes onto the APM span from its LLMObs meta_struct.
 
     Must run before _normalize_llmobs_meta, which pops model_name and model_provider for every

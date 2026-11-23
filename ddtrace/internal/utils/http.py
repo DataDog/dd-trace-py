@@ -494,7 +494,7 @@ class Response:
             msg=getattr(resp, "msg", None),
         )
 
-    def get_json(self):
+    def get_json(self) -> Any:
         """Helper to parse the body of this request as JSON"""
         try:
             body = self.body

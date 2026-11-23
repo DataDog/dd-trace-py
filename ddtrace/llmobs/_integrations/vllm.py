@@ -20,10 +20,10 @@ from ddtrace.llmobs._constants import TIME_TO_FIRST_TOKEN_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.vllm_utils import parse_prompt_to_messages
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.utils import Document
-from ddtrace.trace import Span
 
 
 class VLLMIntegration(BaseLLMIntegration):
@@ -51,7 +51,7 @@ class VLLMIntegration(BaseLLMIntegration):
         "time_in_model_inference": TIME_IN_MODEL_INFERENCE_METRIC_KEY,
     }
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Set base tags on vLLM spans.
 
         The contrib already sets these from the LlmRequestEvent tags; setting them again keeps
@@ -136,7 +136,14 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return ctx
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         data = kwargs.get("request_data")
         if data is None:
             return
@@ -152,7 +159,7 @@ class VLLMIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,

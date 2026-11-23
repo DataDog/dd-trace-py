@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
 from dataclasses import field
+import functools
 import inspect
 import math
 import sys
@@ -12,6 +13,7 @@ from typing import Callable
 from typing import Iterator
 from typing import Literal
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 import urllib.parse
@@ -81,6 +83,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
+from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
@@ -233,6 +236,22 @@ from ddtrace.version import __version__
 
 log = get_logger(__name__)
 
+_F = TypeVar("_F", bound=Callable[..., None])
+
+# Product start and the Remote Config handler can both call LLMObs.enable() at boot, on different threads.
+# Without this lock both pass the enabled check, and the second instance registers a second set of span hooks.
+_LIFECYCLE_LOCK = forksafe.RLock()
+
+
+def _serialized(func: _F) -> _F:
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        with _LIFECYCLE_LOCK:
+            return func(*args, **kwargs)
+
+    return cast(_F, wrapper)
+
+
 _STANDARD_INTEGRATION_SPAN_NAMES = (
     CLAUDE_AGENT_SDK_APM_SPAN_NAME,
     CREWAI_APM_SPAN_NAME,
@@ -284,7 +303,7 @@ def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) 
     return agent_service or ml_app
 
 
-def _validate_task_signature(task: Callable, is_async: bool) -> None:
+def _validate_task_signature(task: Callable[..., Any], is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
     if is_async and not get_asyncio().iscoroutinefunction(task):
@@ -425,8 +444,8 @@ class LLMObsSpan:
 
 def _build_llmobs_span(
     span_kind: str,
-    llmobs_input: _MetaIO,
-    llmobs_output: _MetaIO,
+    llmobs_input: object,
+    llmobs_output: object,
 ) -> tuple[LLMObsSpan, Literal["value", "messages", "documents", ""], Literal["value", "messages", "documents", ""]]:
     """Build an LLMObsSpan populated for the user span processor.
 
@@ -510,7 +529,8 @@ def _normalize_llmobs_meta(
     if not isinstance(current_metadata, dict):
         current_metadata = {}
     preserved_dd = current_metadata.get(LLMOBS_STRUCT.METADATA_DD)
-    user_metadata = llmobs_span.metadata
+    # The user span processor may assign a non-dict despite the declared field type.
+    user_metadata: object = llmobs_span.metadata
     if not isinstance(user_metadata, dict):
         log.warning("LLMObs span processor set non-dict metadata (%r); ignoring.", type(user_metadata))
         user_metadata = current_metadata
@@ -646,7 +666,7 @@ class LLMObs(Service):
         forksafe.register(self._child_after_fork)
 
         self._link_tracker = LinkTracker()
-        self._annotations: list[tuple[str, str, dict[str, Any]]] = []
+        self._annotations: list[tuple[int, Any, dict[str, Any]]] = []
         self._annotation_context_lock = RLock()
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
@@ -659,6 +679,10 @@ class LLMObs(Service):
             routing = get_routing_context()
             if routing is not None:
                 span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
+            # Read at start: a streamed span finishes after the core context of its request has exited.
+            gateway = core.find_item(GATEWAY)
+            if gateway is not None:
+                span._set_ctx_item(GATEWAY, gateway)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -836,6 +860,12 @@ class LLMObs(Service):
             parent_agent_version = span._get_ctx_item(PARENT_AGENT_VERSION)
             if parent_agent_version:
                 llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = parent_agent_version
+
+        # Write the gateway on the llm spans of a gateway request. This runs after the integration and annotate
+        # writes, and _normalize_llmobs_meta keeps _dd safe from the span processor.
+        gateway = span._get_ctx_item(GATEWAY) if span_kind == "llm" else None
+        if gateway:
+            _annotate_llmobs_span_data(span, gateway=gateway)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         # Before the user processor and _normalize_llmobs_meta, either of which can strip values
@@ -1042,6 +1072,7 @@ class LLMObs(Service):
         forksafe.unregister(self._child_after_fork)
 
     @classmethod
+    @_serialized
     def enable(
         cls,
         ml_app: Optional[str] = None,
@@ -2011,6 +2042,7 @@ class LLMObs(Service):
         return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
+    @_serialized
     def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
@@ -2032,6 +2064,21 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    @_serialized
+    def _reconcile_enabled(cls) -> None:
+        """Enable or disable LLMObs to match config._llmobs_enabled.
+
+        Product start and the Remote Config handler both go through here. The check and the change
+        happen under the lock, so neither can act on a value the other has already changed.
+        """
+        if config._llmobs_enabled and not cls.enabled:
+            log.debug("Enabling LLMObs to match configuration (ml_app=%r)", config._llmobs_ml_app)
+            cls.enable(ml_app=config._llmobs_ml_app, _auto=True)
+        elif not config._llmobs_enabled and cls.enabled:
+            log.debug("Disabling LLMObs to match configuration")
+            cls.disable(_auto=True)
 
     @classmethod
     @contextmanager
@@ -2089,10 +2136,10 @@ class LLMObs(Service):
     def annotation_context(
         cls,
         tags: Optional[dict[str, Any]] = None,
-        prompt: Optional[Union[dict, Prompt]] = None,
+        prompt: Optional[Union[dict[str, Any], Prompt]] = None,
         name: Optional[str] = None,
         cost_tags: Optional[list[str]] = None,
-        agent: Optional[Union[dict, Agent]] = None,
+        agent: Optional[Union[dict[str, Any], Agent]] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
@@ -2132,12 +2179,12 @@ class LLMObs(Service):
         annotation_id = rand64bits()
         # Track context we create so we can clean up _reactivate on exit.
         # Using a dict as a mutable container to share state between closures.
-        state = {"created_context": None}
+        state: dict[str, Optional[Context]] = {"created_context": None}
 
-        def get_annotations_context_id():
+        def get_annotations_context_id() -> Any:
             current_ctx = cls._instance.tracer.current_trace_context()
             # default the context id to the annotation id
-            ctx_id = annotation_id
+            ctx_id: Any = annotation_id
             if current_ctx is None:
                 # No context exists - create one and enable reactivation so spans finishing
                 # within this annotation_context don't clear the context for subsequent operations
@@ -2152,7 +2199,7 @@ class LLMObs(Service):
                 ctx_id = current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
             return ctx_id
 
-        def register_annotation():
+        def register_annotation() -> None:
             with cls._instance._annotation_context_lock:
                 ctx_id = get_annotations_context_id()
                 cls._instance._annotations.append(
@@ -2171,7 +2218,7 @@ class LLMObs(Service):
                     )
                 )
 
-        def deregister_annotation():
+        def deregister_annotation() -> None:
             with cls._instance._annotation_context_lock:
                 for i, (key, _, _) in enumerate(cls._instance._annotations):
                     if key == annotation_id:
@@ -2181,13 +2228,14 @@ class LLMObs(Service):
                     log.debug("Failed to pop annotation context")
             # Disable reactivation on context we created to prevent it from being
             # restored after exiting the annotation_context block
-            if state["created_context"] is not None:
-                state["created_context"]._reactivate = False
+            created_context = state["created_context"]
+            if created_context is not None:
+                created_context._reactivate = False
                 # DEV: Deactivate the context we created so subsequent annotation_contexts
                 # don't see the stale context with the old ANNOTATIONS_CONTEXT_ID.
                 # Only deactivate if this context is still the active one (not a Span).
                 current_active = cls._instance.tracer.context_provider.active()
-                if current_active is state["created_context"]:
+                if current_active is created_context:
                     cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
@@ -3173,7 +3221,7 @@ class LLMObs(Service):
     def annotate(
         cls,
         span: Optional[Span] = None,
-        prompt: Optional[Union[dict, Prompt]] = None,
+        prompt: Optional[Union[dict[str, Any], Prompt]] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[dict[str, Any]] = None,
@@ -3181,7 +3229,7 @@ class LLMObs(Service):
         tags: Optional[dict[str, Any]] = None,
         tool_definitions: Optional[list[dict[str, Any]]] = None,
         cost_tags: Optional[list[str]] = None,
-        agent: Optional[Union[dict, Agent]] = None,
+        agent: Optional[Union[dict[str, Any], Agent]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
@@ -3278,8 +3326,11 @@ class LLMObs(Service):
             if span.finished:
                 error = "invalid_finished_span"
                 raise LLMObsAnnotateSpanError("Cannot annotate a finished span.")
+            # Public API arguments are validated at runtime because callers may not be type-checked.
+            metadata_arg: object = metadata
+            tags_arg: object = tags
             if metadata is not None:
-                if not isinstance(metadata, dict):
+                if not isinstance(metadata_arg, dict):
                     error = "invalid_metadata"
                     raise LLMObsAnnotateSpanError("metadata must be a dictionary")
                 else:
@@ -3291,7 +3342,7 @@ class LLMObs(Service):
                 else:
                     _annotate_llmobs_span_data(span, metrics=metrics)
             if tags is not None:
-                if not isinstance(tags, dict):
+                if not isinstance(tags_arg, dict):
                     error = "invalid_tags"
                     raise LLMObsAnnotateSpanError(
                         "span tags must be a dictionary of string key - primitive value pairs."
@@ -3385,7 +3436,9 @@ class LLMObs(Service):
             telemetry.record_llmobs_annotate(span, error)
 
     @classmethod
-    def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_llm_io(
+        cls, span: Span, input_messages: Any = None, output_messages: Any = None
+    ) -> tuple[Optional[str], Optional[str]]:
         """Tags input/output messages for LLM-kind spans.
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
@@ -3454,7 +3507,9 @@ class LLMObs(Service):
                 )
 
     @classmethod
-    def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_embedding_io(
+        cls, span: Span, input_documents: Any = None, output_text: Any = None
+    ) -> tuple[Optional[str], Optional[str]]:
         """Tags input documents and output text for embedding-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -3472,7 +3527,9 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_retrieval_io(
+        cls, span: Span, input_text: Any = None, output_documents: Any = None
+    ) -> tuple[Optional[str], Optional[str]]:
         """Tags input text and output documents for retrieval-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -3491,7 +3548,7 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _tag_text_io(cls, span, input_value=None, output_value=None):
+    def _tag_text_io(cls, span: Span, input_value: Any = None, output_value: Any = None) -> None:
         """Tags input/output values for non-LLM kind spans.
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
@@ -3501,7 +3558,7 @@ class LLMObs(Service):
             _annotate_llmobs_span_data(span, output_value=safe_json(output_value))
 
     @classmethod
-    def _tag_freeform_io(cls, span, input_value=None, output_value=None):
+    def _tag_freeform_io(cls, span: Span, input_value: Any = None, output_value: Any = None) -> None:
         """Tags input/output values for experient spans.
         Will be mapped to span's `meta.{input,output}` fields.
         this is meant to be non restrictive on user's data, experiments allow
@@ -3518,7 +3575,7 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float, bool],
-        span: Optional[dict] = None,
+        span: Optional[dict[str, Any]] = None,
         span_with_tag_value: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
         ml_app: Optional[str] = None,
@@ -3687,7 +3744,7 @@ class LLMObs(Service):
         include_attachments: bool = True,
         limit: int = 10,
         agent_service: Optional[str] = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """
         Retrieves LLM span events from the Datadog platform API.
 
@@ -3801,8 +3858,10 @@ class LLMObs(Service):
             )
             return request_headers
         error = None
+        # Validated at runtime because callers may not be type-checked.
+        request_headers_arg: object = request_headers
         try:
-            if not isinstance(request_headers, dict):
+            if not isinstance(request_headers_arg, dict):
                 error = "invalid_request_headers"
                 raise LLMObsInjectDistributedHeadersError(
                     "request_headers must be a dictionary of string key-value pairs."
@@ -3916,7 +3975,8 @@ class LLMObs(Service):
                 "Distributed context will not be activated."
             )
             return
-        context = HTTPPropagator.extract(request_headers)
+        # HTTPPropagator.extract is untyped; ddtrace.propagation.http is still exempt in mypy.ini.
+        context = HTTPPropagator.extract(request_headers)  # type: ignore[no-untyped-call]
         cls._instance.tracer.context_provider.activate(context)
         cls._instance._activate_llmobs_distributed_context(request_headers, context, _soft_fail=False)
 

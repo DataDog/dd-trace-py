@@ -14,18 +14,18 @@ from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
+from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._safety import safe_qualname
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import SignalState
-from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 
 
 @dataclass
-class MetricSample(LogSignal):
+class MetricSample(LogSignal, probes=(MetricFunctionProbe, MetricLineProbe)):
     """Wrapper for making a metric sample"""
 
     __default_timing__ = ProbeEvalTiming.ENTRY
@@ -35,6 +35,12 @@ class MetricSample(LogSignal):
     @property
     def __type__(self) -> Optional[str]:
         return "metric"
+
+    @classmethod
+    def create(
+        cls, probe: Probe, frame: FrameType, thread: Any, trace_context: Optional[Any], meter: Metrics.Meter
+    ) -> "MetricSample":
+        return cls(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)
 
     def enter(self, scope: Mapping[str, Any]) -> None:
         if self._timing is ProbeEvalTiming.ENTRY:
@@ -99,15 +105,3 @@ class MetricSample(LogSignal):
 
     def has_message(self) -> bool:
         return bool(self.errors)
-
-
-@probe_to_signal.register
-def _(
-    probe: MetricFunctionProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter
-) -> MetricSample:
-    return MetricSample(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)
-
-
-@probe_to_signal.register
-def _(probe: MetricLineProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter) -> MetricSample:
-    return MetricSample(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)

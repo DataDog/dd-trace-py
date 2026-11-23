@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
-from functools import singledispatch
 import time
 from types import FrameType
 from typing import TYPE_CHECKING
@@ -83,6 +82,11 @@ class SignalTrack(str, Enum):
     SNAPSHOT = "snapshot"
 
 
+# Probe type -> signal class that the probe emits. Signal subclasses register
+# themselves with the probes class keyword when their module is imported.
+_PROBE_SIGNALS: dict[type[Probe], type["Signal"]] = {}
+
+
 @dataclass
 class Signal(abc.ABC):
     """Debugger signal base class.
@@ -127,6 +131,19 @@ class Signal(abc.ABC):
         init=False,
         repr=False,
     )
+
+    def __init_subclass__(cls, probes: tuple[type[Probe], ...] = (), **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+
+        # Only the class that names the probe types handles them; subclasses do
+        # not inherit the registration. A class re-created by a module reload
+        # replaces its previous version.
+        for probe_type in probes:
+            other = _PROBE_SIGNALS.get(probe_type)
+            if other is not None and (other.__module__, other.__qualname__) != (cls.__module__, cls.__qualname__):
+                msg = f"{probe_type.__name__} is already handled by {other.__module__}.{other.__qualname__}"
+                raise TypeError(msg)
+            _PROBE_SIGNALS[probe_type] = cls
 
     def __post_init__(self) -> None:
         probe = self.probe
@@ -344,19 +361,34 @@ class Signal(abc.ABC):
         if self.state is SignalState.NONE:
             self.state = SignalState.DONE
 
-    @staticmethod
-    def from_probe(
-        probe: Probe, frame: FrameType, thread: "Thread", trace_context: Optional[Any], meter: Metrics.Meter
+    @classmethod
+    def create(
+        cls, probe: Probe, frame: FrameType, thread: "Thread", trace_context: Optional[Any], meter: Metrics.Meter
     ) -> "Signal":
-        return probe_to_signal(probe, frame, thread, trace_context, meter)
+        """Create the signal emitted by probe. Override to change how a signal is constructed."""
+        return cls(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
 
 
-@singledispatch
-def probe_to_signal(
-    probe: Probe,
-    frame: FrameType,
-    thread: "Thread",
-    trace_context: Optional[Any],
-    meter: Metrics.Meter,
+def _lookup_signal_type(probe_type: type[Probe]) -> type[Signal]:
+    try:
+        return _PROBE_SIGNALS[probe_type]
+    except KeyError:
+        pass
+
+    # Fall back to the closest registered ancestor of the probe type.
+    for base in probe_type.__mro__[1:]:
+        if (signal_type := _PROBE_SIGNALS.get(base)) is not None:
+            return signal_type
+
+    raise TypeError(f"Unsupported probe type: {probe_type}")
+
+
+def _signal_for_probe(
+    probe: Probe, frame: FrameType, thread: "Thread", trace_context: Optional[Any], meter: Metrics.Meter
 ) -> Signal:
-    raise TypeError(f"Unsupported probe type: {type(probe)}")
+    """Create the signal for probe with the signal class registered for its type.
+
+    Callers should use signal_for_probe from ddtrace.debugging._signal.catalog,
+    which guarantees that every signal class has been registered.
+    """
+    return _lookup_signal_type(type(probe)).create(probe, frame, thread, trace_context, meter)

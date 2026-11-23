@@ -191,6 +191,10 @@ PROXY_REQUEST = "llmobs.proxy_request"
 
 REQUEST_BASE_URL = "llmobs.request_base_url"
 
+# Kind of the LLM gateway that serves a request, such as "litellm". LLMObs sets it on the core
+# context of the request. Each LLMObs span that starts in that context keeps a copy.
+GATEWAY = "llmobs.gateway"
+
 # experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"
@@ -267,6 +271,7 @@ class LLMOBS_STRUCT:
     MESSAGES: Final = "messages"
     DOCUMENTS: Final = "documents"
     AGENT_MANIFEST: Final = "agent_manifest"
+    GATEWAY: Final = "gateway"
     SPAN: Final = "span"
     KIND: Final = "kind"
     MODEL_NAME: Final = "model_name"

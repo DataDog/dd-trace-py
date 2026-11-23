@@ -162,6 +162,11 @@ The following environment variables are supported:
   otherwise ``none`` disables the signal. Unsupported entries are ignored with a warning. An empty
   value, or a list without ``otlp`` or ``none``, behaves like an unset one.
 
+- ``OTEL_SDK_DISABLED``
+  Set this to ``true`` to disable tracing, including OTLP trace export, and OpenTelemetry metrics and logs support
+  (default: ``false``). ``DD_TRACE_ENABLED`` takes precedence over this setting for tracing, while this setting
+  takes precedence over ``DD_METRICS_OTEL_ENABLED`` and ``DD_LOGS_OTEL_ENABLED``.
+
 - ``OTEL_METRIC_EXPORT_INTERVAL``
   Interval (in milliseconds) between metric exports.
 
@@ -194,8 +199,22 @@ The following environment variables are supported:
   configuration takes precedence over the global ``OTEL_EXPORTER_OTLP_PROTOCOL`` setting. Set
   ``OTEL_EXPORTER_OTLP_PROTOCOL=grpc`` to use a gRPC collector. gRPC
   trace export currently requires an ``http://`` endpoint; ``https://`` is not supported.
+  Protocol values are case-insensitive. Invalid or unsupported values for metrics and logs
+  produce a warning and fall back to ``http/protobuf``.
+
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_COMPRESSION``
+  Compression used for OTLP metrics and logs. Signal-specific configuration takes precedence
+  over the global ``OTEL_EXPORTER_OTLP_COMPRESSION`` setting. Supported values include ``none``
+  (default) and ``gzip``; HTTP exporters also support ``deflate``. Invalid or unsupported values
+  produce a warning and disable compression for the corresponding signal. Each setting
+  uses fleet configuration first, then environment variables, then local configuration.
 
 OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
+
+To check the settings in effect, read the ``DATADOG TRACER CONFIGURATION`` startup log, which
+``DD_TRACE_STARTUP_LOGS`` enables by default: it reports the value the SDK resolved for each setting above,
+keyed by its environment variable. ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_TIMEOUT`` are the exceptions, as the
+OpenTelemetry SDK exporters read them directly.
 
 
 Trace Mapping

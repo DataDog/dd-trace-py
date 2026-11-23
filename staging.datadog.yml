@@ -1,0 +1,10 @@
+schema-version: v1
+kind: integration-branch
+name: staging
+team: apm-core-python
+update_automatically: true
+update_at_most_every: 60m
+reset_pattern: "0 12 * * Mon"
+contacts:
+  - type: slack
+    contact: guild-dd-trace-py
