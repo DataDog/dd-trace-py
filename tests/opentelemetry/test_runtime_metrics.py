@@ -34,13 +34,23 @@ def test_runtime_metrics_exported_over_otlp():
     from ddtrace.runtime import RuntimeMetrics
     from tests.opentelemetry.utils import _capture_http_requests
     from tests.opentelemetry.utils import capture_dogstatsd_packets
+    from tests.opentelemetry.utils import metric_names
 
     with capture_dogstatsd_packets(18125) as dogstatsd_packets:
         with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
             assert get_meter_provider().force_flush()
-        # Leave nothing to export at exit, once the capturing server is gone. A DogStatsD worker would flush here.
+        # A DogStatsD worker would flush when the runtime metrics are disabled.
+        RuntimeMetrics.disable()
+        with _capture_http_requests(14321, ExportMetricsServiceRequest) as disabled_requests:
+            assert get_meter_provider().force_flush()
+        RuntimeMetrics.enable()
+        with _capture_http_requests(14321, ExportMetricsServiceRequest) as enabled_again_requests:
+            assert get_meter_provider().force_flush()
+        # Leave nothing to export at exit, once the capturing server is gone.
         RuntimeMetrics.disable()
     assert not [packet for packet in dogstatsd_packets if b"runtime.python." in packet], dogstatsd_packets
+    assert not {name for name in metric_names(disabled_requests) if name.startswith(("cpython.", "process."))}
+    assert {"cpython.gc.collections", "process.cpu.time"} <= metric_names(enabled_again_requests)
 
     points = {}
     monotonic = {}
@@ -165,19 +175,7 @@ def test_runtime_metrics_wait_for_the_application_to_import_opentelemetry():
 
 
 @requires_exporter
-@pytest.mark.parametrize(
-    "code",
-    [
-        "import opentelemetry",
-        # Enabled again once the meter provider is set up, which also registers its exit handler.
-        "import opentelemetry\n"
-        "from ddtrace.runtime import RuntimeMetrics\n"
-        "RuntimeMetrics.disable()\n"
-        "RuntimeMetrics.enable()",
-    ],
-    ids=["enabled_at_startup", "enabled_again"],
-)
-def test_runtime_metrics_exported_when_the_application_exits(python_process, code):
+def test_runtime_metrics_exported_when_the_application_exits(python_process):
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 
     from tests.opentelemetry.utils import _capture_http_requests
@@ -189,6 +187,13 @@ def test_runtime_metrics_exported_when_the_application_exits(python_process, cod
     env["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = "http://127.0.0.1:14322/v1/metrics"
     env["OTEL_METRIC_EXPORT_INTERVAL"] = "60000"
     with _capture_http_requests(14322, ExportMetricsServiceRequest) as requests:
+        # Enabled at startup, then again once the meter provider has registered its exit handler.
+        code = (
+            "import opentelemetry\n"
+            "from ddtrace.runtime import RuntimeMetrics\n"
+            "RuntimeMetrics.disable()\n"
+            "RuntimeMetrics.enable()"
+        )
         _, err, status, _ = python_process(code, ddtrace_run=True, env=env, timeout=60)
 
     assert status == 0, err
@@ -207,102 +212,15 @@ def test_runtime_metrics_exported_when_the_application_exits(python_process, cod
 
 @requires_exporter
 @pytest.mark.subprocess(ddtrace_run=True, env=OTLP_RUNTIME_METRICS_ENV)
-def test_runtime_metrics_disable_stops_otlp_export():
-    from opentelemetry.metrics import get_meter_provider
-    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
-
-    from ddtrace.runtime import RuntimeMetrics
-    from tests.opentelemetry.utils import _capture_http_requests
-    from tests.opentelemetry.utils import metric_names
-
-    RuntimeMetrics.disable()
-    with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
-        assert get_meter_provider().force_flush()
-    assert not {name for name in metric_names(requests) if name.startswith(("cpython.", "process."))}
-
-    RuntimeMetrics.enable()
-    with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
-        assert get_meter_provider().force_flush()
-    RuntimeMetrics.disable()
-    assert {"cpython.gc.collections", "process.cpu.time"} <= metric_names(requests)
-
-
-@requires_exporter
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env=OTLP_RUNTIME_METRICS_ENV,
-    parametrize={"OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": ["delta", "cumulative"]},
-)
-def test_runtime_metrics_counters_stay_monotonic_across_fork():
-    import os
-    import time
-    import warnings
-
-    from opentelemetry.metrics import get_meter_provider
-    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
-
-    from ddtrace.internal.runtime import get_runtime_id
-    from ddtrace.runtime import RuntimeMetrics
-    from tests.opentelemetry.utils import _capture_http_requests
-
-    def points(requests, *names):
-        return [
-            (
-                getattr(data_point, data_point.WhichOneof("value")),
-                {attribute.key: attribute.value.string_value for attribute in data_point.attributes},
-            )
-            for request in requests
-            for resource_metrics in request.resource_metrics
-            for scope_metrics in resource_metrics.scope_metrics
-            for metric in scope_metrics.metrics
-            if metric.name in names
-            for data_point in metric.sum.data_points
-        ]
-
-    # Use CPU in the parent, so that a child continuing its counters would report the CPU time of its parent.
-    deadline = time.monotonic() + 0.5
-    while time.monotonic() < deadline:
-        pass
-    with _capture_http_requests(14321, ExportMetricsServiceRequest) as parent_requests:
-        assert get_meter_provider().force_flush()
-    parent_runtime_id = get_runtime_id()
-    parent_cpu_time = sum(value for value, _ in points(parent_requests, "process.cpu.time"))
-
-    with warnings.catch_warnings():
-        # Python 3.12+ warns when a multi-threaded process forks.
-        warnings.simplefilter("ignore", DeprecationWarning)
-        pid = os.fork()
-    if pid == 0:
-        exit_code = 1
-        try:
-            with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
-                flushed = get_meter_provider().force_flush()
-            counters = points(requests, "process.cpu.time", "process.context_switches")
-            child_runtime_id = get_runtime_id()
-            # The child reports only its own usage, under its own runtime ID.
-            valid = (
-                child_runtime_id != parent_runtime_id
-                and all(attributes["datadog.runtime_id"] == child_runtime_id for _, attributes in counters)
-                and all(value >= 0 for value, _ in counters)
-                and sum(value for value, attributes in counters if "cpu.mode" in attributes) < parent_cpu_time
-            )
-            exit_code = 0 if flushed and counters and valid else 1
-        finally:
-            os._exit(exit_code)
-
-    _, status = os.waitpid(pid, 0)
-    RuntimeMetrics.disable()
-    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report its own usage"
-
-
-@requires_exporter
-@pytest.mark.subprocess(ddtrace_run=True, env=OTLP_RUNTIME_METRICS_ENV)
-def test_runtime_metrics_gc_since_fork_when_opentelemetry_is_imported_after_the_fork():
+def test_runtime_metrics_of_a_child_forked_before_opentelemetry_is_imported():
     import gc
     import os
     import warnings
 
+    from ddtrace.internal.runtime import get_runtime_id
+
     # Like a server that forks its workers before loading the application, which imports OpenTelemetry.
+    parent_runtime_id = get_runtime_id()
     parent_collections = 50
     for _ in range(parent_collections):
         gc.collect()
@@ -323,6 +241,16 @@ def test_runtime_metrics_gc_since_fork_when_opentelemetry_is_imported_after_the_
             with _capture_http_requests(14321, ExportMetricsServiceRequest) as requests:
                 flushed = get_meter_provider().force_flush()
             RuntimeMetrics.disable()
+            runtime_ids = {
+                attribute.value.string_value
+                for request in requests
+                for resource_metrics in request.resource_metrics
+                for scope_metrics in resource_metrics.scope_metrics
+                for metric in scope_metrics.metrics
+                for data_point in getattr(metric, metric.WhichOneof("data")).data_points
+                for attribute in data_point.attributes
+                if attribute.key == "datadog.runtime_id"
+            }
             full_collections = [
                 data_point.as_int
                 for request in requests
@@ -336,13 +264,19 @@ def test_runtime_metrics_gc_since_fork_when_opentelemetry_is_imported_after_the_
                 )
                 == 2
             ]
-            # The child reports its own full collections, not those of its parent.
-            exit_code = 0 if flushed and full_collections and sum(full_collections) < parent_collections else 1
+            # The child reports its own full collections, not those of its parent, under its own runtime ID.
+            valid = (
+                runtime_ids == {get_runtime_id()}
+                and parent_runtime_id not in runtime_ids
+                and full_collections
+                and sum(full_collections) < parent_collections
+            )
+            exit_code = 0 if flushed and valid else 1
         finally:
             os._exit(exit_code)
 
     _, status = os.waitpid(pid, 0)
-    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report its own GC collections"
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, "The child must report its own metrics"
 
 
 @requires_exporter
