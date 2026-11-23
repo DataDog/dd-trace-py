@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AAP: Fixes an issue where user signup events reported with a collection mode other than ``sdk``
+    recorded that mode under an incorrect span tag, so App and API Protection did not show how the
+    signup event was collected.
