@@ -2,6 +2,7 @@ from collections.abc import Mapping
 import json
 import logging
 import signal
+import sys
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -33,6 +34,19 @@ from ddtrace.profiling.collector import threading
 
 LOG = logging.getLogger(__name__)
 
+# CPython runs the multiprocessing resource tracker as
+# python -c "from multiprocessing.resource_tracker import main;main(<fd>)".
+_RESOURCE_TRACKER_COMMAND = "from multiprocessing.resource_tracker import main;"
+
+
+def _is_multiprocessing_resource_tracker() -> bool:
+    # sys.orig_argv is only available on Python 3.10+.
+    argv: Optional[list[str]] = getattr(sys, "orig_argv", None)
+    if not argv or "-c" not in argv:
+        return False
+    command_index = argv.index("-c") + 1
+    return command_index < len(argv) and argv[command_index].startswith(_RESOURCE_TRACKER_COMMAND)
+
 
 class Profiler:
     """Run profiling while code is executed.
@@ -60,6 +74,11 @@ class Profiler:
                     "[profiling] A profiler is already running. Only one profiler instance can be active at a time. "
                     "The second profiler will not be started."
                 )
+                return
+
+            if _is_multiprocessing_resource_tracker():
+                # The tracker only runs CPython's cleanup loop, so there is nothing to profile.
+                LOG.debug("[profiling] Not starting the profiler in the multiprocessing resource tracker")
                 return
 
             try:
