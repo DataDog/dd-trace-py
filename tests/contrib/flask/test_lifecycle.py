@@ -67,7 +67,11 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
                 with self.tracer.trace("stream.child") as child:
                     children.append(child)
                     chunks.append(1)
-                    yield b"first"
+                    try:
+                        yield b"first"
+                        self.assertIs(self.tracer.current_span(), child)
+                    finally:
+                        self.assertIs(self.tracer.current_span(), child)
                 yield b"second"
 
             return flask.Response(generate())
@@ -76,11 +80,11 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
             response = self.open_response("/stream")
             self.assertEqual(chunks, [])
             self.assertEqual(self.phases, ["started"])
-            self.assertIs(self.tracer.current_span(), caller)
+            self.assertIs(self.tracer.current_root_span(), caller)
             self.assertEqual(next(response), b"first")
             response_span = self.scopes[0].get_item("response_span")
             self.assertEqual(children[0].parent_id, response_span.span_id)
-            self.assertIs(self.tracer.current_span(), caller)
+            self.assertIs(self.tracer.current_root_span(), caller)
             self.assertEqual(list(response), [b"second"])
             response.close()
             self.assertIs(self.tracer.current_span(), caller)
@@ -577,7 +581,7 @@ def test_manual_flask_with_deferred_tracer_initialization() -> None:
         tracer._span_aggregator.writer = cast(Any, writer)
         with tracer.trace("caller") as caller:
             response = app(builder.get_environ(), lambda *args: lambda data: None)
-            assert tracer.current_span() is caller
+            assert tracer.current_root_span() is caller
             assert list(response) == [b"first", b"second"]
             response.close()
             assert tracer.current_span() is caller

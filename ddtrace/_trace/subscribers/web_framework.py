@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from types import TracebackType
 from typing import Optional
 
@@ -45,8 +47,9 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             super()._on_context_ended(ctx, exc_info)
             return
 
-        # Deferred WSGI failures belong to the response span. The request's
-        # status and error attribution were established before streaming.
+        # Setup can fail after response span creation but before the middleware
+        # returns an iterable. Those failures also belong to the request span.
+        request_exc_info = (None, None, None) if ctx.get_item("response_ready", False) else exc_info
         try:
             try:
                 exc_type, exc_value, traceback = exc_info
@@ -55,7 +58,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             finally:
                 response_span.finish()
         finally:
-            super()._on_context_ended(ctx, (None, None, None))
+            super()._on_context_ended(ctx, request_exc_info)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
@@ -157,3 +160,21 @@ class WebFrameworkResponseSubscriber(Subscriber):
         response_span._set_attribute(COMPONENT, request_event.component)
         ctx.set_item("response_span", response_span)
         event.span_modifier(response_span, event.response)
+        provider = tracer.context_provider
+        active = provider.active()
+
+        @contextmanager
+        def response_context() -> Iterator[None]:
+            nonlocal active
+            previous = provider.active()
+            provider.activate(active)
+            try:
+                yield
+            finally:
+                # A generator can suspend inside a child span across yields.
+                active = provider.active()
+                provider.activate(previous)
+                # Completion may have finished the saved ambient span too.
+                provider.active()
+
+        event.response_context = response_context

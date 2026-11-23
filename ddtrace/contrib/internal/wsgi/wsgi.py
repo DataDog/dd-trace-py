@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from contextvars import Context
-from contextvars import copy_context
 import sys
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
+from typing import ContextManager
 from typing import Iterable
 from typing import Optional
-from typing import TypeVar
 
 from ddtrace._trace.events import WebFrameworkResponseEvent
 from ddtrace._trace.http_tags import set_instrumentation_resource
@@ -33,8 +31,6 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
-from ddtrace.internal._context_watcher import context_switches_require_fallback
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import COMPONENT
@@ -69,24 +65,6 @@ def _supported_versions() -> dict[str, str]:
     return {"wsgi": "*"}
 
 
-_T = TypeVar("_T")
-
-
-def _run_in_context(context: Context, callback: Callable[..., _T], *args: Any) -> _T:
-    if not context_switches_require_fallback():
-        return context.run(callback, *args)
-
-    def invoke() -> _T:
-        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
-        return callback(*args)
-
-    try:
-        return context.run(invoke)
-    finally:
-        # Context.run restores Python's context without activating its spans.
-        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
-
-
 class _WSGIResponseIterable:
     """Report response completion without owning tracing or security resources."""
 
@@ -106,7 +84,7 @@ class _WSGIResponseIterable:
         wrapped: Iterable[Any],
         on_complete: Callable[[ExcInfoType], None],
         wrapped_is_iterator: bool = False,
-        context: Optional[Context] = None,
+        context: Optional[Callable[[], ContextManager[None]]] = None,
     ) -> None:
         self._context = context
         self._iterator = iter(wrapped)
@@ -125,7 +103,8 @@ class _WSGIResponseIterable:
 
     def __next__(self) -> Any:
         if self._context is not None:
-            return _run_in_context(self._context, self._next)
+            with self._context():
+                return self._next()
         return self._next()
 
     def _next(self) -> Any:
@@ -145,7 +124,8 @@ class _WSGIResponseIterable:
             return
         self._closed = True
         if self._context is not None:
-            _run_in_context(self._context, self._close_response)
+            with self._context():
+                self._close_response()
         else:
             self._close_response()
 
@@ -237,16 +217,6 @@ class _DDWSGIMiddlewareBase:
     def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> _WSGIResponseIterable:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
-        # Werkzeug re-pushes preserved Flask contexts in the caller. Their token
-        # stacks must stay in that same Context through response iteration/close.
-        if "werkzeug.debug.preserve_context" in environ or environ.get("flask._preserve_context"):
-            return self._execute_request(environ, start_response, None)
-        execution_context = copy_context()
-        return _run_in_context(execution_context, self._execute_request, environ, start_response, execution_context)
-
-    def _execute_request(
-        self, environ: dict[str, Any], start_response: Callable[..., Any], execution_context: Optional[Context]
-    ) -> _WSGIResponseIterable:
         headers = get_request_headers(environ)
         event = WebFrameworkRequestEvent(
             component=self._config.integration_name,
@@ -365,24 +335,22 @@ class _DDWSGIMiddlewareBase:
                     if hasattr(self, "_response_call_modifier")
                     else self._response_span_modifier
                 )
-                core.dispatch_event(
-                    WebFrameworkResponseEvent(
-                        request_context=ctx,
-                        operation_name=(
-                            self._response_call_name
-                            if hasattr(self, "_response_call_name")
-                            else self._response_span_name
-                        ),
-                        response=closing_iterable,
-                        span_modifier=modifier,
-                    )
+                response_event = WebFrameworkResponseEvent(
+                    request_context=ctx,
+                    operation_name=(
+                        self._response_call_name if hasattr(self, "_response_call_name") else self._response_span_name
+                    ),
+                    response=closing_iterable,
+                    span_modifier=modifier,
                 )
+                core.dispatch_event(response_event)
                 response = _WSGIResponseIterable(
                     closing_iterable,
                     lambda exc_info: ctx.dispatch_ended_event(*exc_info),
                     self.app_is_iterator,
-                    execution_context,
+                    response_event.response_context,
                 )
+                ctx.set_item("response_ready", True)
 
                 if stop_iteration_exception:
                     # Close the request and app spans without treating socket closure as an error.

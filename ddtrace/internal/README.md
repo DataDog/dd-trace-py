@@ -217,14 +217,15 @@ their existing order. These integrations remain span-dependent. Their service is
 resolved at span creation; deferred completion preserves later changes to the live
 request span instead of resolving its service again.
 
-Application execution, iteration, and closure normally run in one copied Context.
-When native context watching is unavailable, these transitions publish the shared
-context-switch event on entry and after caller restoration, including exceptional
-exits, so native trace correlation follows the active Python context.
-When Werkzeug requests context preservation, including a preserved Flask test
-client, they remain in the caller's Context so Flask can safely re-push and pop its
-saved context objects. The legacy Flask preservation flag follows the same rule.
-Ordinary requests retain isolated execution for interleaved response streams.
+Application execution, iteration, and closure run in the caller's Python Context,
+so outer middleware can observe application ContextVar bindings and the active
+request root. Flask context-preservation tokens remain in their original Context.
+Tracing supplies a response context manager that resumes the active span saved at
+each yield and restores the ambient span afterward. This preserves stream-child
+parenting for interleaved responses without isolating application context variables.
+Response setup failures, including iterator construction, mark the request and
+response spans as errored; failures after the response is ready retain response-only
+attribution.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls

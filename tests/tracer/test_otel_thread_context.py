@@ -229,7 +229,8 @@ def test_global_tracer_listener_is_registered_on_explicit_import():
 
 def test_python_context_switch_syncs_active_span(tracer: Tracer):
     with tracer.trace("test") as span:
-        sync_otel_thread_context(None)
+        if sys.platform == "linux":
+            sync_otel_thread_context(None)
         assert _published_span_id() is None
 
         core.dispatch("python.context.switch")
@@ -249,7 +250,8 @@ def test_python_context_switch_syncs_active_span(tracer: Tracer):
 def test_python_context_switch_syncs_active_context(tracer: Tracer):
     context = DDContext(trace_id=123, span_id=456, sampling_priority=1)
     tracer.context_provider.activate(context)
-    sync_otel_thread_context(None)
+    if sys.platform == "linux":
+        sync_otel_thread_context(None)
 
     core.dispatch("python.context.switch")
 
@@ -350,8 +352,8 @@ def test_wsgi_context_transitions_publish_native_context(tracer: Tracer, termina
             check_context("caller")
         else:
             response = middleware(environ, lambda *args: None)
-            check_context("caller")
-            assert tracer.current_span() is caller
+            check_context("after_application")
+            assert tracer.current_root_span() is caller
             # A different ambient span ensures reentry restores the current caller,
             # rather than the context captured when the middleware was invoked.
             with tracer.trace("other_caller") as other:

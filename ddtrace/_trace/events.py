@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import ClassVar
+from typing import ContextManager
 from typing import Optional
 
 from ddtrace.internal.core import ExecutionContext
@@ -107,3 +108,4 @@ class WebFrameworkResponseEvent(Event):
     operation_name: str
     response: Any
     span_modifier: Callable[[Any, Any], None]
+    response_context: Optional[Callable[[], ContextManager[None]]] = None
