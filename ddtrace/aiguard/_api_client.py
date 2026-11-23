@@ -138,10 +138,21 @@ class Error(TypedDict, total=False):
 class AIGuardClientError(Exception):
     """Exception for AI Guard client errors."""
 
+    # The type of the error metric, and the status of a bad_status error. See _classified.
+    _error_type: Optional[str] = None
+    _error_status: Optional[int] = None
+
     def __init__(self, message: Optional[str], status: int = 0, errors: Optional[list[Error]] = None):
         self.status = status
         self.errors = errors or []
         super().__init__(message)
+
+
+def _classified(error: AIGuardClientError, error_type: str, error_status: Optional[int] = None) -> AIGuardClientError:
+    """Attach the error metric type, and the response status of a bad_status error, to error."""
+    error._error_type = error_type
+    error._error_status = error_status
+    return error
 
 
 class AIGuardAbortError(DDBlockException):
@@ -461,19 +472,7 @@ class AIGuardClient:
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
 
-        # The tracer comes from the core registry rather than ddtrace.trace so AI Guard doesn't depend on the
-        # tracing product. The verdict is reported on the ai_guard span, so evaluating without a tracer would
-        # silently drop it.
-        tracer = core.root.get_item("tracer")
-        if tracer is None:
-            raise AIGuardClientError("AI Guard requires the global tracer, but no tracer has been initialized")
-
-        # Classifies the error metric when a raise below escapes. Transport and response paths
-        # each set their own type, so anything still holding the default failed inside our own
-        # code, which is what internal_error means; client_error is reserved for a transport
-        # failure the native client reports but we do not recognise.
-        error_type: str = AI_GUARD.ERROR_INTERNAL
-        error_status: Optional[int] = None
+        tracer = self._get_tracer()
         call_path_tags = self._call_path_tags(source, integration)
         (_, clamped_source), (_, clamped_integration) = call_path_tags
 
@@ -529,103 +528,72 @@ class AIGuardClient:
                     for middleware in _MIDDLEWARES:
                         _call_hook(middleware.pre_evaluate, context)
 
-                transport_error = None
+                result = self._post("/evaluate", payload)
                 try:
-                    response = self._execute_request(f"{self._endpoint}/evaluate", payload)
+                    attributes = result["data"]["attributes"]
+                    action = attributes["action"]
+                    reason = attributes.get("reason", None)
+                    attack_categories = attributes.get("tags", [])
+                    # Reported verbatim: location offsets are computed on the redacted string, so
+                    # they only line up when the redacted messages are what ends up reported.
+                    sds_findings = attributes.get("sds_findings") or []
+                    blocking_enabled = attributes.get("is_blocking_enabled", False)
+                    tag_probs = attributes.get("tag_probs")
+                    # Presence of the field is the signal to redact; sds_findings are detection
+                    # metadata only and never drive redaction.
+                    redaction_replacements = attributes.get("redaction_replacements")
+                    extra_tags = attributes.get("extra_tags")
+                    extra_metastruct = attributes.get("extra_metastruct")
                 except Exception as e:
-                    error_type = _classify_transport_error(e)
-                    transport_error = AIGuardClientError(message=self._describe_transport_error(e))
-                if transport_error is not None:
-                    # Raised outside the handler on purpose: that leaves __cause__ and __context__
-                    # empty, so nothing can render the transport failure or its endpoint again.
-                    raise transport_error
-
-                try:
-                    result = response.get_json() or {}  # type: ignore[no-untyped-call]
-                except Exception as e:
-                    # A body we cannot decode is a response problem, not a transport one, unless
-                    # the status code already explains the failure.
-                    if response.status == 200:
-                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
-                    else:
-                        error_type = AI_GUARD.ERROR_BAD_STATUS
-                        error_status = response.status
-                    raise AIGuardClientError(
-                        message=f"AI Guard service returned an undecodable response body: {e}",
-                        status=response.status,
+                    value = json.dumps(result, indent=2)[:500]
+                    raise _classified(
+                        AIGuardClientError(
+                            message=f"AI Guard service returned unexpected response format: {value}", status=200
+                        ),
+                        AI_GUARD.ERROR_BAD_RESPONSE,
                     ) from e
 
-                if response.status == 200:
-                    try:
-                        attributes = result["data"]["attributes"]
-                        action = attributes["action"]
-                        reason = attributes.get("reason", None)
-                        attack_categories = attributes.get("tags", [])
-                        # Reported verbatim: location offsets are computed on the redacted string, so
-                        # they only line up when the redacted messages are what ends up reported.
-                        sds_findings = attributes.get("sds_findings") or []
-                        blocking_enabled = attributes.get("is_blocking_enabled", False)
-                        tag_probs = attributes.get("tag_probs")
-                        # Presence of the field is the signal to redact; sds_findings are detection
-                        # metadata only and never drive redaction.
-                        redaction_replacements = attributes.get("redaction_replacements")
-                        extra_tags = attributes.get("extra_tags")
-                        extra_metastruct = attributes.get("extra_metastruct")
-                    except Exception as e:
-                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
-                        value = json.dumps(result, indent=2)[:500]
-                        raise AIGuardClientError(
-                            message=f"AI Guard service returned unexpected response format: {value}",
-                            status=response.status,
-                        ) from e
-
-                    if action not in ACTIONS:
-                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
-                        raise AIGuardClientError(
+                if action not in ACTIONS:
+                    raise _classified(
+                        AIGuardClientError(
                             f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}",
-                            status=response.status,
-                        )
-
-                    span.set_tag(AI_GUARD.ACTION_TAG, action)
-                    redacted_messages = messages
-                    redaction_enabled = aiguard_config._ai_guard_redaction_enabled
-                    # Not truthiness: a present but malformed payload has redaction errors to report.
-                    if redaction_enabled and redaction_replacements is not None:
-                        redacted_messages, redaction_errors = redact_messages(messages, redaction_replacements)
-                        # A replacement we cannot apply is reported and then forgotten: redaction is
-                        # best effort and must never fail the evaluation it rode in on.
-                        if redaction_errors:
-                            self._add_error_to_telemetry(AI_GUARD.ERROR_REDACTION, call_path_tags, redaction_errors)
-                    # redact_messages returns the very same list when nothing was applied.
-                    redacted = redacted_messages is not messages
-                    if redaction_enabled:
-                        span.set_tag(AI_GUARD.REDACTED_TAG, "true" if redacted else "false")
-
-                    meta_struct: dict[str, Any] = {
-                        "messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)
-                    }
-                    # Resolves the mcp.server_id of the tool calls in messages to the server it names.
-                    if mcp_servers:
-                        meta_struct["mcp_servers"] = deepcopy(mcp_servers)
-                    span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
-
-                    if attack_categories:
-                        meta_struct.update({"attack_categories": attack_categories})
-                    if reason:
-                        span.set_tag(AI_GUARD.REASON_TAG, reason)
-                    if sds_findings:
-                        meta_struct.update({"sds": sds_findings})
-                    if tag_probs is not None:
-                        meta_struct.update({"tag_probs": tag_probs})
-                    self._apply_extra_tags(span, meta_struct, extra_tags, extra_metastruct)
-                else:
-                    error_type = AI_GUARD.ERROR_BAD_STATUS
-                    error_status = response.status
-                    raise AIGuardClientError(
-                        message=f"AI Guard service call failed, status: {response.status}",
-                        status=response.status,
-                        errors=result["errors"] if "errors" in result else None,
+                            status=200,
+                        ),
+                        AI_GUARD.ERROR_BAD_RESPONSE,
                     )
+
+                span.set_tag(AI_GUARD.ACTION_TAG, action)
+                redacted_messages = messages
+                redaction_enabled = aiguard_config._ai_guard_redaction_enabled
+                # Not truthiness: a present but malformed payload has redaction errors to report.
+                if redaction_enabled and redaction_replacements is not None:
+                    redacted_messages, redaction_errors = redact_messages(messages, redaction_replacements)
+                    # A replacement we cannot apply is reported and then forgotten: redaction is
+                    # best effort and must never fail the evaluation it rode in on.
+                    if redaction_errors:
+                        self._add_error_to_telemetry(AI_GUARD.ERROR_REDACTION, call_path_tags, redaction_errors)
+                # redact_messages returns the very same list when nothing was applied.
+                redacted = redacted_messages is not messages
+                if redaction_enabled:
+                    span.set_tag(AI_GUARD.REDACTED_TAG, "true" if redacted else "false")
+
+                meta_struct: dict[str, Any] = {
+                    "messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)
+                }
+                # Resolves the mcp.server_id of the tool calls in messages to the server it names.
+                if mcp_servers:
+                    meta_struct["mcp_servers"] = deepcopy(mcp_servers)
+                span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
+
+                if attack_categories:
+                    meta_struct.update({"attack_categories": attack_categories})
+                if reason:
+                    span.set_tag(AI_GUARD.REASON_TAG, reason)
+                if sds_findings:
+                    meta_struct.update({"sds": sds_findings})
+                if tag_probs is not None:
+                    meta_struct.update({"tag_probs": tag_probs})
+                self._apply_extra_tags(span, meta_struct, extra_tags, extra_metastruct)
 
                 should_block = self._is_blocking_enabled(options, blocking_enabled) and action != ALLOW
                 telemetry_tags = [
@@ -639,10 +607,8 @@ class AIGuardClient:
                 telemetry_tags.append(("skipped", "false"))
                 telemetry_tags.extend(call_path_tags)
                 self._add_request_to_telemetry(tuple(telemetry_tags))
-                root_span = span_bus.get_root_span()
+                root_span = self._mark_root_span()
                 if root_span:
-                    _aiguard_manual_keep(root_span)
-                    root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
                     # Populate client IPs on the service-entry span only when an ai_guard span
                     # is actually created, mirroring the AppSec spec. The candidate IPs were
                     # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
@@ -694,13 +660,7 @@ class AIGuardClient:
             except Exception as e:
                 if context is not None:
                     context.error = e
-                self._add_request_to_telemetry((("error", "true"), ("skipped", "false")) + call_path_tags)
-                error_tags = call_path_tags
-                # Only bad_status has a status to report, and an absent tag stays distinguishable
-                # from a status we deliberately clamped away.
-                if error_status is not None:
-                    error_tags += (("http_status", _status_tag(error_status)),)
-                self._add_error_to_telemetry(error_type, error_tags)
+                error_type = self._report_failure(e, call_path_tags)
                 # Log the classification and only the size of the conversation: the messages may
                 # carry sensitive data that redaction would have removed, and this runs before any
                 # redaction decision is known.
@@ -726,13 +686,7 @@ class AIGuardClient:
 
         Raises AIGuardAbortError if the decision must block, and AIGuardClientError if the evaluation fails.
         """
-        tracer = core.root.get_item("tracer")
-        if tracer is None:
-            raise AIGuardClientError("AI Guard requires the global tracer, but no tracer has been initialized")
-
-        # As in evaluate: a failure that no step below classifies is a failure in our own code.
-        error_type: str = AI_GUARD.ERROR_INTERNAL
-        error_status: Optional[int] = None
+        tracer = self._get_tracer()
         call_path_tags = self._call_path_tags(source, integration)
         (_, clamped_source), (_, clamped_integration) = call_path_tags
 
@@ -742,56 +696,25 @@ class AIGuardClient:
                 span.set_tag(AI_GUARD.SOURCE_TAG, clamped_source)
                 span.set_tag(AI_GUARD.INTEGRATION_TAG, clamped_integration)
                 attributes = {"profile": AI_GUARD.POLICY_PROFILE_DEFAULT, "targets": [target], "meta": self._meta}
-
-                transport_error = None
-                try:
-                    response = self._execute_request(
-                        f"{self._endpoint}/evaluate/resource", {"data": {"attributes": attributes}}
-                    )
-                except Exception as e:
-                    error_type = _classify_transport_error(e)
-                    transport_error = AIGuardClientError(message=self._describe_transport_error(e))
-                if transport_error is not None:
-                    # As in evaluate, the raise is outside the handler, so that no exception chain
-                    # includes the transport failure.
-                    raise transport_error
-
-                try:
-                    body = response.get_json() or {}  # type: ignore[no-untyped-call]
-                except Exception as e:
-                    if response.status == 200:
-                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
-                    else:
-                        error_type = AI_GUARD.ERROR_BAD_STATUS
-                        error_status = response.status
-                    raise AIGuardClientError(
-                        message=f"AI Guard service returned an undecodable response body: {e}",
-                        status=response.status,
-                    ) from e
-
-                if response.status != 200:
-                    error_type = AI_GUARD.ERROR_BAD_STATUS
-                    error_status = response.status
-                    raise AIGuardClientError(
-                        message=f"AI Guard service call failed, status: {response.status}",
-                        status=response.status,
-                        errors=body.get("errors") if isinstance(body, dict) else None,
-                    )
+                body = self._post("/evaluate/resource", {"data": {"attributes": attributes}})
 
                 result = _target_result(body)
                 if result is None:
-                    error_type = AI_GUARD.ERROR_BAD_RESPONSE
                     value = json.dumps(body, indent=2)[:500]
-                    raise AIGuardClientError(
-                        message=f"AI Guard service returned no single result for the target: {value}",
-                        status=response.status,
+                    raise _classified(
+                        AIGuardClientError(
+                            message=f"AI Guard service returned no single result for the target: {value}", status=200
+                        ),
+                        AI_GUARD.ERROR_BAD_RESPONSE,
                     )
                 action = result.get("action")
                 if action not in ACTIONS:
-                    error_type = AI_GUARD.ERROR_BAD_RESPONSE
-                    raise AIGuardClientError(
-                        f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}",
-                        status=response.status,
+                    raise _classified(
+                        AIGuardClientError(
+                            f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}",
+                            status=200,
+                        ),
+                        AI_GUARD.ERROR_BAD_RESPONSE,
                     )
 
                 span.set_tag(AI_GUARD.ACTION_TAG, action)
@@ -828,22 +751,15 @@ class AIGuardClient:
                     )
                     + call_path_tags
                 )
-                root_span = span_bus.get_root_span()
-                if root_span:
-                    _aiguard_manual_keep(root_span)
-                    root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
+                self._mark_root_span()
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(action=action, reason=reason)
                 return evaluation
 
             # AIGuardAbortError is a BaseException, so a block is not reported as a failure.
-            except Exception:
-                self._add_request_to_telemetry((("error", "true"), ("skipped", "false")) + call_path_tags)
-                error_tags = call_path_tags
-                if error_status is not None:
-                    error_tags += (("http_status", _status_tag(error_status)),)
-                self._add_error_to_telemetry(error_type, error_tags)
+            except Exception as e:
+                error_type = self._report_failure(e, call_path_tags)
                 logger.debug("AI Guard resource evaluation failed (%s)", error_type, exc_info=True)
                 raise
 
@@ -884,6 +800,81 @@ class AIGuardClient:
             return Response.from_http_response(resp)
         finally:
             conn.close()
+
+    @staticmethod
+    def _get_tracer() -> Any:
+        # The tracer comes from the core registry rather than ddtrace.trace so AI Guard doesn't depend on the
+        # tracing product. The verdict is reported on the ai_guard span, so evaluating without a tracer would
+        # silently drop it.
+        tracer = core.root.get_item("tracer")
+        if tracer is None:
+            raise AIGuardClientError("AI Guard requires the global tracer, but no tracer has been initialized")
+        return tracer
+
+    def _post(self, path: str, payload: Any) -> Any:
+        """Send payload to the service path and return the decoded body of a 200 response.
+
+        Transport, body and status failures raise an AIGuardClientError classified for the error metric.
+        """
+        transport_error = None
+        try:
+            response = self._execute_request(f"{self._endpoint}{path}", payload)
+        except Exception as e:
+            transport_error = _classified(
+                AIGuardClientError(message=self._describe_transport_error(e)), _classify_transport_error(e)
+            )
+        if transport_error is not None:
+            # Raised outside the handler on purpose: that leaves __cause__ and __context__
+            # empty, so nothing can render the transport failure or its endpoint again.
+            raise transport_error
+
+        try:
+            body = response.get_json() or {}  # type: ignore[no-untyped-call]
+        except Exception as e:
+            # A body we cannot decode is a response problem, not a transport one, unless
+            # the status code already explains the failure.
+            error = AIGuardClientError(
+                message=f"AI Guard service returned an undecodable response body: {e}", status=response.status
+            )
+            if response.status == 200:
+                raise _classified(error, AI_GUARD.ERROR_BAD_RESPONSE) from e
+            raise _classified(error, AI_GUARD.ERROR_BAD_STATUS, response.status) from e
+
+        if response.status != 200:
+            raise _classified(
+                AIGuardClientError(
+                    message=f"AI Guard service call failed, status: {response.status}",
+                    status=response.status,
+                    errors=body.get("errors") if isinstance(body, dict) else None,
+                ),
+                AI_GUARD.ERROR_BAD_STATUS,
+                response.status,
+            )
+        return body
+
+    def _report_failure(self, error: Exception, call_path_tags: tuple[tuple[str, str], ...]) -> str:
+        """Report a failed evaluation to telemetry and return the type of its error metric."""
+        # An error that no step classifies is a failure inside our own code, which is what internal_error
+        # means; client_error is reserved for a transport failure the native client reports but we do not recognise.
+        error_type = getattr(error, "_error_type", None) or AI_GUARD.ERROR_INTERNAL
+        error_status = getattr(error, "_error_status", None)
+        self._add_request_to_telemetry((("error", "true"), ("skipped", "false")) + call_path_tags)
+        error_tags = call_path_tags
+        # Only bad_status has a status to report, and an absent tag stays distinguishable
+        # from a status we deliberately clamped away.
+        if error_status is not None:
+            error_tags += (("http_status", _status_tag(error_status)),)
+        self._add_error_to_telemetry(error_type, error_tags)
+        return error_type
+
+    @staticmethod
+    def _mark_root_span() -> Optional[Any]:
+        """Keep the trace of an evaluation and mark its root span as an AI Guard event; return the root span."""
+        root_span = span_bus.get_root_span()
+        if root_span:
+            _aiguard_manual_keep(root_span)
+            root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
+        return root_span
 
 
 def new_ai_guard_client(
