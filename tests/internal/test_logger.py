@@ -583,3 +583,14 @@ def test_logger_log_level_falls_back_to_nearest_configured_ancestor(monkeypatch)
     assert trie.lookup("ddtrace.internal.coverage") == logging.DEBUG
     assert trie.lookup("ddtrace.internal.coverage.other") == logging.DEBUG
     assert trie.lookup("ddtrace.other") is None
+
+
+def test_product_log_exception_text_with_format_specifier():
+    # The exception text is appended to the message after its arguments are interpolated, so a "%s" in it must
+    # neither break the formatting nor lose the record
+    output = _product_log_output(
+        "failed %s", "arg", exc_info=True, extra={"product": "example"}, exc_message="bad %s value"
+    )
+
+    assert "example::failed arg" in output
+    assert "ValueError: bad %s value" in output

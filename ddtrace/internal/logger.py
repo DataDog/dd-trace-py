@@ -240,12 +240,14 @@ def log_filter(record: logging.LogRecord) -> bool:
             # format the stacks if they are present with the right depth
             if stack_limit and record.stack_info:
                 record.stack_info = format_stack(record.stack_info, stack_limit)
-            string_buffer = [f"{product}::{record.msg}{more_info}{skip_str}"]
+            # Interpolate the arguments now: the exception and stack text appended below is not a format string
+            string_buffer = [f"{product}::{record.getMessage()}{more_info}{skip_str}"]
             if record.stack_info:
                 string_buffer.append(record.stack_info)
             if record.exc_info:
                 string_buffer.extend(traceback.format_exception(record.exc_info[1], limit=exec_limit or None))
             record.msg = "\n".join(string_buffer)
+            record.args = None
             # clean the record for any subsequent handlers
             record.stack_info = None
             record.exc_info = None
