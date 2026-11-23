@@ -160,7 +160,7 @@ def test_intent_capture(mcp_llmobs, test_spans, run_client, mode):
     assert "telemetry" not in json.loads(get_llmobs_input_value(server_span))["params"]["arguments"]
 
 
-def test_intent_capture_disabled_by_default(mcp_llmobs, run_client):
+def test_intent_capture_disabled(mcp_llmobs, run_client):
     tools = run_client("auto", lambda client: client.list_tools())
 
     schema = next(tool for tool in tools.tools if tool.name == "calculator").input_schema
@@ -247,7 +247,7 @@ def test_conversation_id_capture(mcp_llmobs, test_spans, run_client, mode):
         )
         return tools, first, second, conversation_id
 
-    with override_config("mcp", dict(capture_intent=True, capture_session=True)):
+    with override_config("mcp", dict(capture_intent=True, enrichment_enabled=True)):
         tools, first, second, conversation_id = run_client(mode, run)
 
     telemetry_schema = next(t for t in tools.tools if t.name == "calculator").input_schema["properties"]["telemetry"]
@@ -265,7 +265,7 @@ def test_conversation_id_capture(mcp_llmobs, test_spans, run_client, mode):
     assert "telemetry" not in json.loads(get_llmobs_input_value(second_span))["params"]["arguments"]
 
 
-def test_conversation_id_capture_disabled_by_default(mcp_llmobs, test_spans, run_client):
+def test_conversation_id_capture_disabled(mcp_llmobs, test_spans, run_client):
     result = run_client("auto", lambda client: client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2}))
 
     assert len(result.content) == 1
@@ -273,7 +273,7 @@ def test_conversation_id_capture_disabled_by_default(mcp_llmobs, test_spans, run
 
 
 def test_conversation_id_capture_without_arguments(mcp_llmobs, test_spans, run_client):
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         result = run_client("auto", lambda client: client.call_tool("calculator"))
 
     conversation_id = get_llmobs_session_id(_only(_pop_spans(test_spans), "server_tool_call"))
@@ -287,7 +287,7 @@ def test_conversation_id_capture_skipped_with_transport_session(mcp_llmobs, tran
 
     integration = get_integration("mcp")
     request = {"params": {"arguments": {}}}
-    with override_config("mcp", dict(capture_session=True)), LLMObs.tool(name="calculator") as span:
+    with override_config("mcp", dict(enrichment_enabled=True)), LLMObs.tool(name="calculator") as span:
         integration.process_telemetry_argument(span, request, transport_session_id)
         session_id = get_llmobs_session_id(span)
 
@@ -306,7 +306,7 @@ def test_conversation_id_reused_for_parallel_first_calls(mcp_llmobs):
     integration = get_integration("mcp")
     first, other = Connection(), Connection()
     session_ids = []
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         for connection in (first, first, other):
             with LLMObs.tool(name="calculator") as span:
                 integration.process_telemetry_argument(span, {"params": {"arguments": {}}}, None, connection)
@@ -318,7 +318,7 @@ def test_conversation_id_reused_for_parallel_first_calls(mcp_llmobs):
 
 def test_conversation_id_capture_strips_empty_telemetry(mcp_llmobs, test_spans, run_client):
     arguments = {"operation": "add", "a": 1, "b": 2, "telemetry": {}}
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         result = run_client("auto", lambda client: client.call_tool("calculator", arguments))
 
     assert not result.is_error
@@ -335,7 +335,7 @@ def test_pending_conversation_id_keeps_creation_time(mcp_llmobs):
 
     integration = get_integration("mcp")
     connection = Connection()
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         first = integration._new_conversation_id(connection)
         conversation_id, created = integration._pending_conversation_ids[connection]
         integration._pending_conversation_ids[connection] = (conversation_id, created - 1.5)
@@ -352,7 +352,7 @@ def test_conversation_id_shared_by_parallel_first_calls(mcp_llmobs, test_spans, 
         args = {"operation": "add", "a": 1, "b": 2}
         return await asyncio.gather(client.call_tool("calculator", args), client.call_tool("calculator", args))
 
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         run_client("legacy", parallel_calls)
 
     spans = [span for span in _pop_spans(test_spans) if span.resource == "server_tool_call"]
@@ -372,7 +372,7 @@ def test_conversation_id_source_and_invented_ids(mcp_llmobs, test_spans, run_cli
         )
         return conversation_id, invented
 
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         conversation_id, invented = run_client("legacy", run)
 
     first_span, echoed_span, invented_span = [
@@ -403,7 +403,7 @@ def test_tool_with_own_telemetry_argument_is_unchanged(mcp_llmobs, test_spans, l
             result = await client.call_tool("record_event", {"telemetry": {"event": "click"}})
             return tools, result
 
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         tools, result = asyncio.run(run())
 
     if tools:
@@ -451,7 +451,7 @@ def test_conversation_id_not_added_to_error_without_text(mcp_llmobs, test_spans)
         async with Client(server, mode="legacy") as client:
             return await client.call_tool("fail_quietly", {})
 
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         result = asyncio.run(run())
 
     assert result.is_error

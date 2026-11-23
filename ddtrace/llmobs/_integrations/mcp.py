@@ -67,7 +67,7 @@ def dd_trace_input_schema() -> dict[str, Any]:
     if config.mcp.capture_intent:
         properties[INTENT_KEY] = {"type": "string", "description": INTENT_PROMPT}
         required.append(INTENT_KEY)
-    if config.mcp.capture_session:
+    if config.mcp.enrichment_enabled:
         properties[CONVERSATION_ID_KEY] = {"type": "string", "description": CONVERSATION_ID_PROMPT}
     return {"type": "object", "properties": properties, "required": required}
 
@@ -279,7 +279,7 @@ class MCPIntegration(BaseLLMIntegration):
         """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
         """
-        if not self.llmobs_enabled or not (config.mcp.capture_intent or config.mcp.capture_session):
+        if not self.llmobs_enabled or not (config.mcp.capture_intent or config.mcp.enrichment_enabled):
             return
 
         params = _get_attr(request, "params", None)
@@ -297,7 +297,7 @@ class MCPIntegration(BaseLLMIntegration):
             del arguments[TELEMETRY_KEY]
 
         # Only when MCP has no session of its own, e.g. stdio or the stateless protocol
-        if config.mcp.capture_session and not transport_session_id and not get_llmobs_session_id(span):
+        if config.mcp.enrichment_enabled and not transport_session_id and not get_llmobs_session_id(span):
             conversation_id = _get_attr(telemetry, CONVERSATION_ID_KEY, None) if telemetry else None
             if isinstance(conversation_id, str) and CONVERSATION_ID_PATTERN.match(conversation_id):
                 self._clear_pending_conversation_id(connection, conversation_id)

@@ -45,14 +45,18 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
-config._add(
-    "mcp",
-    {
+
+def _mcp_config() -> dict[str, bool]:
+    enrichment_enabled = asbool(env.get("DD_MCP_ENRICHMENT_ENABLED", default=True))
+    return {
         "distributed_tracing": asbool(env.get("DD_MCP_DISTRIBUTED_TRACING", default=True)),
-        "capture_intent": asbool(env.get("DD_MCP_CAPTURE_INTENT", default=False)),
-        "capture_session": asbool(env.get("DD_MCP_CAPTURE_SESSION", default=False)),
-    },
-)
+        "enrichment_enabled": enrichment_enabled,
+        # DD_MCP_CAPTURE_INTENT predates DD_MCP_ENRICHMENT_ENABLED and overrides it for intent capture only
+        "capture_intent": asbool(env.get("DD_MCP_CAPTURE_INTENT", default=enrichment_enabled)),
+    }
+
+
+config._add("mcp", _mcp_config())
 
 
 def get_version() -> str:
@@ -228,9 +232,9 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
     response = getattr(response_arg, "root", response_arg)
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
-    if (config.mcp.capture_intent or config.mcp.capture_session) and isinstance(response, ListToolsResult):
+    if (config.mcp.capture_intent or config.mcp.enrichment_enabled) and isinstance(response, ListToolsResult):
         core.dispatch(TOOLS_LIST_RESPONSE_EVENT, (response,))
-    if span and config.mcp.capture_session and isinstance(response, CallToolResult):
+    if span and config.mcp.enrichment_enabled and isinstance(response, CallToolResult):
         core.dispatch(TOOL_RESULT_EVENT, (span, response))
 
     try:

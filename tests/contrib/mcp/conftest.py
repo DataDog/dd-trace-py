@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.mcp.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
 from tests.llmobs._processors import install_mock_llmobs_writer
+from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -44,6 +45,13 @@ class LLMObsServer(BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"OK")
+
+
+@pytest.fixture(autouse=True)
+def mcp_enrichment_disabled():
+    """Enrichment is on by default. Most tests check spans without it, and tests of enrichment turn it on."""
+    with override_config("mcp", dict(enrichment_enabled=False, capture_intent=False)):
+        yield
 
 
 @pytest.fixture(autouse=True)

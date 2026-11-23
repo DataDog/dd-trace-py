@@ -9,14 +9,14 @@ MCP_SESSION_ID_HEADER = "mcp-session-id"
 TELEMETRY_KEY = "telemetry"
 COMPONENT = "mcp"
 SESSION_OPERATION_NAME = "session"
-# Dispatched with (response,) before a server returns a tools list, when DD_MCP_CAPTURE_INTENT is enabled, so
-# LLMObs can add its intent argument to each tool's input schema.
+# Dispatched with (response,) before a server returns a tools list, when MCP enrichment or intent capture is enabled,
+# so LLMObs can add its telemetry argument to each tool's input schema.
 TOOLS_LIST_RESPONSE_EVENT = "mcp.tools_list_response"
 # Dispatched with (span, request, transport_session_id, connection) before a server tool call runs, so LLMObs can
 # record and remove the telemetry argument. The request's arguments are modified in place.
 TELEMETRY_ARGUMENT_EVENT = "mcp.telemetry_argument"
 # Dispatched with (span, server_info) when a stateless mcp>=2 client session adopts its server's identity.
 CLIENT_SESSION_SERVER_INFO_EVENT = "mcp.client_session.server_info"
-# Dispatched with (span, result) before a server returns a tool call result, when DD_MCP_CAPTURE_SESSION is enabled,
-# so LLMObs can tell the agent which conversation ID to send on later calls. The result is modified in place.
+# Dispatched with (span, result) before a server returns a tool call result, when DD_MCP_ENRICHMENT_ENABLED is
+# enabled, so LLMObs can tell the agent which conversation ID to send on later calls. The result is modified in place.
 TOOL_RESULT_EVENT = "mcp.tool_result"

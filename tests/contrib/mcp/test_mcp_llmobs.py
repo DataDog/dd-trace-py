@@ -502,7 +502,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
     assert "b" in arguments
 
 
-def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+def test_intent_capture_disabled(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent capture is disabled by default and telemetry property is not injected."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -573,7 +573,7 @@ def test_conversation_id_capture(mcp_setup, mcp_llmobs, test_spans, mcp_server):
             )
             return tools, first, second, conversation_id
 
-    with override_config("mcp", dict(capture_session=True)):
+    with override_config("mcp", dict(enrichment_enabled=True)):
         tools, first, second, conversation_id = asyncio.run(run_test())
 
     schema = next(t for t in tools.tools if t.name == "calculator").inputSchema
@@ -591,7 +591,7 @@ def test_conversation_id_capture(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     assert "telemetry" not in json.loads(get_llmobs_input_value(second_span))["params"]["arguments"]
 
 
-def test_conversation_id_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+def test_conversation_id_capture_disabled(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     from mcp.shared.memory import create_connected_server_and_client_session
 
     async def run_test():
@@ -628,7 +628,7 @@ def test_intent_capture_lowlevel_server_validation(mcp_setup, mcp_llmobs, test_s
             result = await client.call_tool("echo", {"a": "x", "telemetry": {"intent": "Testing low-level servers"}})
             return tools, result
 
-    with override_config("mcp", dict(capture_intent=True, capture_session=True)):
+    with override_config("mcp", dict(capture_intent=True, enrichment_enabled=True)):
         tools, result = asyncio.run(run_test())
 
     assert "telemetry" in tools.tools[0].inputSchema["properties"]
