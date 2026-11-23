@@ -16,5 +16,5 @@ upgrade:
 fixes:
   - |
     LLM Observability: Fixes MCP intent capture making every tool call fail on ``mcp<2`` low-level servers that
-    validate tool arguments. Also fixes a tool's own ``telemetry`` argument being removed when MCP enrichment and
-    intent capture are turned off.
+    validate tool arguments, and asking the agent for a top-level ``intent`` argument that reached the tool. Also
+    fixes a tool's own ``telemetry`` argument being removed when MCP enrichment and intent capture are turned off.
