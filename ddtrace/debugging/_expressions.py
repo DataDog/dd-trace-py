@@ -36,6 +36,7 @@ from operator import length_hint
 import re
 from time import perf_counter_ns
 from types import FunctionType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -338,11 +339,19 @@ def instanceof(value: Any, type_qname: str) -> bool:
     return False
 
 
-def isdefined(
-    predicate: Callable[[Mapping[str, Any], Optional[int]], Any], _locals: Mapping[str, Any], _deadline: Optional[int]
-) -> bool:
+if TYPE_CHECKING:
+    # Not in typing before 3.10; only needed for type checking
+    from typing_extensions import ParamSpec
+
+    P = ParamSpec("P")
+
+
+def isdefined(predicate: "Callable[P, Any]", *args: "P.args", **kwargs: "P.kwargs") -> bool:
+    """Whether predicate evaluates without error, called with the arguments
+    that follow (the generated code passes positional ones only).
+    """
     try:
-        predicate(_locals, _deadline)
+        predicate(*args, **kwargs)
     except EvaluationTimeoutError:
         # A timeout says nothing about whether the value is defined, and
         # swallowing it would let the rest of the expression carry on past
@@ -368,6 +377,11 @@ class CompiledExpression(Protocol):
     def __call__(self, scope: Mapping[str, Any], deadline_ns: Optional[int] = None, /) -> Any: ...
 
 
+# Arguments of the predicates called once per element of a collection, before
+# the optional deadline
+LAMBDA_ARGS: tuple[str, ...] = ("_dd_it", "_dd_key", "_dd_value", "_locals")
+
+
 class DDCompiler:
     def __init__(self) -> None:
         self._lambda_level = 0
@@ -387,6 +401,12 @@ class DDCompiler:
     def _make_function(
         self, instrs: list[Instr], args: tuple[str, ...], name: str, defaults: tuple[Any, ...] = ()
     ) -> FunctionType:
+        # Generated code bypasses the compiler's checks, and reading a local
+        # that was never set crashes the interpreter, so only arguments may
+        # be read.
+        if unbound := {i.arg for i in instrs if isinstance(i, Instr) and i.name == "LOAD_FAST"} - set(args):
+            raise ValueError("Expression reads undefined locals: %s" % ", ".join(sorted(map(str, unbound))))
+
         abstract_code = Bytecode([*instrs, Instr("RETURN_VALUE")])
 
         abstract_code.argcount = len(args)
@@ -413,7 +433,7 @@ class DDCompiler:
         if (predicate := self._compile_predicate(ast)) is None:
             raise ValueError("Invalid predicate: %r" % ast)
 
-        args: tuple[str, ...] = ("_dd_it", "_dd_key", "_dd_value", "_locals")
+        args = LAMBDA_ARGS
         if iterates(ast):
             args += ("_deadline",)
         try:
@@ -438,11 +458,17 @@ class DDCompiler:
             raise ValueError("Invalid argument: %r" % arg)
 
         if _type == "isDefined":
+            # The argument is evaluated in a function of its own, which takes
+            # what it may read from the enclosing one: the element variables
+            # within a predicate, and the deadline if it iterates. The
+            # enclosing function then has the deadline too (see _make_lambda).
+            args: tuple[str, ...] = LAMBDA_ARGS if self._lambda_level > 0 else ("_locals",)
+            if iterates(arg):
+                args += ("_deadline",)
             value = self._call_function(
                 isdefined,
-                [Instr("LOAD_CONST", self._make_function(value, ("_locals", "_deadline"), "<isDefined-predicate>"))],
-                [Instr("LOAD_FAST", "_locals")],
-                [Instr("LOAD_FAST", "_deadline")],
+                [Instr("LOAD_CONST", self._make_function(value, args, "<isDefined-predicate>"))],
+                *([Instr("LOAD_FAST", a)] for a in args),
             )
         elif _type == "isEmpty":
             value = self._call_function(_safe_is_empty, value)

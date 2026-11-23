@@ -4,6 +4,7 @@ import sys
 from time import perf_counter_ns
 from typing import Any
 
+from bytecode import Instr
 import pytest
 
 from ddtrace.debugging._expressions import DDCompiler
@@ -15,6 +16,7 @@ from ddtrace.debugging._expressions import _is_one_shot_iterator
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._expressions import instanceof
 from ddtrace.debugging._expressions import isdefined
+from ddtrace.debugging._redaction import DDTimedRedactedExpression
 from ddtrace.internal.safety import SafeObjectProxy
 
 
@@ -600,6 +602,40 @@ def test_bounded_unhashable_metaclass():
 def test_filter_unhashable_metaclass():
     f = dd_compile({"filter": [{"ref": "xs"}, {"gt": [{"ref": "@it"}, 1]}]})
     assert f({"xs": _UnhashableTypeIterable()}) == [2, 3]
+
+
+@pytest.mark.parametrize(
+    "predicate,expected",
+    [
+        ({"isDefined": {"ref": "present"}}, True),
+        ({"isDefined": {"ref": "missing"}}, False),
+        ({"isDefined": {"ref": "@it"}}, True),
+        ({"isDefined": {"any": [{"ref": "ys"}, {"eq": [{"ref": "@it"}, {"ref": "@it"}]}]}}, True),
+    ],
+    ids=["outer-local", "missing", "element", "iterating"],
+)
+@pytest.mark.parametrize("timed", [False, True])
+@pytest.mark.parametrize("op", ["any", "all", "filter"])
+def test_isdefined_in_collection_predicate(op, timed, predicate, expected):
+    # The isDefined sub-function must only read locals it is given: reading
+    # an unset one in generated code crashes the interpreter.
+    ast = {op: [{"ref": "xs"}, predicate]}
+    scope = {"xs": [1, 2], "ys": [3], "present": 1}
+
+    if timed:
+        result = DDTimedRedactedExpression.compile({"dsl": op, "json": ast}).eval(scope)
+    else:
+        result = dd_compile(ast)(scope)
+
+    if op == "filter":
+        assert result == ([1, 2] if expected else [])
+    else:
+        assert result is expected
+
+
+def test_compiler_rejects_reads_of_undefined_locals():
+    with pytest.raises(ValueError, match="undefined locals: _deadline"):
+        DDCompiler()._make_function([Instr("LOAD_FAST", "_deadline")], ("_locals",), "<expr>")
 
 
 def test_compiled_expression_frames_are_named():
