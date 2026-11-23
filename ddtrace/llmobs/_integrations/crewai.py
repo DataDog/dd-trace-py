@@ -348,7 +348,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     def llmobs_set_span_links_on_flow(
         self, flow_span: Optional[_LLMObsSpan], args: Any, kwargs: Any, flow_instance: Any
     ) -> None:
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or flow_span is None:
             return
         try:
             self._llmobs_set_span_link_on_flow(flow_span, args, kwargs, flow_instance)
