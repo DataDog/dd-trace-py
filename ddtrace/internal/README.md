@@ -86,7 +86,30 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## Shared tracing event contracts
+
+Product-neutral HTTP event definitions live in `ddtrace.internal.core.http`, synchronous
+exception notifications in `ddtrace.internal.core.exception`, and span lifecycle listener
+contracts in `ddtrace.internal.core.span_lifecycle`. The web
+request event combines HTTP and tracing fields in `ddtrace._trace.web_framework`.
+The previous HTTP, exception, and web request paths in `ddtrace.contrib._events` remain
+aliases. Span lifecycle consumers import directly from `ddtrace.internal.core.span_lifecycle`.
+
+The shared tracing subscriber base and web request subscriber import these contracts
+and tracing-owned HTTP metadata and propagation helpers directly, without depending
+on the contrib compatibility modules. This separates their dependencies from integration
+import side effects. Web request subscribers retain explicit activation through tracing
+product startup or the normal global tracer initialization hook. With global tracer
+initialization disabled, importing the subscriber package alone does not activate the
+web request bundle.
+
 ## Subscriber bundles
+
+Product-neutral subscriber machinery (`Subscriber`, `ContextSubscriber`, and
+`SubscriberBundle`) lives in `ddtrace.internal.core.subscriber`. Keep shared
+dispatch and registration behavior there. Span-creating bases (`TracingSubscriber`
+and `SpanLifecycleSubscriber`) and span exception handling remain in
+`ddtrace._trace.subscribers._base`, alongside the tracing subscribers that use them.
 
 Products can group related subscribers with `SubscriberBundle` from
 `ddtrace.internal.core.subscriber`:
@@ -110,16 +133,11 @@ def stop(join=False):
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
-and resolves every declared name before registering listeners. Bundle-managed
-subscribers must disable class-definition registration so imports do not activate them
-implicitly. Set the `auto_register = False` class attribute to also defer registration
-for subclasses. Context subscribers can instead pass `auto_register=False` in the class
-declaration to defer only that class, preserving automatic registration for its subclasses.
-Any compatibility activation during initialization belongs to the product.
-
-Existing subscribers retain automatic registration until their activation paths
-are migrated. Once all consumers register explicitly, automatic registration and
-the `auto_register` flag can be removed.
+and resolves every declared name before registering listeners. Defining a `Subscriber`
+or `ContextSubscriber` subclass only collects its handlers; it never registers listeners,
+including when the subclass inherits `event_names`. Call the subscriber's `register()`
+method or its owning bundle explicitly to activate it. Any compatibility activation
+during initialization belongs to the product.
 
 Repeated registration uses named-listener deduplication and can restore listeners
 after a reset. Import and callback failures propagate to the caller; registration
@@ -172,10 +190,9 @@ manual instrumentation, including when global tracer creation is deferred. Web r
 and span exception bundles retain their existing activation timing. Listeners remain
 available with `DD_TRACE_ENABLED=false` so existing integrations can finish their spans
 without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
-Concrete product subscribers disable class-definition registration; custom subscriber
-registration defaults are unchanged. Integrations emit events without registering
-tracing listeners themselves. Ray's SDK-dependent bundle remains separate: a tracing-owned
-import hook activates it after `ddtrace.contrib.internal.ray.patch` finishes loading.
+All subscribers require explicit registration. Integrations emit events without
+registering tracing listeners themselves. Ray's SDK-dependent bundle remains separate:
+a tracing-owned import hook activates it after `ddtrace.contrib.internal.ray.patch` finishes loading.
 This also supports manual patching with deferred global tracer initialization, without
 importing Ray during ordinary tracing startup. Repeated tracing startup restores Ray
 listeners once that integration module has loaded. Ray unpatching retains completion
@@ -418,13 +435,24 @@ a deliberate fork-safety protocol.
 ### The `forksafe` module
 
 `ddtrace.internal.forksafe` is the single registration point for all fork
-hooks. It wraps `os.register_at_fork()` and exposes three ordered registries:
+hooks. It wraps `os.register_at_fork()` and exposes three main ordered
+registries:
 
 | Registry | When it runs | Typical use |
 |----------|-------------|-------------|
-| `_registry_before_fork` | In the parent, before `fork()` | Flush state, acquire no new locks, stop threads |
+| `_registry_before_fork` | In the parent, before `fork()` | Settle in-memory state (e.g. sampling decisions), acquire no new locks, stop threads |
 | `_registry` (`after_in_child`) | In the child, after `fork()` | Reinitialize resources that cannot be shared |
 | `_registry_after_parent` | In the parent, after `fork()` | Resume any work paused in `before_fork` |
+
+In the child, `_registry_before_child_hooks` and `_registry_after_child_hooks`
+run around `_registry`, and `forksafe.in_child_hook()` is true while they run.
+Process managers such as Celery close inherited file descriptors after the
+at-fork callbacks return, so native workers must not be rebuilt while it is
+true.
+
+The hooks of concurrent forks are serialized: the thread that runs the
+before-fork hooks holds `forksafe._fork_lock` until its after-fork hooks have
+completed. This relies on ddtrace threads never forking themselves.
 
 Use the helpers to register hooks:
 
@@ -490,31 +518,24 @@ the parent.
 > must use their own timeouts — an unbounded block will prevent `fork()` from
 > returning until the operation completes, which can hang pre-fork servers.
 
-**Boot gate**
-
-Sitecustomize holds `threads.boot_gate` closed (`boot_gate.held()`) while
-preload and module cloning run, so that threads started meanwhile wait on it
-before running their target, and opens it once `cleanup_loaded_modules()`
-has finished, before the `post_preload` hooks and any user code run, as those
-may wait on ddtrace threads. Only the hold, and exit, open the gate. Joining a
-held thread, including the joins before a fork, releases that thread alone, and
-a restarted thread waits on the gate again; released periodic threads skip
-their target, while one-shot threads run it once.
-
 **Phase 2 — after fork**
 
 Both the parent and the child call `_after_fork()` on every thread. In the
 child, restart is controlled by the `__autorestart__` attribute (default
-`True`): threads that leave it `True` are restarted transparently; threads that
-set it to `False` remain stopped and must arrange their own re-initialization
-(see `NativeWriter` below).
+`True`): threads that leave it `True` are restarted; threads that set it to
+`False` remain stopped and must arrange their own re-initialization (see
+`NativeWriter` below).
 
-In the parent, restarts are **asynchronous**: `_after_fork_parent` merely calls
-`ThreadRestartTimer.set()`, which schedules a deferred restart. The actual
-`_after_fork(force=True)` calls happen later, coalesced across repeated rapid
-forks. Parent-side periodic workers are therefore not immediately active after
-`fork()` returns; components that rely on parent-side metrics or flushing
-immediately after a fork should account for this delay.
+Restarts are **asynchronous** on both sides: the after-fork hooks merely call
+`ThreadRestartTimer.set()`, which schedules a deferred restart once no fork has
+happened for about 100 ms. In the parent, the `_after_fork(force=True)` calls
+are coalesced across repeated rapid forks. In the child, the delay is meant to
+keep threads from rebuilding native resources before the process manager has
+closed inherited file descriptors. It is a fixed time, not a wait for the child
+hooks to finish, so a hook that runs longer than that can see workers restart
+while it is still running. Periodic workers are therefore not immediately
+active after `fork()` returns; components that rely on metrics or flushing
+right after a fork should account for this delay.
 
 A thread stopped with `stop()` before its deferred restart, in the parent or
 the child, stays stopped: the restart only runs its `on_shutdown` callback. A
@@ -545,6 +566,10 @@ machinery in a well-defined order.
   path — the service will be left marked as running with no active worker.
 - Never call `flush_queue()` or perform I/O in an after-child hook; flush only
   in after-parent hooks or at clean shutdown.
+
+The full list of fork-safety and threading rules that changes must follow is in
+`docs/contributing-architecture.rst`; the `architecture-review` skill checks a
+change against them.
 
 
 ## The `sys.monitoring` Multiplexer

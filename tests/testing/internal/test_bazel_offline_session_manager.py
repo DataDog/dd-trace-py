@@ -239,6 +239,7 @@ class TestUploadGitDataSkipping:
         env = MockDefaults.test_environment()
 
         sm = self._build_sm_with_mocked_api(monkeypatch, env)
+        sm.env_tags["git.commit.sha"] = "selected-sha"
 
         mock_git_instance = get_mock_git_instance()
 
