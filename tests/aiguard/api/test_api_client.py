@@ -196,6 +196,17 @@ def test_evaluate_block_defaults_to_remote_is_blocking_enabled(
         assert result["action"] == "DENY"
 
 
+@pytest.mark.parametrize("flag", ["false", 1, None])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_non_boolean_blocking_flag_is_a_bad_response(mock_execute_request, ai_guard_client, flag):
+    response = mock_evaluate_response("DENY", "Nope", ["deny_everything"], True)
+    response.get_json.return_value["data"]["attributes"]["is_blocking_enabled"] = flag
+    mock_execute_request.return_value = response
+
+    with pytest.raises(AIGuardClientError, match="non-boolean is_blocking_enabled"):
+        ai_guard_client.evaluate(TOOL_CALL)
+
+
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_client):

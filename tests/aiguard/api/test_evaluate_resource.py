@@ -369,6 +369,100 @@ def test_request_tags_reach_the_root_and_ai_guard_spans(mock_execute_request, ai
     assert span.get_tag(f"{AI_GUARD.TAG}.http.useragent") == "test-agent/1.0"
 
 
+@pytest.mark.parametrize(
+    "mcp_server,expected",
+    [
+        pytest.param(
+            {
+                "operation": "connect",
+                "transport": "streamable_http",
+                "name": "atlassian",
+                "url": "https://user:secret@MCP.Example.com:443/mcp?token=abc#frag",
+                "headers": {"Authorization": "Bearer secret"},
+            },
+            {
+                "operation": "connect",
+                "transport": "streamable_http",
+                "name": "atlassian",
+                "url": "https://mcp.example.com",
+            },
+            id="remote URL origin only, no headers",
+        ),
+        pytest.param(
+            {
+                "operation": "connect",
+                "transport": "stdio",
+                "command": "/usr/local/bin/npx",
+                "args": ["-y", "@scope/server", "--token", "secret"],
+                "env": {"API_KEY": "secret"},
+                "url": "https://local.example.com",
+            },
+            {"operation": "connect", "transport": "stdio", "command": "npx", "args": ["@scope/server"]},
+            id="stdio safe args only, no env or URL",
+        ),
+        pytest.param(
+            {"operation": "connect", "transport": "carrier_pigeon", "name": "local-docs"},
+            {"operation": "connect", "transport": "unknown", "name": "local-docs"},
+            id="unknown transport",
+        ),
+    ],
+)
+@patch(EXECUTE_REQUEST)
+def test_only_the_safe_identity_is_sent_and_reported(
+    mock_execute_request, ai_guard_client, test_spans, mcp_server, expected
+):
+    mock_execute_request.return_value = mock_evaluate_resource_response("ALLOW")
+
+    ai_guard_client._evaluate_resource({"type": "mcp_server", "mcp_server": mcp_server})
+
+    sent = mock_execute_request.call_args.args[1]["data"]["attributes"]["targets"]
+    assert sent == [{"type": "mcp_server", "mcp_server": expected}]
+    (span,) = [span for span in test_spans.spans if span.name == AI_GUARD.RESOURCE_TYPE]
+    assert span._get_struct_tag(AI_GUARD.STRUCT) == {"targets": sent}
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param({"type": "skill", "skill": {"name": "pr-review"}}, id="unsupported type"),
+        pytest.param(
+            {"type": "mcp_server", "mcp_server": {"operation": "list", "transport": "stdio", "command": "uvx"}},
+            id="unsupported operation",
+        ),
+        pytest.param(
+            {"type": "mcp_server", "mcp_server": {"operation": "connect", "transport": "streamable_http"}},
+            id="no identifier",
+        ),
+        pytest.param({"type": "mcp_server"}, id="no details"),
+    ],
+)
+@patch(EXECUTE_REQUEST)
+def test_target_without_a_safe_identity_is_not_sent(mock_execute_request, ai_guard_client, test_spans, target):
+    with pytest.raises(ValueError, match="safe name, URL or command"):
+        ai_guard_client._evaluate_resource(target)
+
+    mock_execute_request.assert_not_called()
+    assert [span for span in test_spans.spans if span.name == AI_GUARD.RESOURCE_TYPE] == []
+
+
+@pytest.mark.parametrize("flag", ["false", "true", 1, None])
+@patch(ADD_COUNT_METRIC)
+@patch(EXECUTE_REQUEST)
+def test_non_boolean_blocking_flag_is_a_bad_response(
+    mock_execute_request, add_count_metric, ai_guard_client, test_spans, flag
+):
+    mock_execute_request.return_value = _results({"target_index": 0, "action": "DENY", "is_blocking_enabled": flag})
+
+    with pytest.raises(AIGuardClientError, match="non-boolean is_blocking_enabled"):
+        ai_guard_client._evaluate_resource(TARGET)
+
+    (span,) = [span for span in test_spans.spans if span.name == AI_GUARD.RESOURCE_TYPE]
+    assert span.get_tag(AI_GUARD.ACTION_TAG) is None
+    assert span.get_tag(AI_GUARD.BLOCKED_TAG) is None
+    error_metrics = [c.args for c in add_count_metric.call_args_list if c.args[1] == AI_GUARD.ERROR_METRIC]
+    assert [dict(args[3])["type"] for args in error_metrics] == [AI_GUARD.ERROR_BAD_RESPONSE]
+
+
 @patch(EXECUTE_REQUEST)
 def test_without_a_tracer_nothing_is_sent(mock_execute_request, ai_guard_client):
     with patch("ddtrace.aiguard._api_client.core") as core_mock:

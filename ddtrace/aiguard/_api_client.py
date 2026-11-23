@@ -1,6 +1,7 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
 from collections.abc import Iterator
+from collections.abc import Mapping
 from copy import deepcopy
 import json
 import re
@@ -19,11 +20,13 @@ from ddtrace.aiguard._types import Evaluation
 from ddtrace.aiguard._types import Function
 from ddtrace.aiguard._types import ImageURL
 from ddtrace.aiguard._types import MCPServer
+from ddtrace.aiguard._types import MCPServerTarget
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import Policy
 from ddtrace.aiguard._types import ResourceEvaluation
 from ddtrace.aiguard._types import ResourceTarget
 from ddtrace.aiguard._types import ToolCall
+from ddtrace.aiguard.integrations._mcp import client_mcp_server
 from ddtrace.aiguard.middleware import _MIDDLEWARES
 from ddtrace.aiguard.middleware import AIGuardContext
 from ddtrace.aiguard.middleware import AIGuardRequest
@@ -155,6 +158,11 @@ def _classified(error: AIGuardClientError, error_type: str, error_status: Option
     return error
 
 
+def _non_boolean_blocking_error() -> AIGuardClientError:
+    # A string such as "false" is truthy, so a non-boolean flag must not decide the block.
+    return AIGuardClientError("AI Guard service returned a non-boolean is_blocking_enabled value", status=200)
+
+
 class AIGuardAbortError(DDBlockException):
     """Exception to abort current execution due to security policy.
 
@@ -239,6 +247,40 @@ def _policy_field(policy: Any, key: str) -> Optional[str]:
         return None
     # An empty string identifies nothing, so it gives no tag, as an empty reason does.
     return str(value) if value != "" else None
+
+
+_MCP_TRANSPORTS = frozenset(("streamable_http", "sse", "stdio", "in_process", "unknown"))
+# Local transports have no URL to report.
+_LOCAL_MCP_TRANSPORTS = frozenset(("stdio", "in_process"))
+
+
+def _safe_target(target: Any) -> Optional[ResourceTarget]:
+    """A copy of target with only the safe MCP server identity, by the rules of the MCP metadata.
+
+    Returns None for an unsupported target type or operation, or when no safe identifier remains.
+    """
+    if not isinstance(target, Mapping) or target.get("type") != AI_GUARD.TARGET_MCP_SERVER:
+        return None
+    details = target.get("mcp_server")
+    if not isinstance(details, Mapping) or details.get("operation") != AI_GUARD.MCP_OPERATION_CONNECT:
+        return None
+    transport = details.get("transport")
+    if transport not in _MCP_TRANSPORTS:
+        transport = AI_GUARD.MCP_TRANSPORT_UNKNOWN
+    entry = client_mcp_server(
+        transport,
+        name=details.get("name"),
+        url=None if transport in _LOCAL_MCP_TRANSPORTS else details.get("url"),
+        command=details.get("command"),
+        args=details.get("args"),
+    )
+    if entry is None:
+        return None
+    mcp_server = MCPServerTarget(operation=AI_GUARD.MCP_OPERATION_CONNECT, transport=transport)
+    for key in ("name", "url", "command", "args"):
+        if key in entry:
+            mcp_server[key] = entry[key]
+    return ResourceTarget(type=AI_GUARD.TARGET_MCP_SERVER, mcp_server=mcp_server)
 
 
 # What replaces an endpoint anywhere it would otherwise be reported.
@@ -568,6 +610,9 @@ class AIGuardClient:
                         AI_GUARD.ERROR_BAD_RESPONSE,
                     )
 
+                if not isinstance(blocking_enabled, bool):
+                    raise _classified(_non_boolean_blocking_error(), AI_GUARD.ERROR_BAD_RESPONSE)
+
                 span.set_tag(AI_GUARD.ACTION_TAG, action)
                 redacted_messages = messages
                 redaction_enabled = aiguard_config._ai_guard_redaction_enabled
@@ -670,6 +715,11 @@ class AIGuardClient:
 
         Raises AIGuardAbortError if the decision must block, and AIGuardClientError if the evaluation fails.
         """
+        # The request and the span get only the safe identity, whatever the caller passes.
+        safe_target = _safe_target(target)
+        if safe_target is None:
+            raise ValueError("The target must be an MCP server connection with a safe name, URL or command")
+        target = safe_target
         tracer = self._get_tracer()
         call_path_tags = self._call_path_tags(source, integration)
         (_, clamped_source), (_, clamped_integration) = call_path_tags
@@ -701,6 +751,10 @@ class AIGuardClient:
                         AI_GUARD.ERROR_BAD_RESPONSE,
                     )
 
+                blocking_enabled = result.get("is_blocking_enabled", False)
+                if not isinstance(blocking_enabled, bool):
+                    raise _classified(_non_boolean_blocking_error(), AI_GUARD.ERROR_BAD_RESPONSE)
+
                 span.set_tag(AI_GUARD.ACTION_TAG, action)
                 reason = result.get("reason")
                 if not isinstance(reason, str):
@@ -723,9 +777,7 @@ class AIGuardClient:
                 # A copy, so that a later change to the target cannot change what the span reports.
                 span._set_struct_tag(AI_GUARD.STRUCT, {"targets": [deepcopy(target)]})
 
-                should_block = (
-                    self._is_blocking_enabled(options, result.get("is_blocking_enabled", False)) and action != ALLOW
-                )
+                should_block = self._is_blocking_enabled(options, blocking_enabled) and action != ALLOW
                 self._add_request_to_telemetry(
                     (
                         ("action", action),
