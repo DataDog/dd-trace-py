@@ -504,6 +504,81 @@ def test_acquire_right_after_the_last_release_is_applied_stays_installed() -> No
         _assert_stopped(monitor, pause_listener)
 
 
+@pytest.mark.parametrize("step", ["_remove_gc_callback", "unregister"])
+def test_collection_during_uninstall_does_not_wait_for_the_lock(monkeypatch: pytest.MonkeyPatch, step: str) -> None:
+    """The last release uninstalls while it holds the lock, and a collection can start in there.
+
+    CPython can start one on this thread at an allocation or at the next eval-breaker
+    check. A callback that is still installed then runs on the thread that holds the lock:
+    it must drop the sample and the start it had for that generation, and not wait.
+    """
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    target: Any = gc_monitor if step == "_remove_gc_callback" else forksafe
+    uninstall_step: Callable[[Any], None] = getattr(target, step)
+    during: list[tuple[bool, bool, int, int]] = []
+
+    def collect_then_uninstall(hook: Any) -> None:
+        installed: bool = any(cb is monitor._gc_hook for cb in gc.callbacks)
+        gc.collect()
+        during.append((monitor._lock.locked(), installed, monitor._start_ns[2], monitor._count))
+        uninstall_step(hook)
+
+    with _automatic_gc_disabled():
+        monitor.acquire()
+        try:
+            monitor._on_gc("start", {"generation": 2})
+            start: int = monitor._start_ns[2]
+            with monkeypatch.context() as patch:
+                patch.setattr(target, step, collect_then_uninstall)
+                assert _finishes(monitor.release), "a collection during uninstall waited for the lock"
+        finally:
+            gc_monitor._remove_gc_callback(monitor._gc_hook)
+            if monitor._fork_hook in forksafe._registry:
+                forksafe.unregister(monitor._fork_hook)
+
+    still_installed: bool = step == "_remove_gc_callback"
+    assert during == [(True, still_installed, 0 if still_installed else start, 0)]
+    assert monitor._refcount == 0
+    assert all(cb is not monitor._gc_hook for cb in gc.callbacks)
+    assert monitor._fork_hook not in forksafe._registry
+
+
+def test_install_and_uninstall_do_not_wait_for_forksafe() -> None:
+    """acquire() and the last release register and unregister the fork hook while they hold the lock.
+
+    forksafe holds its fork lock while it runs the before-fork and after-fork-in-parent
+    hooks. One before-fork hook joins the periodic threads, the runtime metrics worker among
+    them, and that worker takes the monitor lock when it flushes. Waiting for the fork lock
+    here would deadlock with that join.
+    """
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    holding: threading.Event = threading.Event()
+    let_go: threading.Event = threading.Event()
+
+    def fork_in_progress() -> None:
+        with forksafe._fork_lock:
+            holding.set()
+            let_go.wait(timeout=10)
+
+    forking: threading.Thread = threading.Thread(target=fork_in_progress, daemon=True)
+    forking.start()
+    try:
+        assert holding.wait(timeout=5)
+        assert _finishes(monitor.acquire), "acquire() waited for the fork lock"
+        assert monitor._fork_hook in forksafe._registry
+        assert _finishes(monitor.release), "release() waited for the fork lock"
+    finally:
+        let_go.set()
+        forking.join(timeout=5)
+        gc_monitor._remove_gc_callback(monitor._gc_hook)
+        if monitor._fork_hook in forksafe._registry:
+            forksafe.unregister(monitor._fork_hook)
+
+    assert monitor._refcount == 0
+    assert all(cb is not monitor._gc_hook for cb in gc.callbacks)
+    assert monitor._fork_hook not in forksafe._registry
+
+
 def test_snapshot_never_splits_a_pause(monkeypatch) -> None:
     """A pause must land wholly in one snapshot, or in none.
 
