@@ -15,10 +15,14 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+
+
+log = get_logger(__name__)
 
 
 config._add(
@@ -93,19 +97,26 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             core.dispatch_event(injection)
             args, kwargs = injection.args, injection.kwargs
 
+            driver_failed = True
             try:
                 result = await method(*args, **kwargs)
+                driver_failed = False
                 return result
             finally:
-                core.dispatch_event(
-                    DatabaseResultEvent(
-                        context=ctx,
-                        row_count=self.rowcount,
-                        row_number=self.rownumber,
-                        skip_none_row_count=False,
-                    ),
-                    allow_raise=True,
-                )
+                try:
+                    core.dispatch_event(
+                        DatabaseResultEvent(
+                            context=ctx,
+                            row_count=self.rowcount,
+                            row_number=self.rownumber,
+                            skip_none_row_count=False,
+                        ),
+                        allow_raise=True,
+                    )
+                except Exception:
+                    if not driver_failed:
+                        raise
+                    log.debug("Error publishing database result metadata", exc_info=True)
 
     async def executemany(self, query, *args, **kwargs):
         if isinstance(query, (str, bytes, bytearray, memoryview)):

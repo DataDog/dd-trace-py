@@ -28,14 +28,14 @@ class Psycopg3TracedCursor(dbapi.TracedCursor):
         name: str,
         resource: Any,
         extra_tags: dict[str, Any],
-        supports_query_rewriting: bool,
+        dbm_propagator: Any,
         *args: Any,
         **kwargs: Any,
     ) -> Any:
         # treat Composable resource objects as strings
         if resource.__class__.__name__ == "SQL" or resource.__class__.__name__ == "Composed":
             resource = resource.as_string(self.__wrapped__)
-        return super()._trace_method(method, name, resource, extra_tags, supports_query_rewriting, *args, **kwargs)
+        return super()._trace_method(method, name, resource, extra_tags, dbm_propagator, *args, **kwargs)
 
 
 class Psycopg3FetchTracedCursor(Psycopg3TracedCursor, dbapi.FetchTracedCursor):

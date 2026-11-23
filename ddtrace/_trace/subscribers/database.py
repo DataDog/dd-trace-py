@@ -76,9 +76,6 @@ class DatabaseTracingSubscriber(ContextSubscriber[DatabaseOperationEvent]):
         span = find_span_on_context(event.context)
         if span is None:
             return
-        if event.legacy_post_execute is not None:
-            event.legacy_post_execute(span)
-            return
         if event.row_count is not None or not event.skip_none_row_count:
             span._set_attribute(db.ROWCOUNT, event.row_count)
             if event.row_count_as_tag and isinstance(event.row_count, int) and event.row_count >= 0:
@@ -86,3 +83,5 @@ class DatabaseTracingSubscriber(ContextSubscriber[DatabaseOperationEvent]):
         if event.row_number is not None:
             span._set_attribute("db.rownumber", event.row_number)
         span.set_tags(event.tags)
+        if event.legacy_post_execute is not None:
+            event.legacy_post_execute(span)

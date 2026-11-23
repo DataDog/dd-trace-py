@@ -784,3 +784,46 @@ async def test_result_contexts_are_isolated_between_tasks(tracer, test_spans):
         assert results[query].parent_id == parent.span_id
         assert results[query].get_metric("db.row_count") == row_count
         assert results[query].finished
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("keyword", [False, True])
+async def test_legacy_trace_method_contract(tracer, keyword):
+    class LegacyCursor(TracedAsyncCursor):
+        async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
+            assert dbm_propagator is self._self_dbm_propagator
+            if keyword:
+                return await super()._trace_method(
+                    method, name, resource, extra_tags, dbm_propagator=self._self_dbm_propagator, query=args[0]
+                )
+            return await super()._trace_method(
+                method, name, resource, extra_tags, self._self_dbm_propagator, *args, **kwargs
+            )
+
+    cursor = mock.Mock(spec=["execute", "rowcount"], execute=mock.AsyncMock(), rowcount=1)
+    cfg = IntegrationConfig(Config(), "db-test", _dbm_propagator=object())
+    await LegacyCursor(cursor, cfg=cfg).execute("SELECT 1")
+    if keyword:
+        cursor.execute.assert_awaited_once_with(query="SELECT 1")
+    else:
+        cursor.execute.assert_awaited_once_with("SELECT 1")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_type", [None, ValueError, asyncio.CancelledError])
+async def test_cleanup_failure_preserves_driver_error(tracer, test_spans, failure_type):
+    failure = failure_type("driver failed") if failure_type else None
+    cursor = mock.AsyncMock()
+    cursor.execute.side_effect = failure
+    type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
+    try:
+        raise LookupError("already handled by the application")
+    except LookupError:
+        with tracer.trace("parent") as parent:
+            with pytest.raises(failure_type or RuntimeError) as caught:
+                await TracedAsyncCursor(cursor).execute("SELECT 1")
+            if failure is not None:
+                assert caught.value is failure
+            assert tracer.current_span() is parent
+    expected = "driver failed" if failure_type else "cursor closed"
+    assert test_spans.spans[1].get_tag("error.message") == expected

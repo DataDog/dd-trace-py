@@ -114,8 +114,10 @@ subscribers about the original query and its connection encoding before tracing
 enablement is checked. Existing DB-API security checks run inside the operation
 context and before DBM injection. ``DatabaseQueryPrepareEvent`` synchronously
 exposes mutable driver arguments after the span's service and connection metadata
-are ready. Adapters advertise query-rewriting support without reading DBM
-configuration or retaining propagators. DBM owns its listener and propagation-mode gating; the span resource
+are ready. DBM owns its listener and propagation-mode gating; the shared
+DB-API wrapper retains ``_self_dbm_propagator`` and the ``dbm_propagator`` argument
+of ``_trace_method`` for existing cursor extensions. Query preparation also works
+for ordinary execute methods without a configured propagator. The span resource
 continues to describe the original query. Preserve each driver's injection
 exclusions for fetches, stored procedures, and prepared statements.
 
@@ -126,7 +128,11 @@ integration-specific ``tags``. Result events carry the exact operation context;
 tracing resolves its span without falling back to a parent or creating one.
 Existing ``_set_post_execute_tags(span)`` overrides run through a tracing-owned
 compatibility bridge after driver success or failure, but not when security
-checks prevent execution. The shared
+checks prevent execution. When both hooks are overridden, result metadata is
+published before the legacy hook runs. Legacy-only overrides retain control over
+cursor metadata reads. Result collection and listener failures derived from
+``Exception`` do not replace an active driver exception or cancellation; after
+successful execution they retain the legacy exception behavior. The shared
 ``_trace_method_context()`` owns this lifecycle for both synchronous and
 asynchronous DB-API cursors; their ``_trace_method()`` implementations only check
 enablement and invoke or await the driver. Preserve each driver's

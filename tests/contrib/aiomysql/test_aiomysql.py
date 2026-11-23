@@ -469,3 +469,23 @@ async def test_result_metadata_and_parent_restored(tracer, test_spans, method_na
     assert span.get_metric("db.rownumber") == 2
     if failure_type:
         assert span.get_tag("error.message") == str(failure)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_type", [None, ValueError, asyncio.CancelledError])
+async def test_cleanup_failure_preserves_driver_error(tracer, test_spans, failure_type):
+    failure = failure_type("driver failed") if failure_type else None
+    cursor = mock.AsyncMock()
+    cursor.execute.side_effect = failure
+    type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
+    try:
+        raise LookupError("already handled by the application")
+    except LookupError:
+        with tracer.trace("parent") as parent:
+            with pytest.raises(failure_type or RuntimeError) as caught:
+                await AIOTracedCursor(cursor, db_tags={}).execute("SELECT 1")
+            if failure is not None:
+                assert caught.value is failure
+            assert tracer.current_span() is parent
+    expected = "driver failed" if failure_type else "cursor closed"
+    assert test_spans.spans[1].get_tag("error.message") == expected

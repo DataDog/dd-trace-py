@@ -86,6 +86,8 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_dbapi_span_name_prefix = span_name_prefix
         self._self_last_execute_operation = None
         self._self_config = cast(IntegrationConfig, cfg or config.dbapi2)
+        # Retain the legacy cursor extension interface; propagation remains listener-owned.
+        self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
         self._self_db_tags = dict(db_tags) if db_tags else {}
 
     def __iter__(self):
@@ -100,13 +102,13 @@ class TracedCursor(wrapt.ObjectProxy):
         name: str,
         resource: Any,
         extra_tags: dict[str, Any],
-        supports_query_rewriting: bool,
+        dbm_propagator: Any,
         *args: Any,
         **kwargs: Any,
     ) -> Any:
         if not is_tracing_enabled():
             return method(*args, **kwargs)
-        with self._trace_method_context(method, name, resource, extra_tags, supports_query_rewriting, args, kwargs) as (
+        with self._trace_method_context(method, name, resource, extra_tags, dbm_propagator, args, kwargs) as (
             args,
             kwargs,
         ):
@@ -119,7 +121,7 @@ class TracedCursor(wrapt.ObjectProxy):
         name: str,
         resource: Any,
         extra_tags: dict[str, Any],
-        supports_query_rewriting: bool,
+        dbm_propagator: Any,
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> Iterator[tuple[tuple[Any, ...], dict[str, Any]]]:
@@ -141,19 +143,37 @@ class TracedCursor(wrapt.ObjectProxy):
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
 
-            if supports_query_rewriting and core.has_listeners(DatabaseQueryPrepareEvent.event_name):
-                prepare = DatabaseQueryPrepareEvent(context=ctx, args=args, kwargs=kwargs)
-                core.dispatch_event(prepare)
-                args, kwargs = prepare.args, prepare.kwargs
+            if core.has_listeners(DatabaseQueryPrepareEvent.event_name):
+                supports_query_rewriting = bool(dbm_propagator)
+                if dbm_propagator is None and getattr(self._self_config, "_dbm_propagator", None) is None:
+                    supports_query_rewriting = method in (
+                        getattr(self.__wrapped__, "execute", None),
+                        getattr(self.__wrapped__, "executemany", None),
+                    )
+                if supports_query_rewriting:
+                    prepare = DatabaseQueryPrepareEvent(context=ctx, args=args, kwargs=kwargs)
+                    core.dispatch_event(prepare)
+                    args, kwargs = prepare.args, prepare.kwargs
 
+            driver_failed = True
             try:
                 yield args, kwargs
+                driver_failed = False
             finally:
-                if type(self)._set_post_execute_tags is TracedCursor._default_post_execute_tags:
-                    result = self._get_post_execute_result(ctx)
-                else:
-                    result = DatabaseResultEvent(context=ctx, legacy_post_execute=self._set_post_execute_tags)
-                core.dispatch_event(result, allow_raise=True)
+                try:
+                    legacy_hook = type(self)._set_post_execute_tags is not TracedCursor._default_post_execute_tags
+                    if legacy_hook and type(self)._get_post_execute_result is TracedCursor._default_post_execute_result:
+                        # Legacy-only overrides control whether cursor metadata can be read safely.
+                        result = DatabaseResultEvent(context=ctx)
+                    else:
+                        result = self._get_post_execute_result(ctx)
+                    if legacy_hook:
+                        result.legacy_post_execute = self._set_post_execute_tags
+                    core.dispatch_event(result, allow_raise=True)
+                except Exception:
+                    if not driver_failed:
+                        raise
+                    log.debug("Error publishing database result metadata", exc_info=True)
 
     def _dbapi_query_encoding(self) -> Optional[str]:
         """Return the connection's Python codec, or None when it is unknown."""
@@ -180,7 +200,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name,
             query,
             {"sql.executemany": "true"},
-            True,
+            self._self_dbm_propagator,
             query,
             *args,
             **kwargs,
@@ -206,7 +226,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name,
             query,
             {},
-            True,
+            self._self_dbm_propagator,
             query,
             *args,
             **kwargs,
@@ -215,12 +235,14 @@ class TracedCursor(wrapt.ObjectProxy):
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, False, proc, *args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, None, proc, *args)
 
     def _get_post_execute_result(self, context: core.ExecutionContext[DatabaseOperationEvent]) -> DatabaseResultEvent:
         return DatabaseResultEvent(
             context=context, row_count=getattr(self.__wrapped__, "rowcount", None), row_count_as_tag=True
         )
+
+    _default_post_execute_result = _get_post_execute_result
 
     def _set_post_execute_tags(self, span: Span) -> None:
         """Compatibility hook for existing subclasses; new subclasses should publish result metadata."""
@@ -262,14 +284,14 @@ class FetchTracedCursor(TracedCursor):
         """Wraps the cursor.fetchone method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return self._trace_method(
-            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, False, *args, **kwargs
+            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
     def fetchall(self, *args, **kwargs):
         """Wraps the cursor.fetchall method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return self._trace_method(
-            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, False, *args, **kwargs
+            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
     def fetchmany(self, *args, **kwargs):
@@ -286,7 +308,7 @@ class FetchTracedCursor(TracedCursor):
             extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
 
         return self._trace_method(
-            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, False, *args, **kwargs
+            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, None, *args, **kwargs
         )
 
 

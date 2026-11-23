@@ -46,13 +46,13 @@ class TracedAsyncCursor(TracedCursor):
         name: str,
         resource: Any,
         extra_tags: dict[str, Any],
-        supports_query_rewriting: bool,
+        dbm_propagator: Any,
         *args: Any,
         **kwargs: Any,
     ) -> Any:
         if not is_tracing_enabled():
             return await method(*args, **kwargs)
-        with self._trace_method_context(method, name, resource, extra_tags, supports_query_rewriting, args, kwargs) as (
+        with self._trace_method_context(method, name, resource, extra_tags, dbm_propagator, args, kwargs) as (
             args,
             kwargs,
         ):
@@ -79,7 +79,7 @@ class TracedAsyncCursor(TracedCursor):
             self._self_datadog_name,
             query,
             {"sql.executemany": "true"},
-            True,
+            self._self_dbm_propagator,
             query,
             *args,
             **kwargs,
@@ -105,7 +105,7 @@ class TracedAsyncCursor(TracedCursor):
             self._self_datadog_name,
             query,
             {},
-            True,
+            self._self_dbm_propagator,
             query,
             *args,
             **kwargs,
@@ -119,14 +119,14 @@ class FetchTracedAsyncCursor(TracedAsyncCursor):
         """Wraps the cursor.fetchone method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return await self._trace_method(
-            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, False, *args, **kwargs
+            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
     async def fetchall(self, *args, **kwargs):
         """Wraps the cursor.fetchall method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return await self._trace_method(
-            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, False, *args, **kwargs
+            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, None, *args, **kwargs
         )
 
     async def fetchmany(self, *args, **kwargs):
@@ -143,7 +143,7 @@ class FetchTracedAsyncCursor(TracedAsyncCursor):
             extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
 
         return await self._trace_method(
-            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, False, *args, **kwargs
+            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, None, *args, **kwargs
         )
 
 
