@@ -15,6 +15,9 @@ from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard.middleware import AIGuardMiddleware
 from ddtrace.aiguard.middleware import register_middleware
 from ddtrace.constants import USER_KEEP
+from ddtrace.ext import http
+from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
@@ -179,6 +182,8 @@ def test_span_identifies_the_connection_evaluation(mock_execute_request, ai_guar
         pytest.param({"id": 123, "version": 7}, {"id": "123", "version": "7"}, id="integers"),
         pytest.param({"id": "policy_123"}, {"id": "policy_123"}, id="id only"),
         pytest.param({"id": True, "version": None, "extra": "x"}, None, id="other types"),
+        pytest.param({"id": "", "version": ""}, None, id="empty strings"),
+        pytest.param({"id": 0, "version": ""}, {"id": "0"}, id="integer zero"),
         pytest.param({"id": {"nested": 1}, "version": 4.2}, None, id="objects and floats"),
         pytest.param("policy_123", None, id="not an object"),
         pytest.param(None, None, id="absent"),
@@ -262,6 +267,12 @@ def test_transport_failures_are_classified_as_in_evaluate(
             id="list position and target_index both match",
         ),
         pytest.param(
+            _results({"action": "ALLOW"}, {"action": "DENY"}),
+            AI_GUARD.ERROR_BAD_RESPONSE,
+            None,
+            id="two results without target_index",
+        ),
+        pytest.param(
             _results({"target_index": 0, "action": "ALLOW"}, {"target_index": 0, "action": "DENY"}),
             AI_GUARD.ERROR_BAD_RESPONSE,
             None,
@@ -337,6 +348,25 @@ def test_root_span_is_kept_and_marked(mock_execute_request, ai_guard_client, tra
 
     assert root_span.context.sampling_priority == USER_KEEP
     assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"
+
+
+@patch(EXECUTE_REQUEST)
+def test_request_tags_reach_the_root_and_ai_guard_spans(mock_execute_request, ai_guard_client, tracer, test_spans):
+    mock_execute_request.return_value = mock_evaluate_resource_response("DENY")
+
+    with core.context_with_data("test.request"):
+        with tracer.trace("web.request") as root_span:
+            root_span.set_tag("http.useragent", "test-agent/1.0")
+            core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, ("8.8.8.8", "10.0.0.1"))
+            with pytest.raises(AIGuardAbortError):
+                ai_guard_client._evaluate_resource(TARGET)
+            # The stashed IPs are used once, so a later evaluation cannot inherit them.
+            assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) is None
+
+    assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+    assert root_span.get_tag(net.CLIENT_IP) == "10.0.0.1"
+    (span,) = [span for span in test_spans.spans if span.name == AI_GUARD.RESOURCE_TYPE]
+    assert span.get_tag(f"{AI_GUARD.TAG}.http.useragent") == "test-agent/1.0"
 
 
 @patch(EXECUTE_REQUEST)

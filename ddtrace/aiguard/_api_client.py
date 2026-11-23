@@ -212,7 +212,7 @@ def _status_tag(status: Optional[int]) -> str:
 def _target_result(body: Any) -> Optional[dict[str, Any]]:
     """The result for the first target of a resource evaluation, or None unless exactly one result matches it.
 
-    A result matches if its target_index is the int 0, or if it has no target_index and is at list position 0.
+    A result matches if its target_index is the int 0, or if it has no target_index and is the only result.
     """
     try:
         results = body["data"]["attributes"]["results"]
@@ -226,13 +226,19 @@ def _target_result(body: Any) -> Optional[dict[str, Any]]:
         # bool is a subclass of int, so the exact type check also rejects False.
         if type(index) is int and index == 0:
             matches.append(result)
-    return matches[0] if len(matches) == 1 else None
+    if len(matches) != 1:
+        return None
+    # Without target_index, only a single result can refer to the single target.
+    return matches[0] if len(results) == 1 or "target_index" in matches[0] else None
 
 
 def _policy_field(policy: Any, key: str) -> Optional[str]:
     """A field of the result policy as a string. The service can send it as a string or as an integer."""
     value = policy.get(key) if isinstance(policy, dict) else None
-    return str(value) if isinstance(value, (str, int)) and not isinstance(value, bool) else None
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return None
+    # An empty string identifies nothing, so it gives no tag, as an empty reason does.
+    return str(value) if value != "" else None
 
 
 # What replaces an endpoint anywhere it would otherwise be reported.
@@ -607,29 +613,7 @@ class AIGuardClient:
                 telemetry_tags.append(("skipped", "false"))
                 telemetry_tags.extend(call_path_tags)
                 self._add_request_to_telemetry(tuple(telemetry_tags))
-                root_span = self._mark_root_span()
-                if root_span:
-                    # Populate client IPs on the service-entry span only when an ai_guard span
-                    # is actually created, mirroring the AppSec spec. The candidate IPs were
-                    # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
-                    # Discard the key after use so a later evaluate() call can't inherit a
-                    # stale IP from an earlier request that shared this context tree.
-                    client_ips = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
-                    core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
-                    if client_ips:
-                        client_ip, peer_ip = client_ips
-                        set_client_address_tags(root_span, client_ip, peer_ip)
-                    # Copy anomaly-detection attributes from the root span onto the
-                    # ai_guard span with the `ai_guard.` prefix, so intake processing has them
-                    # even when the root span arrives in a later trace chunk.
-                    source_tags = _OTEL_ANOMALY_SOURCE_TAGS if config._otel_trace_semantics_enabled else {}
-                    for tag_name in AI_GUARD.ANOMALY_DETECTION_TAGS:
-                        tag_value = root_span.get_tag(source_tags.get(tag_name, tag_name))
-                        if tag_value is None:
-                            # Inferred proxy roots keep the Datadog attribute names under OTel semantics.
-                            tag_value = root_span.get_tag(tag_name)
-                        if tag_value is not None:
-                            span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
+                self._mark_root_span(span)
                 evaluation = Evaluation(
                     action=action,
                     reason=reason,
@@ -751,7 +735,7 @@ class AIGuardClient:
                     )
                     + call_path_tags
                 )
-                self._mark_root_span()
+                self._mark_root_span(span)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(action=action, reason=reason)
@@ -868,13 +852,34 @@ class AIGuardClient:
         return error_type
 
     @staticmethod
-    def _mark_root_span() -> Optional[Any]:
-        """Keep the trace of an evaluation and mark its root span as an AI Guard event; return the root span."""
+    def _mark_root_span(span: Any) -> None:
+        """Keep the trace of the ai_guard span, mark its root span as an AI Guard event and copy the request tags."""
         root_span = span_bus.get_root_span()
-        if root_span:
-            _aiguard_manual_keep(root_span)
-            root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
-        return root_span
+        if not root_span:
+            return
+        _aiguard_manual_keep(root_span)
+        root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
+        # Populate client IPs on the service-entry span only when an ai_guard span
+        # is actually created, mirroring the AppSec spec. The candidate IPs were
+        # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
+        # Discard the key after use so a later evaluate() call can't inherit a
+        # stale IP from an earlier request that shared this context tree.
+        client_ips = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+        core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+        if client_ips:
+            client_ip, peer_ip = client_ips
+            set_client_address_tags(root_span, client_ip, peer_ip)
+        # Copy anomaly-detection attributes from the root span onto the
+        # ai_guard span with the `ai_guard.` prefix, so intake processing has them
+        # even when the root span arrives in a later trace chunk.
+        source_tags = _OTEL_ANOMALY_SOURCE_TAGS if config._otel_trace_semantics_enabled else {}
+        for tag_name in AI_GUARD.ANOMALY_DETECTION_TAGS:
+            tag_value = root_span.get_tag(source_tags.get(tag_name, tag_name))
+            if tag_value is None:
+                # Inferred proxy roots keep the Datadog attribute names under OTel semantics.
+                tag_value = root_span.get_tag(tag_name)
+            if tag_value is not None:
+                span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
 
 
 def new_ai_guard_client(
