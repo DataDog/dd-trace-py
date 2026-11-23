@@ -77,6 +77,7 @@ case "$cmd" in
     "$SCRIPT_DIR/lint" slo-ownership
     "$SCRIPT_DIR/lint" suitespec-duplicates
     "$SCRIPT_DIR/lint" profiling-native-check
+    "$SCRIPT_DIR/lint" native-import-check
     "$SCRIPT_DIR/lint" error-log-check
     "$SCRIPT_DIR/lint" supported-config-check
     "$SCRIPT_DIR/lint" sg
@@ -126,6 +127,9 @@ case "$cmd" in
     ;;
   profiling-native-check)
     uv_lint python scripts/check_profiling_native_coverage.py "$@"
+    ;;
+  native-import-check)
+    uv_lint python scripts/check_native_python_imports.py "$@"
     ;;
   error-log-check)
     uv_lint python scripts/check_constant_log_message.py "$@"
@@ -211,6 +215,7 @@ Subcommands:
   slo-ownership             Check microbenchmark SLO ownership (no orphaned SLOs)
   suitespec-duplicates      Check for duplicate/dead suitespec suites
   profiling-native-check    Check profiling native coverage
+  native-import-check       Fail if src/native imports a ddtrace Python module
   error-log-check           Check constant log messages
   type-comments-check       Fail if new PEP 484 type comments were added
   supported-config-check    Check supported-configurations.json is in sync and complete
