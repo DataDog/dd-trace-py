@@ -290,17 +290,11 @@ get_first_part_lower(const char* module_name, char* first_part, size_t max_len)
    is first-party by checking if its first component is NOT in the packages list.
 */
 static int
-is_first_party(const char* module_name, int assume_first_party)
+is_first_party(const char* module_name)
 {
     // If the module name contains "vendor." or "vendored.", return false.
     if (strstr(module_name, "vendor.") || strstr(module_name, "vendored.")) {
         return 0;
-    }
-
-    // During finder discovery the caller checks the source location instead
-    // of publishing an incomplete package inventory.
-    if (assume_first_party) {
-        return 1;
     }
 
     // If no cached packages are available, assume it's not first-party
@@ -492,9 +486,8 @@ static PyObject*
 py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
 {
     const char* module_name;
-    int assume_first_party = 0;
 
-    if (!PyArg_ParseTuple(args, "s|p", &module_name, &assume_first_party)) {
+    if (!PyArg_ParseTuple(args, "s", &module_name)) {
         return NULL;
     }
 
@@ -555,7 +548,7 @@ py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     /* Allow if it's a first-party module */
-    if (is_first_party(module_name, assume_first_party)) {
+    if (is_first_party(module_name)) {
         return PyLong_FromLong(ALLOWED_FIRST_PARTY_ALLOWLIST);
     }
 

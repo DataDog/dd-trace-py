@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from ast import unparse
 import logging
+import os
+from pathlib import Path
+from textwrap import dedent
 from unittest import mock
 
 import pytest
@@ -597,10 +600,10 @@ def test_package_list_read_inside_a_finder_query_is_not_kept(tmp_path):
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="", _DD_IAST_DENY_MODULES="app_denied"),
+    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="app_allowed", _DD_IAST_DENY_MODULES="app_denied"),
     parametrize=dict(_DD_TEST_DISCOVERY=("empty", "filesystem", "iast", "cold")),
 )
-def test_finder_import_instruments_app_source_without_reentering_finder():
+def test_finder_import_uses_only_name_rules_until_discovery_completes():
     from importlib import import_module
     from importlib.machinery import PathFinder
     from importlib.machinery import SourceFileLoader
@@ -625,7 +628,7 @@ def test_finder_import_instruments_app_source_without_reentering_finder():
         lib = app / "site-packages"
         lib.mkdir()
         source = "def combine(a, b):\n    return a + b\n"
-        for name in ("app_helper", "app_denied", "finder_dep", "installed_dep"):
+        for name in ("app_helper", "app_allowed", "app_denied", "finder_dep", "installed_dep"):
             (app / f"{name}.py").write_text(source)
         (lib / "lib_dep.py").write_text(source)
 
@@ -657,7 +660,7 @@ def test_finder_import_instruments_app_source_without_reentering_finder():
             def find_distributions(self, context):
                 self.calls += 1
                 if self.calls == 1:
-                    for name in ("app_helper", "app_denied", "finder_dep", "installed_dep", "lib_dep"):
+                    for name in ("app_helper", "app_allowed", "app_denied", "finder_dep", "installed_dep", "lib_dep"):
                         import_module(name)
                 return [dependency]
 
@@ -671,6 +674,8 @@ def test_finder_import_instruments_app_source_without_reentering_finder():
                 sys.modules["importlib"].__dict__.pop("metadata", None)
             packages._reset_installed_distributions()
             ast_patching.IAST_PATCHING_LAZY_LOADED = True
+            # A pre-existing native list must not authorize first-party patching either.
+            ast_patching.iastpatch.set_packages_distributions({"other_package"})
             if entry == "iast":
                 ast_patching._should_iast_patch("app_entry")
             else:
@@ -680,12 +685,42 @@ def test_finder_import_instruments_app_source_without_reentering_finder():
             def instrumented(name):
                 return "add_aspect" in sys.modules[name].combine.__code__.co_names
 
-            assert instrumented("app_helper")
+            assert not instrumented("app_helper")
+            assert instrumented("app_allowed")
             assert not instrumented("app_denied")
             assert not instrumented("lib_dep")
             assert sys.modules["finder_dep"].loader_ran
             assert not instrumented("finder_dep")
-            assert instrumented("installed_dep") == (entry != "filesystem")
+            assert not instrumented("installed_dep")
             # Now use the completed inventory, even for code outside the finder.
             assert not ast_patching._should_iast_patch("finder_dep.next")
             assert not ast_patching.IAST_PATCHING_LAZY_LOADED
+
+
+def test_ddtrace_run_finder_imports_during_startup(tmp_path, python_process, monkeypatch):
+    for name in ("finder_helper", "finder_allowed", "finder_dependency", "later_helper"):
+        (tmp_path / f"{name}.py").write_text("def combine(a, b):\n    return a + b\n")
+    fixture = Path(__file__).parents[1] / "fixtures" / "distribution_finder"
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join((str(fixture), str(tmp_path))), prepend=os.pathsep)
+    monkeypatch.setenv("DD_IAST_ENABLED", "true")
+    monkeypatch.setenv("_DD_IAST_PATCH_MODULES", "finder_allowed")
+    python_process(
+        dedent(
+            """\
+            import sys
+
+            # These modules must already have executed inside the startup query.
+            def patched(module):
+                return "add_aspect" in module.combine.__code__.co_names
+
+            assert not patched(sys.modules["finder_helper"])
+            assert patched(sys.modules["finder_allowed"])
+            dependency = sys.modules["finder_dependency"]
+            assert dependency.loader_ran and not patched(dependency)
+
+            import later_helper
+            assert patched(later_helper)
+            """
+        ),
+        ddtrace_run=True,
+    ).check_returncode()

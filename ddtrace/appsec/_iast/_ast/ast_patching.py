@@ -1,8 +1,5 @@
 import ast
-from importlib.machinery import SourceFileLoader
 import os
-from pathlib import Path
-import sys
 import textwrap
 from types import ModuleType
 from typing import Optional
@@ -13,14 +10,9 @@ from ddtrace.appsec._iast._logs import iast_ast_debug_log
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.module import _ImportHookChainedLoader
 from ddtrace.internal.module import origin
 from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.packages import is_querying_finders
-from ddtrace.internal.packages import platlib_path
-from ddtrace.internal.packages import platstdlib_path
-from ddtrace.internal.packages import purelib_path
-from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
@@ -85,37 +77,14 @@ def _initialize_user_lists():
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
 
-def _finder_import_is_local_source(module_name: str) -> bool:
-    """Infer ownership for this import only, without calling the active finder again."""
-    spec = getattr(sys.modules.get(module_name), "__spec__", None)
-    loader = spec.loader if spec is not None else None
-    if isinstance(loader, _ImportHookChainedLoader):
-        loader = loader.loader
-    # Executing a patched AST bypasses exec_module. Even a SourceFileLoader
-    # subclass may need to initialize the module itself.
-    if type(loader) is not SourceFileLoader or not sys.path or not isinstance(sys.path[0], str):
-        return False
-    source = Path(loader.path).resolve()
-    if not source.is_relative_to(Path(sys.path[0]).resolve()):
-        return False
-    if any(source.is_relative_to(root) for root in (stdlib_path, platstdlib_path, purelib_path, platlib_path)) or any(
-        part in ("site-packages", "dist-packages") for part in source.parts
-    ):
-        return False
-    # The guarded inventory still knows about filesystem distributions. Match
-    # the native classifier's case-insensitive top-level prefix check.
-    top_level = module_name.partition(".")[0].lower()
-    return not any(top_level.startswith(name.lower()) for name in get_package_distributions())
-
-
 def _initial_patch_result(module_name: str) -> int:
     global IAST_PATCHING_LAZY_LOADED
     if is_querying_finders():
-        # The finder has not returned its metadata yet. Apply the name-based
-        # rules, but resolve first-party candidates without caching a partial map.
+        # The finder has not returned its metadata. Honor name-based rules, but
+        # don't infer ownership from an incomplete inventory and bypass its loader.
         _initialize_user_lists()
-        result = iastpatch.should_iast_patch(module_name, True)
-        if result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST and not _finder_import_is_local_source(module_name):
+        result = iastpatch.should_iast_patch(module_name)
+        if result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
             return iastpatch.DENIED_NOT_FOUND
         return result
 
