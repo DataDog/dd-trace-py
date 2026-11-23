@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from collections.abc import Sequence
 import functools
 from typing import Any
@@ -36,7 +37,7 @@ FRAMEWORK_NAME = "PydanticAI"
 _OUTPUT_MARKERS = frozenset({"ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"})
 
 
-def _iter_agent_tools(agent: Any):
+def _iter_agent_tools(agent: Any) -> Iterator[tuple[str, Any]]:
     """Yield (name, tool) for the agent's function tools, de-duped first-wins, across versions."""
     seen: set[str] = set()
     tool_dicts: list[dict[str, Any]] = []

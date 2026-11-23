@@ -125,7 +125,14 @@ class AnthropicIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
@@ -139,11 +146,14 @@ class AnthropicIntegration(BaseLLMIntegration):
         )
 
     def _extract_input_message(
-        self, messages: list[dict[str, Any]], system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None
+        self,
+        messages: Any,
+        system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None,
     ) -> list[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
+        # messages is user-supplied request data (hence Any), so its shape is validated at runtime.
         if not isinstance(messages, Iterable):
             log.warning("Anthropic input must be a list of messages.")
 
@@ -214,19 +224,19 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         return input_messages
 
-    def _extract_output_message(self, response) -> list[Message]:
+    def _extract_output_message(self, response: Any) -> list[Message]:
         """Extract output messages from the stored response."""
         return get_messages_from_anthropic_content(_get_attr(response, "role", ""), _get_attr(response, "content", ""))
 
-    def _extract_usage(self, span: _LLMObsSpan, usage: dict[str, Any]):
+    def _extract_usage(self, span: _LLMObsSpan, usage: dict[str, Any]) -> Optional[dict[str, Any]]:
         if not usage:
-            return
+            return None
         input_tokens = _get_attr(usage, "input_tokens", None)
         output_tokens = _get_attr(usage, "output_tokens", None)
         cache_write_tokens = _get_attr(usage, "cache_creation_input_tokens", None)
         cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
 
-        metrics = {}
+        metrics: dict[str, Any] = {}
 
         # `input_tokens` in the returned usage is the number of non-cached tokens. We normalize it to mean
         # the total tokens sent to the model to be consistent with other model providers.
@@ -276,7 +286,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             return _ANTHROPIC_MODEL_PROVIDER
         return UNKNOWN_MODEL_PROVIDER
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Any) -> Optional[str]:
         instance = kwargs.get("instance")
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None
