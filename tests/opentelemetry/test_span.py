@@ -14,10 +14,10 @@ from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.otel.sampling import _random_value
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
-from ddtrace.internal.opentelemetry.sampling import _random_value
 from ddtrace.internal.opentelemetry.span import Span
 
 

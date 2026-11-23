@@ -11,10 +11,10 @@ from unittest import mock
 import pytest
 import wrapt
 
-from ddtrace.contrib.internal.openai._realtime import _usage_metrics
-from ddtrace.contrib.internal.openai_agents import _realtime
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
+from ddtrace.llmobs._integrations import openai_agents_realtime as _realtime
+from ddtrace.llmobs._integrations.openai_realtime import _usage_metrics
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.llmobs._utils import assert_llmobs_span_data
 

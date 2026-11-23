@@ -26,10 +26,10 @@ from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -64,7 +64,7 @@ def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, s
 class AnthropicIntegration(BaseLLMIntegration):
     _integration_name = "anthropic"
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Record the request base_url on the span; the contrib sets the APM model tag itself."""
         # Store base_url per-span rather than on the singleton integration so a streaming
         # span that finalizes after concurrent requests still resolves the right provider.
@@ -74,7 +74,7 @@ class AnthropicIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -82,8 +82,13 @@ class AnthropicIntegration(BaseLLMIntegration):
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         parameters = {}
-        if kwargs.get("temperature"):
-            parameters["temperature"] = kwargs.get("temperature")
+        # anthropic>=1.0 passes sampling params through extra_body; explicit kwargs take precedence.
+        extra_body = kwargs.get("extra_body")
+        temperature = kwargs.get("temperature")
+        if temperature is None and isinstance(extra_body, dict):
+            temperature = extra_body.get("temperature")
+        if temperature is not None:
+            parameters["temperature"] = temperature
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         tool_definitions = None
@@ -120,7 +125,14 @@ class AnthropicIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
@@ -134,11 +146,14 @@ class AnthropicIntegration(BaseLLMIntegration):
         )
 
     def _extract_input_message(
-        self, messages: list[dict[str, Any]], system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None
+        self,
+        messages: Any,
+        system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None,
     ) -> list[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
+        # messages is user-supplied request data (hence Any), so its shape is validated at runtime.
         if not isinstance(messages, Iterable):
             log.warning("Anthropic input must be a list of messages.")
 
@@ -209,19 +224,19 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         return input_messages
 
-    def _extract_output_message(self, response) -> list[Message]:
+    def _extract_output_message(self, response: Any) -> list[Message]:
         """Extract output messages from the stored response."""
         return get_messages_from_anthropic_content(_get_attr(response, "role", ""), _get_attr(response, "content", ""))
 
-    def _extract_usage(self, span: Span, usage: dict[str, Any]):
+    def _extract_usage(self, span: _LLMObsSpan, usage: dict[str, Any]) -> Optional[dict[str, Any]]:
         if not usage:
-            return
+            return None
         input_tokens = _get_attr(usage, "input_tokens", None)
         output_tokens = _get_attr(usage, "output_tokens", None)
         cache_write_tokens = _get_attr(usage, "cache_creation_input_tokens", None)
         cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
 
-        metrics = {}
+        metrics: dict[str, Any] = {}
 
         # `input_tokens` in the returned usage is the number of non-cached tokens. We normalize it to mean
         # the total tokens sent to the model to be consistent with other model providers.
@@ -252,7 +267,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             metrics[WEB_SEARCH_COUNT_METRIC_KEY] = web_search_requests
         return metrics
 
-    def _get_model_provider(self, span: Span) -> str:
+    def _get_model_provider(self, span: _LLMObsSpan) -> str:
         """Resolve the model provider from the request base_url captured on the span.
 
         Returns "amazon" if the base_url contains "bedrock".
@@ -271,7 +286,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             return _ANTHROPIC_MODEL_PROVIDER
         return UNKNOWN_MODEL_PROVIDER
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Any) -> Optional[str]:
         instance = kwargs.get("instance")
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None

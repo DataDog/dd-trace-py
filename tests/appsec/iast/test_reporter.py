@@ -1,8 +1,9 @@
 import os
+import zlib
 
 import pytest
 
-from ddtrace.appsec._iast.reporter import Evidence
+from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
@@ -66,6 +67,16 @@ def test_vulnerability_hash_and_equality():
 
     _do_assert_hash(e, f, g, e2)
     _do_assert_equality(e, f, g, e2)
+
+
+def test_untrusted_deserialization_keeps_legacy_hash():
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    vulnerability = Vulnerability(type="UNTRUSTED_DESERIALIZATION", evidence=Evidence(value="a: 1"), location=loc)
+
+    # Same hash as findings reported before the type was renamed from UNTRUSTED_SERIALIZATION.
+    legacy = zlib.crc32(b"Vulnerability(type='UNTRUSTED_SERIALIZATION', location=Location(path='foobar.py', line=35))")
+    assert vulnerability.hash == legacy
+    assert vulnerability.type == "UNTRUSTED_DESERIALIZATION"
 
 
 def test_source_hash_and_equality():

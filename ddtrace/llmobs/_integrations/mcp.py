@@ -6,16 +6,17 @@ from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
 from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
 from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -47,7 +48,7 @@ def dd_trace_input_schema() -> dict[str, Any]:
     }
 
 
-def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
+def _find_client_session_root(span: Optional[_LLMObsSpan]) -> Optional[_LLMObsSpan]:
     """
     Find the root span of a client session.
     Note that this will not work in distributed tracing, but since
@@ -82,14 +83,18 @@ def get_client_info_tags(client_info: Any) -> dict[str, str]:
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
-        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: MCP spans carry no provider or model tags."""
 
-        mcp_span_type = kwargs.get("type", None)
-        if mcp_span_type:
-            span._set_ctx_item(MCP_SPAN_TYPE, mcp_span_type)
-
-        return span
+    def _on_request_span_started(
+        self,
+        span: _LLMObsSpan,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        if operation == SESSION_OPERATION_NAME:
+            span._set_ctx_item(MCP_SPAN_TYPE, "client_session")
 
     # Inject intent capture properties into inputSchemas on the response
     def inject_tools_list_response(self, response: Any) -> None:
@@ -128,7 +133,7 @@ class MCPIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -144,10 +149,12 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_server_middleware(span, args, kwargs, response)
         elif operation == "list_tools":
             self._llmobs_set_tags_list_tools(span, args, kwargs, response)
-        elif operation == "session":
+        elif operation == SESSION_OPERATION_NAME:
             self._llmobs_set_tags_session(span, args, kwargs, response)
 
-    def _llmobs_set_tags_client(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_client(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Any
+    ) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
         tool_name = args[0] if len(args) > 0 else kwargs.get("name", "unknown_tool")
         span_name = f"MCP Client Tool Call: {tool_name}"
@@ -173,13 +180,15 @@ class MCPIntegration(BaseLLMIntegration):
             ]
         _annotate_llmobs_span_data(span, output_value={"content": processed_content, "isError": is_error})
 
-    def _llmobs_set_tags_initialize(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_initialize(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Any
+    ) -> None:
         _annotate_llmobs_span_data(span, name="MCP Client Initialize", kind="task", output_value=safe_json(response))
         self.set_client_session_server_info(
             span, _get_attr(response, "serverInfo", None) or _get_attr(response, "server_info", None)
         )
 
-    def set_client_session_server_info(self, span: Optional[Span], server_info: Any) -> None:
+    def set_client_session_server_info(self, span: Optional[_LLMObsSpan], server_info: Any) -> None:
         """Tag the enclosing client session span with the server's self-reported identity."""
         if not self.llmobs_enabled or not server_info:
             return
@@ -195,7 +204,7 @@ class MCPIntegration(BaseLLMIntegration):
                 },
             )
 
-    def _set_initialize_request_overrides(self, span: Span, request: Any) -> None:
+    def _set_initialize_request_overrides(self, span: _LLMObsSpan, request: Any) -> None:
         """Update span for initialize request specific tags"""
         request_params = _get_attr(request, "params", None)
         client_info = _get_attr(request_params, "clientInfo", None)
@@ -210,7 +219,7 @@ class MCPIntegration(BaseLLMIntegration):
                 },
             )
 
-    def _set_call_tool_request_overrides(self, span: Span, request: Any, response: Any) -> None:
+    def _set_call_tool_request_overrides(self, span: _LLMObsSpan, request: Any, response: Any) -> None:
         """Update span for call tool-specific tags, span name, and span type"""
         override_tags = {}
         params = _get_attr(request, "params", None)
@@ -223,7 +232,7 @@ class MCPIntegration(BaseLLMIntegration):
 
         _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
-    def process_telemetry_argument(self, span: Span, request: Any) -> None:
+    def process_telemetry_argument(self, span: _LLMObsSpan, request: Any) -> None:
         """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
         """
@@ -242,7 +251,7 @@ class MCPIntegration(BaseLLMIntegration):
             del arguments[TELEMETRY_KEY]
 
     def _set_server_request_tags(
-        self, span: Span, request: Any, input_obj: Any, response: Any, session: Any, session_id: Any
+        self, span: _LLMObsSpan, request: Any, input_obj: Any, response: Any, session: Any, session_id: Any
     ) -> None:
         method = str(_get_attr(request, "method", "unknown"))
         tags = {"mcp_method": method}
@@ -261,9 +270,12 @@ class MCPIntegration(BaseLLMIntegration):
             self._set_call_tool_request_overrides(span, request, response)
 
     def _llmobs_set_tags_request_responder_respond(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Any
     ) -> None:
         responder = get_argument_value(args, kwargs, 0, "request_responder", optional=True)
+        if responder is None:
+            # The request finished without a response being sent.
+            return
         response_value = get_argument_value(args, kwargs, 0, "response", optional=True)
 
         request = getattr(responder, "request", None)
@@ -286,7 +298,7 @@ class MCPIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_server_middleware(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Any
     ) -> None:
         ctx = kwargs["ctx"]
         params = ctx.params or {}
@@ -308,7 +320,9 @@ class MCPIntegration(BaseLLMIntegration):
 
         self._set_server_request_tags(span, request, input_obj, response, ctx.session, session_id)
 
-    def _llmobs_set_tags_list_tools(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_list_tools(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Any
+    ) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
 
         _annotate_llmobs_span_data(
@@ -319,7 +333,9 @@ class MCPIntegration(BaseLLMIntegration):
             output_value=safe_json(response),
         )
 
-    def _llmobs_set_tags_session(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_session(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Any
+    ) -> None:
         read_stream = kwargs.get("read_stream", None)
         write_stream = kwargs.get("write_stream", None)
 

@@ -60,3 +60,5 @@ observer leaves SDK/application requests and every successful reply unchanged;
 those replies can add audio to the SDK's session history. Its own backpressured
 sends use a fixed number of slots rather than cancelling frames already handed
 to the transport when an item is evicted.
+
+Realtime transport wrappers dispatch a product-neutral session observer event. The LLMObs adapter owns the Agents playback observer in `ddtrace/llmobs/_integrations/openai_agents_realtime.py` and reuses `ddtrace/llmobs/_integrations/openai_realtime.py`; shared OpenAI changes select this suite through `@openai`.

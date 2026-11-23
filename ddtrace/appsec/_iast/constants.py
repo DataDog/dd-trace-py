@@ -14,7 +14,8 @@ VULN_HEADER_INJECTION = "HEADER_INJECTION"
 VULN_UNVALIDATED_REDIRECT = "UNVALIDATED_REDIRECT"
 VULN_CODE_INJECTION = "CODE_INJECTION"
 VULN_XSS = "XSS"
-VULN_UNTRUSTED_SERIALIZATION = "UNTRUSTED_SERIALIZATION"
+# The backend and the other tracers only know UNTRUSTED_DESERIALIZATION; the constant name is historical.
+VULN_UNTRUSTED_SERIALIZATION = "UNTRUSTED_DESERIALIZATION"
 VULN_SSRF = "SSRF"
 VULN_STACKTRACE_LEAK = "STACKTRACE_LEAK"
 
@@ -120,6 +121,17 @@ DEFAULT_SSRF_FUNCTIONS = {
     },
     "webbrowser": {
         "open",
+    },
+    "aiohttp.client": {
+        "get",
+        "post",
+        "put",
+        "patch",
+        "delete",
+        "head",
+        "options",
+        "request",
+        "ws_connect",
     },
 }
 

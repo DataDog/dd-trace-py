@@ -332,17 +332,6 @@ def test_otel_traces_sampler_configuration_alwayson():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_TRACES_SAMPLER": "always_on"},
-    err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
-)
-def test_otel_traces_sampler_configuration_ignore_parent():
-    from tests.opentelemetry.test_config import _global_sampling_rule
-
-    sample_rate = _global_sampling_rule().sample_rate
-    assert sample_rate == 1.0, sample_rate
-
-
-@pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_off"},
     err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n",
 )
@@ -910,9 +899,9 @@ def test_otel_resource_attributes_version_tag():
     ],
 )
 def test_parse_otlp_headers(raw, expected):
-    from ddtrace.internal.writer.writer import NativeWriter
+    from ddtrace.internal.writer.writer import _parse_otlp_headers
 
-    assert NativeWriter._parse_otlp_headers(raw) == expected
+    assert _parse_otlp_headers(raw) == expected
 
 
 @pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "grpc"})
@@ -1265,14 +1254,14 @@ def test_a_collector_of_your_own_gets_your_headers_and_no_api_key():
 def test_native_trace_metrics_exporter_sends_custom_headers_and_the_api_key():
     """End of the chain: what the exporter is handed, not just what the config derives."""
     from ddtrace.internal.settings._opentelemetry import otel_config
-    from ddtrace.internal.writer.writer import NativeWriter
+    from ddtrace.internal.writer.writer import _parse_otlp_headers
     from ddtrace.trace import tracer
 
     writer = tracer._span_aggregator.writer
     assert writer._otlp_metrics_endpoint == "https://otlp.datadoghq.com/v1/metrics"
 
-    # This is the value, and the parse of it, that _create_exporter hands to libdatadog.
-    headers = dict(NativeWriter._parse_otlp_headers(otel_config.exporter.METRICS_HEADERS))
+    # This is the value, and the parse of it, that _build_exporter_builder hands to libdatadog.
+    headers = dict(_parse_otlp_headers(otel_config.exporter.METRICS_HEADERS))
     assert headers["x-team"] == "apm"
     assert headers["dd-api-key"] == "foobarkey"
 

@@ -10,19 +10,19 @@ from typing import Callable
 from typing import Optional
 
 import agents
-from agents.tracing import add_trace_processor
 
 from ddtrace import config
+from ddtrace.contrib.internal.openai_agents._constants import COMPONENT
+from ddtrace.contrib.internal.openai_agents._constants import RUN_SINGLE_TURN_EVENT
 from ddtrace.contrib.internal.openai_agents._realtime import patch_realtime
 from ddtrace.contrib.internal.openai_agents._realtime import unpatch_realtime
-from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcessor
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.trace import tracer
 
 
@@ -50,13 +50,7 @@ async def _patched_run_single_turn(func, instance, args, kwargs):
         log.debug("No current span available, skipping tag_agent_manifest")
         return result
 
-    # MLOB-7584 — the SDK doesn't guard this wrap site, so an unguarded raise here
-    # would surface in the user's Runner.run.
-    try:
-        integration = agents._datadog_integration
-        integration.tag_agent_manifest(current_span, args, kwargs)
-    except Exception:
-        log.debug("openai_agents tag_agent_manifest failed", exc_info=True)
+    core.dispatch(RUN_SINGLE_TURN_EVENT, (current_span, args, kwargs))
 
     return result
 
@@ -245,7 +239,7 @@ def _wrap_mcp_module(module: ModuleType) -> None:
         log.debug("openai_agents: failed to instrument %s", module.__name__, exc_info=True)
 
 
-def patch() -> None:
+def patch():
     """
     Patch the instrumented methods
     """
@@ -254,9 +248,8 @@ def patch() -> None:
 
     agents._datadog_patch = True
 
-    integration = OpenAIAgentsIntegration(integration_config=config.openai_agents)
-    add_trace_processor(LLMObsTraceProcessor(integration))
-    agents._datadog_integration = integration
+    # The spans of this integration come from LLMObs' trace processor, which the hook adds.
+    integration_hooks.on_patch(COMPONENT)
     patch_realtime()
 
     if _has_module_level_run_loop():
@@ -276,7 +269,7 @@ def patch() -> None:
         ModuleWatchdog.register_module_hook(module_name, _wrap_mcp_module)
 
 
-def unpatch() -> None:
+def unpatch():
     """
     Remove instrumentation from patched methods
     """
@@ -284,7 +277,9 @@ def unpatch() -> None:
         return
 
     agents._datadog_patch = False
+
     unpatch_realtime()
+    integration_hooks.on_unpatch(COMPONENT)
 
     if _has_module_level_run_loop():
         for module_path, attr_name, _ in _MODULE_RUN_LOOP_WRAP_TARGETS:

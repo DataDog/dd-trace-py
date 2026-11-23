@@ -38,6 +38,13 @@ from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 
+def test_get_iast_env_does_not_return_unrelated_context_data():
+    with core.context_with_data("test.iast_env"):
+        core.set_item(IAST.REQUEST_CONTEXT_KEY, object())
+        assert _get_iast_env() is None
+        assert not in_iast_env()
+
+
 def test_create_two_contexts_and_they_are_distinct():
     clear_all_request_context_slots()
     ctx1 = start_request_context()

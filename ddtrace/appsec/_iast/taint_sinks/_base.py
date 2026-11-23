@@ -17,8 +17,8 @@ from .._constants import IAST_SPAN_TAGS
 from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
+from .._report_types import Evidence
 from .._span_metrics import increment_iast_span_metric
-from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
 from ..reporter import Vulnerability
@@ -36,18 +36,6 @@ class taint_sink_deduplication(deduplication):
     def _extract(self, args):
         # We skip positions 0 and 1 because they represent the 'cls' and 'span' respectively
         return args[2:]
-
-
-def _check_positions_contained(needle, container):
-    needle_start, needle_end = needle
-    container_start, container_end = container
-
-    return (
-        (container_start <= needle_start < container_end)
-        or (container_start < needle_end <= container_end)
-        or (needle_start <= container_start < needle_end)
-        or (needle_start < container_end <= needle_end)
-    )
 
 
 class VulnerabilityBase:

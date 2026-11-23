@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Code Security (IAST): Detects server-side request forgery (SSRF) when a URL built from user input
+    is passed to the ``aiohttp`` client, through ``aiohttp.ClientSession`` request methods,
+    ``ClientSession.ws_connect`` or ``aiohttp.request``.

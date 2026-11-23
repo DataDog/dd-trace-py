@@ -5,26 +5,27 @@ from typing import Any
 from typing import Optional
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.bedrock_inference_profiles import begin_resolve
 from ddtrace.contrib.internal.bedrock_inference_profiles import lookup_inference_profile
 from ddtrace.contrib.internal.bedrock_inference_profiles import record_inference_profile
 from ddtrace.contrib.internal.bedrock_inference_profiles import record_resolve_failure
+from ddtrace.contrib.internal.botocore.constants import BEDROCK_COMPONENT
+from ddtrace.contrib.internal.botocore.constants import BEDROCK_CONVERSE_STREAM_CONSUMER
+from ddtrace.contrib.internal.botocore.services._bedrock_models import _AI21
+from ddtrace.contrib.internal.botocore.services._bedrock_models import _AMAZON
+from ddtrace.contrib.internal.botocore.services._bedrock_models import _ANTHROPIC
+from ddtrace.contrib.internal.botocore.services._bedrock_models import _COHERE
+from ddtrace.contrib.internal.botocore.services._bedrock_models import _META
+from ddtrace.contrib.internal.botocore.services._bedrock_models import _STABILITY
+from ddtrace.contrib.internal.botocore.services._bedrock_models import parse_model_id
 from ddtrace.contrib.internal.stream_handler import StreamHandler
 from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.contrib.internal.trace_utils import ext_service
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._integrations.bedrock_utils import _AI21
-from ddtrace.llmobs._integrations.bedrock_utils import _AMAZON
-from ddtrace.llmobs._integrations.bedrock_utils import _ANTHROPIC
-from ddtrace.llmobs._integrations.bedrock_utils import _COHERE
-from ddtrace.llmobs._integrations.bedrock_utils import _META
-from ddtrace.llmobs._integrations.bedrock_utils import _STABILITY
-from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
+from ddtrace.internal.span_bus import span_from_context
 
 
 log = get_logger(__name__)
@@ -36,35 +37,50 @@ _resolve_inference_profile_in_progress: ContextVar[bool] = ContextVar(
 )
 
 
+def _end_request(ctx: core.ExecutionContext, event: LlmRequestEvent, response=None, exc_info=None) -> None:
+    """Finish the request's span. The error is recorded first, so products tagging the span when it
+    finishes see it.
+    """
+    if exc_info is not None:
+        span_from_context(ctx).set_exc_info(*exc_info)
+    event.response = response
+    ctx.dispatch_ended_event()
+
+
+def _exc_info(exception):
+    # Prefer the passed exception: during a stream's __exit__, sys.exc_info() can be a wrapped-cleanup error.
+    return (type(exception), exception, exception.__traceback__) if exception is not None else sys.exc_info()
+
+
 def traced_stream_read(traced_stream, original_read, amt=None):
     """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
     handler = traced_stream.handler
-    execution_ctx = handler.options.get("execution_ctx", {})
+    ctx, event = handler.options["execution_ctx"], handler.options["event"]
     try:
         body = original_read(amt=amt)
         handler.chunks.append(json.loads(body))
         if traced_stream.__wrapped__.tell() == int(traced_stream.__wrapped__._content_length):
-            formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
-            core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
+            formatted_response = _extract_text_and_response_reason(event.request_kwargs, handler.chunks[0])
+            _end_request(ctx, event, formatted_response)
         return body
     except Exception:
-        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info()))
+        _end_request(ctx, event, exc_info=sys.exc_info())
         raise
 
 
 def traced_stream_readlines(traced_stream, original_readlines):
     """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
     handler = traced_stream.handler
-    execution_ctx = handler.options.get("execution_ctx", {})
+    ctx, event = handler.options["execution_ctx"], handler.options["event"]
     try:
         lines = original_readlines()
         for line in lines:
             handler.chunks.append(json.loads(line))
-        formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
-        core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
+        formatted_response = _extract_text_and_response_reason(event.request_kwargs, handler.chunks[0])
+        _end_request(ctx, event, formatted_response)
         return lines
     except Exception:
-        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info()))
+        _end_request(ctx, event, exc_info=sys.exc_info())
         raise
 
 
@@ -73,52 +89,49 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
         self.chunks.append(json.loads(chunk["chunk"]["bytes"]))
 
     def handle_exception(self, exception):
-        execution_ctx = self.options.get("execution_ctx", {})
+        ctx, event = self.options["execution_ctx"], self.options["event"]
         partial_response = None
         try:
-            _extract_streamed_response_metadata(execution_ctx, self.chunks)
-            partial_response = _extract_streamed_response(execution_ctx, self.chunks)
+            _extract_streamed_response_metadata(event.request_kwargs, self.chunks)
+            partial_response = _extract_streamed_response(event.request_kwargs, self.chunks)
         except Exception:
             log.warning("Error processing partial streamed bedrock response.", exc_info=True)
-        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info(), partial_response))
+        _end_request(ctx, event, partial_response, exc_info=_exc_info(exception))
 
     def finalize_stream(self, exception=None):
         if exception:
             return
-        execution_ctx = self.options.get("execution_ctx", {})
+        ctx, event = self.options["execution_ctx"], self.options["event"]
         # Extract token usage metrics from the streamed chunks (e.g. the trailing
-        # ``amazon-bedrock-invocationMetrics`` event) and set them on the context so
+        # ``amazon-bedrock-invocationMetrics`` event) and record them on the request so
         # LLM Observability spans report accurate token counts instead of zeros.
-        _extract_streamed_response_metadata(execution_ctx, self.chunks)
-        formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
-        core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
+        _extract_streamed_response_metadata(event.request_kwargs, self.chunks)
+        formatted_response = _extract_streamed_response(event.request_kwargs, self.chunks)
+        _end_request(ctx, event, formatted_response)
 
 
 class BotocoreConverseStreamHandler(StreamHandler):
     def process_chunk(self, chunk: dict[str, Any], iterator=None):
-        stream_processor = self.options.get("stream_processor", None)
-        if stream_processor:
-            stream_processor.send(chunk)
+        consumer = self.options.get("consumer")
+        if consumer is not None:
+            consumer.send(chunk)
 
     def handle_exception(self, exception):
-        stream_processor = self.options.get("stream_processor", None)
-        execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info(), stream_processor))
+        ctx, event = self.options["execution_ctx"], self.options["event"]
+        _end_request(ctx, event, self.options.get("consumer"), exc_info=_exc_info(exception))
 
     def finalize_stream(self, exception=None):
         if exception:
             return
-        stream_processor = self.options.get("stream_processor", None)
-        execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.bedrock.process_response_converse", (execution_ctx, stream_processor))
+        _end_request(self.options["execution_ctx"], self.options["event"], self.options.get("consumer"))
 
 
-def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
+def make_botocore_streaming_body_traced_stream(streaming_body, ctx, event):
     original_read = getattr(streaming_body, "read", None)
     original_readlines = getattr(streaming_body, "readlines", None)
     traced_stream = make_traced_stream(
         streaming_body,
-        BotocoreStreamingBodyStreamHandler(None, None, None, None, execution_ctx=execution_ctx),
+        BotocoreStreamingBodyStreamHandler(None, None, None, None, execution_ctx=ctx, event=event),
     )
     # add bedrock-specific methods to the traced stream
     if original_read:
@@ -128,14 +141,12 @@ def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
     return traced_stream
 
 
-def make_botocore_converse_traced_stream(stream, execution_ctx):
-    stream_processor = execution_ctx["bedrock_integration"]._converse_output_stream_processor()
-    next(stream_processor)
+def make_botocore_converse_traced_stream(stream, ctx, event):
+    # Only products that need the streamed output set a consumer, so APM-only streams buffer nothing.
+    consumer = span_from_context(ctx)._get_ctx_item(BEDROCK_CONVERSE_STREAM_CONSUMER)
     return make_traced_stream(
         stream,
-        BotocoreConverseStreamHandler(
-            None, None, None, None, execution_ctx=execution_ctx, stream_processor=stream_processor
-        ),
+        BotocoreConverseStreamHandler(None, None, None, None, execution_ctx=ctx, event=event, consumer=consumer),
     )
 
 
@@ -152,30 +163,28 @@ def safe_token_count(token_count) -> Optional[int]:
     return None
 
 
-def _set_llmobs_usage(
-    ctx: core.ExecutionContext,
+def _set_usage(
+    request: dict[str, Any],
     input_tokens: Optional[int],
     output_tokens: Optional[int],
     total_tokens: Optional[int] = None,
     cache_read_tokens: Optional[int] = None,
     cache_write_tokens: Optional[int] = None,
 ) -> None:
-    """
-    Sets LLM usage metrics in the execution context for LLM Observability.
-    """
-    llmobs_usage = {}
+    """Record the request's token usage, for products that tag the span when it finishes."""
+    usage = {}
     if input_tokens is not None:
-        llmobs_usage["input_tokens"] = input_tokens
+        usage["input_tokens"] = input_tokens
     if output_tokens is not None:
-        llmobs_usage["output_tokens"] = output_tokens
+        usage["output_tokens"] = output_tokens
     if total_tokens is not None:
-        llmobs_usage["total_tokens"] = total_tokens
+        usage["total_tokens"] = total_tokens
     if cache_read_tokens is not None:
-        llmobs_usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+        usage["cache_read_input_tokens"] = cache_read_tokens
     if cache_write_tokens is not None:
-        llmobs_usage[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
-    if llmobs_usage:
-        ctx.set_item("llmobs.usage", llmobs_usage)
+        usage["cache_write_input_tokens"] = cache_write_tokens
+    if usage:
+        request["usage"] = usage
 
 
 def _extract_request_params_for_converse(params: dict[str, Any]) -> dict[str, Any]:
@@ -269,10 +278,10 @@ def _extract_request_params_for_invoke(params: dict[str, Any], provider: str) ->
     return {}
 
 
-def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: dict[str, Any]) -> dict[str, list[str]]:
+def _extract_text_and_response_reason(request: dict[str, Any], body: dict[str, Any]) -> dict[str, list[str]]:
     text, finish_reason = "", ""
-    model_name = ctx["model_name"]
-    provider = ctx["model_provider"]
+    model_name = request["model_name"]
+    provider = request["model_provider"]
     try:
         if provider == _AI21:
             completions = body.get("completions", [])
@@ -313,10 +322,10 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: dict[str
     return {"text": text, "finish_reason": finish_reason}
 
 
-def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: list[dict[str, Any]]) -> dict[str, list[str]]:
+def _extract_streamed_response(request: dict[str, Any], streamed_body: list[dict[str, Any]]) -> dict[str, list[str]]:
     text, finish_reason = "", ""
-    model_name = ctx["model_name"]
-    provider = ctx["model_provider"]
+    model_name = request["model_name"]
+    provider = request["model_provider"]
     try:
         if provider == _AI21:
             pass  # DEV: ai21 does not support streamed responses
@@ -340,7 +349,7 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: list[d
         elif provider == _COHERE:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
-                    num_generations = int(ctx.find_item("num_generations") or 0)
+                    num_generations = int(request.get("num_generations") or 0)
                     text = [
                         "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i])
                         for i in range(num_generations)
@@ -368,26 +377,44 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: list[d
     return {"text": text, "finish_reason": finish_reason}
 
 
-def _extract_streamed_response_metadata(
-    ctx: core.ExecutionContext, streamed_body: list[dict[str, Any]]
-) -> dict[str, Any]:
+def _extract_streamed_response_metadata(request: dict[str, Any], streamed_body: list[dict[str, Any]]) -> dict[str, Any]:
     """
-    Returns token usage metadata from streamed response, sets it in the context for LLMObs, and returns it.
+    Returns token usage metadata from streamed response, records it on the request, and returns it.
     """
-    provider = ctx["model_provider"]
+    provider = request["model_provider"]
     metadata = {}
+    usage = {}
     if provider == _AI21:
         pass  # ai21 does not support streamed responses
     elif provider in [_AMAZON, _ANTHROPIC, _COHERE, _META] and streamed_body:
         metadata = streamed_body[-1].get("amazon-bedrock-invocationMetrics", {})
+        # The final chunk can carry "metadata": null, so treat a non-dict value as absent.
+        stream_metadata = streamed_body[-1].get("metadata")
+        if isinstance(stream_metadata, dict) and isinstance(stream_metadata.get("usage"), dict):
+            usage = stream_metadata["usage"]
     elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
 
     input_tokens = metadata.get("inputTokenCount")
     output_tokens = metadata.get("outputTokenCount")
+    cache_read_tokens = None
+    cache_write_tokens = None
+    # Amazon Nova streams report 0 tokens in the invocation metrics; the counts are in metadata.usage
+    if not input_tokens and not output_tokens and usage:
+        input_tokens = usage.get("inputTokens")
+        output_tokens = usage.get("outputTokens")
+        cache_read_tokens = usage.get("cacheReadInputTokenCount")
+        cache_write_tokens = usage.get("cacheWriteInputTokenCount")
 
-    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), None, None, None)
+    _set_usage(
+        request,
+        safe_token_count(input_tokens),
+        safe_token_count(output_tokens),
+        None,
+        safe_token_count(cache_read_tokens),
+        safe_token_count(cache_write_tokens),
+    )
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": input_tokens,
@@ -395,23 +422,25 @@ def _extract_streamed_response_metadata(
     }
 
 
-def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
-    """Perform request param extraction and tagging."""
+def handle_bedrock_request(request: dict[str, Any], operation: str, params: dict[str, Any]) -> None:
+    """Record the request parameters, for products that tag the span when it finishes."""
     request_params = (
-        _extract_request_params_for_converse(ctx["params"])
-        if ctx["resource"] in ("Converse", "ConverseStream")
-        else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
+        _extract_request_params_for_converse(params)
+        if operation in ("Converse", "ConverseStream")
+        else _extract_request_params_for_invoke(params, request["model_provider"])
     )
-
-    core.dispatch("botocore.patched_bedrock_api_call.started", (ctx, request_params))
-    if ctx["bedrock_integration"].llmobs_enabled:
-        ctx.set_item("llmobs.request_params", request_params)
+    request["request_params"] = request_params
+    if "n" in request_params:
+        request["num_generations"] = str(request_params["n"])
 
 
 def handle_bedrock_response(
     ctx: core.ExecutionContext,
+    event: LlmRequestEvent,
     result: dict[str, Any],
 ) -> dict[str, Any]:
+    request = event.request_kwargs
+    operation = event.operation
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
@@ -423,7 +452,7 @@ def handle_bedrock_response(
     cache_read_tokens = None
     cache_write_tokens = None
 
-    if ctx["resource"] == "Converse":
+    if operation == "Converse":
         if "metrics" in result:
             latency = result.get("metrics", {}).get("latencyMs", "")
             request_latency = str(latency) if latency else request_latency
@@ -441,10 +470,10 @@ def handle_bedrock_response(
                 )
 
         if "stopReason" in result:
-            ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
+            request["stop_reason"] = result.get("stopReason")
 
-    _set_llmobs_usage(
-        ctx,
+    _set_usage(
+        request,
         safe_token_count(input_tokens),
         safe_token_count(output_tokens),
         safe_token_count(total_tokens),
@@ -452,16 +481,16 @@ def handle_bedrock_response(
         safe_token_count(cache_write_tokens),
     )
 
-    if ctx["resource"] == "Converse":
-        core.dispatch("botocore.bedrock.process_response_converse", (ctx, result))
+    if operation == "Converse":
+        _end_request(ctx, event, result)
         return result
-    if ctx["resource"] == "ConverseStream":
+    if operation == "ConverseStream":
         if "stream" in result:
-            result["stream"] = make_botocore_converse_traced_stream(result["stream"], ctx)
+            result["stream"] = make_botocore_converse_traced_stream(result["stream"], ctx, event)
         return result
 
     body = result["body"]
-    result["body"] = make_botocore_streaming_body_traced_stream(body, ctx)
+    result["body"] = make_botocore_streaming_body_traced_stream(body, ctx, event)
     return result
 
 
@@ -573,8 +602,8 @@ def _resolve_application_inference_profile(model_id, model_provider, model_name,
     and cached. The extra call is skipped for APM-only usage since it only benefits
     LLM Obs cost data - a cache hit still applies either way.
 
-    Overriding model_id matters because the LLM Obs annotator reads
-    ``ctx.get_item("model_id")`` first and only falls back to ``model_name``.
+    Overriding model_id matters because the LLM Obs annotator reads the request's
+    ``model_id`` first and only falls back to ``model_name``.
     """
     if not isinstance(model_id, str) or "application-inference-profile/" not in model_id:
         return model_id, model_provider, model_name
@@ -599,35 +628,40 @@ def _resolve_application_inference_profile(model_id, model_provider, model_name,
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
-    integration = function_vars.get("integration")
+    operation = function_vars.get("operation")
     model_id = params.get("modelId")
     model_provider, model_name = parse_model_id(model_id)
     model_id, model_provider, model_name = _resolve_application_inference_profile(
-        model_id, model_provider, model_name, instance, llmobs_enabled=integration.llmobs_enabled
+        model_id, model_provider, model_name, instance, llmobs_enabled=config._llmobs_enabled
     )
-    submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
-    with core.context_with_data(
-        "botocore.patched_bedrock_api_call",
-        pin=pin,
+    # What products read when the span finishes. The response handling adds the request parameters
+    # ("request_params"), the token usage ("usage") and, for Converse, the "stop_reason".
+    request: dict[str, Any] = {"model_id": model_id, "model_name": model_name, "model_provider": model_provider}
+    event = LlmRequestEvent(
+        component=BEDROCK_COMPONENT,
+        integration_config=config.botocore,
         span_name=function_vars.get("trace_operation"),
         service=schematize_service_name(
             "{}.{}".format(ext_service(pin, int_config=config.botocore), function_vars.get("endpoint_name"))
         ),
-        resource=function_vars.get("operation"),
-        span_type=SpanTypes.LLM if submit_to_llmobs else None,
-        call_trace=True,
-        bedrock_integration=integration,
-        params=params,
-        model_provider=model_provider,
-        model_name=model_name,
-        model_id=model_id,
+        resource=operation,
+        # Bedrock runtime spans are not measured.
+        measured=False,
+        provider=model_provider,
+        model=model_name,
+        tags={"bedrock.request.model_provider": model_provider, "bedrock.request.model": model_name},
+        # Embeddings are traced, but not submitted to products.
+        submit_to_llmobs="embed" not in model_name,
+        request_kwargs=request,
+        # Products read the endpoint from the client to detect proxied requests.
         instance=instance,
-    ) as ctx:
+        operation=operation,
+    )
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            handle_bedrock_request(ctx)
+            handle_bedrock_request(request, operation, params)
             result = original_func(*args, **kwargs)
-            result = handle_bedrock_response(ctx, result)
-            return result
+            return handle_bedrock_response(ctx, event, result)
         except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", (ctx, sys.exc_info()))
+            _end_request(ctx, event, exc_info=sys.exc_info())
             raise

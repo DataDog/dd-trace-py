@@ -64,32 +64,6 @@
       "GIT_URL": "https://jenkins.com/repo/sample.git",
       "JENKINS_URL": "jenkins",
       "JOB_NAME": "jobName",
-      "JOB_URL": "https://jenkins.com/job"
-    },
-    {
-      "_dd.ci.env_vars": "{\"DD_CUSTOM_TRACE_ID\":\"jenkins-custom-trace-id\",\"DD_CUSTOM_PARENT_ID\":\"jenkins-custom-parent-id\"}",
-      "ci.pipeline.id": "jenkins-pipeline-id",
-      "ci.pipeline.name": "jobName",
-      "ci.pipeline.number": "jenkins-pipeline-number",
-      "ci.pipeline.url": "https://jenkins.com/pipeline",
-      "ci.provider.name": "jenkins",
-      "git.branch": "master",
-      "git.commit.sha": "b9f0fb3fdbb94c9d24b2c75b49663122a529e123",
-      "git.repository_url": "https://jenkins.com/repo/sample.git"
-    }
-  ],
-  [
-    {
-      "BUILD_NUMBER": "jenkins-pipeline-number",
-      "BUILD_TAG": "jenkins-pipeline-id",
-      "BUILD_URL": "https://jenkins.com/pipeline",
-      "DD_CUSTOM_TRACE_ID": "jenkins-custom-trace-id",
-      "DD_CUSTOM_PARENT_ID": "jenkins-custom-parent-id",
-      "GIT_BRANCH": "origin/master",
-      "GIT_COMMIT": "b9f0fb3fdbb94c9d24b2c75b49663122a529e123",
-      "GIT_URL": "https://jenkins.com/repo/sample.git",
-      "JENKINS_URL": "jenkins",
-      "JOB_NAME": "jobName",
       "JOB_URL": "https://jenkins.com/job",
       "WORKSPACE": "foo/bar"
     },

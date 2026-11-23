@@ -11,8 +11,7 @@ Use `apm-integrations` as well when changing contrib patching, registration, or 
 ## Ownership and references
 
 Standard request spans use `LlmRequestEvent` and `core.context_with_event()`; the tracing
-subscriber owns span creation, errors, and finishing. For new integrations, leave the event's
-`llmobs_integration` unset and register the integration class under
+subscriber owns span creation, errors, and finishing. Register the integration class under
 `ddtrace/llmobs/_contrib/<name>/`. The shared `SpanLifecycleListener` implementation in
 `ddtrace/llmobs/_subscribers.py` selects the integration using `ctx.event.component`.
 The product owns the lazy bundle in
