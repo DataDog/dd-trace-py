@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where a Bedrock ``ConverseStream`` tool call whose ``toolUse`` input was
+    already a dict raised a ``TypeError`` from the traced stream, so the application's request failed.
+    The parsed input is now recorded as the tool call arguments.

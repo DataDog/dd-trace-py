@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from types import FrameType
 import typing as t
 
 from ddtrace.debugging._probe.model import ProbeEvalTiming
@@ -8,17 +7,15 @@ from ddtrace.debugging._probe.model import TriggerFunctionProbe
 from ddtrace.debugging._probe.model import TriggerLineProbe
 from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.log import LogSignal
-from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.metrics import Metrics
 
 
 log = get_logger(__name__)
 
 
 @dataclass
-class Trigger(LogSignal):
+class Trigger(LogSignal, probes=(TriggerFunctionProbe, TriggerLineProbe)):
     """Trigger a session creation."""
 
     __default_timing__ = ProbeEvalTiming.ENTRY
@@ -61,15 +58,3 @@ class Trigger(LogSignal):
 
     def has_message(self) -> bool:
         return bool(self.errors)
-
-
-@probe_to_signal.register
-def _(
-    probe: TriggerFunctionProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter
-) -> Trigger:
-    return Trigger(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
-
-
-@probe_to_signal.register
-def _(probe: TriggerLineProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter) -> Trigger:
-    return Trigger(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
