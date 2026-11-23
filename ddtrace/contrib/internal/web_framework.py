@@ -144,19 +144,19 @@ def blocking_execute_adapter(
         result = None
         error: Optional[BaseException] = None
         blocking: Optional[BlockingException] = None
+        inspection: Optional[WebFrameworkRequestInspectEvent] = None
         try:
             try:
                 try:
                     peer_ip, cookies, path_params = request_details(kwargs)
                     # WAF evaluation can block, so it must run inside the handler rather than context entry.
-                    core.dispatch_event(
-                        WebFrameworkRequestInspectEvent(
-                            request_event=event,
-                            peer_ip=peer_ip,
-                            cookies=cookies,
-                            path_params=path_params,
-                        )
+                    inspection = WebFrameworkRequestInspectEvent(
+                        request_event=event,
+                        peer_ip=peer_ip,
+                        cookies=cookies,
+                        path_params=path_params,
                     )
+                    core.dispatch_event(inspection)
                 except BaseException as exc:
                     # The shared invocation was skipped, so it cannot complete this outcome.
                     complete_request_safely(complete, event, None, exc)
@@ -180,6 +180,13 @@ def blocking_execute_adapter(
             # Do not retain the application's traceback through this frame.
             error = None
             blocking = None
+            if inspection is not None:
+                while inspection.cleanup_callbacks:
+                    cleanup = inspection.cleanup_callbacks.pop()
+                    try:
+                        cleanup()
+                    except Exception:
+                        log.debug("Failed to restore web framework inspection state", exc_info=True)
 
     return execute
 

@@ -175,9 +175,23 @@ commits it. A discarded response is closed without consuming its body, including
 its `call_on_close` callbacks. Completion copies response headers without losing
 repeated values or consuming or closing a response that will still be sent.
 
-The shared inspection events and synchronous execution helper are prerequisites;
-this extraction does not activate AppSec subscribers. Standalone adapter tests use
-synthetic response-producing callbacks and do not identify a production Flask hook.
+AppSec registers its shared web framework subscriber whenever AppSec is enabled,
+independently of exploit prevention. The synchronous execution adapter emits
+request inspection before invoking the application and response inspection after
+metadata completion, while replacement is still possible. AppSec evaluates the
+request headers, client IP, URL, query, cookies, route and path parameters, installs
+the SDK blocking callback, and evaluates response status and headers. It renders
+configured blocking templates and redirects for every consumer of this protocol.
+The adapter closes discarded responses and completes metadata for replacements.
+Inspection cleanup restores the previous SDK blocking callback on every exit path,
+so nested adapters cannot leave a callback installed beyond its catch window.
+Integrations supply request extraction and response construction callbacks; they do
+not import AppSec or register product listeners. The existing span processor owns
+the ASM context and its finalization; these inspection listeners create no context.
+This protocol is synchronous and does not inspect or consume streaming bodies.
+Adapter tests exercise synthetic responses and real Flask dispatch without
+installing production hooks. Existing integrations must adopt the inspection
+protocol at their response boundary to gain blocking through these subscribers.
 Future activation must reuse the existing request context rather than introduce
 another request lifecycle owner.
 

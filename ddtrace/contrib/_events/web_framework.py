@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
 from typing import Any
 from typing import Callable
@@ -81,6 +82,8 @@ class WebFrameworkRequestInspectEvent(Event):
     peer_ip: Optional[str]
     cookies: Mapping[str, str]
     path_params: Mapping[str, Any]
+    # Restore product state when the adapter's replacement window closes.
+    cleanup_callbacks: list[Callable[[], None]] = field(default_factory=list)
 
 
 @dataclass

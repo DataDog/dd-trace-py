@@ -2,6 +2,8 @@
 
 from collections.abc import Callable
 from collections.abc import Iterator
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from typing import cast
@@ -13,6 +15,7 @@ import pytest
 from werkzeug.datastructures import Headers
 from werkzeug.exceptions import NotFound
 
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib._events.web_framework import WebFrameworkBlockResponseEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestInspectEvent
@@ -24,6 +27,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from tests.utils import override_global_config
 
 
 @pytest.fixture
@@ -277,3 +281,41 @@ def test_completion_without_response_does_not_invent_http_status(
 @pytest.fixture
 def metadata_config() -> IntegrationConfig:
     return IntegrationConfig(Config(), "flask", _default_service="flask", distributed_tracing_enabled=True)
+
+
+def test_shared_flask_adapter_blocks_with_real_waf(adapter_app: flask.Flask, test_spans: Any, tmp_path: Path) -> None:
+    with (
+        override_global_config({"_asm_enabled": True, "_ep_enabled": False}),
+        adapter_app.test_request_context("/items/42", headers={"User-Agent": "dd-test-scanner-log-block"}),
+    ):
+        event = request_event(IntegrationConfig(Config(), "flask", _default_service="flask"))
+        callback = Mock(wraps=adapter_app.full_dispatch_request)
+        response = run_web_framework_request(
+            callback, (), {}, prepare=lambda: event, complete=complete_response, execute=execute_response
+        )
+        assert isinstance(response, adapter_app.response_class)
+        assert response.status_code == event.response_status_code == 403
+        callback.assert_not_called()
+        assert response.get_json()
+        response.close()
+
+    spans = test_spans.pop()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "flask.request"
+    assert span.get_tag("http.status_code") == "403"
+    assert span.get_tag("appsec.blocked") == "true"
+    assert not span.error
+    triggers = get_triggers(span)
+    assert triggers
+    # Keep a portable receipt for reproductions as well as validating the emitted metadata.
+    receipt = {
+        "name": span.name,
+        "resource": span.resource,
+        "parent_id": span.parent_id,
+        "status": span.get_tag("http.status_code"),
+        "blocked": span.get_tag("appsec.blocked"),
+        "error": span.error,
+        "triggers": triggers,
+    }
+    (tmp_path / "blocked-trace.json").write_text(json.dumps(receipt, indent=2))
