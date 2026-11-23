@@ -81,7 +81,8 @@ class GCCollector(collector.Collector):
 
     def _stop_service(self) -> None:
         self._patch_active = False
-        monitor: Optional[GCPauseMonitor] = self._monitor
+        # _rollback_start also runs this after a first start that raised before these were set.
+        monitor: Optional[GCPauseMonitor] = getattr(self, "_monitor", None)
         pause_listener: Optional[PauseListener] = getattr(self, "_pause_listener", None)
         if monitor is not None and pause_listener is not None:
             monitor.remove_listener(pause_listener)

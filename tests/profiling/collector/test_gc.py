@@ -324,3 +324,17 @@ def test_enable_gc_collector_via_env() -> None:
     from ddtrace.profiling.collector import gc as gc_collector
 
     assert any(isinstance(col, gc_collector.GCCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
+def test_rollback_after_failed_first_start_restores_gc_collect() -> None:
+    """A first start that fails after wrapping gc.collect must still unwrap it on rollback."""
+    orig: Callable[..., int] = gc.collect
+    col: GCCollector = GCCollector()
+    try:
+        with mock.patch.object(gc_collector, "gc_pause_monitor", side_effect=RuntimeError("no monitor")):
+            with pytest.raises(RuntimeError):
+                col.start()
+        col._rollback_start()
+        assert gc.collect is orig
+    finally:
+        gc.collect = orig
