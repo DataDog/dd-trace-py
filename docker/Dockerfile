@@ -65,6 +65,7 @@ RUN apt-get update \
       libsqlite3-dev \
       libsqliteodbc \
       libssh-dev \
+      libzstd-dev \
       python3.13-dev \
       patch \
       sccache \
