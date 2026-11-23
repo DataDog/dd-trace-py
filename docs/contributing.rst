@@ -144,11 +144,11 @@ PR to refresh MergeGate without updating the branch. Check the bot's response fo
 
 The PRs share a commit, so missing or incomplete checks on the shadow can also block the original
 PR. After closing the tested shadow, maintainers with access should refresh a waiting merge request
-to reevaluate the original PR's mergeability::
+to reevaluate the original PR's ability to merge::
 
     ddr devflow mergequeue check-mergeability --pr <original PR URL>
 
-Refreshing merge status does not rerun cancelled jobs. If closing the shadow cancelled required
+Refreshing merge status does not rerun canceled jobs. If closing the shadow canceled required
 CI, rerun those jobs on the reviewed SHA before relying on its results.
 
 Backporting
