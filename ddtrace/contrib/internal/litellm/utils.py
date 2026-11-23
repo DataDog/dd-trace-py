@@ -5,8 +5,8 @@ from dataclasses import FrozenInstanceError
 from functools import cache
 from typing import Optional
 
-from ddtrace import config
 from ddtrace._monkey import _get_patched_modules
+from ddtrace.contrib.internal.litellm._constants import FALLBACK_ATTEMPT_KEY
 from ddtrace.contrib.internal.litellm._constants import TAG_MODEL
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
 from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
@@ -105,9 +105,6 @@ def has_downstream_openai_span(kwargs, model=None, operation=""):
     return is_completion_operation(operation) and name not in getattr(litellm, "open_ai_chat_completion_models", ())
 
 
-# Duplicated from ddtrace.llmobs._constants to keep the contrib free of llmobs imports.
-_PROXY_REQUEST = "llmobs.proxy_request"
-
 # Set while a call that submits an LLM span runs litellm's fallback runner, which re-enters
 # ``litellm.completion``/``acompletion`` once per attempt. Those inner calls skip their own span and record the model
 # they were asked for here, so the outer span can be attributed to the attempt that produced the response.
@@ -165,26 +162,19 @@ def fallback_dispatch(ctx):
             event.model = model
             span = span_from_context(ctx)
             span.set_tag(TAG_MODEL, model)
-            # The span was classified from the original request. Classify it again from the answering attempt, so a
-            # fallback that leaves an instrumented proxy for a direct provider keeps its LLM span.
-            base_url = attempt_kwargs.get("base_url") or attempt_kwargs.get("api_base")
-            span._set_ctx_item(
-                _PROXY_REQUEST,
-                bool(base_url) and str(base_url) in (config._llmobs_instrumented_proxy_urls or set()),
-            )
-            if (
+            # The OpenAI integration emits the LLM span when the answering attempt runs the OpenAI SDK. LLMObs then
+            # keeps this span as a workflow span, which holds the trace together without repeating tokens and cost.
+            downstream_llm_span = (
                 _emits_openai_span(attempt_kwargs, model, event.operation)
                 and event.response is not None
                 and not _is_cache_hit(event.response)
-            ):
-                # The OpenAI integration emitted the LLM span for the answering attempt, so this span becomes a
-                # workflow span: it keeps the trace intact without repeating the span's tokens and cost.
-                span._set_ctx_item(_PROXY_REQUEST, True)
+            )
             request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
             for key in ("litellm_logging_obj", "litellm_call_id"):
                 attempt_kwargs.pop(key, None)
             request_kwargs.update(attempt_kwargs)
             request_kwargs["model"] = model
+            request_kwargs[FALLBACK_ATTEMPT_KEY] = downstream_llm_span
             event.request_kwargs = request_kwargs
             event.request_args = ()
 
