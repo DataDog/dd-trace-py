@@ -1,7 +1,9 @@
 import asyncio
 import contextvars
+import functools
 from functools import partial
 import importlib
+import sys
 from types import ModuleType
 from typing import TYPE_CHECKING
 from typing import Any
@@ -20,6 +22,10 @@ from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
+from ddtrace.aiguard._types import MCPServer
+from ddtrace.aiguard._types import MCPTransport
+from ddtrace.aiguard.integrations._mcp import client_mcp_server
+from ddtrace.aiguard.integrations._mcp import mcp_reference
 from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -51,6 +57,26 @@ _SCOPES: contextvars.ContextVar[tuple["_CallScope", ...]] = contextvars.ContextV
     "ai_guard_langchain_scopes", default=()
 )
 
+# (coroutine, JSON arguments) of the MCP tool call ToolNode evaluated; the tool skips its own check only for
+# those exact arguments, so a call rewritten by tool-call middleware is checked again.
+_TOOLNODE_MCP_TOOL: contextvars.ContextVar[Optional[tuple[Callable[..., Any], str]]] = contextvars.ContextVar(
+    "ai_guard_langchain_toolnode_mcp_tool", default=None
+)
+
+# Attribute of a converted MCP tool's coroutine holding its (server, original MCP tool name).
+_MCP_ATTR = "_dd_ai_guard_mcp"
+
+_MCP_ADAPTER_MODULE = "langchain_mcp_adapters.tools"
+
+# langchain-mcp-adapters connection transports; others (websocket) report the unknown transport.
+_MCP_TRANSPORTS: dict[str, MCPTransport] = {
+    "stdio": AI_GUARD.MCP_TRANSPORT_STDIO,
+    "sse": AI_GUARD.MCP_TRANSPORT_SSE,
+    "streamable_http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
+    "streamable-http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
+    "http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
+}
+
 
 def _action_agent_modules() -> Iterator[ModuleType]:
     for module_name in ("langchain.agents", "langchain_classic.agents"):
@@ -81,6 +107,12 @@ def _langchain_patch(client: AIGuardClient) -> None:
         wrap("langgraph.prebuilt.tool_node", "ToolNode._arun_one", partial(_langchain_toolnode_arun_one, client))
     except Exception:
         logger.debug("Failed to instrument langgraph ToolNode", exc_info=True)
+
+    # Client-managed MCP tools; skipped when langchain-mcp-adapters is not installed.
+    try:
+        wrap(_MCP_ADAPTER_MODULE, "convert_mcp_tool_to_langchain_tool", partial(_langchain_mcp_convert_tool, client))
+    except Exception:
+        logger.debug("Failed to instrument langchain-mcp-adapters", exc_info=True)
 
     # With stream analysis on, a LangChain stream is read in full and its response evaluated before the caller
     # gets a chunk, and the run manager's callbacks are held until then, inside generate too (see _CallScope).
@@ -122,6 +154,13 @@ def _langchain_unpatch() -> None:
         unwrap(ToolNode, "_arun_one")
     except Exception:
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
+
+    try:
+        module = sys.modules.get(_MCP_ADAPTER_MODULE)
+        if module is not None:
+            unwrap(module, "convert_mcp_tool_to_langchain_tool")
+    except Exception:
+        logger.debug("Failed to unpatch langchain-mcp-adapters", exc_info=True)
 
     try:
         from langchain_core.callbacks.manager import AsyncCallbackManagerForLLMRun
@@ -170,7 +209,7 @@ def _langchain_toolnode_run_one(
     Evaluates the tool call *before* the tool executes so a blocking decision
     raises ``AIGuardAbortError`` and prevents execution.
     """
-    _evaluate_langchain_tool_call(client, args, kwargs)
+    _evaluate_langchain_tool_call(client, instance, args, kwargs)
     return func(*args, **kwargs)
 
 
@@ -178,8 +217,32 @@ async def _langchain_toolnode_arun_one(
     client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
 ) -> Any:
     """Async variant of :func:`_langchain_toolnode_run_one`."""
-    _evaluate_langchain_tool_call(client, args, kwargs)
-    return await func(*args, **kwargs)
+    mcp_coroutine = _toolnode_mcp_coroutine(instance, args, kwargs)
+    if mcp_coroutine is None:
+        _evaluate_langchain_tool_call(client, instance, args, kwargs)
+    else:
+        # Off the event loop: an MCP call is always evaluated here, a blocking HTTP call.
+        await asyncio.to_thread(_evaluate_langchain_tool_call, client, instance, args, kwargs)
+    evaluated = None
+    if mcp_coroutine is not None:
+        call = args[0] if args else kwargs.get("call")
+        evaluated = (mcp_coroutine, try_format_json(call.get("args", {})))
+    token = _TOOLNODE_MCP_TOOL.set(evaluated)
+    try:
+        return await func(*args, **kwargs)
+    finally:
+        _TOOLNODE_MCP_TOOL.reset(token)
+
+
+def _toolnode_mcp_coroutine(instance: Any, args: Any, kwargs: Any) -> Optional[Callable[..., Any]]:
+    """The guarded coroutine of the MCP tool this ToolNode call runs; None for other tools."""
+    try:
+        call = args[0] if args else kwargs.get("call")
+        tool = (getattr(instance, "tools_by_name", None) or {}).get(call.get("name"))
+        return getattr(tool, "coroutine", None) if _mcp_tool_metadata(tool) is not None else None
+    except Exception:
+        logger.debug("AI Guard langchain: failed to resolve the ToolNode tool", exc_info=True)
+        return None
 
 
 def _get_message_text(msg: "BaseMessage") -> str:
@@ -580,7 +643,7 @@ def _get_tool_runtime_messages(tool_runtime: Any) -> tuple[list[Any], Optional[A
     return list(messages), None
 
 
-def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any) -> None:
+def _evaluate_langchain_tool_call(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> None:
     """Evaluate a single tool call decided by a langchain >= 1.0 agent.
 
     ``langgraph``'s ``ToolNode._run_one`` / ``_arun_one`` execute one tool call
@@ -597,28 +660,116 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
             return
         tool_runtime = get_argument_value(args, kwargs, 2, "tool_runtime")
         history, source_message = _get_tool_runtime_messages(tool_runtime)
-        if _tool_call_already_evaluated(source_message, tool_name, call.get("args", {})):
+        mcp = _mcp_tool_metadata((getattr(instance, "tools_by_name", None) or {}).get(tool_name))
+        # The response evaluation cannot tell MCP tools apart, so an MCP call is evaluated here with its server.
+        if mcp is None and _tool_call_already_evaluated(source_message, tool_name, call.get("args", {})):
             # Same tool, same arguments as the response listener already scanned.
             # An edited call does not match and is evaluated here as usual.
             logger.debug("AI Guard langchain: tool call already evaluated with the model response")
             return
         messages = _convert_messages(history)
-        messages.append(
-            Message(
-                role="assistant",
-                tool_calls=[
-                    ToolCall(
-                        id=call.get("id", ""),
-                        function=Function(name=tool_name, arguments=try_format_json(call.get("args", {}))),
-                    )
-                ],
-            )
+        tool_call = ToolCall(
+            id=call.get("id", ""),
+            function=Function(name=tool_name, arguments=try_format_json(call.get("args", {}))),
         )
-        evaluate_auto(client, messages, AI_GUARD.INTEGRATION_LANGCHAIN)
+        messages.append(Message(role="assistant", tool_calls=[tool_call]))
+        mcp_servers = _add_mcp_reference(tool_call, mcp) if mcp is not None else None
+        evaluate_auto(client, messages, AI_GUARD.INTEGRATION_LANGCHAIN, mcp_servers)
     except AIGuardAbortError:
         raise
     except Exception:
         logger.debug("Failed to evaluate tool call", exc_info=True)
+
+
+def _mcp_client_server(connection: Any, server_name: Any) -> Optional[MCPServer]:
+    """The mcp_servers entry of a langchain-mcp-adapters connection; never headers, auth, env or unsafe args."""
+    if not isinstance(connection, dict):
+        return client_mcp_server(AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=server_name)
+    transport = _MCP_TRANSPORTS.get(str(connection.get("transport")), AI_GUARD.MCP_TRANSPORT_UNKNOWN)
+    return client_mcp_server(
+        transport,
+        name=server_name,
+        url=connection.get("url"),
+        command=connection.get("command"),
+        args=connection.get("args"),
+    )
+
+
+def _mcp_tool_metadata(tool: Any) -> Optional[tuple[MCPServer, str]]:
+    """The (server, original MCP tool name) of a converted MCP tool; None for other tools or with MCP disabled."""
+    if not aiguard_config._ai_guard_mcp_enabled:
+        return None
+    return getattr(getattr(tool, "coroutine", None), _MCP_ATTR, None)
+
+
+def _add_mcp_reference(tool_call: ToolCall, mcp: tuple[MCPServer, str]) -> list[MCPServer]:
+    """Reference the tool call's MCP server and return the mcp_servers of its request."""
+    server = mcp[0].copy()
+    server["tools"] = {}
+    tool_call["mcp"] = mcp_reference(server, tool_call["function"]["name"], mcp[1])
+    return [server]
+
+
+def _langchain_mcp_convert_tool(
+    client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """convert_mcp_tool_to_langchain_tool wrapper: tag the converted tool with its MCP server.
+
+    The server rides on the tool's own coroutine, which also checks calls made outside ToolNode.
+    """
+    tool = func(*args, **kwargs)
+    try:
+        if aiguard_config._ai_guard_mcp_enabled:
+            _guard_mcp_tool(client, tool, get_argument_value(args, kwargs, 1, "tool"), kwargs)
+    except Exception:
+        logger.debug("AI Guard langchain: failed to read the MCP tool metadata", exc_info=True)
+    return tool
+
+
+def _guard_mcp_tool(client: AIGuardClient, tool: Any, mcp_tool: Any, kwargs: Any) -> None:
+    original_name = getattr(mcp_tool, "name", None)
+    name = getattr(tool, "name", None)
+    coroutine = getattr(tool, "coroutine", None)
+    if not (isinstance(original_name, str) and original_name and isinstance(name, str) and name and coroutine):
+        return
+    server = _mcp_client_server(kwargs.get("connection"), kwargs.get("server_name"))
+    if server is None:
+        return
+    mcp = (server, original_name)
+    model_name: str = name
+    wrapped: Callable[..., Any] = coroutine
+
+    # wraps keeps the signature, so langchain and ToolNode still inject runtime as before.
+    @functools.wraps(wrapped)
+    async def guarded_call_tool(*call_args: Any, **call_kwargs: Any) -> Any:
+        arguments = try_format_json({key: value for key, value in call_kwargs.items() if key != "runtime"})
+        if _TOOLNODE_MCP_TOOL.get() != (guarded_call_tool, arguments):
+            current_name = getattr(tool, "name", None)
+            name = current_name if isinstance(current_name, str) and current_name else model_name
+            await _evaluate_direct_mcp_call(client, name, mcp, call_kwargs.get("runtime"), arguments)
+        return await wrapped(*call_args, **call_kwargs)
+
+    setattr(guarded_call_tool, _MCP_ATTR, mcp)
+    tool.coroutine = guarded_call_tool
+
+
+async def _evaluate_direct_mcp_call(
+    client: AIGuardClient, name: str, mcp: tuple[MCPServer, str], runtime: Any, arguments: str
+) -> None:
+    """Evaluate an MCP tool call made outside ToolNode before the MCP request; AIGuardAbortError on a block."""
+    try:
+        if not aiguard_config._ai_guard_mcp_enabled:
+            return
+        call_id = getattr(runtime, "tool_call_id", None) or f"call_{uuid.uuid4().hex}"
+        tool_call = ToolCall(id=str(call_id), function=Function(name=name, arguments=arguments))
+        mcp_servers = _add_mcp_reference(tool_call, mcp)
+        messages = [Message(role="assistant", tool_calls=[tool_call])]
+        # Off the event loop: the evaluation is a blocking HTTP call.
+        await asyncio.to_thread(evaluate_auto, client, messages, AI_GUARD.INTEGRATION_LANGCHAIN, mcp_servers)
+    except AIGuardAbortError:
+        raise
+    except Exception:
+        logger.debug("AI Guard langchain: failed to evaluate the MCP tool call", exc_info=True)
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists: Any) -> Optional[Any]:
