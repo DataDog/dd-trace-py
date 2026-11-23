@@ -572,10 +572,10 @@ def test_gc_pause_samples_appear_in_profile() -> None:
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_dropped_pause_labels_in_profile"),
+    env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_pause_labels_in_profile"),
     err=None,
 )
-def test_gc_dropped_pause_labels_in_profile() -> None:
+def test_gc_pause_labels_in_profile() -> None:
     import os
     from typing import Optional
 
@@ -590,7 +590,7 @@ def test_gc_dropped_pause_labels_in_profile() -> None:
     assert ddup.is_available
     ddup.config(
         env="test",
-        service="test_gc_dropped_pause_labels_in_profile",
+        service="test_gc_pause_labels_in_profile",
         version="1.0",
         output_filename=pprof_prefix,
     )
@@ -601,8 +601,10 @@ def test_gc_dropped_pause_labels_in_profile() -> None:
     col: GCCollector = GCCollector()
     col.start()
     try:
-        # Real collections during the test can only add drops on top of the extra five.
-        for _ in range(gc_collector._MAX_PAUSE_EVENTS + 5):
+        # One generation 2 pause, then generation 0 pauses to five past the cap. Real
+        # collections during the test can only add drops on top of those five.
+        col._on_pause(2, pause_ns)
+        for _ in range(gc_collector._MAX_PAUSE_EVENTS + 4):
             col._on_pause(0, pause_ns)
         col.snapshot()
     finally:
@@ -611,6 +613,20 @@ def test_gc_dropped_pause_labels_in_profile() -> None:
     ddup.upload()
 
     profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    event_generations: set[int] = set()
+    for sample in profile.sample:
+        event: Optional[pprof_pb2.Label] = pprof_utils.get_label_with_key(profile.string_table, sample, "gc event")
+        if event is None:
+            continue
+        assert profile.string_table[event.str] == "pause", sample
+        generation: Optional[pprof_pb2.Label] = pprof_utils.get_label_with_key(
+            profile.string_table, sample, "gc generation"
+        )
+        assert generation is not None, sample
+        event_generations.add(generation.num)
+    # A zero numeric label must still be exported.
+    assert {0, 2} <= event_generations, event_generations
+
     config_samples: list[pprof_pb2.Sample] = [
         s
         for s in profile.sample
