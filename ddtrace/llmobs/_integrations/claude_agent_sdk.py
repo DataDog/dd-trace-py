@@ -12,13 +12,13 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -34,16 +34,16 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     # processed in the per-invocation ClaudeAgentSdkAsyncStreamHandler, which passes them
     # as (span_id, trace_id) pairs in kwargs["span_links"].
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """claude_agent_sdk spans carry no provider or model tags at start."""
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         # Known at start for agent attribution.
         return "agent" if kwargs.get("operation") in ("query", "request") else None
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -60,7 +60,14 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
     _APM_SHADOW_SPAN_KIND_BY_OPERATION = {"tool": "tool", "step": "step", "llm": "llm"}
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         span_kind = self._APM_SHADOW_SPAN_KIND_BY_OPERATION.get(operation, "agent")
         metrics: dict[str, int] = {}
         model_name = None
@@ -90,7 +97,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         return messages
 
     def _llmobs_set_llm_tags(
-        self, span: Span, response: Optional[Any], kwargs: Optional[dict[str, Any]] = None, kind: str = "llm"
+        self, span: _LLMObsSpan, response: Optional[Any], kwargs: Optional[dict[str, Any]] = None, kind: str = "llm"
     ) -> None:
         model = (_get_attr(response, "model", "") or "") if response is not None else ""
         output_messages: list[Message] = []
@@ -116,7 +123,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             metrics=metrics or None,
         )
 
-    def _llmobs_set_tool_tags(self, span: Span, kwargs: dict[str, Any]) -> None:
+    def _llmobs_set_tool_tags(self, span: _LLMObsSpan, kwargs: dict[str, Any]) -> None:
         tool_input = kwargs.get("tool_input", {})
         tool_output = kwargs.get("tool_output", "")
         tool_id = kwargs.get("tool_id", "")
@@ -127,7 +134,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
     def _llmobs_set_agent_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,

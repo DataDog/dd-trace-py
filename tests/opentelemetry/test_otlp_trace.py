@@ -17,7 +17,10 @@ requires_grpc_test_server = pytest.mark.skipif(
         "DD_TRACE_SAMPLE_RATE": "1",
         "DD_TAGS": "team:core,region:us1,workers:7",
     },
-    parametrize={"DD_TRACE_OTEL_SEMANTICS_ENABLED": ["true", "false"]},
+    parametrize={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": ["true", "false"],
+        "_DD_TRACE_NATIVE_BUFFER_ENABLED": ["false", "true"],
+    },
 )
 def test_otlp_resource_attributes():
     import json

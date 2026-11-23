@@ -4,13 +4,14 @@ import pytest
 from ddtrace.contrib.internal.azure_cosmos.patch import patch
 from ddtrace.contrib.internal.azure_cosmos.patch import unpatch
 
+from .common import CONNECTION_STRING
+from .common import ERR_CONTAINER_NAME
+from .common import ERR_DB_NAME
+from .common import delete_test_databases
 from .common import run_test
 from .common import run_test_async
 
 
-CONNECTION_STRING = "AccountEndpoint=http://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
-ERR_DB_NAME = "db.azure_cosmos_error"
-ERR_CONTAINER_NAME = "container.azure_cosmos_error"
 SNAPSHOT_IGNORES = ["meta.http.useragent", "meta.error.stack", "meta._dd.base_service"]
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
@@ -18,9 +19,13 @@ DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 
 @pytest.fixture(autouse=True)
 def patch_azure_cosmos():
+    delete_test_databases()
     patch()
-    yield
-    unpatch()
+    try:
+        yield
+    finally:
+        unpatch()
+        delete_test_databases()
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
@@ -62,7 +67,7 @@ def test_cosmos_error():
         }
     )
 
-    try:
+    with pytest.raises(azure_cosmos.exceptions.CosmosResourceExistsError) as exc_info:
         container.create_item(
             {
                 "id": "item1",
@@ -70,12 +75,12 @@ def test_cosmos_error():
                 "productModel": "Model 1",
             }
         )
-    except azure_cosmos.exceptions.CosmosResourceExistsError as e:
-        for item in container.query_items(
-            query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 1"',
-        ):
-            container.delete_item(item["id"], partition_key="Widget")
 
-        cosmos_client.delete_database(database)
+    for item in container.query_items(
+        query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 1"',
+    ):
+        container.delete_item(item["id"], partition_key="Widget")
 
-        assert "The document already exists in the collection" in str(e)
+    cosmos_client.delete_database(database)
+
+    assert "The document already exists in the collection" in str(exc_info.value)

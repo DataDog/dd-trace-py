@@ -1,38 +1,22 @@
-from types import TracebackType
-from typing import Optional
-
 from ddtrace._trace.subscribers._base import SpanLifecycleSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
-
-
-# Duplicated from ddtrace.llmobs._constants to avoid importing
-# ddtrace.llmobs at module level (triggers LLMObs -> multiprocessing/threading chain).
-_PROXY_REQUEST = "llmobs.proxy_request"
-_LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
-
-
-log = get_logger(__name__)
 
 
 class LlmTracingSubscriber(SpanLifecycleSubscriber["LlmRequestEvent"]):
     """Shared tracing logic for all LLM integrations.
 
-    Handles span creation, base tag setting, proxy detection,
-    and LLMObs tag extraction. Provider-specific logic is delegated
-    to the integration object carried by the event, or, for events that
-    carry none, to subscribers of the SpanLifecycleEvents dispatched for llm.request.
+    Handles span creation and finishing. Products tag the span through
+    subscribers of the SpanLifecycleEvents dispatched for llm.request.
     """
 
     event_names = (LlmRequestEvent.event_name,)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:
-        event: LlmRequestEvent = ctx.event
         span = span_from_context(ctx)
 
         # Remove component/span.kind tags set by _start_span — the old
@@ -41,48 +25,3 @@ class LlmTracingSubscriber(SpanLifecycleSubscriber["LlmRequestEvent"]):
         # TODO: keep these tags once snapshots are updated
         span._remove_attribute(COMPONENT)
         span._remove_attribute(SPAN_KIND)
-
-        if event.llmobs_integration is None:
-            return
-
-        if event.submit_to_llmobs:
-            span._set_attribute(
-                _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if event.llmobs_integration.llmobs_enabled else 0
-            )
-
-        event.llmobs_integration._set_base_span_tags(
-            span,
-            model=event.model,
-            provider=event.provider,
-            instance=event.instance,
-        )
-
-        base_url = event.llmobs_integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
-        if event.llmobs_integration._is_instrumented_proxy_url(base_url):
-            span._set_ctx_item(_PROXY_REQUEST, True)
-        event.llmobs_integration._annotate_integration_tag(span)
-        # Stamp kind at start; no ddtrace.llmobs import pulled into this module.
-        event.llmobs_integration._stamp_llmobs_span_kind_at_start(span, event.operation, operation=event.operation)
-
-    @classmethod
-    def on_ended(
-        cls,
-        ctx: core.ExecutionContext["LlmRequestEvent"],
-        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    ) -> None:
-        """Set LLMObs tags on the span.
-
-        Fires for both streaming and non-streaming paths. For streaming
-        with deferred dispatch, this fires when the stream handler calls
-        dispatch_ended_event().
-        """
-        event: LlmRequestEvent = ctx.event
-        if event.llmobs_integration is None:
-            return
-        event.llmobs_integration.llmobs_set_tags(
-            span_from_context(ctx),
-            args=[],
-            kwargs=event.request_kwargs,
-            response=event.response,
-            operation=event.operation,
-        )

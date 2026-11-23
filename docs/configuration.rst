@@ -859,6 +859,12 @@ AI Guard
        received before the first one is delivered) and increases peak memory usage proportional
        to the response size.
 
+       The option also applies to the Datadog AI Guard guardrail of the LiteLLM proxy in the post_call
+       mode. When the option is True, the guardrail holds a streamed chat or text answer until AI Guard
+       evaluates it, and it can block the answer. When the option is False, the guardrail sends the
+       chunks as they arrive, and evaluates the full answer after the last chunk without blocking.
+       When the option is False, the end of the stream waits for the AI Guard evaluation.
+
    DD_AI_GUARD_BLOCK:
      type: Boolean
      default: True
@@ -1460,8 +1466,11 @@ Logs
      type: Boolean
      default: True
      description: |
-         Enable or disable start up diagnostic logging. The diagnostics check that the agent is reachable, which
-         takes up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
+         Enable or disable start up diagnostic logging. When enabled, the tracer logs its configuration as a
+         ``DATADOG TRACER CONFIGURATION`` JSON object at the ``INFO`` level, even when the `ddtrace` logger level is
+         higher. The object includes the effective OpenTelemetry settings, keyed by the environment variables that
+         set them, with OTLP header values redacted. The diagnostics check that the agent is reachable, which takes
+         up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
      version_added:
        v4.18.0: The default changed from ``False`` to ``True``.
 
@@ -1560,6 +1569,10 @@ Feature Flagging
          and ``remote_config`` (deliver via the Datadog Agent's Remote
          Configuration). ``offline`` is reserved and currently unsupported; any
          unsupported value disables the provider without contacting either source.
+         ``agentless`` requires ``DD_API_KEY`` unless
+         ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL`` is set;
+         without either, provider initialization fails at once and evaluations
+         return their default values.
 
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
      type: String

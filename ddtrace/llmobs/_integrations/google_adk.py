@@ -10,9 +10,9 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.trace import Span
 
 
 class GoogleAdkIntegration(BaseLLMIntegration):
@@ -23,7 +23,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     _OPERATION_TO_SPAN_KIND = {"agent": "agent", "tool": "tool", "code_execute": "tool"}
 
     def _set_base_span_tags(
-        self, span: Span, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs
+        self, span: _LLMObsSpan, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs: Any
     ) -> None:
         span._set_attribute(COMPONENT, self._integration_name)
         if model:
@@ -31,23 +31,34 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         if provider:
             span.set_tag("google_adk.request.provider", provider)
 
-    def set_session_id(self, span: Span, session_id: Optional[str]) -> None:
-        """Set the ADK session id as the LLMObs session for this span.
+    def _on_request_span_started(
+        self,
+        span: _LLMObsSpan,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Set the ADK session id as the LLMObs session of an agent span.
 
-        Called at agent-span creation so the session id propagates to child tool and
-        code-execute spans, which are created before the agent span finishes.
+        Set at creation so the session id propagates to child tool and code-execute spans,
+        which are created before the agent span finishes.
         """
-        if not self.llmobs_enabled or not session_id:
+        if operation != "agent" or not self.llmobs_enabled:
             return
-        _annotate_llmobs_span_data(span, session_id=session_id)
+        session_id = (request_kwargs or {}).get("session_id")
+        if session_id:
+            _annotate_llmobs_span_data(span, session_id=session_id)
 
-    def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
-        agent = kwargs.get("_dd_agent")
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
+        return "agent" if kwargs.get("operation") == "agent" else None
+
+    def _llmobs_agent_name_at_start(self, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
+        agent = kwargs.get("instance")
         return getattr(agent, "name", None) if agent else None
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -71,14 +82,14 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_code_execute(span, args, kwargs, response)
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
 
         self._tag_agent_manifest(span, kwargs, agent_instance)
         new_message = get_argument_value(args, kwargs, 0, "new_message", optional=True) or []
-        new_message_parts: list = getattr(new_message, "parts", [])
+        new_message_parts: list[Any] = getattr(new_message, "parts", [])
         new_message_role: str = getattr(new_message, "role", "")
         message = ""
         for part in new_message_parts:
@@ -103,7 +114,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_tool(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool = get_argument_value(args, kwargs, 0, "tool")
         tool_args = get_argument_value(args, kwargs, 1, "args")
@@ -132,7 +143,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
                 ),
             )
 
-    def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: _LLMObsSpan, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
 
@@ -154,7 +165,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
     def _llmobs_set_tags_code_execute(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         stdout = getattr(response, "stdout", None)
         stderr = getattr(response, "stderr", None)
@@ -172,11 +183,11 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             output_value=output,
         )
 
-    def _get_agent_tools(self, tools):
+    def _get_agent_tools(self, tools: Any) -> list[dict[str, Any]]:
         if not tools or not isinstance(tools, list):
             return []
 
-        agent_tools = []
+        agent_tools: list[dict[str, Any]] = []
         for tool in tools:
             if isfunction(tool):
                 tool_name = tool.__name__

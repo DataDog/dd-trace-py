@@ -47,6 +47,8 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
     assert "ddtrace._trace.product" not in sys.modules
     assert "ddtrace.contrib" not in sys.modules
     assert "ddtrace._trace.trace_handlers" not in sys.modules
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    assert "ddtrace._trace.http_meta" not in sys.modules
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
     assert not core.has_listeners("context.exception")
@@ -69,7 +71,8 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
 
     assert subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
-    assert subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS, SPAN_EXCEPTION_SUBSCRIBERS)
+    assert subscriber_bundles[:2] == (WEB_FRAMEWORK_SUBSCRIBERS, SPAN_EXCEPTION_SUBSCRIBERS)
+    assert all(bundle.module not in sys.modules for bundle in subscriber_bundles)
 
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))

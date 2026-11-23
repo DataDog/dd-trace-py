@@ -37,8 +37,9 @@ See `ddtrace/internal/core/__init__.py` for the API. An event is available throu
 its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
-Report deferred exceptions synchronously through ContextExceptionEvent
-rather than retaining exceptions or tracebacks on a deferred context. Use span_bus.find_span_on_context
+Report deferred exceptions synchronously through ContextExceptionEvent from
+ddtrace.internal.core.exception rather than retaining exceptions or tracebacks on a deferred context.
+The previous ddtrace.contrib._events.exception import remains a compatibility alias. Use span_bus.find_span_on_context
 for optional context-local spans without creating a fallback or borrowing a parent. Completion carries final
 response metadata separately. For nested middleware, each completion callback must retain
 its own execution context rather than resolve a request key that inner middleware can replace.
@@ -65,7 +66,14 @@ bundles. Global initialization uses an import hook to defer activation until the
 subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
 `DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
 the product manager.
-The web request and span exception subscribers use explicit registration rather than class-definition registration.
+All subscriber classes require explicit registration; class definitions only collect handlers.
+The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
+including explicitly deferred global tracer creation. Web request and span exception activation timing
+is unchanged. The generic span bundle registers `TracingSubscriber` directly. Custom subclasses must
+call `register()` or be included in a bundle activated by their owning product.
+Ray's SDK-dependent bundle is activated by a tracing-owned import hook after its integration patch
+module finishes loading. Ordinary tracing startup does not import Ray. Repeated product startup
+restores Ray listeners after that module has loaded; the integration does not activate them itself.
 Do not unregister shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 
@@ -74,6 +82,23 @@ may never prepare a response. Store the callback handle and remove it when the
 request finishes: connection tasks can remain alive across keep-alive requests.
 Do not retain exception objects in deferred callbacks; record errors synchronously
 and allow cancellation to complete without requiring a response or tagging it as an error.
+
+Bottle maps request and response metadata into WebFrameworkRequestEvent and leaves
+propagation, spans, and HTTP error policy to WebFrameworkRequestSubscriber. Raised
+HTTPResponse objects set response_from_exception so the subscriber applies status-based
+OpenTelemetry error semantics without deferring and re-raising the framework exception.
+Set response classification before fallible header collection; header failures must not
+discard a known status or alter its error classification.
+Completion stays at the synchronous route callback boundary, before response iteration.
+
+By default, WebFrameworkRequestSubscriber tags request metadata only when the request ends.
+Products that read it while the handler runs, such as AI Guard's client IP and anomaly-detection
+tags, then see nothing. An integration opts into request-start tagging by setting
+`tag_request_on_start=True` and passing the connection's `peer_ip` (aiohttp uses
+`request.remote`). The subscriber then calls `set_http_meta` with the request headers and the
+peer IP when the span starts, and leaves both out of the end-of-request call. With AppSec
+enabled, its own request-start call runs afterwards and replaces the request headers it records
+with its cookie-free copy before the WAF runs.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

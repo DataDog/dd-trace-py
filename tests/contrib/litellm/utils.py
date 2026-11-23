@@ -37,6 +37,25 @@ def get_cassette_name(stream, n, include_usage=True, tools=False, proxy=False):
     return "completion" + stream_suffix + choice_suffix + usage_suffix + tools_suffix + proxy_suffix + CASETTE_EXTENSION
 
 
+def proxy_server_request(operation, body):
+    """Return the proxy_server_request kwarg that the LiteLLM proxy server gives to litellm."""
+    path = "/completions" if "text_completion" in operation else "/chat/completions"
+    return {"url": "http://0.0.0.0:4000" + path, "method": "POST", "headers": {}, "body": body}
+
+
+def gateway_request_kwargs(operation, proxied, stream=False, n=1):
+    """Return the kwargs of a litellm call. A call from the proxy server also has proxy_server_request."""
+    prompt = "Hey, what is up?"
+    if "text_completion" in operation:
+        request = {"model": "gpt-3.5-turbo", "prompt": prompt}
+    else:
+        request = {"model": "gpt-3.5-turbo", "messages": [{"content": prompt, "role": "user"}]}
+    kwargs = dict(request, stream=stream, n=n, stream_options={"include_usage": True})
+    if proxied:
+        kwargs["proxy_server_request"] = proxy_server_request(operation, dict(request))
+    return kwargs
+
+
 def consume_stream_iter(resp, n, is_completion=False):
     output_messages = [{"content": "", "tool_calls": []} for _ in range(n)]
     token_metrics = {}
