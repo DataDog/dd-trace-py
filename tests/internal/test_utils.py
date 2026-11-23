@@ -138,6 +138,29 @@ def test_start_stop_elapsed():
     assert watch.elapsed() != e
 
 
+def test_restart_resumes_elapsed():
+    watch = time.StopWatch()
+    with mock.patch.object(time.Time, "monotonic", side_effect=[10.0, 11.0, 20.0, 23.0, 24.0]):
+        watch.start()
+        watch.stop()
+        assert watch.elapsed() == 1.0
+        watch.start()
+        # Running again: measured against the clock, not the previous stop time
+        assert watch.elapsed() == 3.0
+        watch.stop()
+
+
+def test_context_manager_reuse():
+    watch = time.StopWatch()
+    with mock.patch.object(time.Time, "monotonic", side_effect=[10.0, 11.0, 20.0, 22.0]):
+        with watch:
+            pass
+        assert watch.elapsed() == 1.0
+        with watch:
+            pass
+        assert watch.elapsed() == 2.0
+
+
 def test_no_elapsed():
     watch = time.StopWatch()
     with pytest.raises(RuntimeError):
