@@ -86,6 +86,7 @@ components:
   coverage:
     - ddtrace/contrib/internal/coverage/*
   dbapi:
+    - ddtrace/internal/database.py
     - ddtrace/contrib/dbapi.py
     - ddtrace/contrib/dbapi_async.py
     - ddtrace/ext/db.py

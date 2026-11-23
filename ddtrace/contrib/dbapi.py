@@ -19,6 +19,7 @@ from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.contrib._events.dbapi import DatabaseResultEvent
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
+from ddtrace.internal.database import configure_database
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils import ArgumentError
@@ -35,6 +36,7 @@ from .internal.trace_utils import iswrapped
 
 
 log = get_logger(__name__)
+_UNSET = object()
 
 
 config._add(
@@ -87,8 +89,20 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_last_execute_operation = None
         self._self_config = cast(IntegrationConfig, cfg or config.dbapi2)
         # Retain the legacy cursor extension interface; propagation remains listener-owned.
-        self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
+        self._self_dbm_propagator_override = _UNSET
         self._self_db_tags = dict(db_tags) if db_tags else {}
+
+    @property
+    def _self_dbm_propagator(self) -> Any:
+        if self._self_dbm_propagator_override is not _UNSET:
+            return self._self_dbm_propagator_override
+        if "_dbm_propagator" not in self._self_config:
+            configure_database(self._self_config)
+        return getattr(self._self_config, "_dbm_propagator", None)
+
+    @_self_dbm_propagator.setter
+    def _self_dbm_propagator(self, value: Any) -> None:
+        self._self_dbm_propagator_override = value
 
     def __iter__(self):
         return self.__wrapped__.__iter__()
@@ -144,6 +158,8 @@ class TracedCursor(wrapt.ObjectProxy):
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
 
             if core.has_listeners(DatabaseQueryPrepareEvent.event_name):
+                if "_dbm_propagator" not in self._self_config:
+                    configure_database(self._self_config)
                 supports_query_rewriting = bool(dbm_propagator)
                 if dbm_propagator is None and getattr(self._self_config, "_dbm_propagator", None) is None:
                     supports_query_rewriting = method in (

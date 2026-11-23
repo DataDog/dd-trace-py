@@ -154,3 +154,62 @@ def test_django_postgres_dbm_propagation_comment_peer_service_enabled():
         shared_tests._test_dbm_propagation_comment_peer_service_enabled(
             config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
+
+
+@pytest.mark.subprocess(env={"DD_DBM_PROPAGATION_MODE": "full"})
+def test_cached_database_config_supports_late_dbm_attachment():
+    from importlib import import_module
+    from unittest.mock import Mock
+
+    from ddtrace.contrib.dbapi import TracedCursor
+
+    # Initialize integration defaults without attaching its optional consumers.
+    import_module("ddtrace.contrib.internal.django.patch")
+    from ddtrace.contrib.internal.django.database import get_conn_config
+    from ddtrace.propagation import _database_monitoring as dbm
+
+    cfg = get_conn_config("postgresql", "boundary-cache")
+    raw = Mock(rowcount=1)
+    cursor = TracedCursor(raw, cfg=cfg)
+    cursor.execute("SELECT 1")
+    raw.execute.assert_called_with("SELECT 1")
+    dbm.django_hooks.listen()
+    assert get_conn_config("postgresql", "boundary-cache") is cfg
+    cursor.execute("SELECT 1")
+    assert raw.execute.call_args.args[0].endswith("*/ SELECT 1")
+    dbm.django_hooks.unlisten()
+    cursor.execute("SELECT 1")
+    raw.execute.assert_called_with("SELECT 1")
+
+
+@pytest.mark.subprocess(env={"DD_DBM_PROPAGATION_MODE": "full"})
+def test_dbm_stays_attached_until_both_psycopg_drivers_are_unpatched():
+    from unittest.mock import Mock
+
+    import psycopg
+    import psycopg2
+
+    from ddtrace import config
+    from ddtrace.contrib.dbapi import TracedCursor
+    from ddtrace.contrib.internal.psycopg.patch import _patch
+    from ddtrace.contrib.internal.psycopg.patch import _unpatch
+
+    _patch(psycopg)
+    _patch(psycopg2)
+    raw = Mock(rowcount=1)
+    cursor = TracedCursor(raw, cfg=config.psycopg)
+    from psycopg.sql import SQL
+
+    query = SQL("SELECT 1")
+    _unpatch(psycopg)
+    cursor.execute(query)
+    rewritten = raw.execute.call_args.args[0]
+    assert isinstance(rewritten, psycopg.sql.Composed)
+    assert rewritten.as_string().endswith("*/ SELECT 1")
+    cursor.execute("SELECT 1")
+    assert raw.execute.call_args.args[0].endswith("*/ SELECT 1")
+    assert config.psycopg["_patched_modules"] == {psycopg2}
+    _unpatch(psycopg2)
+    cursor.execute("SELECT 1")
+    raw.execute.assert_called_with("SELECT 1")
+    assert config.psycopg["_patched_modules"] == set()

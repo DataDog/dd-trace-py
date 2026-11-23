@@ -109,6 +109,24 @@ renders connection metadata, and handles ``DatabaseResultEvent`` cursor metadata
 The subscriber is activated by tracing's ``DATABASE_SUBSCRIBERS`` bundle;
 integration patching and unpatching do not register or remove shared listeners.
 
+Database events and ``DatabaseQueryAdapter`` live in ``ddtrace.internal.database``;
+``ddtrace.contrib._events.dbapi`` preserves the existing event import paths.
+Integrations declare a ``_query_adapter`` with the query argument position/name
+and, when needed, a driver-specific comment application function. The adapter
+owns bytes, composable queries, and command mutation; it contains no DBM settings
+or comment rendering policy.
+
+Database integrations notify ``ddtrace.internal.integration_hooks`` after patching
+and on unpatching. DBM registers optional hooks through the
+``ddtrace.integration_hooks`` entry-point group, so direct/manual patching works
+without the product manager. Its configuration listener creates the legacy
+propagator from the adapter; its query listener owns propagation mode, comment
+rendering, sampling and correlation. Hook ownership is per integration, so
+unpatching one driver does not detach another. Integrations work without the DBM
+hook. Cached connection configs publish their adapters lazily when a cursor
+resolves its legacy propagator, allowing later attachment without rebuilding the
+connection config. Explicit cursor propagator assignments remain overrides.
+
 Keep ``DbQueryEvent`` separate from the tracing lifecycle. It notifies security
 subscribers about the original query and its connection encoding before tracing
 enablement is checked. Existing DB-API security checks run inside the operation

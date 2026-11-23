@@ -18,13 +18,13 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.database import DatabaseQueryAdapter
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
 
 
 log = get_logger(__name__)
@@ -156,7 +156,7 @@ def get_conn_config(vendor: str, service: Optional[str]) -> IntegrationConfig:
         _default_service=service,
         _dbapi_span_name_prefix=prefix,
         trace_fetch_methods=config_django.trace_fetch_methods,
-        _dbm_propagator=_DBM_Propagator(0, "query"),
+        _query_adapter=DatabaseQueryAdapter(0, "query"),
     )
 
 

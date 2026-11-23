@@ -83,3 +83,12 @@ def test_anthropic_hook_is_registered():
     # registers the LLMObs subscribers and Anthropic spans lose their shadow tags.
     plugins = integration_hooks.get_entry_points(integration_hooks.GROUP)
     assert any(p.name == "anthropic" and p.value == "ddtrace.llmobs._contrib.anthropic" for p in plugins)
+
+
+@pytest.mark.parametrize(
+    "integration", ["aiomysql", "asyncpg", "django", "mysql", "mysqldb", "psycopg", "pymongo", "pymysql"]
+)
+def test_database_hooks_are_registered(integration):
+    plugins = integration_hooks.get_entry_points(integration_hooks.GROUP)
+    matches = [p for p in plugins if p.name == integration and integration_hooks.is_trusted(p)]
+    assert any(p.value == f"ddtrace.propagation._database_monitoring:{integration}_hooks" for p in matches)
