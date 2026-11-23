@@ -88,7 +88,12 @@ Flask and WSGI use the same web request subscriber and defer their shared reques
 through response iteration. Keep application callbacks in the caller's Python Context
 so outer middleware sees its bindings and Flask context tokens remain valid. Tracing
 supplies response activation through the response event, saves the active span across
-yields and restores the ambient span after iteration/close. Distinguish response setup
+yields and restores the ambient span after iteration/close. Do not let a new sibling
+request inherit a suspended response as its parent: use request-owner ancestry to
+distinguish nesting from unrelated execution scopes, and resolve the original caller before
+extracting the new request's headers. Preserve explicit callers and requests nested
+inside executing response callbacks. Keep suspension markers out of wire metadata
+and release them on span completion. Distinguish response setup
 failures from streaming failures when deciding request-span error attribution.
 The iterable reports completion without owning spans; the tracing-owned
 `ddtrace._trace.events.WebFrameworkResponseEvent` lets tracing create the response child.

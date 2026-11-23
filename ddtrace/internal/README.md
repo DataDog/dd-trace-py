@@ -223,6 +223,14 @@ request root. Flask context-preservation tokens remain in their original Context
 Tracing supplies a response context manager that resumes the active span saved at
 each yield and restores the ambient span afterward. This preserves stream-child
 parenting for interleaved responses without isolating application context variables.
+A suspended response records its original caller and an opaque request-owner token
+in private span data. The owner token distinguishes genuinely nested request setup
+from siblings, including siblings inside untraced wrapper scopes. A sibling request
+skips that suspended response before processing
+its own distributed headers. Explicit callers and nested frameworks retain their
+parents. The marker is disabled while response callbacks execute, so requests made
+inside iteration or closure remain children of the active response; finishing the
+response releases the marker.
 Response setup failures, including iterator construction, mark the request and
 response spans as errored; failures after the response is ready retain response-only
 attribution.

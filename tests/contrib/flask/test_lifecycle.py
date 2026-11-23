@@ -194,6 +194,8 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
 
         first = self.open_response("/first")
         second = self.open_response("/second")
+        self.assertTrue(all(root.parent_id is None for root in self.roots))
+        self.assertNotEqual(self.roots[0].trace_id, self.roots[1].trace_id)
         self.assertEqual(next(second), b"second")
         self.assertEqual(next(first), b"first")
         first.close()
@@ -596,3 +598,41 @@ def test_manual_flask_with_deferred_tracer_initialization() -> None:
         tracer.shutdown()
         builder.close()
     assert manager._products is None
+
+
+def test_nested_wsgi_flask_interleaved_request_roots(
+    preserved_client_app: flask.Flask, tracer: Tracer, test_spans: Any
+) -> None:
+    app = preserved_client_app
+    contexts: list[Any] = []
+    responses: list[Any] = []
+
+    def started(ctx: Any) -> None:
+        contexts.append(ctx)
+
+    @app.route("/stream")
+    def stream() -> flask.Response:
+        return flask.Response(iter([b"one", b"two"]))
+
+    app.wsgi_app = DDWSGIMiddleware(app.wsgi_app)
+    core.on("context.started.web.request", started)
+    builder = EnvironBuilder(path="/stream")
+    try:
+        for _ in range(2):
+            responses.append(app(builder.get_environ(), lambda *args: None))
+        outer_first, inner_first, outer_second, inner_second = contexts
+        roots = [span_from_context(ctx) for ctx in contexts]
+        assert roots[0].parent_id is None and roots[2].parent_id is None
+        assert roots[0].trace_id != roots[2].trace_id
+        for outer, inner in ((outer_first, inner_first), (outer_second, inner_second)):
+            assert span_from_context(inner).parent_id == outer.get_item("app_span").span_id
+            assert span_from_context(inner).trace_id == span_from_context(outer).trace_id
+        for response in reversed(responses):
+            assert list(response) == [b"one", b"two"]
+            response.close()
+        assert all(span.finished for span in test_spans.pop())
+    finally:
+        for response in responses:
+            response.close()
+        builder.close()
+        core.reset_listeners("context.started.web.request", started)

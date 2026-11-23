@@ -1105,6 +1105,7 @@ def test_wsgi_shared_request_lifecycle_through_response(tracer, test_spans, term
             response.close()
 
         assert all(span.finished for span in (request_span, response_span))
+        assert response_span._get_ctx_item("_dd.web.response_parent") is None
         assert request_span.error == 0
         assert app_span.error == 0
         assert finish_order == ["response", "request"]
@@ -1672,5 +1673,158 @@ def test_wsgi_response_setup_errors_mark_request(tracer: Any, test_spans: Any, p
     assert raised.value is failure
     assert roots[0].error == 1
     assert responses[0].error == 1
+    assert responses[0]._get_ctx_item("_dd.web.response_parent") is None
     assert finished == ["response", "request"]
     assert all(span.finished for span in test_spans.pop())
+
+
+@pytest.mark.parametrize(
+    "parent_mode", ["none", "caller", "distributed", "first_distributed_only", "explicit_caller", "wrapped_core"]
+)
+def test_interleaved_wsgi_request_parents(tracer: Any, test_spans: Any, parent_mode: str) -> None:
+    contexts: list[Any] = []
+    responses: list[Any] = []
+
+    def started(ctx: Any) -> None:
+        contexts.append(ctx)
+
+    def app(environ: dict[str, Any], start_response: Any) -> Iterator[bytes]:
+        start_response("200 OK", [])
+
+        def generate() -> Iterator[bytes]:
+            with tracer.trace("stream.child") as child:
+                try:
+                    yield b"one"
+                    assert tracer.current_span() is child
+                    yield b"two"
+                finally:
+                    assert tracer.current_span() is child
+
+        return generate()
+
+    middleware = DDWSGIMiddleware(app)
+
+    def open_response(index: int) -> Any:
+        environ = {
+            "REQUEST_METHOD": "GET",
+            "PATH_INFO": "/",
+            "SERVER_NAME": "localhost",
+            "SERVER_PORT": "80",
+            "wsgi.url_scheme": "http",
+        }
+        if parent_mode == "distributed" or (parent_mode == "first_distributed_only" and index == 0):
+            environ.update(
+                {
+                    "HTTP_X_DATADOG_TRACE_ID": "123",
+                    "HTTP_X_DATADOG_PARENT_ID": "456",
+                    "HTTP_X_DATADOG_SAMPLING_PRIORITY": "1",
+                }
+            )
+        with core.context_with_data("test_wsgi.wrapper") if parent_mode == "wrapped_core" else nullcontext():
+            response = middleware(environ, lambda *args: None)
+        responses.append(response)
+        assert next(response) == b"one"
+        return response
+
+    core.on("context.started.web.request", started)
+    try:
+        with tracer.trace("caller") if parent_mode == "caller" else nullcontext() as caller:
+            open_response(0)
+            if parent_mode == "explicit_caller":
+                with tracer.trace("explicit") as explicit:
+                    open_response(1)
+            else:
+                open_response(1)
+            open_response(2)
+            roots = [span_from_context(ctx) for ctx in contexts]
+            if parent_mode == "caller":
+                assert caller is not None
+                assert all(span.parent_id == caller.span_id and span.trace_id == caller.trace_id for span in roots)
+            elif parent_mode == "distributed":
+                assert all(span.parent_id == 456 and span.trace_id == 123 for span in roots)
+            elif parent_mode == "first_distributed_only":
+                assert (roots[0].trace_id, roots[0].parent_id) == (123, 456)
+                assert roots[1].parent_id is None and roots[2].parent_id is None
+                assert len({span.trace_id for span in roots}) == 3
+            elif parent_mode == "explicit_caller":
+                assert roots[0].parent_id is None
+                assert (roots[1].trace_id, roots[1].parent_id) == (explicit.trace_id, explicit.span_id)
+                assert roots[2].parent_id is None and roots[2].trace_id != roots[0].trace_id
+            else:
+                assert all(span.parent_id is None for span in roots)
+                assert len({span.trace_id for span in roots}) == 3
+            for response in reversed(responses):
+                assert list(response) == [b"two"]
+                response.close()
+            assert all(span.finished for span in roots)
+            assert all(ctx.get_item("response_span").finished for ctx in contexts)
+        assert all(span.finished for span in test_spans.pop())
+    finally:
+        for response in reversed(responses):
+            response.close()
+        core.reset_listeners("context.started.web.request", started)
+
+
+@pytest.mark.parametrize("phase", ["response_modifier", "iterator_setup", "iteration", "close"])
+def test_wsgi_request_inside_response_keeps_response_parent(tracer: Any, test_spans: Any, phase: str) -> None:
+    contexts: list[Any] = []
+
+    def started(ctx: Any) -> None:
+        contexts.append(ctx)
+
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/outer",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+
+    def nested_request() -> None:
+        inner = middleware(dict(environ, PATH_INFO="/inner"), lambda *args: None)
+        try:
+            assert list(inner) == [b"inner"]
+        finally:
+            inner.close()
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            if phase == "iterator_setup":
+                nested_request()
+
+            def generate() -> Iterator[bytes]:
+                if phase == "iteration":
+                    nested_request()
+                yield b"outer"
+
+            return generate()
+
+        def close(self) -> None:
+            if phase == "close":
+                nested_request()
+
+    def app(environ: dict[str, Any], start_response: Any) -> Any:
+        start_response("200 OK", [])
+        return Response() if environ["PATH_INFO"] == "/outer" else [b"inner"]
+
+    class Middleware(DDWSGIMiddleware):
+        def _response_span_modifier(self, span: Span, response: Any) -> None:
+            super()._response_span_modifier(span, response)
+            if phase == "response_modifier" and isinstance(response, Response):
+                nested_request()
+
+    middleware = Middleware(app)
+    core.on("context.started.web.request", started)
+    try:
+        response = middleware(environ, lambda *args: None)
+        try:
+            assert next(response) == b"outer"
+        finally:
+            response.close()
+        outer, inner = [span_from_context(ctx) for ctx in contexts]
+        assert outer.parent_id is None
+        assert inner.parent_id == contexts[0].get_item("response_span").span_id
+        assert inner.trace_id == outer.trace_id
+        assert all(span.finished for span in test_spans.pop())
+    finally:
+        core.reset_listeners("context.started.web.request", started)

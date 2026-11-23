@@ -26,11 +26,41 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
+_DEFERRED_RESPONSE_PARENT = "_dd.web.response_parent"
+_REQUEST_OWNER = "_dd.web.request_owner"
+
+
+def _clear_response_parent(span: Span) -> None:
+    span._set_ctx_item(_DEFERRED_RESPONSE_PARENT, None)
+
 
 class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent]):
     """Shared tracing and deferred request ownership for web framework integrations."""
 
     event_names = (WebFrameworkRequestEvent.event_name,)
+
+    @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        if ctx.get_item("middleware") is not None:
+            provider = tracer.context_provider
+            active = provider.active()
+            while isinstance(active, Span):
+                suspended = active._get_ctx_item(_DEFERRED_RESPONSE_PARENT)
+                if suspended is None:
+                    break
+                owner = ctx.parent
+                while owner is not None and owner.get_item(_REQUEST_OWNER) is not suspended[0]:
+                    owner = owner.parent
+                if owner is not None:
+                    break
+                # A sibling response remains visible to outer middleware, but
+                # must not become this request's implicit parent.
+                provider.activate(suspended[1])
+                active = provider.active()
+            # Capture before the base subscriber activates distributed headers.
+            ctx.set_item("request_parent_context", active)
+            ctx.set_item(_REQUEST_OWNER, object())
+        super()._on_context_started(ctx)
 
     @classmethod
     def _on_context_ended(
@@ -159,6 +189,10 @@ class WebFrameworkResponseSubscriber(Subscriber):
         response_span = tracer.start_span(event.operation_name, child_of=span_from_context(ctx), activate=True)
         response_span._set_attribute(COMPONENT, request_event.component)
         ctx.set_item("response_span", response_span)
+        response_span._set_ctx_item(
+            _DEFERRED_RESPONSE_PARENT, (ctx.get_item(_REQUEST_OWNER), ctx.get_item("request_parent_context"))
+        )
+        response_span._on_finish_callbacks.insert(0, _clear_response_parent)
         event.span_modifier(response_span, event.response)
         provider = tracer.context_provider
         active = provider.active()
@@ -167,12 +201,16 @@ class WebFrameworkResponseSubscriber(Subscriber):
         def response_context() -> Iterator[None]:
             nonlocal active
             previous = provider.active()
-            provider.activate(active)
+            suspended = response_span._get_ctx_item(_DEFERRED_RESPONSE_PARENT)
+            response_span._set_ctx_item(_DEFERRED_RESPONSE_PARENT, None)
             try:
+                provider.activate(active)
                 yield
             finally:
                 # A generator can suspend inside a child span across yields.
                 active = provider.active()
+                if not response_span.finished:
+                    response_span._set_ctx_item(_DEFERRED_RESPONSE_PARENT, suspended)
                 provider.activate(previous)
                 # Completion may have finished the saved ambient span too.
                 provider.active()
