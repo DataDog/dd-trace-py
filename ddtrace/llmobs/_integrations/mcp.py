@@ -69,7 +69,8 @@ def dd_trace_input_schema() -> dict[str, Any]:
         required.append(INTENT_KEY)
     if config.mcp.enrichment_enabled:
         properties[CONVERSATION_ID_KEY] = {"type": "string", "description": CONVERSATION_ID_PROMPT}
-    return {"type": "object", "properties": properties, "required": required}
+    # Matches how the integration tells its telemetry from a tool's own argument, so schema-valid values are removed
+    return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
 
 
 def _find_client_session_root(span: Optional[_LLMObsSpan]) -> Optional[_LLMObsSpan]:

@@ -252,6 +252,7 @@ def test_conversation_id_capture(mcp_llmobs, test_spans, run_client, mode):
 
     telemetry_schema = next(t for t in tools.tools if t.name == "calculator").input_schema["properties"]["telemetry"]
     assert set(telemetry_schema["properties"]) == {"intent", "conversation_id"}
+    assert telemetry_schema["additionalProperties"] is False
     assert telemetry_schema["required"] == ["intent"]
 
     assert len(conversation_id) == 32
