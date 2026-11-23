@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Union
 
 import ddtrace
 from ddtrace import config as dd_config
-from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.internal import core
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import PROPAGATED_HASH
+from ddtrace.internal.database import DatabaseIntegrationConfigEvent
+from ddtrace.internal.database import DatabaseQueryAdapter
+from ddtrace.internal.database import DatabaseQueryPrepareEvent
+from ddtrace.internal.database import prepend_query_comment
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.span_bus import find_span_on_context
+from ddtrace.vendor.sqlcommenter import _generate_comment_from_metadata
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal import compat
@@ -50,9 +56,7 @@ def _should_inject_sql_basehash() -> bool:
 
 def default_sql_injector(dbm_comment: str, sql_statement: Union[str, bytes]) -> Union[str, bytes]:
     try:
-        if isinstance(sql_statement, bytes):
-            return dbm_comment.encode("utf-8", errors="strict") + sql_statement
-        return dbm_comment + sql_statement
+        return prepend_query_comment(dbm_comment, sql_statement)
     except (TypeError, ValueError):
         log.warning(
             "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
@@ -73,6 +77,9 @@ class _DBM_Propagator:
         peer_hostname_tag="out.host",
         peer_db_name_tag="db.name",
         peer_service_tag="peer.service",
+        *,
+        _adapter: Optional[DatabaseQueryAdapter] = None,
+        _activate_listener: bool = True,
     ):
         self.sql_pos = sql_pos
         self.sql_kw = sql_kw
@@ -81,6 +88,10 @@ class _DBM_Propagator:
         self.peer_hostname_tag = peer_hostname_tag
         self.peer_db_name_tag = peer_db_name_tag
         self.peer_service_tag = peer_service_tag
+        self._adapter = _adapter
+        # Direct construction is the legacy activation path; integration hooks own their lifecycle.
+        if _activate_listener:
+            listen()
 
     def inject(self, dbspan, args, kwargs):
         # run sampling before injection to propagate correct sampling priority
@@ -95,6 +106,13 @@ class _DBM_Propagator:
         # the base hash is injected in the comment and on the span tags for correlation purpose
         if _should_inject_sql_basehash() and (base_hash := process_tags.base_hash):
             dbspan._set_attribute(PROPAGATED_HASH, str(base_hash))
+
+        if self._adapter is not None:
+            try:
+                return self._adapter.apply(dbm_comment, args, kwargs)
+            except (TypeError, ValueError):
+                log.warning("Unable to apply Database Monitoring query comment", exc_info=True)
+                return args, kwargs
 
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
         # add dbm comment to original_sql_statement
@@ -157,6 +175,8 @@ class _DBM_Propagator:
 
 
 def handle_dbm_injection(int_config, span, args, kwargs):
+    if "_dbm_propagator" not in int_config and (adapter := int_config.get("_query_adapter")) is not None:
+        _configure_integration(DatabaseIntegrationConfigEvent(int_config, adapter))
     dbm_propagator = getattr(int_config, "_dbm_propagator", None)
     if dbm_propagator:
         args, kwargs = dbm_propagator.inject(span, args, kwargs)
@@ -172,7 +192,7 @@ def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
 
 
 def handle_query_prepare_event(event: DatabaseQueryPrepareEvent) -> None:
-    if not event.supports_query_rewriting:
+    if not event.supports_query_rewriting or not _is_active(event.context.event.integration_config):
         return
     span = find_span_on_context(event.context)
     if span is None:
@@ -193,19 +213,100 @@ _DBM_STANDARD_EVENTS = {
 }
 
 
-def listen():
+_active_integrations: set[str] = set()
+_legacy_listening = False
+
+
+def _is_active(integration_config: IntegrationConfig) -> bool:
+    name = integration_config.integration_name
+    return (
+        _legacy_listening
+        or name in _active_integrations
+        or (name == "django-database" and "django" in _active_integrations)
+    )
+
+
+def _configure_integration(event: DatabaseIntegrationConfigEvent) -> None:
+    cfg = event.integration_config
+    if not _is_active(cfg) or "_dbm_propagator" in cfg:
+        return
+    adapter = event.adapter
+    generator = _generate_comment_from_metadata if adapter.comment_format == "metadata" else _generate_sql_comment
+    cfg["_dbm_propagator"] = _DBM_Propagator(
+        adapter.position,
+        adapter.keyword,
+        adapter.inject,
+        generator,
+        _adapter=adapter,
+        _activate_listener=False,
+    )
+
+
+def _handle_integration_injection(
+    int_config: IntegrationConfig, span: Span, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[Span, tuple[Any, ...], dict[str, Any]]:
+    if _is_active(int_config):
+        return handle_dbm_injection(int_config, span, args, kwargs)
+    return span, args, kwargs
+
+
+def _handle_asyncpg_injection(
+    int_config: IntegrationConfig, method: Any, span: Span, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[Span, tuple[Any, ...], dict[str, Any]]:
+    if _is_active(int_config):
+        return handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs)
+    return span, args, kwargs
+
+
+def _register_listeners() -> None:
+    core.on(DatabaseIntegrationConfigEvent.event_name, _configure_integration)
     if dbm_config.propagation_mode in _DBM_INJECTION_MODES:
         core.on(DatabaseQueryPrepareEvent.event_name, handle_query_prepare_event)
         for event in _DBM_STANDARD_EVENTS:
-            core.on(event, handle_dbm_injection, "result")
-        core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
+            core.on(event, _handle_integration_injection, "result")
+        core.on("asyncpg.execute", _handle_asyncpg_injection, "result")
 
 
-def unlisten():
+def _unregister_listeners() -> None:
+    core.reset_listeners(DatabaseIntegrationConfigEvent.event_name, _configure_integration)
     core.reset_listeners(DatabaseQueryPrepareEvent.event_name, handle_query_prepare_event)
     for event in _DBM_STANDARD_EVENTS:
-        core.reset_listeners(event, handle_dbm_injection)
-    core.reset_listeners("asyncpg.execute", handle_dbm_injection_asyncpg)
+        core.reset_listeners(event, _handle_integration_injection)
+    core.reset_listeners("asyncpg.execute", _handle_asyncpg_injection)
 
 
-listen()
+def listen() -> None:
+    global _legacy_listening
+    _legacy_listening = dbm_config.propagation_mode in _DBM_INJECTION_MODES
+    _register_listeners()
+
+
+def unlisten() -> None:
+    global _legacy_listening
+    _legacy_listening = False
+    # Preserve explicit legacy teardown, even when the caller restored the propagation mode first.
+    _unregister_listeners()
+
+
+class _IntegrationHooks:
+    def __init__(self, integration: str) -> None:
+        self.integration = integration
+
+    def listen(self) -> None:
+        _active_integrations.add(self.integration)
+        _register_listeners()
+
+    def unlisten(self) -> None:
+        _active_integrations.discard(self.integration)
+        if not _active_integrations and not _legacy_listening:
+            _unregister_listeners()
+
+
+aiomysql_hooks = _IntegrationHooks("aiomysql")
+asyncpg_hooks = _IntegrationHooks("asyncpg")
+django_hooks = _IntegrationHooks("django")
+mysql_hooks = _IntegrationHooks("mysql")
+mysqldb_hooks = _IntegrationHooks("mysqldb")
+psycopg_hooks = _IntegrationHooks("psycopg")
+pymongo_hooks = _IntegrationHooks("pymongo")
+pymysql_hooks = _IntegrationHooks("pymysql")

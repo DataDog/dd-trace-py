@@ -5,16 +5,16 @@ from typing import cast
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
-from ddtrace.contrib._events.dbapi import DatabaseResultEvent
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import db
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
+from ddtrace.internal.database import DatabaseOperationEvent
+from ddtrace.internal.database import DatabaseResultEvent
 from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
+from ddtrace.internal.utils.service import set_service_and_source
 from ddtrace.trace import tracer
 
 

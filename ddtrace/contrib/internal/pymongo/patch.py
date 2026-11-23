@@ -1,11 +1,12 @@
 import pymongo
 
 from ddtrace import config
+from ddtrace.internal import integration_hooks
+from ddtrace.internal.database import DatabaseQueryAdapter
+from ddtrace.internal.database import configure_database
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.vendor.sqlcommenter import _generate_comment_from_metadata as _generate_comment_from_metadata
 
 from ....internal.schema import schematize_service_name
 from .client import patch_pymongo_sync_modules
@@ -20,7 +21,7 @@ config._add(
     "pymongo",
     dict(
         _default_service=schematize_service_name("pymongo"),
-        _dbm_propagator=_DBM_Propagator(2, "spec", dbm_comment_injector, _generate_comment_from_metadata),
+        _query_adapter=DatabaseQueryAdapter(2, "spec", dbm_comment_injector, "metadata"),
         _mongodb_obfuscation=_get_config("DD_TRACE_MONGODB_OBFUSCATION", default=True, modifier=asbool),
     ),
 )
@@ -44,6 +45,8 @@ def patch():
 
         patch_pymongo_async_modules()
     pymongo._datadog_patch = True
+    integration_hooks.on_patch("pymongo")
+    configure_database(config.pymongo)
 
 
 def unpatch():
@@ -56,3 +59,4 @@ def unpatch():
 
         unpatch_pymongo_async_modules()
     pymongo._datadog_patch = False
+    integration_hooks.on_unpatch("pymongo")

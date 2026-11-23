@@ -21,11 +21,13 @@ from ddtrace.contrib.internal.trace_utils_async import with_traced_module
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
+from ddtrace.internal.database import DatabaseQueryAdapter
+from ddtrace.internal.database import configure_database
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -41,7 +43,7 @@ config._add(
     "asyncpg",
     dict(
         _default_service=schematize_service_name("postgres"),
-        _dbm_propagator=_DBM_Propagator(0, "query"),
+        _query_adapter=DatabaseQueryAdapter(0, "query"),
     ),
 )
 
@@ -183,6 +185,8 @@ def patch() -> None:
     _patch(asyncpg)
 
     asyncpg._datadog_patch = True
+    integration_hooks.on_patch("asyncpg")
+    configure_database(config.asyncpg)
 
 
 def _unpatch(asyncpg: ModuleType) -> None:
@@ -212,3 +216,4 @@ def unpatch() -> None:
     _unpatch(asyncpg)
 
     asyncpg._datadog_patch = False
+    integration_hooks.on_unpatch("asyncpg")

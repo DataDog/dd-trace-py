@@ -22,6 +22,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.routing import extract_request_method_list
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.event_hub import ResultType
@@ -525,6 +526,7 @@ def patch():
     _patch(django)
 
     django._datadog_patch = True
+    integration_hooks.on_patch("django")
 
 
 def _unpatch(django):
@@ -565,3 +567,4 @@ def unpatch():
     _unpatch(django)
 
     django._datadog_patch = False
+    integration_hooks.on_unpatch("django")

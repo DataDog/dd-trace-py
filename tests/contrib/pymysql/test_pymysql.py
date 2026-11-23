@@ -468,3 +468,38 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         shared_tests._test_dbm_propagation_comment_peer_service_enabled(
             config=MYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
+
+
+def test_manual_patch_without_dbm_provider(run_python_code_in_subprocess):
+    out, err, status, _ = run_python_code_in_subprocess("""
+import importlib.abc
+import sys
+from unittest.mock import Mock
+import pymysql
+from ddtrace.internal import integration_hooks
+
+class RejectDBM(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == 'ddtrace.propagation._database_monitoring':
+            raise AssertionError('driver imported DBM')
+sys.meta_path.insert(0, RejectDBM())
+integration_hooks._entry_points = {}
+from ddtrace.contrib.internal.pymysql.patch import patch, unpatch
+raw = Mock()
+raw.host = 'localhost'
+raw.port = 3306
+raw.user = 'user'
+raw.db = 'db'
+raw.cursor.return_value.rowcount = 1
+pymysql.connect = Mock(return_value=raw)
+patch()
+patch()
+conn = pymysql.connect()
+cursor = conn.cursor()
+cursor.execute('SELECT 1')
+raw.cursor.return_value.execute.assert_called_once_with('SELECT 1')
+assert 'ddtrace.propagation._database_monitoring' not in sys.modules
+unpatch()
+unpatch()
+""")
+    assert status == 0, (out, err)

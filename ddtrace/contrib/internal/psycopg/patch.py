@@ -15,13 +15,15 @@ from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 from ddtrace.contrib.internal.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.internal.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.internal.psycopg.extensions import get_psycopg2_extensions
+from ddtrace.internal import integration_hooks
+from ddtrace.internal.database import DatabaseQueryAdapter
+from ddtrace.internal.database import configure_database
+from ddtrace.internal.database import prepend_query_comment as _default_sql_injector
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
 
 
 # These will be initialized lazily to avoid circular imports
@@ -43,7 +45,7 @@ def _get_psycopg3_original_methods():
 
 
 def _psycopg_sql_injector(dbm_comment, sql_statement):
-    for psycopg_module in config.psycopg["_patched_modules"]:
+    for psycopg_module in config.psycopg["_composable_modules"]:
         if (
             hasattr(psycopg_module, "sql")
             and hasattr(psycopg_module.sql, "Composable")
@@ -60,9 +62,11 @@ config._add(
         _dbapi_span_name_prefix="postgres",
         _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         _patched_modules=set(),
+        # Existing traced cursors can outlive unpatching; keep their query types recognizable.
+        _composable_modules=set(),
         trace_fetch_methods=asbool(env.get("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(env.get("DD_PSYCOPG_TRACE_CONNECT", default=False)),
-        _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
+        _query_adapter=DatabaseQueryAdapter(0, "query", _psycopg_sql_injector),
         dbms_name="postgresql",
     ),
 )
@@ -137,6 +141,10 @@ def _patch(psycopg_module):
 
         config.psycopg["_patched_modules"].add(psycopg_module)
 
+    config.psycopg["_composable_modules"].add(psycopg_module)
+    integration_hooks.on_patch("psycopg")
+    configure_database(config.psycopg)
+
 
 def unpatch():
     for psycopg_module in _psycopg_modules():
@@ -167,6 +175,10 @@ def _unpatch(psycopg_module):
         pin = Pin.get_from(psycopg_module)
         if pin:
             pin.remove_from(psycopg_module)
+
+        config.psycopg["_patched_modules"].discard(psycopg_module)
+        if not config.psycopg["_patched_modules"]:
+            integration_hooks.on_unpatch("psycopg")
 
 
 def init_cursor_from_connection_factory(psycopg_module):

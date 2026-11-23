@@ -16,13 +16,15 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.database import DatabaseQueryAdapter
+from ddtrace.internal.database import configure_database
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import tracer
 
 
@@ -34,7 +36,7 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(env.get("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(env.get("DD_MYSQLDB_TRACE_CONNECT", default=False)),
-        _dbm_propagator=_DBM_Propagator(0, "query"),
+        _query_adapter=DatabaseQueryAdapter(0, "query"),
     ),
 )
 
@@ -69,12 +71,15 @@ def patch():
         _w("MySQLdb", "connect", _connect)
 
     core.dispatch("sql.patch", ())
+    integration_hooks.on_patch("mysqldb")
+    configure_database(config.mysqldb)
 
 
 def unpatch():
     if not getattr(MySQLdb, "_datadog_patch", False):
         return
     MySQLdb._datadog_patch = False
+    integration_hooks.on_unpatch("mysqldb")
 
     # unpatch MySQLdb
     _u(MySQLdb, "Connect")

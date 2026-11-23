@@ -15,11 +15,13 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
+from ddtrace.internal.database import DatabaseQueryAdapter
+from ddtrace.internal.database import configure_database
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
 
 
 log = get_logger(__name__)
@@ -29,7 +31,7 @@ config._add(
     "aiomysql",
     dict(
         _default_service=schematize_service_name("mysql"),
-        _dbm_propagator=_DBM_Propagator(0, "query"),
+        _query_adapter=DatabaseQueryAdapter(0, "query"),
     ),
 )
 
@@ -187,9 +189,12 @@ def patch():
         return
     aiomysql.__datadog_patch = True
     wrapt.wrap_function_wrapper(aiomysql.connection, "_connect", patched_connect)
+    integration_hooks.on_patch("aiomysql")
+    configure_database(config.aiomysql)
 
 
 def unpatch():
     if getattr(aiomysql, "__datadog_patch", False):
         aiomysql.__datadog_patch = False
         unwrap(aiomysql.connection, "_connect")
+        integration_hooks.on_unpatch("aiomysql")

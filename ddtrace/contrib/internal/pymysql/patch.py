@@ -8,12 +8,14 @@ from ddtrace.contrib.internal.pymysql.cursor import PyMySQLTracedCursor
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.database import DatabaseQueryAdapter
+from ddtrace.internal.database import configure_database
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
 
 
 config._add(
@@ -23,7 +25,7 @@ config._add(
         _dbapi_span_name_prefix="pymysql",
         _dbapi_span_operation_name=schematize_database_operation("pymysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(env.get("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
-        _dbm_propagator=_DBM_Propagator(0, "query"),
+        _query_adapter=DatabaseQueryAdapter(0, "query"),
     ),
 )
 
@@ -46,14 +48,19 @@ def _supported_versions() -> dict[str, str]:
 
 
 def patch():
+    if getattr(pymysql, "_datadog_patch", False):
+        return
     wrapt.wrap_function_wrapper("pymysql", "connect", _connect)
     pymysql._datadog_patch = True
+    integration_hooks.on_patch("pymysql")
+    configure_database(config.pymysql)
 
 
 def unpatch():
     if is_wrapted(pymysql.connect):
         pymysql.connect = pymysql.connect.__wrapped__
     pymysql._datadog_patch = False
+    integration_hooks.on_unpatch("pymysql")
 
 
 def _connect(func, instance, args, kwargs):

@@ -490,9 +490,7 @@ class AsyncPgTestCase(AsyncioTestCase):
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
 
-        with mock.patch(
-            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
-        ) as patched:
+        with mock.patch("ddtrace.internal.database.set_argument_value", side_effect=mock_func) as patched:
             # test string queries
             create_table_query = """
                 CREATE TABLE IF NOT EXISTS my_table(
@@ -526,9 +524,7 @@ class AsyncPgTestCase(AsyncioTestCase):
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
 
-        with mock.patch(
-            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
-        ) as patched:
+        with mock.patch("ddtrace.internal.database.set_argument_value", side_effect=mock_func) as patched:
             # test string queries
             create_table_query = """
                 CREATE TABLE IF NOT EXISTS my_table(
@@ -562,9 +558,7 @@ class AsyncPgTestCase(AsyncioTestCase):
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
 
-        with mock.patch(
-            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
-        ) as patched:
+        with mock.patch("ddtrace.internal.database.set_argument_value", side_effect=mock_func) as patched:
             # test string queries
             create_table_query = """
                 CREATE TABLE IF NOT EXISTS my_table(
