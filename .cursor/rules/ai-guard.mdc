@@ -99,7 +99,9 @@ see `_api_client.py` for the signatures.
 
 MCP support lives in `ddtrace/aiguard/integrations/_mcp.py` (server IDs, `mcp_servers` entries,
 the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners and
-the openai-agents MCP server listeners, gated by `DD_AI_GUARD_MCP_ENABLED`. Keep these invariants when changing it:
+the openai-agents MCP server listeners, gated by `DD_AI_GUARD_MCP_ENABLED`. The LiteLLM proxy guardrail
+uses the OpenAI Responses converters for the hosted MCP items of Responses answers, without the approval
+decision cache. Keep these invariants when changing it:
 - Requests carry a request-level `mcp_servers` list; each MCP tool call carries only
   `mcp.server_id`, which must match an entry in the same request. Ordinary tools carry no `mcp`.
 - The server ID is `mcp_` + the first 16 hex characters of SHA-256 of the first applicable key
@@ -245,7 +247,7 @@ returns `True`. The framework evaluates both the request and the response itself
 | LangChain `generate` / `agenerate` | `.before` to `.finally` |
 | LangChain `stream` / `astream` | iteration start to stream end (`.stream.started` / `.stream.finally`) |
 | Strands invocation | before-invocation to after-invocation |
-| LiteLLM proxy guardrail (chat and text completions, `pre_call` and `post_call` modes) | pre-call check to the end of the request (post-call hook, end of the model stream, or failure hook) |
+| LiteLLM proxy guardrail (chat, text completion, Responses API and Anthropic Messages requests, `pre_call` and `post_call` modes) | pre-call check to the end of the request (post-call hook, end of the model stream, or failure hook) |
 
 A claim is a shared object released by the handle `set_aiguard_context_active`
 returns, so a release from another asyncio task is seen by the claiming task.
@@ -254,21 +256,58 @@ its `_CallScope`, and a stream on the per-stream state the contrib passes to
 both stream events.
 
 The LiteLLM guardrail keeps the handle in a ContextVar of the request task. It claims only when
-the data has `proxy_server_request`, the request is a chat or text completion, and the `post_call`
-mode applies. AI Guard must also complete the prompt evaluation: after an AI Guard error, the
-provider listeners evaluate the prompt again. The proxy awaits the pre-call hook in the request task,
-and copies that context into the model call. The SDK `guardrails` argument runs the hook in the caller
-task, and a `during_call` hook runs beside the model call: they do not claim. For other request
-types, and with only the `pre_call` mode, the guardrail does not claim, so the provider listeners
-keep their evaluations.
+the data has `proxy_server_request`, the call type is a chat or text completion, `responses`,
+`aresponses` or `anthropic_messages`, and the `post_call` mode applies. On LiteLLM 1.82.6,
+`/cursor/chat/completions` also has the call type `aresponses`, so it is claimed too. AI Guard must
+also complete the prompt evaluation: after an AI Guard error, the provider listeners evaluate the
+prompt again. For `anthropic_messages`, the Anthropic converter must also read the body: after the
+chat conversion fallback described below, the guardrail does not claim, so a provider listener that
+sees the model call also evaluates it, for example the OpenAI listener when LiteLLM sends the request
+as an OpenAI chat completion. The proxy awaits the pre-call hook in the request task, and copies that
+context into the model call. The SDK `guardrails` argument runs the hook in the caller task, and a
+`during_call` hook runs beside the model call: they do not claim. With only the `pre_call` mode, the
+guardrail does not claim either, and the provider listeners still evaluate the model calls.
+
+LiteLLM sends Responses API and Anthropic Messages calls with its own HTTP client, or a `/v1/messages`
+request to a chat model as a raw chat completion, so the provider listeners do not evaluate their
+answers: the guardrail does. The post-call hook gets no call type, so it finds these answers by the
+proxy route. Only a path that ends with `/responses` (a Responses create) or `/v1/messages` gets the
+OpenAI Responses or the Anthropic converters. The answers of the retrieve, cancel, `input_items` and
+`compact` routes, and a non-streamed `/cursor/chat/completions` answer, are not evaluated. A streamed
+`/cursor/chat/completions` answer is a chat stream, so the chat stream hook evaluates it. The prompt
+of the answer evaluation comes from the request body (Responses `instructions`, `input` and `prompt`
+variables, Anthropic `system` and `messages`), never from `data["metadata"]`, which the client
+controls. The pre-call check of `/v1/messages` also uses the Anthropic converter, so it keeps the
+system prompt, `tool_use` and `tool_result`. Before the conversion, the guardrail reads each string
+item of the `system`, message and `tool_result` content lists as a text block, in a copy, because
+the converter skips such items and LiteLLM can send them to a chat model as text. When the Anthropic
+converter fails on a body, both evaluations use the chat conversion of `messages` instead. That
+conversion keeps the text of the messages but drops the system prompt and the `tool_use`,
+`tool_result`, `image`, `document` and `thinking` blocks, so the guardrail does not claim the
+request. Where no provider listener sees the model call, for example
+on the native Anthropic path or the LiteLLM 1.82.6 Responses API adapter, those parts of such a body
+are not evaluated.
+
+Known limit: LiteLLM's chat completions adapter for `/v1/messages` can send an `image` block inside a
+`tool_result` to the model as tool text, and the guardrail does not evaluate that text as text: it
+converts the image to an `image_url` part, or drops it when it cannot read the `source`. LiteLLM
+1.78.5 uses this adapter for every model without a native Anthropic Messages API in LiteLLM, for
+example OpenAI and Azure OpenAI models, and sends `data:image;base64,` followed by the string form of
+the whole `source` for each image item of the `tool_result` content list. LiteLLM 1.82.6 uses it for
+such models too, except models of the `openai` provider, which use the Responses API adapter (it drops
+these images) unless `use_chat_completions_url_for_anthropic_messages` is set. Its chat completions
+adapter sends the `url`, or `data:<media_type>;base64,<data>` with `image/jpeg` as the default media
+type, as tool text only when the image is the only item of the list.
 
 In `post_call` mode, `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` controls a streamed chat or text
 answer. When it is on, the guardrail holds the answer, evaluates it, and can block it before the
 first chunk. When it is off, the chunks go out live, and the guardrail evaluates the full answer after
-the last chunk without blocking. Other streams pass through live. Some LiteLLM versions run the
-post-call success hook on the full stream, in a task that they start during a read of the model stream.
-The streaming hook sets a ContextVar around each read of the model stream, and the success hook skips
-while it is set. Do not use a key in the request metadata for this: the client controls that dict.
+the last chunk without blocking. Other streams, for example streamed Responses API and Anthropic
+Messages answers, pass through live without an answer evaluation, although the request is claimed.
+Some LiteLLM versions run the post-call success hook on the full stream, in a task that they start
+during a read of the model stream. The streaming hook sets a ContextVar around each read of the model
+stream, and the success hook skips while it is set. Do not use a key in the request metadata for this:
+the client controls that dict.
 
 With `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` on, LangChain itself buffers
 `stream()` / `astream()`: every chunk is read, the response is evaluated, and

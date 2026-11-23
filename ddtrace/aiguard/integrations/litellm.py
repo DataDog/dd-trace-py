@@ -31,6 +31,7 @@ from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard import ContentPart
 from ddtrace.aiguard import Function
 from ddtrace.aiguard import ImageURL
+from ddtrace.aiguard import MCPServer
 from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
@@ -40,16 +41,33 @@ from ddtrace.aiguard._context import _Claim
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
+from ddtrace.aiguard.integrations._anthropic import _safe_convert_messages
+from ddtrace.aiguard.integrations._anthropic import _safe_convert_response
 from ddtrace.aiguard.integrations._openai_chat import _convert_openai_response
 from ddtrace.aiguard.integrations._openai_chat_streaming import reconstruct_openai_chat
+from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
+from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_output
+from ddtrace.aiguard.integrations._openai_responses import _hosted_mcp_servers
+from ddtrace.aiguard.integrations._openai_responses import _mcp_servers_payload
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils.openai import openai_construct_completion_from_streamed_chunks
 
 
 GUARDRAIL_NAME = "datadog_ai_guard"
 
-# The post-call hooks evaluate the answers of these call types only.
-_ANSWER_CALL_TYPES = frozenset({"completion", "acompletion", "text_completion", "atext_completion"})
+# The guardrail claims the proxy requests of these call types, because the post-call hooks evaluate their answers.
+# Streamed Responses and Messages answers still pass through without an answer evaluation.
+_ANSWER_CALL_TYPES = frozenset(
+    {
+        "completion",
+        "acompletion",
+        "text_completion",
+        "atext_completion",
+        "responses",
+        "aresponses",
+        "anthropic_messages",
+    }
+)
 
 # This variable keeps the claim of the proxy request. The proxy runs the pre-call hook in the
 # request task, and the model call and the stream get a copy of that context.
@@ -74,9 +92,31 @@ def _call_type_from_route(data: dict[str, Any]) -> Optional[CallTypesLiteral]:
     path = urlparse(str((data.get("proxy_server_request") or {}).get("url") or "")).path.rstrip("/")
     if path.endswith("/v1/messages"):
         return "anthropic_messages"
+    # Only the create route ends with /responses. Retrieve, cancel, input_items and compact add a suffix.
+    if path.endswith("/responses"):
+        return "aresponses"
     if path.endswith("/completions") and not path.endswith("/chat/completions"):
         return "text_completion"
     return None
+
+
+def _text_blocks(content: Any) -> Any:
+    """Copy an Anthropic content list with each string item as a text block."""
+    if not isinstance(content, list):
+        return content
+    return [{"type": "text", "text": block} if isinstance(block, str) else block for block in content]
+
+
+def _message_text_blocks(message: Any) -> Any:
+    """Copy an Anthropic message with the string items of its content and tool_result lists as text blocks."""
+    if not isinstance(message, dict) or not isinstance(message.get("content"), list):
+        return message
+    content = []
+    for block in _text_blocks(message["content"]):
+        if isinstance(block, dict) and block.get("type") == "tool_result" and isinstance(block.get("content"), list):
+            block = {**block, "content": _text_blocks(block["content"])}
+        content.append(block)
+    return {**message, "content": content}
 
 
 async def _read_next(stream: Any) -> Any:
@@ -280,6 +320,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         messages: list[Message],
         dynamic_params: dict[str, Any],
         can_block: bool = True,
+        mcp_servers: Optional[list[MCPServer]] = None,
     ) -> bool:
         """Return True when AI Guard completed the evaluation, also for a DENY in monitor mode.
 
@@ -294,6 +335,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
                 Options(block=block),
                 source=AI_GUARD.SOURCE_AUTO,
                 integration=AI_GUARD.INTEGRATION_LITELLM,
+                mcp_servers=mcp_servers,
             )
             if response["action"] in ("DENY", "ABORT"):
                 verbose_proxy_logger.debug(
@@ -325,14 +367,21 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         except ValueError:
             verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. Unknown call type %s", call_type)
             return data
-        request_messages = self.get_guardrails_messages_for_call_type(call_type=request_call_type, data=data)
-        if not request_messages and call_type in ("text_completion", "atext_completion"):
-            request_messages = self._convert_text_prompt(data.get("prompt"))
-        if not request_messages:
+        if request_call_type == CallTypes.anthropic_messages:
+            # litellm returns the Anthropic messages unconverted here, and the system prompt is a separate field.
+            messages, exact = self._anthropic_prompt(data)
+            # After the chat conversion, do not claim, so that the provider listeners also check the model call.
+            claim = claim and exact
+        else:
+            request_messages = self.get_guardrails_messages_for_call_type(call_type=request_call_type, data=data)
+            if not request_messages and call_type in ("text_completion", "atext_completion"):
+                request_messages = self._convert_text_prompt(data.get("prompt"))
+            messages = self._convert_request_messages(request_messages) if request_messages else None
+        if not messages:
             verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. No messages found in request")
             return data
 
-        completed = await self._run_ai_guard_check(self._convert_request_messages(request_messages), dynamic_params)
+        completed = await self._run_ai_guard_check(messages, dynamic_params)
         # After an AI Guard error, do not claim: the provider listeners then evaluate the prompt again.
         if claim and completed:
             _claim_request()
@@ -345,14 +394,28 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
 
     async def _on_response(self, data: dict[str, Any], response: LLMResponseTypes) -> Any:
         response_messages: list[Message] = []
+        mcp_servers: Optional[dict[str, MCPServer]] = None
+        route = _call_type_from_route(data)
 
         if isinstance(response, ModelResponse) and response.choices:
             converted_messages = self._convert_response_messages(list(response.choices))
             response_messages.extend(converted_messages)
         elif isinstance(response, TextCompletionResponse) and response.choices:
             response_messages.extend(Message(role="assistant", content=c.text or "") for c in response.choices)
+        elif route == "aresponses":
+            try:
+                mcp_servers = _hosted_mcp_servers(data.get("tools"))
+            except Exception:
+                # As in the OpenAI listener, a tools declaration that cannot be read only drops the MCP metadata.
+                verbose_proxy_logger.debug("Datadog AI Guard: cannot read the hosted MCP servers", exc_info=True)
+            try:
+                response_messages = _convert_openai_response_output(response, mcp_servers)
+            except Exception:
+                verbose_proxy_logger.debug("Datadog AI Guard: cannot convert the Responses answer", exc_info=True)
+        elif route == "anthropic_messages":
+            response_messages = _safe_convert_response(response) or []
 
-        return await self._evaluate_response(data, response_messages)
+        return await self._evaluate_response(data, response_messages, mcp_servers=mcp_servers)
 
     async def _on_stream_response(self, data: dict[str, Any], chunks: list[Any], can_block: bool = True) -> None:
         try:
@@ -364,21 +427,71 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         await self._evaluate_response(data, response_messages, can_block)
 
     async def _evaluate_response(
-        self, data: dict[str, Any], response_messages: list[Message], can_block: bool = True
+        self,
+        data: dict[str, Any],
+        response_messages: list[Message],
+        can_block: bool = True,
+        mcp_servers: Optional[dict[str, MCPServer]] = None,
     ) -> None:
         if not response_messages:
             verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. No messages found in response")
             return None
 
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
-        # Get the prompt from the request. The client controls the request metadata, so do not keep the prompt there.
-        messages = self._convert_request_messages(data.get("messages") or self._convert_text_prompt(data.get("prompt")))
+        messages = self._prompt_messages(data, mcp_servers)
+        if messages is None:
+            verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. Cannot convert the request")
+            return None
         messages.extend(response_messages)
-        await self._run_ai_guard_check(messages, dynamic_params, can_block)
+        mcp_payload = _mcp_servers_payload(messages, mcp_servers)
+        if mcp_payload:
+            await self._run_ai_guard_check(messages, dynamic_params, can_block, mcp_servers=mcp_payload)
+        else:
+            await self._run_ai_guard_check(messages, dynamic_params, can_block)
 
         add_guardrail_to_applied_guardrails_header(request_data=data, guardrail_name=self.guardrail_name)
 
         return None
+
+    def _prompt_messages(
+        self, data: dict[str, Any], mcp_servers: Optional[dict[str, MCPServer]]
+    ) -> Optional[list[Message]]:
+        """Convert the prompt from the request body for the route of the request, or None if the conversion fails.
+
+        The client controls the request metadata, so the prompt never comes from there.
+        """
+        route = _call_type_from_route(data)
+        if route == "anthropic_messages":
+            return self._anthropic_prompt(data)[0]
+        if route == "aresponses":
+            try:
+                return _convert_openai_response_input(
+                    data.get("instructions"), data.get("input"), prompt=data.get("prompt"), mcp_servers=mcp_servers
+                )
+            except Exception:
+                verbose_proxy_logger.debug("Datadog AI Guard: cannot convert the Responses request", exc_info=True)
+                return None
+        return self._convert_request_messages(data.get("messages") or self._convert_text_prompt(data.get("prompt")))
+
+    def _anthropic_prompt(self, data: dict[str, Any]) -> tuple[Optional[list[Message]], bool]:
+        """Return the AI Guard messages of a Messages request, and True if the Anthropic converter read the body.
+
+        Otherwise return the chat conversion of the messages and False, or (None, False) if it also fails.
+        """
+        messages = data.get("messages")
+        if isinstance(messages, list):
+            # The Anthropic converter skips string items, but litellm can send them to the model as text.
+            messages = [_message_text_blocks(message) for message in messages]
+        converted = _safe_convert_messages(_text_blocks(data.get("system")), messages)
+        if converted is not None:
+            return converted, True
+        # The Anthropic converter cannot read this body. The chat conversion still checks the text of its messages,
+        # but it misses the system prompt and the tool, image, document and thinking blocks.
+        try:
+            return self._convert_request_messages(data.get("messages") or []), False
+        except Exception:
+            verbose_proxy_logger.debug("Datadog AI Guard: cannot convert the Messages request", exc_info=True)
+            return None, False
 
     async def async_pre_call_hook(
         self, user_api_key_dict: UserAPIKeyAuth, cache: "DualCache", data: dict[str, Any], call_type: CallTypesLiteral
