@@ -1,5 +1,6 @@
 components:
   bootstrap:
+    - ddtrace_commands/*
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py
@@ -403,7 +404,6 @@ suites:
       - '@tracing'
       - '@flask'
       - '@django'
-      - ddtrace/contrib/_events/span_lifecycle.py
       - ddtrace/llmobs/_integrations/base.py
       - ddtrace/llmobs/_contrib/_subscribers.py
       - ddtrace/llmobs/_llmobs.py

@@ -1,5 +1,6 @@
 from ipaddress import ip_network
 from unittest import mock
+import wsgiref.headers
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -17,6 +18,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
@@ -529,7 +531,7 @@ def test_set_http_meta_custom_errors_via_env():
         assert span3.error == 0
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     assert int_config.myint.is_header_tracing_configured is False
     trace_utils.set_http_meta(
@@ -544,7 +546,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
@@ -573,7 +575,7 @@ def test_set_http_meta_headers_useragent_tracing_enabled(
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -586,7 +588,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -802,6 +804,37 @@ def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, e
     assert ip == expected
 
 
+@pytest.mark.parametrize(
+    "configured_header,header_lines,expected",
+    [
+        (None, [("X-Forwarded-For", "1.1.1.1"), ("x-forwarded-for", "10.0.0.1, 8.8.8.8")], "1.1.1.1"),
+        (
+            None,
+            [("X-Forwarded-For", "10.0.0.1"), ("X-Real-Ip", "4.4.4.4"), ("X-Forwarded-For", "10.0.0.2")],
+            "10.0.0.1",
+        ),
+        (
+            None,
+            [("X-Forwarded-For", "8.8.8.8"), ("X_Forwarded_For", "1.1.1.1"), ("x-forwarded-for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        (
+            None,
+            [("X_Forwarded_For", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1"), ("x_forwarded_for", "4.4.4.4")],
+            "1.1.1.1",
+        ),
+        ("X-Use-This", [("X-Use-This", "8.8.8.8"), ("X-Forwarded-For", "1.1.1.1")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8")], "8.8.8.8"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X-Use-This", "4.4.4.4")], "4.4.4.4"),
+        ("X-Use-This", [("x_use_this", "8.8.8.8"), ("X_Use_This", "1.1.1.1")], ""),
+    ],
+)
+def test_get_request_header_client_ip_repeated_and_respelled_header_lines(configured_header, header_lines, expected):
+    headers = wsgiref.headers.Headers(header_lines)
+    with override_global_config(dict(_client_ip_header=configured_header)):
+        assert _get_request_header_client_ip(headers, "127.0.0.1", True) == expected
+
+
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
     with override_global_config(dict(_asm_enabled=False)):
         int_config.myint.http._header_tags = {"enabled": True}
@@ -859,7 +892,7 @@ def test_ip_subnet_regression():
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
@@ -884,7 +917,7 @@ def test_set_http_meta_headers_useragent_tracing_disabled(
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils.log")
+@mock.patch("ddtrace._trace.http_meta.log")
 @pytest.mark.parametrize(
     "val, bad",
     [
@@ -1732,3 +1765,63 @@ def test_otel_client_semantics_disabled_by_default(int_config):
         "error.type",
     ):
         assert span.get_tag(otel_name) is None, otel_name
+
+
+@pytest.mark.parametrize("otel", [False, True])
+def test_set_http_meta_response_only_preserves_request_attributes(span: Span, int_config: Config, otel: bool) -> None:
+    attributes = {
+        "http.method": "REDACTED",
+        "http.request.method": "REDACTED",
+        "http.url": "redacted",
+        "url.path": "/redacted",
+        "http.route": "/redacted",
+        "http.client_ip": "redacted",
+        "client.address": "redacted",
+        "http.request.headers.x-private": "redacted",
+    }
+    for name, value in attributes.items():
+        span._set_attribute(name, value)
+    span.resource = "custom-resource"
+    int_config.myint.http.trace_headers(["x-private", "x-final"])
+    calls: list[tuple[object, ...]] = []
+
+    def capture(*args: object) -> None:
+        calls.append(args)
+
+    previous_error_statuses = config._http_server.error_statuses
+    config._http_server.error_statuses = "500-599"
+    core.on("set_http_meta_for_asm", capture)
+    try:
+        with (
+            override_global_config(dict(_otel_trace_semantics_enabled=otel, _retrieve_client_ip=True)),
+            core.context_with_data("test.response_metadata") as ctx,
+        ):
+            ctx.set_item("http.request.remote_ip", "203.0.113.9")
+            trace_utils.set_http_meta(
+                span,
+                int_config.myint,
+                method="GET",
+                url="http://localhost/private",
+                raw_uri="/private",
+                route="/private",
+                query="private=value",
+                request_headers={"x-private": "private"},
+                peer_ip="203.0.113.8",
+                status_code=503,
+                status_msg="Unavailable",
+                response_headers={"x-final": "response"},
+                response_only=True,
+            )
+    finally:
+        config._http_server.error_statuses = previous_error_statuses
+        core.reset_listeners("set_http_meta_for_asm", capture)
+    for name, value in attributes.items():
+        assert span._get_attribute(name) == value, name
+    assert span.resource == "custom-resource" and span.error == 1
+    assert str(span._get_attribute("http.response.status_code" if otel else "http.status_code")) == "503"
+    assert span.get_tag("http.status_msg") == "Unavailable"
+    assert span.get_tag("http.response.headers.x-final") == "response"
+    assert len(calls) == 1
+    assert calls[0][1:10] == (None,) * 9
+    assert calls[0][10:12] == (503, {"x-final": "response"})
+    assert calls[0][13] is None

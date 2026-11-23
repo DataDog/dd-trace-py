@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
+from typing import cast
 
 from ddtrace import config
 from ddtrace._trace.span import Span
@@ -120,11 +121,11 @@ class AWSPayloadTagging:
         "$..Credentials.SessionToken",
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.current_tag_count = 0
         self.validated = False
-        self.request_redaction_paths = None
-        self.response_redaction_paths = None
+        self.request_redaction_paths: Optional[list[Union[jsonpath.JSONPath, jsonpath.CompoundJSONPath]]] = None
+        self.response_redaction_paths: Optional[list[Union[jsonpath.JSONPath, jsonpath.CompoundJSONPath]]] = None
 
     def expand_payload_as_tags(self, span: Span, result: dict[str, Any], key: str) -> None:
         """
@@ -186,23 +187,28 @@ class AWSPayloadTagging:
 
         return True
 
-    def _redact_json(self, data: dict[str, Any], span: Span, expressions: list) -> None:
+    def _redact_json(
+        self,
+        data: dict[str, Any],
+        span: Span,
+        expressions: list[Union["jsonpath.JSONPath", "jsonpath.CompoundJSONPath"]],
+    ) -> None:
         """
         Redact sensitive data in the JSON payload based on default and user-provided JSONPath expressions
         """
         for expression in expressions:
             for match in list(expression.finditer(data)):
                 if match.parent is not None:
-                    match.parent.obj[match.parts[-1]] = "redacted"
+                    cast(Any, match.parent.obj)[match.parts[-1]] = "redacted"
 
-    def _get_redaction_paths_response(self) -> list:
+    def _get_redaction_paths_response(self) -> list[str]:
         """
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
         if not config.botocore.get("payload_tagging_response"):
             return []
 
-        response_redaction = config.botocore.get("payload_tagging_response")
+        response_redaction: str = config.botocore.get("payload_tagging_response")
         if self._validate_json_paths(response_redaction):
             if response_redaction == "all":
                 return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
@@ -212,14 +218,14 @@ class AWSPayloadTagging:
 
         return []
 
-    def _get_redaction_paths_request(self) -> list:
+    def _get_redaction_paths_request(self) -> list[str]:
         """
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
         if not config.botocore.get("payload_tagging_request"):
             return []
 
-        request_redaction = config.botocore.get("payload_tagging_request")
+        request_redaction: str = config.botocore.get("payload_tagging_request")
         if self._validate_json_paths(request_redaction):
             if request_redaction == "all":
                 return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS

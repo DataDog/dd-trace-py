@@ -614,6 +614,9 @@ computation to the OpenTelemetry Collector or Datadog intake by default.
      description: |
          When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
          These metrics track the memory management and concurrency of the python runtime.
+         When ``DD_METRICS_OTEL_ENABLED`` is also true, they are exported over OTLP instead of DogStatsD, under their
+         OpenTelemetry semantic convention names, once the application imports ``opentelemetry``. This requires
+         ``ddtrace-run`` or ``ddtrace.auto``, and ``opentelemetry-exporter-otlp`` 1.16.0 or higher.
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
    DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED:
@@ -859,6 +862,12 @@ AI Guard
        received before the first one is delivered) and increases peak memory usage proportional
        to the response size.
 
+       The option also applies to the Datadog AI Guard guardrail of the LiteLLM proxy in the post_call
+       mode. When the option is True, the guardrail holds a streamed chat or text answer until AI Guard
+       evaluates it, and it can block the answer. When the option is False, the guardrail sends the
+       chunks as they arrive, and evaluates the full answer after the last chunk without blocking.
+       When the option is False, the end of the stream waits for the AI Guard evaluation.
+
    DD_AI_GUARD_BLOCK:
      type: Boolean
      default: True
@@ -915,7 +924,7 @@ AI Guard
      default: True
      description: |
        Enabled by default; set to False to stop sending MCP server details, evaluating MCP approval
-       requests and checking the calls of Anthropic SDK MCP tools. When AI Guard is enabled,
+       requests and checking the calls of Anthropic SDK and LangChain MCP tools. When AI Guard is enabled,
        evaluations of remote MCP tools run by the OpenAI Responses API (tools of type ``mcp``)
        identify the MCP server each call goes to: its configured name, the scheme, host and port of
        its URL, and the tools called through it.
@@ -946,6 +955,12 @@ AI Guard
        on a transport opened before the Anthropic integration was patched, get no MCP server details and
        no call check. The non-streaming tool runner calls ``messages.parse``, which is not instrumented,
        so its MCP tool calls are checked without the conversation that requested them.
+
+       LangChain tool calls to MCP tools loaded with ``langchain-mcp-adapters`` (0.2.0 or later) are
+       evaluated with their MCP server: its configured name, transport, the scheme, host and port of
+       its URL or, for stdio servers, the command and package or module name, and the tools called
+       through it. Calls made outside an agent are evaluated before the MCP request is sent. Headers,
+       environment variables and other command arguments are never sent.
 
 Code Security
 -------------
@@ -1349,9 +1364,12 @@ Agent
 
    DD_TAGS:
      description: |
-         Set global tags to be attached to every span. Value must be either comma and/or space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3`` or ``key1:value1, key2:value2, key3``.
+         Set global tags to be attached to every span. Value must be either comma and/or
+         space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3``
+         or ``key1:value1, key2:value2, key3``. If a tag value is not supplied the value will
+         be an empty string.
 
-         If a tag value is not supplied the value will be an empty string.
+         OTLP export sends shared tags as resource attributes to reduce payload size.
 
      version_added:
        v0.38.0: Comma separated support added
@@ -1455,8 +1473,15 @@ Logs
 
    DD_TRACE_STARTUP_LOGS:
      type: Boolean
-     default: False
-     description: Enable or disable start up diagnostic logging.
+     default: True
+     description: |
+         Enable or disable start up diagnostic logging. When enabled, the tracer logs its configuration as a
+         ``DATADOG TRACER CONFIGURATION`` JSON object at the ``INFO`` level, even when the `ddtrace` logger level is
+         higher. The object includes the effective OpenTelemetry settings, keyed by the environment variables that
+         set them, with OTLP header values redacted. The diagnostics check that the agent is reachable, which takes
+         up to ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` when the agent host does not answer.
+     version_added:
+       v4.18.0: The default changed from ``False`` to ``True``.
 
 Sampling
 --------
@@ -1553,6 +1578,10 @@ Feature Flagging
          and ``remote_config`` (deliver via the Datadog Agent's Remote
          Configuration). ``offline`` is reserved and currently unsupported; any
          unsupported value disables the provider without contacting either source.
+         ``agentless`` requires ``DD_API_KEY`` unless
+         ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL`` is set;
+         without either, provider initialization fails at once and evaluations
+         return their default values.
 
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
      type: String

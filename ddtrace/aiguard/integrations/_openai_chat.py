@@ -98,7 +98,8 @@ def _convert_openai_messages(messages: Any) -> list[Message]:
 
 def _tool_call_from(tc: Any) -> ToolCall:
     """Build a ``ToolCall`` from an OpenAI tool_call (dict or SDK object)."""
-    fn = _get(tc, "function") or {}
+    # A legacy function_call rebuilt from stream chunks has its name and arguments on the entry itself.
+    fn = _get(tc, "function") or tc
     return ToolCall(
         id=_get(tc, "id", ""),
         function=Function(

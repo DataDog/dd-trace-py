@@ -1,5 +1,6 @@
 import json
 from typing import Any
+from typing import Optional
 
 from ddtrace.contrib.internal.google_genai._utils import (
     GOOGLE_GENAI_DEFAULT_MODEL_ROLE as GOOGLE_GENAI_DEFAULT_MODEL_ROLE,
@@ -24,7 +25,7 @@ from ddtrace.llmobs.types import ToolResult
 log = get_logger(__name__)
 
 
-def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
+def normalize_contents_google_genai(contents: Any) -> list[dict[str, Any]]:
     """
     contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
@@ -38,7 +39,7 @@ def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
     This function normalizes all these variants into a list of dicts with format{"role": role, "parts": parts}
     """
 
-    def extract_content(content):
+    def extract_content(content: Any) -> dict[str, Any]:
         role = _get_attr(content, "role", None)
         parts = _get_attr(content, "parts", None)
 
@@ -59,7 +60,7 @@ def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
     return [extract_content(contents)]
 
 
-def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
+def extract_generation_metrics_google_genai(response: Any) -> dict[str, Any]:
     """
     Extract usage metrics from Google GenAI response or Google ADK Event object.
 
@@ -76,7 +77,7 @@ def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
     if not usage_metadata:
         return {}
 
-    usage = {}
+    usage: dict[str, Any] = {}
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
 
     # total_token_count includes tool-use prompt tokens, so count them as input
@@ -110,10 +111,10 @@ def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
     return usage
 
 
-def extract_embedding_metrics_google_genai(response) -> dict[str, Any]:
+def extract_embedding_metrics_google_genai(response: Any) -> dict[str, Any]:
     if not response:
         return {}
-    usage = {}
+    usage: dict[str, Any] = {}
     metadata = _get_attr(response, "metadata", {})
     billable_character_count = _get_attr(metadata, "billable_character_count", None)
     input_tokens = 0
@@ -130,7 +131,7 @@ def extract_embedding_metrics_google_genai(response) -> dict[str, Any]:
     return usage
 
 
-def extract_message_from_part_google_genai(part, role: str) -> Message:
+def extract_message_from_part_google_genai(part: Any, role: str) -> Message:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
 
     returns a dict representing a message with format {"role": role, "content": content}
@@ -235,8 +236,8 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     return message
 
 
-def llmobs_get_metadata_vertexai(kwargs, instance):
-    metadata = {}
+def llmobs_get_metadata_vertexai(kwargs: dict[str, Any], instance: Any) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
     model_config = getattr(instance, "_generation_config", {}) or {}
     model_config = model_config.to_dict() if hasattr(model_config, "to_dict") else model_config
     request_config = kwargs.get("generation_config", {}) or {}
@@ -251,7 +252,7 @@ def llmobs_get_metadata_vertexai(kwargs, instance):
     return metadata
 
 
-def extract_message_from_part_vertexai(part, role=None) -> Message:
+def extract_message_from_part_vertexai(part: Any, role: Optional[str] = None) -> Message:
     text = _get_attr(part, "text", "")
     function_call = _get_attr(part, "function_call", None)
     function_response = _get_attr(part, "function_response", None)
@@ -288,7 +289,7 @@ def extract_message_from_part_vertexai(part, role=None) -> Message:
     return message
 
 
-def get_system_instructions_vertexai(model_instance):
+def get_system_instructions_vertexai(model_instance: Any) -> list[str]:
     """
     Extract system instructions from model and convert to []str for tagging.
     """
@@ -323,7 +324,7 @@ def get_system_instructions_vertexai(model_instance):
     return system_instructions
 
 
-def extract_messages_from_adk_events(events) -> list[Message]:
+def extract_messages_from_adk_events(events: Any) -> list[Message]:
     """
     Extract messages from Google ADK Event objects.
 

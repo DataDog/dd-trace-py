@@ -14,41 +14,44 @@
       "_dd.base_service": "",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-5",
-      "_dd.p.tid": "69dd2baa00000000",
+      "_dd.p.tid": "6b00ac9600000000",
       "_dd.p.ts": "02",
       "_dd.runtime_family": "python",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "flask",
       "_dd.tags.process": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.auto:flask",
       "actor.ip": "8.8.4.4",
       "appsec.blocked": "true",
       "appsec.event": "true",
+      "component": "flask",
       "http.endpoint": "/",
       "http.method": "GET",
       "http.request.headers.accept": "*/*",
       "http.request.headers.accept-encoding": "gzip, deflate",
       "http.request.headers.host": "0.0.0.0:8000",
-      "http.request.headers.user-agent": "python-requests/2.32.5",
+      "http.request.headers.user-agent": "python-requests/2.33.1",
       "http.request.headers.x-real-ip": "8.8.4.4",
       "http.response.headers.content-length": "225",
       "http.response.headers.content-type": "application/json",
       "http.status_code": "403",
       "http.url": "http://0.0.0.0:8000/",
-      "http.useragent": "python-requests/2.32.5",
+      "http.useragent": "python-requests/2.33.1",
       "language": "python",
-      "runtime-id": "553a56a9d9c143c8ba6f9d7e20614b29"
+      "runtime-id": "0a8dd6c724534aabaf2e10eb45c92add",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0.0,
       "_dd.appsec.event_rules.loaded": 8.0,
-      "_dd.appsec.waf.duration": 31.958,
-      "_dd.appsec.waf.duration_ext": 104.8330000230635,
+      "_dd.appsec.waf.duration": 48.883,
+      "_dd.appsec.waf.duration_ext": 146.69099982711487,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "process_id": 46502.0
+      "process_id": 28.0
     },
-    "duration": 1075708,
+    "duration": 832119,
     "meta_struct": {
       "appsec": {
         "triggers": [
@@ -56,13 +59,13 @@
             "rule": {
               "id": "blk-001-001",
               "name": "Block IP addresses",
+              "on_match": [
+                "block"
+              ],
               "tags": {
                 "type": "ip_addresses",
                 "category": "blocking"
-              },
-              "on_match": [
-                "block"
-              ]
+              }
             },
             "rule_matches": [
               {
@@ -71,8 +74,8 @@
                 "parameters": [
                   {
                     "address": "http.client_ip",
-                    "key_path": [],
                     "value": "8.8.4.4",
+                    "key_path": [],
                     "highlight": [
                       "8.8.4.4"
                     ]
@@ -80,13 +83,13 @@
                 ]
               }
             ],
-            "security_response_id": "e553d5ee-e38c-43cf-1b70-876cf42e9981",
-            "span_id": 10405521169124595113
+            "security_response_id": "47c6bfac-d761-477e-1bce-5c377df40a1c",
+            "span_id": 12810673140595561722
           }
         ]
       }
     },
-    "start": 1776102314122929381
+    "start": 1795206294901127180
   },
      {
        "name": "flask.response",
@@ -100,6 +103,6 @@
          "_dd.svc_src": "flask",
          "component": "flask"
        },
-       "duration": 300209,
-       "start": 1776102314123679964
+       "duration": 213454,
+       "start": 1795206294901711413
      }]]

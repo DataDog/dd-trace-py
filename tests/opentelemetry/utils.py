@@ -2,6 +2,8 @@ from concurrent import futures
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
+import socket
+from threading import Event
 from threading import Thread
 
 
@@ -113,13 +115,15 @@ def _capture_http_traces(port):
 
 
 @contextmanager
-def _capture_http_requests(port, request_type=None):
+def _capture_http_requests(port, request_type=None, include_headers=False):
     requests = []
 
     class RequestHandler(BaseHTTPRequestHandler):
         def do_POST(self):
             body = self.rfile.read(int(self.headers["Content-Length"]))
-            if request_type is None:
+            if include_headers:
+                requests.append((self.path, dict(self.headers), body))
+            elif request_type is None:
                 requests.append(body)
             else:
                 request = request_type()
@@ -141,3 +145,69 @@ def _capture_http_requests(port, request_type=None):
         server.shutdown()
         thread.join()
         server.server_close()
+
+
+@contextmanager
+def capture_otlp_signal(signal, protocol):
+    if protocol == "http/protobuf":
+        with _capture_http_requests(14319, include_headers=True) as requests:
+            yield requests
+        return
+
+    if signal == "logs":
+        from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceResponse
+        from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
+        from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
+
+        servicer, add_servicer, response = (
+            LogsServiceServicer,
+            add_LogsServiceServicer_to_server,
+            ExportLogsServiceResponse,
+        )
+    else:
+        from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceResponse
+        from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import MetricsServiceServicer
+        from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import (
+            add_MetricsServiceServicer_to_server,
+        )
+
+        servicer, add_servicer, response = (
+            MetricsServiceServicer,
+            add_MetricsServiceServicer_to_server,
+            ExportMetricsServiceResponse,
+        )
+
+    with _capture_grpc_requests(servicer, add_servicer, response, 14317) as requests:
+        yield requests
+
+
+@contextmanager
+def capture_dogstatsd_packets(port):
+    """Capture the DogStatsD packets sent to the UDP port of localhost while the context is open."""
+    packets = []
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", port))
+    sock.settimeout(0.05)
+    stopped = Event()
+
+    def receive():
+        while not stopped.is_set():
+            try:
+                packets.append(sock.recv(65535))
+            except socket.timeout:
+                pass
+
+    thread = Thread(target=receive, daemon=True)
+    thread.start()
+    try:
+        yield packets
+    finally:
+        stopped.set()
+        thread.join()
+        sock.setblocking(False)
+        try:
+            while True:
+                packets.append(sock.recv(65535))
+        except BlockingIOError:
+            pass
+        sock.close()

@@ -9,10 +9,11 @@ from typing import Any
 from typing import Callable
 from typing import Iterable
 from typing import Optional
+from typing import TypeVar
 
+from ddtrace._trace.events import WebFrameworkResponseEvent
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkResponseEvent
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
@@ -32,6 +33,8 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal._context_watcher import context_switches_require_fallback
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import COMPONENT
@@ -66,10 +69,37 @@ def _supported_versions() -> dict[str, str]:
     return {"wsgi": "*"}
 
 
+_T = TypeVar("_T")
+
+
+def _run_in_context(context: Context, callback: Callable[..., _T], *args: Any) -> _T:
+    if not context_switches_require_fallback():
+        return context.run(callback, *args)
+
+    def invoke() -> _T:
+        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+        return callback(*args)
+
+    try:
+        return context.run(invoke)
+    finally:
+        # Context.run restores Python's context without activating its spans.
+        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+
+
 class _WSGIResponseIterable:
     """Report response completion without owning tracing or security resources."""
 
-    __slots__ = ("__wrapped__", "_iterator", "_on_complete", "_completed", "_closed", "_close", "_context")
+    __slots__ = (
+        "__wrapped__",
+        "_iterator",
+        "_on_complete",
+        "_completed",
+        "_closed",
+        "_close",
+        "_iterator_close",
+        "_context",
+    )
 
     def __init__(
         self,
@@ -84,14 +114,18 @@ class _WSGIResponseIterable:
         self._on_complete = on_complete
         self._completed = False
         self._closed = False
-        self._close = getattr(self.__wrapped__, "close", None)
+        # PEP 3333 requires calling close() on the iterable the application returned,
+        # which differs from the iterator when its __iter__ returns a new object.
+        # That iterator (usually a generator) is still closed so it exits promptly.
+        self._close = getattr(wrapped, "close", None)
+        self._iterator_close = getattr(self._iterator, "close", None) if self._iterator is not wrapped else None
 
     def __iter__(self) -> _WSGIResponseIterable:
         return self
 
     def __next__(self) -> Any:
         if self._context is not None:
-            return self._context.run(self._next)
+            return _run_in_context(self._context, self._next)
         return self._next()
 
     def _next(self) -> Any:
@@ -111,15 +145,19 @@ class _WSGIResponseIterable:
             return
         self._closed = True
         if self._context is not None:
-            self._context.run(self._close_response)
+            _run_in_context(self._context, self._close_response)
         else:
             self._close_response()
 
     def _close_response(self) -> None:
         exc_info: ExcInfoType = (None, None, None)
         try:
-            if self._close is not None:
-                self._close()
+            try:
+                if self._iterator_close is not None:
+                    self._iterator_close()
+            finally:
+                if self._close is not None:
+                    self._close()
         except BaseException:
             exc_info = sys.exc_info()
             raise
@@ -196,8 +234,6 @@ class _DDWSGIMiddlewareBase:
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    _request_context_name: Optional[str] = None
-
     def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> _WSGIResponseIterable:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
@@ -206,7 +242,7 @@ class _DDWSGIMiddlewareBase:
         if "werkzeug.debug.preserve_context" in environ or environ.get("flask._preserve_context"):
             return self._execute_request(environ, start_response, None)
         execution_context = copy_context()
-        return execution_context.run(self._execute_request, environ, start_response, execution_context)
+        return _run_in_context(execution_context, self._execute_request, environ, start_response, execution_context)
 
     def _execute_request(
         self, environ: dict[str, Any], start_response: Callable[..., Any], execution_context: Optional[Context]
@@ -227,7 +263,7 @@ class _DDWSGIMiddlewareBase:
             activate_distributed_headers=True,
             measured=False,
         )
-        ctx = core.context_with_event(event, context_name_override=self._request_context_name, dispatch_end_event=False)
+        ctx = core.context_with_event(event, dispatch_end_event=False)
         # Span processors consume these values synchronously during subscriber span creation.
         ctx.set_items(
             {
@@ -249,8 +285,11 @@ class _DDWSGIMiddlewareBase:
             status: str, response_headers: list[tuple[str, str]], *args: Any, **kwargs: Any
         ) -> Any:
             # Observe the final response after framework/security adaptations.
-            event.response_status_code = int(status.split(" ", 1)[0])
-            event.response_headers = dict(response_headers)
+            try:
+                event.response_status_code = int(status.split(" ", 1)[0])
+                event.response_headers = dict(response_headers)
+            except Exception:
+                log.debug("Failed to collect WSGI response metadata", exc_info=True)
             return original_start_response(status, response_headers, *args, **kwargs)
 
         start_response = report_start_response
@@ -573,13 +612,8 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
         request_headers = parsed_headers if parsed_headers is not None else get_request_headers(environ)
-        event = core.current.event
-        event.request_method = environ.get("REQUEST_METHOD", "")
-        event.request_url = url
-        event.request_headers = request_headers
-        event.query = environ.get("QUERY_STRING")
-        # Match legacy metadata lookup; span-start security context still uses case-sensitive headers.
-        event.headers_case_sensitive = False
+        # Request metadata is tagged here, before span_modifier runs, and is not copied
+        # onto the event, so completion cannot overwrite the modifier's changes.
         core.dispatch("wsgi.request.prepared", (self, req_span, url, request_headers, environ))
 
     def _response_span_modifier(self, resp_span, response):

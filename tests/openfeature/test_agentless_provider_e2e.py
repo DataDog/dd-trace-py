@@ -4,22 +4,49 @@ CDN response -> parse -> apply -> native config -> OpenFeature evaluation path,
 and the provider lifecycle that starts/stops the agentless poller.
 """
 
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import json
+import logging
+import threading
+import time
 
+from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.exception import ErrorCode
+from openfeature.exception import ProviderNotReadyError
+from openfeature.flag_evaluation import Reason
+from openfeature.provider import ProviderStatus
 import pytest
 
+
+# ProviderEvent only exists in SDK 0.7.0+
+try:
+    from openfeature.event import ProviderEvent
+except ImportError:
+    ProviderEvent = None  # type: ignore
+
+import ddtrace
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.openfeature._provider import _apply_agentless_configuration
+from ddtrace.internal.openfeature._source_selection import MISSING_API_KEY_MESSAGE
 from ddtrace.internal.openfeature._source_selection import create_agentless_source
+from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
+from tests.openfeature.conftest import use_configuration_source
 from tests.utils import override_global_config
+
+
+# A provider that waits for this timeout instead of failing at once fails the elapsed checks.
+LONG_INITIALIZATION_TIMEOUT = 30.0
 
 
 def _jsonapi_response(*flags):
@@ -43,11 +70,12 @@ class _FakeResponse:
 
 
 class _FakeConn:
-    def __init__(self, response):
+    def __init__(self, response, requests=None):
         self._response = response
+        self._requests = [] if requests is None else requests
 
-    def request(self, *args, **kwargs):
-        pass
+    def request(self, method, target, body=None, headers=None):
+        self._requests.append({"target": target, "headers": headers})
 
     def getresponse(self):
         return self._response
@@ -65,14 +93,61 @@ def clear_config():
 
 @pytest.fixture
 def mock_cdn(monkeypatch):
+    """Serve body for each poll. Return the list that records the requests."""
+
     def install(body):
+        requests: list = []
         monkeypatch.setattr(
             source_mod,
             "get_connection",
-            lambda url, timeout=None: _FakeConn(_FakeResponse(200, body, {"ETag": '"v1"'})),
+            lambda url, timeout=None: _FakeConn(_FakeResponse(200, body, {"ETag": '"v1"'}), requests),
         )
+        return requests
 
     return install
+
+
+@pytest.fixture
+def local_cdn():
+    """Serve the flag configuration from a local HTTP server. Yield its URL and the headers of each request.
+
+    The requests use the real HTTP client of the tracer. Thus these tests see the header bytes that
+    really get to the endpoint.
+    """
+    received: list = []
+    body = _jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True))
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            received.append(self.headers)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), _Handler)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}/flags", received
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def _poll_local_cdn(url, service):
+    """Set the service in code, as a user does. Then run one agentless poll against url."""
+    custom = OpenFeatureConfig(source={"DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": url})
+    with override_global_config({"service": service}):
+        source = create_agentless_source(custom, process_ffe_configuration)
+        assert source is not None
+        source.periodic()
+        # Only the header value changes. The tracer service does not change.
+        assert ddtrace.config.service == service
 
 
 def test_agentless_delivery_evaluates_flag(mock_cdn):
@@ -93,6 +168,159 @@ def test_agentless_delivery_evaluates_flag(mock_cdn):
 
     assert result.value is True
     assert result.variant == "true"
+
+
+def test_agentless_request_sends_tracer_service(mock_cdn):
+    requests = mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+
+    with override_global_config({"_dd_api_key": "secret", "_dd_site": "datadoghq.com", "service": "checkout"}):
+        source = create_agentless_source(ffe_config, process_ffe_configuration)
+        assert source is not None
+        source.periodic()
+
+    (request,) = requests
+    assert request["target"].partition("?")[0] == "/api/v2/feature-flagging/config/rules-based/server"
+    assert request["headers"]["DD-Service"] == "checkout"
+    assert request["headers"]["DD-API-KEY"] == "secret"
+
+
+def test_custom_endpoint_receives_service_but_not_api_key(mock_cdn):
+    """A service name is not a secret, unlike the API key. Thus a custom endpoint also gets it."""
+    requests = mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+    custom = OpenFeatureConfig(
+        source={"DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": "https://flags.example.test/custom"}
+    )
+
+    with override_global_config({"_dd_api_key": "secret", "service": "checkout"}):
+        source = create_agentless_source(custom, process_ffe_configuration)
+        assert source is not None
+        source.periodic()
+
+    (request,) = requests
+    assert request["headers"]["DD-Service"] == "checkout"
+    assert "DD-API-KEY" not in request["headers"]
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": "checkout"})
+def test_agentless_request_sends_dd_service_from_environment():
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._source_selection import create_agentless_source
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+    from tests.openfeature.test_agentless_provider_e2e import _FakeConn
+    from tests.openfeature.test_agentless_provider_e2e import _FakeResponse
+
+    requests = []
+    source_mod.get_connection = lambda url, timeout=None: _FakeConn(_FakeResponse(304), requests)
+
+    source = create_agentless_source(ffe_config, lambda _: None)
+    assert source is not None
+    source.periodic()
+
+    (request,) = requests
+    assert request["target"].partition("?")[0] == "/api/v2/feature-flagging/config/rules-based/server"
+    assert request["headers"]["DD-Service"] == "checkout"
+
+
+@pytest.mark.parametrize(
+    "service, expected", [("My Service", "my_service"), ("bad\nvalue", "bad_value"), (" svc", "_svc")], ids=repr
+)
+def test_request_carries_the_normalized_service(local_cdn, service, expected):
+    url, received = local_cdn
+
+    _poll_local_cdn(url, service)
+
+    (headers,) = received
+    assert headers["DD-Service"] == expected
+    assert _get_ffe_config() is not None  # The configuration is applied.
+
+
+@pytest.mark.parametrize("service", ["café-api", "支付"], ids=repr)
+def test_request_carries_a_non_ascii_service_as_utf8(local_cdn, service):
+    url, received = local_cdn
+
+    _poll_local_cdn(url, service)
+
+    (headers,) = received
+    # http.server decodes header bytes as Latin-1. Encode them back to get the bytes on the wire.
+    assert headers["DD-Service"].encode("latin-1").decode("utf-8") == service
+    assert _get_ffe_config() is not None  # The configuration is applied.
+
+
+def test_request_sent_without_service_when_the_normalized_name_is_empty(local_cdn):
+    url, received = local_cdn
+
+    _poll_local_cdn(url, "___")
+
+    (headers,) = received  # The poll still occurs.
+    assert "DD-Service" not in headers
+    assert _get_ffe_config() is not None  # The configuration is applied.
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": "My Service"})
+def test_agentless_request_sends_normalized_dd_service_from_environment():
+    import ddtrace
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._source_selection import create_agentless_source
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+    from tests.openfeature.test_agentless_provider_e2e import _FakeConn
+    from tests.openfeature.test_agentless_provider_e2e import _FakeResponse
+
+    requests = []
+    source_mod.get_connection = lambda url, timeout=None: _FakeConn(_FakeResponse(304), requests)
+
+    source = create_agentless_source(ffe_config, lambda _: None)
+    assert source is not None
+    source.periodic()
+
+    assert ddtrace.config.service == "My Service"
+    (request,) = requests
+    assert request["headers"]["DD-Service"] == "my_service"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": "checkout", "DD_SERVICE_MAPPING": "checkout:store"})
+def test_agentless_request_sends_mapped_dd_service_from_environment():
+    """DD_SERVICE_MAPPING renames the service of the spans. The header sends the same name."""
+    import ddtrace
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._source_selection import create_agentless_source
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+    from tests.openfeature.test_agentless_provider_e2e import _FakeConn
+    from tests.openfeature.test_agentless_provider_e2e import _FakeResponse
+
+    requests = []
+    source_mod.get_connection = lambda url, timeout=None: _FakeConn(_FakeResponse(304), requests)
+
+    source = create_agentless_source(ffe_config, lambda _: None)
+    assert source is not None
+    source.periodic()
+
+    assert ddtrace.config.service == "checkout"
+    assert ddtrace.config.service_mapping == {"checkout": "store"}
+    (request,) = requests
+    assert request["headers"]["DD-Service"] == "store"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": None})
+def test_agentless_request_sends_inferred_service():
+    """Without DD_SERVICE, the header has the inferred service. The spans use the same service."""
+    import ddtrace
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._source_selection import create_agentless_source
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+    from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+    from tests.openfeature.test_agentless_provider_e2e import _FakeConn
+    from tests.openfeature.test_agentless_provider_e2e import _FakeResponse
+
+    requests = []
+    source_mod.get_connection = lambda url, timeout=None: _FakeConn(_FakeResponse(304), requests)
+
+    source = create_agentless_source(ffe_config, lambda _: None)
+    assert source is not None
+    source.periodic()
+
+    assert ddtrace.config.service == DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+    (request,) = requests
+    assert request["headers"]["DD-Service"] == DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
 def test_provider_lifecycle_starts_and_stops_source(mock_cdn):
@@ -176,3 +404,299 @@ def test_disabled_provider_starts_no_source():
         provider.initialize(EvaluationContext())
 
         assert provider._configuration_source is None
+
+
+@pytest.fixture
+def agentless_source(monkeypatch):
+    """Resolve the default agentless source regardless of the process environment."""
+    use_configuration_source(monkeypatch)
+
+
+def test_initialize_fails_at_once_without_api_key(agentless_source, caplog):
+    """Without DD_API_KEY no configuration can arrive, so initialize() fails without waiting."""
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        try:
+            # DEBUG also lifts the logger's per-call-site rate limit, so the order of tests does not matter.
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                start = time.monotonic()
+                with pytest.raises(ProviderNotReadyError) as excinfo:
+                    provider.initialize(EvaluationContext())
+                elapsed = time.monotonic() - start
+
+            assert elapsed < 10.0, f"initialize() waited {elapsed:.2f}s"
+            assert excinfo.value.error_message == MISSING_API_KEY_MESSAGE
+            assert provider._configuration_source is None
+            # Error telemetry keeps only the message template, so the cause must be in the template.
+            errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+            assert [(r.msg, r.args) for r in errors] == [("Feature Flags: " + MISSING_API_KEY_MESSAGE, ())]
+        finally:
+            provider.shutdown()
+
+
+@pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
+def test_set_provider_reports_error_without_api_key_and_returns_defaults(agentless_source):
+    """Non-blocking registration does not raise; the client reports ERROR and evaluations return defaults."""
+    error_event = threading.Event()
+
+    def on_provider_error(event_details):
+        error_event.set()
+
+    api.add_handler(ProviderEvent.PROVIDER_ERROR, on_provider_error)
+    try:
+        with override_global_config({"_dd_api_key": None}):
+            provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+            start = time.monotonic()
+            api.set_provider(provider)
+            assert error_event.wait(timeout=10.0), "no PROVIDER_ERROR event"
+            elapsed = time.monotonic() - start
+
+            client = api.get_client()
+            details = client.get_boolean_details("my-flag", True)
+
+            assert elapsed < 10.0, f"registration waited {elapsed:.2f}s"
+            assert client.get_provider_status() == ProviderStatus.ERROR
+            assert details.value is True
+            assert details.reason == Reason.ERROR
+            assert details.error_code == ErrorCode.PROVIDER_NOT_READY
+    finally:
+        api.remove_handler(ProviderEvent.PROVIDER_ERROR, on_provider_error)
+        api.clear_providers()
+
+
+@pytest.mark.skipif(not hasattr(api, "set_provider_and_wait"), reason="Blocking registration requires SDK 0.10+")
+def test_set_provider_and_wait_raises_the_missing_api_key_error(agentless_source):
+    """Blocking registration propagates the cause to the caller, as it does for a timeout."""
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        try:
+            with pytest.raises(ProviderNotReadyError) as excinfo:
+                api.set_provider_and_wait(provider)
+
+            assert excinfo.value.error_message == MISSING_API_KEY_MESSAGE
+            assert api.get_client().get_provider_status() == ProviderStatus.ERROR
+        finally:
+            api.clear_providers()
+
+
+@pytest.mark.parametrize(
+    "global_config,env,message",
+    [
+        ({"_dd_api_key": "secret", "_dd_site": "invalid site"}, {}, "Invalid Feature Flagging agentless site"),
+        (
+            {"_dd_api_key": "secret"},
+            {"DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": "ftp://flags.example.test"},
+            "Feature Flagging agentless URL must use HTTP or HTTPS",
+        ),
+    ],
+)
+def test_initialize_fails_at_once_for_an_invalid_endpoint(monkeypatch, caplog, global_config, env, message):
+    """Any agentless source that cannot start fails initialization without waiting."""
+    use_configuration_source(monkeypatch, **env)
+    with override_global_config(global_config):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        try:
+            # DEBUG also lifts the logger's per-call-site rate limit, so the order of tests does not matter.
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                start = time.monotonic()
+                with pytest.raises(ProviderNotReadyError) as excinfo:
+                    provider.initialize(EvaluationContext())
+                elapsed = time.monotonic() - start
+
+            assert elapsed < 10.0, f"initialize() waited {elapsed:.2f}s"
+            assert excinfo.value.error_message == message
+            assert provider._configuration_source is None
+            assert "Unable to configure Feature Flagging configuration source: " + message in caplog.messages
+        finally:
+            provider.shutdown()
+
+
+def test_existing_configuration_wins_over_missing_api_key(agentless_source):
+    """Configuration already delivered (e.g. before a pre-fork server forks) makes initialization succeed."""
+    process_ffe_configuration(create_config(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        try:
+            provider.initialize(EvaluationContext())
+
+            assert provider._status == ProviderStatus.READY
+            assert provider.resolve_boolean_details("my-flag", False).value is True
+        finally:
+            provider.shutdown()
+
+
+def test_configuration_received_during_the_failure_initializes(agentless_source, mocker):
+    """Configuration that lands after the fast-path check but before the failure makes initialization succeed."""
+
+    def deliver_then_report_none():
+        process_ffe_configuration(create_config(create_boolean_flag("my-flag", enabled=True)))
+        return None
+
+    mocker.patch("ddtrace.internal.openfeature._provider._get_ffe_snapshot", side_effect=deliver_then_report_none)
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        try:
+            provider.initialize(EvaluationContext())
+
+            assert provider._status == ProviderStatus.READY
+            assert not provider._initialization_failed
+        finally:
+            provider.shutdown()
+
+
+def test_late_configuration_after_missing_api_key_emits_ready(agentless_source, mocker):
+    """A configuration applied after the failure still makes the provider ready."""
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        emit_ready = mocker.spy(provider, "_emit_ready_event")
+        try:
+            with pytest.raises(ProviderNotReadyError):
+                provider.initialize(EvaluationContext())
+
+            process_ffe_configuration(create_config(create_boolean_flag("my-flag", enabled=True)))
+
+            assert provider._status == ProviderStatus.READY
+            emit_ready.assert_called_once_with()
+        finally:
+            provider.shutdown()
+
+
+def test_configuration_received_while_recording_the_failure_emits_ready(agentless_source, mocker):
+    """A configuration that arrives while initialize() records the failure waits for it, then recovers."""
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        emit_ready = mocker.spy(provider, "_emit_ready_event")
+        delivery = threading.Thread(
+            target=process_ffe_configuration,
+            args=(create_config(create_boolean_flag("my-flag", enabled=True)),),
+            daemon=True,
+        )
+        is_set = provider._config_received.is_set
+
+        def check_while_delivery_runs():
+            received = is_set()
+            if delivery.ident is None:
+                delivery.start()
+                # Delivery blocks on the lock in on_configuration_received until initialize() records the failure.
+                delivery.join(timeout=0.5)
+            return received
+
+        mocker.patch.object(provider._config_received, "is_set", side_effect=check_while_delivery_runs)
+        try:
+            with pytest.raises(ProviderNotReadyError):
+                provider.initialize(EvaluationContext())
+            delivery.join(timeout=5.0)
+
+            assert provider._status == ProviderStatus.READY
+            emit_ready.assert_called_once_with()
+        finally:
+            provider.shutdown()
+
+
+# The interpreter warns about forking a multi-threaded process.
+@pytest.mark.subprocess(err=None)
+def test_initialization_lock_is_released_in_a_forked_child():
+    import os
+
+    from ddtrace.openfeature import DataDogProvider
+
+    provider = DataDogProvider()
+    # Configuration delivery or a failing initialize() can hold this lock when the process forks.
+    lock = provider._initialization_lock
+    lock.acquire()
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0 if lock.acquire(timeout=1) else 1)
+    _, status = os.waitpid(pid, 0)
+
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
+# The interpreter warns about forking a multi-threaded process.
+@pytest.mark.subprocess(err=None)
+def test_initialization_lock_is_reset_before_other_fork_hooks():
+    import os
+    import sys
+    import threading
+    import time
+
+    from ddtrace.internal import forksafe
+
+    # Registered before the provider module, like the product restarts under ddtrace-run.
+    assert "ddtrace.internal.openfeature._provider" not in sys.modules
+    child = {}
+
+    @forksafe.register
+    def deliver_configuration_in_child():
+        child["delivery"] = threading.Thread(target=child["provider"].on_configuration_received, daemon=True)
+        child["delivery"].start()
+        time.sleep(0.2)  # let the delivery wait on the lock before the remaining hooks run
+
+    from ddtrace.openfeature import DataDogProvider
+
+    child["provider"] = provider = DataDogProvider()
+    provider._initialization_lock.acquire()
+    pid = os.fork()
+    if pid == 0:
+        child["delivery"].join(timeout=2)
+        os._exit(1 if child["delivery"].is_alive() else 0)
+    _, status = os.waitpid(pid, 0)
+
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
+def test_initialize_retries_source_start_after_shutdown(agentless_source, mock_cdn):
+    """Each initialization re-checks the source and rebuilds the hooks that shutdown() removed."""
+    mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+    provider = DataDogProvider(initialization_timeout=5.0)
+    try:
+        with override_global_config({"_dd_api_key": None}):
+            with pytest.raises(ProviderNotReadyError):
+                provider.initialize(EvaluationContext())
+        provider.shutdown()
+
+        with override_global_config({"_dd_api_key": "secret", "_dd_site": "datadoghq.com"}):
+            provider.initialize(EvaluationContext())
+
+        assert provider._configuration_source_error is None
+        assert provider._configuration_source is not None
+        assert provider.resolve_boolean_details("my-flag", False).value is True
+        hook_types = {type(hook) for hook in provider.get_provider_hooks()}
+        assert {FlagEvalMetricsHook, FlagEvalEVPHook} <= hook_types
+    finally:
+        provider.shutdown()
+
+
+def test_custom_endpoint_without_api_key_initializes(mock_cdn, monkeypatch):
+    """A custom endpoint needs no API key, so initialize() waits for and applies its configuration."""
+    mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+    use_configuration_source(
+        monkeypatch, DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL="http://127.0.0.1:8130"
+    )
+
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=5.0)
+        try:
+            provider.initialize(EvaluationContext())
+
+            assert provider._configuration_source is not None
+            assert provider._configuration_source._api_key is None
+            assert provider.resolve_boolean_details("my-flag", False).value is True
+        finally:
+            provider.shutdown()
+
+
+def test_remote_config_source_does_not_require_api_key(monkeypatch):
+    """Agent delivery needs no API key, so initialize() waits for configuration as before."""
+    use_configuration_source(monkeypatch, DD_FEATURE_FLAGS_CONFIGURATION_SOURCE="remote_config")
+
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=0.2)
+        try:
+            with pytest.raises(ProviderNotReadyError, match="before the initialization timeout"):
+                provider.initialize(EvaluationContext())
+
+            assert provider._configuration_source is None
+            assert provider._configuration_source_error is None
+        finally:
+            provider.shutdown()

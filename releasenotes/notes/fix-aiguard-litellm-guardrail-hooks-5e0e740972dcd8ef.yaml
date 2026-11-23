@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where embeddings, audio transcription, and some other requests fail when the
+    LiteLLM proxy guardrail uses the pre_call or during_call mode.
+  - |
+    AI Guard: Fixes an issue where the LiteLLM proxy guardrail evaluates an answer without its real prompt
+    when it uses only the post_call mode.

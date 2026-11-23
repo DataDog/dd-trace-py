@@ -2,16 +2,17 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
+from ddtrace._trace._inferred_proxy import _set_inferred_proxy_tags
+from ddtrace._trace.events import WebFrameworkResponseEvent
+from ddtrace._trace.http_meta import set_http_meta
+from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
-from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkResponseEvent
-from ddtrace.contrib.internal import trace_utils
+from ddtrace._trace.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import Subscriber
@@ -24,8 +25,10 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 
-class WebFrameworkRequestSubscriberBase(TracingSubscriber[WebFrameworkRequestEvent]):
-    """Shared request ownership, including responses that outlive the application call."""
+class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent]):
+    """Shared tracing and deferred request ownership for web framework integrations."""
+
+    event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
     def _on_context_ended(
@@ -54,13 +57,6 @@ class WebFrameworkRequestSubscriberBase(TracingSubscriber[WebFrameworkRequestEve
         finally:
             super()._on_context_ended(ctx, (None, None, None))
 
-
-class WebFrameworkRequestSubscriber(WebFrameworkRequestSubscriberBase):
-    """Shared tracing logic for web framework integrations."""
-
-    auto_register = False
-    event_names = (WebFrameworkRequestEvent.event_name,)
-
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
         event: WebFrameworkRequestEvent = ctx.event
@@ -77,6 +73,18 @@ class WebFrameworkRequestSubscriber(WebFrameworkRequestSubscriberBase):
                 span._set_attribute(otel_http.ROUTE, event.request_route)
             set_otel_resource_for_method(span, event.request_method, event.request_route)
 
+        if event.tag_request_on_start:
+            try:
+                set_http_meta(
+                    span=span_from_context(ctx),
+                    integration_config=event.integration_config,
+                    request_headers=event.request_headers,
+                    headers_are_case_sensitive=event.headers_case_sensitive,
+                    peer_ip=event.peer_ip,
+                )
+            except Exception:
+                log.debug("%s: error adding request tags", event.integration_config.integration_name, exc_info=True)
+
     @classmethod
     def on_ended(
         cls,
@@ -90,6 +98,15 @@ class WebFrameworkRequestSubscriber(WebFrameworkRequestSubscriberBase):
 
         span: Span = span_from_context(ctx)
 
+        if (
+            event.response_from_exception
+            and status_code is not None
+            and is_otel_non_error_status(status_code)
+            and exc_info[0] is not None
+        ):
+            # Framework HTTP exceptions carry responses; their status determines OTel errors.
+            span._ignore_exception(exc_info[0])
+
         # event.resource can be updated at span finish time
         if event.resource:
             set_instrumentation_resource(span, event.resource)
@@ -97,7 +114,14 @@ class WebFrameworkRequestSubscriber(WebFrameworkRequestSubscriberBase):
             set_instrumentation_resource(span, f"{method} {status_code}")
 
         try:
-            trace_utils.set_http_meta(
+            response_headers = dict(res_headers) if res_headers is not None else None
+        except Exception:
+            log.debug("%s: error reading response headers", event.integration_config.integration_name, exc_info=True)
+            response_headers = None
+
+        request_tagged = event.tag_request_on_start
+        try:
+            set_http_meta(
                 span=span,
                 integration_config=event.integration_config,
                 method=method or None,
@@ -105,10 +129,12 @@ class WebFrameworkRequestSubscriber(WebFrameworkRequestSubscriberBase):
                 query=event.query,
                 trace_query_string=event.trace_query_string,
                 status_code=status_code,
-                request_headers=event.request_headers,
-                response_headers=dict(res_headers) if res_headers is not None else None,
+                request_headers=None if request_tagged else event.request_headers,
+                response_headers=response_headers,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
+                peer_ip=None if request_tagged else event.peer_ip,
+                response_only=ctx.get_item("middleware") is not None,
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
@@ -121,7 +147,6 @@ class WebFrameworkRequestSubscriber(WebFrameworkRequestSubscriberBase):
 class WebFrameworkResponseSubscriber(Subscriber):
     """Keep a deferred response span inside its shared request lifecycle."""
 
-    auto_register = False
     event_names = (WebFrameworkResponseEvent.event_name,)
 
     @classmethod

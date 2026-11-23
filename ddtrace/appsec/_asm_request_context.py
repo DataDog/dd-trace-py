@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from collections.abc import Mapping
 import contextlib
 import json
@@ -183,12 +184,26 @@ def should_analyze_body_response(env: ASM_Environment) -> bool:
     )
 
 
-# SSRF shares one subcontext across an outgoing request's SSRF_REQ + SSRF_RES calls, which may run
-# in different core contexts (e.g. httpx: request on the inner send context, final response on the
-# outer). A mutable holder is stored on the owning context; both calls resolve it via find_item
-# (which walks up the context tree), and it is released when that scope ends.
+# An outgoing request's SSRF_REQ and SSRF_RES calls share one subcontext, held on the request's core
+# context and resolved through find_item from the contexts underneath it. The layer that opened the
+# nearest holder is recorded next to it, so a transport can tell whether it runs for the client
+# above it or for a separate request started from that client's hooks.
 
 _RASP_SUBCONTEXT = "asm::rasp_subcontext"
+_RASP_SUBCONTEXT_LAYER = "asm::rasp_subcontext_layer"
+
+
+class SsrfLayer:
+    """Names of the instrumented HTTP clients and transports, for open_rasp_subcontext_scope."""
+
+    AIOHTTP = "aiohttp"
+    HTTP_CLIENT = "http.client"
+    HTTPX = "httpx"
+    REQUESTS = "requests"
+    URLLIB = "urllib"
+    URLLIB3 = "urllib3"
+    WEBBROWSER = "webbrowser"
+
 
 _SSRF_RULE_TYPES = frozenset(
     (
@@ -206,20 +221,20 @@ class _RaspSubcontextHolder:
         self.subctx: Optional[Any] = None
 
 
-def open_rasp_subcontext_scope() -> None:
-    """Establish the current core context as the owner of an SSRF subcontext.
+def open_rasp_subcontext_scope(layer: str, *, inherit_from: Collection[str]) -> None:
+    """Set up the SSRF subcontext of the outgoing request handled by the current core context.
 
-    Called by SSRF integrations from the per-outgoing-request core context (``url_open_analysis``,
-    httpx's request context, or urllib3's own ``context_with_data``) so the request's SSRF_REQ and
-    SSRF_RES WAF calls share one subcontext, created lazily on the first RASP call within the scope.
-    Because the holder lives on that per-request context, concurrent outgoing requests (each in its
-    own context) get distinct subcontexts, and dropping the context releases the holder.
-
-    Reentrant: if an enclosing scope already owns a holder (e.g. ``requests`` driving ``urllib3``),
-    this is a no-op and the inner operation shares the outer subcontext.
+    Call it from a per-outgoing-request core context. layer names the instrumented client or
+    transport. The enclosing holder is reused only when the nearest enclosing layer is in
+    inherit_from, i.e. a layer that drives this one for the same request (urllib3 under requests).
+    Any other enclosing layer means the request was started from that layer's hooks or auth flow,
+    and it gets its own subcontext so libddwaf reports its matches independently.
     """
-    if core.find_item(_RASP_SUBCONTEXT) is None:
-        core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
+    inherit = core.find_item(_RASP_SUBCONTEXT_LAYER) in inherit_from
+    core.set_item(_RASP_SUBCONTEXT_LAYER, layer)
+    if inherit and core.find_item(_RASP_SUBCONTEXT) is not None:
+        return
+    core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
 
 
 def get_or_create_rasp_subcontext(ddwaf: Any, ctx: Any, rule_type: Optional[str]) -> Optional[Any]:

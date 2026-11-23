@@ -2,3 +2,10 @@ fixes:
   - |
     flask: Fixes unfinished request and response spans when closing a streamed
     response raises an exception. The same fix applies to WSGI middleware.
+  - |
+    flask: Ensures requests blocked before application execution include the
+    component and server span kind tags.
+  - |
+    flask: Fixes incorrect trace and span identifiers in native crash reports
+    after handling streamed responses on Linux with Python 3.9–3.13. The same
+    fix applies to WSGI middleware.
