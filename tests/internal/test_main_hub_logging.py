@@ -147,8 +147,8 @@ def test_records_are_handled_inline_when_the_queue_is_full():
     import gevent
     import gevent.event
 
+    from ddtrace.contrib.internal.gevent.logger import main_hub_logging
     from ddtrace.internal import threads
-    from ddtrace.internal.logger import main_hub_logging
 
     main_hub_logging.max_records = 2
     messages = []
@@ -234,9 +234,9 @@ def test_fork_from_another_thread_handles_child_records_inline():
 
     import gevent
 
+    from ddtrace.contrib.internal.gevent.logger import main_hub_logging
     from ddtrace.internal import forksafe
     from ddtrace.internal import threads
-    from ddtrace.internal.logger import main_hub_logging
 
     messages = []
 
@@ -474,7 +474,7 @@ def test_failing_filter_does_not_hold_back_queued_records():
 @pytest.mark.subprocess(timeout=30)
 def test_set_hub_sets_spawn_raw_before_the_hub():
     """A thread that sees the hub must also see the function to spawn the drainer with."""
-    from ddtrace.internal.logger import MainHubLogging
+    from ddtrace.contrib.internal.gevent.logger import MainHubLogging
 
     assigned = []
 
@@ -502,8 +502,8 @@ def test_record_queued_during_exit_flush_is_emitted():
 
     import gevent
 
+    from ddtrace.contrib.internal.gevent.logger import main_hub_logging
     from ddtrace.internal import threads
-    from ddtrace.internal.logger import main_hub_logging
 
     messages = []
 
@@ -832,7 +832,7 @@ def test_ddtrace_loggers_are_main_hub_loggers_from_creation():
 
     import gevent
 
-    from ddtrace.internal.logger import _MainHubLogger
+    from ddtrace.internal.logger import HandoffLogger
     from ddtrace.internal.logger import get_logger
 
     class CustomLogger(logging.Logger):
@@ -847,7 +847,7 @@ def test_ddtrace_loggers_are_main_hub_loggers_from_creation():
     loggers.append(custom)
     classes = [type(logger) for logger in loggers]
 
-    assert all(isinstance(logger, _MainHubLogger) for logger in loggers), classes
+    assert all(isinstance(logger, HandoffLogger) for logger in loggers), classes
     assert isinstance(custom, CustomLogger)
     assert type(logging.getLogger("test.other")) is logging.Logger
     assert child.parent is loggers[3]
@@ -855,7 +855,7 @@ def test_ddtrace_loggers_are_main_hub_loggers_from_creation():
     gevent.sleep(0)  # Creates the main hub.
 
     loggers.append(get_logger("ddtrace.test.after_hub"))
-    classes.append(_MainHubLogger)
+    classes.append(HandoffLogger)
     assert [type(logger) for logger in loggers] == classes
     # A logger created before ddtrace was imported is converted.
-    assert isinstance(early, _MainHubLogger) and plain is logging.Logger
+    assert isinstance(early, HandoffLogger) and plain is logging.Logger
