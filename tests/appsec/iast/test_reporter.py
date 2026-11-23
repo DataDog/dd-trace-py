@@ -3,7 +3,7 @@ import zlib
 
 import pytest
 
-from ddtrace.appsec._iast.reporter import Evidence
+from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability

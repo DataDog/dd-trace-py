@@ -1,14 +1,15 @@
+import re
 import time
 
 import pytest
 
 from ddtrace.appsec._iast._evidence_redaction.url_sensitive_analyzer import url_sensitive_analyzer
+from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
-from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability
@@ -16,6 +17,10 @@ from ddtrace.appsec._iast.taint_sinks.ssrf import SSRF
 from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
+
+
+def test_url_analyzer_without_evidence_value():
+    assert url_sensitive_analyzer(Evidence(), query_string_pattern=re.compile(b"password")) == []
 
 
 @pytest.mark.parametrize(

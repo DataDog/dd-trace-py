@@ -43,7 +43,7 @@ suites:
           dependencies: ['pytest-asyncio==0.23.7', 'langchain~=0.3', langchain-core, langchain-openai, openai]
         - name: ai_guard_langchain
           python: ['3.14', '3.15']
-          dependencies: ['pytest-asyncio==0.23.7', 'langchain>=1,<2', 'langchain-classic>=1,<2', langchain-core, langchain-openai, openai]
+          dependencies: ['pytest-asyncio==0.23.7', 'langchain>=1,<2', 'langchain-classic>=1,<2', langchain-core, langchain-mcp-adapters, langchain-openai, openai]
   ai_guard_openai:
     paths:
       - '@bootstrap'
@@ -136,6 +136,9 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
+      # litellm downloads its model cost map when a test imports it. This setting makes litellm use its bundled map.
+      env:
+        LITELLM_LOCAL_MODEL_COST_MAP: 'True'
       # fastuuid 0.14.0 cannot build on Python 3.15.
       variants:
         - name: ai_guard_litellm_guardrail

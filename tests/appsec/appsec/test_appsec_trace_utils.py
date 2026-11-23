@@ -264,6 +264,13 @@ class EventsSDKTestCase(TracerTestCase):
             assert entry_span.get_tag(user.ID) == "john"
             assert metrics == [("count", "appsec", "sdk.event", 1, (("event_type", "signup"), ("sdk_version", "v1")))]
 
+    def test_track_user_signup_event_auto_mode_tag(self):
+        with self.trace("test_signup_auto_mode") as span:
+            track_user_signup_event(self.tracer, "john", True, login_events_mode=LOGIN_EVENTS_MODE.IDENT)
+            entry_span = span._service_entry_span
+            assert entry_span.get_tag(APPSEC.USER_SIGNUP_EVENT_MODE) == LOGIN_EVENTS_MODE.IDENT
+            assert entry_span.get_tag(APPSEC.USER_SIGNUP_EVENT_MODE + ".auto.mode") is None
+
     def test_custom_event(self):
         with (
             capture_telemetry_metrics() as metrics,
