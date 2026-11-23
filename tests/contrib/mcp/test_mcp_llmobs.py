@@ -448,8 +448,8 @@ def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans,
     assert schema["properties"]["a"]["type"] == "integer"
     assert schema["properties"]["b"]["type"] == "integer"
 
-    # Verify intent is required at top level, and original required args still present
-    assert "intent" in schema["required"]
+    # Verify telemetry is required at top level, and original required args still present
+    assert "telemetry" in schema["required"]
     assert "operation" in schema["required"]
     assert "a" in schema["required"]
     assert "b" in schema["required"]
@@ -579,7 +579,7 @@ def test_conversation_id_capture(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     schema = next(t for t in tools.tools if t.name == "calculator").inputSchema
     assert schema["properties"]["telemetry"]["properties"]["conversation_id"]["type"] == "string"
     assert schema["properties"]["telemetry"]["required"] == []
-    assert "intent" not in schema["required"]
+    assert "telemetry" not in schema["required"]
 
     assert len(conversation_id) == 32
     assert len(first.content) == 2

@@ -153,7 +153,7 @@ def test_intent_capture(mcp_llmobs, test_spans, run_client, mode):
 
     schema = next(tool for tool in tools.tools if tool.name == "calculator").input_schema
     assert schema["properties"]["telemetry"]["properties"]["intent"]["type"] == "string"
-    assert "intent" in schema["required"]
+    assert "telemetry" in schema["required"]
 
     server_span = _only(_pop_spans(test_spans), "server_tool_call")
     assert _get_llmobs_data_metastruct(server_span)["meta"]["intent"] == "Testing intent capture"

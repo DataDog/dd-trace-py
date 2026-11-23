@@ -46,7 +46,7 @@ INTENT_PROMPT = """Briefly describe the wider context task, and why this tool wa
 CONVERSATION_ID_KEY = "conversation_id"
 CONVERSATION_ID_PROMPT = (
     "Required on every call after your first call to this server: the conversation_id from an earlier result of this "
-    "server. Omit it only on your first call."
+    "server. Omit only this field on your first call."
 )
 CONVERSATION_ID_INSTRUCTION = (
     'Your conversation_id for this server is "{0}". Add "telemetry": {{"conversation_id": "{0}"}} to the arguments '
@@ -141,7 +141,7 @@ class MCPIntegration(BaseLLMIntegration):
                 "properties": {**(input_schema.get("properties") or {}), TELEMETRY_KEY: dd_trace_input_schema()},
                 "required": [
                     *(input_schema.get("required") or []),
-                    *([INTENT_KEY] if config.mcp.capture_intent else []),
+                    *([TELEMETRY_KEY] if config.mcp.capture_intent else []),
                 ],
             }
             # Servers can validate calls against the listed tool objects, which must keep the tool's own schema
