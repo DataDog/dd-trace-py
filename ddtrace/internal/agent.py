@@ -54,7 +54,7 @@ def _request_info(agent_url):
     return resp, data
 
 
-def info(url=None):
+def info(url: t.Optional[str] = None) -> t.Optional[dict[str, t.Any]]:
     agent_url = config.trace_agent_url if url is None else url
     resp, data = _request_info(agent_url)
 
@@ -66,7 +66,8 @@ def info(url=None):
         log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
         return None
 
-    return json.loads(data)
+    info: dict[str, t.Any] = json.loads(data)
+    return info
 
 
 def is_reachable(url=None):

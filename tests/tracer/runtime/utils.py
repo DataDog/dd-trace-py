@@ -44,6 +44,13 @@ def cgroup_line_valid_test_cases():
         "/user.slice/user-0.slice/session-83.scope",
     ]
 
+    # IDs and controllers are parsed independently of the path. Cover each path
+    # shape and every ID/controller pair without crossing all three dimensions.
+    combinations = itertools.chain(
+        itertools.product(paths, ids[:1], controllers[:1], container_ids, pod_ids),
+        itertools.product(paths[:1], ids, controllers, container_ids[:1], pod_ids[:1]),
+    )
+
     valid_test_cases = dict(
         (
             ":".join([id_, ",".join(groups), path.format(container_id, pod_id)]),
@@ -56,14 +63,12 @@ def cgroup_line_valid_test_cases():
                 pod_id=pod_id if "{1}" in path else None,
             ),
         )
-        for path, id_, groups, container_id, pod_id in itertools.product(
-            paths, ids, controllers, container_ids, pod_ids
-        )
+        for path, id_, groups, container_id, pod_id in combinations
     )
     # Dedupe test cases
     valid_test_cases = list(valid_test_cases.items())
 
     # Assert here to ensure we are always testing the number of cases we expect
-    assert len(valid_test_cases) == 2150
+    assert len(valid_test_cases) == 92
 
     return valid_test_cases

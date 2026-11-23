@@ -64,7 +64,7 @@ def _request_event(operation, args, kwargs, router=None):
         # Router spans are always submitted. Plain calls defer to the OpenAI integration's span when there is one,
         # and to the span of the outer call when litellm's fallback runner re-enters ``completion``.
         submit_to_llmobs=router is not None
-        or not (_fallback_dispatch_attempts.get() is not None or has_downstream_openai_span(kwargs, model)),
+        or not (_fallback_dispatch_attempts.get() is not None or has_downstream_openai_span(kwargs, model, operation)),
         request_args=args,
         request_kwargs=request_kwargs,
         operation=operation,

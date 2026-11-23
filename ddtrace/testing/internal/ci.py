@@ -50,6 +50,7 @@ class CITag:
 
     # Workspace Path
     WORKSPACE_PATH = "ci.workspace_path"
+    GIT_MERGE_COMMIT_SHA = "ci.git.merge_commit_sha"
 
     # CI Visibility env vars used for pipeline correlation ID
     _CI_ENV_VARS = "_dd.ci.env_vars"
