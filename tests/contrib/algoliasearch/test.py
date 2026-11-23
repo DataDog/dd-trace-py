@@ -1,6 +1,9 @@
 import importlib
+import json
 import sys
 from unittest import mock
+
+import pytest
 
 from ddtrace import config
 from ddtrace._monkey import _patch_all
@@ -15,6 +18,55 @@ from tests.utils import assert_is_measured
 
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
+
+
+SEARCH_RESPONSE = {
+    "hits": [{"objectID": "1"}],
+    "processingTimeMS": 23,
+    "nbHits": 1,
+    "hitsPerPage": 20,
+    "exhaustiveNbHits": True,
+    "params": "query=xxx",
+    "nbPages": 1,
+    "query": "xxx",
+    "page": 0,
+}
+
+
+class _FakeTransporter:
+    """Stands in for the 4.x HTTP transport so the generated client runs without network access."""
+
+    def __init__(self, error=None):
+        self.error = error
+        self.requests = []
+
+    def _respond(self, kwargs):
+        from algoliasearch.http.api_response import ApiResponse
+
+        self.requests.append(kwargs)
+        if self.error is not None:
+            raise self.error
+        return ApiResponse(verb=kwargs["verb"], raw_data=json.dumps(SEARCH_RESPONSE), status_code=200)
+
+    def request(self, **kwargs):
+        return self._respond(kwargs)
+
+
+class _AsyncFakeTransporter(_FakeTransporter):
+    async def request(self, **kwargs):
+        return self._respond(kwargs)
+
+
+class _V4Index:
+    """Gives the algoliasearch 4.x client the index shaped ``search`` the other versions have."""
+
+    def __init__(self, client):
+        self.client = client
+
+    def search(self, query=None, request_options=None):
+        search_params = {} if query is None else {"query": query}
+        search_params.update(request_options or {})
+        return self.client.search_single_index("test_index", search_params)
 
 
 class AlgoliasearchTest(TracerTestCase):
@@ -38,7 +90,14 @@ class AlgoliasearchTest(TracerTestCase):
         # Algolia search is a non free SaaS application, it isn't possible to add it to the
         # docker environment to enable a full-fledged integration test. The next best option
         # is to mock out the search method to prevent it from making server requests
-        if algoliasearch_version < V2 and algoliasearch_version >= V1:
+        if algoliasearch_version >= V4:
+            from algoliasearch.search import client as client_module
+
+            client = client_module.SearchClientSync("X", "X")
+            client._transporter = _FakeTransporter()
+            self.index = _V4Index(client)
+            return
+        elif algoliasearch_version < V2 and algoliasearch_version >= V1:
             import algoliasearch
             import algoliasearch.index as index_module
 
@@ -312,3 +371,91 @@ def test_upper_bound_excludes_4x_prereleases():
 
     for version in ("2.6.3", "3.0.0", "3.0.0b1", "3.9.9"):
         assert parse_version(version) < V4, version
+
+
+@pytest.mark.skipif(algoliasearch_version < V4, reason="algoliasearch < 4 has no generated client")
+class Algoliasearch4Test(TracerTestCase):
+    def setUp(self):
+        super().setUp()
+        patch()
+
+    def tearDown(self):
+        unpatch()
+        super().tearDown()
+
+    def assert_search_span(self, span):
+        assert_is_measured(span)
+        assert span.name == "algoliasearch.search"
+        assert span.span_type == "http"
+        assert span.service == "algoliasearch"
+        assert span.get_tag("component") == "algoliasearch"
+        assert span.get_tag("span.kind") == "client"
+
+    def test_search_params_model(self):
+        from algoliasearch.search.client import SearchClientSync
+        from algoliasearch.search.models.search_params_object import SearchParamsObject
+
+        client = SearchClientSync("X", "X")
+        client._transporter = _FakeTransporter()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+        try:
+            result = client.search_single_index("idx", SearchParamsObject(query="shoes", hits_per_page=3))
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+        assert result.nb_hits == 1
+        (span,) = self.get_spans()
+        self.assert_search_span(span)
+        assert span.get_tag("query.text") == "shoes"
+        assert span.get_metric("query.args.hits_per_page") == 3
+        assert span.get_metric("processing_time_ms") == 23
+        assert span.get_metric("number_of_hits") == 1
+
+    def test_search_without_params(self):
+        from algoliasearch.search.client import SearchClientSync
+
+        client = SearchClientSync("X", "X")
+        client._transporter = _FakeTransporter()
+        client.search_single_index("idx")
+
+        (span,) = self.get_spans()
+        self.assert_search_span(span)
+        assert span.get_tag("query.text") is None
+
+    def test_search_error(self):
+        from algoliasearch.search.client import SearchClientSync
+
+        client = SearchClientSync("X", "X")
+        client._transporter = _FakeTransporter(error=RuntimeError("boom"))
+        with pytest.raises(RuntimeError):
+            client.search_single_index("idx", {"query": "shoes"})
+
+        (span,) = self.get_spans()
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.RuntimeError"
+
+    def test_async_search(self):
+        import asyncio
+
+        from algoliasearch.search.client import SearchClient
+
+        async def run():
+            client = SearchClient("X", "X")
+            client._transporter = _AsyncFakeTransporter()
+            original = config.algoliasearch.collect_query_text
+            config.algoliasearch.collect_query_text = True
+            try:
+                return await client.search_single_index("idx", {"query": "shoes", "hitsPerPage": 2})
+            finally:
+                config.algoliasearch.collect_query_text = original
+
+        result = asyncio.run(run())
+
+        assert result.nb_hits == 1
+        (span,) = self.get_spans()
+        self.assert_search_span(span)
+        assert span.get_tag("query.text") == "shoes"
+        assert span.get_metric("query.args.hits_per_page") == 2
+        assert span.get_metric("number_of_hits") == 1
+        assert span.duration > 0

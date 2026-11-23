@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    algoliasearch: This introduces tracing support for ``algoliasearch`` 4.x. The synchronous and asynchronous
+    ``search_single_index`` client methods are traced with the same ``algoliasearch.search`` span as earlier versions.

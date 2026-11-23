@@ -421,6 +421,8 @@ suites:
           dependencies: ['urllib3~=1.26.15', pytest-randomly, 'algoliasearch~=2.6']
         - name: algoliasearch
           dependencies: [pytest-randomly, 'algoliasearch~=3.0']
+        - name: algoliasearch
+          dependencies: [pytest-randomly, 'algoliasearch~=4.0']
   anyio:
     paths:
       - '@bootstrap'

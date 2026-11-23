@@ -10,6 +10,16 @@ The Algoliasearch__ integration will add tracing to your Algolia searches.
     index = client.init_index(<INDEX_NAME>)
     index.search("your query", args={"attributesToRetrieve": "attribute1,attribute1"})
 
+With algoliasearch 4.x the sync and async ``search_single_index`` client methods are traced:
+
+::
+
+    import ddtrace.auto
+
+    from algoliasearch.search.client import SearchClientSync
+    client = SearchClientSync(<ID>, <API_KEY>)
+    client.search_single_index(<INDEX_NAME>, {"query": "your query", "attributesToRetrieve": ["attribute1"]})
+
 Configuration
 ~~~~~~~~~~~~~
 
