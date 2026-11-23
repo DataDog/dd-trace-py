@@ -36,16 +36,13 @@ LOG = logging.getLogger(__name__)
 
 # CPython runs the multiprocessing resource tracker as
 # python -c "from multiprocessing.resource_tracker import main;main(<fd>)".
-_RESOURCE_TRACKER_COMMAND = "from multiprocessing.resource_tracker import main;"
+_RESOURCE_TRACKER_COMMAND = "from multiprocessing.resource_tracker import main"
 
 
 def _is_multiprocessing_resource_tracker() -> bool:
     # sys.orig_argv is only available on Python 3.10+.
-    argv: Optional[list[str]] = getattr(sys, "orig_argv", None)
-    if not argv or "-c" not in argv:
-        return False
-    command_index = argv.index("-c") + 1
-    return command_index < len(argv) and argv[command_index].startswith(_RESOURCE_TRACKER_COMMAND)
+    argv: list[str] = getattr(sys, "orig_argv", [])
+    return any(_RESOURCE_TRACKER_COMMAND in arg for arg in argv)
 
 
 class Profiler:
