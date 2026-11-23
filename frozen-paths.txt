@@ -4,6 +4,8 @@
 # Add an entry using: sha256sum path/to/file
 # Copy the result below as path/to/file=hash (no spaces around the equals sign).
 # Commit freezes before starting extraction. Only file contents are frozen.
-# To unfreeze, remove the entry in a separate PR that leaves the file unchanged;
-# changes to the file can land after that PR merges. The check reads base rules
-# as well as merge-result rules, so editing this list cannot bypass a freeze.
+# To unfreeze, remove the entry in the PR that also carries the authorized
+# change (e.g. replacing the file with a bridge to the extracted package);
+# no separate unfreeze PR is needed. The check reads base rules as well as
+# merge-result rules, so updating a hash in the same PR cannot lift a
+# freeze: only removing the entry can.
