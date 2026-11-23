@@ -246,6 +246,7 @@ _RUNNER_FLAGS = frozenset(("-y", "--yes", "-q", "--quiet"))
 _PACKAGE_ID = re.compile(r"^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*(@[a-z0-9][a-z0-9._+-]*)?$", re.IGNORECASE)
 _PYTHON = re.compile(r"^python(\d+(\.\d+)?)?$")
 _PYTHON_MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_PYTHON_FILE_SUFFIXES = (".py", ".pyc", ".pyw", ".pyz")
 
 
 def stdio_program(command: str) -> str:
@@ -284,7 +285,8 @@ def normalized_stdio_args(command: str, args: Any) -> list[str]:
     program = stdio_program(command)
     if program in _PACKAGE_RUNNERS and _PACKAGE_ID.match(args[0]):
         return [args[0]]
-    if _PYTHON.match(program) and _PYTHON_MODULE.match(args[0]):
+    # A raw "python server.py" names a script file, not a module: never report it.
+    if _PYTHON.match(program) and _PYTHON_MODULE.match(args[0]) and not args[0].endswith(_PYTHON_FILE_SUFFIXES):
         return [args[0]]
     return []
 

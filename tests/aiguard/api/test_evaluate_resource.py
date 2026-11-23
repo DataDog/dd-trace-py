@@ -416,6 +416,11 @@ def test_request_tags_reach_the_root_and_ai_guard_spans(mock_execute_request, ai
             id="python script path and other args are dropped",
         ),
         pytest.param(
+            {"operation": "connect", "transport": "stdio", "command": "python3", "args": ["server.py"]},
+            {"operation": "connect", "transport": "stdio", "command": "python3"},
+            id="python script file is dropped",
+        ),
+        pytest.param(
             {
                 "operation": "connect",
                 "transport": "streamable_http",
