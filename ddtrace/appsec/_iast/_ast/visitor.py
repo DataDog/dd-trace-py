@@ -8,7 +8,7 @@ from typing import Any
 
 from ddtrace.internal.compat import is_at_least_py
 
-from ..._constants import IAST
+from .._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_COMMAND_INJECTION_FUNCTIONS
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -345,15 +345,6 @@ class AstVisitor(ast.NodeTransformer):
 
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
         return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
-
-    def _assign_node(self, from_node: Any, targets: list[Any], value: Any) -> Any:
-        return self._node(
-            ast.Assign,
-            from_node,
-            targets=targets,
-            value=value,
-            type_comment=None,
-        )
 
     @staticmethod
     def find_insert_position(module_node: ast.Module) -> int:

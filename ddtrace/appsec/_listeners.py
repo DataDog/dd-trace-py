@@ -1,9 +1,9 @@
 import sys
 
 from ddtrace.internal import core
+from ddtrace.internal.appsec import product_subscribers as appsec_product_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.trace import tracer
 
 
 _APPSEC_TO_BE_LOADED = True
@@ -55,7 +55,7 @@ def _abort_appsec(failure_msg: str) -> None:
 
     disable_appsec_rc()
 
-    tracer.configure(appsec_enabled=False)
+    core.dispatch("asm.tracer.reconfigure", (False, ""), allow_raise=True)
     _report_asm_enabled()
 
 
@@ -67,42 +67,19 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
         return
 
     AppSecSpanProcessor.disable()
-    _unregister_exploit_prevention_listeners()
+    appsec_product_subscribers.unregister()
 
     if asm_config._api_security_active:
         from ddtrace.appsec._api_security.api_manager import APIManager
 
         APIManager.disable()
 
+    asm_config._asm_enabled = False
     if reconfigure_tracer:
-        tracer.configure(appsec_enabled=False)
-    else:
-        asm_config._asm_enabled = False
+        core.dispatch("asm.tracer.reconfigure", (False, ""), allow_raise=True)
 
     _report_asm_enabled()
     return
-
-
-def _register_exploit_prevention_listeners() -> None:
-    """Register listeners for operations monitored by Exploit Prevention."""
-    from ddtrace.appsec._contrib.dbapi import listen as dbapi_listen
-    from ddtrace.appsec._contrib.httpx import listen as httpx_listen
-    from ddtrace.appsec._contrib.subprocess import listen as subprocess_listen
-
-    dbapi_listen()
-    httpx_listen()
-    subprocess_listen()
-
-
-def _unregister_exploit_prevention_listeners() -> None:
-    """Unregister AppSec subscribers that gate shared integration event dispatch."""
-    from ddtrace.appsec._contrib.dbapi import unlisten as dbapi_unlisten
-    from ddtrace.appsec._contrib.httpx import unlisten as httpx_unlisten
-    from ddtrace.appsec._contrib.subprocess import unlisten as subprocess_unlisten
-
-    dbapi_unlisten()
-    httpx_unlisten()
-    subprocess_unlisten()
 
 
 def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
@@ -114,6 +91,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         return False
 
     from ddtrace.appsec._asm_request_context import asm_listen
+    from ddtrace.appsec._contrib.aiohttp import listen as aiohttp_listen
     from ddtrace.appsec._contrib.aws_lambda import listen as aws_lambda_listen
     from ddtrace.appsec._contrib.django import listen as django_listen
     from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
@@ -135,15 +113,13 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         openai_listen()
         stripe_listen()
         tornado_listen()
+        aiohttp_listen()
 
         # GRPC integration was disabled in commit 5fe1c163738c9e6d13127067f8eceee2302bcb67, deemed too unreliable
         # grpc_listen()
 
         core.on("asm.switch_state", _asm_switch_state)
         _APPSEC_TO_BE_LOADED = False
-
-    if asm_config._ep_enabled:
-        _register_exploit_prevention_listeners()
 
     from ddtrace.appsec._processor import AppSecSpanProcessor
 
@@ -153,10 +129,12 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
 
         APIManager.enable()
 
+    asm_config._asm_enabled = True
+    appsec_product_subscribers.register()
     if reconfigure_tracer:
-        tracer.configure(appsec_enabled=True, appsec_enabled_origin=origin)
-    else:
-        asm_config._asm_enabled = True
+        if origin:
+            asm_config._asm_enabled_origin = origin  # type: ignore[assignment]
+        core.dispatch("asm.tracer.reconfigure", (True, origin), allow_raise=True)
 
     _report_asm_enabled()
     return True

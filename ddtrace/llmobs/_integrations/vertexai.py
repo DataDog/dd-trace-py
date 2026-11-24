@@ -2,8 +2,11 @@ from collections.abc import Iterable
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.vertexai._constants import TAG_MODEL
+from ddtrace.contrib.internal.vertexai._constants import TAG_PROVIDER
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
@@ -12,26 +15,22 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_vertexai
 from ddtrace.llmobs._integrations.google_utils import get_system_instructions_vertexai
 from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_vertexai
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
-from ddtrace.trace import Span
+from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolDefinition
 
 
 class VertexAIIntegration(BaseLLMIntegration):
     _integration_name = "vertexai"
 
-    def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
-    ) -> None:
-        if provider is not None:
-            span._set_attribute("vertexai.request.provider", provider)
-        if model is not None:
-            span._set_attribute("vertexai.request.model", model)
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -59,8 +58,8 @@ class VertexAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind="llm",
-            model_name=span.get_tag("vertexai.request.model") or "",
-            model_provider=span.get_tag("vertexai.request.provider") or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
             metadata=metadata,
             input_messages=input_messages,
             output_messages=output_messages,
@@ -68,10 +67,17 @@ class VertexAIIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         metrics = self._extract_metrics_from_response(response) if response is not None else {}
-        model_name = span.get_tag("vertexai.request.model")
-        model_provider = span.get_tag("vertexai.request.provider")
+        model_name = span.get_tag(TAG_MODEL)
+        model_provider = span.get_tag(TAG_PROVIDER)
         self._apply_shadow_metrics(
             span,
             metrics,
@@ -80,7 +86,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             model_provider=model_provider,
         )
 
-    def _extract_metrics_from_response(self, response):
+    def _extract_metrics_from_response(self, response: Any) -> Optional[dict[str, Any]]:
         """Extract metrics from the response."""
         if isinstance(response, list):
             for chunk in response:
@@ -88,6 +94,10 @@ class VertexAIIntegration(BaseLLMIntegration):
                 if not token_counts:
                     continue
                 input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+                # total_token_count includes tool-use prompt tokens, so count them as input
+                tool_use_tokens = _get_attr(token_counts, "tool_use_prompt_token_count", 0)
+                if input_tokens is not None or tool_use_tokens is not None:
+                    input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
                 candidates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
                 thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
                 output_tokens = candidates_tokens + thoughts_tokens
@@ -97,15 +107,19 @@ class VertexAIIntegration(BaseLLMIntegration):
 
             token_counts = generations_dict.get("usage_metadata", None)
             if not token_counts:
-                return
+                return None
 
             input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+            # total_token_count includes tool-use prompt tokens, so count them as input
+            tool_use_tokens = _get_attr(token_counts, "tool_use_prompt_token_count", 0)
+            if input_tokens is not None or tool_use_tokens is not None:
+                input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
             candidates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
             thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
             output_tokens = candidates_tokens + thoughts_tokens
             total_tokens = _get_attr(token_counts, "total_token_count", 0)
 
-        metrics = {}
+        metrics: dict[str, Any] = {}
         if input_tokens is not None:
             metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
         if output_tokens is not None:
@@ -116,7 +130,9 @@ class VertexAIIntegration(BaseLLMIntegration):
             metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = thoughts_tokens
         return metrics
 
-    def _extract_input_message(self, contents, history, system_instruction=None) -> list[Message]:
+    def _extract_input_message(
+        self, contents: Any, history: Any, system_instruction: Optional[list[str]] = None
+    ) -> list[Message]:
         from vertexai.generative_models._generative_models import Part
 
         messages: list[Message] = []
@@ -146,12 +162,12 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.extend(self._extract_messages_from_content(content))
         return messages
 
-    def _extract_output_message(self, generations) -> list[Message]:
+    def _extract_output_message(self, generations: Any) -> list[Message]:
         output_messages: list[Message] = []
         # streamed responses will be a list of chunks
         if isinstance(generations, list):
             message_content = ""
-            tool_calls = []
+            tool_calls: list[ToolCall] = []
             role = "model"
             for chunk in generations:
                 for candidate in _get_attr(chunk, "candidates", []):
@@ -171,7 +187,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         return output_messages
 
     @staticmethod
-    def _extract_messages_from_content(content) -> list[Message]:
+    def _extract_messages_from_content(content: Any) -> list[Message]:
         messages: list[Message] = []
         role = _get_attr(content, "role", "")
         parts = _get_attr(content, "parts", [])
@@ -186,7 +202,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append(message)
         return messages
 
-    def _extract_tools(self, instance, arg_tools):
+    def _extract_tools(self, instance: Any, arg_tools: Any) -> list[ToolDefinition]:
         """
         Extracts tool definitions for a call, tools can be passed into a model instance or a generation call, so we
         handle both cases and remove duplicates.
@@ -194,15 +210,15 @@ class VertexAIIntegration(BaseLLMIntegration):
         tools = _get_attr(instance, "_tools", []) or []
         tool_set = set(tools)
         tool_set.update(arg_tools)
-        tool_definitions = []
+        tool_definitions: list[ToolDefinition] = []
         for tool in tool_set:
             tool_dict = tool.to_dict()
             function_declarations = _get_attr(tool_dict, "function_declarations", [])
             for function in function_declarations:
-                tool_definition_info = {
-                    "name": _get_attr(function, "name", "") or "",
-                    "description": _get_attr(function, "description", "") or "",
-                    "schema": _get_attr(function, "parameters", {}) or {},
-                }
+                tool_definition_info = ToolDefinition(
+                    name=_get_attr(function, "name", "") or "",
+                    description=_get_attr(function, "description", "") or "",
+                    schema=_get_attr(function, "parameters", {}) or {},
+                )
                 tool_definitions.append(tool_definition_info)
         return tool_definitions

@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import os
 import re
 import subprocess
+import tempfile
 
 import django
 import pytest
@@ -11,6 +12,7 @@ from ddtrace.appsec._constants import FINGERPRINTING
 import ddtrace.internal.constants as constants
 import tests.appsec.rules as rules
 from tests.utils import snapshot
+from tests.utils import terminate_process_group
 from tests.webclient import Client
 
 
@@ -41,19 +43,32 @@ def daphne_client(django_asgi, additional_env=None):
     # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
     # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
     cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:%s" % django_asgi]
-    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+    with tempfile.TemporaryFile() as server_output:
+        proc = subprocess.Popen(
+            cmd, stdout=server_output, stderr=subprocess.STDOUT, env=env, start_new_session=True, close_fds=True
+        )
 
-    client = Client("http://localhost:%d" % SERVER_PORT)
+        client = Client("http://localhost:%d" % SERVER_PORT)
 
-    try:
-        # Wait for the server to start up
-        client.wait()
+        try:
+            # Wait for the server to start up
+            client.wait(max_tries=120, delay=0.2)
+        except Exception:
+            terminate_process_group(proc)
+            server_output.seek(0)
+            raise AssertionError(
+                "Server failed to start\n=== Captured server output ===\n%s=== End of captured server output ==="
+                % server_output.read().decode(errors="replace")
+            )
 
-        yield client
-    finally:
-        resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200
-        proc.terminate()
+        try:
+            yield client
+        finally:
+            try:
+                resp = client.get_ignored("/shutdown-tracer", timeout=10)
+                assert resp.status_code == 200
+            finally:
+                terminate_process_group(proc)
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")

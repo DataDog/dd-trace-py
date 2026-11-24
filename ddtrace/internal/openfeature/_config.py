@@ -3,8 +3,19 @@
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
+from typing import TypedDict
 
 from ddtrace.internal.native._native import ffe
+
+
+class _ConfigurationIdentity(TypedDict):
+    """UFC fields that let debug logs name the configuration an evaluation used.
+
+    Values are copied from the payload unvalidated because they are only logged.
+    """
+
+    created_at: Any
+    environment: Any
 
 
 class _FfeSnapshot(NamedTuple):
@@ -12,6 +23,7 @@ class _FfeSnapshot(NamedTuple):
 
     config: ffe.Configuration
     observe_full_evaluation_data: bool
+    identity: Optional[_ConfigurationIdentity] = None
 
 
 # A single reference keeps configuration and consent consistent when Remote

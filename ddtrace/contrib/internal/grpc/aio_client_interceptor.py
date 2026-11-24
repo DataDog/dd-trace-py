@@ -69,6 +69,44 @@ def _done_callback_unary(span: Span, code: grpc.StatusCode, details: str) -> Cal
 _GRPC_AIO_ERROR_HANDLED = "_dd.grpc_aio.error_handled"
 
 
+def _claim_stream_error(span: Span) -> bool:
+    if span._get_ctx_item(_GRPC_AIO_ERROR_HANDLED):
+        return False
+    span._set_ctx_item(_GRPC_AIO_ERROR_HANDLED, True)
+    return True
+
+
+async def _finish_stream_terminal_state(
+    call: aio.Call,
+    span: Span,
+    fallback_code: Union[grpc.StatusCode, None],
+    fallback_details: Union[str, None],
+) -> None:
+    if not _claim_stream_error(span):
+        return
+    try:
+        try:
+            code = await call.code()
+            details = await call.details()
+            if isinstance(details, bytes):
+                details = details.decode("utf-8", errors="ignore")
+            else:
+                details = str(details)
+        except Exception:
+            if fallback_code is None:
+                log.warning("Unable to get async grpc terminal state.")
+                return
+            code = fallback_code
+            details = fallback_details or ""
+
+        if code == grpc.StatusCode.OK:
+            span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(code))
+        else:
+            _set_error_attrs(span, str(code), details)
+    finally:
+        span.finish()
+
+
 def _done_callback_stream(span: Span) -> Callable[[aio.Call], None]:
     def func(call: aio.Call) -> None:
         # gRPC can mark the call done and invoke this callback while
@@ -90,16 +128,18 @@ def _done_callback_stream(span: Span) -> Callable[[aio.Call], None]:
             # we need to call __repr__ as we cannot call code() or details() since they are both async
             code, _details = utils._parse_rpc_repr_string(call.__repr__(), grpc)
         except ValueError:
-            # ValueError is thrown from _parse_rpc_repr_string
-            log.warning("Unable to parse async grpc string for status code and details.")
-            span.finish()
-            return
+            code, _details = None, None
         if code != grpc.StatusCode.OK:
-            # Non-OK terminal state: gRPC will surface an AioRpcError (or
-            # CancelledError) to the consumer of `_wrap_stream_response`, so an
-            # awaited error handler will run and own finishing the span with
-            # authoritative values. Bail before writing repr-derived tags or
-            # calling span.finish().
+            # A stream may never be consumed, so no iterator-side handler may run.
+            # Use async accessors for authoritative terminal details and let the
+            # ctx flag prevent a race with iterator-side error handling.
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                log.warning("Unable to schedule async grpc terminal-state handling.")
+                span.finish()
+                return
+            loop.create_task(_finish_stream_terminal_state(call, span, code, _details))
             return
         span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(code))
         span.finish()
@@ -140,9 +180,14 @@ async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
     # The done callback also defers on any non-OK terminal state, so this handler
     # is the sole owner of `span.finish()` for the cancelled path — wrap the body
     # in try/finally so the span is still finished if an await raises.
-    span._set_ctx_item(_GRPC_AIO_ERROR_HANDLED, True)
+    if not _claim_stream_error(span):
+        return
     try:
-        _set_error_attrs(span, str(await call.code()), await call.details())
+        code = await call.code()
+        if code == grpc.StatusCode.OK:
+            span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(code))
+        else:
+            _set_error_attrs(span, str(code), await call.details())
     finally:
         span.finish()
 
@@ -154,7 +199,8 @@ async def _handle_stream_rpc_error(span: Span, call: aio.Call, rpc_error: aio.Ai
     # the authoritative final state. Set the ctx flag synchronously before
     # awaiting so `_done_callback_stream` bails out if it fires while we're
     # suspended, instead of flushing the span with repr-derived tags.
-    span._set_ctx_item(_GRPC_AIO_ERROR_HANDLED, True)
+    if not _claim_stream_error(span):
+        return
     try:
         try:
             code = await call.code()
@@ -224,12 +270,10 @@ class _ClientInterceptor:
         span: Span,
     ) -> ResponseIterableType:
         try:
-            _handle_add_callback(call, _done_callback_stream(span))
             async for response in call:
                 yield response
         except StopAsyncIteration:
             # Callback will handle span finishing
-            _handle_cancelled_error()
             raise
         except aio.AioRpcError as rpc_error:
             # NOTE: We can also handle the error in done callbacks, but capturing
@@ -249,6 +293,7 @@ class _ClientInterceptor:
         continuation: Callable[[], Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]],
         span: Span,
     ) -> Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]:
+        call = None
         try:
             call = await continuation()
             code = await call.code()
@@ -264,6 +309,14 @@ class _ClientInterceptor:
             # So we can't handle the error in done callbacks.
             _handle_rpc_error(span, rpc_error)
             raise
+        except asyncio.CancelledError:
+            if call is None:
+                _set_error_attrs(span, str(grpc.StatusCode.CANCELLED), "Locally cancelled by application!")
+                span.finish()
+            else:
+                call.cancel()
+                await _handle_cancelled_error(call, span)
+            raise
 
 
 class _UnaryUnaryClientInterceptor(aio.UnaryUnaryClientInterceptor, _ClientInterceptor):
@@ -273,6 +326,9 @@ class _UnaryUnaryClientInterceptor(aio.UnaryUnaryClientInterceptor, _ClientInter
         client_call_details: aio.ClientCallDetails,
         request: RequestType,
     ) -> Union[aio.UnaryUnaryCall, ResponseType]:
+        if utils.is_otlp_export(client_call_details.method):
+            return await continuation(client_call_details, request)
+
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_UNARY,
             client_call_details,
@@ -293,6 +349,7 @@ class _UnaryStreamClientInterceptor(aio.UnaryStreamClientInterceptor, _ClientInt
             client_call_details,
         )
         call = await continuation(client_call_details, request)
+        _handle_add_callback(call, _done_callback_stream(span))
         return self._wrap_stream_response(call, span)
 
 
@@ -323,4 +380,5 @@ class _StreamStreamClientInterceptor(aio.StreamStreamClientInterceptor, _ClientI
             client_call_details,
         )
         call = await continuation(client_call_details, request_iterator)
+        _handle_add_callback(call, _done_callback_stream(span))
         return self._wrap_stream_response(call, span)

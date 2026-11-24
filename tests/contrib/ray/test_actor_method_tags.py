@@ -1,7 +1,6 @@
 """Tests for actor-method identity tags on submission and execution spans."""
 
 from ddtrace import config
-import ddtrace._trace.subscribers.ray  # noqa: F401 — registers Ray subscribers
 from ddtrace.contrib._events.ray import RayExecutionEvent
 from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_CLASS_NAME

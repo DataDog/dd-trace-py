@@ -236,5 +236,6 @@ class MetricRecorder:
 
     def _rebind(self, worker: Optional["TelemetryWorker"]) -> None:
         """Point at worker, whose context is registered on the next recorded point."""
-        self._context = None
+        # Leave _context alone: add() reads _worker and _context separately, so clearing it here
+        # could pair the old real worker with None. The noop and pending workers ignore the stale one.
         self._worker = _NOOP_WORKER if worker is None else _PendingWorker(self, worker)

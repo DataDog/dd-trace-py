@@ -2,11 +2,11 @@ import time
 
 import pytest
 
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._constants import TELEMETRY_DEBUG_VERBOSITY
-from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
-from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
-from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import TELEMETRY_DEBUG_VERBOSITY
+from ddtrace.appsec._iast._constants import TELEMETRY_INFORMATION_NAME
+from ddtrace.appsec._iast._constants import TELEMETRY_INFORMATION_VERBOSITY
+from ddtrace.appsec._iast._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
@@ -54,13 +54,28 @@ def empty_telemetry_session(request):
     yield
 
 
+def _session_events(test_agent_session, event_type):
+    """Events sent with this session's token, leaving out tokenless telemetry from other processes."""
+    events = []
+    for request in test_agent_session.get_requests():
+        headers = {name.lower(): value for name, value in request["headers"].items()}
+        if headers.get("x-datadog-test-session-token") != test_agent_session.token:
+            continue
+        for body in test_agent_session._get_request_bodies(request):
+            if body["request_type"] == event_type:
+                events.append(body)
+    return events
+
+
 def _get_iast_metrics(test_agent_session, telemetry_writer):
     """Flush the native worker and return the iast-namespace generate-metrics series."""
     telemetry_writer.periodic(force_flush=True)
     metrics = []
-    for series in test_agent_session.get_metrics():
-        if series.get("namespace") == TELEMETRY_NAMESPACE.IAST.value:
-            metrics.append(series)
+    for event in _session_events(test_agent_session, "generate-metrics"):
+        for series in event["payload"]["series"]:
+            if series.get("namespace") == TELEMETRY_NAMESPACE.IAST.value:
+                metrics.append(series)
+    metrics.sort(key=lambda x: (x["metric"], x["tags"]))
     return metrics
 
 
@@ -85,7 +100,7 @@ def _get_iast_logs(test_agent_session, telemetry_writer):
     """Flush and return all telemetry log entries captured by the session."""
     telemetry_writer.periodic(force_flush=True)
     logs = []
-    for event in test_agent_session.get_events("logs"):
+    for event in _session_events(test_agent_session, "logs"):
         logs += event["payload"]["logs"]
     return logs
 

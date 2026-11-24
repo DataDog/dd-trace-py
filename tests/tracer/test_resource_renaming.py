@@ -1,9 +1,10 @@
 import pytest
 
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
-from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.otel_semantics import http as otel_http
+from ddtrace.internal.utils.endpoint import SimplifiedEndpointComputer
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import override_global_config
@@ -129,6 +130,31 @@ class TestResourceRenaming:
 
         assert span.get_tag(http.ENDPOINT) is None
 
+    def test_processor_route_less_404(self):
+        processor = ResourceRenamingProcessor()
+        span = Span("test", context=Context(), span_type=SpanTypes.WEB)
+        span.set_tag(http.URL, "https://example.com/missing")
+        span.set_tag(http.STATUS_CODE, 404)
+
+        processor.on_span_finish(span)
+
+        assert span.get_tag(http.ENDPOINT) is None
+
+    def test_processor_reads_semantics_flag_per_call(self):
+        processor = ResourceRenamingProcessor()
+
+        with override_global_config(dict(_otel_trace_semantics_enabled=False)):
+            span = Span("test", context=Context(), span_type=SpanTypes.WEB)
+            span.set_tag(http.URL, "https://example.com/datadog/123")
+            processor.on_span_finish(span)
+            assert span.get_tag(http.ENDPOINT) == "/datadog/{param:int}"
+
+        with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            span = Span("test", context=Context(), span_type=SpanTypes.WEB)
+            span.set_tag(otel_http.URL_PATH, "/otel/123")
+            processor.on_span_finish(span)
+            assert span.get_tag(http.ENDPOINT) == "/otel/{param:int}"
+
     def test_processor_always_simplified_endpoint(self):
         processor = ResourceRenamingProcessor()
         with override_global_config(dict(_trace_resource_renaming_always_simplified_endpoint=True)):
@@ -139,3 +165,60 @@ class TestResourceRenaming:
             processor.on_span_finish(span)
         # Should use simplified endpoint even when route exists
         assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_processor_reads_the_otel_tag_names():
+    from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
+    from ddtrace.ext import SpanTypes
+    from ddtrace.ext import http
+    from ddtrace.internal.otel_semantics import http as otel_http
+    from ddtrace.trace import tracer
+
+    processor = ResourceRenamingProcessor()
+
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        span.set_tag(otel_http.URL_PATH, "/api/users/123")
+        span.set_tag(otel_http.RESPONSE_STATUS_CODE, 200)
+        processor.on_span_finish(span)
+        assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        span.set_tag(otel_http.URL_PATH, "/missing")
+        span.set_tag(otel_http.RESPONSE_STATUS_CODE, 404)
+        processor.on_span_finish(span)
+        assert span.get_tag(http.ENDPOINT) is None
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_processor_reads_otel_client_span_attributes():
+    from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
+    from ddtrace.ext import SpanTypes
+    from ddtrace.ext import http
+    from ddtrace.internal.otel_semantics import http as otel_http
+    from ddtrace.trace import Span
+
+    processor = ResourceRenamingProcessor()
+
+    span = Span("test", span_type=SpanTypes.HTTP)
+    span._set_attribute(otel_http.URL_FULL, "https://example.com/api/users/123")
+    span._set_attribute(otel_http.RESPONSE_STATUS_CODE, 200)
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+
+    span = Span("test", span_type=SpanTypes.HTTP)
+    span._set_attribute(otel_http.URL_FULL, "https://example.com/missing")
+    span._set_attribute(otel_http.RESPONSE_STATUS_CODE, 404)
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) is None
+
+    span = Span("test", span_type=SpanTypes.WEB)
+    span.set_tag(http.URL, "https://example.com/api/orders/456")
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) == "/api/orders/{param:int}"
+
+    # A relative http.url set by user code drops its query and fragment like an absolute one.
+    span = Span("test", span_type=SpanTypes.WEB)
+    span.set_tag(http.URL, "/api/orders/456?view=full#top")
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) == "/api/orders/{param:int}"

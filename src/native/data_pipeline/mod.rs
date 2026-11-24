@@ -5,11 +5,14 @@ use libdd_data_pipeline::trace_exporter::{
 };
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+use std::collections::BTreeMap;
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
+mod trace_buffer;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
+use trace_buffer::TraceBufferPy;
 
 /// A wrapper around [TraceExporterBuilder]
 ///
@@ -17,7 +20,7 @@ use exceptions::TraceExporterErrorPy;
 /// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
-    builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
+    pub(super) builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
 }
 
 impl TraceExporterBuilderPy {
@@ -202,12 +205,10 @@ impl TraceExporterBuilderPy {
     fn enable_telemetry(
         mut slf: PyRefMut<'_, Self>,
         heartbeat_ms: u64,
-        runtime_id: String,
         debug_enabled: bool,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_telemetry(TelemetryConfig {
             heartbeat: heartbeat_ms,
-            runtime_id: Some(runtime_id),
             debug_enabled,
         });
         Ok(slf.into())
@@ -272,8 +273,8 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    /// Select the OTLP export protocol: `http/json` or `http/protobuf`. Any other value raises
-    /// `ValueError`.
+    /// Select the OTLP export protocol: `grpc`, `http/json`, or `http/protobuf`. Any other value
+    /// raises `ValueError`.
     fn set_otlp_protocol(mut slf: PyRefMut<'_, Self>, protocol: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_otlp_protocol(
             protocol
@@ -330,6 +331,20 @@ pub struct TraceExporterPy {
 
 #[pymethods]
 impl TraceExporterPy {
+    /// Replace resource attributes before sending an OTLP trace payload.
+    fn set_otlp_resource_attributes(
+        &mut self,
+        attributes: BTreeMap<String, String>,
+    ) -> PyResult<()> {
+        self.inner
+            .as_mut()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .set_otlp_resource_attributes(attributes);
+        Ok(())
+    }
+
     /// Send a msgpack encoded trace payload.
     ///
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while
@@ -390,6 +405,7 @@ impl TraceExporterPy {
 pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
+    m.add_class::<TraceBufferPy>()?;
     exceptions::register_exceptions(m)?;
     agent_response::register_agent_response(m)?;
 

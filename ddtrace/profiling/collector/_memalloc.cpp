@@ -30,16 +30,11 @@ typedef struct
    object-oriented approach and allocate a context per object.
 */
 static memalloc_context_t global_memalloc_ctx;
-#ifdef _PY312_AND_LATER
+#ifdef PY312_AND_LATER
 static memalloc_context_t global_memalloc_ctx_mem;
-#endif // _PY312_AND_LATER
+#endif // PY312_AND_LATER
 
 static bool memalloc_enabled = false;
-#ifdef _PY312_AND_LATER
-/* true only while MEM-domain hooks are installed (between start() with the
- * caller's mem_domain_enabled=true and the next stop()). */
-static bool memalloc_mem_installed = false;
-#endif // _PY312_AND_LATER
 static std::once_flag memalloc_fork_handler_once_flag;
 
 /* Interpreter that called start().  Used by memalloc_module_free to reject
@@ -61,14 +56,15 @@ static PyMemAllocatorEx g_saved_alloc_buf[2];
 static int g_saved_alloc_slot = 0;
 static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_pub{ nullptr };
 
-#ifdef _PY312_AND_LATER
+#ifdef PY312_AND_LATER
 /* MEM-domain saved allocator — same two-slot scheme as OBJ above, kept as
  * an independent buffer + atomic pair so each domain's lifecycle is fully
  * isolated from OBJ. */
 static PyMemAllocatorEx g_saved_alloc_mem_buf[2];
 static int g_saved_alloc_mem_slot = 0;
+/* Also tracks whether stop() needs to restore MEM hooks; cleared after restoration. */
 static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_mem_pub{ nullptr };
-#endif // _PY312_AND_LATER
+#endif // PY312_AND_LATER
 
 static void
 memalloc_free(void* Py_UNUSED(ctx), void* ptr)
@@ -81,7 +77,7 @@ memalloc_free(void* Py_UNUSED(ctx), void* ptr)
      * In production we can't abort or skip untrack (skipping would leak
      * heap tracker entries), so we just let it proceed — direct struct
      * access frame walking avoids calling CPython APIs that could free and is thus safe. */
-    if (_MEMALLOC_ON_THREAD) {
+    if (MEMALLOC_ON_THREAD) {
         _memalloc_abort_free_reentry();
     }
 #endif // MEMALLOC_ASSERT_ON_REENTRY
@@ -173,7 +169,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     return ptr2;
 }
 
-#ifdef _PY312_AND_LATER
+#ifdef PY312_AND_LATER
 /* ---------------------------------------------------------------------------
  * PYMEM_DOMAIN_MEM hooks — direct copies of the OBJ hooks above, reading
  * the MEM-domain saved-allocator atomic pair. Kept as separate function
@@ -188,7 +184,7 @@ memalloc_free_mem(void* Py_UNUSED(ctx), void* ptr)
         return;
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
-    if (_MEMALLOC_ON_THREAD) {
+    if (MEMALLOC_ON_THREAD) {
         _memalloc_abort_free_reentry();
     }
 #endif // MEMALLOC_ASSERT_ON_REENTRY
@@ -263,9 +259,9 @@ memalloc_realloc_mem(void* ctx, void* ptr, size_t new_size)
 
     return ptr2;
 }
-#endif // _PY312_AND_LATER
+#endif // PY312_AND_LATER
 
-PyDoc_STRVAR(memalloc_start__doc__,
+PyDoc_STRVAR(memalloc_start_doc,
              "start($module, max_nframe, heap_sample_interval, mem_domain_enabled)\n"
              "--\n"
              "\n"
@@ -360,7 +356,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     g_saved_alloc_pub.store(&g_saved_alloc_buf[slot], std::memory_order_release);
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
-#ifdef _PY312_AND_LATER
+#ifdef PY312_AND_LATER
     if (enable_mem_domain) {
         PyMemAllocatorEx alloc_mem;
         alloc_mem.malloc = memalloc_malloc_mem;
@@ -377,11 +373,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &g_saved_alloc_mem_buf[mem_slot]);
         g_saved_alloc_mem_pub.store(&g_saved_alloc_mem_buf[mem_slot], std::memory_order_release);
         PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc_mem);
-        memalloc_mem_installed = true;
     }
 #else
     (void)enable_mem_domain; // silence -Wunused-variable on Python < 3.12
-#endif // _PY312_AND_LATER
+#endif // PY312_AND_LATER
 
     memalloc_enabled = true;
     g_owning_interp = PyInterpreterState_Get();
@@ -389,7 +384,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(memalloc_stop__doc__,
+PyDoc_STRVAR(memalloc_stop_doc,
              "stop($module, /)\n"
              "--\n"
              "\n"
@@ -425,18 +420,15 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      */
     g_saved_alloc_pub.store(nullptr, std::memory_order_release);
 
-#ifdef _PY312_AND_LATER
-    if (memalloc_mem_installed) {
-        const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
-        if (saved_mem) {
-            PyMemAllocatorEx restore_mem = *saved_mem;
-            PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
-        }
+#ifdef PY312_AND_LATER
+    const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
+    if (saved_mem) {
+        PyMemAllocatorEx restore_mem = *saved_mem;
+        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
         /* Null out so the MEM free hook fast-exits after stop. */
         g_saved_alloc_mem_pub.store(nullptr, std::memory_order_release);
-        memalloc_mem_installed = false;
     }
-#endif // _PY312_AND_LATER
+#endif // PY312_AND_LATER
 
     memalloc_heap_tracker_deinit_no_cpython();
 
@@ -446,7 +438,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(memalloc_heap_py__doc__,
+PyDoc_STRVAR(memalloc_heap_py_doc,
              "heap($module, /)\n"
              "--\n"
              "\n"
@@ -461,6 +453,17 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 
     memalloc_heap_no_cpython();
     Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(memalloc_is_started_doc,
+             "is_started($module, /)\n"
+             "--\n"
+             "\n"
+             "Return True if memory allocation tracing is started.\n");
+static PyObject*
+memalloc_is_started(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    return PyBool_FromLong(memalloc_enabled);
 }
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
@@ -493,17 +496,14 @@ memalloc_module_free(void* Py_UNUSED(module))
     }
     g_saved_alloc_pub.store(nullptr, std::memory_order_release);
 
-#ifdef _PY312_AND_LATER
-    if (memalloc_mem_installed) {
-        const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
-        if (saved_mem) {
-            PyMemAllocatorEx restore_mem = *saved_mem;
-            PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
-        }
+#ifdef PY312_AND_LATER
+    const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
+    if (saved_mem) {
+        PyMemAllocatorEx restore_mem = *saved_mem;
+        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
         g_saved_alloc_mem_pub.store(nullptr, std::memory_order_release);
-        memalloc_mem_installed = false;
     }
-#endif // _PY312_AND_LATER
+#endif // PY312_AND_LATER
 
     memalloc_heap_tracker_deinit_no_cpython();
     memalloc_enabled = false;
@@ -530,9 +530,10 @@ memalloc_test_m_free_registered(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED
 }
 
 static PyMethodDef module_methods_all[] = {
-    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start_doc },
+    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop_doc },
+    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py_doc },
+    { "is_started", (PyCFunction)memalloc_is_started, METH_NOARGS, memalloc_is_started_doc },
     { "_test_invoke_module_free",
       (PyCFunction)memalloc_test_invoke_module_free,
       METH_NOARGS,
@@ -551,7 +552,7 @@ static struct PyModuleDef module_def = {
 };
 
 PyMODINIT_FUNC
-PyInit__memalloc(void)
+PyInit__memalloc(void) // NOLINT(bugprone-reserved-identifier)
 {
     PyObject* m;
     m = PyModule_Create(&module_def);

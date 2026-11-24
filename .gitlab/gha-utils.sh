@@ -1,11 +1,15 @@
 #!/bin/bash
 set -eo pipefail
 
+# Without a repository, gh uses the git remotes of the checkout. The CI checkout has
+# no GitHub remote, so every gh call fails unless it names the repository.
+export GH_REPO="DataDog/dd-trace-py"
+
 wait_for_run_id() {
   get_run_id() {
       RUN_ID=$(
           gh run ls \
-          --repo DataDog/dd-trace-py \
+          --repo "$GH_REPO" \
           --commit="$CI_COMMIT_SHA" \
           $([ -z "$TRIGGERING_EVENT" ] && echo "" || echo "--event=$TRIGGERING_EVENT") \
           --workflow=build_deploy.yml \

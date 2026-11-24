@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 
@@ -108,6 +109,9 @@ class NoOpTelemetryWriter:
     def _restart_sequence(self) -> None:
         pass
 
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
+        pass
+
     def _fork_writer(self) -> None:
         pass
 
@@ -127,4 +131,7 @@ class NoOpTelemetryWriter:
         pass
 
     def uninstall_excepthook(self) -> None:
+        pass
+
+    def add_passthrough_wrapper(self, wrapper: Callable[..., Any]) -> None:
         pass

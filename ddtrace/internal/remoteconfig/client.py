@@ -1,10 +1,11 @@
+from collections.abc import Collection
 from collections.abc import Sequence
+import dataclasses
 import json
 import os
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-import uuid
 
 import ddtrace
 from ddtrace.internal import gitmetadata
@@ -12,6 +13,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
@@ -97,7 +99,7 @@ class RemoteConfigClient:
     """Adapter over the native (libdatadog) Remote Configuration client."""
 
     def __init__(self) -> None:
-        self.id = str(uuid.uuid4())
+        self.id = uuid4()
         self.agentless = agentless_config.any_enabled
         self.agent_url = agent_config.trace_agent_url
 
@@ -111,6 +113,16 @@ class RemoteConfigClient:
         # native reader (created in forked children to consume SHM).
         self._native: Optional[Any] = None
         self._reader: Optional[Any] = None
+
+        # Configs dispatched to the product callbacks and not removed since, by
+        # path. Forked children inherit this together with the callback state.
+        self._applied: dict[str, tuple[RemoteConfigProduct, ConfigMetadata]] = {}
+        # Applied configs that the first delivery from a new source of changes
+        # must confirm. A new native client or reader delivers a full snapshot
+        # without removals, so whatever it does not carry was removed meanwhile.
+        # Configs of products not enabled at that point wait for the first
+        # delivery after their product is enabled.
+        self._unconfirmed: set[str] = set()
 
     def ensure_native(self) -> Any:
         if self._native is None:
@@ -148,6 +160,7 @@ class RemoteConfigClient:
             )
             if self._capability_values:
                 self._native.add_capabilities(self._capability_values)
+            self._unconfirmed = set(self._applied)
         return self._native
 
     def switch_to_agentless(self) -> None:
@@ -156,7 +169,7 @@ class RemoteConfigClient:
         self._reader = None
 
     def renew_id(self) -> None:
-        self.id = str(uuid.uuid4())
+        self.id = uuid4()
 
     def refresh_interval(self) -> Optional[float]:
         """Seconds the backend wants us to wait before polling again.
@@ -246,6 +259,45 @@ class RemoteConfigClient:
             grouped.setdefault(change.product, []).append(Payload(metadata, change.path, content))
         return grouped
 
+    def _reconcile(self, changes: Sequence[Any], enabled: Collection[str]) -> dict[Any, list[Payload]]:
+        """Build the payloads of changes, adding removals for the applied configs a full snapshot did not confirm.
+
+        enabled holds the names of the products the changes were fetched for. It
+        must not be read again here, as a product enabled in between would have
+        its configs missing from the changes and wrongly removed.
+        """
+        grouped = self._build_payloads(changes)
+        # A record with invalid content still confirms its path, as the last
+        # valid config is kept, like it is on any other update.
+        delivered = {change.path for change in changes}
+
+        removals: dict[Any, list[Payload]] = {}
+        pending: set[str] = set()
+        for path in self._unconfirmed - delivered:
+            product, metadata = self._applied[path]
+            # The configs of products that are not enabled are withheld, so their
+            # absence does not mean they were removed. They stay unconfirmed until
+            # the product is enabled, as its configs are then delivered in full.
+            if str(product) not in enabled:
+                pending.add(path)
+                continue
+            del self._applied[path]
+            removals.setdefault(product, []).append(Payload(dataclasses.replace(metadata, length=None), path, None))
+        self._unconfirmed = pending
+
+        for product, payloads in grouped.items():
+            for payload in payloads:
+                if payload.content is None:
+                    self._applied.pop(payload.path, None)
+                else:
+                    self._applied[payload.path] = (product, payload.metadata)
+
+        # Removals go first, as they do in the changes from the native client.
+        for product, payloads in removals.items():
+            grouped[product] = payloads + grouped.get(product, [])
+
+        return grouped
+
     def run_periodic(self) -> None:
         """Run every registered product's ``periodic()`` housekeeping.
 
@@ -323,25 +375,35 @@ class RemoteConfigClient:
         self.run_periodic()
         self._dispatch_payloads(grouped)
 
-    def dispatch_native_changes(self, records: Sequence[Any]) -> None:
+    def dispatch_native_changes(
+        self, records: Optional[Sequence[Any]], enabled_products: Optional[Sequence[str]] = None
+    ) -> None:
         """Build payloads from native change records and dispatch them.
 
         Used by the child-process subscriber: a bare poll tick (``records`` is
         empty) still fires every callback's ``periodic()`` via an empty dispatch.
+        records is None when there is nothing to reconcile, e.g. when the reader
+        could not read a consistent snapshot. enabled_products are the product
+        names the records were read for, and default to the currently enabled ones.
         """
-        self._dispatch_to_products(self._build_payloads(records) if records else {})
+        if records is None:
+            self._dispatch_to_products({})
+            return
+        enabled = set(self.enabled_product_names() if enabled_products is None else enabled_products)
+        self._dispatch_to_products(self._reconcile(records, enabled))
 
     def request(self) -> bool:
         try:
             native = self.ensure_native()
-            changes = native.poll(
-                list(self._enabled_products),
-                list(ddtrace.config._get_extra_services()),
-            )
+            products = list(self._enabled_products)
+            changes = native.fetch(products, list(ddtrace.config._get_extra_services()))
+            # Nothing changed: there is nothing to deliver, nor to reconcile.
+            if changes is None:
+                return True
             # Deliver payloads only; product periodic() housekeeping is driven
             # once per cycle by the poller (RemoteConfigPoller.periodic), so it
             # keeps running even when a fetch fails.
-            self._dispatch_payloads(self._build_payloads(changes))
+            self._dispatch_payloads(self._reconcile(changes, {str(p) for p in products}))
             return True
         except Exception:
             log.debug("remote configuration client request failed", exc_info=True)
@@ -361,6 +423,7 @@ class RemoteConfigClient:
             # only the memoized data must be cleared so the full snapshot is re-emitted here.
             try:
                 self._reader.reset()
+                self._unconfirmed = set(self._applied)
             except Exception:
                 log.debug("failed to reset inherited remote config reader", exc_info=True)
                 self._reader = None
@@ -370,6 +433,7 @@ class RemoteConfigClient:
             return None
         try:
             self._reader = self._native.make_reader()
+            self._unconfirmed = set(self._applied)
         except Exception:
             log.debug("failed to create remote config reader", exc_info=True)
             self._reader = None

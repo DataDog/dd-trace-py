@@ -1,4 +1,5 @@
 # stdlib
+from contextlib import closing
 import time
 from unittest import mock
 from unittest import skipIf
@@ -11,6 +12,7 @@ from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
+from tests.contrib import shared_tests
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -43,6 +45,12 @@ class PsycopgCore(TracerTestCase):
     def _get_conn(self):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         return conn
+
+    def test_byte_query_uses_connection_encoding(self):
+        for encoding, codec in (("UTF8", "utf-8"), ("WIN1252", "cp1252")):
+            with closing(self._get_conn()) as connection:
+                connection.set_client_encoding(encoding)
+                shared_tests._test_byte_query_event(connection.cursor(), codec, "postgres")
 
     def test_patch_unpatch(self):
         # Test patch idempotence

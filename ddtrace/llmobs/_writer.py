@@ -5,6 +5,7 @@ import os
 import tempfile
 from typing import Any
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 import urllib
@@ -53,6 +54,9 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _TagOperations
 from ddtrace.llmobs._http import HTTPConnection
+from ddtrace.llmobs._routing import RoutingTarget
+from ddtrace.llmobs._routing import get_routing_context
+from ddtrace.llmobs._routing import routing_targets
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import ExperimentConfigType as ExperimentConfigType
 from ddtrace.version import __version__
@@ -62,6 +66,8 @@ logger = get_logger(__name__)
 
 
 _SHOULD_USE_AGENTLESS: Optional[bool] = None
+
+_WriterT = TypeVar("_WriterT", bound="BaseLLMObsWriter")
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -90,6 +96,21 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
     return _SHOULD_USE_AGENTLESS
 
 
+class _TenantBuffer:
+    """Events bound for a non-default org, keyed by that org's API key."""
+
+    __slots__ = ("events", "size", "target")
+
+    def __init__(self, target: RoutingTarget) -> None:
+        self.events: list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
+        self.size: int = 0
+        self.target: RoutingTarget = target
+
+    def clear(self) -> None:
+        self.events = []
+        self.size = 0
+
+
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 
@@ -115,6 +136,9 @@ class BaseLLMObsWriter(PeriodicService):
         self._lock = RLock()
         self._buffer: list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
         self._buffer_size: int = 0
+        # One buffer per routed org, created on demand and reaped once idle.
+        self._tenant_buffers: dict[RoutingTarget, _TenantBuffer] = {}
+        self._warned_routing_bypasses_agent: bool = False
         self._timeout: float = timeout
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
@@ -134,6 +158,11 @@ class BaseLLMObsWriter(PeriodicService):
             # we need to strip the base path from the endpoint so the eventual urljoin works properly
             # to form http://localhost:8080/foo/bar/buz/baz
             self._endpoint = self.ENDPOINT.lstrip("/")
+            self._direct_endpoint: str = self.ENDPOINT.lstrip("/")
+        else:
+            # Routed batches never traverse the Agent EVP proxy, so they need the intake path
+            # without its prefix.
+            self._direct_endpoint = self.ENDPOINT
 
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
@@ -158,22 +187,78 @@ class BaseLLMObsWriter(PeriodicService):
             ),
         )(self._send_payload)
 
-    def start(self, *args, **kwargs):
+    def start(self, *args: Any, **kwargs: Any) -> None:
         super().start()
         logger.debug("started %r to %r", self.__class__.__name__, self._url)
         atexit.register(self.on_shutdown)
 
-    def stop(self, timeout=None):
+    def stop(self, timeout: Optional[float] = None) -> None:
         super().stop(timeout=timeout)
         logger.debug("stopped %r to %r", self.__class__.__name__, self._url)
         atexit.unregister(self.on_shutdown)
 
-    def on_shutdown(self):
+    def on_shutdown(self) -> None:  # type: ignore[override]  # base declares it as a staticmethod
         self.periodic()
 
-    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent], event_size: int) -> None:
+    def _get_tenant_buffer(self, target: RoutingTarget) -> _TenantBuffer:
+        # Keyed on the whole target: two destinations can share an API key while differing in
+        # site, and keying on the key alone would collapse them into whichever arrived first.
+        buffer = self._tenant_buffers.get(target)
+        if buffer is None:
+            buffer = _TenantBuffer(target)
+            self._tenant_buffers[target] = buffer
+        return buffer
+
+    def _enqueue_routed(
+        self,
+        event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent],
+        event_size: int,
+        targets: list[RoutingTarget],
+    ) -> None:
+        """Copy the event into one buffer per destination.
+
+        With a single target this diverts the event away from the default org; with several it
+        dual ships. Each destination gets its own buffer so a slow or failing org cannot hold
+        up the others.
+        """
+        if not self._agentless and not self._warned_routing_bypasses_agent:
+            self._warned_routing_bypasses_agent = True
+            logger.warning(
+                "LLM Observability routing context is in use while submitting through the Datadog Agent. "
+                "Routed events are sent directly to the intake instead, because the Agent EVP proxy would "
+                "stamp its own API key. Ensure this process can reach the LLM Observability intake directly."
+            )
+        for target in targets:
+            buffer = self._get_tenant_buffer(target)
+            if len(buffer.events) >= self.BUFFER_LIMIT:
+                logger.warning(
+                    "%r routed event buffer full (limit is %d), dropping event",
+                    self.__class__.__name__,
+                    self.BUFFER_LIMIT,
+                )
+                telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
+                continue
+            if buffer.size + event_size > config._llmobs_payload_size_limit:
+                logger.debug(
+                    "manually flushing routed buffer because queueing next event will exceed EVP payload limit"
+                )
+                self.periodic()
+                # periodic() reaps drained buffers, so re-fetch rather than append into a detached one.
+                buffer = self._get_tenant_buffer(target)
+            buffer.events.append(event)
+            buffer.size += event_size
+
+    def _enqueue(
+        self,
+        event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent],
+        event_size: int,
+        targets: Optional[list[RoutingTarget]] = None,
+    ) -> None:
         """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
         with self._lock:
+            if targets:
+                self._enqueue_routed(event, event_size, targets)
+                return
             if len(self._buffer) >= self.BUFFER_LIMIT:
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self.BUFFER_LIMIT
@@ -186,9 +271,9 @@ class BaseLLMObsWriter(PeriodicService):
             self._buffer.append(event)
             self._buffer_size += event_size
 
-    def _encode(self, payload, num_events):
+    def _encode(self, payload: Any, num_events: int) -> Optional[str]:
         try:
-            enc_llm_events = safe_json(payload)
+            enc_llm_events: str = safe_json(payload)
             logger.debug("encoded %d LLMObs %s events to be sent", num_events, self.EVENT_TYPE)
             return enc_llm_events
         except TypeError:
@@ -198,13 +283,29 @@ class BaseLLMObsWriter(PeriodicService):
 
     def periodic(self) -> None:
         with self._lock:
-            if not self._buffer:
-                return
             events = self._buffer
             self._buffer = []
             self._buffer_size = 0
+            routed_batches: list[tuple[RoutingTarget, list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]]] = []
+            for key, buffer in list(self._tenant_buffers.items()):
+                if not buffer.events:
+                    # Reap idle tenants so a long-lived multi-tenant process does not grow buffers forever.
+                    del self._tenant_buffers[key]
+                    continue
+                routed_batches.append((buffer.target, buffer.events))
+                buffer.clear()
 
-        if self._agentless and not self._headers.get("DD-API-KEY"):
+        if events:
+            self._flush_batch(events)
+        for target, routed_events in routed_batches:
+            self._flush_batch(routed_events, target)
+
+    def _flush_batch(
+        self,
+        events: list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]],
+        target: Optional[RoutingTarget] = None,
+    ) -> None:
+        if target is None and self._agentless and not self._headers.get("DD-API-KEY"):
             logger.warning(
                 "A Datadog API key is required for sending data to LLM Observability in agentless mode. "
                 "LLM Observability data will not be sent. Ensure an API key is set either via DD_API_KEY or via "
@@ -215,8 +316,9 @@ class BaseLLMObsWriter(PeriodicService):
         enc_llm_events = self._encode(data, len(events))
         if not enc_llm_events:
             return
+        intake, endpoint, headers = self._destination(target)
         try:
-            response = self._send_payload_with_retry(enc_llm_events, len(events))
+            response = self._send_payload_with_retry(enc_llm_events, len(events), intake, endpoint, headers)
             if response.status >= 300:
                 telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="http_error")
         except Exception as error:
@@ -230,35 +332,67 @@ class BaseLLMObsWriter(PeriodicService):
                 "failed to send %d LLMObs %s events to %s",
                 len(events),
                 self.EVENT_TYPE,
-                self._intake,
+                intake,
                 exc_info=True,
                 extra={"send_to_telemetry": False},
             )
 
-    def _send_payload(self, payload: bytes, num_events: int):
-        conn = HTTPConnection(self._intake, timeout=self._timeout)
+    def _destination(self, target: Optional[RoutingTarget]) -> tuple[str, str, dict[str, str]]:
+        """Resolve the (intake, endpoint, headers) triple a batch is sent to.
+
+        Routed batches bypass the Agent EVP proxy and go straight to the intake: the proxy
+        stamps the Agent's own API key, which is the org routing exists to steer away from.
+        Extra headers from _DD_TRACE_WRITER_ADDITIONAL_HEADERS are kept only when an override
+        origin is configured, because that origin is operator-supplied and is the case those
+        headers exist for (a local proxy that will not accept the request without them). A
+        tenant-supplied site is not trusted to the same degree, and those headers may carry
+        credentials, so a routed request to llmobs-intake.<site> carries only the tenant's own
+        API key.
+        """
+        if target is None:
+            return self._intake, self._endpoint, self._headers
+        if self._override_url:
+            headers = {k: v for k, v in self._headers.items() if k != EVP_SUBDOMAIN_HEADER_NAME}
+            headers["DD-API-KEY"] = target.api_key
+            return self._intake, self._direct_endpoint, headers
+        headers = {"Content-Type": "application/json", "DD-API-KEY": target.api_key}
+        return f"{self.AGENTLESS_BASE_URL}.{target.site or self._site}", self._direct_endpoint, headers
+
+    def _send_payload(
+        self,
+        payload: Union[str, bytes],
+        num_events: int,
+        intake: Optional[str] = None,
+        endpoint: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
+    ) -> Response:
+        intake = intake if intake is not None else self._intake
+        endpoint = endpoint if endpoint is not None else self._endpoint
+        headers = headers if headers is not None else self._headers
+        url = f"{intake}{endpoint}"
+        conn = HTTPConnection(intake, timeout=self._timeout)
         try:
-            conn.request("POST", self._endpoint, payload, self._headers)
+            conn.request("POST", endpoint, payload, headers)
             resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
                     "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
                     num_events,
                     self.EVENT_TYPE,
-                    self._url,
+                    url,
                     resp.status,
                     resp.read(),
                     extra={"send_to_telemetry": False},
                 )
             else:
-                logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
+                logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, url)
             return Response.from_http_response(resp)
         except Exception:
             logger.error(
                 "failed to send %d LLMObs %s events to %s",
                 num_events,
                 self.EVENT_TYPE,
-                self._intake,
+                intake,
                 exc_info=True,
                 extra={"send_to_telemetry": False},
             )
@@ -270,11 +404,11 @@ class BaseLLMObsWriter(PeriodicService):
     def _url(self) -> str:
         return f"{self._intake}{self._endpoint}"
 
-    def _data(self, events):
+    def _data(self, events: list[Any]) -> Union[dict[str, Any], list[dict[str, Any]]]:
         """Return payload containing events to be encoded and submitted to LLM Observability."""
         raise NotImplementedError
 
-    def recreate(self):
+    def recreate(self: _WriterT) -> _WriterT:
         return self.__class__(
             interval=self._interval,
             timeout=self._timeout,
@@ -293,9 +427,11 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     AGENTLESS_BASE_URL = AGENTLESS_EVAL_BASE_URL
     ENDPOINT = EVAL_ENDPOINT
 
-    def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
+    def enqueue(self, event: LLMObsEvaluationMetricEvent, targets: Optional[list[RoutingTarget]] = None) -> None:
         event_size = len(safe_json(event))
-        self._enqueue(event, event_size)
+        # Evaluations are submitted synchronously by the caller, so unlike spans the ambient
+        # routing context is still the right one at enqueue time.
+        self._enqueue(event, event_size, targets if targets is not None else routing_targets(get_routing_context()))
 
     def _data(self, events: list[LLMObsEvaluationMetricEvent]) -> dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
@@ -324,9 +460,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
         }
 
-    def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+    def request(self, method: str, path: str, body: JSONType = None, timeout: float = TIMEOUT) -> Response:
         try:
-            return self._request_with_retry(method, path, body, timeout)
+            response: Response = self._request_with_retry(method, path, body, timeout)
+            return response
         except RetryError as e:
             # Return the last response if all retries were exhausted on a retryable HTTP error.
             if isinstance(e.args[0], Response):
@@ -339,7 +476,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
         until=lambda result: isinstance(result, Response) and result.status not in (408, 429) and result.status < 500,
     )
-    def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+    def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout: float = TIMEOUT) -> Response:
         headers = {"Content-Type": "application/json", **self._auth_headers()}
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
@@ -353,7 +490,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         finally:
             conn.close()
 
-    def publish_custom_evaluator(self, evaluation: dict[str, Any]):
+    def publish_custom_evaluator(self, evaluation: dict[str, Any]) -> None:
         path = "/api/unstable/llm-obs/v1/config/evaluators/custom"
         resp = self.request(
             "PUT", path, body={"data": {"type": "evaluator_config", "attributes": {"evaluation": evaluation}}}
@@ -593,7 +730,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             filter_tags=tags,
         )
 
-    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True):
+    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True) -> None:
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             file_name = os.path.basename(tmp.name)
             file_name_parts = file_name.rsplit(".", 1)
@@ -906,7 +1043,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_id: str,
         events: list[LLMObsExperimentEvalMetricEvent],
         tags: list[str],
-        spans: Optional[list[dict]] = None,
+        spans: Optional[list[dict[str, Any]]] = None,
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
         attributes: dict[str, JSONType] = {
@@ -932,7 +1069,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         project_name: Optional[str] = None,
         experiment_name: Optional[str] = None,
         include_eval_metrics: bool = True,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Fetch span events for a prior experiment run.
 
         Pass ``experiment_id`` for direct UUID lookup, or ``project_name`` +
@@ -966,7 +1103,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         resp = self.request("GET", path)
         if resp.status != 200:
             raise ValueError(f"Failed to get experiment events: {resp.status} {resp.get_json()}")
-        return resp.get_json()
+        events: dict[str, Any] = resp.get_json()
+        return events
 
     def evaluator_infer(
         self,
@@ -1025,7 +1163,7 @@ class LLMObsAPIClient:
         _override_url: str = override_url or env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
         self._base_url: str = _override_url or f"https://api.{_site}"
 
-    def get_spans(self, base_params: dict) -> list[dict]:
+    def get_spans(self, base_params: dict[str, Any]) -> list[dict[str, Any]]:
         if not self._api_key:
             raise ValueError("API key not set")
         if not self._app_key:
@@ -1035,7 +1173,7 @@ class LLMObsAPIClient:
             "DD-APPLICATION-KEY": self._app_key,
             "Accept": "application/vnd.api+json",
         }
-        spans: list[dict] = []
+        spans: list[dict[str, Any]] = []
         cursor = None
         while True:
             params = dict(base_params)
@@ -1068,7 +1206,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     AGENTLESS_BASE_URL = AGENTLESS_SPAN_BASE_URL
     ENDPOINT = SPAN_ENDPOINT
 
-    def enqueue(self, event: LLMObsSpanEvent) -> None:
+    def enqueue(self, event: LLMObsSpanEvent, targets: Optional[list[RoutingTarget]] = None) -> None:
         raw_event_size = len(safe_json(event))
         truncated_event_size = None
         should_truncate = raw_event_size >= config._llmobs_event_size_limit
@@ -1082,7 +1220,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
             truncated_event_size = len(safe_json(event))
         telemetry.record_span_event_raw_size(event, raw_event_size)
         telemetry.record_span_event_size(event, truncated_event_size or raw_event_size)
-        self._enqueue(event, truncated_event_size or raw_event_size)
+        self._enqueue(event, truncated_event_size or raw_event_size, targets)
 
     def _data(self, events: list[LLMObsSpanEvent]) -> list[dict[str, Any]]:
         payload = []

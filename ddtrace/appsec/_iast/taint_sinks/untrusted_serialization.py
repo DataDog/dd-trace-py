@@ -2,8 +2,8 @@ from types import ModuleType
 from typing import Any
 from typing import Optional
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -93,7 +93,13 @@ def _wrap_serializers(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs
     # YAML safe loader handling. If caller uses yaml.load with SafeLoader
     # (either as second positional arg or via Loader kwarg), do not report.
     if not _is_yaml_safe_load(args, kwargs):
-        _iast_report_untrusted_serializastion(kwargs.get("data", args[0] if len(args) > 0 else None))
+        if "data" in kwargs:
+            data = kwargs["data"]
+        elif "stream" in kwargs:
+            data = kwargs["stream"]
+        else:
+            data = args[0] if args else None
+        _iast_report_untrusted_serializastion(data)
     return wrapped(*args, **kwargs)
 
 

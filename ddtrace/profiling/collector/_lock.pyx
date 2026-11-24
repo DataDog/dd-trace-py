@@ -27,6 +27,9 @@ from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
 from ddtrace.trace import Tracer
 
+from cpython.object cimport PyObject
+from cpython.pystate cimport PyFrameObject
+
 from ddtrace.profiling._threading import get_thread_name, get_thread_native_id
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
 from ddtrace.profiling.collector._task cimport (
@@ -53,11 +56,8 @@ _ALWAYS_EXCLUDED_MODULES: frozenset = frozenset({
     "concurrent",
 })
 
-# Cython-compiled def/cpdef functions do not create Python frame objects
-# visible to sys._getframe(). All intermediate calls within this module
-# (_acquire -> _flush_sample, __call__ -> _profiled_allocate_lock -> __init__)
-# are invisible, so the caller's frame is at index 0, not 3.
-cdef int _CALLER_FRAME_INDEX = 0
+cdef extern from "Python.h":
+    PyFrameObject* PyEval_GetFrame()
 
 # Source of _ProfiledLock._profiling_generation values; never reused, so 0 always means stopped.
 cdef unsigned long long _last_profiling_generation = 0
@@ -66,6 +66,21 @@ cdef unsigned long long _last_profiling_generation = 0
 cdef tuple _current_thread():
     thread_id: int = _thread.get_ident()
     return thread_id, get_thread_name(thread_id)
+
+
+cdef object _caller_frame():
+    """Return the innermost complete Python frame, or None if there is none.
+
+    Cython functions push no frames, so this is the frame of the Python code that called into this
+    module. Unlike sys._getframe(0), PyEval_GetFrame() skips incomplete frames on Python 3.12+.
+    When a Python function called from C returns, its frame is unlinked before its locals are
+    cleared, so a lock acquired by a dying local's destructor would otherwise see the C entry
+    frame, whose fields are uninitialized.
+    """
+    cdef PyFrameObject* frame = PyEval_GetFrame()
+    if frame is NULL:
+        return None
+    return <object><PyObject*>frame
 
 
 def _get_original_lock_class(module_name: str, class_name: str) -> Callable[..., Any]:
@@ -127,13 +142,11 @@ class _ProfiledLock:
         self.__wrapped__: Any = wrapped
         self.tracer: Optional[Tracer] = tracer
         self.capture_sampler: collector.CaptureSampler = capture_sampler
-        # In Cython, intermediate frames are invisible to sys._getframe(); caller is at index 0
-        try:
-            frame: FrameType = sys._getframe(_CALLER_FRAME_INDEX)
-        except ValueError:
+        frame: Optional[FrameType] = _caller_frame()
+        if frame is None:
             # Shallow call stacks can happen in edge cases (e.g., interpreter bootstrap).
             if config.enable_asserts:
-                raise
+                raise ValueError("call stack is not deep enough")
             self.init_location = "unknown:0"
         else:
             code: CodeType = frame.f_code
@@ -325,8 +338,10 @@ class _ProfiledLock:
                 handle.push_span(self.tracer.current_span())
 
             # If we can't get the task frame, we use the caller frame.
-            # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
-            frame: FrameType = task_frame or sys._getframe(_CALLER_FRAME_INDEX)
+            frame: Optional[FrameType] = task_frame or _caller_frame()
+            if frame is None:
+                # No complete Python frame to attribute this sample to.
+                return
             handle.push_pyframes(frame)
 
             handle.flush_sample()
@@ -381,9 +396,9 @@ class _ProfiledLock:
             return
 
         try:
-            # In Cython, intermediate frames (_acquire, acquire, etc.) are invisible to
-            # sys._getframe(), so the caller frame is at index 0.
-            frame: FrameType = sys._getframe(_CALLER_FRAME_INDEX)
+            frame: Optional[FrameType] = _caller_frame()
+            if frame is None:
+                return
             self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
         except AssertionError:
             if config.enable_asserts:
@@ -558,7 +573,7 @@ class LockCollector(collector.CaptureSamplerCollector):
             current: Callable[..., Any] = collector._get_patch_target()
             if not isinstance(current, _LockAllocatorWrapper):
                 log.debug(
-                    "%s: gevent monkey-patching overwrote lock profiler wrapper on %s.%s; re-applying.",
+                    "[profiling] %s: gevent monkey-patching overwrote lock profiler wrapper on %s.%s; re-applying.",
                     type(collector).__name__,
                     collector.MODULE.__name__,
                     collector.PATCHED_LOCK_NAME,
@@ -640,7 +655,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         original_lock: Callable[..., Any] = self._get_patch_target()
         if isinstance(original_lock, _LockAllocatorWrapper):
             log.debug(
-                "%s: %s.%s is already patched, skipping to avoid double-wrapping.",
+                "[profiling] %s: %s.%s is already patched, skipping to avoid double-wrapping.",
                 type(self).__name__,
                 self.MODULE.__name__,
                 self.PATCHED_LOCK_NAME,
@@ -663,8 +678,8 @@ class LockCollector(collector.CaptureSamplerCollector):
             """Return a profiled lock, or a native lock for excluded modules."""
             cdef str caller_module
             try:
-                caller_frame: FrameType = sys._getframe(0)
-                caller_module = caller_frame.f_globals.get("__name__", "")
+                caller_frame: Optional[FrameType] = _caller_frame()
+                caller_module = caller_frame.f_globals.get("__name__", "") if caller_frame is not None else ""
                 if caller_module in exclude_exact or caller_module.startswith(exclude_dotted):
                     return original_lock(*args, **kwargs)
             except (ValueError, AttributeError, OSError):
@@ -680,4 +695,9 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
+        # If _start_service failed before patch ran (e.g. _c_initialize_gevent_support raised),
+        # _original_lock is still None; restoring it would set the module attribute to None.
+        if self._original_lock is None:
+            return
+
         self._set_patch_target(self._original_lock)

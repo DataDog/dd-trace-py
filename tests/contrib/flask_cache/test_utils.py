@@ -9,6 +9,8 @@ from ddtrace.contrib.internal.flask_cache.utils import _resource_from_cache_pref
 
 from ..config import MEMCACHED_CONFIG
 from ..config import REDIS_CONFIG
+from . import MEMCACHED_CACHE
+from . import REDIS_CACHE
 
 
 class FlaskCacheUtilsTest(unittest.TestCase):
@@ -19,7 +21,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "redis",
+            "CACHE_TYPE": REDIS_CACHE,
             "CACHE_REDIS_PORT": REDIS_CONFIG["port"],
         }
         traced_cache = Cache(app, config=config)
@@ -38,7 +40,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "memcached",
+            "CACHE_TYPE": MEMCACHED_CACHE,
             "CACHE_MEMCACHED_SERVERS": ["127.0.0.1:{}".format(MEMCACHED_CONFIG["port"])],
         }
         traced_cache = Cache(app, config=config)
@@ -56,7 +58,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "memcached",
+            "CACHE_TYPE": MEMCACHED_CACHE,
             "CACHE_MEMCACHED_SERVERS": [
                 "127.0.0.1:{}".format(MEMCACHED_CONFIG["port"]),
                 "localhost:{}".format(MEMCACHED_CONFIG["port"]),
@@ -77,7 +79,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "redis",
+            "CACHE_TYPE": REDIS_CACHE,
             "CACHE_REDIS_PORT": REDIS_CONFIG["port"],
             "CACHE_KEY_PREFIX": "users",
         }
@@ -92,7 +94,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "redis",
+            "CACHE_TYPE": REDIS_CACHE,
             "CACHE_REDIS_PORT": REDIS_CONFIG["port"],
             "CACHE_KEY_PREFIX": "",
         }
@@ -106,7 +108,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
-        traced_cache = Cache(app, config={"CACHE_TYPE": "redis"})
+        traced_cache = Cache(app, config={"CACHE_TYPE": REDIS_CACHE})
         # expect only the resource name
         expected_resource = "get"
         resource = _resource_from_cache_prefix("GET", traced_cache.config)

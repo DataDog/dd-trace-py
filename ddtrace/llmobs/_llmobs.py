@@ -1,15 +1,20 @@
 from collections.abc import Sequence
+from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
 from dataclasses import field
+import functools
 import inspect
 import math
+import re
 import sys
 import time
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from typing import Literal
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 import urllib.parse
@@ -25,13 +30,18 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git
+from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import Context
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
@@ -48,12 +58,24 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENT_ANNOTATION
-from ddtrace.llmobs._constants import AGENT_DECLARATION_ANNOTATION
+from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
+from ddtrace.llmobs._constants import BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES
+from ddtrace.llmobs._constants import BAGGAGE_LLMOBS_TRACE_ID_KEY
+from ddtrace.llmobs._constants import BAGGAGE_ML_APP_KEY
+from ddtrace.llmobs._constants import BAGGAGE_PARENT_AGENT_ID_KEY
+from ddtrace.llmobs._constants import BAGGAGE_PARENT_AGENT_NAME_KEY
+from ddtrace.llmobs._constants import BAGGAGE_PARENT_ID_KEY
+from ddtrace.llmobs._constants import BAGGAGE_SAMPLE_RATE_KEY
+from ddtrace.llmobs._constants import BAGGAGE_SAMPLING_DECISION_KEY
+from ddtrace.llmobs._constants import BAGGAGE_SESSION_ID_KEY
+from ddtrace.llmobs._constants import BAGGAGE_VALUE_MAX_ENCODED_BYTES
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_TRACE_ID_CTX_KEY
 from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -74,6 +96,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
+from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
@@ -84,8 +107,12 @@ from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID_HEX_CTX_KEY
 from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import PARENT_AGENT_VERSION
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import PROPAGATED_KEY_TO_BAGGAGE_KEY
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
@@ -140,6 +167,8 @@ from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
+from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import on_bidirectional_stream
+from ddtrace.llmobs._integrations.elevenlabs import create_conversation_state
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -152,6 +181,12 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._registration import LLM_SUBSCRIBERS
+from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
+from ddtrace.llmobs._routing import RoutingContextType
+from ddtrace.llmobs._routing import build_routing_context
+from ddtrace.llmobs._routing import get_routing_context
+from ddtrace.llmobs._routing import routing_targets
 from ddtrace.llmobs._sampler import LLMObsSampler
 from ddtrace.llmobs._sampler import LLMObsSamplingResolver
 from ddtrace.llmobs._utils import AnnotationContext
@@ -211,10 +246,27 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
+
+_F = TypeVar("_F", bound=Callable[..., None])
+
+# Product start and the Remote Config handler can both call LLMObs.enable() at boot, on different threads.
+# Without this lock both pass the enabled check, and the second instance registers a second set of span hooks.
+_LIFECYCLE_LOCK = forksafe.RLock()
+
+
+def _serialized(func: _F) -> _F:
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        with _LIFECYCLE_LOCK:
+            return func(*args, **kwargs)
+
+    return cast(_F, wrapper)
+
 
 _STANDARD_INTEGRATION_SPAN_NAMES = (
     CLAUDE_AGENT_SDK_APM_SPAN_NAME,
@@ -267,7 +319,7 @@ def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) 
     return agent_service or ml_app
 
 
-def _validate_task_signature(task: Callable, is_async: bool) -> None:
+def _validate_task_signature(task: Callable[..., Any], is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
     if is_async and not get_asyncio().iscoroutinefunction(task):
@@ -349,14 +401,53 @@ class LLMObsSubmitEvaluationError(Exception):
     pass
 
 
+_CANONICAL_HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _is_canonical_trace_id(value: str) -> bool:
+    """Whether value is in the form format_trace_id produces, which the baggage contract requires:
+    32 lowercase hex characters, or a decimal number from 1 to 2**64 - 1 without leading zeros.
+
+    The ASCII and length checks run before int(): str.isdigit() accepts Unicode digits that int()
+    rejects, and int() raises on values over the interpreter's digit limit. 2**64 - 1 has 20 digits.
+    """
+    if _CANONICAL_HEX_TRACE_ID_RE.match(value):
+        return True
+    return (
+        value.isascii() and value.isdigit() and value[0] != "0" and len(value) <= 20 and int(value) <= MAX_UINT_64BITS
+    )
+
+
+def _encoded_baggage_size(value: str) -> int:
+    return len(urllib.parse.quote(value, safe=_BaggageHeader.SAFE_CHARACTERS_VALUE))
+
+
+def _truncate_to_encoded_bytes(value: str, max_bytes: int) -> str:
+    """Cut value at a code point boundary so that it percent-encodes to at most max_bytes."""
+    size = 0
+    for index, char in enumerate(value):
+        size += _encoded_baggage_size(char)
+        if size > max_bytes:
+            return value[:index]
+    return value
+
+
+def _baggage_value(value: object) -> Optional[str]:
+    """The string to send for one llmobs.* baggage item, or None to not send it.
+
+    A blank value is not sent: the encoder strips it to nothing, and an empty member makes the
+    receiving extractor reject the whole header. An oversized value is not sent either.
+    """
+    if value is None:
+        return None
+    text = str(value)
+    if not text.strip() or _encoded_baggage_size(text.strip()) > BAGGAGE_VALUE_MAX_ENCODED_BYTES:
+        return None
+    return text
+
+
 class LLMObsInjectDistributedHeadersError(Exception):
     """Error raised when injecting distributed headers."""
-
-    pass
-
-
-class LLMObsActivateDistributedHeadersError(Exception):
-    """Error raised when activating distributed headers."""
 
     pass
 
@@ -408,8 +499,8 @@ class LLMObsSpan:
 
 def _build_llmobs_span(
     span_kind: str,
-    llmobs_input: _MetaIO,
-    llmobs_output: _MetaIO,
+    llmobs_input: object,
+    llmobs_output: object,
 ) -> tuple[LLMObsSpan, Literal["value", "messages", "documents", ""], Literal["value", "messages", "documents", ""]]:
     """Build an LLMObsSpan populated for the user span processor.
 
@@ -493,7 +584,8 @@ def _normalize_llmobs_meta(
     if not isinstance(current_metadata, dict):
         current_metadata = {}
     preserved_dd = current_metadata.get(LLMOBS_STRUCT.METADATA_DD)
-    user_metadata = llmobs_span.metadata
+    # The user span processor may assign a non-dict despite the declared field type.
+    user_metadata: object = llmobs_span.metadata
     if not isinstance(user_metadata, dict):
         log.warning("LLMObs span processor set non-dict metadata (%r); ignoring.", type(user_metadata))
         user_metadata = current_metadata
@@ -629,7 +721,7 @@ class LLMObs(Service):
         forksafe.register(self._child_after_fork)
 
         self._link_tracker = LinkTracker()
-        self._annotations: list[tuple[str, str, dict[str, Any]]] = []
+        self._annotations: list[tuple[int, Any, dict[str, Any]]] = []
         self._annotation_context_lock = RLock()
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
@@ -639,6 +731,13 @@ class LLMObs(Service):
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
+            routing = get_routing_context()
+            if routing is not None:
+                span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
+            # Read at start: a streamed span finishes after the core context of its request has exited.
+            gateway = core.find_item(GATEWAY)
+            if gateway is not None:
+                span._set_ctx_item(GATEWAY, gateway)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -652,10 +751,15 @@ class LLMObs(Service):
         self._enrich_with_http_client_ip(span)
         self._sampling_resolver.resolve_if_root(span)
 
+        targets = routing_targets(span._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY))
+        # Routed spans go straight to the LLMObs intake whatever the process export mode is, so
+        # they must be built for it: APM_AGENTLESS would drop the error fields and rewrite tag keys.
+        export_mode = LLMObsExportMode.LLMOBS_AGENTLESS if targets else self._export_mode
+
         span_event = None
         try:
-            if self._prepare_llmobs_span_data(span, span_kind):
-                span_event = self._llmobs_span_event(span)
+            if self._prepare_llmobs_span_data(span, span_kind, export_mode):
+                span_event = self._llmobs_span_event(span, export_mode)
         except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span",
@@ -671,6 +775,28 @@ class LLMObs(Service):
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
+        if targets:
+            # Ship routed spans here rather than leaving them for LLMObsProcessor. A routed event
+            # never rides the APM trace anyway, and deferring means the event is lost if LLMObs is
+            # disabled before the enclosing trace is flushed -- while its payload would still be
+            # on the trace, headed for the default org. The APM span itself is not routed.
+            if self._sampling_resolver.resolves_late:
+                # LLMObsProcessor never sees this span, so resolve here. Like a partial flush,
+                # the span leaving the process freezes the decision for the whole trace.
+                sample_rate, sampling_decision = self._resolve_sampling(span)
+                event_dd = span_event.get(LLMOBS_STRUCT.DD)
+                if event_dd is not None and sample_rate is not None and sampling_decision is not None:
+                    event_dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
+                    event_dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
+            # Before removing the struct tag, which the telemetry tags are read from.
+            telemetry.record_span_created(span, export_mode)
+            # Keep the LLMObs trace ID for export_span(), so evaluations join to the routed span.
+            span._set_ctx_item(CACHED_LLMOBS_TRACE_ID_CTX_KEY, span_event.get("trace_id"))
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+            self._llmobs_span_writer.enqueue(span_event, targets)
+            return
+
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
 
@@ -682,15 +808,16 @@ class LLMObs(Service):
         if not local_root:
             return
         # Read IP tags set by AppSec or DD_TRACE_CLIENT_IP_ENABLED on the APM root span.
-        client_ip = local_root.get_tag("http.client_ip")
-        network_client_ip = local_root.get_tag("network.client.ip")
+        # Under OTel HTTP semantics the same values are stored as client.address and network.peer.address.
+        client_ip = local_root.get_tag(http.CLIENT_IP) or local_root.get_tag(otel_http.CLIENT_ADDRESS)
+        network_client_ip = local_root.get_tag(net.CLIENT_IP) or local_root.get_tag(otel_http.NETWORK_PEER_ADDRESS)
         if not client_ip and not network_client_ip:
             return
         ip_tags = {}
         if client_ip:
-            ip_tags["http.client_ip"] = client_ip
+            ip_tags[http.CLIENT_IP] = client_ip
         if network_client_ip:
-            ip_tags["network.client.ip"] = network_client_ip
+            ip_tags[net.CLIENT_IP] = network_client_ip
         _annotate_llmobs_span_data(span, tags=ip_tags)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
@@ -718,7 +845,9 @@ class LLMObs(Service):
         finally:
             telemetry.record_llmobs_user_processor_called(error)
 
-    def _prepare_llmobs_span_data(self, span: Span, span_kind: Optional[str]) -> bool:
+    def _prepare_llmobs_span_data(
+        self, span: Span, span_kind: Optional[str], export_mode: Optional[LLMObsExportMode] = None
+    ) -> bool:
         """Commit final I/O and meta values to meta_struct before event assembly.
 
         Runs the user span processor and folds its mutations — plus parent-prompt
@@ -729,6 +858,7 @@ class LLMObs(Service):
         the span has no LLMObs data, the user processor dropped it, or finalization
         failed.
         """
+        export_mode = export_mode or self._export_mode
         llmobs_data = _get_llmobs_data_metastruct(span)
         if not llmobs_data:
             log.error(
@@ -744,12 +874,12 @@ class LLMObs(Service):
             return False
 
         # Agent annotations are applied here, where the span kind is known: annotation_context
-        # reaches every span in its block, but only agent spans carry the tags.
+        # reaches every span in its block, but only agent spans carry the manifest.
         if span_kind == "agent":
-            agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
-            if agent_annotation:
-                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
-            declared_manifest = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+            agent_version = span._get_ctx_item(AGENT_VERSION) or span._get_ctx_item(PARENT_AGENT_VERSION)
+            if agent_version:
+                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_version)
+            declared_manifest = span._get_ctx_item(AGENT_MANIFEST)
             if declared_manifest:
                 # Both levels are type-checked because caller metadata is not sanitized until
                 # _normalize_llmobs_meta runs below, so a forged `_dd` is still raw here. A
@@ -781,6 +911,16 @@ class LLMObs(Service):
                 if not merged.get("name"):
                     merged["name"] = get_llmobs_span_name(span) or span.name
                 _annotate_llmobs_span_data(span, agent_manifest=merged)
+        else:
+            parent_agent_version = span._get_ctx_item(PARENT_AGENT_VERSION)
+            if parent_agent_version:
+                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = parent_agent_version
+
+        # Write the gateway on the llm spans of a gateway request. This runs after the integration and annotate
+        # writes, and _normalize_llmobs_meta keeps _dd safe from the span processor.
+        gateway = span._get_ctx_item(GATEWAY) if span_kind == "llm" else None
+        if gateway:
+            _annotate_llmobs_span_data(span, gateway=gateway)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         # Before the user processor and _normalize_llmobs_meta, either of which can strip values
@@ -809,13 +949,13 @@ class LLMObs(Service):
             span_kind,
             input_type,
             output_type,
-            export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
+            export_to_llmobs=export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_data(llmobs_meta)
         config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if config is not None:
             llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)
-        if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
+        if export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
             # replace them with underscores before encoding.
             tags = {k.replace(".", "_"): v for k, v in llmobs_data.get(LLMOBS_STRUCT.TAGS, {}).items()}
@@ -823,7 +963,9 @@ class LLMObs(Service):
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
         return True
 
-    def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
+    def _llmobs_span_event(
+        self, span: Span, export_mode: Optional[LLMObsExportMode] = None
+    ) -> Optional[LLMObsSpanEvent]:
         """Assemble the LLMObs span event from the finalized meta_struct contents.
 
         This function is a pure reader: all I/O mutations, user-processor hooks, and
@@ -850,7 +992,7 @@ class LLMObs(Service):
                 "pagent_span_id": agent_span_id,
             }
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
-        tags = self._llmobs_tags(span)
+        tags = self._llmobs_tags(span, export_mode or self._export_mode)
         _dd_attrs = {
             **(llmobs_data.get("_dd") or {}),
             "span_id": str(span.span_id),
@@ -884,10 +1026,10 @@ class LLMObs(Service):
 
         return llmobs_span_event
 
-    def _llmobs_tags(self, span: Span) -> list[str]:
+    def _llmobs_tags(self, span: Span, export_mode: LLMObsExportMode) -> list[str]:
         tags = dict(get_llmobs_tags(span) or {})
 
-        if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
+        if export_mode != LLMObsExportMode.APM_AGENTLESS:
             tags["error"] = str(span.error)
             err_type = span.get_tag(ERROR_TYPE)
             if err_type:
@@ -952,16 +1094,19 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
+        core.reset_listeners("aws_sdk_bedrock_runtime.bidirectional_stream", self._on_bidirectional_stream)
+
         # Remove listener hooks for span events
         core.reset_listeners("trace.span_start", self._on_span_start)
         core.reset_listeners("trace.span_finish", self._on_span_finish)
         core.reset_listeners("http.span_inject", self._inject_llmobs_context)
         core.reset_listeners(
             "http.activate_distributed_headers",
-            self._activate_llmobs_distributed_context_soft_fail,
+            self._activate_llmobs_distributed_context,
         )
-        core.reset_listeners("threading.submit", self._current_trace_context)
-        core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
+        core.reset_listeners("elevenlabs.conversation.start", create_conversation_state)
+        core.reset_listeners("threading.submit", self._on_threading_submit)
+        core.reset_listeners("threading.execution", self._on_threading_execution)
         core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
         core.reset_listeners("asyncio.execute_task", self._on_asyncio_execute_task)
 
@@ -982,6 +1127,7 @@ class LLMObs(Service):
         forksafe.unregister(self._child_after_fork)
 
     @classmethod
+    @_serialized
     def enable(
         cls,
         ml_app: Optional[str] = None,
@@ -1120,6 +1266,9 @@ class LLMObs(Service):
                 sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
+            LLM_SUBSCRIBERS.register()
+
+            core.on("aws_sdk_bedrock_runtime.bidirectional_stream", cls._instance._on_bidirectional_stream)
 
             # Register hooks for span events
             core.on("trace.span_start", cls._instance._on_span_start)
@@ -1127,10 +1276,11 @@ class LLMObs(Service):
             core.on("http.span_inject", cls._inject_llmobs_context)
             core.on(
                 "http.activate_distributed_headers",
-                cls._activate_llmobs_distributed_context_soft_fail,
+                cls._activate_llmobs_distributed_context,
             )
-            core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
-            core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
+            core.on("elevenlabs.conversation.start", create_conversation_state, "state")
+            core.on("threading.submit", cls._instance._on_threading_submit, "llmobs_ctx")
+            core.on("threading.execution", cls._instance._on_threading_execution)
             core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)
             core.on("asyncio.execute_task", cls._instance._on_asyncio_execute_task)
 
@@ -1947,6 +2097,7 @@ class LLMObs(Service):
         return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
+    @_serialized
     def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
@@ -1970,13 +2121,80 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
+    @_serialized
+    def _reconcile_enabled(cls) -> None:
+        """Enable or disable LLMObs to match config._llmobs_enabled.
+
+        Product start and the Remote Config handler both go through here. The check and the change
+        happen under the lock, so neither can act on a value the other has already changed.
+        """
+        if config._llmobs_enabled and not cls.enabled:
+            log.debug("Enabling LLMObs to match configuration (ml_app=%r)", config._llmobs_ml_app)
+            cls.enable(ml_app=config._llmobs_ml_app, _auto=True)
+        elif not config._llmobs_enabled and cls.enabled:
+            log.debug("Disabling LLMObs to match configuration")
+            cls.disable(_auto=True)
+
+    @classmethod
+    @contextmanager
+    def routing_context(
+        cls,
+        dd_api_key: Optional[str] = None,
+        dd_site: Optional[str] = None,
+        targets: Optional[list[dict[str, Any]]] = None,
+    ) -> Iterator[None]:
+        """Send LLMObs data created in this context to other Datadog organizations.
+
+        Pass ``dd_api_key`` to route to a single organization: spans and evaluation metrics
+        created while the context is active go to that organization *instead of* the one this
+        process is otherwise configured for.
+
+        Only LLM Observability data is routed. APM spans, including the APM side of LLM
+        Observability spans, are still sent to the organization this process is configured for.
+
+        Pass ``targets`` to send the same data to several organizations (dual shipping), each
+        entry being a dict with ``dd_api_key`` and an optional ``dd_site``.
+
+        Routed data is sent directly to the LLM Observability intake even when the rest of the
+        process submits through the Datadog Agent, because the Agent stamps its own API key on
+        everything it forwards. The process must therefore be able to reach the intake.
+
+        The context follows ``asyncio`` tasks, and follows work submitted to a
+        ``ThreadPoolExecutor`` as long as the ``futures`` integration is patched, which it is by
+        default. It does **not** follow a bare ``threading.Thread``, an executor the integration
+        does not patch, or anything submitted with ``DD_TRACE_FUTURES_ENABLED=false``: in those
+        cases the resulting span belongs to an unrelated trace with no link back to this context,
+        so there is nothing to inherit from and it is sent to the default organization. Open the
+        routing context inside the worker when using one of those.
+
+        :param dd_api_key: API key of a single destination organization.
+        :param dd_site: Site of that organization, for example ``datadoghq.eu``. Defaults to
+                        the site the tracer is configured with.
+        :param targets: List of destinations for dual shipping. Mutually exclusive with
+                        dd_api_key.
+        :raises ValueError: If neither or both forms are supplied, if targets is empty, or if
+                            any destination is missing an API key.
+        """
+        context = build_routing_context(dd_api_key=dd_api_key, dd_site=dd_site, targets=targets)
+        if _ROUTING_CONTEXTVAR.get() is not None:
+            log.warning(
+                "Nested routing_context detected. The inner context takes precedence: data "
+                "created within it is sent only to the inner context's destinations."
+            )
+        token = _ROUTING_CONTEXTVAR.set(context)
+        try:
+            yield
+        finally:
+            _ROUTING_CONTEXTVAR.reset(token)
+
+    @classmethod
     def annotation_context(
         cls,
         tags: Optional[dict[str, Any]] = None,
-        prompt: Optional[Union[dict, Prompt]] = None,
+        prompt: Optional[Union[dict[str, Any], Prompt]] = None,
         name: Optional[str] = None,
         cost_tags: Optional[list[str]] = None,
-        agent: Optional[Union[dict, Agent]] = None,
+        agent: Optional[Union[dict[str, Any], Agent]] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
@@ -2008,20 +2226,20 @@ class LLMObs(Service):
         :param agent: A dictionary declaring the agent running in this context, accepting
                       ``version``, ``name``, ``instructions``, ``model``, ``model_settings`` and
                       ``tools``; see ``ddtrace.llmobs.Agent``. ``version`` is set as an
-                      ``agent_version`` tag and the rest as the agent's manifest, on every agent
-                      span in the block. All keys are optional; unreportable values are dropped,
-                      not raised.
+                      ``agent_version`` tag on every agent span in the block and its child spans,
+                      and the rest as the agent's manifest on every agent span in the block. All
+                      keys are optional; unreportable values are dropped, not raised.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
         # Track context we create so we can clean up _reactivate on exit.
         # Using a dict as a mutable container to share state between closures.
-        state = {"created_context": None}
+        state: dict[str, Optional[Context]] = {"created_context": None}
 
-        def get_annotations_context_id():
+        def get_annotations_context_id() -> Any:
             current_ctx = cls._instance.tracer.current_trace_context()
             # default the context id to the annotation id
-            ctx_id = annotation_id
+            ctx_id: Any = annotation_id
             if current_ctx is None:
                 # No context exists - create one and enable reactivation so spans finishing
                 # within this annotation_context don't clear the context for subsequent operations
@@ -2036,7 +2254,7 @@ class LLMObs(Service):
                 ctx_id = current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
             return ctx_id
 
-        def register_annotation():
+        def register_annotation() -> None:
             with cls._instance._annotation_context_lock:
                 ctx_id = get_annotations_context_id()
                 cls._instance._annotations.append(
@@ -2055,7 +2273,7 @@ class LLMObs(Service):
                     )
                 )
 
-        def deregister_annotation():
+        def deregister_annotation() -> None:
             with cls._instance._annotation_context_lock:
                 for i, (key, _, _) in enumerate(cls._instance._annotations):
                     if key == annotation_id:
@@ -2065,13 +2283,14 @@ class LLMObs(Service):
                     log.debug("Failed to pop annotation context")
             # Disable reactivation on context we created to prevent it from being
             # restored after exiting the annotation_context block
-            if state["created_context"] is not None:
-                state["created_context"]._reactivate = False
+            created_context = state["created_context"]
+            if created_context is not None:
+                created_context._reactivate = False
                 # DEV: Deactivate the context we created so subsequent annotation_contexts
                 # don't see the stale context with the old ANNOTATIONS_CONTEXT_ID.
                 # Only deactivate if this context is still the active one (not a Span).
                 current_active = cls._instance.tracer.context_provider.active()
-                if current_active is state["created_context"]:
+                if current_active is created_context:
                     cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
@@ -2505,6 +2724,9 @@ class LLMObs(Service):
         active = self._llmobs_context_provider.active()
         return active if isinstance(active, Span) else None
 
+    def _on_bidirectional_stream(self, event: Any) -> None:
+        on_bidirectional_stream(event, self._llmobs_context_provider, self._current_trace_context)
+
     def _current_trace_context(self) -> Optional[Context]:
         """Returns the context for the current LLMObs trace."""
         active = self._llmobs_context_provider.active()
@@ -2517,9 +2739,15 @@ class LLMObs(Service):
             context = active.context.copy(active.trace_id, active.span_id)
             context._meta = dict(context._meta)
             # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
-            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
+            hex_trace_id = get_llmobs_trace_id(active)
+            wire_trace_id = _trace_id_to_wire(hex_trace_id) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            if hex_trace_id:
+                context._meta[LLMOBS_TRACE_ID_HEX_CTX_KEY] = hex_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
+            ml_app = get_llmobs_ml_app(active)
+            if ml_app:
+                context._meta[PROPAGATED_ML_APP_KEY] = ml_app
             # About to hand this trace to another execution context, so the decision has to exist
             # now. Resolving freezes it; if it was already resolved this just reads it back.
             sr, sd = self._resolve_sampling(active)
@@ -2530,10 +2758,36 @@ class LLMObs(Service):
             # Carry the nearest agent onto the context so spans created in in-process task
             # boundaries (asyncio tasks, thread-pool executors) still attribute to it.
             # Stamped last so the budget check sees the full tagset.
-            parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active)
+            parent_agent_name, parent_agent_span_id, parent_agent_version = _resolve_parent_agent(active)
             _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
+            if parent_agent_version:
+                context._meta[PARENT_AGENT_VERSION] = parent_agent_version
             return context
         return None
+
+    def _on_threading_submit(self) -> tuple[Optional[Context], Optional[RoutingContextType]]:
+        """Capture what must cross into an executor worker: LLMObs context plus routing.
+
+        The futures integration only ferries this value from submit to execution without
+        inspecting it, so routing rides along here rather than needing a change to that shared
+        integration. Contextvars do not cross a thread boundary on their own, and routing that
+        failed to cross would send a tenant's spans to the default org.
+        """
+        context = self._current_trace_context()
+        routing = get_routing_context()
+        return context, routing
+
+    def _on_threading_execution(self, payload: Any) -> None:
+        """Re-establish the submitting thread's LLMObs context and routing in the worker."""
+        if isinstance(payload, tuple) and len(payload) == 2:
+            context, routing = payload
+            _ROUTING_CONTEXTVAR.set(routing)
+        else:
+            # Another dispatcher of this event (or an older payload shape) sends the context
+            # alone; there is simply no routing to restore in that case.
+            context, routing = payload, None
+        if context is not None:
+            self._llmobs_context_provider.activate(context)
 
     def _resolve_sampling(self, span: Span) -> tuple[Optional[str], Optional[str]]:
         """Force this span's LLMObs trace to have a sampling decision, and return it.
@@ -2556,7 +2810,7 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         # Resolve the nearest agent ancestor once, at activation: O(1) one-level lookup
         # (the parent already resolved its own attribution when it activated).
-        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(llmobs_parent)
+        parent_agent_name, parent_agent_span_id, parent_agent_version = _resolve_parent_agent(llmobs_parent)
         if llmobs_parent:
             parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
@@ -2568,8 +2822,10 @@ class LLMObs(Service):
                 sampling_state = llmobs_parent._get_ctx_item(LLMOBS_SAMPLING)
             else:
                 parent_ctx = llmobs_parent
-                # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
-                llmobs_trace_id = _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
+                # Prefer the private canonical hex; only the decimal wire value needs normalizing.
+                llmobs_trace_id = parent_ctx._meta.get(LLMOBS_TRACE_ID_HEX_CTX_KEY) or _normalize_wire_trace_id_to_hex(
+                    parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                )
                 ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
                 session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
@@ -2647,6 +2903,8 @@ class LLMObs(Service):
                 else sampling_decision
             ),
         )
+        if parent_agent_version:
+            span._set_ctx_item(PARENT_AGENT_VERSION, parent_agent_version)
         # Shared by reference across the trace; absent on spans whose decision came from upstream.
         span._set_ctx_item(LLMOBS_SAMPLING, sampling_state)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
@@ -2687,7 +2945,7 @@ class LLMObs(Service):
             ml_app=agent_service,
         )
         if agent_version:
-            span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+            span._set_ctx_item(AGENT_VERSION, agent_version)
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         # First session in the trace becomes the trace-level default (first-writer wins), so later
@@ -2841,8 +3099,8 @@ class LLMObs(Service):
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
                            propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
-        :param str version: The version of this agent. Set as an ``agent_version`` tag on this span,
-                            and not on its child spans.
+        :param str version: The version of this agent. Set as an ``agent_version`` tag on this span
+                            and on its child spans within the same process.
 
         :returns: The Span object representing the traced operation.
         """
@@ -3023,7 +3281,7 @@ class LLMObs(Service):
     def annotate(
         cls,
         span: Optional[Span] = None,
-        prompt: Optional[Union[dict, Prompt]] = None,
+        prompt: Optional[Union[dict[str, Any], Prompt]] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[dict[str, Any]] = None,
@@ -3031,7 +3289,7 @@ class LLMObs(Service):
         tags: Optional[dict[str, Any]] = None,
         tool_definitions: Optional[list[dict[str, Any]]] = None,
         cost_tags: Optional[list[str]] = None,
-        agent: Optional[Union[dict, Agent]] = None,
+        agent: Optional[Union[dict[str, Any], Agent]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
@@ -3102,10 +3360,14 @@ class LLMObs(Service):
                         such as `{prompt,completion,total}_tokens`.
         :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
                       ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
-                      ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag and
-                      the rest as the agent's manifest, on agent spans only. All keys are optional;
-                      unreportable values are dropped, not raised, and an unset value leaves what
-                      an earlier annotation declared in place.
+                      ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag on
+                      the agent span and its child spans within the same process. Each span copies
+                      the version from its direct parent when it starts, so a version set after the
+                      agent has started only reaches spans started directly under the agent after
+                      this call, and their descendants. The rest is reported as the agent's
+                      manifest, on agent spans only. All keys are optional; unreportable values are
+                      dropped, not raised, and an unset value leaves what an earlier annotation
+                      declared in place.
         """
         error = None
         try:
@@ -3124,8 +3386,11 @@ class LLMObs(Service):
             if span.finished:
                 error = "invalid_finished_span"
                 raise LLMObsAnnotateSpanError("Cannot annotate a finished span.")
+            # Public API arguments are validated at runtime because callers may not be type-checked.
+            metadata_arg: object = metadata
+            tags_arg: object = tags
             if metadata is not None:
-                if not isinstance(metadata, dict):
+                if not isinstance(metadata_arg, dict):
                     error = "invalid_metadata"
                     raise LLMObsAnnotateSpanError("metadata must be a dictionary")
                 else:
@@ -3137,7 +3402,7 @@ class LLMObs(Service):
                 else:
                     _annotate_llmobs_span_data(span, metrics=metrics)
             if tags is not None:
-                if not isinstance(tags, dict):
+                if not isinstance(tags_arg, dict):
                     error = "invalid_tags"
                     raise LLMObsAnnotateSpanError(
                         "span tags must be a dictionary of string key - primitive value pairs."
@@ -3151,17 +3416,17 @@ class LLMObs(Service):
                 agent_version = agent.get("version") if isinstance(agent, dict) else None
                 if agent_version:
                     # Stashed rather than tagged: the span kind is not resolved yet.
-                    span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+                    span._set_ctx_item(AGENT_VERSION, agent_version)
                 if isinstance(agent, dict):
                     # Validated here, and unreportable or unset values dropped, so repeated
                     # annotate() calls and nested annotation_context blocks shallow-update field by
                     # field rather than overwrite. A version-only agent declares nothing.
                     declared = build_manual_agent_manifest(agent)
                     if declared:
-                        stashed = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+                        stashed = span._get_ctx_item(AGENT_MANIFEST)
                         if not isinstance(stashed, dict):
                             stashed = {}
-                            span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, stashed)
+                            span._set_ctx_item(AGENT_MANIFEST, stashed)
                         stashed.update(declared)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
@@ -3231,7 +3496,9 @@ class LLMObs(Service):
             telemetry.record_llmobs_annotate(span, error)
 
     @classmethod
-    def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_llm_io(
+        cls, span: Span, input_messages: Any = None, output_messages: Any = None
+    ) -> tuple[Optional[str], Optional[str]]:
         """Tags input/output messages for LLM-kind spans.
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
@@ -3300,7 +3567,9 @@ class LLMObs(Service):
                 )
 
     @classmethod
-    def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_embedding_io(
+        cls, span: Span, input_documents: Any = None, output_text: Any = None
+    ) -> tuple[Optional[str], Optional[str]]:
         """Tags input documents and output text for embedding-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -3318,7 +3587,9 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_retrieval_io(
+        cls, span: Span, input_text: Any = None, output_documents: Any = None
+    ) -> tuple[Optional[str], Optional[str]]:
         """Tags input text and output documents for retrieval-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -3337,7 +3608,7 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _tag_text_io(cls, span, input_value=None, output_value=None):
+    def _tag_text_io(cls, span: Span, input_value: Any = None, output_value: Any = None) -> None:
         """Tags input/output values for non-LLM kind spans.
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
@@ -3347,7 +3618,7 @@ class LLMObs(Service):
             _annotate_llmobs_span_data(span, output_value=safe_json(output_value))
 
     @classmethod
-    def _tag_freeform_io(cls, span, input_value=None, output_value=None):
+    def _tag_freeform_io(cls, span: Span, input_value: Any = None, output_value: Any = None) -> None:
         """Tags input/output values for experient spans.
         Will be mapped to span's `meta.{input,output}` fields.
         this is meant to be non restrictive on user's data, experiments allow
@@ -3364,7 +3635,7 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float, bool],
-        span: Optional[dict] = None,
+        span: Optional[dict[str, Any]] = None,
         span_with_tag_value: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
         ml_app: Optional[str] = None,
@@ -3533,7 +3804,7 @@ class LLMObs(Service):
         include_attachments: bool = True,
         limit: int = 10,
         agent_service: Optional[str] = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """
         Retrieves LLM span events from the Datadog platform API.
 
@@ -3589,7 +3860,20 @@ class LLMObs(Service):
         return cls._instance._api_client.get_spans(base_params)
 
     @classmethod
-    def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:
+    def _inject_llmobs_context(
+        cls,
+        span_context: Context,
+        request_headers: dict[str, str],
+        extra_baggage: Optional[dict[str, Optional[str]]] = None,
+    ) -> None:
+        """Stamp the active LLMObs context onto an outbound request.
+
+        Written to both carriers: `_dd.p.llmobs_*` tags on span_context._meta (legacy, rides
+        x-datadog-tags) and `llmobs.*` baggage items, which survive if APM trace headers are dropped.
+        The baggage items go into `extra_baggage`, which the propagator merges into this request's
+        header only: span_context's baggage is shared by the whole trace and by concurrent
+        injections, so a request-scoped parent ID must never be stored there.
+        """
         if cls.enabled is False:
             return
 
@@ -3602,7 +3886,8 @@ class LLMObs(Service):
         if isinstance(active_span, Span):
             # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
-            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
+            hex_trace_id = get_llmobs_trace_id(active_span)
+            wire_trace_id = _trace_id_to_wire(hex_trace_id)
             # The headers must carry a real sampling decision, so force one now and freeze it. Tags set on
             # the root after this point can no longer change it.
             sample_rate, sampling_decision = cls._instance._resolve_sampling(active_span)
@@ -3610,11 +3895,22 @@ class LLMObs(Service):
             # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
             wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(generate_128bit_trace_id())
+            hex_trace_id = active_context._meta.get(LLMOBS_TRACE_ID_HEX_CTX_KEY) or _normalize_wire_trace_id_to_hex(
+                wire_trace_id
+            )
             sample_rate = active_context._meta.get(PROPAGATED_SAMPLE_RATE)
             sampling_decision = active_context._meta.get(PROPAGATED_SAMPLING_DECISION)
+            # After a baggage-only hop the session exists only on the LLMObs context: the APM context
+            # was extracted without x-datadog-tags, so it has no _dd.p.llmobs_sid to forward.
+            # First writer wins, as in _start_span, so a trace-level session is never replaced.
+            session_id = active_context._meta.get(PROPAGATED_SESSION_ID_KEY)
+            if session_id and span_context._meta.get(PROPAGATED_SESSION_ID_KEY) is None:
+                span_context._meta[PROPAGATED_SESSION_ID_KEY] = session_id
         else:
+            new_trace_id = generate_128bit_trace_id()
             ml_app = resolve_ml_app()
-            wire_trace_id = str(generate_128bit_trace_id())
+            wire_trace_id = str(new_trace_id)
+            hex_trace_id = format_trace_id(new_trace_id)
             sample_rate = None
             sampling_decision = None
 
@@ -3626,16 +3922,40 @@ class LLMObs(Service):
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
         if sample_rate is not None:
             span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
-        if sampling_decision is not None:
-            span_context._meta[PROPAGATED_SAMPLING_DECISION] = (
-                sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
-            )
+        # Kept local for the baggage below: span_context._meta is shared by the whole APM trace, so
+        # reading it back can return another LLMObs trace's decision.
+        decision: Optional[str] = getattr(sampling_decision, "value", sampling_decision)
+        if decision is not None:
+            span_context._meta[PROPAGATED_SAMPLING_DECISION] = decision
 
         # Propagate the nearest agent so spans in the downstream process attribute correctly.
         # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
         # rather than overflowing x-datadog-tags.
-        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active_span)
+        parent_agent_name, parent_agent_span_id, _ = _resolve_parent_agent(active_span)
         _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
+
+        if extra_baggage is None:
+            return
+        # Same values as the tags above, but baggage is not subject to the x-datadog-tags budget.
+        baggage_values: dict[str, Optional[str]] = {
+            BAGGAGE_PARENT_ID_KEY: parent_id,
+            # Baggage wire contract is to use hex trace IDs (Decimal wire format is legacy)
+            BAGGAGE_LLMOBS_TRACE_ID_KEY: hex_trace_id,
+            BAGGAGE_ML_APP_KEY: ml_app,
+            BAGGAGE_SESSION_ID_KEY: span_context._meta.get(PROPAGATED_SESSION_ID_KEY),
+            BAGGAGE_SAMPLE_RATE_KEY: sample_rate,
+            BAGGAGE_SAMPLING_DECISION_KEY: decision,
+            BAGGAGE_PARENT_AGENT_ID_KEY: parent_agent_span_id,
+            BAGGAGE_PARENT_AGENT_NAME_KEY: (
+                _truncate_to_encoded_bytes(parent_agent_name, BAGGAGE_AGENT_NAME_MAX_ENCODED_BYTES)
+                if parent_agent_name is not None
+                else None
+            ),
+        }
+        # None drops the key from this request, so inbound `llmobs.*` items are never forwarded
+        # alongside (or instead of) ours. Without an LLMObs context there is nothing to send.
+        for baggage_key, value in baggage_values.items():
+            extra_baggage[baggage_key] = _baggage_value(value) if active_context is not None else None
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
@@ -3647,8 +3967,10 @@ class LLMObs(Service):
             )
             return request_headers
         error = None
+        # Validated at runtime because callers may not be type-checked.
+        request_headers_arg: object = request_headers
         try:
-            if not isinstance(request_headers, dict):
+            if not isinstance(request_headers_arg, dict):
                 error = "invalid_request_headers"
                 raise LLMObsInjectDistributedHeadersError(
                     "request_headers must be a dictionary of string key-value pairs."
@@ -3667,82 +3989,116 @@ class LLMObs(Service):
         finally:
             telemetry.record_inject_distributed_headers(error)
 
-    @classmethod
-    def _activate_llmobs_distributed_context_soft_fail(cls, request_headers: dict[str, str], context: Context) -> None:
-        cls._activate_llmobs_distributed_context(request_headers, context, _soft_fail=True)
+    @staticmethod
+    def _select_propagated_carrier(context: Context) -> tuple[Optional[str], str]:
+        """Pick the carrier to read all inbound LLMObs fields from: "baggage", "tags", or None.
+
+        Baggage is the primary carrier. A tag parent that differs from the baggage parent means a
+        tag-only hop (older dd-trace-py, or an SDK without the baggage carrier) sat in between and
+        forwarded stale baggage, so the tags win. Reading every field from one carrier keeps two
+        hops' contexts from being spliced together.
+
+        Also returns the decision for telemetry: "baggage", "tags" (no baggage parent),
+        "stale_baggage" (the tags won over a different baggage parent), or "none".
+        """
+        tag_parent = context._meta.get(PROPAGATED_PARENT_ID_KEY)
+        # `restart` severs the inbound trace but keeps baggage; honor the boundary for LLMObs too.
+        if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
+            baggage_parent = None
+        else:
+            baggage_parent = context.get_baggage_item(BAGGAGE_PARENT_ID_KEY)
+        if baggage_parent is None:
+            return ("tags", "tags") if tag_parent is not None else (None, "none")
+        if tag_parent not in (None, ROOT_PARENT_ID) and baggage_parent != tag_parent:
+            return "tags", "stale_baggage"
+        return "baggage", "baggage"
 
     @classmethod
-    def _activate_llmobs_distributed_context(
-        cls, request_headers: dict[str, str], context: Context, _soft_fail: bool = False
-    ) -> None:
+    def _activate_llmobs_distributed_context(cls, request_headers: dict[str, str], context: Context) -> None:
         error = None
+        carrier_decision = None
         try:
             if cls.enabled is False:
                 return
-            if not context.trace_id or not context.span_id:
-                error = "missing_context"
-                if _soft_fail:
-                    log.warning("Failed to extract trace/span ID from request headers.")
-                    return
-                raise LLMObsActivateDistributedHeadersError("Failed to extract trace/span ID from request headers.")
-            _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
+            carrier, carrier_decision = cls._select_propagated_carrier(context)
+            # Both carriers name the same parent, so one hop wrote them and a field missing from
+            # baggage can come from the tags.
+            tags_match = carrier == "baggage" and context._meta.get(
+                PROPAGATED_PARENT_ID_KEY
+            ) == context.get_baggage_item(BAGGAGE_PARENT_ID_KEY)
+            if carrier == "baggage":
+
+                def read(propagated_key: str) -> Optional[str]:
+                    value = context.get_baggage_item(PROPAGATED_KEY_TO_BAGGAGE_KEY[propagated_key])
+                    if value is None and tags_match:
+                        return context._meta.get(propagated_key)
+                    return str(value) if value is not None else None
+
+            else:
+
+                def read(propagated_key: str) -> Optional[str]:
+                    return context._meta.get(propagated_key)
+
+            _parent_id = read(PROPAGATED_PARENT_ID_KEY) if carrier is not None else None
             if _parent_id is None or _parent_id == ROOT_PARENT_ID:
                 error = "missing_parent_id"
                 log.debug("Failed to extract LLMObs parent ID from request headers.")
+                # A request without LLMObs context starts a new trace: clear the context an earlier
+                # request on this thread or task activated, so it is not taken as the parent.
+                cls._instance._llmobs_context_provider.activate(None)
                 return
             try:
                 parent_id = int(_parent_id)
             except ValueError:
                 error = "invalid_parent_id"
                 log.warning("Failed to parse LLMObs parent ID from request headers.")
+                cls._instance._llmobs_context_provider.activate(None)
                 return
-            parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-            propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
-            propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
-            propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
-            # The hand-built llmobs_context below does not inherit inbound _dd.p.* tags, so
-            # the agent attribution keys must be copied onto it explicitly (mirrors trace_id).
-            propagated_agent_id = context._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY)
-            propagated_agent_name = context._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
-            # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
-            # Store the inbound value as-is and defer normalization to the reader
-            # (`_activate_llmobs_span`, Context-parent branch) so we never apply
-            # `_normalize_wire_trace_id_to_hex` more than once on the same value.
-            if parent_llmobs_trace_id is None:
-                log.debug(
-                    "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
-                    "Defaulting to the corresponding APM trace ID."
+            # Read explicitly, not through read(): baggage carries the canonical form, the tag carries decimal.
+            hex_llmobs_trace_id = None
+            if carrier == "baggage":
+                hex_llmobs_trace_id = context.get_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY)
+                if hex_llmobs_trace_id is not None and not _is_canonical_trace_id(hex_llmobs_trace_id):
+                    log.debug("Ignoring a non-canonical LLMObs trace ID in baggage: %r", hex_llmobs_trace_id)
+                    hex_llmobs_trace_id = None
+            if hex_llmobs_trace_id is not None:
+                parent_llmobs_trace_id = _trace_id_to_wire(hex_llmobs_trace_id)
+            else:
+                parent_llmobs_trace_id = (
+                    context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) if carrier == "tags" or tags_match else None
                 )
-                llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
-                if propagated_sample_rate is not None:
-                    llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
-                if propagated_sampling_decision is not None:
-                    llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
-                if propagated_session_id is not None:
-                    llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
-                if propagated_agent_id is not None:
-                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
-                if propagated_agent_name is not None:
-                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
-                cls._instance._llmobs_context_provider.activate(llmobs_context)
+            if parent_llmobs_trace_id is None:
                 error = "missing_parent_llmobs_trace_id"
-                return
+                if context.trace_id:
+                    log.debug(
+                        "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
+                        "Defaulting to the corresponding APM trace ID."
+                    )
+                    parent_llmobs_trace_id = str(context.trace_id)
+                else:
+                    log.debug(
+                        "Failed to extract LLMObs trace ID from request headers and no APM trace ID is "
+                        "available. A new LLMObs trace ID will be generated."
+                    )
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
-            if propagated_sample_rate is not None:
-                llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
-            if propagated_sampling_decision is not None:
-                llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
-            if propagated_session_id is not None:
-                llmobs_context._meta[PROPAGATED_SESSION_ID_KEY] = propagated_session_id
-            if propagated_agent_id is not None:
-                llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
-            if propagated_agent_name is not None:
-                llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
+            if parent_llmobs_trace_id is not None:
+                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = parent_llmobs_trace_id
+            if hex_llmobs_trace_id is not None:
+                llmobs_context._meta[LLMOBS_TRACE_ID_HEX_CTX_KEY] = hex_llmobs_trace_id
+            for propagated_key in (
+                PROPAGATED_ML_APP_KEY,
+                PROPAGATED_SAMPLE_RATE,
+                PROPAGATED_SAMPLING_DECISION,
+                PROPAGATED_SESSION_ID_KEY,
+                PROPAGATED_PARENT_AGENT_ID_KEY,
+                PROPAGATED_PARENT_AGENT_NAME_KEY,
+            ):
+                value = read(propagated_key)
+                if value is not None:
+                    llmobs_context._meta[propagated_key] = value
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
-            telemetry.record_activate_distributed_headers(error)
+            telemetry.record_activate_distributed_headers(error, carrier=carrier_decision)
 
     @classmethod
     def activate_distributed_headers(cls, request_headers: dict[str, str]) -> None:
@@ -3757,9 +4113,10 @@ class LLMObs(Service):
                 "Distributed context will not be activated."
             )
             return
-        context = HTTPPropagator.extract(request_headers)
+        # HTTPPropagator.extract is untyped; ddtrace.propagation.http is still exempt in mypy.ini.
+        context = HTTPPropagator.extract(request_headers)  # type: ignore[no-untyped-call]
         cls._instance.tracer.context_provider.activate(context)
-        cls._instance._activate_llmobs_distributed_context(request_headers, context, _soft_fail=False)
+        cls._instance._activate_llmobs_distributed_context(request_headers, context)
 
 
 # Initialize the default LLMObs instance before exposing the service to integrations.

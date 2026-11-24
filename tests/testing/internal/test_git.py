@@ -1,6 +1,7 @@
 """Tests for ddtrace.testing.internal.git module."""
 
 import contextlib
+from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -128,6 +129,13 @@ class TestGit:
         assert result == "main"
         mock_git_output.assert_called_once_with(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
 
+    @pytest.mark.parametrize("output,expected", [("", ""), ("v1.0", "v1.0"), ("latest\nv1.0", "")])
+    @patch("shutil.which", return_value="/usr/bin/git")
+    def test_get_tag_is_unambiguous(self, mock_which: Mock, output: str, expected: str) -> None:
+        git = Git()
+        with patch.object(git, "_git_output", return_value=output):
+            assert git.get_tag() == expected
+
     @patch("shutil.which")
     def test_get_commit_message(self, mock_which: Mock) -> None:
         """Test get_commit_message method."""
@@ -138,24 +146,31 @@ class TestGit:
             result = git.get_commit_message()
 
         assert result == "Initial commit"
-        mock_git_output.assert_called_once_with(["show", "-s", "--format=%s"])
+        mock_git_output.assert_called_once_with(["show", "-s", "--no-show-signature", "--format=%s"])
 
+    @pytest.mark.parametrize("author_name", ["John Doe", "John, Doe", "John|||Doe"])
     @patch("shutil.which")
-    def test_get_user_info_success(self, mock_which: Mock) -> None:
+    def test_get_user_info_success(self, mock_which: Mock, author_name: str) -> None:
         """Test get_user_info method with valid output."""
         mock_which.return_value = "/usr/bin/git"
 
         git = Git()
-        mock_output = (
-            "John Doe|||john@example.com|||2023-01-01T12:00:00+0000|||"
-            "Jane Committer|||jane@example.com|||2023-01-01T12:30:00+0000"
+        mock_output = "\0".join(
+            (
+                author_name,
+                "john@example.com",
+                "2023-01-01T12:00:00+0000",
+                "Jane Committer",
+                "jane@example.com",
+                "2023-01-01T12:30:00+0000",
+            )
         )
 
         with patch.object(git, "_git_output", return_value=mock_output):
             result = git.get_user_info()
 
         expected = GitUserInfo(
-            author_name="John Doe",
+            author_name=author_name,
             author_email="john@example.com",
             author_date="2023-01-01T12:00:00+0000",
             committer_name="Jane Committer",
@@ -200,7 +215,9 @@ class TestGit:
 
         assert result == ["abc123", "def456", "ghi789"]
         mock_git_output.assert_called_once_with(
-            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
+            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'],
+            GitTelemetry.GET_LOCAL_COMMITS,
+            local_only=True,
         )
 
     @patch("shutil.which")
@@ -247,14 +264,17 @@ class TestGit:
 class TestGetGitTags:
     """Tests for get_git_tags_from_git_command function."""
 
+    @pytest.mark.parametrize("branch,tag", [("main", None), ("", "v1.0")])
     @patch("ddtrace.testing.internal.git.Git")
-    def test_get_git_tags_success(self, mock_git_class: Mock) -> None:
+    def test_get_git_tags_success(self, mock_git_class: Mock, branch: str, tag: Optional[str]) -> None:
         """Test get_git_tags_from_git_command with successful Git operations."""
         mock_git = Mock()
         mock_git.get_repository_url.return_value = "https://github.com/user/repo.git"
         mock_git.get_commit_sha.return_value = "abc123"
-        mock_git.get_branch.return_value = "main"
+        mock_git.get_branch.return_value = branch
+        mock_git.get_tag.return_value = "v1.0"
         mock_git.get_commit_message.return_value = "Test commit"
+        mock_git.get_workspace_path.return_value = "/checkout"
         mock_git.get_user_info.return_value = GitUserInfo(
             author_name="John Doe",
             author_email="john@example.com",
@@ -268,9 +288,11 @@ class TestGetGitTags:
         result = get_git_tags_from_git_command()
 
         expected = {
+            GitTag.CHECKOUT_ROOT: "/checkout",
             GitTag.REPOSITORY_URL: "https://github.com/user/repo.git",
             GitTag.COMMIT_SHA: "abc123",
-            GitTag.BRANCH: "main",
+            GitTag.BRANCH: branch,
+            GitTag.TAG: tag,
             GitTag.COMMIT_MESSAGE: "Test commit",
             GitTag.COMMIT_AUTHOR_NAME: "John Doe",
             GitTag.COMMIT_AUTHOR_EMAIL: "john@example.com",
@@ -368,6 +390,38 @@ class TestGetGitTags:
 
         assert result == {GitTag.COMMIT_HEAD_MESSAGE: "Head commit"}
         mock_git.unshallow_repository.assert_not_called()
+
+    @patch("ddtrace.testing.internal.git.Git")
+    def test_get_git_head_tags_skips_fetch_when_disallowed(self, mock_git_class: Mock) -> None:
+        """allow_fetch=False never deepens the clone, even when the head commit is missing locally.
+
+        Without the fetch the head metadata is unavailable, so the function returns
+        early instead of issuing git commands that would only produce warnings.
+        """
+        mock_git = Mock()
+        mock_git.has_commit.return_value = False
+        mock_git_class.return_value = mock_git
+
+        result = get_git_head_tags_from_git_command("head-sha", allow_fetch=False)
+
+        assert result == {}
+        mock_git.unshallow_repository.assert_not_called()
+        mock_git.get_commit_message.assert_not_called()
+        mock_git.get_user_info.assert_not_called()
+
+    @patch("ddtrace.testing.internal.git.Git")
+    def test_get_git_head_tags_fetches_when_allowed(self, mock_git_class: Mock) -> None:
+        """The default (allow_fetch=True) keeps the deepen fetch for a missing head commit."""
+        mock_git = Mock()
+        mock_git.has_commit.return_value = False
+        mock_git.get_commit_message.return_value = "Head commit"
+        mock_git.get_user_info.return_value = None
+        mock_git_class.return_value = mock_git
+
+        result = get_git_head_tags_from_git_command("head-sha")
+
+        mock_git.unshallow_repository.assert_called_once_with(parent_only=True, required_commit="head-sha")
+        assert result == {GitTag.COMMIT_HEAD_MESSAGE: "Head commit"}
 
 
 class TestGitUnshallow:
@@ -872,6 +926,31 @@ class TestGitLockRetry:
         assert "sha2" in warning_args
 
     @patch("shutil.which")
+    def test_get_merge_base_quiet_failure_logs_debug(self, mock_which: Mock) -> None:
+        """With warn=False, a failing merge-base logs at debug level instead of warning.
+
+        The pre-unshallow probe uses this: failing locally is expected on shallow
+        clones, so it must not pollute the warning log before the fetch and retry.
+        """
+        mock_which.return_value = "/usr/bin/git"
+        failure = _GitSubprocessDetails(
+            stdout="", stderr="fatal: Not a valid object name sha1", return_code=128, elapsed_seconds=0.0
+        )
+
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", return_value=failure),
+            patch("ddtrace.testing.internal.git.log") as mock_log,
+        ):
+            result = Git().get_merge_base("sha1", "sha2", warn=False)
+
+        assert result == ""
+        mock_log.warning.assert_not_called()
+        mock_log.debug.assert_called_once()
+        debug_args = mock_log.debug.call_args[0]
+        assert "sha1" in debug_args
+        assert "sha2" in debug_args
+
+    @patch("shutil.which")
     def test_unshallow_repository_skips_when_repo_not_shallow(self, mock_which: Mock) -> None:
         """unshallow_repository returns success without fetching when the repo is already non-shallow."""
         mock_which.return_value = "/usr/bin/git"
@@ -953,13 +1032,29 @@ class TestGitUnshallowLock:
     @patch("shutil.which")
     def test_unshallow_lock_path_uses_actual_git_directory(self, mock_which: Mock, tmp_path) -> None:
         mock_which.return_value = "/usr/bin/git"
-        git_dir = tmp_path / "git-dir" / "worktrees" / "checkout"
+        git_dir = tmp_path / "git-dir"
         git = Git(cwd=str(tmp_path / "checkout"))
 
-        with patch.object(git, "_git_output", return_value=str(git_dir)) as mock_git_output:
+        with patch.object(git, "_git_output", return_value=str(git_dir / "shallow")) as mock_git_output:
             assert git._unshallow_lock_path() == git_dir / "dd-trace-py.unshallow.lock"
 
-        mock_git_output.assert_called_once_with(["rev-parse", "--git-dir"])
+        mock_git_output.assert_called_once_with(["rev-parse", "--git-path", "shallow"])
+
+    def test_worktrees_share_fetch_lock(self, tmp_path) -> None:
+        common = tmp_path / "common.git"
+        locks = []
+        for name in ("first", "second"):
+            git = Git(cwd=str(tmp_path / name))
+
+            def git_output(args):
+                if args == ["rev-parse", "--git-path", "shallow"]:
+                    return str(common / "shallow")
+                return str(common / "worktrees" / name)
+
+            with patch.object(git, "_git_output", side_effect=git_output):
+                locks.append(git._unshallow_lock_path())
+
+        assert locks == [common / "dd-trace-py.unshallow.lock"] * 2
 
     @patch("shutil.which")
     def test_unshallow_lock_acquired_before_fetch(self, mock_which: Mock, tmp_path) -> None:
@@ -1073,3 +1168,84 @@ class TestGitUnshallowLock:
         assert result.return_code == 0
         assert len(lock_entered) == 1
         mock_call.assert_not_called(), "no fetch needed — repo was unshallowed by peer before we got the lock"
+
+
+class TestGitShallowBoundary:
+    """Tests for Git.get_shallow_boundary (marker validation input)."""
+
+    @pytest.mark.parametrize(
+        "error", [PermissionError(), IsADirectoryError(), UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid")]
+    )
+    def test_unreadable_boundary_is_unknown(self, tmp_path, error) -> None:
+        git = Git(cwd=str(tmp_path))
+        with (
+            patch.object(git, "_git_output", return_value=".git/shallow"),
+            patch("pathlib.Path.read_text", side_effect=error),
+        ):
+            assert git.get_shallow_boundary() is None
+
+    @patch("shutil.which")
+    def test_resolves_relative_git_path(self, mock_which: Mock, tmp_path) -> None:
+        """``--git-path`` can return a path relative to the subprocess cwd; it is resolved."""
+        mock_which.return_value = "/usr/bin/git"
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "shallow").write_text("boundary-1\nboundary-2\n")
+        git = Git(cwd=str(tmp_path))
+
+        with patch.object(git, "_git_output", return_value=".git/shallow") as mock_git_output:
+            assert git.get_shallow_boundary() == {"boundary-1", "boundary-2"}
+
+        mock_git_output.assert_called_once_with(["rev-parse", "--git-path", "shallow"])
+
+    @patch("shutil.which")
+    def test_absolute_path_used_as_is(self, mock_which: Mock, tmp_path) -> None:
+        """Absolute ``--git-path`` output (e.g. a linked worktree's common dir) is used as-is.
+
+        Linked worktrees keep ``shallow`` in the *common* git directory while
+        ``--absolute-git-dir`` points at the worktree-private one, which is why
+        the boundary must be resolved through ``--git-path``.
+        """
+        mock_which.return_value = "/usr/bin/git"
+        common = tmp_path / "common.git"
+        common.mkdir()
+        (common / "shallow").write_text("boundary-1\n")
+        git = Git(cwd=str(tmp_path))
+
+        with patch.object(git, "_git_output", return_value=str(common / "shallow")):
+            assert git.get_shallow_boundary() == {"boundary-1"}
+
+    @patch("shutil.which")
+    def test_empty_when_not_shallow(self, mock_which: Mock, tmp_path) -> None:
+        """A missing shallow file (repo not shallow) is an empty boundary."""
+        mock_which.return_value = "/usr/bin/git"
+        git = Git(cwd=str(tmp_path))
+
+        with patch.object(git, "_git_output", return_value=str(tmp_path / ".git" / "shallow")):
+            assert git.get_shallow_boundary() == set()
+
+    @patch("shutil.which")
+    def test_none_when_unresolvable(self, mock_which: Mock, tmp_path) -> None:
+        """When the path cannot be resolved the boundary is unknown (None)."""
+        mock_which.return_value = "/usr/bin/git"
+        git = Git(cwd=str(tmp_path))
+
+        with patch.object(git, "_git_output", return_value=""):
+            assert git.get_shallow_boundary() is None
+
+
+@pytest.mark.parametrize("error", [FileNotFoundError, NotADirectoryError, PermissionError])
+def test_git_process_filesystem_errors(error: type[OSError]) -> None:
+    git = Git()
+    with patch("ddtrace.testing.internal.git.subprocess.Popen", side_effect=error("unavailable workspace")):
+        assert git.get_commit_sha() == ""
+        assert git.get_merge_base("a" * 40, "b" * 40) == ""
+
+
+@pytest.mark.parametrize("error", [KeyboardInterrupt, InterruptedError])
+def test_git_process_interruption_propagates(error: type[BaseException]) -> None:
+    git = Git()
+    with (
+        patch("ddtrace.testing.internal.git.subprocess.Popen", side_effect=error),
+        pytest.raises(error),
+    ):
+        git.get_commit_sha()

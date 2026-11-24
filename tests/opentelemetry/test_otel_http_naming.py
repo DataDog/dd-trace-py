@@ -2,12 +2,12 @@ from unittest import mock
 
 import pytest
 
+from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.otel.http import tags
 from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.otel.http.resource import RESOURCE_SET_BY_USER
 from ddtrace._trace.otel.http.resource import otel_http_resource
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
-from ddtrace._trace.otel.http.resource import set_instrumentation_resource
 from ddtrace._trace.otel.http.resource import set_otel_http_resource
 from ddtrace._trace.otel.http.tags import OTHER_HTTP_METHOD
 from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
@@ -16,6 +16,7 @@ from ddtrace._trace.otel.http.tags import set_url_tags_otel_client
 from ddtrace._trace.otel.http.tags import set_url_tags_otel_server
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -23,6 +24,7 @@ from ddtrace.ext import net
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings import _core as settings_core
 from ddtrace.internal.settings._config import config
+from tests.utils import override_global_config
 
 
 @pytest.mark.parametrize(
@@ -220,7 +222,9 @@ def server_error_statuses():
 @pytest.mark.parametrize(
     "span_type, span_kind, expected",
     [
-        (SpanTypes.HTTP, None, True),
+        # Ray Serve proxy requests are HTTP server spans that carry no span.kind.
+        (SpanTypes.HTTP, None, False),
+        (SpanTypes.HTTP, SpanKind.CLIENT, True),
         (SpanTypes.WEB, None, False),
         (SpanTypes.WEB, SpanKind.CLIENT, True),
         (SpanTypes.HTTP, SpanKind.SERVER, False),
@@ -269,6 +273,7 @@ def test_otel_span_attributes_dispatches_client_and_server_urls(tracer, integrat
             raw_uri="/users/%34%32?token=secret",
         )
         with tracer.trace("request", span_type=SpanTypes.HTTP) as client_span:
+            client_span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
             OTelHTTPSpanAttributes(client_span, integration_config).set_url("https://example.com/users/42?token=secret")
 
     assert client_span.get_tag(otel_http.URL_FULL) == "https://example.com/users/42"
@@ -335,14 +340,15 @@ def test_otel_span_attributes_malformed_url_does_not_abort_later_metadata(tracer
 
 
 @pytest.mark.parametrize(
-    "span_type, status_code, expected_error",
+    "span_type, span_kind, status_code, expected_error",
     [
-        (SpanTypes.HTTP, 399, 0),
-        (SpanTypes.HTTP, 400, 1),
-        (SpanTypes.WEB, 499, 0),
-        (SpanTypes.WEB, 500, 1),
-        (SpanTypes.WEB, 600, 1),
-        (SpanTypes.WEB, 700, 1),
+        (SpanTypes.HTTP, SpanKind.CLIENT, 399, 0),
+        (SpanTypes.HTTP, SpanKind.CLIENT, 400, 1),
+        (SpanTypes.HTTP, SpanKind.CLIENT, 600, 1),
+        (SpanTypes.WEB, None, 499, 0),
+        (SpanTypes.WEB, None, 500, 1),
+        (SpanTypes.WEB, None, 600, 1),
+        (SpanTypes.WEB, None, 700, 1),
     ],
 )
 def test_otel_span_attributes_status_error_semantics(
@@ -350,11 +356,14 @@ def test_otel_span_attributes_status_error_semantics(
     integration_config,
     server_error_statuses,
     span_type,
+    span_kind,
     status_code,
     expected_error,
 ):
     server_error_statuses.error_statuses = "500-599"
     with tracer.trace("request", span_type=span_type) as span:
+        if span_kind is not None:
+            span._set_attribute(SPAN_KIND, span_kind)
         OTelHTTPSpanAttributes(span, integration_config).set_status_code(str(status_code))
 
     assert span.get_metric(otel_http.RESPONSE_STATUS_CODE) == status_code
@@ -393,6 +402,27 @@ def test_otel_span_attributes_honors_stable_server_error_statuses(
             assert span.error == expected_error
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "200"})
+def test_otel_span_attributes_honors_custom_client_error_statuses():
+    from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
+    from ddtrace.constants import ERROR_TYPE
+    from ddtrace.constants import SPAN_KIND
+    from ddtrace.ext import SpanKind
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    integration_config = IntegrationConfig(config, "test")
+    for status_code, expected_error in ((200, 1), (404, 0), (500, 0)):
+        with tracer.trace("http.request", span_type=SpanTypes.HTTP) as span:
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+            OTelHTTPSpanAttributes(span, integration_config).set_status_code(status_code)
+
+        assert span.error == expected_error
+        assert span.get_tag(ERROR_TYPE) == (str(status_code) if expected_error else None)
+
+
 def test_otel_span_attributes_status_preserves_exception_error_type(tracer, integration_config, server_error_statuses):
     server_error_statuses.error_statuses = "500-599"
     with tracer.trace("request", span_type=SpanTypes.WEB) as span:
@@ -429,16 +459,11 @@ def test_otel_span_attributes_success_preserves_exception(tracer, integration_co
     assert span.get_tag(ERROR_TYPE) == "builtins.ValueError"
 
 
-def test_otel_span_attributes_sets_user_agent_and_client_addresses(tracer, integration_config):
+def test_otel_span_attributes_sets_user_agent(tracer, integration_config):
     with tracer.trace("request") as span:
-        attributes = OTelHTTPSpanAttributes(span, integration_config)
-
-        attributes.set_user_agent("test-agent")
-        attributes.set_client_addresses("203.0.113.10", "10.0.0.5")
+        OTelHTTPSpanAttributes(span, integration_config).set_user_agent("test-agent")
 
     assert span.get_tag(otel_http.USER_AGENT_ORIGINAL) == "test-agent"
-    assert span.get_tag(otel_http.CLIENT_ADDRESS) == "203.0.113.10"
-    assert span.get_tag(otel_http.NETWORK_PEER_ADDRESS) == "10.0.0.5"
 
 
 def test_otel_span_attributes_refines_server_resource_with_route(tracer, integration_config):
@@ -468,6 +493,7 @@ def test_otel_span_attributes_preserves_method_and_route_across_calls(tracer, in
 
 def test_otel_span_attributes_client_resource_ignores_server_route(tracer, integration_config):
     with tracer.trace("http.request", span_type=SpanTypes.HTTP) as span:
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
         attributes = OTelHTTPSpanAttributes(span, integration_config)
         attributes.set_method("get")
 
@@ -488,6 +514,23 @@ def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
     span = Span("web.request", span_type=SpanTypes.WEB)
 
     OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
+
+    assert span.error == 0
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "400-599"})
+def test_otel_span_attributes_explicit_default_client_status_does_not_expand():
+    from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
+    from ddtrace.constants import SPAN_KIND
+    from ddtrace.ext import SpanKind
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    with tracer.trace("http.request", span_type=SpanTypes.HTTP) as span:
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+        OTelHTTPSpanAttributes(span, IntegrationConfig(config, "test")).set_status_code(600)
 
     assert span.error == 0
 
@@ -538,3 +581,48 @@ def test_otel_semantics_flag_resolves_identically_when_disabled():
 
     assert config._otel_trace_semantics_enabled is False
     assert _is_otlp_traces_exporter_enabled(otel_config.exporter) is False
+
+
+@pytest.mark.parametrize("span_type, span_kind", [(SpanTypes.WEB, None), (SpanTypes.HTTP, SpanKind.CLIENT)])
+def test_otel_span_attributes_malformed_url_is_not_logged(tracer, integration_config, span_type, span_kind):
+    with tracer.trace("request", span_type=span_type) as span:
+        if span_kind is not None:
+            span._set_attribute(SPAN_KIND, span_kind)
+        attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+        with mock.patch.object(tags.log, "debug") as debug:
+            attributes.set_url("http://user:hunter2@[::1/path?token=secret")
+
+    debug.assert_called_once()
+    logged = " ".join(str(arg) for arg in debug.call_args.args)
+    assert "failed to parse http url" in logged
+    assert "hunter2" not in logged
+    assert "secret" not in logged
+
+
+def test_set_http_meta_http_span_without_kind_keeps_legacy_tags(tracer, integration_config):
+    # Ray Serve proxy requests are HTTP spans with no span.kind and must not be treated as clients.
+    with tracer.trace("proxy_request", span_type=SpanTypes.HTTP) as span:
+        with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            trace_utils.set_http_meta(
+                span, integration_config, method="GET", url="http://example.com/x", status_code=200
+            )
+
+    assert span.get_tag(otel_http.URL_FULL) is None
+
+
+def test_set_url_tags_otel_server_query_falls_back_to_the_url_unless_tagged_separately(tracer):
+    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
+    url = "https://example.com/users?page=2"
+
+    with tracer.trace("web.request") as from_url:
+        set_url_tags_otel_server(integration_config, from_url, url, None)
+    assert from_url.get_tag(otel_http.URL_QUERY) == "page=2"
+
+    with tracer.trace("web.request") as separate:
+        set_url_tags_otel_server(integration_config, separate, url, None, query_tagged_separately=True)
+    assert separate.get_tag(otel_http.URL_QUERY) is None
+
+    with tracer.trace("web.request") as explicit:
+        set_url_tags_otel_server(integration_config, explicit, url, "page=3", query_tagged_separately=True)
+    assert explicit.get_tag(otel_http.URL_QUERY) == "page=3"

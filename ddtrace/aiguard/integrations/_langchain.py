@@ -1,8 +1,16 @@
-from collections.abc import Sequence
-import json
+import asyncio
+import contextvars
+import functools
+from functools import partial
+import importlib
+import sys
+from types import ModuleType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from typing import Optional
+from typing import Sequence
 import uuid
 
 from ddtrace.aiguard import AIGuardAbortError
@@ -12,13 +20,23 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
-from ddtrace.aiguard._context import reset_aiguard_context_active_current
+from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
+from ddtrace.aiguard._types import MCPServer
+from ddtrace.aiguard._types import MCPTransport
+from ddtrace.aiguard.integrations._mcp import client_mcp_server
+from ddtrace.aiguard.integrations._mcp import mcp_reference
 from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils import get_argument_value
+
+
+if TYPE_CHECKING:
+    from langchain_core.messages import AIMessage
+    from langchain_core.messages import BaseMessage
 
 
 logger = ddlogger.get_logger(__name__)
@@ -34,19 +52,50 @@ action_agents_classes = (
     "openai_functions_multi_agent.base.OpenAIMultiFunctionsAgent",
 )
 
+# The LangChain model calls in progress in this context, innermost last.
+_SCOPES: contextvars.ContextVar[tuple["_CallScope", ...]] = contextvars.ContextVar(
+    "ai_guard_langchain_scopes", default=()
+)
+
+# (coroutine, JSON arguments) of the MCP tool call ToolNode evaluated; the tool skips its own check only for
+# those exact arguments, so a call rewritten by tool-call middleware is checked again.
+_TOOLNODE_MCP_TOOL: contextvars.ContextVar[Optional[tuple[Callable[..., Any], str]]] = contextvars.ContextVar(
+    "ai_guard_langchain_toolnode_mcp_tool", default=None
+)
+
+# Attribute of a converted MCP tool's coroutine holding its (server, original MCP tool name).
+_MCP_ATTR = "_dd_ai_guard_mcp"
+
+_MCP_ADAPTER_MODULE = "langchain_mcp_adapters.tools"
+
+# langchain-mcp-adapters connection transports; others (websocket) report the unknown transport.
+_MCP_TRANSPORTS: dict[str, MCPTransport] = {
+    "stdio": AI_GUARD.MCP_TRANSPORT_STDIO,
+    "sse": AI_GUARD.MCP_TRANSPORT_SSE,
+    "streamable_http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
+    "streamable-http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
+    "http": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
+}
+
+
+def _action_agent_modules() -> Iterator[ModuleType]:
+    for module_name in ("langchain.agents", "langchain_classic.agents"):
+        try:
+            yield importlib.import_module(module_name)
+        except Exception:
+            logger.debug("Agent module %s is unavailable", module_name, exc_info=True)
+
 
 def _langchain_patch(client: AIGuardClient) -> None:
-    from functools import partial
-
-    # langchain < 1.0: agents subclass one of the action-agent classes and
-    # decide tool calls through ``plan`` / ``aplan``. Each is wrapped in its
-    # own try/except because the available classes vary across versions.
-    for class_ in action_agents_classes:
-        try:
-            wrap("langchain.agents", class_ + ".plan", partial(_langchain_agent_plan, client))
-            wrap("langchain.agents", class_ + ".aplan", partial(_langchain_agent_aplan, client))
-        except Exception:
-            logger.debug("Failed to instrument %s", class_, exc_info=True)
+    # Legacy agents decide tool calls through plan/aplan. LangChain v1 moved
+    # these agents into langchain-classic; available classes vary by version.
+    for agents_module in _action_agent_modules():
+        for class_ in action_agents_classes:
+            try:
+                wrap(agents_module, class_ + ".plan", partial(_langchain_agent_plan, client))
+                wrap(agents_module, class_ + ".aplan", partial(_langchain_agent_aplan, client))
+            except Exception:
+                logger.debug("Failed to instrument %s.%s", agents_module.__name__, class_, exc_info=True)
 
     # langchain >= 1.0: agents are built with ``create_agent`` and client-side
     # tools are executed by langgraph's ``ToolNode``. Instrument the per-call
@@ -59,25 +108,44 @@ def _langchain_patch(client: AIGuardClient) -> None:
     except Exception:
         logger.debug("Failed to instrument langgraph ToolNode", exc_info=True)
 
+    # Client-managed MCP tools; skipped when langchain-mcp-adapters is not installed.
+    try:
+        wrap(_MCP_ADAPTER_MODULE, "convert_mcp_tool_to_langchain_tool", partial(_langchain_mcp_convert_tool, client))
+    except Exception:
+        logger.debug("Failed to instrument langchain-mcp-adapters", exc_info=True)
+
+    # With stream analysis on, a LangChain stream is read in full and its response evaluated before the caller
+    # gets a chunk, and the run manager's callbacks are held until then, inside generate too (see _CallScope).
+    chat_models = "langchain_core.language_models.chat_models"
+    llms = "langchain_core.language_models.llms"
+    run_managers = "langchain_core.callbacks.manager"
+    for module_name, method, wrapper in (
+        (chat_models, "BaseChatModel.stream", partial(_langchain_buffered_stream, client, True)),
+        (chat_models, "BaseChatModel.astream", partial(_langchain_buffered_astream, client, True)),
+        (llms, "BaseLLM.stream", partial(_langchain_buffered_stream, client, False)),
+        (llms, "BaseLLM.astream", partial(_langchain_buffered_astream, client, False)),
+        (run_managers, "CallbackManagerForLLMRun.on_llm_new_token", _langchain_run_new_token),
+        (run_managers, "CallbackManagerForLLMRun.on_llm_end", _langchain_run_end),
+        (run_managers, "AsyncCallbackManagerForLLMRun.on_llm_new_token", _langchain_arun_new_token),
+        (run_managers, "AsyncCallbackManagerForLLMRun.on_llm_end", _langchain_arun_end),
+    ):
+        try:
+            wrap(module_name, method, wrapper)
+        except Exception:
+            logger.debug("Failed to instrument %s.%s", module_name, method, exc_info=True)
+
 
 def _langchain_unpatch() -> None:
-    try:
-        import langchain.agents  # noqa: F401
-    except ImportError:
-        logger.debug("Failed to unpatch langchain.agents")
-    else:
+    for agents_module in _action_agent_modules():
         for class_ in action_agents_classes:
             try:
-                if "." in class_:
-                    module_path, class_name = class_.rsplit(".", 1)
-                    module = __import__("langchain.agents." + module_path, fromlist=[class_name])
-                else:
-                    module, class_name = langchain.agents, class_
-                agent_class = getattr(module, class_name)
+                agent_class = agents_module
+                for part in class_.split("."):
+                    agent_class = getattr(agent_class, part)
                 unwrap(agent_class, "plan")
                 unwrap(agent_class, "aplan")
             except Exception:
-                logger.debug("Failed to unpatch %s", class_, exc_info=True)
+                logger.debug("Failed to unpatch %s.%s", agents_module.__name__, class_, exc_info=True)
 
     try:
         from langgraph.prebuilt.tool_node import ToolNode
@@ -86,6 +154,37 @@ def _langchain_unpatch() -> None:
         unwrap(ToolNode, "_arun_one")
     except Exception:
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
+
+    try:
+        module = sys.modules.get(_MCP_ADAPTER_MODULE)
+        if module is not None:
+            unwrap(module, "convert_mcp_tool_to_langchain_tool")
+    except Exception:
+        logger.debug("Failed to unpatch langchain-mcp-adapters", exc_info=True)
+
+    try:
+        from langchain_core.callbacks.manager import AsyncCallbackManagerForLLMRun
+        from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+        from langchain_core.language_models.chat_models import BaseChatModel
+        from langchain_core.language_models.llms import BaseLLM
+    except ImportError:
+        logger.debug("Failed to unpatch langchain_core")
+        return
+
+    for owner, method in (
+        (BaseChatModel, "stream"),
+        (BaseChatModel, "astream"),
+        (BaseLLM, "stream"),
+        (BaseLLM, "astream"),
+        (CallbackManagerForLLMRun, "on_llm_new_token"),
+        (CallbackManagerForLLMRun, "on_llm_end"),
+        (AsyncCallbackManagerForLLMRun, "on_llm_new_token"),
+        (AsyncCallbackManagerForLLMRun, "on_llm_end"),
+    ):
+        try:
+            unwrap(owner, method)
+        except Exception:
+            logger.debug("Failed to unpatch %s.%s", owner.__name__, method, exc_info=True)
 
 
 def _langchain_agent_plan(
@@ -110,7 +209,7 @@ def _langchain_toolnode_run_one(
     Evaluates the tool call *before* the tool executes so a blocking decision
     raises ``AIGuardAbortError`` and prevents execution.
     """
-    _evaluate_langchain_tool_call(client, args, kwargs)
+    _evaluate_langchain_tool_call(client, instance, args, kwargs)
     return func(*args, **kwargs)
 
 
@@ -118,21 +217,35 @@ async def _langchain_toolnode_arun_one(
     client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
 ) -> Any:
     """Async variant of :func:`_langchain_toolnode_run_one`."""
-    _evaluate_langchain_tool_call(client, args, kwargs)
-    return await func(*args, **kwargs)
-
-
-def _try_parse_json(value: dict[str, Any], attribute: str) -> Any:
-    json_str = value.get(attribute, None)
-    if json_str is None:
-        return None
+    mcp_coroutine = _toolnode_mcp_coroutine(instance, args, kwargs)
+    if mcp_coroutine is None:
+        _evaluate_langchain_tool_call(client, instance, args, kwargs)
+    else:
+        # Off the event loop: an MCP call is always evaluated here, a blocking HTTP call.
+        await asyncio.to_thread(_evaluate_langchain_tool_call, client, instance, args, kwargs)
+    evaluated = None
+    if mcp_coroutine is not None:
+        call = args[0] if args else kwargs.get("call")
+        evaluated = (mcp_coroutine, try_format_json(call.get("args", {})))
+    token = _TOOLNODE_MCP_TOOL.set(evaluated)
     try:
-        return json.loads(json_str)
+        return await func(*args, **kwargs)
+    finally:
+        _TOOLNODE_MCP_TOOL.reset(token)
+
+
+def _toolnode_mcp_coroutine(instance: Any, args: Any, kwargs: Any) -> Optional[Callable[..., Any]]:
+    """The guarded coroutine of the MCP tool this ToolNode call runs; None for other tools."""
+    try:
+        call = args[0] if args else kwargs.get("call")
+        tool = (getattr(instance, "tools_by_name", None) or {}).get(call.get("name"))
+        return getattr(tool, "coroutine", None) if _mcp_tool_metadata(tool) is not None else None
     except Exception:
-        return {attribute: json_str}
+        logger.debug("AI Guard langchain: failed to resolve the ToolNode tool", exc_info=True)
+        return None
 
 
-def _get_message_text(msg: Any) -> str:
+def _get_message_text(msg: "BaseMessage") -> str:
     if isinstance(msg.content, str):
         return msg.content
 
@@ -144,7 +257,23 @@ def _get_message_text(msg: Any) -> str:
     return "".join(block if isinstance(block, str) else block["text"] for block in blocks)
 
 
-def _convert_messages(messages: list[Any]) -> list[Message]:
+def _convert_invalid_tool_calls(message: "AIMessage") -> list[ToolCall]:
+    """Convert the tool calls langchain could not parse, keeping their raw arguments.
+
+    They are never dispatched, but the raw text still reaches the application and
+    some providers serialize it back into the next request, so it must be evaluated.
+    """
+    return [
+        ToolCall(
+            id=call.get("id") or "",
+            function=Function(name=call.get("name") or "", arguments=call.get("args") or ""),
+        )
+        for call in getattr(message, "invalid_tool_calls", None) or ()
+        if isinstance(call, dict)
+    ]
+
+
+def _convert_messages(messages: Sequence["BaseMessage"]) -> list[Message]:
     from langchain_core.messages import ChatMessage
     from langchain_core.messages import HumanMessage
     from langchain_core.messages import SystemMessage
@@ -162,16 +291,15 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
             elif isinstance(message, ChatMessage):
                 result.append(Message(role=message.role, content=_get_message_text(message)))
             elif isinstance(message, AIMessage):
-                if len(message.tool_calls) > 0:
-                    tool_calls = [
-                        ToolCall(
-                            id=call.get("id", ""),
-                            function=Function(
-                                name=call.get("name", ""), arguments=try_format_json(call.get("args", {}))
-                            ),
-                        )
-                        for call in message.tool_calls
-                    ]
+                tool_calls = [
+                    ToolCall(
+                        id=call.get("id", ""),
+                        function=Function(name=call.get("name", ""), arguments=try_format_json(call.get("args", {}))),
+                    )
+                    for call in message.tool_calls
+                ]
+                tool_calls.extend(_convert_invalid_tool_calls(message))
+                if tool_calls:
                     result.append(Message(role="assistant", tool_calls=tool_calls))
                 if "function_call" in message.additional_kwargs:
                     function_call = message.additional_kwargs["function_call"]
@@ -220,6 +348,8 @@ def _canonical_arguments(value: Any) -> str:
     function_call arguments as a JSON string while the agent hook holds the parsed
     mapping, so both are normalised through the same sorted dump.
     """
+    import json
+
     if isinstance(value, str):
         try:
             parsed = json.loads(value)
@@ -281,7 +411,7 @@ def _message_has_tool_calls(message: Any) -> bool:
     return bool(_message_tool_call_fingerprints(message))
 
 
-def _convert_response_message(message: Any) -> list[Message]:
+def _convert_response_message(message: "BaseMessage") -> list[Message]:
     """Convert a model's own reply, keeping its text and tool calls in one turn.
 
     AIGuardClient.evaluate reads the span's target and tool_name off the trailing
@@ -303,6 +433,7 @@ def _convert_response_message(message: Any) -> list[Message]:
         for call in message.tool_calls or ()
         if isinstance(call, dict)
     ]
+    tool_calls.extend(_convert_invalid_tool_calls(message))
     function_call = message.additional_kwargs.get("function_call")
     if isinstance(function_call, dict):
         tool_calls.append(
@@ -398,6 +529,8 @@ def _langchain_chatmodel_generate_after(client: AIGuardClient, message_lists: An
     generations[i] holds the candidates produced for message_lists[i]; zip pairs
     them and tolerates a provider returning fewer of either.
     """
+    if _evaluated_at_run_end():
+        return
     generations = getattr(result, "generations", None) or []
     for messages, prompt_generations in zip(message_lists, generations):
         response_messages = _convert_generations(prompt_generations)
@@ -409,6 +542,8 @@ def _langchain_llm_generate_after(client: AIGuardClient, prompts: Any, result: A
     """Listener for langchain.llm.generate.after and its async twin -- see the chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
+    if _evaluated_at_run_end():
+        return
     generations = getattr(result, "generations", None) or []
     for prompt, prompt_generations in zip(prompts, generations):
         response_messages = _convert_generations(prompt_generations)
@@ -508,7 +643,7 @@ def _get_tool_runtime_messages(tool_runtime: Any) -> tuple[list[Any], Optional[A
     return list(messages), None
 
 
-def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any) -> None:
+def _evaluate_langchain_tool_call(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> None:
     """Evaluate a single tool call decided by a langchain >= 1.0 agent.
 
     ``langgraph``'s ``ToolNode._run_one`` / ``_arun_one`` execute one tool call
@@ -525,32 +660,122 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
             return
         tool_runtime = get_argument_value(args, kwargs, 2, "tool_runtime")
         history, source_message = _get_tool_runtime_messages(tool_runtime)
-        if _tool_call_already_evaluated(source_message, tool_name, call.get("args", {})):
+        mcp = _mcp_tool_metadata((getattr(instance, "tools_by_name", None) or {}).get(tool_name))
+        # The response evaluation cannot tell MCP tools apart, so an MCP call is evaluated here with its server.
+        if mcp is None and _tool_call_already_evaluated(source_message, tool_name, call.get("args", {})):
             # Same tool, same arguments as the response listener already scanned.
             # An edited call does not match and is evaluated here as usual.
             logger.debug("AI Guard langchain: tool call already evaluated with the model response")
             return
         messages = _convert_messages(history)
-        messages.append(
-            Message(
-                role="assistant",
-                tool_calls=[
-                    ToolCall(
-                        id=call.get("id", ""),
-                        function=Function(name=tool_name, arguments=try_format_json(call.get("args", {}))),
-                    )
-                ],
-            )
+        tool_call = ToolCall(
+            id=call.get("id", ""),
+            function=Function(name=tool_name, arguments=try_format_json(call.get("args", {}))),
         )
-        evaluate_auto(client, messages, AI_GUARD.INTEGRATION_LANGCHAIN)
+        messages.append(Message(role="assistant", tool_calls=[tool_call]))
+        mcp_servers = _add_mcp_reference(tool_call, mcp) if mcp is not None else None
+        evaluate_auto(client, messages, AI_GUARD.INTEGRATION_LANGCHAIN, mcp_servers)
     except AIGuardAbortError:
         raise
     except Exception:
         logger.debug("Failed to evaluate tool call", exc_info=True)
 
 
+def _mcp_client_server(connection: Any, server_name: Any) -> Optional[MCPServer]:
+    """The mcp_servers entry of a langchain-mcp-adapters connection; never headers, auth, env or unsafe args."""
+    if not isinstance(connection, dict):
+        return client_mcp_server(AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=server_name)
+    transport = _MCP_TRANSPORTS.get(str(connection.get("transport")), AI_GUARD.MCP_TRANSPORT_UNKNOWN)
+    return client_mcp_server(
+        transport,
+        name=server_name,
+        url=connection.get("url"),
+        command=connection.get("command"),
+        args=connection.get("args"),
+    )
+
+
+def _mcp_tool_metadata(tool: Any) -> Optional[tuple[MCPServer, str]]:
+    """The (server, original MCP tool name) of a converted MCP tool; None for other tools or with MCP disabled."""
+    if not aiguard_config._ai_guard_mcp_enabled:
+        return None
+    return getattr(getattr(tool, "coroutine", None), _MCP_ATTR, None)
+
+
+def _add_mcp_reference(tool_call: ToolCall, mcp: tuple[MCPServer, str]) -> list[MCPServer]:
+    """Reference the tool call's MCP server and return the mcp_servers of its request."""
+    server = mcp[0].copy()
+    server["tools"] = {}
+    tool_call["mcp"] = mcp_reference(server, tool_call["function"]["name"], mcp[1])
+    return [server]
+
+
+def _langchain_mcp_convert_tool(
+    client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """convert_mcp_tool_to_langchain_tool wrapper: tag the converted tool with its MCP server.
+
+    The server rides on the tool's own coroutine, which also checks calls made outside ToolNode.
+    """
+    tool = func(*args, **kwargs)
+    try:
+        if aiguard_config._ai_guard_mcp_enabled:
+            _guard_mcp_tool(client, tool, get_argument_value(args, kwargs, 1, "tool"), kwargs)
+    except Exception:
+        logger.debug("AI Guard langchain: failed to read the MCP tool metadata", exc_info=True)
+    return tool
+
+
+def _guard_mcp_tool(client: AIGuardClient, tool: Any, mcp_tool: Any, kwargs: Any) -> None:
+    original_name = getattr(mcp_tool, "name", None)
+    name = getattr(tool, "name", None)
+    coroutine = getattr(tool, "coroutine", None)
+    if not (isinstance(original_name, str) and original_name and isinstance(name, str) and name and coroutine):
+        return
+    server = _mcp_client_server(kwargs.get("connection"), kwargs.get("server_name"))
+    if server is None:
+        return
+    mcp = (server, original_name)
+    model_name: str = name
+    wrapped: Callable[..., Any] = coroutine
+
+    # wraps keeps the signature, so langchain and ToolNode still inject runtime as before.
+    @functools.wraps(wrapped)
+    async def guarded_call_tool(*call_args: Any, **call_kwargs: Any) -> Any:
+        arguments = try_format_json({key: value for key, value in call_kwargs.items() if key != "runtime"})
+        if _TOOLNODE_MCP_TOOL.get() != (guarded_call_tool, arguments):
+            current_name = getattr(tool, "name", None)
+            name = current_name if isinstance(current_name, str) and current_name else model_name
+            await _evaluate_direct_mcp_call(client, name, mcp, call_kwargs.get("runtime"), arguments)
+        return await wrapped(*call_args, **call_kwargs)
+
+    setattr(guarded_call_tool, _MCP_ATTR, mcp)
+    tool.coroutine = guarded_call_tool
+
+
+async def _evaluate_direct_mcp_call(
+    client: AIGuardClient, name: str, mcp: tuple[MCPServer, str], runtime: Any, arguments: str
+) -> None:
+    """Evaluate an MCP tool call made outside ToolNode before the MCP request; AIGuardAbortError on a block."""
+    try:
+        if not aiguard_config._ai_guard_mcp_enabled:
+            return
+        call_id = getattr(runtime, "tool_call_id", None) or f"call_{uuid.uuid4().hex}"
+        tool_call = ToolCall(id=str(call_id), function=Function(name=name, arguments=arguments))
+        mcp_servers = _add_mcp_reference(tool_call, mcp)
+        messages = [Message(role="assistant", tool_calls=[tool_call])]
+        # Off the event loop: the evaluation is a blocking HTTP call.
+        await asyncio.to_thread(evaluate_auto, client, messages, AI_GUARD.INTEGRATION_LANGCHAIN, mcp_servers)
+    except AIGuardAbortError:
+        raise
+    except Exception:
+        logger.debug("AI Guard langchain: failed to evaluate the MCP tool call", exc_info=True)
+
+
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists: Any) -> Optional[Any]:
-    set_aiguard_context_active()
+    # Pushed first: if reading the prompts fails, .finally still pops this call's scope, not its caller's.
+    scope = _push_generate_scope(client)
+    scope.requests = message_lists = list(message_lists)
     for messages in message_lists:
         result = _evaluate_langchain_messages(client, messages)
         if result is not None:
@@ -562,25 +787,25 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts: Any) -> Optio
     """``langchain.llm.[a]generate.before`` listener — see chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
-    set_aiguard_context_active()
-    for prompt in prompts:
-        result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
+    scope = _push_generate_scope(client)
+    scope.requests = requests = [[HumanMessage(content=prompt)] for prompt in prompts]
+    for messages in requests:
+        result = _evaluate_langchain_messages(client, messages)
         if result is not None:
             return result
     return None
 
 
 def _langchain_generate_finally(*args: Any, **kwargs: Any) -> None:
-    """Paired ``.finally`` listener for the four langchain ``generate`` events.
+    """Release the claim of the matching .before and drop the callbacks it still holds.
 
-    Releases the AI Guard active counter that the matching ``.before``
-    listener bumped. Dispatched from the contrib's ``finally`` block so it
-    fires on every exit path — success, block (``core.dispatch(..., allow_raise=True)``
-    raises out of ``.before``), or exception inside the underlying LLM call. The
-    counter reset is a no-op when the counter is already zero, so listener
-    invocations that don't pair with a ``.before`` set are safe.
+    Dispatched from the contrib's finally block, so it runs on success, on a block and on an error. Only a
+    generate scope (the one that holds a claim) is popped, so an unpaired call releases nothing else.
     """
-    reset_aiguard_context_active_current()
+    scopes = _SCOPES.get()
+    if scopes and scopes[-1].claim is not None:
+        _SCOPES.set(scopes[:-1])
+        reset_aiguard_context_active(scopes[-1].claim)
 
 
 def _langchain_chatmodel_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
@@ -597,18 +822,16 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance: Any, args: Any
     return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
 
 
-def _langchain_stream_started(*args: Any, **kwargs: Any) -> None:
-    """Paired ``.stream.started`` listener for langchain stream events.
+def _langchain_stream_started(state: dict[str, Any], *args: Any, **kwargs: Any) -> None:
+    """Claim the AI Guard context when iteration of a LangChain stream starts; .stream.finally releases it.
 
-    Acquires the AI Guard active-context counter for the duration of stream
-    iteration. Dispatched from ``BaseLangchainStreamHandler.start_stream``
-    (in ``ddtrace/contrib/internal/langchain/utils.py``), which is called
-    by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
-    iteration entry — so a stream created but never iterated cannot bump
-    the depth. The matching reset happens in
-    :func:`_langchain_generate_finally` via the ``.stream.finally`` event.
+    The handle is kept on the stream's own state, so a stream closed from another asyncio task releases it.
     """
-    set_aiguard_context_active()
+    state["aiguard_claim"] = set_aiguard_context_active()
+
+
+def _langchain_stream_finally(state: dict[str, Any], *args: Any, **kwargs: Any) -> None:
+    reset_aiguard_context_active(state.pop("aiguard_claim", None))
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> Optional[Any]:
@@ -646,3 +869,229 @@ def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> 
         except Exception:
             logger.debug("Failed to evaluate chat model prompt", exc_info=True)
     return None
+
+
+class _CallScope:
+    """One LangChain model call: the run-manager callbacks it holds until its response is evaluated.
+
+    With stream analysis on, a model that streams reports each token to the run manager before the response
+    is evaluated, which would reach callbacks (astream_events, LangGraph's messages mode) too early. The
+    response of a single-prompt call is evaluated in on_llm_end, and the held callbacks are sent only after.
+    A generate scope also holds the call's claim.
+    """
+
+    __slots__ = ("client", "requests", "claim", "holds", "held", "evaluated", "ends", "fingerprints")
+
+    def __init__(self, client: AIGuardClient, requests: list[list[Any]], claim: Any = None) -> None:
+        self.client = client
+        self.requests = requests
+        self.claim = claim
+        self.holds = aiguard_config._ai_guard_analyze_stream_responses_enabled
+        # Held callbacks per run, by run_id: the sync manager LangChain derives with get_sync() shares it.
+        self.held: dict[Any, list[Callable[[], Any]]] = {}
+        self.evaluated = False
+        # A buffered stream keeps the run's on_llm_end until its chunks are returned: astream_events() drops
+        # the stream events of a run that already ended. None for a generate call, which ends at once.
+        self.ends: Optional[list[Callable[[], Any]]] = None
+        # Tool calls evaluated at on_llm_end; a buffered stream records them on the chunks it returns.
+        self.fingerprints: list[str] = []
+
+    def evaluate_run_end(self, response: Any) -> None:
+        """Evaluate a single-prompt call's response; AIGuardAbortError on a block.
+
+        With several prompts runs cannot be paired with prompts here (cached prompts get no run), so
+        .generate.after evaluates them.
+        """
+        if self.evaluated or len(self.requests) != 1:
+            return
+        self.evaluated = True
+        generations = (getattr(response, "generations", None) or [[]])[0]
+        response_messages = _convert_generations(generations)
+        if response_messages and _evaluate_langchain_response(
+            self.client, _convert_messages(self.requests[0]), response_messages
+        ):
+            _mark_generations_evaluated(generations)
+            for generation in generations:
+                message = getattr(generation, "message", None)
+                if message is not None:
+                    self.fingerprints.extend(_message_tool_call_fingerprints(message))
+
+
+def _push_generate_scope(client: AIGuardClient) -> _CallScope:
+    scope = _CallScope(client, [], set_aiguard_context_active())
+    _SCOPES.set(_SCOPES.get() + (scope,))
+    return scope
+
+
+def _holding_scope() -> Optional[_CallScope]:
+    scopes = _SCOPES.get()
+    return scopes[-1] if scopes and scopes[-1].holds else None
+
+
+def _evaluated_at_run_end() -> bool:
+    scopes = _SCOPES.get()
+    return bool(scopes) and scopes[-1].evaluated
+
+
+def _stream_request(is_chat: bool, instance: Any, args: Any, kwargs: Any) -> list[list[Any]]:
+    """The request of a stream() call, as .stream.before reads it; empty when it cannot be read."""
+    from langchain_core.messages import HumanMessage
+
+    try:
+        prompt_value = instance._convert_input(get_argument_value(args, kwargs, 0, "input"))
+        return [prompt_value.to_messages() if is_chat else [HumanMessage(content=prompt_value.to_string())]]
+    except Exception:
+        logger.debug("AI Guard langchain: failed to read the streamed request", exc_info=True)
+        return []
+
+
+def _langchain_buffered_stream(
+    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """stream() wrapper: with stream analysis on, read every chunk and evaluate the response before any is returned."""
+    stream = func(*args, **kwargs)
+    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
+        return stream
+    return _read_then_replay(_stream_scope(client, is_chat, instance, args, kwargs), stream)
+
+
+def _stream_scope(client: AIGuardClient, is_chat: bool, instance: Any, args: Any, kwargs: Any) -> _CallScope:
+    scope = _CallScope(client, _stream_request(is_chat, instance, args, kwargs))
+    scope.ends = []
+    return scope
+
+
+def _read_then_replay(scope: _CallScope, stream: Any) -> Any:
+    # The response is evaluated at the run's on_llm_end, which LangChain calls while the stream is read.
+    _SCOPES.set(_SCOPES.get() + (scope,))
+    try:
+        chunks = list(stream)
+    finally:
+        _pop_scope(scope)
+        # A read that raised must still release the provider stream; a failing close must not replace it.
+        try:
+            close = getattr(stream, "close", None)
+            if close is not None:
+                close()
+        except Exception:
+            logger.debug("AI Guard langchain: failed to close the stream", exc_info=True)
+    _record_fingerprints(scope, chunks)
+    try:
+        yield from chunks
+    finally:
+        for end in scope.ends or ():
+            end()
+
+
+def _langchain_buffered_astream(
+    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """astream() wrapper: async twin of _langchain_buffered_stream."""
+    stream = func(*args, **kwargs)
+    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
+        return stream
+    return _aread_then_replay(_stream_scope(client, is_chat, instance, args, kwargs), stream)
+
+
+async def _aread_then_replay(scope: _CallScope, stream: Any) -> Any:
+    _SCOPES.set(_SCOPES.get() + (scope,))
+    try:
+        chunks = [chunk async for chunk in stream]
+    finally:
+        _pop_scope(scope)
+        # A cancelled or failed read must still release the provider stream; a failing close must not replace it.
+        try:
+            aclose = getattr(stream, "aclose", None)
+            if aclose is not None:
+                await aclose()
+        except Exception:
+            logger.debug("AI Guard langchain: failed to close the stream", exc_info=True)
+    _record_fingerprints(scope, chunks)
+    try:
+        for chunk in chunks:
+            yield chunk
+    finally:
+        for end in scope.ends or ():
+            result = end()
+            if result is not None:
+                await result
+
+
+def _record_fingerprints(scope: _CallScope, chunks: list[Any]) -> None:
+    # Chunk addition carries response_metadata into the message the caller (or an agent) assembles.
+    metadata = getattr(chunks[-1], "response_metadata", None) if chunks else None
+    if scope.fingerprints and isinstance(metadata, dict):
+        metadata[_EVALUATED_KEY] = scope.fingerprints
+
+
+def _pop_scope(scope: _CallScope) -> None:
+    scopes = _SCOPES.get()
+    if scopes and scopes[-1] is scope:
+        _SCOPES.set(scopes[:-1])
+
+
+def _run_key(run_manager: Any) -> Any:
+    return getattr(run_manager, "run_id", None) or id(run_manager)
+
+
+def _langchain_run_new_token(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    scope = _holding_scope()
+    if scope is None:
+        return func(*args, **kwargs)
+    scope.held.setdefault(_run_key(instance), []).append(partial(func, *args, **kwargs))
+    return None
+
+
+async def _langchain_arun_new_token(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    scope = _holding_scope()
+    if scope is None:
+        return await func(*args, **kwargs)
+    scope.held.setdefault(_run_key(instance), []).append(partial(func, *args, **kwargs))
+    return None
+
+
+def _langchain_run_end(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    """Evaluate the response first; the held tokens and the end reach callbacks only if it is allowed."""
+    scope = _holding_scope()
+    if scope is not None:
+        held = scope.held.pop(_run_key(instance), ())
+        try:
+            scope.evaluate_run_end(get_argument_value(args, kwargs, 0, "response"))
+        except AIGuardAbortError as error:
+            # LangChain does not report an error raised here; close the run so callbacks see it end,
+            # without letting a failing callback replace the block.
+            try:
+                instance.on_llm_error(error)
+            except Exception:
+                logger.debug("AI Guard langchain: on_llm_error callback failed", exc_info=True)
+            raise
+        for call in held:
+            call()
+        if scope.ends is not None:
+            scope.ends.append(partial(func, *args, **kwargs))
+            return None
+    return func(*args, **kwargs)
+
+
+async def _langchain_arun_end(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    scope = _holding_scope()
+    if scope is not None:
+        held = scope.held.pop(_run_key(instance), ())
+        try:
+            # Off the event loop: the evaluation is a blocking HTTP call.
+            await asyncio.to_thread(scope.evaluate_run_end, get_argument_value(args, kwargs, 0, "response"))
+        except AIGuardAbortError as error:
+            try:
+                await instance.on_llm_error(error)
+            except Exception:
+                logger.debug("AI Guard langchain: on_llm_error callback failed", exc_info=True)
+            raise
+        # Callbacks held from the sync manager that get_sync() derives return None instead of a coroutine.
+        for call in held:
+            result = call()
+            if result is not None:
+                await result
+        if scope.ends is not None:
+            scope.ends.append(partial(func, *args, **kwargs))
+            return None
+    return await func(*args, **kwargs)

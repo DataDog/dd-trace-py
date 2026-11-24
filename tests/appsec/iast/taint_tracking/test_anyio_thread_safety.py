@@ -16,8 +16,8 @@ pytest.importorskip("anyio")
 
 import anyio
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 

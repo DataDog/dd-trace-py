@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: Fixes an issue where Data Streams Monitoring under-reported end-to-end latency for
+    pathways that pass through a Kinesis consumer.

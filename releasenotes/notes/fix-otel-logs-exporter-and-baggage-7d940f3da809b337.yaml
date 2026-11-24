@@ -1,0 +1,5 @@
+fixes:
+  - |
+    opentelemetry: Fixes an issue where ``OTEL_LOGS_EXPORTER=otlp`` does not enable OTLP log export.
+  - |
+    tracing: Fixes an issue where ``baggage`` in ``OTEL_PROPAGATORS`` is reported as unsupported and ignored.

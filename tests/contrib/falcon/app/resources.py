@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import falcon
 
 from ddtrace.internal.utils.version import parse_version
@@ -33,6 +35,18 @@ class Resource201:
     def on_post(self, req, resp, **kwargs):
         resp.status = falcon.HTTP_201
         setattr(resp, TEXT_ATTR, "Success")
+
+
+class ResourceIntStatus:
+    def on_get(self, req, resp, **kwargs):
+        resp.status = 202
+        setattr(resp, TEXT_ATTR, "Accepted")
+
+
+class ResourceHTTPStatus:
+    def on_get(self, req, resp, **kwargs):
+        resp.status = HTTPStatus.ACCEPTED
+        setattr(resp, TEXT_ATTR, "Accepted")
 
 
 class Resource500:

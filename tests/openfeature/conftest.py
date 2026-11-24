@@ -2,7 +2,49 @@
 Shared fixtures for openfeature tests.
 """
 
+from typing import Any
+
 import pytest
+
+
+_SOURCE_SELECTION_ENV = (
+    "DD_FEATURE_FLAGS_ENABLED",
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE",
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL",
+    "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED",
+)
+
+
+def use_configuration_source(monkeypatch: pytest.MonkeyPatch, **env: str) -> None:
+    """Point DataDogProvider at a configuration where only the given source settings are provided."""
+    from ddtrace.internal.settings.openfeature import OpenFeatureConfig
+
+    # Environment variables take precedence over the source mapping, so remove inherited ones.
+    for name in _SOURCE_SELECTION_ENV:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr("ddtrace.internal.openfeature._provider.ffe_config", OpenFeatureConfig(source=env))
+
+
+def set_openfeature_provider(*args: Any, **kwargs: Any) -> None:
+    """Register a provider and wait until initialize() finishes when the SDK allows it.
+
+    OpenFeature Python 0.10 made set_provider() non-blocking. Tests that
+    evaluate flags immediately after registration must wait, or they see defaults.
+
+    set_provider_and_wait() also propagates ProviderNotReadyError when
+    initialize() times out. Most fixtures register before loading FFE config,
+    and the autouse fixture sets that timeout to 0, so the error is expected.
+    Swallow it: initialization has still finished.
+    """
+    from openfeature import api
+    from openfeature.exception import ProviderNotReadyError
+
+    wait: Any = getattr(api, "set_provider_and_wait", None)
+    register: Any = wait if wait is not None else api.set_provider
+    try:
+        register(*args, **kwargs)
+    except ProviderNotReadyError:
+        return
 
 
 @pytest.fixture(autouse=True)

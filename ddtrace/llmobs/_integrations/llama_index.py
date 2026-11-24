@@ -1,47 +1,40 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.llama_index._constants import TAG_MODEL
+from ddtrace.contrib.internal.llama_index._constants import TAG_PROVIDER
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
 
-MODEL = "llama_index.request.model"
-PROVIDER = "llama_index.request.provider"
-
-
 class LlamaIndexIntegration(BaseLLMIntegration):
     _integration_name = "llama_index"
 
-    def _set_base_span_tags(
-        self,
-        span: Span,
-        model: Optional[str] = None,
-        provider: Optional[str] = None,
-        **kwargs: dict[str, Any],
-    ) -> None:
-        if model is not None:
-            span._set_attribute(MODEL, model)
-        if provider is not None:
-            span._set_attribute(PROVIDER, provider)
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself.
 
-    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        LlamaIndex has no per-request base_url to record, so unlike other integrations
+        there is no LLMObs-only span state to set at start.
+        """
+
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
         # Event-based: on_started calls this with operation=event.operation (no trace() path).
         return "agent" if kwargs.get("operation") == "agent" else None
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -75,7 +68,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_query_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -95,7 +88,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_agent_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -111,7 +104,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tool_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -126,7 +119,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_embedding_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -155,15 +148,15 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind="embedding",
-            model_name=span.get_tag(MODEL) or "",
-            model_provider=span.get_tag(PROVIDER) or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
             input_documents=input_documents,
             output_value=output_value,
         )
 
     def _llmobs_set_retrieval_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -197,7 +190,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
     def _llmobs_set_llm_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
@@ -230,15 +223,22 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind="llm",
-            model_name=span.get_tag(MODEL) or "",
-            model_provider=span.get_tag(PROVIDER) or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
             input_messages=input_messages,
             metadata=metadata,
             output_messages=output_messages,
             metrics=metrics,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         span_kind_map = {
             "": "llm",
             "llm": "llm",
@@ -256,8 +256,8 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             span,
             metrics,
             span_kind,
-            model_name=span.get_tag(MODEL),
-            model_provider=span.get_tag(PROVIDER),
+            model_name=span.get_tag(TAG_MODEL),
+            model_provider=span.get_tag(TAG_PROVIDER),
         )
 
     def _extract_input_messages(self, kwargs: dict[str, Any], is_chat: bool) -> list[Message]:

@@ -1,7 +1,12 @@
 import sys
 
+from falcon import http_status_to_code
+
 from ddtrace import config
+from ddtrace._trace.http_tags import set_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
@@ -64,7 +69,14 @@ class TraceMiddleware:
             return
 
         # Set the resource on the live span before handler execution.
-        span.resource = "%s %s" % (req.method, _name(resource))
+        if config._otel_trace_semantics_enabled:
+            # Name the span from the resolved route so sampling during the handler sees the final name.
+            route = (req.root_path or "") + (req.uri_template or "")
+            if route:
+                span._set_attribute(http.ROUTE, route)
+                set_otel_resource_for_method(span, req.method, route)
+        else:
+            set_instrumentation_resource(span, "%s %s" % (req.method, _name(resource)))
 
         # Prevent the subscriber from replacing a resource customized by the
         # resource handler.
@@ -84,13 +96,16 @@ class TraceMiddleware:
                 return
 
             event: WebFrameworkRequestEvent = ctx.event
-            status = resp.status.partition(" ")[0]
+            try:
+                status = http_status_to_code(resp.status)
+            except ValueError:
+                status = None
 
             # Falcon does not always map errors or unmatched routes to the
             # proper status code, so retain the existing inference.
             if resource is None:
-                status = "404"
-                span.resource = "%s 404" % req.method
+                status = 404
+                set_instrumentation_resource(span, "%s 404" % req.method)
             else:
                 err_type = sys.exc_info()[0]
                 if err_type is not None:
@@ -100,7 +115,7 @@ class TraceMiddleware:
                 event.request_route = (req.root_path or "") + (req.uri_template or "")
                 event.response_headers = resp._headers
 
-            event.response_status_code = int(status)
+            event.response_status_code = status
         finally:
             ctx.dispatch_ended_event()
 
@@ -113,9 +128,9 @@ def _detect_and_set_status_error(err_type, span):
     """Detect the HTTP status code and set the traceback on the span."""
     if not _is_404(err_type):
         span.set_traceback()
-        return "500"
+        return 500
 
-    return "404"
+    return 404
 
 
 def _name(r):

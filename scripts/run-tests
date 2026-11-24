@@ -99,7 +99,7 @@ def _is_protected_ci_branch() -> bool:
 
 def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
     python_version = _python_hint_to_version(python_hint)
-    tags = f"test.configuration.riot_hash:{environment_hash}"
+    tags = f"test.configuration.env_hash:{environment_hash}"
     env["_CI_DD_TAGS"] = f"{tags},test.configuration.python:{python_hint}" if python_hint else tags
 
     if (
@@ -219,10 +219,11 @@ class TestRunner:
     def start_services(self, services: set[str]) -> bool:
         """Start required Docker services.
 
-        For testagent, first tries the default port (9126). If that fails
-        (e.g., another worktree already claimed it), retries with a random
-        port by setting TESTAGENT_HOST_PORT=0. When DD_TEST_PODMAN_COMPAT=1,
-        all requested services use the Podman host-network Compose override.
+        For testagent, first tries the default ports (9126 and 4318). If that
+        fails (e.g., another worktree already claimed one), retries with random
+        ports by setting TESTAGENT_HOST_PORT=0 and TESTAGENT_OTLP_HOST_PORT=0.
+        When DD_TEST_PODMAN_COMPAT=1, all requested services use the Podman
+        host-network Compose override.
         """
         if not services:
             return True
@@ -236,10 +237,11 @@ class TestRunner:
             if "testagent" in services and not self.podman_compat:
                 # NOTE: When falling back to a random port, snapshot tests that
                 # hardcode localhost:9126 in their URLs (e.g., in test code or
-                # snapshot files) may fail. This only happens for the second+
-                # concurrent worktree; the first always gets port 9126.
-                print("⚠️  Port conflict detected, retrying testagent with a random port...")
+                # snapshot files) may fail, as do OTLP snapshot tests, which
+                # export to port 4318. This happens when 9126 or 4318 is taken.
+                print("⚠️  Port conflict detected, retrying testagent with random ports...")
                 os.environ["TESTAGENT_HOST_PORT"] = "0"
+                os.environ["TESTAGENT_OTLP_HOST_PORT"] = "0"
                 try:
                     cmd = self._compose_command("up", "-d", *services)
                     subprocess.run(cmd, cwd=self.root, check=True)
@@ -595,6 +597,9 @@ class TestRunner:
 
         unpin_dependencies = os.environ.get("UNPIN_DEPENDENCIES", "").lower() == "true"
         for environment in environments:
+            # People and tools that read CI job logs use this line to find where each environment starts.
+            # Flush it so that it precedes the output of the build and test subprocesses.
+            print(f"Running test environment: {environment.hash}", flush=True)
             try:
                 build_env = dict(forwarded_env)
                 if environment.runs:

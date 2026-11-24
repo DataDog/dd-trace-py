@@ -1,4 +1,5 @@
 import _io
+import builtins
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
@@ -14,7 +15,7 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -47,11 +48,14 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_utils import _taint_structure_eager
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast_context import is_iast_request_enabled
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
+_FROZENDICT_TYPE = getattr(builtins, "frozendict", None)
+_DICT_TYPES = (dict,) if _FROZENDICT_TYPE is None else (dict, _FROZENDICT_TYPE)
 
 _extend_aspect = aspects.extend_aspect
 _join_aspect = aspects.join_aspect
@@ -489,7 +493,7 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
 
     try:
         mapping = parse_params(0, "mapping", None, *args, **kwargs)
-        mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
+        mapping_tuple = tuple(mapping if not isinstance(mapping, _DICT_TYPES) else mapping.values())
         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
             candidate_text,
             args + mapping_tuple,
@@ -509,7 +513,7 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
                     )
                     for key, value in mapping.items()
                 }
-                if isinstance(mapping, dict)
+                if isinstance(mapping, _DICT_TYPES)
                 else tuple(mapping)
             ),
             ranges_orig=ranges_orig,
@@ -596,47 +600,43 @@ def format_value_aspect(
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
+    """Encode or decode self one item at a time, mapping each taint range to its output position.
+
+    Ranges are expected in ascending, non-overlapping order. A range covers the output produced
+    while consuming its input. A character split across a range boundary is produced by the item
+    that completes it, so it belongs to the range holding its last byte.
+    """
     tainted_ranges = iter(get_tainted_ranges(self))
     result_list, new_ranges = [], []
     result_length, i = 0, 0
     tainted_range = next(tainted_ranges, None)
-    tainted_new_length = 0
-    in_tainted = False
     tainted_start = 0
-    bytes_iterated = 0
     try:
         for i in range(len(self)):
             if tainted_range is None:
-                # no more tainted ranges, finish decoding all at once
+                # No ranges left to map, so the rest can be converted in a single call.
                 new_prod = funcode(self[i:])
                 result_list.append(new_prod)
                 break
             if i == tainted_range.start:
-                # start new tainted range
-                tainted_start = bytes_iterated
-                tainted_new_length = 0
-                in_tainted = True
+                tainted_start = result_length
 
             new_prod = funcode(self[i : i + 1])
             result_list.append(new_prod)
             result_length += len(new_prod)
 
-            if in_tainted:
-                tainted_new_length += len(new_prod)
-            else:
-                bytes_iterated += len(new_prod)
-
-            if i + 1 == tainted_range.start + tainted_range.length and tainted_new_length > 0:
-                # end range. Do no taint partial multi-bytes character that comes next.
-                new_ranges.append(
-                    TaintRange(
-                        start=tainted_start,
-                        length=tainted_new_length,
-                        source=tainted_range.source,
-                        secure_marks=tainted_range.secure_marks,
+            if i + 1 == tainted_range.start + tainted_range.length:
+                # A range holding only part of a character produces no output and is dropped,
+                # but the next range must still be mapped.
+                if result_length > tainted_start:
+                    new_ranges.append(
+                        TaintRange(
+                            start=tainted_start,
+                            length=result_length - tainted_start,
+                            source=tainted_range.source,
+                            secure_marks=tainted_range.secure_marks,
+                        )
                     )
-                )
-
                 tainted_range = next(tainted_ranges, None)
         result_list.append(funcode(self[:0], True))
     except UnicodeDecodeError as e:
@@ -1482,7 +1482,9 @@ def json_loads_aspect(*args: Any, **kwargs: Any) -> Any:
             ranges = get_tainted_ranges(args[0])
             if ranges and obj:
                 source = ranges[0].source
-                if isinstance(obj, (dict, list)):
+                if isinstance(obj, (dict, list)) or (
+                    type(obj) is _FROZENDICT_TYPE and taint_structure is _taint_structure_eager
+                ):
                     obj = taint_structure(obj, source.origin, source.origin)
                 elif isinstance(obj, IAST.TEXT_TYPES):
                     obj = taint_pyobject(obj, source.name, source.value, source.origin)

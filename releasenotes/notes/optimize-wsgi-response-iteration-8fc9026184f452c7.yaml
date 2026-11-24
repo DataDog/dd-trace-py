@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    tracing: Reduces WSGI response iteration overhead. In an end-to-end traced Flask
+    benchmark, many-chunk streaming responses are about 39% faster per request, while
+    single-body responses are unaffected.

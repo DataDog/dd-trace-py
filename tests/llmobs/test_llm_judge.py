@@ -525,15 +525,17 @@ class TestLLMJudgePublish:
             llmobs.publish_evaluator(judge, ml_app="my-app")
 
     def test_publish_requires_llmobs_enabled(self, monkeypatch, llmobs):
-        monkeypatch.setattr(llmobs, "enabled", False)
-        judge = LLMJudge(
-            client=lambda *args, **kwargs: "",
-            provider="openai",
-            user_prompt="Evaluate {{output_data}}",
-            structured_output=BooleanStructuredOutput("Correctness"),
-        )
-        with pytest.raises(ValueError, match="LLMObs is not enabled"):
-            llmobs.publish_evaluator(judge, ml_app="my-app")
+        # Restore the flag before the llmobs fixture calls disable() during teardown.
+        with monkeypatch.context() as patch:
+            patch.setattr(llmobs, "enabled", False)
+            judge = LLMJudge(
+                client=lambda *args, **kwargs: "",
+                provider="openai",
+                user_prompt="Evaluate {{output_data}}",
+                structured_output=BooleanStructuredOutput("Correctness"),
+            )
+            with pytest.raises(ValueError, match="LLMObs is not enabled"):
+                llmobs.publish_evaluator(judge, ml_app="my-app")
 
     def test_publish_validates_eval_name_format(self, monkeypatch, llmobs):
         self._mock_publish_backend(monkeypatch, llmobs)

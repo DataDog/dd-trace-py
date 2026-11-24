@@ -95,38 +95,6 @@ def test_fork_no_pid_check():
             os._exit(0)
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
-def test_fork_pid_check():
-    import os
-
-    from ddtrace.internal.native import rand64bits
-    from tests.tracer.test_rand import MPQueue
-
-    q = MPQueue()
-    pid = os.fork()
-
-    # Generate random numbers in the parent and child processes after forking.
-    # The child sends back their numbers to the parent where we check to see
-    # if we get collisions or not.
-    if pid > 0:
-        # parent
-        rns = {rand64bits() for _ in range(100)}
-        child_rns = q.get()
-
-        assert rns & child_rns == set()
-
-    else:
-        # child
-        try:
-            rngs = {rand64bits() for _ in range(100)}
-            q.put(rngs)
-        finally:
-            # Kill the process so it doesn't continue running the rest of the
-            # test suite in a separate process. Note we can't use sys.exit()
-            # as it raises an exception that pytest will detect as an error.
-            os._exit(0)
-
-
 def _test_multiprocess_target(q):
     assert sum(_ is seed for _ in forksafe._registry) == 1
     q.put([rand64bits() for _ in range(100)])
@@ -374,3 +342,47 @@ def test_span_api_fork():
             q.put(child_ids)
         finally:
             os._exit(0)
+
+
+def test_uuid4_conforms_to_rfc_9562():
+    import uuid
+
+    from ddtrace.internal.native import uuid4
+
+    values = [uuid4() for _ in range(4096)]
+    assert len(set(values)) == len(values)
+
+    ones = zeros = 0
+    for value in values:
+        parsed = uuid.UUID(value)
+        # Canonical form: lowercase, hyphenated 8-4-4-4-12.
+        assert value == str(parsed)
+        assert parsed.version == 4
+        assert parsed.variant == uuid.RFC_4122
+        ones |= parsed.int
+        zeros |= ~parsed.int & (2**128 - 1)
+
+    # The version (bits 48-51) and variant (bits 64-65) fields are fixed;
+    # every one of the other 122 bits is random, so it must take both values.
+    fixed = (0xF << 76) | (0x3 << 62)
+    assert ones | fixed == zeros | fixed == 2**128 - 1
+
+
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_uuid4_differs_across_fork():
+    import os
+
+    from ddtrace.internal.native import uuid4
+
+    r, w = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.write(w, "".join(uuid4() for _ in range(64)).encode())
+        os._exit(0)
+    os.close(w)
+    os.waitpid(pid, 0)
+    child = os.read(r, 64 * 36).decode()
+    child_values = {child[i : i + 36] for i in range(0, len(child), 36)}
+    parent_values = {uuid4() for _ in range(64)}
+    assert len(child_values) == 64
+    assert not child_values & parent_values

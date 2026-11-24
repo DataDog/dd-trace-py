@@ -1,30 +1,52 @@
+from importlib.metadata import version
 from unittest import mock
 
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs.types import Message
+from tests.contrib.vllm._tiny_models import HIDDEN_SIZE
+from tests.contrib.vllm._tiny_models import TINY_BERT
+from tests.contrib.vllm._tiny_models import TINY_OPT
+from tests.contrib.vllm._tiny_models import TINY_RERANKER
 from tests.llmobs._utils import assert_llmobs_span_data
 
 from ._utils import get_simple_chat_template
 
 
+VLLM_VERSION = parse_version(version("vllm"))
+
 IGNORE_FIELDS = [
+    "meta_struct",
+    "meta.llmobs_parent_id",
+    "meta.llmobs_trace_id",
     "metrics.vllm.latency.ttft",
     "metrics.vllm.latency.queue",
     "metrics.vllm.latency.prefill",
     "metrics.vllm.latency.decode",
     "metrics.vllm.latency.inference",
+    # vLLM reports the model directory, which is a temporary directory, as the model name. The tests check the
+    # model name with assert_llmobs_span_data.
+    "meta._dd.llmobs.model_name",
+    "meta.gen_ai.request.model",
+    "meta.vllm.request.model",
 ]
+
+# The tiny models make one token for each byte. The encoder models add <s> and </s>.
+PROMPTS = ["Hello, my name is", "The capital of France is"]
+ENCODER_INPUT_TOKENS = {"Hello, my name is": 19, "The capital of France is": 26}
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_basic(vllm_llmobs, test_spans, opt_125m_llm):
+def test_llmobs_basic(vllm_llmobs, test_spans, tiny_opt_llm):
     from vllm import SamplingParams
 
-    llm = opt_125m_llm
-    sampling = SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42)
+    llm = tiny_opt_llm
+    # The weights are random (load_format="dummy"), so the output text is not fixed. ignore_eos makes the output
+    # length fixed.
+    sampling = SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42, ignore_eos=True)
     llm.generate("The future of AI is", sampling)
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
@@ -32,10 +54,10 @@ def test_llmobs_basic(vllm_llmobs, test_spans, opt_125m_llm):
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
         span_kind="llm",
-        model_name="facebook/opt-125m",
+        model_name=TINY_OPT,
         model_provider="vllm",
         input_messages=[Message(content="The future of AI is")],
-        output_messages=[Message(role="assistant", content=" in the hands of the people.")],
+        output_messages=[Message(role="assistant", content=mock.ANY)],
         metadata={
             "max_tokens": 8,
             "n": 1,
@@ -45,9 +67,10 @@ def test_llmobs_basic(vllm_llmobs, test_spans, opt_125m_llm):
             "num_cached_tokens": 0,
         },
         metrics={
-            "input_tokens": 6,
+            # One token for each byte, plus the </s> BOS token.
+            "input_tokens": 20,
             "output_tokens": 8,
-            "total_tokens": 14,
+            "total_tokens": 28,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,
@@ -59,11 +82,11 @@ def test_llmobs_basic(vllm_llmobs, test_spans, opt_125m_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_chat(vllm_llmobs, test_spans, opt_125m_llm):
+def test_llmobs_chat(vllm_llmobs, test_spans, tiny_opt_llm):
     from vllm import SamplingParams
 
-    llm = opt_125m_llm
-    sampling_params = SamplingParams(seed=42)
+    llm = tiny_opt_llm
+    sampling_params = SamplingParams(seed=42, ignore_eos=True)
 
     conversation = [
         {"role": "system", "content": "You are a helpful assistant"},
@@ -79,7 +102,7 @@ def test_llmobs_chat(vllm_llmobs, test_spans, opt_125m_llm):
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
         span_kind="llm",
-        model_name="facebook/opt-125m",
+        model_name=TINY_OPT,
         model_provider="vllm",
         input_messages=[
             Message(role="system", content="You are a helpful assistant"),
@@ -111,13 +134,10 @@ def test_llmobs_chat(vllm_llmobs, test_spans, opt_125m_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_classify(vllm_llmobs, test_spans, bge_reranker_llm):
-    llm = bge_reranker_llm
+def test_llmobs_classify(vllm_llmobs, test_spans, tiny_reranker_llm):
+    llm = tiny_reranker_llm
 
-    prompts = [
-        "Hello, my name is",
-        "The capital of France is",
-    ]
+    prompts = PROMPTS
 
     llm.classify(prompts)
     traces = test_spans.pop_traces()
@@ -139,15 +159,15 @@ def test_llmobs_classify(vllm_llmobs, test_spans, bge_reranker_llm):
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans_by_prompt[prompt]),
             span_kind="embedding",
-            model_name="BAAI/bge-reranker-v2-m3",
+            model_name=TINY_RERANKER,
             model_provider="vllm",
             input_documents=[{"text": prompt}],
             output_value="[1 embedding(s) returned with size 1]",
             metadata={"embedding_dim": 1, "num_cached_tokens": 0},
             metrics={
-                "input_tokens": 7,
+                "input_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "output_tokens": 0,
-                "total_tokens": 7,
+                "total_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "time_to_first_token": mock.ANY,
                 "time_in_queue": mock.ANY,
                 "time_in_model_prefill": mock.ANY,
@@ -158,13 +178,10 @@ def test_llmobs_classify(vllm_llmobs, test_spans, bge_reranker_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_embed(vllm_llmobs, test_spans, e5_small_llm):
-    llm = e5_small_llm
+def test_llmobs_embed(vllm_llmobs, test_spans, tiny_bert_llm):
+    llm = tiny_bert_llm
 
-    prompts = [
-        "Hello, my name is",
-        "The capital of France is",
-    ]
+    prompts = PROMPTS
 
     llm.embed(prompts)
     traces = test_spans.pop_traces()
@@ -184,15 +201,15 @@ def test_llmobs_embed(vllm_llmobs, test_spans, e5_small_llm):
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans_by_prompt[prompt]),
             span_kind="embedding",
-            model_name="intfloat/e5-small",
+            model_name=TINY_BERT,
             model_provider="vllm",
             input_documents=[{"text": prompt}],
-            output_value="[1 embedding(s) returned with size 384]",
-            metadata={"embedding_dim": 384, "num_cached_tokens": 0},
+            output_value=f"[1 embedding(s) returned with size {HIDDEN_SIZE}]",
+            metadata={"embedding_dim": HIDDEN_SIZE, "num_cached_tokens": 0},
             metrics={
-                "input_tokens": 7,
+                "input_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "output_tokens": 0,
-                "total_tokens": 7,
+                "total_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "time_to_first_token": mock.ANY,
                 "time_in_queue": mock.ANY,
                 "time_in_model_prefill": mock.ANY,
@@ -202,14 +219,12 @@ def test_llmobs_embed(vllm_llmobs, test_spans, e5_small_llm):
         )
 
 
+@pytest.mark.skipif(VLLM_VERSION >= (0, 24, 0), reason="vLLM 0.24.0 removed LLM.reward()")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
-    llm = bge_reranker_llm
+def test_llmobs_reward(vllm_llmobs, test_spans, tiny_reranker_llm):
+    llm = tiny_reranker_llm
 
-    prompts = [
-        "Hello, my name is",
-        "The capital of France is",
-    ]
+    prompts = PROMPTS
 
     llm.reward(prompts)
     traces = test_spans.pop_traces()
@@ -226,18 +241,26 @@ def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
     assert set(spans_by_prompt.keys()) == set(prompts)
 
     for prompt in prompts:
+        # vLLM 0.10 returns the hidden states of each token (one vector of size HIDDEN_SIZE for each token). Later
+        # versions return one reward score for each token.
+        num_tokens = ENCODER_INPUT_TOKENS[prompt]
+        if VLLM_VERSION < (0, 11, 0):
+            output_value = f"[{num_tokens} embedding(s) returned with size {HIDDEN_SIZE}]"
+            embedding_dim = HIDDEN_SIZE
+        else:
+            output_value, embedding_dim = f"[1 embedding(s) returned with size {num_tokens}]", num_tokens
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans_by_prompt[prompt]),
             span_kind="embedding",
-            model_name="BAAI/bge-reranker-v2-m3",
+            model_name=TINY_RERANKER,
             model_provider="vllm",
             input_documents=[{"text": prompt}],
-            output_value="[1 embedding(s) returned with size 7]",
-            metadata={"embedding_dim": 7, "num_cached_tokens": 0},
+            output_value=output_value,
+            metadata={"embedding_dim": embedding_dim, "num_cached_tokens": 0},
             metrics={
-                "input_tokens": 7,
+                "input_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "output_tokens": 0,
-                "total_tokens": 7,
+                "total_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "time_to_first_token": mock.ANY,
                 "time_in_queue": mock.ANY,
                 "time_in_model_prefill": mock.ANY,
@@ -248,8 +271,8 @@ def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_score(vllm_llmobs, test_spans, bge_reranker_llm):
-    llm = bge_reranker_llm
+def test_llmobs_score(vllm_llmobs, test_spans, tiny_reranker_llm):
+    llm = tiny_reranker_llm
 
     text_1 = "What is the capital of France?"
     texts_2 = [
@@ -264,25 +287,20 @@ def test_llmobs_score(vllm_llmobs, test_spans, bge_reranker_llm):
     # Expect one span per candidate document
     assert len(spans) == len(texts_2)
 
+    # The input document of each span is the list of token ids of the (text_1, text_2) pair.
+    tokenizer = llm.get_tokenizer()
+    input_tokens_by_text_2 = {texts_2[0]: 68, texts_2[1]: 65}
     expected_token_metrics_by_text = {
-        "[0, 4865, 83, 70, 10323, 111, 9942, 32, 2, 2, 581, 10323, 111, 30089, 83, 8233, 399, 5, 2]": {
-            "input_tokens": 19,
+        str(tokenizer(text_1, text_2).input_ids): {
+            "input_tokens": input_tokens,
             "output_tokens": 0,
-            "total_tokens": 19,
+            "total_tokens": input_tokens,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,
             "time_in_model_inference": mock.ANY,
-        },
-        "[0, 4865, 83, 70, 10323, 111, 9942, 32, 2, 2, 581, 10323, 111, 9942, 83, 7270, 5, 2]": {
-            "input_tokens": 18,
-            "output_tokens": 0,
-            "total_tokens": 18,
-            "time_to_first_token": mock.ANY,
-            "time_in_queue": mock.ANY,
-            "time_in_model_prefill": mock.ANY,
-            "time_in_model_inference": mock.ANY,
-        },
+        }
+        for text_2, input_tokens in input_tokens_by_text_2.items()
     }
 
     for span in spans:
@@ -290,7 +308,7 @@ def test_llmobs_score(vllm_llmobs, test_spans, bge_reranker_llm):
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(span),
             span_kind="embedding",
-            model_name="BAAI/bge-reranker-v2-m3",
+            model_name=TINY_RERANKER,
             model_provider="vllm",
             input_documents=[{"text": token_text}],
             output_value="[1 embedding(s) returned with size 1]",

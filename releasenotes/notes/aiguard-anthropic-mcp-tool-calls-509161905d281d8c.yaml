@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    AI Guard: MCP tools converted with the Anthropic SDK ``mcp_tool`` and ``async_mcp_tool`` helpers are
+    now evaluated before each call is sent to the MCP server, identifying the server from its MCP SDK
+    client transport. Only the scheme, host and port of a remote server URL, or the command of a stdio
+    server as configured with the package or ``python -m`` module name it runs, are reported; headers,
+    environment variables and other arguments never are.
+    Set ``DD_AI_GUARD_MCP_ENABLED=false`` to disable.

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: Fixes unfinished asynchronous client spans when calls are cancelled or streaming responses are not consumed.

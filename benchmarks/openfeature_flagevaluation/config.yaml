@@ -64,3 +64,31 @@ hook-plus-drain-scale:
   num_flags: 2500
   num_users: 500
   num_context_fields: 20
+
+# Native resolution plus the provider hooks for one evaluation, with and without split
+# features. Compare the pairs within a run: they differ only in the features.
+provider-resolution-typical:
+  <<: *defaults
+  mode: provider_resolution
+  split_features: false
+
+provider-resolution-split-features-typical:
+  <<: *defaults
+  mode: provider_resolution
+  split_features: true
+
+provider-resolution-stress:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 10
+  num_users: 1000
+  num_context_fields: 250
+  split_features: false
+
+provider-resolution-split-features-stress:
+  <<: *defaults
+  mode: provider_resolution
+  num_flags: 10
+  num_users: 1000
+  num_context_fields: 250
+  split_features: true

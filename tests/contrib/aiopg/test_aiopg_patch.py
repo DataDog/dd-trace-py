@@ -3,6 +3,8 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+import wrapt
+
 from ddtrace.contrib.internal.aiopg.patch import get_version
 from ddtrace.contrib.internal.aiopg.patch import patch
 
@@ -22,10 +24,13 @@ class TestAiopgPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, aiopg):
-        pass
+        for module in (aiopg, aiopg.connection, aiopg.pool):
+            assert isinstance(module.connect, wrapt.FunctionWrapper)
 
     def assert_not_module_patched(self, aiopg):
-        pass
+        for module in (aiopg, aiopg.connection, aiopg.pool):
+            assert not isinstance(module.connect, wrapt.FunctionWrapper)
 
     def assert_not_module_double_patched(self, aiopg):
-        pass
+        for module in (aiopg, aiopg.connection, aiopg.pool):
+            assert not isinstance(module.connect.__wrapped__, wrapt.FunctionWrapper)

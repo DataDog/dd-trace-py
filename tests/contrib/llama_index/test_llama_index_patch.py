@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.contrib.internal.llama_index.patch import _DD_WRAPPED
 from ddtrace.contrib.internal.llama_index.patch import get_version
 from ddtrace.contrib.internal.llama_index.patch import patch
@@ -109,3 +111,38 @@ class TestLlamaIndexPatch(PatchTestCase.Base):
         if BaseWorkflowAgent is not None:
             self.assert_not_double_wrapped(BaseWorkflowAgent.run)
             self.assert_not_double_wrapped(BaseWorkflowAgent.call_tool)
+
+
+@pytest.mark.subprocess(env=dict(DD_LLMOBS_ENABLED="false"), err=None)
+def test_manual_patch_emits_shadow_tags():
+    from unittest.mock import patch as mock_patch
+
+    from llama_index.core.llms import ChatMessage
+    from llama_index.core.llms import ChatResponse
+    from llama_index.llms.openai import OpenAI
+
+    import ddtrace
+    from tests.utils import DummyWriter
+
+    writer = DummyWriter()
+    ddtrace.tracer._span_aggregator.writer = writer
+    ddtrace.patch(llama_index=True)
+
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content="Hello"),
+        raw={"usage": {"prompt_tokens": 14, "completion_tokens": 15, "total_tokens": 29}},
+    )
+    llm = OpenAI(model="gpt-4o-mini", api_key="not-a-real-key")
+    with mock_patch.object(OpenAI, "_chat", return_value=response):
+        llm.chat([ChatMessage(role="user", content="Hello")])
+
+    spans = [span for span in writer.pop() if span.name == "llama_index.request"]
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "gpt-4o-mini"
+    assert span.get_tag("_dd.llmobs.model_provider") == "openai"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 14
+    assert span.get_metric("_dd.llmobs.output_tokens") == 15
+    assert span.get_metric("_dd.llmobs.total_tokens") == 29

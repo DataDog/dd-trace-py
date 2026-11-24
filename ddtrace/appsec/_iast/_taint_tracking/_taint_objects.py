@@ -2,8 +2,8 @@ from collections.abc import Sequence
 import itertools
 from typing import Any
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
@@ -13,8 +13,8 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base
 from ddtrace.appsec._iast_context import _get_iast_context_id
-from ddtrace.appsec._iast_context import _is_iast_taint_source_enabled
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.security._taint_sources import _is_iast_taint_source_enabled
 
 
 log = get_logger(__name__)

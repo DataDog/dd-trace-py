@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
 from ddtrace.appsec._iast.taint_sinks import untrusted_serialization as untrusted_mod
 from tests.appsec.iast.iast_utils import _get_iast_data
 
@@ -22,7 +21,8 @@ def _assert_one_untrusted_vuln():
     assert len(vulnerabilities) == 1
     vulnerability = vulnerabilities[0]
     print(vulnerability)
-    assert vulnerability["type"] == VULN_UNTRUSTED_SERIALIZATION
+    # Literal on purpose: this is the type name the backend and the other tracers expect.
+    assert vulnerability["type"] == "UNTRUSTED_DESERIALIZATION"
 
 
 def _assert_no_untrusted_vuln():
@@ -64,6 +64,32 @@ def test_untrusted_serialization_yaml_load_safe_loader(iast_context_defaults):
     yaml.load(tainted, Loader=yaml.SafeLoader)
 
     _assert_no_untrusted_vuln()
+
+
+@pytest.mark.parametrize("function_name", ["load", "load_all"])
+@pytest.mark.parametrize("payload", ["key: value", b"key: value"])
+@pytest.mark.parametrize("as_keyword", [False, True])
+@pytest.mark.parametrize("safe_loader", [False, True])
+@pytest.mark.parametrize("tainted", [False, True])
+def test_untrusted_serialization_yaml_stream_argument(
+    iast_context_defaults, function_name, payload, as_keyword, safe_loader, tainted
+):
+    yaml = pytest.importorskip("yaml")
+    if tainted:
+        payload = taint_pyobject(payload, source_name="path", source_value=payload, source_origin=OriginType.PATH)
+    loader = yaml.SafeLoader if safe_loader else yaml.UnsafeLoader
+    load = getattr(yaml, function_name)
+
+    result = load(stream=payload, Loader=loader) if as_keyword else load(payload, Loader=loader)
+
+    if function_name == "load_all":
+        assert list(result) == [{"key": "value"}]
+    else:
+        assert result == {"key": "value"}
+    if tainted and not safe_loader:
+        _assert_one_untrusted_vuln()
+    else:
+        _assert_no_untrusted_vuln()
 
 
 def test_untrusted_serialization_yaml_safe_load(iast_context_defaults):
