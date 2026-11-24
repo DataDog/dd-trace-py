@@ -1,4 +1,5 @@
 from importlib.util import find_spec
+import sys
 
 import pytest
 
@@ -54,6 +55,7 @@ def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
     assert not leaked, leaked
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="asyncio.Runner requires Python 3.11+")
 @pytest.mark.subprocess(
     env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_switching_sibling"},
     err=None,
@@ -70,27 +72,26 @@ def test_suspended_task_does_not_inherit_switching_sibling_frames() -> None:
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
+    async def sleeper() -> None:
+        await asyncio.Event().wait()
+
     async def switching() -> None:
         deadline = time.monotonic() + 1
         while time.monotonic() < deadline:
             await asyncio.sleep(0)
 
-    async def sleeper(done: asyncio.Event) -> None:
-        await done.wait()
+    async def main() -> "asyncio.Task[None]":
+        sleeper_task = asyncio.create_task(sleeper(), name="sleeper")
+        await asyncio.create_task(switching())
+        return sleeper_task
 
     p = profiler.Profiler()
     p.start()
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    done = asyncio.Event()
-    sleeper_task = loop.create_task(sleeper(done), name="sleeper")
-    loop.run_until_complete(switching())
-    # Stop before waking sleeper so that every sample sees it suspended.
-    p.stop()
-    done.set()
-    loop.run_until_complete(sleeper_task)
-    asyncio.set_event_loop(None)
-    loop.close()
+    with asyncio.Runner() as runner:  # type: ignore[attr-defined]
+        sleeper_task = runner.run(main())
+        # Stop while sleeper is still suspended. Closing the runner then cancels it.
+        p.stop()
+        assert not sleeper_task.done()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
