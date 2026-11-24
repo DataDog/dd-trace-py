@@ -51,8 +51,8 @@ def _mcp_config() -> dict[str, bool]:
     return {
         "distributed_tracing": asbool(env.get("DD_MCP_DISTRIBUTED_TRACING", default=True)),
         "enrichment_enabled": enrichment_enabled,
-        # DD_MCP_CAPTURE_INTENT predates DD_MCP_ENRICHMENT_ENABLED and overrides it for intent capture only
-        "capture_intent": asbool(env.get("DD_MCP_CAPTURE_INTENT", default=enrichment_enabled)),
+        # DD_MCP_CAPTURE_INTENT predates DD_MCP_ENRICHMENT_ENABLED and can only turn intent capture off
+        "capture_intent": enrichment_enabled and asbool(env.get("DD_MCP_CAPTURE_INTENT", default=True)),
     }
 
 
@@ -232,7 +232,17 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
     response = getattr(response_arg, "root", response_arg)
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
-    if (config.mcp.capture_intent or config.mcp.enrichment_enabled) and isinstance(response, ListToolsResult):
+    if config.mcp.enrichment_enabled and isinstance(response, (ListToolsResult, CallToolResult)):
+        # Servers can return cached results, so the integration changes a copy with its own list
+        field = "tools" if isinstance(response, ListToolsResult) else "content"
+        response = response.model_copy(update={field: list(getattr(response, field) or [])})
+        response_arg = type(response_arg)(response) if hasattr(response_arg, "root") else response
+        if args:
+            args = (response_arg, *args[1:])
+        else:
+            kwargs = {**kwargs, "response": response_arg}
+
+    if config.mcp.enrichment_enabled and isinstance(response, ListToolsResult):
         core.dispatch(TOOLS_LIST_RESPONSE_EVENT, (response,))
     if span and config.mcp.enrichment_enabled and isinstance(response, CallToolResult):
         core.dispatch(TOOL_RESULT_EVENT, (span, response))

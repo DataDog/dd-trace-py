@@ -164,7 +164,7 @@ class DatadogServerMiddleware:
 
         if method == "tools/list":
             result = await call_next(ctx)
-            if config.mcp.capture_intent or config.mcp.enrichment_enabled:
+            if config.mcp.enrichment_enabled:
                 core.dispatch(TOOLS_LIST_RESPONSE_EVENT, (result,))
             return result
 

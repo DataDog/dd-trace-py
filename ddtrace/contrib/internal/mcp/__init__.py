@@ -39,7 +39,7 @@ Configuration
    Requests with an ``mcp-session-id`` header, and spans that already have a ``session_id``, keep their session.
    Tools that declare their own ``telemetry`` argument are not changed. The ``mcp_session_source`` tag shows whether
    the agent sent the ID back (``echoed``) or the integration generated it (``generated``).
-   Set ``DD_MCP_CAPTURE_INTENT`` to turn intent capture on or off on its own.
+   Set ``DD_MCP_CAPTURE_INTENT`` to ``false`` to turn off intent capture and keep sessions.
    Alternatively, set this option with the ``DD_MCP_ENRICHMENT_ENABLED`` environment variable.
    Default: ``True``
 """  # noqa: E501

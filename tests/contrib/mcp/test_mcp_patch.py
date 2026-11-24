@@ -112,7 +112,7 @@ def test_patch_module_does_not_import_llmobs():
         ({"DD_MCP_CAPTURE_INTENT": "false"}, {"enrichment_enabled": True, "capture_intent": False}),
         (
             {"DD_MCP_ENRICHMENT_ENABLED": "false", "DD_MCP_CAPTURE_INTENT": "true"},
-            {"enrichment_enabled": False, "capture_intent": True},
+            {"enrichment_enabled": False, "capture_intent": False},
         ),
     ],
 )

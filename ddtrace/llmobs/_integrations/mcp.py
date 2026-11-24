@@ -280,9 +280,6 @@ class MCPIntegration(BaseLLMIntegration):
         """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
         """
-        if not self.llmobs_enabled or not (config.mcp.capture_intent or config.mcp.enrichment_enabled):
-            return
-
         params = _get_attr(request, "params", None)
         arguments = _get_attr(params, "arguments", None)
         telemetry = _get_attr(arguments, TELEMETRY_KEY, None)
@@ -290,15 +287,17 @@ class MCPIntegration(BaseLLMIntegration):
             # Any other value is the tool's own telemetry argument, which must reach the tool unchanged
             if not (telemetry is None or (isinstance(telemetry, dict) and set(telemetry) <= TELEMETRY_FIELDS)):
                 return
-            intent = _get_attr(telemetry, INTENT_KEY, None)
-            if intent:
-                _annotate_llmobs_span_data(span, intent=intent)
-
-            # The argument is removed before recording the input and calling the tool
+            # Removed even when enrichment is off, since clients can keep a schema listed while it was on
             del arguments[TELEMETRY_KEY]
 
+        if not self.llmobs_enabled or not config.mcp.enrichment_enabled:
+            return
+        intent = _get_attr(telemetry, INTENT_KEY, None) if config.mcp.capture_intent else None
+        if intent:
+            _annotate_llmobs_span_data(span, intent=intent)
+
         # Only when MCP has no session of its own, e.g. stdio or the stateless protocol
-        if config.mcp.enrichment_enabled and not transport_session_id and not get_llmobs_session_id(span):
+        if not transport_session_id and not get_llmobs_session_id(span):
             conversation_id = _get_attr(telemetry, CONVERSATION_ID_KEY, None) if telemetry else None
             if isinstance(conversation_id, str) and CONVERSATION_ID_PATTERN.match(conversation_id):
                 self._clear_pending_conversation_id(connection, conversation_id)

@@ -6,6 +6,8 @@ import os
 from textwrap import dedent
 from unittest import mock
 
+import pytest
+
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
@@ -426,7 +428,7 @@ def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans,
             result = await client.list_tools()
             return result
 
-    with override_config("mcp", dict(capture_intent=True)):
+    with override_config("mcp", dict(capture_intent=True, enrichment_enabled=True)):
         result = asyncio.run(run_test())
     tool = next(t for t in result.tools if t.name == "calculator")
     schema = tool.inputSchema
@@ -471,7 +473,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
                 },
             )
 
-    with override_config("mcp", dict(capture_intent=True)):
+    with override_config("mcp", dict(capture_intent=True, enrichment_enabled=True)):
         asyncio.run(run_test())
 
     traces = test_spans.pop_traces()
@@ -656,3 +658,38 @@ def test_own_telemetry_argument_kept_with_capture_disabled(mcp_setup, mcp_llmobs
 
     assert not result.isError
     assert json.loads(result.content[0].text) == {"event": "click"}
+
+
+@pytest.mark.skipif(MCP_VERSION < (1, 19, 0), reason="Low-level servers return result objects from mcp 1.19.0")
+def test_enrichment_does_not_change_cached_results(mcp_setup, mcp_llmobs, test_spans):
+    """Low-level servers can return the same result objects on every request."""
+    from mcp.server.lowlevel import Server
+    from mcp.shared.memory import create_connected_server_and_client_session
+    import mcp.types as types
+
+    schema = {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]}
+    cached_tools = types.ListToolsResult(tools=[types.Tool(name="echo", inputSchema=schema)])
+    cached_result = types.CallToolResult(content=[types.TextContent(type="text", text="ok")])
+    server = Server("CachedServer")
+
+    @server.list_tools()
+    async def list_tools():
+        return cached_tools
+
+    @server.call_tool()
+    async def call_tool(name, arguments):
+        return cached_result
+
+    async def run_test():
+        async with create_connected_server_and_client_session(server) as client:
+            listed = [await client.list_tools() for _ in range(2)]
+            results = [await client.call_tool("echo", {"a": "x"}) for _ in range(2)]
+            return listed, results
+
+    with override_config("mcp", dict(enrichment_enabled=True)):
+        listed, results = asyncio.run(run_test())
+
+    assert all("telemetry" in tools.tools[0].inputSchema["properties"] for tools in listed)
+    assert "telemetry" not in cached_tools.tools[0].inputSchema["properties"]
+    assert [len(result.content) for result in results] == [2, 2]
+    assert len(cached_result.content) == 1

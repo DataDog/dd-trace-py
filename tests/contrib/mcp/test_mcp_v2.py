@@ -148,7 +148,7 @@ def test_intent_capture(mcp_llmobs, test_spans, run_client, mode):
         )
         return tools
 
-    with override_config("mcp", dict(capture_intent=True)):
+    with override_config("mcp", dict(capture_intent=True, enrichment_enabled=True)):
         tools = run_client(mode, list_then_call)
 
     schema = next(tool for tool in tools.tools if tool.name == "calculator").input_schema
@@ -458,3 +458,19 @@ def test_conversation_id_not_added_to_error_without_text(mcp_llmobs, test_spans)
     assert result.is_error
     assert result.content == []
     assert _only(_pop_spans(test_spans), "server_tool_call").get_tag("error.message") == "tool resulted in an error"
+
+
+def test_telemetry_removed_when_enrichment_disabled(mcp_llmobs, test_spans, run_client):
+    """Clients can keep a tool schema listed while enrichment was on."""
+    telemetry = {"intent": "Testing", "conversation_id": "a" * 32}
+    result = run_client(
+        "legacy",
+        lambda client: client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2, "telemetry": telemetry}),
+    )
+
+    assert not result.is_error
+    assert len(result.content) == 1
+    server_span = _only(_pop_spans(test_spans), "server_tool_call")
+    assert "telemetry" not in json.loads(get_llmobs_input_value(server_span))["params"]["arguments"]
+    assert "intent" not in _get_llmobs_data_metastruct(server_span)["meta"]
+    assert get_llmobs_session_id(server_span) is None
