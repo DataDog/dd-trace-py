@@ -2,8 +2,12 @@ import functools
 import os
 import sys
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
+
+
+log = get_logger(__name__)
 
 
 @functools.lru_cache(maxsize=4096)
@@ -21,6 +25,34 @@ def is_file_level_coverage_enabled() -> bool:
     # avoids the cost of LINE events. Older versions default to line-level coverage.
     default = "true" if sys.version_info >= (3, 12) else "false"
     return asbool(env.get("_DD_COVERAGE_FILE_LEVEL", default))
+
+
+def is_import_data_enabled() -> bool:
+    # Private opt-out from import-time coverage data in per-test coverage reports. Import-time
+    # data is what lets test skipping select tests that merely import changed code, so it is
+    # enabled by default: disabling it trades skipping correctness for per-test overhead.
+    return asbool(env.get("_DD_COVERAGE_INCLUDE_IMPORT_DATA", "true"))
+
+
+_import_data_disabled_warned = False
+
+
+def warn_import_data_disabled() -> None:
+    """Log once per process when a reporting path drops import-time coverage data.
+
+    Called from every reporting path that honors the opt-out (context expansion and the
+    unittest internal-coverage reporter), so the warning fires exactly once regardless of
+    which path reports first.
+    """
+    global _import_data_disabled_warned
+    if _import_data_disabled_warned:
+        return
+    _import_data_disabled_warned = True
+    log.warning(
+        "Import-time coverage data is disabled (_DD_COVERAGE_INCLUDE_IMPORT_DATA=false): per-test coverage "
+        "reports will not include imported files, and test skipping may miss tests that import, but do not "
+        "execute, changed code"
+    )
 
 
 def collapse_ranges(numbers: list[int]) -> list[tuple[int, int]]:

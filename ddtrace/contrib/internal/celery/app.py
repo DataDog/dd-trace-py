@@ -21,6 +21,7 @@ from ddtrace.internal import core
 from ddtrace.internal.forksafe import ddtrace_after_in_parent
 from ddtrace.internal.forksafe import ddtrace_before_fork
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.trace import tracer
 
 
@@ -46,10 +47,8 @@ def patch_app(app, pin=None):
     # Patch apply_async
     trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
 
-    # When celery starts the beat process it closes all open file descriptors with `close_open_fds`.
-    # This causes panics as it closes the native runtime file descriptors.
-    # To prevent this we call the treat the `close_open_fds` method as a fork
-    # calling fork hook before and after to make sure all native runtime are shut down.
+    # When celery starts the embedded beat process it closes every inherited file descriptor with
+    # `close_open_fds`. We pause the native runtime around it to prevent it from using a stale fd.
     trace_utils.wrap("celery.platforms", "close_open_fds", _patched_close_open_fds)
 
     # connect to the Signal framework
@@ -143,18 +142,35 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
 
 
 def _patched_close_open_fds(func, instance, args, kwargs):
-    """
-    Celery closes all open file descriptors to isolate some fork child.
-    This causes the native runtime to panic because it expects to have a valid fd.
-    We call fork hook to avoid panics when the native runtime interacts with closed fds.
-    """
-    log.debug("Shutting down native runtime before closing fds")
-    ddtrace_before_fork()
+    """Pause ddtrace while Celery closes inherited file descriptors.
 
+    The before-fork hooks stop periodic threads for the whole cleanup, so no callback can start or
+    rebuild the native runtime while descriptors are being closed. The native runtime itself is paused
+    right before the sweep and resumed right after, so its descriptors are recreated once the sweep is
+    done. A runtime inherited through a fork and not rebuilt yet is left alone; it rebuilds lazily on
+    its next use, after the sweep. Python-level sockets (for example database connections) are still
+    closed by the sweep and must reconnect.
+    """
+    log.debug("Stopping ddtrace threads before closing fds")
+    ddtrace_before_fork()
     try:
-        result = func(*args, **kwargs)
+        runtime = _started_native_runtime()
+        if runtime is None or runtime.restart_pending():
+            return func(*args, **kwargs)
+
+        runtime.before_fork()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            # No native call may run between the sweep and this resume.
+            runtime.after_fork_parent()
     finally:
         ddtrace_after_in_parent()
-        log.debug("Restarting native runtime after closing fds")
+        log.debug("Restarted ddtrace threads after closing fds")
 
-    return result
+
+def _started_native_runtime():
+    # Do not create the runtime just to pause it.
+    if get_native_runtime.cache_info().currsize == 0:
+        return None
+    return get_native_runtime()
