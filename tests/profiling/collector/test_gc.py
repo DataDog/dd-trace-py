@@ -611,6 +611,7 @@ def test_gc_pause_samples_appear_in_profile() -> None:
 )
 def test_gc_pause_labels_in_profile() -> None:
     import os
+    import time
     from typing import Optional
 
     from ddtrace.internal.datadog.profiling import ddup
@@ -627,12 +628,15 @@ def test_gc_pause_labels_in_profile() -> None:
         service="test_gc_pause_labels_in_profile",
         version="1.0",
         output_filename=pprof_prefix,
+        timeline_enabled=True,
     )
     ddup.config_sample_type(ddup.SAMPLE_TYPE_GC)
     ddup.start()
 
     pause_ns: int = 20_000_000
+    slack_ns: int = 20_000_000
     col: GCCollector = GCCollector()
+    before_ns: int = time.time_ns()
     col.start()
     try:
         # One generation 2 pause, then generation 0 pauses to five past the cap. Real
@@ -640,6 +644,9 @@ def test_gc_pause_labels_in_profile() -> None:
         col._on_pause(2, pause_ns)
         for _ in range(gc_collector._MAX_PAUSE_EVENTS + 4):
             col._on_pause(0, pause_ns)
+        after_ns: int = time.time_ns()
+        # Keep the flush well after the pauses, so a sample stamped at flush time falls outside them.
+        time.sleep(0.1)
         col.snapshot()
     finally:
         col.stop()
@@ -658,6 +665,11 @@ def test_gc_pause_labels_in_profile() -> None:
         )
         assert generation is not None, sample
         event_generations.add(generation.num)
+        end: Optional[pprof_pb2.Label] = pprof_utils.get_label_with_key(
+            profile.string_table, sample, "end_timestamp_ns"
+        )
+        assert end is not None, sample
+        assert before_ns - slack_ns <= end.num <= after_ns + slack_ns, (before_ns, end.num, after_ns)
     # A zero numeric label must still be exported.
     assert {0, 2} <= event_generations, event_generations
 
