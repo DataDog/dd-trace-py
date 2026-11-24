@@ -2,16 +2,20 @@
 
 from collections.abc import Iterator
 from collections.abc import Mapping
+from typing import Generator
 from unittest.mock import Mock
 
 import bottle
 import pytest
 import webtest
 
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestInspectEvent
 from ddtrace.contrib.internal.bottle import trace
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.internal import core
+from ddtrace.internal.core.subscriber import Subscriber
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
@@ -325,3 +329,112 @@ def test_response_header_conversion_failure_preserves_status(app, test_spans, ra
     assert span.get_tag("http.method") == "GET"
     assert span.get_tag("http.route") == "/response"
     assert span.finished
+
+
+class ExampleRequestBlockingSubscriber(Subscriber):
+    """Test policy only; a product owns its real policy and subscriber lifecycle."""
+
+    event_names = (WebFrameworkRequestInspectEvent.event_name,)
+
+    @classmethod
+    def on_event(cls, inspection: WebFrameworkRequestInspectEvent) -> None:
+        event = inspection.request_event
+        if event.component == "bottle" and event.request_headers.get("X-Demo-Block") == "yes":
+            inspection.response = (403, {"Content-Type": "text/plain", "X-Demo-Response": "blocked"}, b"blocked")
+
+
+@pytest.fixture
+def blocking_subscriber() -> Generator[None, None, None]:
+    ExampleRequestBlockingSubscriber.register()
+    try:
+        yield
+    finally:
+        ExampleRequestBlockingSubscriber.unregister()
+
+
+@pytest.mark.parametrize("blocked", [False, True])
+def test_inspection_subscriber_can_replace_callback(app, tracer, test_spans, blocking_subscriber, blocked):
+    calls = []
+
+    @app.route("/hello/<name>")
+    def hello(name):
+        calls.append(name)
+        assert tracer.current_span().name == "bottle.request"
+        return "hello"
+
+    initial_context = core.current
+    with tracer.trace("parent") as parent:
+        with override_http_config("bottle", {"trace_headers": ["x-demo-response"]}):
+            result = webtest.TestApp(app).get(
+                "/hello/world", headers={"X-Demo-Block": "yes" if blocked else "no"}, expect_errors=True
+            )
+        assert tracer.current_span() is parent
+        assert not parent.finished
+    assert core.current is initial_context
+    assert result.status_int == (403 if blocked else 200)
+    assert result.text == ("blocked" if blocked else "hello")
+    assert calls == ([] if blocked else ["world"])
+    spans = test_spans.pop()
+    assert len(spans) == 2
+    span = next(span for span in spans if span is not parent)
+    assert span.name == "bottle.request"
+    assert span.resource == "GET /hello/<name>"
+    assert span.parent_id == parent.span_id
+    assert span.finished
+    assert span.error == 0
+    assert_span_http_status_code(span, result.status_int)
+    assert span.get_tag("http.route") == "/hello/<name>"
+    if blocked:
+        assert result.headers["X-Demo-Response"] == "blocked"
+        assert span.get_tag("http.response.headers.x-demo-response") == "blocked"
+    assert tracer.current_span() is None
+
+
+def test_inspection_subscriber_unregister_restores_callback(app, tracer, test_spans, blocking_subscriber):
+    @app.route("/hello")
+    def hello():
+        return "hello"
+
+    client = webtest.TestApp(app)
+    assert client.get("/hello", headers={"X-Demo-Block": "yes"}, status=403).text == "blocked"
+    ExampleRequestBlockingSubscriber.unregister()
+    assert client.get("/hello", headers={"X-Demo-Block": "yes"}).text == "hello"
+    spans = test_spans.pop()
+    assert len(spans) == 2
+    assert all(span.finished for span in spans)
+    assert tracer.current_span() is None
+
+
+@pytest.mark.parametrize("failure", [ValueError("inspection failed"), Cancelled("inspection cancelled")])
+def test_inspection_failure_preserves_callback_or_exception(app, tracer, test_spans, failure):
+    calls = []
+
+    @app.route("/hello")
+    def hello():
+        calls.append("hello")
+        return "hello"
+
+    def inspect(inspection):
+        raise failure
+
+    initial_context = core.current
+    core.on(WebFrameworkRequestInspectEvent.event_name, inspect)
+    try:
+        # Exercise production error handling instead of the suite's raise-on-listener-error mode.
+        with override_global_config({"_raise": False}), tracer.trace("parent") as parent:
+            if isinstance(failure, Exception):
+                assert webtest.TestApp(app).get("/hello").text == "hello"
+                assert calls == ["hello"]
+            else:
+                with pytest.raises(Cancelled) as caught:
+                    webtest.TestApp(app).get("/hello")
+                assert caught.value is failure
+                assert calls == []
+            assert tracer.current_span() is parent
+        assert core.current is initial_context
+    finally:
+        core.reset_listeners(WebFrameworkRequestInspectEvent.event_name, inspect)
+    spans = test_spans.pop()
+    assert len(spans) == 2
+    assert all(span.finished for span in spans)
+    assert tracer.current_span() is None

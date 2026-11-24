@@ -10,6 +10,7 @@ from bottle import response
 
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestInspectEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -67,7 +68,13 @@ class TracePlugin:
             )
             with core.context_with_event(event):
                 try:
-                    result = callback(*args, **kwargs)
+                    inspection = WebFrameworkRequestInspectEvent(request_event=event)
+                    core.dispatch_event(inspection)
+                    if inspection.response is None:
+                        result = callback(*args, **kwargs)
+                    else:
+                        status, headers, body = inspection.response
+                        result = HTTPResponse(body=body, status=status, headers=headers)
                 except BaseException as error:
                     _complete_request(event, None, error)
                     raise
