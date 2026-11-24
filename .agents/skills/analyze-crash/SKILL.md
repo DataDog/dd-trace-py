@@ -85,6 +85,8 @@ identify ddtrace ownership; corroborate them with the mapped binary path.
   lock, or error path needed to explain the failure, rather than a fixed line count.
 - Use `.cursor/rules/native-code.mdc` to select relevant sections of `docs/native-code-review.md`.
   For periodic threads and fork hooks, also read the relevant `ddtrace/internal/README.md` sections.
+  For profiler native components (`_stack`, `_ddup`, `_memalloc`, `libdd_wrapper`), see
+  `ddtrace/internal/datadog/profiling/docs/Architecture.md`.
 - Verify version-dependent behavior against the actual CPython/library source. Historical crash
   patterns are hypotheses, not proof that this crash has the same cause.
 - Inspect history scoped to the crashing revision (`git log <ref> -- <path>`), then separately

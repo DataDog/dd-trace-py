@@ -245,7 +245,7 @@ def log_filter(record: logging.LogRecord) -> bool:
             if record.stack_info:
                 string_buffer.append(record.stack_info)
             if record.exc_info:
-                string_buffer.extend(traceback.format_exception(record.exc_info[1], limit=exec_limit or None))
+                string_buffer.extend(traceback.format_exception(*record.exc_info, limit=exec_limit or None))
             record.msg = "\n".join(string_buffer)
             record.args = None
             # clean the record for any subsequent handlers
