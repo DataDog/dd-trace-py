@@ -1,9 +1,12 @@
 from collections.abc import Iterator
 import contextlib
 import gc
+import inspect
 import sys
 import threading
 import time
+from types import CodeType
+from types import FrameType
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -302,6 +305,12 @@ class _LockWithStop:
             self.after_release = None
             after()
 
+    def __enter__(self) -> bool:
+        return self.acquire()
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.release()
+
 
 def _finishes(section: Callable[[], object]) -> bool:
     # Another thread, so a section that deadlocks fails the test instead of hanging it.
@@ -366,6 +375,48 @@ def test_signal_stop_on_the_thread_that_holds_the_lock(section: str, boundary: s
 
         assert _finishes(run_section), "stop waited for the lock its own thread holds"
         _assert_stopped(monitor, pause_listener)
+
+
+def test_interrupt_while_a_section_takes_the_lock_does_not_leave_it_held() -> None:
+    """A signal handler that raises while a section takes the lock must not leave it held.
+
+    The default SIGINT handler raises KeyboardInterrupt between bytecodes, which can be
+    right after a bare acquire() returns and before its try starts. A lock left held
+    blocks every later snapshot, and stop work queued after that is never applied.
+    """
+    entering_code: CodeType = inspect.unwrap(GCPauseMonitor._holding_lock).__code__
+    previous_trace: Optional[Callable[..., Any]] = sys.gettrace()
+    target: int = 0
+    while True:
+        monitor: GCPauseMonitor = GCPauseMonitor()
+        seen: list[int] = [0]
+        state: list[str] = ["entering"]
+
+        def trace(frame: FrameType, event: str, arg: object) -> Optional[Callable[..., Any]]:
+            if frame.f_code is not entering_code or state[0] != "entering":
+                return None
+            if event == "return":
+                # Reached the yield: the section now holds the lock inside its protection.
+                state[0] = "entered"
+            elif event == "line":
+                if seen[0] == target:
+                    state[0] = "interrupted"
+                    raise KeyboardInterrupt
+                seen[0] += 1
+            return trace
+
+        sys.settrace(trace)
+        try:
+            monitor.reset()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            sys.settrace(previous_trace)
+        assert not monitor._lock.locked(), f"an interrupt at line event {target} of taking the lock left it held"
+        if state[0] != "interrupted":
+            break
+        target += 1
+    assert target > 0
 
 
 def test_signal_stop_inside_reset_is_done_when_reset_returns(monkeypatch: pytest.MonkeyPatch) -> None:

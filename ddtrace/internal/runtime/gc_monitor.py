@@ -141,11 +141,16 @@ class GCPauseMonitor:
 
     @contextmanager
     def _holding_lock(self) -> Iterator[None]:
-        self._lock.acquire()
+        # Take the lock with a with statement, not acquire() then try. Except on 3.14,
+        # CPython runs no signal handler between a with statement taking the lock and
+        # its protection starting, so a raising handler cannot leave the lock held.
+        # Then apply stop work queued while it was held, as _unlock does.
         try:
-            yield
+            with self._lock:
+                yield
         finally:
-            self._unlock()
+            if self._pending_removes or self._pending_releases:
+                self._apply_pending()
 
     def _apply_remove_listener_locked(self, listener: PauseListener) -> None:
         self._listeners = tuple(item for item in self._listeners if item is not listener)
@@ -174,6 +179,9 @@ class GCPauseMonitor:
             self._listeners = self._listeners + (listener,)
 
     def remove_listener(self, listener: PauseListener) -> None:
+        # Matched by identity, so pass the object that add_listener got (a cached bound
+        # method, not a fresh obj.method): == could run listener code under the lock,
+        # inside a GC callback.
         # Applied now if the lock is free, otherwise by the holder when it unlocks.
         self._pending_removes.append(listener)
         self._apply_pending()
