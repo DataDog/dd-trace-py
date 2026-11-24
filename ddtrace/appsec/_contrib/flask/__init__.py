@@ -228,7 +228,8 @@ def _wsgi_make_block_content(
 ) -> tuple[int, list[tuple[str, str]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
-    headers = ctx.get_item("headers")
+    # The WSGI request event carries the request headers.
+    headers: Mapping[str, str] = getattr(getattr(ctx, "event", None), "request_headers", None) or {}
     environ = ctx.get_item("environ")
     if req_span is None:
         raise ValueError("request span not found")
