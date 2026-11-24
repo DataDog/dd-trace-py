@@ -32,6 +32,7 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
+from ddtrace.internal.writer.writer import _EXPORTER_DISCARD_TIMEOUT_NS
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
 from ddtrace.internal.writer.writer import HTTPWriter
@@ -1371,7 +1372,7 @@ def test_native_writer_drop_exporter_drops_once():
         writer._drop_exporter()
         writer._drop_exporter()
 
-        writer._exporter.drop.assert_called_once_with()
+        writer._exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         assert writer._exporter_dropped is True
     finally:
         real_exporter.drop()
@@ -1474,7 +1475,7 @@ def test_native_writer_drop_buffered_traces_does_not_wait_for_send(monkeypatch):
                 assert writer._accepting_writes is False
                 # The in-flight send holds the exporter lock, so the sender drops it once released.
                 assert writer._exporter_dropped is False
-                stuck_exporter.drop.assert_not_called()
+                stuck_exporter.discard.assert_not_called()
             finally:
                 release_send.set()
                 flush_thread.join(timeout=5)
@@ -1482,7 +1483,7 @@ def test_native_writer_drop_buffered_traces_does_not_wait_for_send(monkeypatch):
             assert not flush_thread.is_alive()
             assert stuck_exporter.send.call_count == 1
             assert writer._exporter_dropped is True
-            stuck_exporter.drop.assert_called_once_with()
+            stuck_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
             stuck_exporter.shutdown.assert_not_called()
     finally:
         writer.shutdown_exporter()
@@ -1566,7 +1567,7 @@ def test_native_writer_recreate_after_sync_drop_does_not_wait_for_active_send(mo
 
         assert not write_thread.is_alive()
         assert writer._exporter_dropped is True
-        stuck_exporter.drop.assert_called_once_with()
+        stuck_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
     finally:
         release_send.set()
         write_thread.join(timeout=5)
@@ -1606,7 +1607,7 @@ def test_native_writer_shutdown_rechecks_discard_after_waiting_for_exporter_lock
             assert not send_thread.is_alive()
             assert not shutdown_thread.is_alive()
             assert not errors
-            exporter.drop.assert_called_once()
+            exporter.discard.assert_called_once()
             exporter.shutdown.assert_not_called()
         finally:
             release_send.set()
@@ -1625,7 +1626,7 @@ def test_native_writer_refresh_during_final_flush_skips_native_shutdown(monkeypa
         # Refresh can win after on_shutdown() checks its gate, during the final trace flush.
         with mock.patch.object(writer, "periodic", side_effect=writer.drop_buffered_traces):
             writer.on_shutdown()
-        exporter.drop.assert_called_once()
+        exporter.discard.assert_called_once()
         exporter.shutdown.assert_not_called()
     finally:
         real_exporter.shutdown(3_000_000_000)
@@ -1655,7 +1656,7 @@ def test_native_writer_discarded_stop_does_not_join_and_on_shutdown_drops_export
             writer.join(timeout=5)
 
         assert writer._exporter_dropped is True
-        stuck_exporter.drop.assert_called_once_with()
+        stuck_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         # No final flush and no pending stats: the in-flight payload was the only send.
         shutdown_exporter.assert_not_called()
         assert stuck_exporter.send.call_count == 1
@@ -1699,7 +1700,7 @@ def test_native_writer_del_drops_exporter_when_refresh_lost_lock_to_non_sender(m
 
         writer.__del__()
 
-        exporter.drop.assert_called_once_with()
+        exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         exporter.shutdown.assert_not_called()
         assert writer._exporter_dropped is True
     finally:
@@ -1737,11 +1738,11 @@ def test_native_writer_send_finishing_after_refresh_skips_response_callback(monk
 
         if refreshed:
             response_callback.assert_not_called()
-            exporter.drop.assert_called_once_with()
+            exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         else:
             response_callback.assert_called_once()
             assert response_callback.call_args[0][0].rate_by_service == {"service:,env:": 0.5}
-            exporter.drop.assert_not_called()
+            exporter.discard.assert_not_called()
     finally:
         release_send.set()
         send_thread.join(timeout=5)
@@ -1800,10 +1801,10 @@ def test_native_writer_downgrade_rechecks_gate_when_replacing_exporter(monkeypat
         shutdown_exporter.assert_not_called()
         assert writer._exporter is old_exporter
         assert writer._exporter_dropped is True
-        # Dropped by the refresh and again by the downgrade; native drop() is idempotent.
-        old_exporter.drop.assert_called_with()
+        # Discarded by the refresh and again by the downgrade; native discard() is idempotent.
+        old_exporter.discard.assert_called_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         # The replacement built before the swap is dropped instead of installed.
-        new_exporter.drop.assert_called_once_with()
+        new_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         new_exporter.send.assert_not_called()
     finally:
         real_exporter.drop()
@@ -1849,9 +1850,9 @@ def test_native_writer_downgrade_drops_old_exporter_after_refresh_lands_post_swa
 
         assert writer._discarded_by_refresh
         old_exporter.shutdown.assert_not_called()
-        old_exporter.drop.assert_called_once_with()
+        old_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         # The refresh dropped the exporter the swap had just installed.
-        new_exporter.drop.assert_called_once_with()
+        new_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
     finally:
         writer._exporter_lock = exporter_lock
         real_exporter.drop()
@@ -1882,9 +1883,9 @@ def test_native_writer_downgrade_drops_old_exporter_when_refresh_drops_published
 
         shutdown_exporter.assert_not_called()
         assert writer._exporter_dropped is True
-        # Dropped by the refresh and again by the downgrade; native drop() is idempotent.
-        new_exporter.drop.assert_called_with()
-        old_exporter.drop.assert_called_once_with()
+        # Discarded by the refresh and again by the downgrade; native discard() is idempotent.
+        new_exporter.discard.assert_called_with(_EXPORTER_DISCARD_TIMEOUT_NS)
+        old_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
     finally:
         real_exporter.drop()
 
@@ -1918,8 +1919,8 @@ def test_native_writer_downgrade_drops_replacement_published_after_refresh(monke
 
         shutdown_exporter.assert_not_called()
         assert writer._exporter_dropped is True
-        old_exporter.drop.assert_called_with()
-        new_exporter.drop.assert_called_once_with()
+        old_exporter.discard.assert_called_with(_EXPORTER_DISCARD_TIMEOUT_NS)
+        new_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         new_exporter.send.assert_not_called()
         telemetry_writer._unsubscribe_worker_changes.assert_called_once_with(writer._on_telemetry_worker_changed)
         assert writer._telemetry_worker_subscribed is False
@@ -2031,8 +2032,8 @@ def test_native_writer_concurrent_microvm_downgrades_replace_exporter_once(monke
         assert not second_thread.is_alive()
         create.assert_called_once_with()
         assert writer._exporter is first_replacement
-        first_replacement.drop.assert_not_called()
-        original_exporter.drop.assert_called_once_with()
+        first_replacement.discard.assert_not_called()
+        original_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         assert writer._api_version == "v0.4"
     finally:
         second_finished.set()
@@ -2089,10 +2090,10 @@ def test_native_writer_downgrade_drops_microvm_exporter_without_shutdown(monkeyp
         # that could flush pre-refresh stats after a concurrent refresh completes.
         if microvm:
             old_exporter.shutdown.assert_not_called()
-            old_exporter.drop.assert_called_once_with()
+            old_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         else:
             old_exporter.shutdown.assert_called_once_with(3_000_000_000)
-            old_exporter.drop.assert_not_called()
+            old_exporter.discard.assert_not_called()
         assert writer._exporter is new_exporter
         assert writer._api_version == "v0.4"
     finally:
@@ -2132,7 +2133,7 @@ def test_native_writer_downgrade_builds_exporter_outside_exporter_lock():
         assert writer._exporter is new_exporter
         assert writer._api_version == "v0.4"
         shutdown_exporter.assert_called_once_with(old_exporter)
-        new_exporter.drop.assert_not_called()
+        new_exporter.discard.assert_not_called()
     finally:
         real_exporter.drop()
 
@@ -2545,9 +2546,9 @@ def test_microvm_downgrade_with_telemetry_rejects_exporter_after_stop(monkeypatc
             if stop_during == "build":
                 telemetry_writer._subscribe_worker_changes.assert_not_called()
             original_exporter.shutdown.assert_not_called()
-            original_exporter.drop.assert_not_called()
+            original_exporter.discard.assert_not_called()
             replacement_exporter.shutdown.assert_called_once_with(3_000_000_000)
-            replacement_exporter.drop.assert_not_called()
+            replacement_exporter.discard.assert_not_called()
             writer.shutdown_exporter()
             original_exporter.shutdown.assert_called_once_with(3_000_000_000)
         finally:
@@ -2596,7 +2597,7 @@ def test_microvm_downgrade_drops_original_exporter(monkeypatch):
         writer._downgrade(404, mock.Mock(ENDPOINT="v0.5/traces"))
 
     assert writer._exporter is replacement_exporter
-    original_exporter.drop.assert_called_once_with()
+    original_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
     original_exporter.shutdown.assert_not_called()
     replacement_exporter.shutdown.assert_not_called()
     writer.shutdown_exporter()

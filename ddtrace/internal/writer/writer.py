@@ -88,6 +88,9 @@ class _SpanWithContext(Protocol):
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
+# How long a MicroVM identity refresh waits for a replaced exporter's native workers to be destroyed.
+# discard() cancels them before it waits, so they start no new request whether or not it finishes in time.
+_EXPORTER_DISCARD_TIMEOUT_NS = 100_000_000
 _OTLP_TRACER_TAG_RESERVED_KEYS = frozenset({"service", "env", "version", "runtime_id", "runtime-id"})
 
 
@@ -1040,8 +1043,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._telemetry_writer: Optional[TelemetryWriter] = None
             self._telemetry_worker_subscribed = False
 
-        # The native exporter's drop() and shutdown() borrow it mutably, and PyO3 rejects them while
-        # a send holds its shared borrow. This lock also guards which exporter is installed.
+        # The native exporter's shutdown() and set_otlp_resource_attributes() borrow it mutably, and PyO3
+        # rejects them while a send or a refresh discard holds its shared borrow. This lock also guards
+        # which exporter is installed, so the refresh's discard() retires the one a send or downgrade
+        # leaves installed.
         self._exporter_lock = forksafe.RLock()
         # MicroVM stop must close publication without waiting on an exporter send or build.
         self._exporter_lifecycle_lock = forksafe.RLock() if self._writer_lock is not None else self._exporter_lock
@@ -1059,9 +1064,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             exporter = getattr(self, "_exporter", None)
             if exporter is not None and not getattr(self, "_exporter_dropped", False):
                 if self._discarded_by_refresh:
-                    # The refresh's nonblocking drop can lose the lock to a non-send holder (e.g. the
+                    # The refresh's nonblocking discard can lose the lock to a non-send holder (e.g. the
                     # telemetry callback) that never retries. Shutting down would flush the old stats now;
-                    # drop() still leaves the exporter's native workers running (see the MicroVM known gap).
+                    # discard() retires the exporter's native workers without flushing them.
                     self._drop_exporter()
                 else:
                     self._shutdown_exporter(exporter)
@@ -1152,8 +1157,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             return
         # No exporter lock: a send holds it across its retries, and MicroVM identity refresh notifies
         # from the /run thread while holding the telemetry lock. set_telemetry_handle() borrows the
-        # exporter immutably like send(), and neither it nor drop()/shutdown() releases the GIL, so it
-        # cannot overlap a destructive call. A consumed exporter raises instead of being revived.
+        # exporter immutably like send() and discard(), and neither it nor shutdown() releases the GIL,
+        # so it cannot overlap shutdown()'s mutable borrow. A consumed exporter raises instead of being
+        # revived; a discarded one keeps the handle but reports nothing through it.
         try:
             (exporter if exporter is not None else self._exporter).set_telemetry_handle(worker)
         except Exception:
@@ -1214,9 +1220,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _drop_exporter(self) -> None:
         self._unsubscribe_telemetry_worker()
         with self._exporter_lock:
-            # The refresh, the finishing sender, and on_shutdown() may all get here; only one drops.
+            # The refresh, the finishing sender, and on_shutdown() may all get here; only one discards.
             if not self._exporter_dropped:
-                self._exporter.drop()
+                if not self._exporter.discard(_EXPORTER_DISCARD_TIMEOUT_NS):
+                    log.debug("The discarded trace exporter's native workers are still shutting down")
                 self._exporter_dropped = True
 
     def _try_drop_exporter(self) -> None:
@@ -1331,13 +1338,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                         old_exporter = self._exporter
                     self._exporter = new_exporter
             if discarded:
-                # The refresh drops whichever exporter is installed when it gets the lock, if it gets it at all:
-                # old_exporter, or the replacement if _create_exporter() published it first. drop() is idempotent,
-                # so drop both, and the subscription _create_exporter() may have renewed.
+                # The refresh discards whichever exporter is installed when it gets the lock, if it gets it at all:
+                # old_exporter, or the replacement if _create_exporter() published it first. discard() is
+                # idempotent, so discard both, and drop the subscription _create_exporter() may have renewed.
                 self._unsubscribe_telemetry_worker()
                 with self._exporter_lock:
-                    old_exporter.drop()
-                    new_exporter.drop()
+                    old_exporter.discard(_EXPORTER_DISCARD_TIMEOUT_NS)
+                    new_exporter.discard(_EXPORTER_DISCARD_TIMEOUT_NS)
                     self._exporter_dropped = True
                 return
             if stopping:
@@ -1353,11 +1360,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 return
             with self._exporter_lock:
                 # MicroVM refresh closes the gate without this lock, so even a final recheck can
-                # race shutdown. Always drop here; a flushing shutdown could outlive the refresh.
-                # Without a refresh this leaves the old exporter's native workers running (see the
-                # MicroVM known gap); a writer downgrades at most once, so at most one set leaks.
+                # race shutdown. Always discard here; a flushing shutdown could outlive the refresh.
+                # Without a refresh this drops the old exporter's unflushed stats along with the
+                # payload that triggered the downgrade.
                 if self._writer_lock is not None:
-                    old_exporter.drop()
+                    old_exporter.discard(_EXPORTER_DISCARD_TIMEOUT_NS)
                 else:
                     self._shutdown_exporter(old_exporter)
 
@@ -1421,7 +1428,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             with self._exporter_lock:
                 # drop_buffered_traces() closes the gate before taking this lock, so no send
-                # starts after a refresh and none reaches a dropped exporter.
+                # starts after a refresh and none reaches a discarded exporter.
                 if self._discarded_by_refresh:
                     return
                 if self._otlp_endpoint is not None:
@@ -1573,7 +1580,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._accepting_writes = False
             # An encoder lock may be held by a thread that did not survive the MicroVM fork.
             # The disabled writer will be recreated without flushing or reusing this buffer.
-        # A send in flight holds the exporter lock; it drops the exporter once it releases the lock.
+        # A send in flight holds the exporter lock; it discards the exporter once it releases the lock.
         # The gate is closed before trying the lock, so that sender cannot miss the discard.
         if not self._exporter_dropped:
             self._try_drop_exporter()
@@ -1637,8 +1644,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._unsubscribe_telemetry_worker()
             return
         if self._discarded_by_refresh:
-            # Finish the refresh's discard without the final flush. drop() avoids shutdown()'s stats flush but
-            # leaves the exporter's native workers running (see the MicroVM known gap).
+            # Finish the refresh's discard without the final flush: discard() retires the exporter's native
+            # workers without shutdown()'s stats flush.
             self._drop_exporter()
             self._exporter_dropped = True
             return

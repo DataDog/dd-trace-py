@@ -618,6 +618,21 @@ class TraceExporter:
         Drop the TraceExporter, releasing any resources without sending pending stats.
         """
         ...
+    def discard(self, timeout_ns: int) -> bool:
+        """Retire the exporter's background workers without flushing them.
+
+        Cancels the stats, /info fetcher, DogStatsD and exporter-owned telemetry workers: unlike
+        shutdown() no final stats or telemetry are sent, and unlike drop() the workers do not stay
+        registered on the shared runtime. Safe while send() runs on another thread; sends that start
+        afterwards still export traces but report no telemetry or health metrics.
+
+        Waits at most about timeout_ns for the workers to be destroyed, with the GIL released.
+        Returns True once they are gone (or the exporter was already consumed), False if they are
+        still being destroyed. Either way they start no new request, except that a stats send
+        already being polled when the wait ends early may still start one. Later calls are safe.
+        Never raises.
+        """
+        ...
     def debug(self) -> str:
         """
         Returns a string representation of the exporter.
