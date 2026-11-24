@@ -83,7 +83,7 @@ pub struct TelemetryWorkerPy {
     handle: TelemetryWorkerHandle<NativeCapabilities>,
     shared_runtime: Arc<ForkSafeRuntime>,
     // Held to keep the worker registered on the SharedRuntime; dropping it
-    // would leak the worker until the runtime shuts down. `stop()` consumes it.
+    // would leak the worker until the runtime shuts down. `stop()` or `discard()` consumes it.
     worker_handle: Mutex<Option<WorkerHandle>>,
 }
 
@@ -253,11 +253,10 @@ impl TelemetryWorkerPy {
 
     /// Flush + tear the worker down, emitting app-closing (in origin process).
     ///
-    /// WARNING: `send_app_closing` is currently ineffective and ignored: since the
-    /// migration to libdatadog's telemetry worker, teardown always drains the worker
-    /// and emits app-closing in the origin process. If stopping without an
-    /// app-closing event is needed again, the behavior must be fixed in libdatadog
-    /// (TODO).
+    /// WARNING: `send_app_closing` is currently ineffective and ignored: teardown always
+    /// drains the worker and emits app-closing in the origin process. `discard()` retires
+    /// the worker without draining or app-closing. Stopping with a drain but without
+    /// app-closing still needs a libdatadog change (TODO).
     fn stop(&self, py: Python<'_>, send_app_closing: bool) -> PyResult<()> {
         // Currently a no-op (see doc comment above); kept for API compatibility.
         let _ = send_app_closing;
@@ -280,6 +279,67 @@ impl TelemetryWorkerPy {
             });
         }
         Ok(())
+    }
+
+    /// Retire the worker without draining its queue or emitting app-closing, waiting at most
+    /// `timeout_ns` for the native task to be destroyed.
+    ///
+    /// Returns true once the worker is gone (or was already stopped), false if destruction is
+    /// still in progress when the wait ends. Either way the worker starts no new request: the
+    /// discard is claimed before anything that can fail, the shared runtime's fork and shutdown
+    /// paths finish a claimed retirement instead of restarting or flushing the worker, and stop()
+    /// refuses it. A request already on the wire cannot be recalled.
+    #[pyo3(signature = (timeout_ns))]
+    fn discard(&self, py: Python<'_>, timeout_ns: u64) -> bool {
+        let Some(wh) = self
+            .worker_handle
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
+        else {
+            return true;
+        };
+        // An atomic store: no registry lock, no executor. Claim before the fork-restart check below,
+        // so a pending child restart drops this worker instead of restarting it. Fails only when a
+        // graceful stop or the runtime shutdown already owns the worker, which then retires it.
+        if wh.claim_discard().is_err() {
+            return true;
+        }
+        // A fork child that cannot restart the runtime yet honors the claim when it restarts; an
+        // abandoned runtime never runs the worker again.
+        if let Err(e) = self.ensure_runtime_after_fork() {
+            tracing::debug!("telemetry: worker discard left to the runtime after fork: {e}");
+            return false;
+        }
+        let mut discard = std::pin::pin!(wh.discard());
+        // The first poll locks the worker registry, which must not be held at the fork instant
+        // (see WorkerHandle::discard). Poll it with the GIL held so a Python-managed fork cannot
+        // be in progress, then wait for the rest without it.
+        let first_poll = self.shared_runtime.block_on(std::future::poll_fn(|cx| {
+            std::task::Poll::Ready(std::future::Future::poll(discard.as_mut(), cx))
+        }));
+        let result = match first_poll {
+            Ok(std::task::Poll::Ready(result)) => result,
+            Ok(std::task::Poll::Pending) => match py.detach(|| {
+                self.shared_runtime
+                    .block_on_with_timeout(discard, Duration::from_nanos(timeout_ns))
+            }) {
+                Ok(result) => result,
+                Err(e) => {
+                    tracing::debug!("telemetry: worker discard did not finish: {e}");
+                    return false;
+                }
+            },
+            Err(e) => {
+                tracing::debug!("telemetry: worker discard did not start: {e}");
+                return false;
+            }
+        };
+        if let Err(e) = result {
+            // AlreadyStopped or a failed task: the worker is gone either way.
+            tracing::debug!("telemetry: worker discard: {e}");
+        }
+        true
     }
 
     /// Force a data flush without emitting any lifecycle event, and BLOCK until the

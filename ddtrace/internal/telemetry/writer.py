@@ -60,6 +60,11 @@ log = get_logger(__name__)
 
 _PASSTHROUGH_CODES: set[CodeType] = set()
 
+# How long a MicroVM discard waits for the old native worker to be destroyed. It runs under the
+# worker access lock, so this bounds how long a refresh makes telemetry producers wait on the old
+# worker. The worker starts no new request once discard() returns, whether or not it finished in time.
+_WORKER_DISCARD_TIMEOUT_NS = 100_000_000
+
 
 def _forwards_the_call(frame: FrameType) -> bool:
     """A registered wrapper, or wrapt's pure-Python fallback frame that sits between a wrapper and its caller."""
@@ -212,7 +217,7 @@ class TelemetryWriter:
         # configuration reporting and MicroVM identity refresh can re-enter enable().
         self._enable_lock = forksafe.RLock()
         # A MicroVM refresh replaces the worker in-process. Guard the complete worker operation
-        # (lookup through native call) so refresh cannot stop the old worker between those steps.
+        # (lookup through native call) so refresh cannot discard the old worker between those steps.
         # Reuse the lifecycle lock; None preserves lock-free worker access outside MicroVMs.
         # The tracer's identity refresh reaches _get_shared_worker() while holding the span aggregator
         # lock, so never take that lock while holding this one.
@@ -417,13 +422,15 @@ class TelemetryWriter:
                 try:
                     self._replay_worker_state(worker)
                 except BaseException as e:
-                    # The worker isn't published, so nothing else would stop it and release its native task.
+                    # The worker isn't published, so nothing else would discard it and release its native task.
+                    # Discard rather than stop: stop() would send the partial replay, with no deadline, under
+                    # the worker access lock.
                     try:
-                        worker.stop(send_app_closing=False)
+                        worker.discard(_WORKER_DISCARD_TIMEOUT_NS)
                     except BaseException as stop_error:
                         if not (isinstance(stop_error, Exception) or is_panic_exception(stop_error)):
                             raise
-                        log.debug("Failed to stop the unpublished telemetry worker", exc_info=True)
+                        log.debug("Failed to discard the unpublished telemetry worker", exc_info=True)
                     if not (isinstance(e, Exception) or is_panic_exception(e)):
                         raise
                     log.debug("Failed to replay telemetry state into the new worker", exc_info=True)
@@ -534,7 +541,7 @@ class TelemetryWriter:
         # Refresh callbacks run in no fixed order, and _downgrade() can rebuild the exporter on the
         # writer thread, so a MicroVM exporter can ask for a worker before this writer has refreshed.
         if self._is_microvm and not self._rebuild_stale_worker_without_lock():
-            # A failed stop() keeps the old worker; hand out none so the exporter uses its own client.
+            # A failed discard() keeps the old worker; hand out none so the exporter uses its own client.
             return None
         self.enable()
         return self._worker
@@ -554,24 +561,26 @@ class TelemetryWriter:
         return self._worker is None or self._worker_runtime_id == get_runtime_id()
 
     def _discard_worker(self, reason: str) -> None:
-        """Stop and detach the worker built for the previous runtime ID.
+        """Discard and detach the worker built for the previous runtime ID.
 
-        stop() ignores its lifecycle argument and flushes the queue and app-closing under the
-        previous runtime ID, with no deadline beyond each request's timeout. That flush is
-        preferred over keeping the old worker, which would report under the snapshot's shared
-        runtime ID for the rest of the process lifetime. Discarding without the flush needs a
-        native non-flushing drop(), which the bundled TelemetryWorker does not expose yet.
+        discard() drops the worker's queue without sending it or app-closing, so nothing more is
+        reported under the snapshot's shared runtime ID. It waits at most
+        _WORKER_DISCARD_TIMEOUT_NS for the native task to go away and never waits on telemetry
+        network I/O, so the callers' locks are held for a bounded time. A request already in
+        flight is cancelled, but one already sent cannot be recalled.
 
-        The worker is stopped before the writer lets go of it, so a failure leaves the writer
-        unchanged and propagates. The /run refresh runs once, so periodic() and the trace
-        exporter's worker handout retry the discard instead. A stop() that failed would otherwise
-        leave the worker registered with the native runtime, which restarts it with the runtime
-        after a fork.
+        The writer lets go of the worker only after discard() returns. discard() claims the
+        worker first, so from then on the shared runtime's fork and shutdown paths finish the
+        retirement rather than restarting or flushing the worker, even when the wait runs out.
+        If discard() raises (a native panic), the writer stays unchanged and the error propagates.
+        The /run refresh runs once, so periodic() and the trace exporter's worker handout retry
+        the discard instead, and the retried discard() returns at once for a claimed worker.
         """
         worker = self._worker
         if worker is None:
             return
-        worker.stop(send_app_closing=False)
+        if not worker.discard(_WORKER_DISCARD_TIMEOUT_NS):
+            log.debug("The telemetry worker discarded %s is still shutting down", reason)
         self._worker = None
         self.started = False
         _unbind_metric_recorders(self)
