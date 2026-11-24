@@ -157,3 +157,29 @@ def test_send_error_without_traceback(test_spans):
     assert span.get_tag("error.type") == "kafka.errors.KafkaTimeoutError"
     assert "delivery failed" in span.get_tag("error.message")
     assert span.get_tag("error.stack")
+
+
+def test_iterator_error_records_consume_span(test_spans):
+    from kafka.errors import KafkaError
+
+    from ddtrace.contrib.internal.kafka_python.patch import traced_next
+
+    def fail():
+        raise KafkaError("fetch failed")
+
+    def exhausted():
+        raise StopIteration
+
+    consumer = make_consumer(create_topic("iterator_error"))
+    try:
+        with pytest.raises(KafkaError):
+            traced_next(fail, consumer, (), {})
+        with pytest.raises(StopIteration):
+            traced_next(exhausted, consumer, (), {})
+    finally:
+        consumer.close(autocommit=False)
+
+    (span,) = _spans_named(test_spans, "kafka.consume")
+    assert span.error == 1
+    assert span.get_tag("error.type") == "kafka.errors.KafkaError"
+    assert "fetch failed" in span.get_tag("error.message")

@@ -169,7 +169,15 @@ def traced_next(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], 
         return func(*args, **kwargs)
 
     start_ns = time_ns()
-    record = func(*args, **kwargs)
+    try:
+        record = func(*args, **kwargs)
+    except StopIteration:
+        raise
+    except Exception as err:
+        error_event = _consume_event(instance, None, error=err)
+        with core.context_with_event(error_event) as ctx:
+            span_from_context(ctx).start_ns = start_ns
+        raise
 
     event = _consume_event(
         instance,
