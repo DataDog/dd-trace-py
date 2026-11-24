@@ -70,9 +70,12 @@ def test_no_checkpoints_without_data_streams():
 def test_kombu_sets_no_checkpoints_on_celery_internal_exchanges():
     from unittest import mock
 
+    from ddtrace.contrib.internal.celery.patch import patch
     from ddtrace.internal.datastreams import data_streams_processor
     from ddtrace.internal.datastreams.kombu import handle_kombu_consume
     from ddtrace.internal.datastreams.kombu import handle_kombu_produce
+
+    patch()
 
     for exchange in ("celeryev", "celery.pidbox", "reply.celery.pidbox"):
         publish_args = [b"{}", 0, "application/json", "utf-8", {}, {}, "", False, False, exchange]
@@ -81,6 +84,17 @@ def test_kombu_sets_no_checkpoints_on_celery_internal_exchanges():
         handle_kombu_consume(mock.Mock(queues=[]), message, None)
 
     assert not data_streams_processor()._buckets
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_kombu_keeps_pidbox_checkpoints_without_celery_instrumentation():
+    from ddtrace.internal.datastreams import data_streams_processor
+    from ddtrace.internal.datastreams.kombu import handle_kombu_produce
+
+    publish_args = [b"{}", 0, "application/json", "utf-8", {}, {}, "", False, False, "notifications.pidbox"]
+    handle_kombu_produce(publish_args, {}, None)
+
+    assert data_streams_processor()._buckets
 
 
 def test_celery_internal_exchanges_are_skipped_by_kombu():
@@ -104,6 +118,8 @@ def test_celery_internal_exchanges_are_skipped_by_kombu():
         ({"broker_url": "redis+socket:///tmp/redis.sock"}, "redis"),
         ({"broker_url": ["redis://a:6379/0", "redis://b:6379/0"]}, "redis"),
         ({"broker_url": "sentinel://s1:26379;sentinel://s2:26379"}, "redis"),
+        ({"broker_url": "redis-host", "broker_transport": "redis"}, "redis"),
+        ({"broker_url": "rabbit-host"}, "rabbitmq"),
         ({"broker_url": "sqs://"}, None),
         ({"broker_url": "memory://"}, None),
         ({"broker_url": None}, "rabbitmq"),
@@ -253,6 +269,16 @@ def test_payload_size_of_protocol_2_body():
     assert _payload_size(body, {"h": "v"}) == _payload_size(body) + 2
 
 
+def test_payload_size_counts_every_occurrence_of_a_repeated_container():
+    from ddtrace.internal.datastreams.celery import _payload_size
+
+    item = {"k": "x" * 10}
+    shared = [item, item]
+
+    assert _payload_size(([item] * 3, {}, {})) == 3 * 11
+    assert _payload_size(([shared, shared], {"a": shared}, {})) == 4 * 11 + 1 + 2 * 11
+
+
 def test_payload_size_of_self_referencing_body():
     from ddtrace.internal.datastreams.celery import _payload_size
 
@@ -351,3 +377,36 @@ def test_kombu_checkpoints_a_later_forward_of_celery_headers():
 
     tags = [t for bucket in data_streams_processor()._buckets.values() for (t, _, _) in bucket.pathway_stats]
     assert tags == ["direction:out,topic:forwarded,type:rabbitmq"], tags
+
+
+def test_kombu_releases_the_pathway_once_the_celery_publish_completes():
+    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_end
+    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_start
+    from ddtrace.internal.datastreams.celery import dsm_celery_task_published
+    from ddtrace.internal.datastreams.kombu import _checkpointed_by_celery_publish
+    from ddtrace.internal.datastreams.kombu import begin_celery_publish
+
+    headers = {"dd-pathway-ctx-base64": "published"}
+    dsm_celery_send_task_start(None)
+    begin_celery_publish(headers)
+    assert _checkpointed_by_celery_publish(headers)
+
+    dsm_celery_task_published({"headers": headers})
+    assert not _checkpointed_by_celery_publish(headers)
+    dsm_celery_send_task_end()
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_worker_process_shutdown_flushes_data_streams():
+    from unittest import mock
+
+    from celery import signals
+
+    from ddtrace.contrib.internal.celery.patch import patch
+    from ddtrace.internal.datastreams import data_streams_processor
+
+    patch()
+    with mock.patch.object(data_streams_processor(), "periodic") as periodic:
+        signals.worker_process_shutdown.send(sender=None, pid=1, exitcode=0)
+
+    periodic.assert_called_once_with()

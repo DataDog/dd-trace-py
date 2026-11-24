@@ -68,6 +68,7 @@ def patch_app(app, pin=None):
     signals.after_task_publish.connect(trace_after_publish, weak=False)
     signals.task_failure.connect(trace_failure, weak=False)
     signals.task_retry.connect(trace_retry, weak=False)
+    signals.worker_process_shutdown.connect(_dispatch_worker_process_shutdown, weak=False)
     return app
 
 
@@ -95,6 +96,7 @@ def unpatch_app(app):
     signals.after_task_publish.disconnect(trace_after_publish)
     signals.task_failure.disconnect(trace_failure)
     signals.task_retry.disconnect(trace_retry)
+    signals.worker_process_shutdown.disconnect(_dispatch_worker_process_shutdown)
 
 
 def _traced_beat_function(integration_config, fn_name, resource_fn=None):
@@ -116,6 +118,10 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
             return func(*args, **kwargs)
 
     return _traced_beat_inner
+
+
+def _dispatch_worker_process_shutdown(*args, **kwargs):
+    core.dispatch("celery.worker_process.shutdown", ())
 
 
 def _traced_send_task(func, instance, args, kwargs):

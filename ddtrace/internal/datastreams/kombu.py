@@ -1,4 +1,5 @@
 from contextvars import ContextVar
+import sys
 from typing import Any
 from typing import Optional
 
@@ -24,6 +25,15 @@ _MAX_PENDING_CELERY_PUBLISHES = 256
 _pending_celery_publishes: ContextVar[tuple[str, ...]] = ContextVar("dsm_kombu_pending_celery_publishes", default=())
 
 
+def _celery_instrumented() -> bool:
+    celery = sys.modules.get("celery")
+    return bool(getattr(getattr(celery, "Celery", None), "__datadog_patch", False))
+
+
+def _skip_celery_internal_exchange(exchange: Any) -> bool:
+    return is_celery_internal_exchange(exchange) and _celery_instrumented()
+
+
 def is_celery_internal_exchange(exchange: Any) -> bool:
     return isinstance(exchange, str) and (
         exchange == _CELERY_EVENTS_EXCHANGE or exchange.endswith(_CELERY_PIDBOX_SUFFIX)
@@ -40,6 +50,15 @@ def begin_celery_publish(headers: dict[str, Any]) -> None:
         return
     pending = _pending_celery_publishes.get()
     _pending_celery_publishes.set((pending + (pathway,))[-_MAX_PENDING_CELERY_PUBLISHES:])
+
+
+def end_celery_publish(headers: Any) -> None:
+    pathway = _pathway(headers)
+    pending = _pending_celery_publishes.get()
+    if pathway is None or pathway not in pending:
+        return
+    index = len(pending) - 1 - pending[::-1].index(pathway)
+    _pending_celery_publishes.set(pending[:index] + pending[index + 1 :])
 
 
 def pending_celery_publishes() -> tuple[str, ...]:
@@ -62,7 +81,7 @@ def handle_kombu_produce(args, kwargs, span):
         return
     routing_key = get_routing_key_from_args(args)
     exchange = get_exchange_from_args(args)
-    if is_celery_internal_exchange(exchange):
+    if _skip_celery_internal_exchange(exchange):
         return
     payload_size = 0
     payload_size += _calculate_byte_size(args[HEADER_POS])
@@ -92,7 +111,7 @@ def handle_kombu_produce(args, kwargs, span):
 def handle_kombu_consume(instance, message, span):
     from . import data_streams_processor as processor
 
-    if is_celery_internal_exchange((message.delivery_info or {}).get("exchange")):
+    if _skip_celery_internal_exchange((message.delivery_info or {}).get("exchange")):
         return
     payload_size = 0
     payload_size += _calculate_byte_size(message.body)
