@@ -1,6 +1,10 @@
+import asyncio
 import importlib
+import json
 import sys
 from unittest import mock
+
+import pytest
 
 from ddtrace import config
 from ddtrace._monkey import _patch_all
@@ -16,6 +20,56 @@ from tests.utils import assert_is_measured
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
 
+SEARCH_RESPONSE = {
+    "hits": [{"objectID": "1", "dummy": "dummy"}],
+    "processingTimeMS": 23,
+    "nbHits": 1,
+    "hitsPerPage": 20,
+    "exhaustiveNbHits": True,
+    "params": "query=xxx",
+    "nbPages": 1,
+    "query": "xxx",
+    "page": 0,
+}
+
+
+class V4Index:
+    """
+    Presents a 4.x client through the Index.search() interface of the older clients, which
+    let the tests below stay agnostic of the client generation.
+    """
+
+    def __init__(self, client, index_name):
+        self.client = client
+        self.index_name = index_name
+
+    def search(self, query, args=None, request_options=None):
+        return self.client.search_single_index(self.index_name, dict(args or {}, query=query))
+
+
+def make_v4_client(sync=True):
+    from algoliasearch.http.api_response import ApiResponse
+    from algoliasearch.http.verb import Verb
+    from algoliasearch.search.client import SearchClient
+    from algoliasearch.search.client import SearchClientSync
+
+    response = ApiResponse(verb=Verb.POST, raw_data=json.dumps(SEARCH_RESPONSE), status_code=200)
+
+    # The transporter is the network boundary of the generated client, so stubbing it keeps
+    # the rest of the real search_single_index() path, including the deserialization into a
+    # SearchResponse, under test.
+    if sync:
+        client = SearchClientSync("X", "X")
+        client._transporter.request = lambda **kwargs: response
+    else:
+        client = SearchClient("X", "X")
+
+        async def request(**kwargs):
+            return response
+
+        client._transporter.request = request
+    return client
+
 
 class AlgoliasearchTest(TracerTestCase):
     def setUp(self):
@@ -23,17 +77,7 @@ class AlgoliasearchTest(TracerTestCase):
 
         # dummy values
         def search(self, query, args=None, request_options=None):
-            return {
-                "hits": [{"dummy": "dummy"}],
-                "processingTimeMS": 23,
-                "nbHits": 1,
-                "hitsPerPage": 20,
-                "exhaustiveNbHits": True,
-                "params": "query=xxx",
-                "nbPages": 1,
-                "query": "xxx",
-                "page": 0,
-            }
+            return dict(SEARCH_RESPONSE)
 
         # Algolia search is a non free SaaS application, it isn't possible to add it to the
         # docker environment to enable a full-fledged integration test. The next best option
@@ -44,15 +88,17 @@ class AlgoliasearchTest(TracerTestCase):
 
             index_module.Index.search = search
             client = algoliasearch.algoliasearch.Client("X", "X")
+            # use this index only to properly test stuff
+            self.index = client.init_index("test_index")
+        elif algoliasearch_version >= V4:
+            self.index = V4Index(make_v4_client(), "test_index")
         else:
             from algoliasearch.search_client import SearchClient
             import algoliasearch.search_index as index_module
 
             index_module.SearchIndex.search = search
             client = SearchClient.create("X", "X")
-
-        # use this index only to properly test stuff
-        self.index = client.init_index("test_index")
+            self.index = client.init_index("test_index")
 
     def patch_algoliasearch(self):
         patch()
@@ -64,7 +110,7 @@ class AlgoliasearchTest(TracerTestCase):
             self.reset()
 
     def perform_search(self, query_text, query_args=None):
-        if algoliasearch_version < V2 and algoliasearch_version >= V1:
+        if (algoliasearch_version < V2 and algoliasearch_version >= V1) or algoliasearch_version >= V4:
             self.index.search(query_text, args=query_args)
         else:
             self.index.search(query_text, request_options=query_args)
@@ -157,6 +203,128 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.get_metric("query.args.page") == 3
         assert span.get_metric("query.args.hits_per_page") == 1
         config.algoliasearch.collect_query_text = original
+
+    @pytest.mark.skipif(algoliasearch_version < V4, reason="requires the algoliasearch 4.x client")
+    def test_algoliasearch_v4_search_params_models(self):
+        from algoliasearch.search.models.search_params import SearchParams
+        from algoliasearch.search.models.search_params_object import SearchParamsObject
+        from algoliasearch.search.models.search_params_string import SearchParamsString
+
+        self.patch_algoliasearch()
+        client = make_v4_client()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            params = SearchParamsObject(query="test search", hits_per_page=1, attributes_to_retrieve=["firstname"])
+            client.search_single_index("test_index", params)
+            client.search_single_index("test_index", SearchParams(actual_instance=params))
+            client.search_single_index("test_index", SearchParamsString(params="query=test+search&hitsPerPage=1"))
+            client.search_single_index("test_index")
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+        spans = self.get_spans()
+        assert len(spans) == 4
+        for span in spans[:2]:
+            assert span.get_tag("query.text") == "test search"
+            assert span.get_metric("query.args.hits_per_page") == 1
+            assert span.get_tag("query.args.attributes_to_retrieve") == "['firstname']"
+        # A pre-encoded params string is not parsed, and a call without params has nothing to tag.
+        for span in spans[2:]:
+            assert span.get_tag("query.text") is None
+            assert span.get_metric("query.args.hits_per_page") is None
+            assert span.get_metric("processing_time_ms") == 23
+            assert span.get_metric("number_of_hits") == 1
+
+    @pytest.mark.skipif(algoliasearch_version < V4, reason="requires the algoliasearch 4.x client")
+    def test_algoliasearch_v4_async(self):
+        self.patch_algoliasearch()
+        client = make_v4_client(sync=False)
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            response = asyncio.run(
+                client.search_single_index("test_index", {"query": "test search", "hitsPerPage": 1, "page": 3})
+            )
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+        assert response.nb_hits == 1
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert_is_measured(span)
+        assert span.name == "algoliasearch.search"
+        assert span.span_type == "http"
+        assert span.error == 0
+        assert span.service == "algoliasearch"
+        assert span.get_tag("component") == "algoliasearch"
+        assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("query.text") == "test search"
+        assert span.get_metric("query.args.hits_per_page") == 1
+        assert span.get_metric("query.args.page") == 3
+        assert span.get_metric("processing_time_ms") == 23
+        assert span.get_metric("number_of_hits") == 1
+
+    @pytest.mark.skipif(algoliasearch_version < V4, reason="requires the algoliasearch 4.x client")
+    def test_algoliasearch_v4_async_error_and_unpatch(self):
+        self.patch_algoliasearch()
+        client = make_v4_client(sync=False)
+
+        async def fail(**kwargs):
+            raise RuntimeError("boom")
+
+        client._transporter.request = fail
+
+        with pytest.raises(RuntimeError):
+            asyncio.run(client.search_single_index("test_index", {"query": "test search"}))
+
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert spans[0].error == 1
+
+        # unpatching has to cover the async client too
+        unpatch()
+        with pytest.raises(RuntimeError):
+            asyncio.run(client.search_single_index("test_index", {"query": "test search"}))
+        assert not self.get_spans()
+
+    @pytest.mark.skipif(algoliasearch_version < V4, reason="requires the algoliasearch 4.x client")
+    def test_algoliasearch_v4_keyword_arguments(self):
+        self.patch_algoliasearch()
+        client = make_v4_client()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            client.search_single_index(index_name="test_index", search_params={"query": "test search", "page": 2})
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].get_tag("query.text") == "test search"
+        assert spans[0].get_metric("query.args.page") == 2
+
+    @pytest.mark.skipif(algoliasearch_version < V4, reason="requires the algoliasearch 4.x client")
+    def test_algoliasearch_v4_error(self):
+        self.patch_algoliasearch()
+        client = make_v4_client()
+
+        def fail(**kwargs):
+            raise RuntimeError("boom")
+
+        client._transporter.request = fail
+
+        with pytest.raises(RuntimeError):
+            client.search_single_index("test_index", {"query": "test search"})
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].error == 1
 
     def test_patch_unpatch(self):
         self.patch_algoliasearch()
