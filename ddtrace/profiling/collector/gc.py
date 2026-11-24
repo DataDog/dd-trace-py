@@ -3,6 +3,7 @@ from __future__ import annotations
 import gc
 import logging
 import time
+from typing import Any
 from typing import Callable
 from typing import Optional
 
@@ -110,7 +111,7 @@ class GCCollector(collector.Collector):
             self._pause_total_ns[i] = 0
         self._explicit_count = 0
 
-    def _patched_collect(self, generation: int = 2) -> int:
+    def _patched_collect(self, *args: Any, **kwargs: Any) -> int:
         # When stop cannot unwrap because a later wrapper sits on top, keep the
         # old patch in the chain as a pass-through. Restart re-activates counting
         # without wrapping again (that would cycle through the old bound method).
@@ -123,7 +124,8 @@ class GCCollector(collector.Collector):
                     self._explicit_count += 1
                 finally:
                     self._lock.release()
-        return self._orig_collect(generation)
+        # Pass on exactly what the caller gave: an earlier gc.collect wrapper may not take a generation.
+        return self._orig_collect(*args, **kwargs)
 
     def _on_pause(self, gen: int, pause_ns: int) -> None:
         # Do not allocate: object creation in a GC callback can recurse.

@@ -358,3 +358,25 @@ def test_rollback_after_failed_start_keeps_other_monitor_reference(failing_call:
     finally:
         monitor.release()
         gc.collect = orig
+
+
+def test_patched_collect_forwards_the_caller_arguments() -> None:
+    """The wrapper passes on exactly what the caller gave, so an earlier gc.collect wrapper keeps working."""
+    orig: Callable[..., int] = gc.collect
+    seen: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def app_collect(*args: object, **kwargs: object) -> int:
+        seen.append((args, kwargs))
+        return orig(*args, **kwargs)
+
+    gc.collect = app_collect
+    col: GCCollector = GCCollector()
+    col.start()
+    try:
+        gc.collect()
+        gc.collect(generation=0)
+        assert seen == [((), {}), ((), {"generation": 0})]
+        assert col._explicit_count == 2
+    finally:
+        col.stop()
+        gc.collect = orig
