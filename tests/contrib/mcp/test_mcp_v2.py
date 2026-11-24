@@ -474,3 +474,23 @@ def test_telemetry_removed_when_enrichment_disabled(mcp_llmobs, test_spans, run_
     assert "telemetry" not in json.loads(get_llmobs_input_value(server_span))["params"]["arguments"]
     assert "intent" not in _get_llmobs_data_metastruct(server_span)["meta"]
     assert get_llmobs_session_id(server_span) is None
+
+
+def test_empty_own_telemetry_kept_when_enrichment_disabled(mcp_llmobs, test_spans):
+    from mcp import Client
+    from mcp.server.mcpserver import MCPServer
+
+    server = MCPServer(name="TelemetryServer")
+
+    @server.tool(description="Records an event")
+    def record_event_empty(telemetry: dict) -> dict:
+        return {"received": telemetry}
+
+    async def run():
+        async with Client(server, mode="legacy") as client:
+            return await client.call_tool("record_event_empty", {"telemetry": {}})
+
+    result = asyncio.run(run())
+
+    assert not result.is_error
+    assert json.loads(result.content[0].text) == {"received": {}}

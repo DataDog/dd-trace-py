@@ -287,7 +287,10 @@ class MCPIntegration(BaseLLMIntegration):
             # Any other value is the tool's own telemetry argument, which must reach the tool unchanged
             if not (telemetry is None or (isinstance(telemetry, dict) and set(telemetry) <= TELEMETRY_FIELDS)):
                 return
-            # Removed even when enrichment is off, since clients can keep a schema listed while it was on
+            # Removed even when enrichment is off, since clients can keep a schema listed while it was on.
+            # Such clients send at least one field, so an empty value is left for the tool in that case.
+            if not config.mcp.enrichment_enabled and not telemetry:
+                return
             del arguments[TELEMETRY_KEY]
 
         if not self.llmobs_enabled or not config.mcp.enrichment_enabled:
