@@ -262,40 +262,90 @@ def test_payload_size_of_self_referencing_body():
     assert _payload_size((args, {}, {})) == 3
 
 
-def test_kombu_stands_down_only_while_the_celery_publish_is_in_flight():
+def test_kombu_stands_down_only_while_the_celery_send_is_in_flight():
+    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_end
+    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_start
     from ddtrace.internal.datastreams.kombu import _checkpointed_by_celery_publish
     from ddtrace.internal.datastreams.kombu import begin_celery_publish
-    from ddtrace.internal.datastreams.kombu import end_celery_publish
 
     outer = {"dd-pathway-ctx-base64": "outer"}
-    nested = [{"dd-pathway-ctx-base64": f"nested-{i}"} for i in range(40)]
-
+    dsm_celery_send_task_start(None)
     begin_celery_publish(outer)
-    for headers in nested:
-        begin_celery_publish(headers)
-        assert _checkpointed_by_celery_publish(headers)
-        end_celery_publish(headers)
-        assert not _checkpointed_by_celery_publish(headers)
+    for i in range(300):
+        nested = {"dd-pathway-ctx-base64": f"nested-{i}"}
+        dsm_celery_send_task_start(None)
+        begin_celery_publish(nested)
+        assert _checkpointed_by_celery_publish(nested)
+        dsm_celery_send_task_end()
+        assert not _checkpointed_by_celery_publish(nested)
+        assert _checkpointed_by_celery_publish(outer)
+    dsm_celery_send_task_end()
 
-    assert _checkpointed_by_celery_publish(outer)
-    end_celery_publish(outer)
     assert not _checkpointed_by_celery_publish(outer)
     assert not _checkpointed_by_celery_publish({})
 
 
 @pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_failed_celery_send_does_not_leave_kombu_suppressed():
+    from celery import Celery
+
+    from ddtrace.contrib.internal.celery.patch import patch
+    from ddtrace.internal.datastreams.kombu import _checkpointed_by_celery_publish
+    from ddtrace.internal.datastreams.kombu import pending_celery_publishes
+
+    patch()
+    app = Celery("dsm_celery_unreachable", broker="redis://127.0.0.1:1/0")
+    app.conf.broker_connection_retry = False
+    app.conf.broker_connection_max_retries = 0
+    app.conf.task_publish_retry = False
+
+    published = {}
+
+    def capture(headers=None, **kwargs):
+        published.update(headers or {})
+
+    from celery import signals
+
+    signals.before_task_publish.connect(capture, weak=False)
+
+    try:
+        app.send_task("dsm_celery.add", args=(1, 2))
+    except Exception:
+        pass
+    else:
+        raise AssertionError("send_task to an unreachable broker should fail")
+
+    assert "dd-pathway-ctx-base64" in published
+    assert pending_celery_publishes() == ()
+    assert not _checkpointed_by_celery_publish(published)
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_broker_type_comes_from_the_publishing_app():
+    from tests.contrib.celery.base import BROKER_URL
+    from tests.contrib.celery.dsm_helpers import assert_linked_edge
+    from tests.contrib.celery.dsm_helpers import run_task_while_another_app_is_current
+
+    run_task_while_another_app_is_current(BROKER_URL)
+
+    assert_linked_edge("redis")
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
 def test_kombu_checkpoints_a_later_forward_of_celery_headers():
     from ddtrace.internal.datastreams import data_streams_processor
+    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_end
+    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_start
     from ddtrace.internal.datastreams.kombu import begin_celery_publish
-    from ddtrace.internal.datastreams.kombu import end_celery_publish
     from ddtrace.internal.datastreams.kombu import handle_kombu_produce
 
     headers = {"dd-pathway-ctx-base64": "AAAAAAAAAAA="}
+    dsm_celery_send_task_start(None)
     begin_celery_publish(headers)
     publish_args = [b"{}", 0, "application/json", "utf-8", headers, {}, "forwarded", False, False, ""]
     handle_kombu_produce(publish_args, {}, None)
     assert not data_streams_processor()._buckets
-    end_celery_publish(headers)
+    dsm_celery_send_task_end()
 
     handle_kombu_produce(publish_args, {}, None)
 

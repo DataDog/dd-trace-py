@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+from contextvars import ContextVar
 from typing import Any
 from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.kombu import begin_celery_publish
-from ddtrace.internal.datastreams.kombu import end_celery_publish
 from ddtrace.internal.datastreams.kombu import is_celery_internal_exchange
+from ddtrace.internal.datastreams.kombu import pending_celery_publishes
+from ddtrace.internal.datastreams.kombu import restore_pending_celery_publishes
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 
+
+_sends_in_flight: ContextVar[tuple[tuple[Any, tuple[str, ...]], ...]] = ContextVar(
+    "dsm_celery_sends_in_flight", default=()
+)
 
 _BROKER_TYPES = {
     "amqp": "rabbitmq",
@@ -85,7 +91,7 @@ def dsm_celery_task_publish(app: Any, signal_kwargs: dict[str, Any], span: Optio
     exchange = _exchange_name(signal_kwargs.get("exchange"))
     if is_celery_internal_exchange(exchange):
         return
-    broker_type = _broker_type(app, "broker_write_url")
+    broker_type = _broker_type(_publishing_app(app), "broker_write_url")
     if broker_type is None:
         return
     p = processor()
@@ -99,8 +105,21 @@ def dsm_celery_task_publish(app: Any, signal_kwargs: dict[str, Any], span: Optio
     begin_celery_publish(headers)
 
 
-def dsm_celery_task_published(signal_kwargs: dict[str, Any]) -> None:
-    end_celery_publish(signal_kwargs.get("headers"))
+def dsm_celery_send_task_start(app: Any) -> None:
+    _sends_in_flight.set(_sends_in_flight.get() + ((app, pending_celery_publishes()),))
+
+
+def dsm_celery_send_task_end() -> None:
+    sends = _sends_in_flight.get()
+    if not sends:
+        return
+    _sends_in_flight.set(sends[:-1])
+    restore_pending_celery_publishes(sends[-1][1])
+
+
+def _publishing_app(signal_app: Any) -> Any:
+    sends = _sends_in_flight.get()
+    return sends[-1][0] if sends else signal_app
 
 
 def dsm_celery_task_prerun(task: Any, span: Optional[Any]) -> None:
@@ -130,5 +149,6 @@ def dsm_celery_task_prerun(task: Any, span: Optional[Any]) -> None:
 
 if config._data_streams_enabled:
     core.on("celery.task.publish.pre", dsm_celery_task_publish)
-    core.on("celery.task.publish.post", dsm_celery_task_published)
+    core.on("celery.send_task.start", dsm_celery_send_task_start)
+    core.on("celery.send_task.end", dsm_celery_send_task_end)
     core.on("celery.task.prerun", dsm_celery_task_prerun)

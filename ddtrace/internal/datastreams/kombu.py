@@ -42,13 +42,12 @@ def begin_celery_publish(headers: dict[str, Any]) -> None:
     _pending_celery_publishes.set((pending + (pathway,))[-_MAX_PENDING_CELERY_PUBLISHES:])
 
 
-def end_celery_publish(headers: Any) -> None:
-    pathway = _pathway(headers)
-    pending = _pending_celery_publishes.get()
-    if pathway is None or pathway not in pending:
-        return
-    index = len(pending) - 1 - pending[::-1].index(pathway)
-    _pending_celery_publishes.set(pending[:index] + pending[index + 1 :])
+def pending_celery_publishes() -> tuple[str, ...]:
+    return _pending_celery_publishes.get()
+
+
+def restore_pending_celery_publishes(pending: tuple[str, ...]) -> None:
+    _pending_celery_publishes.set(pending)
 
 
 def _checkpointed_by_celery_publish(headers: Any) -> bool:
