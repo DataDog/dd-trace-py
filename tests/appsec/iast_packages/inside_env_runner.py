@@ -1,39 +1,51 @@
 from ast import unparse
 import importlib
+import inspect
 import pkgutil
 import sys
 from traceback import format_exc
 from types import ModuleType
 from typing import Any
-from typing import Optional
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
-def _code_file(obj: Any) -> Optional[str]:
-    if not isinstance(obj, type):
-        code = getattr(obj, "__code__", None)
-        return code.co_filename if code is not None else None
-    for klass in obj.__mro__:
-        if klass.__module__ != obj.__module__:
+def _code_files(obj: Any) -> set[str]:
+    if inspect.isclass(obj):
+        candidates = [
+            value for klass in obj.__mro__ if klass.__module__ == obj.__module__ for value in vars(klass).values()
+        ]
+    else:
+        candidates = [obj]
+    files = set()
+    for value in candidates:
+        value = getattr(value, "__func__", value)
+        if isinstance(value, property):
+            value = value.fget
+        try:
+            value = inspect.unwrap(value)
+        except ValueError:
             continue
-        for value in vars(klass).values():
-            code = getattr(getattr(value, "__func__", value), "__code__", None)
-            if code is not None:
-                return code.co_filename
-    return None
+        code = getattr(value, "__code__", None)
+        if code is not None and not code.co_filename.startswith("<"):
+            files.add(code.co_filename)
+    return files
 
 
 def _import_module(selector: str) -> ModuleType:
     """Import a module name, or the submodule that defines the attribute named by module:attribute.
 
-    The defining submodule must be inside the selected package and must hold the attribute's code,
-    so a re-export module or a module from another package is rejected.
+    The attribute must be a class or function whose module is inside the selected package. When the
+    attribute has Python code, at least one of its functions or methods must be in that module's file,
+    so a re-export module is rejected. Attributes without Python code, such as C-extension classes,
+    are trusted on their __module__ alone.
     """
     module_name, _, attribute = selector.partition(":")
     if not attribute:
         return importlib.import_module(module_name)
     obj = pkgutil.resolve_name(selector)
+    if not (inspect.isclass(obj) or inspect.isfunction(inspect.unwrap(obj))):
+        raise ValueError(f"{selector} must name a class or function, not {type(obj).__name__}")
     defining_name = getattr(obj, "__module__", None)
     if not isinstance(defining_name, str) or not defining_name.startswith(module_name + "."):
         raise ValueError(
@@ -41,9 +53,11 @@ def _import_module(selector: str) -> ModuleType:
             f"but its module is {defining_name!r}"
         )
     module = importlib.import_module(defining_name)
-    defining_file = _code_file(obj)
-    if defining_file is not None and defining_file != getattr(module, "__file__", None):
-        raise ValueError(f"{selector} is only re-exported by {defining_name}; its code is in {defining_file}")
+    code_files = _code_files(obj)
+    if code_files and getattr(module, "__file__", None) not in code_files:
+        raise ValueError(f"{selector} is only re-exported by {defining_name}; its code is in {sorted(code_files)}")
+    if not code_files:
+        print(f"No Python code found for {selector}; trusting its module {defining_name}")
     print(f"Resolved {selector} to {defining_name}")
     return module
 
