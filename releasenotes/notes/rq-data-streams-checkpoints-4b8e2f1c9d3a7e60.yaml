@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    rq: Adds Data Streams Monitoring checkpoints for rq jobs. Enqueuing a job on an asynchronous queue (``enqueue``,
+    ``enqueue_call``, ``enqueue_at``, ``enqueue_in``, ``enqueue_many`` or ``enqueue_job``) sets a produce checkpoint and
+    stores the pathway in the job's ``meta``; running the job in a worker sets a consume checkpoint linked to it. Edge
+    tags are ``topic:<queue name>`` and ``type:redis``. Retries and dependent jobs keep the original pathway, and
+    ``is_async=False`` queues set no checkpoint. Enable with ``DD_DATA_STREAMS_ENABLED=true``.
