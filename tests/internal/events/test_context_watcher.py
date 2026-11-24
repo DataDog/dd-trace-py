@@ -1,5 +1,6 @@
 import contextvars
 import sys
+import sysconfig
 import threading
 
 import pytest
@@ -8,8 +9,8 @@ from ddtrace.internal import core
 
 
 pytestmark = pytest.mark.skipif(
-    sys.implementation.name != "cpython" or sys.version_info < (3, 14),
-    reason="requires the CPython 3.14 context watcher",
+    sys.implementation.name != "cpython" or sys.version_info < (3, 14) or sysconfig.get_config_var("Py_GIL_DISABLED"),
+    reason="requires the context watcher on GIL-enabled CPython 3.14 or newer",
 )
 
 
