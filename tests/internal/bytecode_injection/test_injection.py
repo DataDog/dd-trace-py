@@ -411,3 +411,65 @@ def test_line_hooks_isolated_across_code_replace_clone():
     hook.assert_not_called()
 
     eject_hook(target, hook, lo, 42)
+
+
+@pytest.mark.parametrize("bulk", [True, False])
+def test_eject_hook_pending_lazy_wrapping_context(bulk):
+    """Hooks injected into a function with a pending lazy wrapper can be ejected before its first call."""
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    def target(x):
+        y = x + 1
+        return y
+
+    (wc := LazyWrappingContext(target)).wrap()
+
+    hook = mock.Mock()
+    lo = min(linenos(target))
+
+    if bulk:
+        assert inject_hooks(target, [(hook, lo, 42)]) == []
+        assert eject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        inject_hook(target, hook, lo, 42)
+        eject_hook(target, hook, lo, 42)
+
+    # Resolving the lazy wrapper must not resurrect the ejected hook.
+    assert target(1) == 2
+    hook.assert_not_called()
+
+    wc.unwrap()
+
+
+@pytest.mark.parametrize("bulk", [True, False])
+def test_inject_hook_pending_lazy_wrapping_context(bulk):
+    """Hooks injected into a function with a pending lazy wrapper survive its resolution on first call."""
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    def target(x):
+        y = x + 1
+        return y
+
+    (wc := LazyWrappingContext(target)).wrap()
+
+    hook = mock.Mock()
+    lo = min(linenos(target))
+
+    if bulk:
+        assert inject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        inject_hook(target, hook, lo, 42)
+
+    assert target(1) == 2
+    assert target(1) == 2
+    assert hook.call_count == 2
+
+    if bulk:
+        assert eject_hooks(target, [(hook, lo, 42)]) == []
+    else:
+        eject_hook(target, hook, lo, 42)
+
+    assert target(1) == 2
+    assert hook.call_count == 2
+
+    wc.unwrap()

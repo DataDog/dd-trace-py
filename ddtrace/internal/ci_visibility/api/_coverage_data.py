@@ -2,8 +2,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TypedDict
 
+from ddtrace.internal.ci_visibility.utils import get_relative_path
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
-from ddtrace.internal.utils.paths import relative_path
 
 
 class CoverageFilePayload(TypedDict):
@@ -19,13 +19,13 @@ class TestVisibilityCoverageData:
     def __init__(self) -> None:
         self._coverage_data: dict[Path, CoverageLines] = defaultdict(CoverageLines)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self._coverage_data)
 
     def get_data(self) -> dict[Path, CoverageLines]:
         return self._coverage_data
 
-    def add_covered_files(self, covered_files: dict[Path, CoverageLines]):
+    def add_covered_files(self, covered_files: dict[Path, CoverageLines]) -> None:
         """Add coverage segments to the coverage data"""
         for file_path, covered_lines in covered_files.items():
             self._coverage_data[file_path.absolute()].update(covered_lines)
@@ -36,7 +36,7 @@ class TestVisibilityCoverageData:
         for file_path, covered_lines in self._coverage_data.items():
             # Report relative path unless the file path is not relative to root_dir
             # Paths are assumed to be absolute based on having been converted at instantiation / add time.
-            relative = relative_path(file_path, root_dir)
+            relative = get_relative_path(file_path, root_dir)
             path_str = f"/{relative if relative is not None else file_path}"
             file_payload: CoverageFilePayload = {"filename": path_str, "bitmap": covered_lines.to_bytes()}
             coverage_data.append(file_payload)

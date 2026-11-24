@@ -51,13 +51,6 @@ from ._utils import get_wsgi_header
 
 log = get_logger(__name__)
 
-# This is required to ensure that all the modules that need to be
-# imported are imported while they are unrestricted.
-# Some frameworks (e.g. Temporal) have restrictions on imports
-# that make it impossible to import modules later.
-Context._init_tracestate_helpers()
-
-
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
 _HTTP_BAGGAGE_PREFIX: Literal["ot-baggage-"] = "ot-baggage-"
@@ -934,22 +927,75 @@ class _BaggageHeader:
         return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
 
     @staticmethod
-    def _inject(span_context: Context, headers: dict[str, str]) -> None:
-        baggage_items = span_context._baggage.items()
-        if not baggage_items:
-            return
+    def _caller_members(
+        headers: dict[str, str], extra_items: dict[str, Optional[str]], written_keys: dict[str, str]
+    ) -> tuple[Optional[str], list[str]]:
+        """Find a baggage header the caller already set, and return its key and the members to keep.
 
+        Members stay as raw text, so W3C properties survive. A member is dropped when this request
+        owns its key (request-scoped keys, such as stale items from an earlier injection into a
+        reused dict) or when the key is already written from the context.
+        """
+        existing_key = next((k for k in headers if isinstance(k, str) and k.lower() == _HTTP_HEADER_BAGGAGE), None)
+        if existing_key is None or not headers[existing_key]:
+            return existing_key, []
+        members = []
+        for member in str(headers[existing_key]).split(BAGGAGE_DELIMITER):
+            member = member.strip()
+            name, sep, _ = member.partition("=")
+            key = urllib.parse.unquote(name.strip())
+            if not sep or not key or key in extra_items or key in written_keys:
+                continue
+            members.append(member)
+        return existing_key, members
+
+    @staticmethod
+    def _inject(
+        span_context: Context, headers: dict[str, str], extra_items: Optional[dict[str, Optional[str]]] = None
+    ) -> None:
+        """Encode the context's baggage into the ``baggage`` header.
+
+        ``extra_items`` apply to this request only and are never written to the (trace-shared)
+        context. A ``None`` value drops that key from the header.
+
+        With ``extra_items``, the header is built in this order, and the item and byte limits cut from
+        the end: the non-``None`` extra items, then the context's items, then the members of a baggage
+        header the caller already set. So the extra items survive truncation and win on a key
+        collision, and the caller's members are kept instead of replaced.
+        """
+        # The merge iterates the trace-shared _baggage, which another thread can mutate, so it stays
+        # inside the guard: baggage propagation is best-effort and must never fail the request.
         try:
-            if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+            existing_key: Optional[str] = None
+            caller_members: list[str] = []
+            if extra_items:
+                merged = {k: v for k, v in extra_items.items() if v is not None}
+                merged.update((k, v) for k, v in span_context._baggage.items() if k not in extra_items)
+                existing_key, caller_members = _BaggageHeader._caller_members(headers, extra_items, merged)
+                baggage_items = merged.items()
+            else:
+                baggage_items = span_context._baggage.items()
+            if not baggage_items and not caller_members:
+                if existing_key is not None:
+                    # Only request-scoped members were left in the caller's header.
+                    del headers[existing_key]
+                return
+
+            if len(baggage_items) + len(caller_members) > DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning("Baggage item limit exceeded, dropping excess items")
                 # Record telemetry for baggage item count exceeding limit
                 _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
-                baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
+            encoded = itertools.chain(
+                (
+                    f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
+                    for key, value in baggage_items
+                ),
+                caller_members,
+            )
             encoded_items: list[str] = []
             total_size = 0
-            for key, value in baggage_items:
-                item = f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
+            for item in itertools.islice(encoded, DD_TRACE_BAGGAGE_MAX_ITEMS):
                 item_size = len(item.encode("utf-8")) + (1 if encoded_items else 0)  # +1 for comma if not first item
                 if total_size + item_size > DD_TRACE_BAGGAGE_MAX_BYTES:
                     log.warning("Baggage header size exceeded, dropping excess items")
@@ -960,6 +1006,8 @@ class _BaggageHeader:
                 total_size += item_size
 
             header_value = ",".join(encoded_items)
+            if existing_key is not None and existing_key != _HTTP_HEADER_BAGGAGE:
+                del headers[existing_key]
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
             # Record telemetry for successful baggage injection
@@ -983,26 +1031,36 @@ class _BaggageHeader:
 
         baggage_data: dict[str, str] = {}
         total_size = 0
-        splitted_header = header_value.split(BAGGAGE_DELIMITER)
+        # One extra character ensures a partial final member exceeds the byte budget.
+        splitted_header = header_value[: DD_TRACE_BAGGAGE_MAX_BYTES + 1].split(
+            BAGGAGE_DELIMITER, DD_TRACE_BAGGAGE_MAX_ITEMS
+        )
         for pair_index, key_value in enumerate(splitted_header):
             if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning(
-                    "Baggage item limit exceeded, dropping excess items, skipped: %d items",
-                    len(splitted_header) - DD_TRACE_BAGGAGE_MAX_ITEMS,
+                    "Baggage item limit exceeded (%d items), dropping excess items; retained %d items",
+                    DD_TRACE_BAGGAGE_MAX_ITEMS,
+                    len(baggage_data),
                 )
                 _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
                 break
-            if "=" not in key_value:
+            try:
+                base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
+            except UnicodeEncodeError:
                 return _BaggageHeader._record_malformed_and_return_empty()
-            base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
             segment_bytes = base_size_bytes + (len(BAGGAGE_DELIMITER) if baggage_data else 0)
             if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
                 log.warning(
-                    "Baggage header size exceeded, dropping excess items. size would be %d bytes",
+                    "Baggage header size exceeded, dropping excess items; "
+                    "size would be at least %d bytes (limit: %d bytes, parsed: %d bytes)",
                     total_size + segment_bytes,
+                    DD_TRACE_BAGGAGE_MAX_BYTES,
+                    total_size,
                 )
                 _BAGGAGE_TRUNCATED_BYTE_COUNT.add()
                 break
+            if "=" not in key_value:
+                return _BaggageHeader._record_malformed_and_return_empty()
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
@@ -1193,13 +1251,15 @@ class HTTPPropagator:
                 span_context,
             )
 
-        core.dispatch("http.span_inject", (span_context, headers))
+        # Listeners add request-scoped baggage items here rather than mutating span_context.
+        extra_baggage: dict[str, Optional[str]] = {}
+        core.dispatch("http.span_inject", (span_context, headers, extra_baggage))
         if not config._propagation_style_inject:
             return
 
         # baggage should be injected regardless of existing span or trace id
         if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
-            _BaggageHeader._inject(span_context, headers)
+            _BaggageHeader._inject(span_context, headers, extra_baggage)
 
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:

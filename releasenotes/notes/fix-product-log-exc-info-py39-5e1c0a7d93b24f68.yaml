@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    logging: Fix a ``TypeError`` raised while formatting internal product logs that carry exception information
+    on Python 3.9.

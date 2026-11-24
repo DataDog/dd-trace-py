@@ -2,6 +2,7 @@ from collections.abc import Mapping
 import json
 import logging
 import signal
+import sys
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -33,6 +34,16 @@ from ddtrace.profiling.collector import threading
 
 LOG = logging.getLogger(__name__)
 
+# CPython runs the multiprocessing resource tracker as
+# python -c "from multiprocessing.resource_tracker import main;main(<fd>)".
+_RESOURCE_TRACKER_COMMAND = "from multiprocessing.resource_tracker import main"
+
+
+def _is_multiprocessing_resource_tracker() -> bool:
+    # sys.orig_argv is only available on Python 3.10+.
+    argv: list[str] = getattr(sys, "orig_argv", [])
+    return any(_RESOURCE_TRACKER_COMMAND in arg for arg in argv)
+
 
 class Profiler:
     """Run profiling while code is executed.
@@ -57,9 +68,14 @@ class Profiler:
             active = Profiler._active_instance
             if active is not None and active is not self and active._profiler.status == service.ServiceStatus.RUNNING:
                 LOG.error(
-                    "A profiler is already running. Only one profiler instance can be active at a time. "
+                    "[profiling] A profiler is already running. Only one profiler instance can be active at a time. "
                     "The second profiler will not be started."
                 )
+                return
+
+            if _is_multiprocessing_resource_tracker():
+                # The tracker only runs CPython's cleanup loop, so there is nothing to profile.
+                LOG.debug("[profiling] Not starting the profiler in the multiprocessing resource tracker")
                 return
 
             try:
@@ -163,7 +179,7 @@ class Profiler:
         with Profiler._active_lock:
             if Profiler._active_instance is not None:
                 LOG.error(
-                    "A profiler is already running. Only one profiler instance can be active at a time. "
+                    "[profiling] A profiler is already running. Only one profiler instance can be active at a time. "
                     "The second profiler will not be started."
                 )
                 return
@@ -320,11 +336,11 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_collector(collector_class: type[collector.Collector]) -> None:
+            def start_collector(collector_class: type[collector.Collector], **kwargs: Any) -> None:
                 with self._service_lock:
                     if any(type(c) is collector_class for c in self._collectors):
                         return
-                    col = collector_class(tracer=self.tracer)
+                    col = collector_class(tracer=self.tracer, **kwargs)
 
                     if self.status == service.ServiceStatus.RUNNING:
                         # The profiler is already running so we need to start the collector
@@ -350,11 +366,11 @@ class _ProfilerInstance(service.Service):
                 start_collector(getattr(asyncio, collector_name))
 
             self._collectors_on_import = [
-                ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
+                ("threading", lambda m: start_collector(threading.ThreadingLockCollector, module=m)),
+                ("threading", lambda m: start_collector(threading.ThreadingRLockCollector, module=m)),
+                ("threading", lambda m: start_collector(threading.ThreadingSemaphoreCollector, module=m)),
+                ("threading", lambda m: start_collector(threading.ThreadingBoundedSemaphoreCollector, module=m)),
+                ("threading", lambda m: start_collector(threading.ThreadingConditionCollector, module=m)),
                 ("asyncio", lambda _: start_asyncio_collector("AsyncioLockCollector")),
                 ("asyncio", lambda _: start_asyncio_collector("AsyncioSemaphoreCollector")),
                 ("asyncio", lambda _: start_asyncio_collector("AsyncioBoundedSemaphoreCollector")),
@@ -486,7 +502,7 @@ class _ProfilerInstance(service.Service):
             else:
                 LOG.warning("Native heap profiling requested but GOT overrides were not installed")
         except Exception:
-            LOG.error("Failed to arm native heap profiling", exc_info=True)
+            LOG.error("[profiling] Failed to arm native heap profiling", exc_info=True)
 
     def _start_collectors(self) -> None:
         started_collectors: list[collector.Collector | memalloc.MemoryCollector] = []
@@ -502,7 +518,7 @@ class _ProfilerInstance(service.Service):
                 LOG.debug("[profiling] Collector %r is unavailable, disabling", col)
                 self._rollback_collector_start(col)
             except Exception:
-                LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                LOG.error("[profiling] Failed to start collector %r, disabling.", col, exc_info=True)
                 self._rollback_collector_start(col)
             else:
                 started_collectors.append(col)

@@ -19,3 +19,15 @@
     paths:
       - ${CI_PROJECT_DIR}/.cache/pip
     policy: pull-push
+
+.ci_utils:
+  # Light jobs that only need the tools in CI_UTILS_IMAGE (git, jq, curl, gh, dd-octo-sts,
+  # aws, uv and a default Python 3.14). It is much smaller than the testrunner image, so
+  # cold pulls are cheaper. The image runs as the dog user and has no pyenv, so do not
+  # extend or reference .testrunner here.
+  extends: .retry_on_infrastructure_failure
+  image: ${CI_UTILS_IMAGE}
+  tags: [ "arch:amd64" ]
+  timeout: 20m
+  before_script:
+    - git config --global --add safe.directory "${CI_PROJECT_DIR}"

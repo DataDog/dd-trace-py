@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import TypeVar
 
 from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -14,15 +15,20 @@ from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
 from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
 from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 from ddtrace.appsec._iast.taint_sinks.weak_randomness import WeakRandomness
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+_T = TypeVar("_T")
 
 
 # TODO: we also need a native version of this function!
 def ast_function(
-    func: Callable,
-    flag_added_args: Any,
+    func: Callable[..., _T],
+    flag_added_args: int,
+    /,
     *args: Any,
     **kwargs: Any,
-) -> Any:
+) -> _T:
     try:
         instance = getattr(func, "__self__", None)
         func_name = getattr(func, "__name__", None)
@@ -69,5 +75,8 @@ def ast_function(
         ):
             _iast_report_ssrf(func_name, func.__module__, *args, **kwargs)
     except Exception as e:
-        iast_error("propagation::sink_point::Error in ast_function", e)
+        iast_error("propagation::sink_point::Error in ast_function", exc=e)
     return func(*args, **kwargs)
+
+
+telemetry_writer.add_passthrough_wrapper(ast_function)

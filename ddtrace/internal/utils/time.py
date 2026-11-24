@@ -2,11 +2,6 @@ import time as builtin_time
 from types import TracebackType
 from typing import Optional
 
-from ddtrace.internal.logger import get_logger
-
-
-log = get_logger(__name__)
-
 
 class Time:
     """

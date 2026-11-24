@@ -48,6 +48,7 @@ backoff
 backport
 backported
 backporting
+backports
 Bazel
 bdd
 bikeshedding
@@ -81,6 +82,7 @@ coroutine
 coroutines
 CPU
 CPython
+CTest
 CUPTI
 Cython
 datadog
@@ -326,7 +328,9 @@ stacktrace
 starlette
 statsd
 stderr
+stdlib
 stdout
+streamable
 setuptools
 Str
 stringable
@@ -377,6 +381,7 @@ username
 uvicorn
 uvloop
 uWSGI
+Valgrind
 valkey
 vendored
 vendoring

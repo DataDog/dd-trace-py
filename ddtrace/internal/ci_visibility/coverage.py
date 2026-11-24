@@ -3,7 +3,9 @@ from itertools import groupby
 import json
 import os
 from pathlib import Path
+from typing import Any
 from typing import Optional
+from typing import Union
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -40,25 +42,24 @@ except ImportError:
     EXECUTE_ATTR = ""
 
 
-def is_coverage_available():
+def is_coverage_available() -> bool:
     return Coverage is not None
 
 
-def _initialize_coverage(root_dir):
-    coverage_kwargs = {
-        "data_file": None,
-        "source": [root_dir],
-        "config_file": False,
-        "omit": [
+def _initialize_coverage(root_dir: str) -> Coverage:
+    cov_object = Coverage(
+        data_file=None,
+        source=[root_dir],
+        config_file=False,
+        omit=[
             "*/site-packages/*",
         ],
-    }
-    cov_object = Coverage(**coverage_kwargs)
+    )
     cov_object.set_option("run:parallel", True)
     return cov_object
 
 
-def _start_coverage(root_dir: str):
+def _start_coverage(root_dir: str) -> Union[Coverage, ModuleCodeCollector.CollectInContext]:
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         collector = ModuleCodeCollector.CollectInContext()
@@ -78,7 +79,7 @@ def _start_coverage(root_dir: str):
     return coverage
 
 
-def _stop_coverage(module):
+def _stop_coverage(module: Any) -> None:
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         return
@@ -88,7 +89,7 @@ def _stop_coverage(module):
         del module._dd_coverage
 
 
-def _module_has_dd_coverage_enabled(module, silent_mode: bool = False) -> bool:
+def _module_has_dd_coverage_enabled(module: Any, silent_mode: bool = False) -> bool:
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         return hasattr(module, "_dd_coverage")
@@ -109,7 +110,7 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 
 def _switch_coverage_context(
     coverage_data: Coverage, known_test_name: str, framework: Optional[TEST_FRAMEWORKS] = None
-):
+) -> None:
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, framework)
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
@@ -130,7 +131,7 @@ def _switch_coverage_context(
 
 def _report_coverage_to_span(
     coverage_data: Coverage, span: ddtrace.trace.Span, root_dir: str, framework: Optional[TEST_FRAMEWORKS] = None
-):
+) -> None:
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):

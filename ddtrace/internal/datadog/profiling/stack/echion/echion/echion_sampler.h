@@ -57,13 +57,17 @@ class EchionSampler
     // Asyncio state. init_asyncio runs on Python threads, usually after the sampling thread has started.
     std::atomic<PyObject*> asyncio_scheduled_tasks_{ nullptr };
     std::atomic<PyObject*> asyncio_eager_tasks_{ nullptr };
+    std::atomic<bool> asyncio_initialized_{ false };
     std::atomic<size_t> asyncio_interpreter_tasks_head_offset_{ 0 };
     std::atomic<size_t> asyncio_thread_tasks_head_offset_{ 0 };
 
     // Task unwinding state
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
     std::optional<BoundaryFrame> uvloop_boundary_frame_;
-    std::unordered_set<PyObject*> previous_task_objects_;
+    // Linked children that were missing from the last Task snapshot. Always a subset of the keys of
+    // task_link_map_ and weak_task_link_map_ respectively. Guarded by task_link_map_lock_.
+    std::unordered_set<PyObject*> missing_link_children_;
+    std::unordered_set<PyObject*> missing_weak_link_children_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
     // (Sampler::sampling_thread) touches this. unwind_frame clears it on
@@ -76,10 +80,11 @@ class EchionSampler
     // The pointer is borrowed and used as an address only by the sampling thread.
     PyObject* current_gc_frame_ = nullptr;
 
-    // Accumulated asyncio task count across sampled threads in the current sampling cycle.
-    // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
-    // reflects tasks from the sampled subset, not all threads in the process.
-    // Only accessed from the sampling thread, so no lock/atomic is needed.
+    // Whether a sampled thread had a tracked asyncio loop, and the accumulated asyncio task count, in the current
+    // sampling cycle. When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), these only reflect the
+    // sampled subset, not all threads in the process. Only accessed from the sampling thread, so no lock/atomic is
+    // needed.
+    bool asyncio_loop_tracked_ = false;
     size_t asyncio_task_count_ = 0;
 
     // Maximum number of frames to collect for plain thread stacks.
@@ -144,6 +149,60 @@ class EchionSampler
     std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
     std::mutex& task_link_map_lock() { return task_link_map_lock_; }
 
+  private:
+    // Remove the links of children that are missing from two Task snapshots in a row. A child can be
+    // missing from one snapshot without having finished: it may have been created and linked after the
+    // snapshot was taken, or the lock-free snapshot may have failed to read it. Removing its link then
+    // would detach it from its parent for the rest of its life.
+    // A child that finished before any snapshot saw it is missing from every snapshot, so it is removed
+    // as well. Requiring the child to have been seen first would keep such links forever.
+    static void prune_links(std::unordered_map<PyObject*, PyObject*>& links,
+                            std::unordered_set<PyObject*>& missing_children,
+                            const std::unordered_set<PyObject*>& live_task_origins)
+    {
+        for (auto it = links.begin(); it != links.end();) {
+            PyObject* child = it->first;
+            if (live_task_origins.find(child) != live_task_origins.end()) {
+                missing_children.erase(child);
+                ++it;
+            } else if (missing_children.erase(child) > 0) {
+                it = links.erase(it);
+            } else {
+                missing_children.insert(child);
+                ++it;
+            }
+        }
+    }
+
+  public:
+    // Linking a child gives it the full grace period of prune_links, even if a finished Task at the same
+    // address was missing from the last snapshot.
+    // The caller must hold task_link_map_lock_.
+    void link_task(PyObject* parent, PyObject* child)
+    {
+        task_link_map_[child] = parent;
+        missing_link_children_.erase(child);
+    }
+
+    // The caller must hold task_link_map_lock_.
+    void weak_link_task(PyObject* parent, PyObject* child)
+    {
+        weak_task_link_map_[child] = parent;
+        missing_weak_link_children_.erase(child);
+    }
+
+    // The caller must hold task_link_map_lock_.
+    void prune_task_links(const std::unordered_set<PyObject*>& live_task_origins)
+    {
+        prune_links(task_link_map_, missing_link_children_, live_task_origins);
+    }
+
+    // The caller must hold task_link_map_lock_.
+    void prune_weak_task_links(const std::unordered_set<PyObject*>& live_task_origins)
+    {
+        prune_links(weak_task_link_map_, missing_weak_link_children_, live_task_origins);
+    }
+
     std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }
     std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>& greenlet_parent_map() { return greenlet_parent_map_; }
     std::unordered_map<uintptr_t, GreenletInfo::ID>& greenlet_thread_map() { return greenlet_thread_map_; }
@@ -151,10 +210,23 @@ class EchionSampler
 
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_.load(std::memory_order_relaxed); }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_.load(std::memory_order_relaxed); }
+    bool asyncio_initialized() const { return asyncio_initialized_.load(std::memory_order_relaxed); }
 
-    // TODO: When these offsets come from CPython's runtime AsyncioDebug table, also check that table's task layout
-    // (size, task_name, task_awaited_by, task_is_task, task_awaited_by_is_set, task_coro, task_node) against Echion's
-    // compile-time TaskObj mirror.
+#if PY_VERSION_HEX >= 0x030e0000
+    // The TaskObj layout Echion's task unwinding was compiled against. Runtime AsyncioDebug tables must match it
+    // exactly before their list-head offsets are used.
+    static AsyncioTaskLayout asyncio_mirror_task_layout()
+    {
+        return AsyncioTaskLayout{ sizeof(TaskObj),
+                                  offsetof(TaskObj, task_name),
+                                  offsetof(TaskObj, task_awaited_by),
+                                  offsetof(TaskObj, task_is_task),
+                                  offsetof(TaskObj, task_awaited_by_is_set),
+                                  offsetof(TaskObj, task_coro),
+                                  offsetof(TaskObj, task_node) };
+    }
+#endif
+
     void set_asyncio_offsets(const AsyncioOffsets& offsets)
     {
         asyncio_interpreter_tasks_head_offset_.store(offsets.interpreter_tasks_head, std::memory_order_relaxed);
@@ -175,18 +247,24 @@ class EchionSampler
     {
         asyncio_scheduled_tasks_.store(scheduled_tasks, std::memory_order_relaxed);
         asyncio_eager_tasks_.store((eager_tasks != Py_None) ? eager_tasks : nullptr, std::memory_order_relaxed);
+        asyncio_initialized_.store(true, std::memory_order_relaxed);
     }
 
     std::optional<BoundaryFrame>& asyncio_boundary_frame() { return asyncio_boundary_frame_; }
     std::optional<BoundaryFrame>& uvloop_boundary_frame() { return uvloop_boundary_frame_; }
-    std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
 
     PyObject* current_gc_frame() const { return current_gc_frame_; }
     [[nodiscard]] GCFrameScope use_gc_frame(PyObject* frame) { return GCFrameScope(*this, frame); }
 
-    void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
+    void reset_asyncio_counts()
+    {
+        asyncio_loop_tracked_ = false;
+        asyncio_task_count_ = 0;
+    }
+    void mark_asyncio_loop_tracked() { asyncio_loop_tracked_ = true; }
+    bool asyncio_loop_tracked() const { return asyncio_loop_tracked_; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
 
@@ -278,10 +356,12 @@ class EchionSampler
         new (&greenlet_info_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>();
         new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
-        new (&previous_task_objects_) std::unordered_set<PyObject*>();
+        new (&missing_link_children_) std::unordered_set<PyObject*>();
+        new (&missing_weak_link_children_) std::unordered_set<PyObject*>();
 
         asyncio_boundary_frame_.reset();
         uvloop_boundary_frame_.reset();
+        asyncio_loop_tracked_ = false;
         asyncio_task_count_ = 0;
         rng_ = std::minstd_rand{ std::random_device{}() };
 

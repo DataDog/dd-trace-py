@@ -42,6 +42,14 @@ def override_testing_logger():
 
 class TestAPIClientGetSettings:
     @pytest.mark.parametrize(
+        "git_ref,expected_branch",
+        [
+            ({GitTag.BRANCH: "some-branch"}, "some-branch"),
+            ({GitTag.TAG: "v1.0"}, "v1.0"),
+            ({}, ""),
+        ],
+    )
+    @pytest.mark.parametrize(
         "efd_enabled, atr_enabled, test_management_enabled, attempt_to_fix_retries, "
         "known_tests_enabled, coverage_enabled, skipping_enabled, require_git, itr_enabled",
         [
@@ -53,6 +61,8 @@ class TestAPIClientGetSettings:
     def test_get_settings(
         self,
         mock_telemetry: Mock,
+        git_ref: dict[str, str],
+        expected_branch: str,
         efd_enabled: bool,
         atr_enabled: bool,
         test_management_enabled: bool,
@@ -105,7 +115,7 @@ class TestAPIClientGetSettings:
             env_tags={
                 GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
                 GitTag.COMMIT_SHA: "abcd1234",
-                GitTag.BRANCH: "some-branch",
+                **git_ref,
                 GitTag.COMMIT_MESSAGE: "I am a commit",
             },
             itr_skipping_level=ITRSkippingLevel.TEST,
@@ -132,7 +142,7 @@ class TestAPIClientGetSettings:
                             "env": "some-env",
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "sha": "abcd1234",
-                            "branch": "some-branch",
+                            "branch": expected_branch,
                             "configurations": {"os.platform": "Linux"},
                         },
                     }
@@ -412,6 +422,10 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"),
         }
 
+        mock_telemetry.record_known_tests_pages_fetched.assert_called_once_with(1)
+        assert mock_telemetry.record_known_tests_total_fetch_ms.call_count == 1
+        assert mock_telemetry.record_known_tests_total_request_ms.call_count == 1
+
     def test_get_known_tests_pagination_sends_page_info_correctly(self, mock_telemetry: Mock) -> None:
         """First page sends empty page_info; second page sends only page_state."""
         page1_response = {
@@ -468,6 +482,54 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"),
             TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
         }
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_called_once_with(2)
+        assert mock_telemetry.record_known_tests_total_fetch_ms.call_count == 1
+        assert mock_telemetry.record_known_tests_total_request_ms.call_count == 1
+        # Total fetch time should be >= sum of request times
+        total_fetch_ms = mock_telemetry.record_known_tests_total_fetch_ms.call_args_list[0][0][0]
+        total_request_ms = mock_telemetry.record_known_tests_total_request_ms.call_args_list[0][0][0]
+        assert total_fetch_ms >= total_request_ms
+
+    @pytest.mark.parametrize("fail_second_page", [False, True])
+    def test_pagination_metrics_measure_page_calls_and_discard_partial_fetches(
+        self, mock_telemetry: Mock, fail_second_page: bool
+    ) -> None:
+        first_page = BackendResult(
+            parsed_response={
+                "data": {
+                    "attributes": {
+                        "tests": {"mod": {"suite": ["test"]}},
+                        "page_info": {"has_next": True, "cursor": "next"},
+                    }
+                }
+            }
+        )
+        second_page = BackendResult(parsed_response={"data": {"attributes": {"tests": {"mod": {"suite": ["test"]}}}}})
+        connector = Mock()
+        connector.post_json.side_effect = [first_page, TimeoutError() if fail_second_page else second_page]
+        setup = Mock()
+        setup.get_connector_for_subdomain.return_value = connector
+        client = APIClient(
+            "svc", "env", {GitTag.REPOSITORY_URL: "repo"}, ITRSkippingLevel.TEST, {}, setup, mock_telemetry
+        )
+        watches = [Mock(elapsed=Mock(return_value=seconds)) for seconds in [10.0, 1.25, 2.5]]
+
+        with patch("ddtrace.testing.internal.api_client.StopWatch", side_effect=watches):
+            result = client.get_known_tests()
+
+        assert connector.post_json.call_count == 2
+        if fail_second_page:
+            assert result == set()
+            mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+            mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+            mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
+        else:
+            assert result == {TestRef(SuiteRef(ModuleRef("mod"), "suite"), "test")}
+            mock_telemetry.record_known_tests_pages_fetched.assert_called_once_with(2)
+            mock_telemetry.record_known_tests_total_fetch_ms.assert_called_once_with(10000.0)
+            mock_telemetry.record_known_tests_total_request_ms.assert_called_once_with(3750.0)
+            mock_telemetry.record_known_tests_count.assert_called_once_with(1)
 
     def test_get_known_tests_max_pages_limit_bails_and_disables_known_tests(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -539,6 +601,10 @@ class TestAPIClientGetKnownTests:
         assert "Known tests pagination exceeded max pages: 2" in caplog.text
         assert known_tests == set()
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
 
     def test_get_known_tests_max_pages_zero_uses_default(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -624,6 +690,10 @@ class TestAPIClientGetKnownTests:
             call(ErrorType.BAD_JSON)
         ]
 
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
+
     def test_get_known_tests_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()
@@ -654,6 +724,10 @@ class TestAPIClientGetKnownTests:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
         ]
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
 
     def test_get_known_tests_fail_http_request(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = Mock()
@@ -689,6 +763,10 @@ class TestAPIClientGetKnownTests:
         assert known_tests == set()
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
 
     def test_get_known_tests_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = (
@@ -729,6 +807,10 @@ class TestAPIClientGetKnownTests:
             call(ErrorType.BAD_JSON)
         ]
 
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
+
 
 class TestAPIClientGetTestManagementTests:
     RESPONSE_DATA = {
@@ -768,7 +850,8 @@ class TestAPIClientGetTestManagementTests:
         }
     }
 
-    def test_get_test_management_tests(self, mock_telemetry: Mock) -> None:
+    @pytest.mark.parametrize("commit_message", [None, "", "I am a commit"])
+    def test_get_test_management_tests(self, mock_telemetry: Mock, commit_message: t.Optional[str]) -> None:
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/test/libraries/test-management/tests",
@@ -778,15 +861,23 @@ class TestAPIClientGetTestManagementTests:
         mock_connector_setup = Mock()
         mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
 
+        env_tags = {
+            GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+            GitTag.COMMIT_SHA: "abcd1234",
+            GitTag.BRANCH: "some-branch",
+        }
+        attributes = {
+            "repository_url": "http://github.com/DataDog/some-repo.git",
+            "sha": "abcd1234",
+        }
+        if commit_message is not None:
+            env_tags[GitTag.COMMIT_MESSAGE] = commit_message
+            attributes["commit_message"] = commit_message
+
         api_client = APIClient(
             service="some-service",
             env="some-env",
-            env_tags={
-                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
-                GitTag.COMMIT_SHA: "abcd1234",
-                GitTag.BRANCH: "some-branch",
-                GitTag.COMMIT_MESSAGE: "I am a commit",
-            },
+            env_tags=env_tags,
             itr_skipping_level=ITRSkippingLevel.TEST,
             configurations={
                 "os.platform": "Linux",
@@ -805,11 +896,7 @@ class TestAPIClientGetTestManagementTests:
                     "data": {
                         "id": "00000000-0000-0000-0000-000000000000",
                         "type": "ci_app_libraries_tests_request",
-                        "attributes": {
-                            "repository_url": "http://github.com/DataDog/some-repo.git",
-                            "commit_message": "I am a commit",
-                            "sha": "abcd1234",
-                        },
+                        "attributes": attributes,
                     }
                 },
                 telemetry=mock_telemetry.with_request_metric_names.return_value,

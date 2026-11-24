@@ -25,6 +25,7 @@ components:
     - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
+    - ddtrace/contrib/internal/bedrock_inference_profiles.py
     - ddtrace/contrib/internal/stream_handler.py
   mcp:
     - ddtrace/contrib/internal/mcp/*
@@ -34,6 +35,7 @@ components:
     - ddtrace/contrib/internal/typesafe/*
   openai:
     - ddtrace/contrib/internal/openai/*
+    - ddtrace/contrib/_events/openai_realtime.py
   langgraph:
     - ddtrace/contrib/internal/langgraph/*
   crewai:
@@ -60,8 +62,11 @@ suites:
       command: pytest {cmdargs} tests/contrib/elevenlabs
       variants:
         - name: elevenlabs
-          python: ['3.10', '3.12']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: ['elevenlabs==2.70.0', pytest-asyncio]
+        - name: elevenlabs
+          python: ['3.12', '3.13', '3.14', '3.15']
+          dependencies: [elevenlabs, pytest-asyncio]
   aws_sdk_bedrock_runtime:
     paths:
       - "@bootstrap"
@@ -75,13 +80,15 @@ suites:
       command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
       variants:
         - name: aws_sdk_bedrock_runtime
-          python: ["3.12", "3.13", '3.14']
+          python: ["3.12", "3.13", '3.14', '3.15']
+          dependencies: [pytest-asyncio, aws-sdk-bedrock-runtime]
+        - name: aws_sdk_bedrock_runtime
+          python: ["3.12", "3.13", '3.14', '3.15']
           dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
-    # TODO(py-315): the anthropic SDK is not 3.15-ready: the old row rejects
-    # new API kwargs and the newest row hits pydantic model construction
-    # errors. Re-add 3.15 once the SDK supports it.
-    venvs_per_job: 6
+    # TODO(py-315): 3.15 is covered only by the newest (unpinned) row; the older rows
+    # reject new API kwargs on 3.15. Revisit if those rows need 3.15.
+    venvs_per_job: 9
     paths:
       - '@bootstrap'
       - '@anthropic'
@@ -98,7 +105,13 @@ suites:
           dependencies: [pytest-asyncio, vcrpy, 'anthropic~=0.28.0', 'httpx~=0.27.0']
         - name: anthropic
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [pytest-asyncio, vcrpy, anthropic, 'httpx<0.28.0']
+          dependencies: [pytest-asyncio, vcrpy, 'anthropic<1', 'httpx<0.28.0']
+        - name: anthropic
+          python: ['3.10', '3.14']
+          dependencies: [pytest-asyncio, vcrpy, 'anthropic>=1,<2']
+        - name: anthropic
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [pytest-asyncio, vcrpy, anthropic]
   claude_agent_sdk:
     venvs_per_job: 7
     paths:
@@ -130,7 +143,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           # Pinned to the newest 0.2.x release past the 48h lock cooldown so the
           # current SDK line stays covered without latest-tracking (see above).
-          dependencies: ['claude-agent-sdk==0.2.160', pytest-asyncio]
+          dependencies: ['claude-agent-sdk==0.2.182', pytest-asyncio]
   google_adk:
     venvs_per_job: 7
     paths:
@@ -147,6 +160,7 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@google_genai'
@@ -158,11 +172,19 @@ suites:
       command: pytest {cmdargs} tests/contrib/google_genai
       variants:
         - name: google_genai
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, google-genai]
+        # The unpinned dependency resolves by Python version: 1.21.1 on Python
+        # 3.9/3.10 and 2.34.0 on 3.11+. Test the lower bound where the unpinned
+        # row selects 2.x; testing it on 3.9/3.10 would duplicate environments.
+        - name: google_genai
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [pytest-asyncio, 'google-genai~=1.21.1']
+        - name: google_genai
+          python: ['3.11', '3.14']
+          dependencies: [pytest-asyncio, 'google-genai~=3.2.0']
   vertexai:
-    # TODO(py-315): the resolved google-genai tool definitions serialize
-    # differently on 3.15 and the span data assertions fail. Re-add 3.15
-    # after updating the expectations.
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@vertexai'
@@ -172,10 +194,17 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
-      python: ['3.9', '3.10', '3.11', '3.12']
       variants:
+        # Oldest supported SDK (google-cloud-aiplatform 1.71.1), held by the existing locks.
+        # A fresh lock picks a newer google-cloud-aiplatform instead.
         - name: vertexai
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
+        # Latest google-cloud-aiplatform. It ships the vertexai module, so the standalone
+        # vertexai package is left out.
+        - name: vertexai
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [pytest-asyncio, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
     venvs_per_job: 5
     paths:
@@ -185,6 +214,12 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
+    env:
+      # The llama-index-core~=0.11.0 venv on Python 3.13 builds numpy 1.26.4 from source
+      # (no cp313 wheel) on a uv cache miss, which can exceed the default 6Gi.
+      DD_DISABLE_VPA: 'true'
+      KUBERNETES_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_MEMORY_LIMIT: '8Gi'
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       variants:
@@ -241,11 +276,11 @@ suites:
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.65.4', 'openai==1.68.2']
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, litellm, "mcp; python_version >= '3.10'", 'openai>=2.8.0']
         # PR #20079: Python 3.14 is covered by the latest compatible dependency row only.
         - name: litellm
           python: ['3.14']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, litellm, "mcp; python_version >= '3.10'", 'openai>=2.8.0']
   llmobs:
     # TODO(py-315): the suite fails on 3.15: one variant cannot import deepeval
     # (no 3.15 support) and another hits a pyo3 panic in native code surfaced as
@@ -280,9 +315,7 @@ suites:
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
-    # TODO(py-315): the unpinned row resolves mcp 2.x, which renames FastMCP to
-    # MCPServer and the tests cannot import mcp.server.fastmcp. Re-add 3.15
-    # once the suite supports mcp 2.x (or pin mcp<2 here).
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@mcp'
@@ -297,10 +330,10 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'mcp~=1.10.0']
         - name: mcp
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'mcp<2']
         - name: mcp
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, mcp]
   mistralai:
     paths:
@@ -339,14 +372,12 @@ suites:
           python: ['3.10']
           dependencies: [pytest-asyncio, 'typesafe-sdk~=0.6.0']
         - name: typesafe
-          python: ['3.10', '3.13', '3.14']
+          python: ['3.10', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, typesafe-sdk]
   openai:
-    # TODO(py-315): the old openai rows fail to build on 3.15 (requires-python
-    # <3.15 in the dependency chain) and the newest rows hit openai SDK pydantic
-    # model construction errors on 3.15. Re-add 3.15 once the openai SDK
-    # supports it.
-    venvs_per_job: 5
+    # The old openai rows fail to build on 3.15 (requires-python <3.15 in the dependency chain),
+    # so 3.15 only runs the latest row.
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@openai'
@@ -365,9 +396,10 @@ suites:
         - name: openai
           python: ['3.9', '3.10', '3.11']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai[embeddings,datalib]==1.30.1', 'pillow==9.5.0', 'httpx==0.27.2']
+        # pytest<9.2: pytest 9.2+ breaks pytest-asyncio 0.21.1, which this row pins.
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow]
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow, 'pytest<9.2', websockets]
         - name: openai
           python: ['3.10', '3.13', '3.14']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=3.26.0', pillow]
@@ -501,7 +533,10 @@ suites:
     # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
     # run on Python 3.15 yet. Add 3.15 to the python lists once those
     # dependencies publish 3.15 wheels.
-    venvs_per_job: 1
+    # Keep the full matrix on two GPU jobs to reduce pressure on runner placement.
+    venvs_per_job: 4
+    # Allow time for GPU placement and for the environments in each shard to run.
+    timeout: 50m
     paths:
       - '@bootstrap'
       - '@llmobs'
@@ -520,5 +555,5 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2', 'transformers<5']
         - name: vllm
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]

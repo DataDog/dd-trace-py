@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes a segmentation fault on Python 3.12 and later when the lock profiler is enabled and an
+    object's destructor acquires a lock as a function called from a C extension returns, as seen with ``grpc.aio``
+    on ``uvloop``.

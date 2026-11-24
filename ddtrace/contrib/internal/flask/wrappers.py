@@ -1,4 +1,3 @@
-import flask
 from wrapt import function_wrapper
 
 from ddtrace import config
@@ -16,16 +15,6 @@ log = get_logger(__name__)
 
 def wrap_view(instance, func, name=None, resource=None):
     return _wrap_call_with_tracing_check(func, instance, name or func_name(func), resource=resource, do_dispatch=True)
-
-
-def get_current_app():
-    """Helper to get the flask.app.Flask from the current app context"""
-    try:
-        return flask.current_app
-    except RuntimeError:
-        # raised if current_app is None: https://github.com/pallets/flask/blob/2.1.3/src/flask/globals.py#L40
-        pass
-    return None
 
 
 def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dispatch=False, args=None, kwargs=None):

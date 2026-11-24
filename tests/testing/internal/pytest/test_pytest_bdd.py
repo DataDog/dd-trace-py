@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.metadata as importlib_metadata
 import json
 import os
 from unittest.mock import Mock
@@ -13,13 +14,12 @@ from ddtrace.testing.internal.pytest.bdd import _get_step_func_args_json
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 
 
-# pytest-bdd releases available at the time of writing (up to 9.0.0) read pytest
-# internals that pytest 9.2 removed (e.g. FixtureManager._arg2fixturedefs), so nested
-# scenario sessions cannot run. The dedicated pytest_bdd suite pins pytest in
-# tests/ci_visibility/suitespec.yml. Remove when pytest-bdd supports pytest >= 9.2.
+# pytest-bdd 9.0.1 fixes the use of pytest internals removed in pytest 9.2.
+# Keep nested scenario tests skipped only for older pytest-bdd releases.
 _requires_pytest_bdd_compat = pytest.mark.skipif(
-    parse_version(pytest.__version__) >= (9, 2, 0),
-    reason="pytest-bdd does not support pytest 9.2 or newer yet",
+    parse_version(pytest.__version__) >= (9, 2, 0)
+    and parse_version(importlib_metadata.version("pytest-bdd")) < (9, 0, 1),
+    reason="pytest-bdd < 9.0.1 does not support pytest 9.2 or newer yet",
 )
 
 

@@ -8,6 +8,7 @@ import cloudpickle
 import pytest
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import is_at_least_py
 
 
 @pytest.mark.subprocess
@@ -158,6 +159,217 @@ def test_hook_exception():
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+@pytest.fixture
+def isolated_child_hooks():
+    # run_child_hooks replaces the global fork lock, so restore it along with
+    # the registries to leave the test process as it was.
+    registry, forksafe._registry[:] = forksafe._registry[:], []
+    wrappers, forksafe._registry_child_wrappers[:] = forksafe._registry_child_wrappers[:], []
+    fork_lock = forksafe._fork_lock
+    try:
+        yield
+    finally:
+        forksafe._registry[:] = registry
+        forksafe._registry_child_wrappers[:] = wrappers
+        forksafe._fork_lock = fork_lock
+
+
+@pytest.mark.usefixtures("isolated_child_hooks")
+def test_child_wrappers_order() -> None:
+    calls = []
+
+    def make_wrapper(name):
+        def wrapper():
+            calls.append(f"enter {name}")
+            yield
+            calls.append(f"exit {name}")
+
+        return wrapper
+
+    @forksafe.register
+    def hook():
+        calls.append("hook")
+
+    @forksafe.register
+    def before_only():
+        calls.append(("before_only", forksafe.in_child_hook()))
+        yield
+
+    @forksafe.register
+    def after_only():
+        yield
+        calls.append(("after_only", forksafe.in_child_hook()))
+
+    outer, inner = make_wrapper("outer"), make_wrapper("inner")
+    forksafe.register(outer)
+    forksafe.register(inner)
+    assert forksafe._registry == [hook]
+
+    forksafe.run_child_hooks()
+    assert calls == [
+        ("before_only", True),
+        "enter outer",
+        "enter inner",
+        "hook",
+        "exit inner",
+        "exit outer",
+        ("after_only", True),
+    ]
+    assert not forksafe.in_child_hook()
+
+    calls.clear()
+    forksafe.unregister(inner)
+    forksafe.unregister(before_only)
+    forksafe.unregister(after_only)
+    forksafe.run_child_hooks()
+    assert calls == ["enter outer", "hook", "exit outer"]
+
+
+@pytest.mark.usefixtures("isolated_child_hooks")
+def test_child_wrappers_exceptions() -> None:
+    calls = []
+
+    def outer():
+        calls.append("enter outer")
+        yield
+        calls.append("exit outer")
+
+    def failing_enter():
+        raise ValueError("enter")
+        yield
+
+    def no_yield():
+        calls.append("enter no_yield")
+        return
+        yield
+
+    def failing_exit():
+        calls.append("enter failing_exit")
+        yield
+        raise ValueError("exit")
+
+    def yields_twice():
+        calls.append("enter yields_twice")
+        yield
+        yield
+        calls.append("unreachable")
+
+    def hook():
+        calls.append("hook")
+        raise ValueError("hook")
+
+    forksafe.register(hook)
+    for wrapper in (outer, failing_enter, no_yield, failing_exit, yields_twice):
+        forksafe.register(wrapper)
+
+    forksafe.run_child_hooks()
+
+    assert calls == [
+        "enter outer",
+        "enter no_yield",
+        "enter failing_exit",
+        "enter yields_twice",
+        "hook",
+        "exit outer",
+    ]
+    assert not forksafe.in_child_hook()
+
+
+@pytest.mark.usefixtures("isolated_child_hooks")
+def test_child_wrappers_resumed_on_base_exception_before_yield() -> None:
+    calls = []
+
+    @forksafe.register
+    def outer():
+        calls.append("enter outer")
+        yield
+        calls.append("exit outer")
+
+    @forksafe.register
+    def interrupted():
+        raise KeyboardInterrupt
+        yield
+
+    @forksafe.register
+    def hook():
+        calls.append("hook")
+
+    with pytest.raises(KeyboardInterrupt):
+        forksafe.run_child_hooks()
+
+    assert calls == ["enter outer", "exit outer"]
+    assert not forksafe.in_child_hook()
+
+
+@pytest.mark.usefixtures("isolated_child_hooks")
+def test_child_wrappers_resumed_on_base_exception_after_yield() -> None:
+    calls = []
+
+    @forksafe.register
+    def outer():
+        calls.append("enter outer")
+        yield
+        calls.append("exit outer")
+
+    @forksafe.register
+    def exiting():
+        yield
+        calls.append("exit exiting")
+        raise SystemExit(1)
+
+    @forksafe.register
+    def interrupted():
+        yield
+        calls.append("exit interrupted")
+        raise KeyboardInterrupt
+
+    @forksafe.register
+    def hook():
+        calls.append("hook")
+
+    # Every wrapper resumes before the exceptions propagate. Python 3.11+
+    # raises all of them as a group, older versions only the first one.
+    if is_at_least_py(3, 11):
+        with pytest.raises(BaseExceptionGroup) as exc_info:  # type: ignore[name-defined]  # noqa: F821
+            forksafe.run_child_hooks()
+        assert [type(e) for e in exc_info.value.exceptions] == [KeyboardInterrupt, SystemExit]
+    else:
+        with pytest.raises(KeyboardInterrupt):
+            forksafe.run_child_hooks()
+
+    assert calls == ["enter outer", "hook", "exit interrupted", "exit exiting", "exit outer"]
+    assert not forksafe.in_child_hook()
+
+
+@pytest.mark.subprocess
+def test_child_wrappers_fork():
+    import os
+
+    from ddtrace.internal import forksafe
+
+    state = []
+
+    @forksafe.register
+    def wrapper():
+        state.append("enter")
+        yield
+        state.append("exit")
+
+    @forksafe.register
+    def after_in_child():
+        state.append("hook")
+
+    pid = os.fork()
+    if pid == 0:
+        assert state == ["enter", "hook", "exit"], state
+        os._exit(12)
+
+    assert state == []
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WEXITSTATUS(status) == 12
 
 
 @pytest.mark.subprocess(err=None)

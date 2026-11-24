@@ -649,6 +649,7 @@ class _Entry:
         "context_attrs",
         "error_message",
         "observe_full_evaluation_data",
+        "features",
     )
 
     def __init__(
@@ -659,6 +660,7 @@ class _Entry:
         context_attrs: typing.Mapping[str, typing.Any],
         error_message: str,
         observe_full_evaluation_data: bool = False,
+        features: typing.Mapping[str, typing.Any] = _EMPTY_CONTEXT,
     ) -> None:
         self.count: int = 1
         self.first_evaluation: int = eval_time_ms
@@ -669,6 +671,8 @@ class _Entry:
         self.context_attrs: dict[str, typing.Any] = dict(context_attrs)
         self.error_message: str = error_message
         self.observe_full_evaluation_data: bool = observe_full_evaluation_data
+        # Shared, read-only: comes from the flag configuration, not the context.
+        self.features: typing.Mapping[str, typing.Any] = features
 
     def observe(self, eval_time_ms: int, observe_full_evaluation_data: typing.Optional[bool] = None) -> None:
         """Update count, time bounds, and defensive bucket consent."""
@@ -699,6 +703,8 @@ class _EvalEvent(typing.NamedTuple):
     eval_time_ms: int
     observe_full_evaluation_data: bool = False
     error_code: str = ""
+    # EVALUATION features of the selected split; sent whatever the consent.
+    features: typing.Mapping[str, typing.Any] = _EMPTY_CONTEXT
 
 
 class _FlagEvaluationConnection(typing.Protocol):
@@ -942,6 +948,7 @@ class FlagEvaluationWriter(PeriodicService):
             eval_time_ms=event.eval_time_ms,
             observe_full_evaluation_data=observe_full_evaluation_data,
             error_code=event.error_code,
+            features=event.features,
         )
 
         closed = False
@@ -1086,6 +1093,8 @@ class FlagEvaluationWriter(PeriodicService):
                 ev["allocation"] = {"key": allocation_key}
             if entry.error_message:
                 ev["error"] = {"message": _protected_error_message(entry.error_message)}
+            if entry.features:
+                ev["features"] = dict(entry.features)
             events.append(ev)
 
         # Degraded-tier events: no targeting_key, no context.
@@ -1104,6 +1113,8 @@ class FlagEvaluationWriter(PeriodicService):
                 ev["allocation"] = {"key": allocation_key}
             if entry.error_message:
                 ev["error"] = {"message": _protected_error_message(entry.error_message)}
+            if entry.features:
+                ev["features"] = dict(entry.features)
             events.append(ev)
         _count_metric(FLAG_EVALUATION_DEGRADED_METRIC, degraded_count, FLAG_EVALUATION_REASON_CARDINALITY_CAP)
 
@@ -1232,6 +1243,7 @@ class FlagEvaluationWriter(PeriodicService):
                 # values in their locals, and those values are consent-gated in the
                 # payload. They must not reach the log sink.
                 logger.debug("FlagEvaluationWriter: context canonicalization error (%s)", type(exc).__name__)
+        features, features_key = _features_and_key(event.features)
         full_key = (
             event.flag_key,
             event.variant,
@@ -1241,6 +1253,7 @@ class FlagEvaluationWriter(PeriodicService):
             targeting_key,
             ctx_key,
             observe_full_evaluation_data,
+            features_key,
         )
 
         with self._lock:
@@ -1252,7 +1265,7 @@ class FlagEvaluationWriter(PeriodicService):
             # Per-flag cap check.
             per_flag = self._per_flag_count.get(event.flag_key, 0)
             if per_flag >= PER_FLAG_CAP:
-                self._add_to_degraded(event)
+                self._add_to_degraded(event, features, features_key)
                 return
 
             # Increment per-flag attempt count before checking globalCap (matches Go design).
@@ -1260,7 +1273,7 @@ class FlagEvaluationWriter(PeriodicService):
 
             # Global cap check.
             if self._global_count >= GLOBAL_CAP:
-                self._add_to_degraded(event)
+                self._add_to_degraded(event, features, features_key)
                 return
 
             # New full-tier bucket.
@@ -1271,10 +1284,16 @@ class FlagEvaluationWriter(PeriodicService):
                 context_attrs=_json_safe_context(context_attrs),
                 error_message=error_message,
                 observe_full_evaluation_data=observe_full_evaluation_data,
+                features=features,
             )
             self._global_count += 1
 
-    def _add_to_degraded(self, event: _EvalEvent) -> None:
+    def _add_to_degraded(
+        self,
+        event: _EvalEvent,
+        features: typing.Mapping[str, typing.Any] = _EMPTY_CONTEXT,
+        features_key: str = "",
+    ) -> None:
         """
         Add to the degraded-tier map (drops targeting_key + context).
         Must be called with self._lock held.
@@ -1286,6 +1305,7 @@ class FlagEvaluationWriter(PeriodicService):
             event.allocation_key,
             event.runtime_default,
             error_message,
+            features_key,
         )
         if deg_key in self._degraded:
             self._degraded[deg_key].observe(
@@ -1305,6 +1325,7 @@ class FlagEvaluationWriter(PeriodicService):
             context_attrs={},
             error_message=error_message,
             observe_full_evaluation_data=event.observe_full_evaluation_data is True,
+            features=features,
         )
 
     def _send_payload(self, payload: bytes, num_events: int) -> None:
@@ -1352,6 +1373,18 @@ class FlagEvaluationWriter(PeriodicService):
 # ---------------------------------------------------------------------------
 # Payload helpers
 # ---------------------------------------------------------------------------
+
+
+def _features_and_key(
+    features: typing.Optional[typing.Mapping[str, typing.Any]],
+) -> tuple[typing.Mapping[str, typing.Any], str]:
+    """Return the features and the bucket-key part that keeps rows with different features apart."""
+    if not features:
+        return _EMPTY_CONTEXT, ""
+    try:
+        return features, canonical_context_key(features)
+    except (TypeError, ValueError):
+        return _EMPTY_CONTEXT, ""
 
 
 def _base_event(flag_key: str, entry: "_Entry", flush_time_ms: int) -> dict[str, typing.Any]:

@@ -14,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import safe_load_json
+from ddtrace.internal.utils.http import url_origin
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -189,8 +190,8 @@ REACT_ACTION_REGEX = re.compile(r"Action\s*(?:\d+\s*)?:")
 REACT_ACTION_INPUT_REGEX = re.compile(r"Action\s*(?:\d+\s*)?Input\s*(?:\d+\s*)?:")
 
 
-def get_llmobs_metrics_tags(integration_name, span):
-    usage = {}
+def get_llmobs_metrics_tags(integration_name: str, span: Any) -> dict[str, Any]:
+    usage: dict[str, Any] = {}
 
     # check for both prompt / completion or input / output tokens
     input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name) or span.get_metric(
@@ -213,8 +214,8 @@ def get_llmobs_metrics_tags(integration_name, span):
     return usage
 
 
-def parse_llmobs_metric_args(metrics):
-    usage = {}
+def parse_llmobs_metric_args(metrics: Any) -> dict[str, Any]:
+    usage: dict[str, Any] = {}
     input_tokens = _get_attr(metrics, "prompt_tokens", None)
     output_tokens = _get_attr(metrics, "completion_tokens", None)
     total_tokens = _get_attr(metrics, "total_tokens", None)
@@ -310,14 +311,14 @@ LANGCHAIN_ROLE_MAPPING = {
 
 
 def format_langchain_io(
-    messages,
-):
+    messages: Any,
+) -> Any:
     """
     Formats input and output messages for serialization to JSON.
     Specifically, makes sure that any schema messages are converted to strings appropriately.
     """
     if isinstance(messages, dict):
-        formatted = {}
+        formatted: dict[Any, Any] = {}
         for key, value in messages.items():
             formatted[key] = format_langchain_io(value)
         return formatted
@@ -326,7 +327,7 @@ def format_langchain_io(
     return get_content_from_langchain_message(messages)
 
 
-def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
+def get_content_from_langchain_message(message: Any) -> Union[str, tuple[str, str]]:
     """
     Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
     """
@@ -340,12 +341,14 @@ def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
         return str(message)
 
 
-def format_anthropic_tool_result_content(content) -> str:
+def format_anthropic_tool_result_content(content: Any) -> str:
     """Flatten the `content` field of an Anthropic `tool_result` block into a string."""
     if isinstance(content, str):
         return content
     elif isinstance(content, dict):
-        return safe_json(content)
+        # safe_json returns None on serialization failure; preserve that.
+        serialized: str = safe_json(content)
+        return serialized
     elif isinstance(content, Iterable):
         formatted_content = []
         for tool_result_block in content:
@@ -675,7 +678,7 @@ def _capture_inline_image(url: Any) -> tuple[Optional[ImagePart], Optional[str]]
     return format_image_part(payload, match.group(1).lower()), None
 
 
-def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[ImagePart]]:
+def _extract_content_parts(parts: list[Any]) -> tuple[str, list[AudioPart], list[ImagePart]]:
     """Extract readable text, audio and image segments from multimodal content parts."""
     extracted = []
     audio_parts: list[AudioPart] = []
@@ -1040,14 +1043,11 @@ def _openai_parse_input_response_messages(
 
                     content_part_type = _get_attr(content_part, "type", None)
                     if content_part_type == INPUT_TYPE_IMAGE:
-                        raw_url = _get_attr(content_part, "image_url", None)
-                        # Unwrap the chat-shaped nested object too: the SDK does not enforce
-                        # the Responses shape at runtime and a dict here would leak inline.
-                        image_part, marker = _capture_inline_image(_get_attr(raw_url, "url", None) or raw_url)
+                        image_part, image_text = _openai_image_part(content_part)
                         if image_part:
                             image_parts.append(image_part)
                         else:
-                            processed_item_content += marker or _extract_image_reference(content_part)
+                            processed_item_content += image_text
                     elif content_part_type == INPUT_TYPE_FILE:
                         processed_item_content += _extract_file_reference(content_part)
             else:
@@ -1289,6 +1289,19 @@ def _extract_image_reference(obj: Any) -> str:
     return reference
 
 
+def _openai_image_part(part: Any) -> tuple[Optional[ImagePart], str]:
+    """Image part for an OpenAI input_image part, and the text that stands for it: a marker, or the image URL.
+
+    The chat-shaped nested image_url.url is unwrapped too: the SDK does not enforce the string shape at runtime, and a
+    dict here would leak the payload inline.
+    """
+    url = _get_attr(part, "image_url", None)
+    image_part, marker = _capture_inline_image(_get_attr(url, "url", None) or url)
+    if image_part:
+        return image_part, IMAGE_DETECTED_MARKER
+    return None, marker or _extract_image_reference(part)
+
+
 def _extract_file_reference(obj: Any) -> str:
     """Extract file reference with fallback priority: file_url → file_id → filename → [file]."""
     return (
@@ -1473,31 +1486,122 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
+OPENAI_DECISION_REQUEST_KEYS = (
+    "model",
+    "input",
+    "questions",
+    "prompt_cache_key",
+    "prompt_cache_options",
+    "safety_identifier",
+)
+
+
 def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
-    """Extract input, questions, and answers from a decisions api call."""
-    metadata: dict[str, Any] = {}
-    questions = kwargs.get("questions")
-    if isinstance(questions, (list, tuple)):
-        metadata["questions"] = [load_data_value(q) for q in questions]
-    _annotate_llmobs_span_data(
-        span,
-        input_messages=openai_get_input_messages_from_response_input(kwargs.get("input")),
-        metadata=metadata,
+    """Record the decisions request body as the input and the response body, without usage, as the output.
+
+    The questions decide what the model answers, so they stay with the input instead of in metadata. Inline images are
+    captured as image parts and replaced in the body by a marker. Only known request fields are taken from extra_body,
+    since its other fields can carry credentials.
+    """
+    extra_body = kwargs.get("extra_body")
+    sources = (kwargs, extra_body) if isinstance(extra_body, dict) else (kwargs,)
+    body = {}
+    for source in sources:
+        body.update(
+            {k: v for k, v in source.items() if k in OPENAI_DECISION_REQUEST_KEYS and not _is_openai_sentinel(v)}
+        )
+    image_parts: list[ImagePart] = []
+    input_message = Message(
+        role="user", content=safe_json(_openai_decision_body(load_data_value(body), image_parts)) or ""
     )
+    if image_parts:
+        input_message["image_parts"] = image_parts
+    _annotate_llmobs_span_data(span, input_messages=[input_message])
     if not response:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
-    answers = [_openai_decision_answer_to_dict(answer) for answer in _get_attr(response, "answers", None) or []]
-    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(answers) or "")])
+    if hasattr(response, "model_dump"):
+        output = response.model_dump(mode="json", exclude_unset=True)
+    else:
+        output = load_data_value(response)
+    if isinstance(output, dict):
+        output.pop("usage", None)
+    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(output) or "")])
 
 
-def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
-    if hasattr(answer, "model_dump"):
-        return answer.model_dump(mode="json", exclude_none=True)
-    if isinstance(answer, dict):
-        return {k: v for k, v in answer.items() if v is not None}
-    return {}
+def _openai_decision_body(value: Any, image_parts: list[ImagePart]) -> Any:
+    """Replace inline images in input_image parts with a marker; input_json data is caller data, so it is kept as is."""
+    if isinstance(value, dict):
+        if value.get("type") == "input_json":
+            return value
+        if value.get("type") == "input_image":
+            image_part, image_text = _openai_image_part(value)
+            if image_part:
+                image_parts.append(image_part)
+            return {**value, "image_url": image_text}
+        return {k: _openai_decision_body(v, image_parts) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_openai_decision_body(v, image_parts) for v in value]
+    return value
+
+
+# OpenAI hosted MCP tool fields that carry no credential; headers, authorization and the URL path,
+# query and fragment can, so only these and the URL origin are recorded.
+_SAFE_OPENAI_MCP_TOOL_FIELDS = (
+    "type",
+    "server_label",
+    "server_description",
+    "connector_id",
+    "require_approval",
+    "allowed_tools",
+)
+
+
+def safe_mcp_tool_config(tool: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> dict[str, Any]:
+    """Hosted MCP tool configuration keeping only the allowlist fields, with server_url reduced to its origin."""
+    config = load_data_value(tool)
+    if not isinstance(config, dict):
+        return {}
+    safe = {key: config[key] for key in allowlist if config.get(key) is not None}
+    server_url = config.get("server_url")
+    origin = url_origin(server_url) if isinstance(server_url, str) else None
+    if origin:
+        safe["server_url"] = origin
+    return safe
+
+
+def _without_domain_secret_values(value: Any) -> Any:
+    """Copy of value where each container network policy domain secret keeps only its domain and name."""
+    if isinstance(value, dict):
+        return {
+            key: [
+                {field: secret[field] for field in ("domain", "name") if field in secret}
+                for secret in item
+                if isinstance(secret, dict)
+            ]
+            if key == "domain_secrets" and isinstance(item, list)
+            else _without_domain_secret_values(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_without_domain_secret_values(item) for item in value]
+    return value
+
+
+def safe_tool_config(tool: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> Any:
+    """Tool configuration as recorded: MCP tools keep the allowlist fields, domain secret values are dropped."""
+    config = load_data_value(tool)
+    if isinstance(config, dict) and config.get("type") == "mcp":
+        return safe_mcp_tool_config(config, allowlist=allowlist)
+    return _without_domain_secret_values(config)
+
+
+def _safe_response_tools(tools: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> Any:
+    """Response tools as recorded in metadata, each reduced by safe_tool_config."""
+    if not isinstance(tools, list):
+        return tools
+    return [safe_tool_config(tool, allowlist=allowlist) for tool in tools]
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
@@ -1538,100 +1642,6 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     return tool_definitions
 
 
-def openai_construct_completion_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, str]:
-    """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
-    if not streamed_chunks:
-        return {"text": ""}
-    completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
-    if getattr(streamed_chunks[-1], "finish_reason", None):
-        completion["finish_reason"] = streamed_chunks[-1].finish_reason
-    if hasattr(streamed_chunks[0], "usage"):
-        completion["usage"] = streamed_chunks[0].usage
-    return completion
-
-
-def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_chunk=None, function_call_chunk=None):
-    """Builds a tool_call dictionary from streamed function_call/tool_call chunks."""
-    if function_call_chunk:
-        if not stored_tool_calls:
-            stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
-        # ``arguments`` may be present but None on OpenAI-compatible backends (e.g. DashScope),
-        # so coerce to "" — getattr's default only applies when the attribute is absent.
-        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "") or ""
-        return
-    if not tool_call_chunk:
-        return
-    tool_call_idx = getattr(tool_call_chunk, "index", None)
-    tool_id = getattr(tool_call_chunk, "id", None)
-    tool_type = getattr(tool_call_chunk, "type", None)
-    function_call = getattr(tool_call_chunk, "function", None)
-    custom_call = getattr(tool_call_chunk, "custom", None)
-    function_name = getattr(function_call, "name", "") or getattr(custom_call, "name", "")
-    # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
-    list_idx = next(
-        (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
-        None,
-    )
-    if list_idx is None:
-        call_dict = {
-            "index": tool_call_idx,
-            "id": tool_id,
-            "type": tool_type,
-        }
-        if function_call:
-            call_dict["function"] = {"name": function_name, "arguments": ""}
-        elif custom_call:
-            call_dict["custom"] = {"name": function_name, "input": ""}
-        stored_tool_calls.append(call_dict)
-        list_idx = -1
-    if function_call:
-        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "") or ""
-    elif custom_call:
-        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "") or ""
-
-
-def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:
-    """Constructs a chat completion message dictionary from streamed chunks.
-    The resulting message dictionary is of form:
-    {"content": "...", "role": "...", "reasoning_content": "...", "tool_calls": [...], "finish_reason": "..."}
-    """
-    message: dict[str, Any] = {"content": "", "reasoning_content": "", "tool_calls": []}
-    for chunk in streamed_chunks:
-        if _get_attr(chunk, "usage", None):
-            message["usage"] = chunk.usage
-        if not _get_attr(chunk, "delta", None):
-            continue
-        if _get_attr(chunk, "index", None) and not message.get("index"):
-            message["index"] = chunk.index
-        if _get_attr(chunk.delta, "role", None) and not message.get("role"):
-            message["role"] = chunk.delta.role
-        if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
-            message["finish_reason"] = chunk.finish_reason
-        chunk_reasoning = _get_attr(chunk.delta, "reasoning_content", "")
-        if chunk_reasoning:
-            message["reasoning_content"] += chunk_reasoning
-        chunk_content = _get_attr(chunk.delta, "content", "")
-        if chunk_content:
-            message["content"] += chunk_content
-            continue
-        function_call = _get_attr(chunk.delta, "function_call", None)
-        if function_call:
-            openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
-        tool_calls = _get_attr(chunk.delta, "tool_calls", None)
-        if not tool_calls:
-            continue
-        for tool_call in tool_calls:
-            openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], tool_call_chunk=tool_call)
-    if message["tool_calls"]:
-        message["tool_calls"].sort(key=lambda x: x.get("index", 0))
-    else:
-        message.pop("tool_calls", None)
-    if not message["reasoning_content"]:
-        message.pop("reasoning_content", None)
-    message["content"] = message["content"].strip()
-    return message
-
-
 class OaiSpanAdapter:
     """Adapter for Oai Agents SDK Span objects that the llmobs integration code will use.
     This is to consolidate the code where we access oai library types which provides a clear starting point for
@@ -1639,31 +1649,35 @@ class OaiSpanAdapter:
     It is also handy for providing defaults when we bump into missing data or unexpected data shapes.
     """
 
-    def __init__(self, oai_span):
+    def __init__(self, oai_span: Any) -> None:
         self._raw_oai_span = oai_span  # openai span data type
 
     @property
     def span_id(self) -> str:
         """Get the span ID."""
-        return self._raw_oai_span.span_id
+        span_id: str = self._raw_oai_span.span_id
+        return span_id
 
     @property
     def trace_id(self) -> str:
         """Get the trace ID."""
-        return self._raw_oai_span.trace_id
+        trace_id: str = self._raw_oai_span.trace_id
+        return trace_id
 
     @property
     def name(self) -> str:
         """Get the span name."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "name"):
-            return self._raw_oai_span.span_data.name
+            name: str = self._raw_oai_span.span_data.name
+            return name
         return f"openai_agents.{self.span_type.lower()}"
 
     @property
     def span_type(self) -> str:
         """Get the span type."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "type"):
-            return self._raw_oai_span.span_data.type
+            span_type: str = self._raw_oai_span.span_data.type
+            return span_type
         return ""
 
     @property
@@ -1740,14 +1754,16 @@ class OaiSpanAdapter:
         data = self.data
         if not data:
             return {}
-        return load_data_value(data)
+        formatted: dict[str, Any] = load_data_value(data)
+        return formatted
 
     @property
     def response_output_text(self) -> str:
         """Get the output text from the response."""
         if not self.response:
             return ""
-        return self.response.output_text
+        output_text: str = self.response.output_text
+        return output_text
 
     @property
     def response_system_instructions(self) -> Optional[str]:
@@ -1764,7 +1780,8 @@ class OaiSpanAdapter:
 
         if self.span_type == "response" and self.response:
             if hasattr(self.response, "model"):
-                return self.response.model
+                model: Optional[str] = self.response.model
+                return model
         return None
 
     @property
@@ -1806,7 +1823,8 @@ class OaiSpanAdapter:
                 if hasattr(self.response, field):
                     value = getattr(self.response, field)
                     if value is not None:
-                        metadata[field] = load_data_value(value)
+                        value = load_data_value(value)
+                        metadata[field] = _safe_response_tools(value) if field == "tools" else value
 
             if hasattr(self.response, "text") and self.response.text:
                 metadata["text"] = load_data_value(self.response.text)
@@ -1855,7 +1873,7 @@ class OaiSpanAdapter:
         if not self.response or not self.response.output:
             return [], [], []
 
-        messages: list[Any] = self.response.output
+        messages: Any = self.response.output
         if not messages:
             return [], [], []
 
@@ -1892,13 +1910,14 @@ class OaiTraceAdapter:
     OpenAI Agents SDK Trace objects without needing to know their internal structure.
     """
 
-    def __init__(self, oai_trace):
+    def __init__(self, oai_trace: Any) -> None:
         self._trace = oai_trace  # openai trace data type
 
     @property
     def trace_id(self) -> str:
         """Get the trace ID."""
-        return self._trace.trace_id
+        trace_id: str = self._trace.trace_id
+        return trace_id
 
     @property
     def name(self) -> str:
@@ -1909,7 +1928,8 @@ class OaiTraceAdapter:
     def group_id(self) -> Optional[str]:
         """Get the group ID if it exists."""
         try:
-            return self._trace.export().get("group_id")
+            group_id: Optional[str] = self._trace.export().get("group_id")
+            return group_id
         except (AttributeError, KeyError):
             return None
 
@@ -1919,7 +1939,7 @@ class OaiTraceAdapter:
         return self._trace.metadata if hasattr(self._trace, "metadata") else None
 
     @property
-    def raw_trace(self):
+    def raw_trace(self) -> Any:
         """Get the raw OpenAI Agents SDK trace."""
         return self._trace
 
@@ -1965,10 +1985,14 @@ def get_final_message_converse_stream_message(
             continue
         tool_input = tool_block.get("input")
         tool_args = {}
-        if tool_input is not None:
+        if isinstance(tool_input, dict):
+            # The input can already be parsed into a dict (#21830); json.loads would
+            # raise TypeError, which escapes into the caller's stream iteration.
+            tool_args = tool_input
+        elif tool_input is not None:
             try:
                 tool_args = json.loads(tool_input)
-            except (json.JSONDecodeError, ValueError):
+            except (json.JSONDecodeError, ValueError, TypeError):
                 tool_args = {"input": tool_input}
         tool_call_info = ToolCall(
             name=tool_block.get("name", ""),
@@ -1987,7 +2011,7 @@ def get_final_message_converse_stream_message(
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
-def _compute_prompt_tokens(prompts=None, messages=None):
+def _compute_prompt_tokens(prompts: Any = None, messages: Any = None) -> int:
     """Compute token span metrics on streamed chat/completion requests.
     Only required if token usage is not provided in the streamed response.
     """
@@ -2005,7 +2029,7 @@ def _compute_prompt_tokens(prompts=None, messages=None):
     return num_prompt_tokens
 
 
-def _compute_completion_tokens(completions_or_messages):
+def _compute_completion_tokens(completions_or_messages: Any) -> int:
     """Compute/Estimate the completion token count from the streamed response."""
     num_completion_tokens = 0
     for choice in completions_or_messages:
@@ -2015,7 +2039,7 @@ def _compute_completion_tokens(completions_or_messages):
     return num_completion_tokens
 
 
-def _est_tokens(prompt: Union[str, list[int]]) -> int:
+def _est_tokens(prompt: Union[str, list[Any]]) -> int:
     """
     Provide a very rough estimate of the number of tokens in a string prompt.
     Note that if the prompt is passed in as a token array (list of ints), the token count

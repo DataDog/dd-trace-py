@@ -41,8 +41,8 @@ _LOCK_ERROR_RE = re.compile(
 _LOCK_MAX_RETRIES = 5
 _LOCK_BASE_DELAY_SECONDS = 0.5
 
-# Keep this cross-process lock on a stable file in Git's actual
-# metadata directory. The timeout, inode, and fallback behavior are part of the
+# Keep this cross-process lock on a stable file beside Git's shared shallow
+# file. The timeout, inode, and fallback behavior are part of the
 # coordination protocol; changing them can reintroduce concurrent fetch races.
 # Every call to unshallow_repository acquires an exclusive flock before issuing
 # git fetch --update-shallow, so concurrent xdist workers (or multiple pytest
@@ -54,6 +54,9 @@ _UNSHALLOW_LOCK_TIMEOUT_ERROR = "unshallow lock timeout"
 
 
 class GitTag:
+    CHECKOUT_ROOT = "git.checkout.root"
+    CHECKOUT_IS_CUSTOM = "git.checkout.is_custom"
+
     # Git Repository URL
     REPOSITORY_URL = "git.repository_url"
 
@@ -153,25 +156,34 @@ class Git:
         self.git_command: str = git_command
         self.cwd = cwd
 
-    def _call_git(self, args: list[str], input_string: t.Optional[str] = None) -> _GitSubprocessDetails:
+    def _call_git(
+        self, args: list[str], input_string: t.Optional[str] = None, *, local_only: bool = False
+    ) -> _GitSubprocessDetails:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
         # Force C locale so git's error messages are predictable; the lock-contention
         # regex in _call_git_with_lock_retry matches the English "File exists" string.
         git_env = {**os.environ, "LC_ALL": "C", "LANG": "C"}
+        if local_only:
+            git_env.update(GIT_NO_LAZY_FETCH="1", GIT_ALLOW_PROTOCOL="")
 
         with StopWatch() as sw:
-            process = subprocess.Popen(  # nosec: B603
-                git_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                cwd=self.cwd,
-                encoding="utf-8",
-                errors="surrogateescape",
-                env=git_env,
-            )
+            try:
+                process = subprocess.Popen(  # nosec: B603
+                    git_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    stdin=subprocess.PIPE,
+                    cwd=self.cwd,
+                    encoding="utf-8",
+                    errors="surrogateescape",
+                    env=git_env,
+                )
+            except InterruptedError:
+                raise
+            except OSError as error:
+                return _GitSubprocessDetails("", str(error), 1, sw.elapsed())
             stdout, stderr = process.communicate(input=input_string)
 
         return _GitSubprocessDetails(
@@ -181,8 +193,10 @@ class Git:
             elapsed_seconds=sw.elapsed(),
         )
 
-    def _git_output(self, args: list[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
-        result = self._call_git(args)
+    def _git_output(
+        self, args: list[str], telemetry_type: t.Optional[GitTelemetry] = None, *, local_only: bool = False
+    ) -> str:
+        result = self._call_git(args, local_only=True) if local_only else self._call_git(args)
 
         if telemetry_type and TelemetryAPI._instance is not None:
             TelemetryAPI.get().record_git_command(telemetry_type, result.elapsed_seconds, result.return_code)
@@ -247,21 +261,62 @@ class Git:
     def get_commit_sha(self) -> str:
         return self._git_output(["rev-parse", "HEAD"])
 
+    def get_git_path(self, name: str) -> t.Optional[Path]:
+        """Resolve a Git metadata path, including worktree-private and common files."""
+        try:
+            output = self._git_output(["rev-parse", "--git-path", name])
+        except OSError:
+            return None
+        if not output:
+            return None
+        path = Path(output)
+        if not path.is_absolute():
+            path = (Path(self.cwd or ".") / path).absolute()
+        return path
+
+    def get_shallow_boundary(self) -> t.Optional[set[str]]:
+        """Return shallow-boundary SHAs, an empty set if absent, or None if unreadable.
+
+        Let Git locate the file: linked worktrees share the common Git directory's
+        shallow file. Relative paths are resolved against the Git subprocess's cwd.
+        """
+        path = self.get_git_path("shallow")
+        if path is None:
+            return None
+        try:
+            content = path.read_text()
+        except FileNotFoundError:
+            return set()
+        except (OSError, UnicodeError):
+            return None
+        return {line.strip() for line in content.splitlines() if line.strip()}
+
     def get_upstream_sha(self) -> _GitSubprocessDetails:
         return self._call_git(["rev-parse", "@{upstream}"])
 
     def get_branch(self) -> str:
-        return self._git_output(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
+        branch = self._git_output(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
+        return "" if branch == "HEAD" else branch
+
+    def get_tag(self) -> str:
+        tags = self._git_output(["tag", "--no-column", "--points-at", "HEAD"]).splitlines()
+        return tags[0] if len(tags) == 1 else ""
 
     def get_commit_message(self, commit_sha: t.Optional[str] = None) -> str:
-        command = ["show", "-s", "--format=%s"]
+        command = ["show", "-s", "--no-show-signature", "--format=%s"]
         if commit_sha:
             command.append(commit_sha)
 
         return self._git_output(command)
 
     def get_user_info(self, commit_sha: t.Optional[str] = None) -> t.Optional[GitUserInfo]:
-        command = ["show", "-s", "--format=%an|||%ae|||%ad|||%cn|||%ce|||%cd", "--date=format:%Y-%m-%dT%H:%M:%S%z"]
+        command = [
+            "show",
+            "-s",
+            "--no-show-signature",
+            "--format=%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd",
+            "--date=format:%Y-%m-%dT%H:%M:%S%z",
+        ]
         if commit_sha:
             command.append(commit_sha)
 
@@ -269,7 +324,7 @@ class Git:
         if not output:
             return None
 
-        author_name, author_email, author_date, committer_name, committer_email, committer_date = output.split("|||")
+        author_name, author_email, author_date, committer_name, committer_email, committer_date = output.split("\0")
         return GitUserInfo(
             author_name=author_name,
             author_email=author_email,
@@ -285,13 +340,30 @@ class Git:
     def get_remote_name(self) -> str:
         return self._git_output(["config", "--default", "origin", "--get", "clone.defaultRemoteName"])
 
-    def get_latest_commits(self) -> list[str]:
-        output = self._git_output(
-            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
-        )
-        return output.split("\n") if output else []
+    def get_latest_commits(self, commit_sha: t.Optional[str] = None) -> list[str]:
+        if commit_sha and not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_sha):
+            return []
+        command = ["log", "--format=%H", "-n", "1000", '--since="1 month ago"']
+        if commit_sha:
+            command.extend([commit_sha, "--"])
+        output = self._git_output(command, GitTelemetry.GET_LOCAL_COMMITS, local_only=True)
+        commits = output.split("\n") if output else []
+        if commit_sha and commit_sha.lower() not in output.lower().splitlines():
+            selected = self._call_git(["rev-parse", "--verify", commit_sha + "^{commit}"], local_only=True)
+            if selected.return_code != 0 or selected.stdout.lower() != commit_sha.lower():
+                return []
+            commits.insert(0, commit_sha)
+        return commits
 
-    def get_filtered_revisions(self, excluded_commits: list[str], included_commits: list[str]) -> list[str]:
+    def get_filtered_revisions(
+        self, excluded_commits: list[str], included_commits: list[str], commit_sha: t.Optional[str] = None
+    ) -> list[str]:
+        if commit_sha and not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_sha):
+            return []
+        if commit_sha:
+            selected_details = self._call_git(["rev-parse", "--verify", commit_sha + "^{commit}"], local_only=True)
+            if selected_details.return_code != 0 or selected_details.stdout.lower() != commit_sha.lower():
+                return []
         exclusions = [f"^{sha}" for sha in excluded_commits]
         output = self._git_output(
             [
@@ -300,13 +372,24 @@ class Git:
                 "--filter=blob:none",
                 '--since="1 month ago"',
                 "--no-object-names",
-                "HEAD",
+                commit_sha or "HEAD",
                 *exclusions,
                 *included_commits,
             ],
             GitTelemetry.GET_OBJECTS,
         )
-        return output.split("\n")
+        if not output and not commit_sha:
+            return []
+        objects = output.splitlines()
+        if commit_sha and commit_sha.lower() not in {sha.lower() for sha in excluded_commits + objects}:
+            selected = self._git_output(
+                ["rev-list", "--objects", "--filter=blob:none", "--no-object-names", "--no-walk=unsorted", commit_sha],
+                GitTelemetry.GET_OBJECTS,
+            )
+            if not selected:
+                return []
+            objects.extend(selected.splitlines())
+        return objects
 
     def is_shallow_repository(self) -> bool:
         output = self._git_output(["rev-parse", "--is-shallow-repository"], GitTelemetry.CHECK_SHALLOW)
@@ -317,19 +400,9 @@ class Git:
         return self._call_git(["cat-file", "-e", f"{commit_sha}^{{commit}}"]).return_code == 0
 
     def _unshallow_lock_path(self) -> t.Optional[Path]:
-        """Return the cross-process lock path in Git's actual metadata directory."""
-        try:
-            git_dir = self._git_output(["rev-parse", "--git-dir"])
-        except Exception:
-            return None
-        if not git_dir:
-            return None
-
-        git_dir_path = Path(git_dir)
-        if not git_dir_path.is_absolute():
-            cwd = Path(self.cwd) if self.cwd is not None else Path.cwd()
-            git_dir_path = cwd / git_dir_path
-        return git_dir_path / _UNSHALLOW_LOCK_FILENAME
+        """Keep the fetch lock beside the shallow file, which worktrees share."""
+        shallow = self.get_git_path("shallow")
+        return shallow.with_name(_UNSHALLOW_LOCK_FILENAME) if shallow is not None else None
 
     @contextlib.contextmanager
     def _unshallow_lock(self) -> t.Iterator[bool]:
@@ -473,12 +546,16 @@ class Git:
     def unshallow_repository_to_default(self) -> _GitSubprocessDetails:
         return self.unshallow_repository(None)
 
-    def try_all_unshallow_repository_methods(self) -> bool:
+    def try_all_unshallow_repository_methods(self, commit_sha: t.Optional[str] = None) -> bool:
         return_code = 0
         sw = StopWatch()
         sw.start()
 
         try:
+            if commit_sha and commit_sha.lower() != self.get_commit_sha().lower():
+                result = self.unshallow_repository(refspec=commit_sha)
+                return_code = result.return_code
+                return result.return_code == 0
             result = self.unshallow_repository_to_local_head()
             if result.return_code == 0:
                 return True
@@ -559,12 +636,17 @@ def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
         log.warning("Error getting git data: %s", e)
         return {}
 
+    branch = git.get_branch()
     tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: git.get_repository_url(),
         GitTag.COMMIT_SHA: git.get_commit_sha(),
-        GitTag.BRANCH: git.get_branch(),
+        GitTag.BRANCH: branch,
+        GitTag.TAG: git.get_tag() if not branch else None,
         GitTag.COMMIT_MESSAGE: git.get_commit_message(),
     }
+
+    if tags.get(GitTag.COMMIT_SHA) and (root := git.get_workspace_path()):
+        tags[GitTag.CHECKOUT_ROOT] = root
 
     if user_info := git.get_user_info():
         tags.update(
@@ -581,7 +663,7 @@ def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
     return tags
 
 
-def get_git_head_tags_from_git_command(head_sha: str) -> dict[str, t.Optional[str]]:
+def get_git_head_tags_from_git_command(head_sha: str, allow_fetch: bool = True) -> dict[str, t.Optional[str]]:
     try:
         git = Git()
     except RuntimeError as e:
@@ -589,6 +671,13 @@ def get_git_head_tags_from_git_command(head_sha: str) -> dict[str, t.Optional[st
         return {}
 
     if not git.has_commit(head_sha):
+        if not allow_fetch:
+            # Git network access is disabled (DD_CIVISIBILITY_GIT_UPLOAD_ENABLED/
+            # DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED): without the deepen fetch the
+            # head metadata is unavailable, and querying it would only produce
+            # noisy warnings from failing git commands.
+            log.debug("Skipping metadata fetch for %s (git fetch disabled)", head_sha)
+            return {}
         git.unshallow_repository(parent_only=True, required_commit=head_sha)
 
     tags: dict[str, t.Optional[str]] = {

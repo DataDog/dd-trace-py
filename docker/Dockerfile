@@ -5,7 +5,12 @@
 FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
-ARG UV_VERSION=0.11.14
+ARG UV_VERSION=0.13.5
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates -f \
+    && rm -rf /var/lib/apt/lists/*
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -126,6 +131,23 @@ RUN git clone --depth 1 --branch "v2.8.9" https://github.com/pyenv/pyenv "${PYEN
     "${PYENV_ROOT}"/versions/3.[89].*/lib/python3.[89]/config-3.[89]*/libpython3.[89].a \
   && cd -
 
+# Upgrade every pyenv interpreter's certificate bundle, including pip's vendored copy.
+# Python 3.8 and 3.9 cannot install pip 26, so copy the fixed certifi bundle there too.
+RUN set -eu; \
+    for python in "${PYENV_ROOT}"/versions/*/bin/python; do \
+      "$python" -m pip install --no-cache-dir -U "certifi>=2026.10.19"; \
+      if "$python" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then \
+        "$python" -m pip install --no-cache-dir -U "pip>=26.2.2"; \
+      fi; \
+      cp "$("$python" -c 'import certifi; print(certifi.where())')" \
+        "$("$python" -c 'import pathlib, pip; print(pathlib.Path(pip.__file__).parent / "_vendor/certifi/cacert.pem")')"; \
+      # venv bootstraps pip from the bundled ensurepip wheel, so patch its vendored bundle too.
+      "$python" -c 'import certifi,glob,os,shutil,sysconfig,zipfile;p=open(certifi.where(),"rb").read();f=lambda w:(lambda zi,zo:([zo.writestr(i,p if i.filename.endswith("pip/_vendor/certifi/cacert.pem") else zi.read(i.filename)) for i in zi.infolist()],zi.close(),zo.close(),shutil.move(w+".tmp",w)))(zipfile.ZipFile(w),zipfile.ZipFile(w+".tmp","w",zipfile.ZIP_DEFLATED));[f(w) for w in glob.glob(os.path.join(sysconfig.get_paths()["stdlib"],"ensurepip","_bundled","pip-*.whl"))]'; \
+    done
+
 RUN pip install --no-cache-dir -U "uv==${UV_VERSION}"
+
+# Python builds and installers can leave extracted CA bundles in temporary files.
+RUN find /tmp -maxdepth 1 -type f -name 'tmp*' -delete
 
 CMD ["/bin/bash"]

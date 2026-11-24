@@ -7,12 +7,12 @@ from typing import cast
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib.internal.botocore.services._bedrock_models import parse_model_id
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input
@@ -85,7 +85,7 @@ def _max_finish_ns(span: _LLMObsSpan) -> int:
     return span.start_ns + (span.duration_ns or 0)
 
 
-def _extract_trace_step_id(bedrock_trace_obj):
+def _extract_trace_step_id(bedrock_trace_obj: dict[str, Any]) -> Optional[str]:
     """Extracts the trace step ID from a Bedrock trace object.
     Due to the union structure of bedrock traces (only one key-value pair representing the actual trace object),
     some trace types have the trace step ID in the underlying trace object, while others have it in a nested object.
@@ -96,24 +96,28 @@ def _extract_trace_step_id(bedrock_trace_obj):
     trace_type, trace_part = next(iter(trace_part.items()))
     if not trace_part or not isinstance(trace_part, dict):
         return None
+    trace_step_id: Optional[str]
     if "traceId" in trace_part and trace_type in ("customOrchestrationTrace", "failureTrace", "guardrailTrace"):
-        return trace_part.get("traceId")
+        trace_step_id = trace_part.get("traceId")
+        return trace_step_id
     if len(trace_part) != 1:
         return None
     _, trace_part = next(iter(trace_part.items()))
-    return trace_part.get("traceId")
+    trace_step_id = trace_part.get("traceId")
+    return trace_step_id
 
 
-def _extract_trace_type(bedrock_trace_obj):
+def _extract_trace_type(bedrock_trace_obj: dict[str, Any]) -> Optional[str]:
     """Extracts the first key from a Bedrock trace object, which represents the underlying trace type."""
     trace_part = bedrock_trace_obj.get("trace", {})
     if not trace_part or not isinstance(trace_part, dict) or len(trace_part) != 1:
         return None
+    trace_type: str
     trace_type, _ = next(iter(trace_part.items()))
     return trace_type
 
 
-def _extract_start_ns(bedrock_trace_obj, root_span):
+def _extract_start_ns(bedrock_trace_obj: dict[str, Any], root_span: _LLMObsSpan) -> int:
     start_ns = bedrock_trace_obj.get("eventTime")
     if start_ns:
         start_ns = start_ns.replace(tzinfo=timezone.utc).timestamp() * 1e9
@@ -122,7 +126,9 @@ def _extract_start_ns(bedrock_trace_obj, root_span):
     return int(start_ns)
 
 
-def _extract_start_and_duration_from_metadata(bedrock_metadata, root_span):
+def _extract_start_and_duration_from_metadata(
+    bedrock_metadata: dict[str, Any], root_span: _LLMObsSpan
+) -> tuple[int, int]:
     """Extracts the start time and duration from the Bedrock trace metadata (non-orchestration trace types)."""
     start_ns = bedrock_metadata.get("startTime")
     if start_ns:

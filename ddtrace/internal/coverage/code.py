@@ -417,7 +417,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             self.is_import_coverage = is_import_coverage
             self._test_file = test_file
 
-        def __enter__(self):
+        def __enter__(self) -> "ModuleCodeCollector.CollectInContext":
             # Collector objects compare by identity, so value-based context restores
             # distinguish different collectors even when their coverage data is empty.
             self._covered_lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
@@ -451,7 +451,7 @@ class ModuleCodeCollector(ModuleWatchdog):
 
             return self
 
-        def __exit__(self, *args, **kwargs):
+        def __exit__(self, *args: t.Any, **kwargs: t.Any) -> None:
             # Closing the shared collector expires it in every inherited stack.
             self.closed = True
             stack = ctx_collectors.get()
@@ -514,19 +514,6 @@ class ModuleCodeCollector(ModuleWatchdog):
         if cls._instance is None:
             return False
         return cls._instance._coverage_enabled
-
-    @classmethod
-    def get_import_coverage_for_paths(cls, paths: t.Iterable[Path]) -> t.Optional[dict[Path, CoverageLines]]:
-        """Returns import-time coverage data for the given paths"""
-        coverages: dict[Path, CoverageLines] = {}
-        if cls._instance is None:
-            return {}
-        for path in paths:
-            path_str = str(path)
-            if path_str in cls._instance._import_time_covered:
-                coverages[path] = cls._instance._import_time_covered[path_str]
-
-        return coverages
 
     @classmethod
     def coverage_enabled_in_context(cls):
@@ -686,7 +673,11 @@ class ModuleCodeCollector(ModuleWatchdog):
         if ctx_key is None:
             return
         collector = self._import_time_contexts.pop(ctx_key)
-        covered_lines = collector.get_covered_lines()
+        # Only the module's own lines are kept below, so read them without the
+        # import-time closure that get_covered_lines() adds: every import
+        # invalidates the closures, and recomputing them for each imported module
+        # made collection time grow with the square of the modules imported.
+        covered_lines = collector._covered_lines
         collector.__exit__()
         # The module body's own lines were recorded under the co_filename key; the
         # coverage data stores them under the canonical path for the dependency graph.

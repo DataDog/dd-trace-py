@@ -2633,3 +2633,58 @@ def test_automation_exclusions_remote_crash_fallback(popen: bool, via: t.Optiona
         assert plugin._remaining_session_retries == budget - int(shared)
     finally:
         plugin.pytest_sessionfinish()
+
+
+@pytest.mark.parametrize("consumer", ["module", "source"])
+@pytest.mark.parametrize("root_is_alias", [False, True])
+def test_checkout_symlink_paths(tmp_path: Path, consumer: str, root_is_alias: bool) -> None:
+    from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+    checkout = tmp_path / "checkout"
+    (checkout / "tests").mkdir(parents=True)
+    (checkout / "tests/test_example.py").write_text("def test_example(): pass\n")
+    alias = tmp_path / "workspace"
+    alias.symlink_to(checkout, target_is_directory=True)
+    workspace = alias if root_is_alias else checkout
+    item = Mock(spec=["path", "reportinfo"])
+    item.path = (checkout if root_is_alias else alias) / "tests/test_example.py"
+    item.reportinfo.return_value = (str(item.path), 7, "test_example")
+
+    if consumer == "module":
+        assert _get_relative_module_path_from_item(item, workspace) == Path("tests")
+    else:
+        with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines", return_value=(7, 8)):
+            assert _get_test_location_info(item, workspace) == ("tests/test_example.py", 7, 8)
+
+
+@pytest.mark.parametrize("consumer", ["module", "source"])
+def test_checkout_paths_keep_lexical_fast_path(tmp_path: Path, consumer: str) -> None:
+    from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+    item = Mock(spec=["path", "reportinfo"])
+    item.path = tmp_path / "tests/test_example.py"
+    with patch.object(Path, "resolve", side_effect=AssertionError("unexpected filesystem lookup")):
+        if consumer == "module":
+            assert _get_relative_module_path_from_item(item, tmp_path) == Path("tests")
+        else:
+            with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines", return_value=(7, 8)):
+                assert _get_test_location_info(item, tmp_path) == ("tests/test_example.py", 7, 8)
+
+
+@pytest.mark.parametrize("consumer", ["module", "source"])
+def test_checkout_symlink_outside_root(tmp_path: Path, consumer: str) -> None:
+    from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    alias = tmp_path / "workspace"
+    alias.symlink_to(outside, target_is_directory=True)
+    item = Mock(spec=["path", "reportinfo"])
+    item.path = alias / "test_example.py"
+    item.reportinfo.return_value = (str(item.path), 7, "test_example")
+    if consumer == "module":
+        assert _get_relative_module_path_from_item(item, checkout) == alias
+    else:
+        assert _get_test_location_info(item, checkout) == (str(item.path), 7, 0)

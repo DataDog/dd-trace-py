@@ -141,6 +141,7 @@ class PackageForTesting:
         skip_python_version=None,
         test_e2e=True,
         import_name=None,
+        # A module name, or module:attribute to validate the submodule that defines the attribute.
         import_module_to_validate=None,
         test_propagation=False,
         fixme_propagation_fails=None,
@@ -370,7 +371,7 @@ _PACKAGES = [
         "foobar",
         "Lock acquired for file: foobar",
         "",
-        import_module_to_validate="filelock._api",
+        import_module_to_validate="filelock:BaseFileLock",
     ),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
@@ -606,7 +607,7 @@ _PACKAGES = [
         "d8b5635eb590e078a608e083351288a0",
         "",
         import_module_to_validate="multipart.multipart",
-        # This test is failing in CircleCI with the latest version
+        # This test is failing in CI with the latest version
         test_import=False,
         test_e2e=False,
         test_propagation=False,
@@ -687,7 +688,7 @@ _PACKAGES = [
         "Parsed TOML data: {'key': 'value'}",
         "",
         import_module_to_validate="tomli._parser",
-        # This test is failing in CircleCI with the latest version
+        # This test is failing in CI with the latest version
         test_import=False,
         test_propagation=False,
     ),
@@ -1024,6 +1025,7 @@ def _template_venv_locked():
                 "cattrs",
                 "pytest",
                 "charset_normalizer",
+                "urllib3",
                 this_dd_trace_py_path,
             ]
             subprocess.check_call([PIP_EXECUTABLE, "install", *deps_to_install])

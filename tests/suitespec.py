@@ -29,7 +29,6 @@ DEFAULT_DEPENDENCIES = (
     "pytest-mock",
     "coverage",
     "pytest-cov",
-    "opentracing",
     "hypothesis<6.45.1",
 )
 DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15")
@@ -37,12 +36,13 @@ DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
     "DD_TESTING_RAISE": "1",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+    # Keep the startup diagnostics, on by default, out of the output the tests check.
+    "DD_TRACE_STARTUP_LOGS": "false",
     "DD_INJECTION_ENABLED": "1",
     "DD_INJECT_FORCE": "1",
     "DD_PATCH_MODULES": "unittest:false",
     "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     "CARGO_BUILD_JOBS": "12",
-    "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
@@ -223,7 +223,7 @@ def _direct_imports(path: str) -> Optional[frozenset[str]]:
     ...     "ddtrace/internal/datadog/profiling/ddup/_ddup.pyx"
     ... )
     True
-    >>> "ddtrace/llmobs/_integrations/bedrock.py" in _direct_imports("ddtrace/contrib/internal/botocore/patch.py")
+    >>> "ddtrace/llmobs/_integrations/bedrock.py" in _direct_imports("ddtrace/llmobs/_contrib/botocore/__init__.py")
     True
     """
     parts = Path(path).with_suffix("").parts

@@ -196,3 +196,37 @@ def test_forked_without_fork_hooks_masterpid_unavailable(fake_uwsgi, monkeypatch
     fake = fake_uwsgi(opt={"enable-threads": True, "master": True}, numproc=2, worker_id=1)
     monkeypatch.delattr(type(fake), "masterpid")
     assert uwsgi.forked_without_fork_hooks() is False
+
+
+def test_will_fork_without_fork_hooks_no_uwsgi_module(monkeypatch):
+    monkeypatch.setitem(sys.modules, "uwsgi", None)
+    assert uwsgi.will_fork_without_fork_hooks() is False
+
+
+@pytest.mark.parametrize("opt,numproc", [({"master": True}, 1), ({}, 2), ({"master": True}, 2)])
+def test_will_fork_without_fork_hooks_non_lazy_master(fake_uwsgi, opt, numproc):
+    fake_uwsgi(opt={"enable-threads": True, **opt}, numproc=numproc, worker_id=0)
+    assert uwsgi.will_fork_without_fork_hooks() is True
+
+
+@pytest.mark.parametrize("option", ["lazy-apps", "lazy", "py-call-uwsgi-fork-hooks"])
+def test_will_fork_without_fork_hooks_option_runs_fork_hooks(fake_uwsgi, option):
+    fake_uwsgi(opt={"enable-threads": True, "master": True, option: True}, numproc=2, worker_id=0)
+    assert uwsgi.will_fork_without_fork_hooks() is False
+
+
+def test_will_fork_without_fork_hooks_single_process(fake_uwsgi):
+    """Without a master and with a single process, uwsgi does not fork."""
+    fake_uwsgi(opt={"enable-threads": True}, numproc=1, worker_id=0)
+    assert uwsgi.will_fork_without_fork_hooks() is False
+
+
+def test_will_fork_without_fork_hooks_worker(fake_uwsgi):
+    fake_uwsgi(opt={"enable-threads": True, "master": True}, numproc=2, worker_id=1, masterpid=os.getppid())
+    assert uwsgi.will_fork_without_fork_hooks() is False
+
+
+def test_will_fork_without_fork_hooks_worker_id_unavailable(fake_uwsgi, monkeypatch):
+    fake = fake_uwsgi(opt={"enable-threads": True, "master": True}, numproc=2)
+    monkeypatch.delattr(type(fake), "worker_id")
+    assert uwsgi.will_fork_without_fork_hooks() is False
