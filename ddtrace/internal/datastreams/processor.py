@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from collections import defaultdict
 from contextvars import ContextVar
+import copy
 from functools import partial
 import gzip
 import struct
@@ -375,6 +376,9 @@ class DataStreamsProcessor(PeriodicService):
         ctx = self._current_context.get()
         if ctx is None:
             ctx = self.new_pathway()
+        else:
+            ctx = copy.copy(ctx)
+            self._current_context.set(ctx)
         if "direction:out" in tags:
             # Add the header for this now, as the callee doesn't have access
             # when producing
