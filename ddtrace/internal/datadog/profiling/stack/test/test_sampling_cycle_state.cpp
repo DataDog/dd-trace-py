@@ -320,6 +320,7 @@ outer()
     EXPECT_EQ(context.stack.size(), 2);
     EXPECT_EQ(context.unwind_result->frames_added, 2);
     EXPECT_EQ(context.unwind_result->truncation, TruncationStatus::Truncated);
+    EXPECT_FALSE(context.unwind_result->has_generator_frame);
 
     Py_DECREF(result);
     Py_DECREF(globals);
@@ -419,6 +420,7 @@ except StopIteration:
     ASSERT_TRUE(context.unwind_result.has_value());
     EXPECT_EQ(context.stack.size(), 2);
     EXPECT_EQ(context.unwind_result->truncation, TruncationStatus::NotTruncated);
+    EXPECT_TRUE(context.unwind_result->has_generator_frame);
 
     Py_DECREF(result);
     Py_DECREF(globals);
@@ -426,7 +428,7 @@ except StopIteration:
     Py_DECREF(capsule);
 }
 
-TEST(StackUnwind, ChainEndingAtSuspendedCoroutineRemainsUnknown)
+TEST(StackUnwind, ChainEndingAtSuspendedCoroutineReportsGeneratorFrame)
 {
     if (!Py_IsInitialized()) {
         Py_Initialize();
@@ -469,13 +471,55 @@ coro.send(None)
     FrameStack stack;
     auto unwind_result = unwind_frame(echion, frame_addr, stack, MAX_STACK_UNWIND_SAFETY_LIMIT, true);
     EXPECT_EQ(unwind_result.frames_added, 1);
-    EXPECT_EQ(unwind_result.truncation, TruncationStatus::Unknown);
+    EXPECT_TRUE(unwind_result.has_generator_frame);
 
     PyObject* close_result = PyObject_CallMethod(coro, "close", nullptr);
     EXPECT_NE(close_result, nullptr);
     Py_XDECREF(close_result);
     Py_DECREF(result);
     Py_DECREF(globals);
+}
+
+TEST(StackUnwind, ChainEndingAtUnreadableFrameRemainsUnknown)
+{
+    if (!Py_IsInitialized()) {
+        Py_Initialize();
+    }
+    _set_pid(getpid());
+
+    // A frame whose code object cannot be read, like a frame slot reused while the walk ran. copy_memory rejects
+    // the zero page without reading it.
+    constexpr uintptr_t unreadable_code = 0x800;
+#if PY_VERSION_HEX >= 0x030b0000
+    _PyInterpreterFrame frame;
+    std::memset(&frame, 0, sizeof(frame));
+    frame.owner = FRAME_OWNED_BY_THREAD;
+    auto* instr = reinterpret_cast<_Py_CODEUNIT*>(unreadable_code + offsetof(PyCodeObject, co_code_adaptive));
+#if PY_VERSION_HEX >= 0x030e0000
+    frame.f_executable.bits = unreadable_code;
+    frame.instr_ptr = instr;
+#elif PY_VERSION_HEX >= 0x030d0000
+    frame.f_executable = reinterpret_cast<PyObject*>(unreadable_code);
+    frame.instr_ptr = instr;
+#else
+    frame.f_code = reinterpret_cast<PyCodeObject*>(unreadable_code);
+    frame.prev_instr = instr;
+#endif
+#else
+    PyFrameObject frame;
+    std::memset(&frame, 0, sizeof(frame));
+    frame.f_code = reinterpret_cast<PyCodeObject*>(unreadable_code);
+#endif
+
+    // The walk ends at the unreadable frame because Frame::read returns no previous frame for it. That does not
+    // show the walk reached the outermost frame of the thread.
+    EchionSampler echion;
+    FrameStack stack;
+    auto unwind_result =
+      unwind_frame(echion, reinterpret_cast<PyObject*>(&frame), stack, MAX_STACK_UNWIND_SAFETY_LIMIT, true);
+    ASSERT_EQ(stack.size(), 1);
+    EXPECT_EQ(stack[0].name, StringTable::INVALID);
+    EXPECT_EQ(unwind_result.truncation, TruncationStatus::Unknown);
 }
 
 TEST(SamplingCycleState, GreenletSwitchPreservesLinkedParentFrame)

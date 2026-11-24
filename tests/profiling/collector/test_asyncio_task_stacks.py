@@ -1,5 +1,4 @@
 from importlib.util import find_spec
-import sys
 
 import pytest
 
@@ -55,7 +54,6 @@ def test_suspended_task_does_not_inherit_running_sibling_frames() -> None:
     assert not leaked, leaked
 
 
-@pytest.mark.skipif(sys.version_info < (3, 11), reason="asyncio.Runner requires Python 3.11+")
 @pytest.mark.subprocess(
     env={"DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_switching_sibling"},
     err=None,
@@ -69,29 +67,28 @@ def test_suspended_task_does_not_inherit_switching_sibling_frames() -> None:
     import os
     import time
 
-    from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import ProfilerContextManager
 
-    async def sleeper() -> None:
-        await asyncio.Event().wait()
+    async def sleeper(done: asyncio.Event) -> None:
+        await done.wait()
 
     async def switching() -> None:
         deadline = time.monotonic() + 1
         while time.monotonic() < deadline:
             await asyncio.sleep(0)
 
-    async def main() -> "asyncio.Task[None]":
-        sleeper_task = asyncio.create_task(sleeper(), name="sleeper")
+    async def main() -> None:
+        done = asyncio.Event()
+        sleeper_task = asyncio.create_task(sleeper(done), name="sleeper")
         await asyncio.create_task(switching())
-        return sleeper_task
+        # Let any sample that read the thread stack during switching finish before sleeper wakes up.
+        time.sleep(0.1)
+        done.set()
+        await sleeper_task
 
-    p = profiler.Profiler()
-    p.start()
-    with asyncio.Runner() as runner:  # type: ignore[attr-defined]
-        sleeper_task = runner.run(main())
-        # Stop while sleeper is still suspended. Closing the runner then cancels it.
-        p.stop()
-        assert not sleeper_task.done()
+    with ProfilerContextManager():
+        asyncio.run(main())
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)

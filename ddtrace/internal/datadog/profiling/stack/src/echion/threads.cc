@@ -148,12 +148,14 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     const size_t upper_python_stack_size = boundary_python_stack_size.value_or(python_stack.size());
 
     // Without the boundary frame, no Task is running and the whole thread stack is the event loop waiting for
-    // events, but only if the walk reached the outermost frame of the thread. The thread keeps running while its
-    // stack is read, so a walk can also end at a coroutine that suspended or returned in the meantime. That
-    // stack holds the frames of the Task that was running then, and these belong to none of the Tasks read
-    // below.
-    const bool use_upper_python_stack =
-      boundary_python_stack_size.has_value() || python_stack_unwind_result.truncation == TruncationStatus::NotTruncated;
+    // events. The thread keeps running while its stack is read, though, so a Task can suspend or return during
+    // the walk. The walk then ends at its coroutine, or follows a stale link into frames the loop pushed since,
+    // and either way misses the boundary frame. Such a stack holds frames of the Task that was running, which
+    // belong to none of the Tasks read below. An idle event loop runs no coroutine, so only use a stack without
+    // the boundary frame when the walk reached its end and found no coroutine frame.
+    const bool use_upper_python_stack = boundary_python_stack_size.has_value() ||
+                                        (python_stack_unwind_result.truncation == TruncationStatus::NotTruncated &&
+                                         !python_stack_unwind_result.has_generator_frame);
 
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
@@ -394,7 +396,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         // Finish off with the remaining thread stack
         // If we have seen an on-CPU Task, then upper_python_stack_size will be set and will include the sync entry
         // point and the asyncio machinery Frames. Otherwise, we are in `select` (idle) and we should push all the
-        // Frames, unless the walk ended before the outermost frame (see use_upper_python_stack).
+        // Frames, unless that stack was read while a Task ran (see use_upper_python_stack).
 
         // There could be a race condition where relevant partial Python Thread Stack ends up being different from the
         // one we saw in TaskInfo::unwind. This is extremely unlikely, I believe, but failing to account for it would
