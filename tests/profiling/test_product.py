@@ -786,23 +786,6 @@ def test_restart_profiler_applies_settings_without_enabled_collectors(created_pr
     assert profiling_config.max_frames == 10
 
 
-def test_restart_profiler_keeps_gc_only_profiler_on_settings_update(
-    monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]]
-) -> None:
-    # GC is local-only and not in the RC wanted map. A settings-only update with
-    # all RC collectors disabled must still restart so GC keeps running.
-    monkeypatch.setattr(profiling_config.gc, "enabled", True)
-    monkeypatch.setattr(profiling_config.pytorch, "enabled", False)
-    monkeypatch.setattr(profiling_config.native_heap, "enabled", False)
-
-    remoteconfig._restart_profiler(_collectors(), {**remoteconfig._settings_from_env(), "maxStackDepth": 24})
-
-    assert created_profilers == [_collectors()]
-    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
-    assert profiling_config.max_frames == 24
-    assert profiling_config.gc.enabled is True
-
-
 def test_start_profiler_waits_for_lifecycle_lock(created_profilers: list[dict[str, bool]]) -> None:
     # Importing sitecustomize starts a profiler, so it is imported once Profiler is replaced.
     from ddtrace.profiling.bootstrap import sitecustomize
@@ -847,7 +830,7 @@ def test_start_profiler_after_remote_config_disabled_all_collectors(
     assert lifecycle.current_profiler() is None
 
 
-@pytest.mark.parametrize("only_enabled", ("native_heap", "gc"))
+@pytest.mark.parametrize("only_enabled", ("native_heap", "gc_time"))
 def test_start_profiler_with_only_native_heap_or_gc_enabled(
     monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]], only_enabled: str
 ) -> None:
@@ -865,7 +848,7 @@ def test_start_profiler_with_only_native_heap_or_gc_enabled(
         profiling_config.exception,
         profiling_config.pytorch,
         profiling_config.native_heap,
-        profiling_config.gc,
+        profiling_config.gc_time,
     ):
         monkeypatch.setattr(setting, "enabled", False)
     # Native heap profiling has no collector, but the Profiler arms it when it starts.
@@ -981,6 +964,82 @@ def test_removing_config_restores_env_settings(
     assert profiling_config.max_frames == profiling_config.parsed.max_frames
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_ENABLED": "true",
+        "DD_PROFILING_GC_TIME_ENABLED": "true",
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_remote_config_profiling_off_stops_gc_collector",
+    },
+    err=None,
+)
+def test_remote_config_profiling_off_stops_gc_collector() -> None:
+    # Remote config turning every profiler off stops the GC collector too, instead of leaving a GC-only profiler.
+    import gc
+    from typing import Callable
+    from typing import Optional
+
+    from ddtrace.internal.profiling import lifecycle
+    from ddtrace.internal.profiling import remoteconfig
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+
+    original_collect: Callable[..., int] = gc.collect
+
+    import ddtrace.profiling.auto  # noqa: F401
+    from ddtrace.profiling.collector.gc import GCCollector
+    from ddtrace.profiling.profiler import Profiler
+
+    started: Optional[Profiler] = lifecycle.current_profiler()
+    assert started is not None
+    assert any(isinstance(c, GCCollector) for c in started._profiler._collectors)
+
+    profilers_off: dict[str, bool] = dict.fromkeys(
+        ("cpuTime", "wallTime", "heapObjects", "heapSize", "allocations", "exceptions", "locks"), False
+    )
+    payload: Payload = Payload(
+        metadata=ConfigMetadata(id="off", product_name="DEBUG", sha256_hash=None, length=None, tuf_version=1),
+        path="datadog/2/DEBUG/off/config",
+        content={"profilers": profilers_off},
+    )
+    remoteconfig.ProfilingRCCallback()([payload])
+
+    assert lifecycle.current_profiler() is None
+    assert gc.collect is original_collect
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_ENABLED": "false",
+        "DD_PROFILING_GC_TIME_ENABLED": "true",
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_remote_config_settings_do_not_start_gc_only_profiler",
+    },
+    err=None,
+)
+def test_remote_config_settings_do_not_start_gc_only_profiler() -> None:
+    # With profiling disabled and only the GC flag on, a settings-only update must not start a GC-only profiler.
+    import gc
+    from typing import Callable
+
+    from ddtrace.internal.profiling import lifecycle
+    from ddtrace.internal.profiling import remoteconfig
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.settings.profiling import config as profiling_config
+
+    original_collect: Callable[..., int] = gc.collect
+    payload: Payload = Payload(
+        metadata=ConfigMetadata(id="settings", product_name="DEBUG", sha256_hash=None, length=None, tuf_version=1),
+        path="datadog/2/DEBUG/settings/config",
+        content={"settings": {"maxStackDepth": 32}},
+    )
+    remoteconfig.ProfilingRCCallback()([payload])
+
+    # The setting is applied, so the update did reach the restart.
+    assert profiling_config.max_frames == 32
+    assert lifecycle.current_profiler() is None
+    assert gc.collect is original_collect
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
 @pytest.mark.subprocess(
     env={
@@ -1075,7 +1134,7 @@ def test_profiler_starts_with_remote_config_disabled() -> None:
     from ddtrace.internal.service import ServiceStatus
     from ddtrace.profiling import bootstrap
 
-    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
     print("OK")

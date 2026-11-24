@@ -241,7 +241,7 @@ class _ProfilerInstance(service.Service):
             _lock_collector_enabled if _lock_collector_enabled is not None else profiling_config.lock.enabled
         )
         self._gc_collector_enabled: bool = (
-            _gc_collector_enabled if _gc_collector_enabled is not None else profiling_config.gc.enabled
+            _gc_collector_enabled if _gc_collector_enabled is not None else profiling_config.gc_time.enabled
         )
         self._pytorch_collector_enabled: bool = (
             _pytorch_collector_enabled if _pytorch_collector_enabled is not None else profiling_config.pytorch.enabled

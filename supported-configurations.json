@@ -2948,14 +2948,14 @@
         "default": null
       }
     ],
-    "DD_PROFILING_GC_ENABLED": [
+    "DD_PROFILING_GC_TIME_ENABLED": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "boolean",
         "default": "false"
       }
     ],
-    "DD_PROFILING_GC_PAUSE_EVENT_THRESHOLD_MS": [
+    "DD_PROFILING_GC_TIME_PAUSE_EVENT_THRESHOLD_MS": [
       {
         "implementation": "A",
         "type": "decimal",

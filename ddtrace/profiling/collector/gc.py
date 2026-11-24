@@ -6,7 +6,9 @@ import logging
 import time
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from typing import Optional
+import weakref
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
@@ -61,8 +63,8 @@ class GCCollector(collector.Collector):
       The window sum is pushed with count=1 (push_gctime multiplies ns*count,
       same as walltime), then remaining pause counts are added with zero
       duration so gc-samples matches the pause count.
-    - Pauses at or above DD_PROFILING_GC_PAUSE_EVENT_THRESHOLD_MS are also
-      emitted one sample each, with an end timestamp, thread labels, a
+    - Pauses at or above DD_PROFILING_GC_TIME_PAUSE_EVENT_THRESHOLD_MS are
+      also emitted one sample each, with an end timestamp, thread labels, a
       numeric "gc generation" label, and string "gc event"="pause" so the
       backend can tell a single pause from a window total. Their time is
       not also added to the window totals. The last slots before the
@@ -80,7 +82,6 @@ class GCCollector(collector.Collector):
     Thresholds, freeze count, and cumulative collection totals are DEBUG-only.
     """
 
-    _lock: threading_Lock
     _pause_count: list[int]
     _pause_total_ns: list[int]
     _event_gen: list[int]
@@ -102,12 +103,21 @@ class GCCollector(collector.Collector):
     def __init__(self, pause_event_threshold_ms: Optional[float] = None, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         threshold_ms: float = (
-            pause_event_threshold_ms if pause_event_threshold_ms is not None else config.gc.pause_event_threshold_ms
+            pause_event_threshold_ms
+            if pause_event_threshold_ms is not None
+            else config.gc_time.pause_event_threshold_ms
         )
         self._event_threshold_ns: int = int(threshold_ms * 1_000_000)
+        # A plain lock, not forksafe.Lock(): _on_pause takes it on every collection, and
+        # the forksafe proxy makes each acquire and release many times slower. Created
+        # once: a restart that replaced it would leave a caller between its acquire and
+        # release to release the new, unheld lock, raising into gc.collect(). A fork can
+        # inherit it held by a thread that the child does not have, so
+        # _reset_collector_locks resets it in place in the child.
+        self._lock: threading_Lock = threading_Lock()
+        _collectors_with_plain_locks.add(self)
 
     def _start_service(self) -> None:
-        self._lock = forksafe.Lock()
         self._pause_count = [0] * _GEN_COUNT
         self._pause_total_ns = [0] * _GEN_COUNT
         # Preallocate the pause-event ring. _on_pause must not allocate, and
@@ -130,7 +140,7 @@ class GCCollector(collector.Collector):
         installed: Optional[Callable[..., int]] = getattr(self, "_installed_collect", None)
         if installed is None:
             self._orig_collect = gc.collect
-            self._installed_collect = self._patched_collect
+            self._installed_collect = self._make_collect_wrapper()
             gc.collect = self._installed_collect
         self._pause_listener = self._on_pause
         monitor: GCPauseMonitor = gc_pause_monitor()
@@ -172,6 +182,21 @@ class GCCollector(collector.Collector):
         self._dropped_pause_count = 0
         self._dropped_pause_ns = 0
         self._explicit_count = 0
+
+    def _make_collect_wrapper(self) -> Callable[..., int]:
+        patched_collect: Callable[..., int] = self._patched_collect
+
+        def collect(*args: Any, **kwargs: Any) -> int:
+            return patched_collect(*args, **kwargs)
+
+        # pickle and cloudpickle store a function by module and name. Named as the
+        # function it replaces, gc.collect still pickles as a reference to gc.collect
+        # (multiprocessing, dask client.run(gc.collect)), not as this collector and
+        # its unpicklable lock.
+        collect.__module__ = "gc"
+        collect.__name__ = "collect"
+        collect.__qualname__ = "collect"
+        return collect
 
     def _patched_collect(self, *args: Any, **kwargs: Any) -> int:
         # When stop cannot unwrap because a later wrapper sits on top, keep the
@@ -327,3 +352,15 @@ class GCCollector(collector.Collector):
                 total_collections,
                 explicit,
             )
+
+
+_collectors_with_plain_locks: weakref.WeakSet[GCCollector] = weakref.WeakSet()
+
+
+@forksafe.register
+def _reset_collector_locks() -> Iterator[None]:
+    # A wrapper, so the reset runs before every regular after-fork hook in the child,
+    # whatever the import order, including _reset_after_fork, which takes the lock.
+    for col in list(_collectors_with_plain_locks):
+        col._lock._at_fork_reinit()  # type: ignore[attr-defined]
+    yield
