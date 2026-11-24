@@ -13,7 +13,7 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
 
     for (auto it = this->begin(); it != this->end(); ++it) {
         // Frames past the sample's limit would only be counted as dropped; skip the lookups.
-        if (renderer.frames_full()) {
+        if (renderer.frame_limit_reached()) {
             renderer.mark_truncated(static_cast<size_t>(this->end() - it));
             break;
         }

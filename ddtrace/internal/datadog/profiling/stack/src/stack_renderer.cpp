@@ -221,9 +221,9 @@ StackRenderer::mark_truncated(size_t count)
 }
 
 bool
-StackRenderer::frames_full() const
+StackRenderer::frame_limit_reached() const
 {
-    return sample != nullptr && sample->frames_full();
+    return sample != nullptr && sample->frame_limit_reached();
 }
 
 void
