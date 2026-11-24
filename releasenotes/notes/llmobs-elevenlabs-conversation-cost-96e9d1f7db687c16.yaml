@@ -1,7 +1,5 @@
 features:
   - |
-    elevenlabs: Automatically collects conversation-level USD billing after Agents WebSocket
-    sessions when LLM Observability is enabled; set
-    ``DD_LLMOBS_ELEVENLABS_CONVERSATION_COST_ENABLED=false`` to disable the additional
-    conversation-details requests. Adds ``LLMObs.submit_conversation_cost`` for completed
-    details or verified post-call webhook data, including explicit zero costs and user overrides.
+    elevenlabs: Adds ``LLMObs.submit_conversation_cost`` to report conversation-level
+    USD billing from verified post-call transcription webhooks or completed details
+    obtained by the application, including explicit zero costs and user overrides.

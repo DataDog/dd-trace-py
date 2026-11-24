@@ -24,7 +24,6 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
 from ddtrace.llmobs._integrations import elevenlabs_agents as _state
-from ddtrace.llmobs._integrations import elevenlabs_cost as _billing
 from ddtrace.llmobs._integrations.elevenlabs import ElevenLabsIntegration
 from ddtrace.llmobs._integrations.elevenlabs_agents import ConversationState
 from ddtrace.llmobs._routing import get_routing_context
@@ -326,44 +325,23 @@ class Socket:
         return json.dumps(value)
 
 
-@pytest.fixture(params=[False, True])
-def automatic_billing(request, monkeypatch, elevenlabs_llmobs):
-    jobs = []
-    monkeypatch.setitem(config.elevenlabs, "conversation_cost_enabled", request.param)
-    monkeypatch.setattr(_billing, "start_daemon_thread", lambda target, **kwargs: jobs.append(target))
-    monkeypatch.setattr(_billing, "time", SimpleNamespace(monotonic=lambda: 0, sleep=lambda _: None))
-    monkeypatch.setattr(
-        "elevenlabs.conversational_ai.conversations.client.ConversationsClient.get",
-        lambda *args, **kwargs: {
-            "conversation_id": "session-test",
-            "status": "done",
-            "metadata": {
-                "start_time_unix_secs": 1000,
-                "call_duration_secs": 10,
-                "cost_fiat": 0.12,
-                "charging": {"llm_price": 0.02, "platform_price": 0.1},
-            },
-        },
-    )
+@pytest.fixture
+def no_billing_requests(monkeypatch):
+    calls = []
+
+    def unexpected_get(*args, **kwargs):
+        calls.append(True)
+        raise AssertionError("Unexpected conversation-details request")
+
+    monkeypatch.setattr("elevenlabs.conversational_ai.conversations.client.ConversationsClient.get", unexpected_get)
     yield
-    assert len(jobs) == int(request.param)
-    for job in jobs:
-        job()
-    events = [call.args[0] for call in elevenlabs_llmobs._instance._llmobs_span_writer.enqueue.call_args_list]
-    billing_events = [event for event in events if event.get("name") == "elevenlabs conversation billing"]
-    assert len(billing_events) == int(request.param)
-    if request.param:
-        assert billing_events[0]["meta"]["metadata"]["provider_cost"]["amounts"] == {
-            "total": 0.12,
-            "llm": 0.02,
-            "platform": 0.1,
-        }
+    assert not calls
 
 
 @pytest.mark.parametrize("default_interface", [False, True])
 @pytest.mark.parametrize("vad_enabled", [False, True])
 def test_ordinary_sync_sdk_with_normal_event_subset(
-    monkeypatch, test_spans, default_interface, vad_enabled, automatic_billing
+    monkeypatch, test_spans, default_interface, vad_enabled, no_billing_requests
 ):
     clock = Clock()
     monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
@@ -412,7 +390,7 @@ def test_ordinary_sync_sdk_with_normal_event_subset(
 @pytest.mark.parametrize("default_interface", [False, True])
 @pytest.mark.parametrize("vad_enabled", [False, True])
 async def test_ordinary_async_sdk_with_custom_interface(
-    monkeypatch, test_spans, default_interface, vad_enabled, automatic_billing
+    monkeypatch, test_spans, default_interface, vad_enabled, no_billing_requests
 ):
     clock = Clock()
     monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)

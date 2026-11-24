@@ -17,16 +17,11 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings import env
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
-config._add(
-    "elevenlabs",
-    {"conversation_cost_enabled": asbool(env.get("DD_LLMOBS_ELEVENLABS_CONVERSATION_COST_ENABLED", "true"))},
-)  # type: ignore[no-untyped-call]
+config._add("elevenlabs", {})  # type: ignore[no-untyped-call]
 _original_websockets = conversation.websockets
 
 

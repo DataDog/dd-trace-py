@@ -284,9 +284,7 @@ class Turn:
 
 
 class ConversationState:
-    def __init__(
-        self, integration: Any, conversation: Any, parent: Any = None, *, billing_ml_app: Optional[str] = None
-    ) -> None:
+    def __init__(self, integration: Any, conversation: Any, parent: Any = None) -> None:
         self.integration = integration
         self.agent_id = str(getattr(conversation, "agent_id", ""))
         self.parent = parent
@@ -294,9 +292,6 @@ class ConversationState:
         self.routing_context = get_routing_context()
         # Bootstrap fallback; initiation metadata supplies the provider conversation ID.
         self.session_id = uuid4()
-        self.provider_conversation_id: Optional[str] = None
-        self.billing_client = getattr(conversation, "client", None) if billing_ml_app is not None else None
-        self.billing_ml_app = billing_ml_app
         self.input_rate = 0
         self.output_rate = 0
         self.pending = AudioBuffer()
@@ -435,8 +430,6 @@ class ConversationState:
             if kind == "conversation_initiation_metadata":
                 data = event.get("conversation_initiation_metadata_event", {})
                 self.session_id = str(data.get("conversation_id") or self.session_id)
-                if isinstance(data.get("conversation_id"), str) and data["conversation_id"]:
-                    self.provider_conversation_id = data["conversation_id"]
                 self.input_rate = _rate(data.get("user_input_audio_format"))
                 self.output_rate = _rate(data.get("agent_output_audio_format"))
                 if self.early_audio_overflow:
@@ -689,8 +682,3 @@ class ConversationState:
             self.turns.clear()
             self.tool_turns.clear()
             self.closed = True
-            client, self.billing_client = self.billing_client, None
-        # Schedule outside the voice-state lock and release the client from the audio state.
-        self.integration.collect_conversation_cost(
-            client, self.provider_conversation_id, self.routing_context, self.billing_ml_app
-        )

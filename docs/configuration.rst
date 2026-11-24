@@ -464,18 +464,6 @@ Traces
        ``DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE_NAME`` is an alias.
        When unset, spans use the application's configured service.
 
-   DD_LLMOBS_ELEVENLABS_CONVERSATION_COST_ENABLED:
-     type: Boolean
-     default: True
-     description: |
-       Automatically retrieves conversation-level USD billing after an instrumented ElevenLabs Agents
-       WebSocket session ends, when LLM Observability is enabled. Uses the existing SDK client and
-       credentials, which must permit reading conversation details. Makes up to five additional
-       requests in a 30-second retry window, with at most eight concurrent collections and request
-       timeouts of at most three seconds. Does not delay process shutdown. Set to ``False`` to disable
-       these requests; explicit ``LLMObs.submit_conversation_cost()`` submissions remain available.
-       Requires ElevenLabs 2.70.0 or later and a tracer release containing this option (unreleased).
-
    DD_LLMOBS_PAYLOAD_SIZE_BYTES:
      type: Int
      default: 5242880

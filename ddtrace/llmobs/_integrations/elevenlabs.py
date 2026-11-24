@@ -6,29 +6,19 @@ from typing import cast
 
 from ddtrace import config
 from ddtrace.internal.native._native import Context
-from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._context import _DD_LLMOBS_CONTEXTVAR
 from ddtrace.llmobs._integration_api import get_llmobs_service
 from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.elevenlabs_agents import ConversationState
-from ddtrace.llmobs._integrations.elevenlabs_cost import collect_conversation_cost
 from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
 from ddtrace.llmobs._routing import RoutingContextType
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_trace_id
-from ddtrace.llmobs._utils import resolve_ml_app
 
 
 class ElevenLabsIntegration(BaseLLMIntegration):
     _integration_name = "elevenlabs"
-
-    def collect_conversation_cost(
-        self, client: Any, conversation_id: Optional[str], routing_context: Any, ml_app: Optional[str]
-    ) -> None:
-        if ml_app is not None and config.elevenlabs.conversation_cost_enabled and is_enabled():
-            collect_conversation_cost(client, conversation_id, routing_context, ml_app)
 
     def capture_context(self) -> Optional[Context]:
         # Use the import-safe service registry rather than importing the service
@@ -109,12 +99,4 @@ class ElevenLabsIntegration(BaseLLMIntegration):
 def create_conversation_state(instance: Any, parent: Any) -> Optional[ConversationState]:
     if not is_enabled():
         return None
-    ml_app = None
-    if config.elevenlabs.conversation_cost_enabled:
-        if isinstance(parent, Context):
-            parent_context = parent
-            ml_app = parent_context._meta.get(PROPAGATED_ML_APP_KEY)
-        elif parent is not None:
-            ml_app = parent._get_ctx_item(ML_APP)
-        ml_app = resolve_ml_app(ml_app)
-    return ConversationState(ElevenLabsIntegration(config.elevenlabs), instance, parent, billing_ml_app=ml_app)
+    return ConversationState(ElevenLabsIntegration(config.elevenlabs), instance, parent)
