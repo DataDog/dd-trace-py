@@ -27,6 +27,10 @@ def _headers_byte_size(headers: Any) -> int:
     return sum(_calculate_byte_size(key) + _calculate_byte_size(val) for key, val in (headers or []))
 
 
+def _serialized_byte_size(size: Any) -> int:
+    return size if isinstance(size, int) and size >= 0 else 0
+
+
 def dsm_kafka_python_send_start(
     topic: str,
     value: Any,
@@ -82,7 +86,9 @@ def dsm_kafka_python_message_consume(instance: Any, span_ctx: core.ExecutionCont
     cluster_id = core.find_item("kafka_cluster_id")
 
     payload_size = (
-        _calculate_byte_size(record.value) + _calculate_byte_size(record.key) + _headers_byte_size(record.headers)
+        _serialized_byte_size(record.serialized_value_size)
+        + _serialized_byte_size(record.serialized_key_size)
+        + _headers_byte_size(record.headers)
     )
 
     ctx = DsmPathwayCodec.decode(headers, dsm_processor)

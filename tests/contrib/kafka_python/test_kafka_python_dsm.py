@@ -225,3 +225,49 @@ def test_payload_size_counts_raw_header_bytes(dsm_processor):
     for (tags, _, _), stat in stats.items():
         assert stat.payload_size.count == 1
         assert stat.payload_size.to_proto() == expected_sketch.to_proto()
+
+
+def test_payload_size_uses_serialized_sizes_with_deserializer(dsm_processor):
+    import json
+
+    from kafka import KafkaConsumer
+
+    from ddtrace.internal.native import DDSketch
+
+    from .utils import BOOTSTRAP_SERVERS
+
+    topic = create_topic("payload_deserialized")
+    value = b"[1, 2, 3]"
+    key = b"42"
+    producer = make_producer()
+    try:
+        producer.send(topic, value=value, key=key).get(timeout=30)
+    finally:
+        producer.close()
+
+    consumer = KafkaConsumer(
+        topic,
+        bootstrap_servers=BOOTSTRAP_SERVERS,
+        group_id=GROUP_ID,
+        auto_offset_reset="earliest",
+        enable_auto_commit=False,
+        consumer_timeout_ms=15000,
+        value_deserializer=json.loads,
+    )
+    try:
+        (record,) = iterate_records(consumer, 1)
+    finally:
+        consumer.close(autocommit=False)
+
+    assert isinstance(record.value, list)
+
+    expected_size = len(value) + len(key) + sum(len(k) + len(v) for k, v in record.headers)
+
+    expected_sketch = DDSketch()
+    expected_sketch.add(expected_size)
+
+    stats = pathway_stats_merged(dsm_processor)
+    assert len(stats) == 2
+    for (tags, _, _), stat in stats.items():
+        assert stat.payload_size.count == 1
+        assert stat.payload_size.to_proto() == expected_sketch.to_proto()
