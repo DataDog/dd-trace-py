@@ -20,6 +20,11 @@ from ddtrace.profiling import collector
 
 LOG = logging.getLogger(__name__)
 
+# Bound at import: gevent's monkey patching can later replace _thread.get_ident
+# (and threading.get_ident) with greenlet ids, which match neither the stack
+# collector's thread ids nor _threading.get_thread_name.
+_get_ident: Callable[[], int] = _thread.get_ident
+
 _GEN_NAMES: tuple[str, ...] = (
     "gc.collect[gen=0]",
     "gc.collect[gen=1]",
@@ -197,7 +202,7 @@ class GCCollector(collector.Collector):
                     self._event_gen[i] = gen
                     self._event_pause_ns[i] = pause_ns
                     self._event_end_ns[i] = time.monotonic_ns()
-                    self._event_thread_id[i] = _thread.get_ident()
+                    self._event_thread_id[i] = _get_ident()
                     self._event_native_id[i] = _thread.get_native_id()
                     self._event_count = i + 1
                     return

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import _thread
 import gc
 import threading
 from typing import Callable
@@ -381,6 +382,15 @@ def test_overlapping_snapshots_emit_each_pause_once() -> None:
     assert emitted == [(1, 3_000_000), (2, 7_000_000)]
 
 
+def test_pause_event_thread_id_ignores_later_get_ident_patch() -> None:
+    col: GCCollector = _make_isolated_collector(pause_event_threshold_ms=1.0)
+    os_thread_id: int = threading.get_ident()
+    # gevent's monkey patching can replace _thread.get_ident with greenlet ids after ddtrace is imported.
+    with mock.patch.object(_thread, "get_ident", return_value=os_thread_id + 1):
+        col._on_pause(2, 5_000_000)
+    assert col._event_thread_id[0] == os_thread_id
+
+
 def test_pause_events_past_cap_roll_into_aggregates() -> None:
     col: GCCollector = _make_isolated_collector(pause_event_threshold_ms=1.0)
     with mock.patch.object(gc_collector, "_MAX_PAUSE_EVENTS", 2):
@@ -486,17 +496,21 @@ def test_on_pause_reads_clock_and_thread_ids_only_for_kept_events() -> None:
     col: GCCollector = _make_isolated_collector(pause_event_threshold_ms=1.0)
     mock_time: mock.MagicMock = mock.MagicMock()
     mock_time.monotonic_ns.return_value = 123
+    mock_get_ident: mock.MagicMock = mock.MagicMock(return_value=456)
     mock_thread: mock.MagicMock = mock.MagicMock()
-    mock_thread.get_ident.return_value = 456
     mock_thread.get_native_id.return_value = 789
-    with mock.patch.object(gc_collector, "time", mock_time), mock.patch.object(gc_collector, "_thread", mock_thread):
+    with (
+        mock.patch.object(gc_collector, "time", mock_time),
+        mock.patch.object(gc_collector, "_get_ident", mock_get_ident),
+        mock.patch.object(gc_collector, "_thread", mock_thread),
+    ):
         # Below the event threshold, then past the event cap.
         col._on_pause(0, 500_000)
         col._event_count = gc_collector._MAX_PAUSE_EVENTS
         col._on_pause(2, 20_000_000)
         assert col._pause_count == [1, 0, 1]
         mock_time.monotonic_ns.assert_not_called()
-        mock_thread.get_ident.assert_not_called()
+        mock_get_ident.assert_not_called()
         mock_thread.get_native_id.assert_not_called()
 
         col._event_count = 0
