@@ -7,6 +7,7 @@ from time import monotonic_ns
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal import _threads
 from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
@@ -171,10 +172,8 @@ class _GatedTarget:
         return self.stop_requested or (self.released and not boot_gate.is_open() and not self._one_shot)
 
 
-@atexit.register
 def _release_boot_gate_at_exit() -> None:
     """Stop the threads held by the boot gate, then open it, so that they exit without running."""
-    # Registered after the native exit hook that joins the threads, so it runs before it.
     if boot_gate.is_open():
         return
     for thread in list(periodic_threads.values()):
@@ -183,6 +182,34 @@ def _release_boot_gate_at_exit() -> None:
         except Exception:
             log.debug("failed to stop periodic thread %s at exit", thread.name, exc_info=True)
     boot_gate.open()
+
+
+_after_threads_stopped: list[t.Callable[[], None]] = []
+
+
+def register_after_threads_stopped(func: t.Callable[[], None]) -> None:
+    """Register a function to run at exit, right after the periodic threads have been stopped and joined.
+
+    Use it to handle what those threads produced while stopping, which a function registered with
+    ``ddtrace.internal.atexit.register`` runs too early for.
+    """
+    _after_threads_stopped.append(func)
+
+
+def _at_exit() -> None:
+    """The exit sequence of the periodic threads, in this order."""
+    _release_boot_gate_at_exit()
+    _threads._at_exit()  # Stops and joins the periodic threads.
+    for func in _after_threads_stopped:
+        try:
+            func()
+        except Exception:
+            log.debug("failed to run %r after the threads stopped", func, exc_info=True)
+
+
+# Replace the hook the native module registered when it was first imported, so that the order is explicit.
+atexit.unregister(_threads._at_exit)
+atexit.register(_at_exit)
 
 
 def _safe_restart(start: t.Callable[[], None]) -> t.Optional[Exception]:

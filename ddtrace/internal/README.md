@@ -536,38 +536,11 @@ machinery in a well-defined order.
 
 ### Logging from ddtrace threads under gevent
 
-Module cloning keeps `logging` shared with the application, so once gevent has
-patched `threading`, the logging lock and the handler locks are gevent locks. A
-native ddtrace thread that waits for one depends on the main thread's hub,
-which can be waiting for that thread, e.g. joining it before a fork.
-`main_hub_logging` in `ddtrace.contrib.internal.gevent.logger` breaks that
-cycle. The gevent integration installs it when it patches gevent, and it plugs
-into the ddtrace loggers:
-
-- Once gevent creates the hub of the main thread, records logged by ddtrace
-  loggers on other threads are queued, and a single greenlet on the main hub
-  handles them in order. Records logged on the main thread, before the hub
-  exists, or without patched `threading` are handled inline, as is a record
-  logged while the queue is full.
-- The ddtrace loggers are patched per instance, not by class: `install` wraps
-  `logging.Manager.getLogger`, the single entry point that creates loggers,
-  and sets `handle` and `isEnabledFor` on the ddtrace loggers it returns and
-  on the ones that exist already. Loggers of the application are not touched.
-  `isEnabledFor` skips the logging lock off the main thread. `unpatch` removes
-  the wrappers and restores `getLogger`.
-- Records are formatted when queued, so mutable arguments and exceptions are
-  captured as logged.
-- After fork, the child resets it with a `forksafe.register` hook and logs
-  inline until its hub runs, since it might exit with `os._exit` before. The
-  parent emits the records it had queued. The thread that forked is the main
-  thread of the child, so its hub, created before or after the fork, becomes
-  the main hub. A `multiprocessing` child emits its queued records with a
-  `multiprocessing.util.Finalize`, since it exits with `os._exit`.
-- At exit, `flush_at_exit` emits the queued records and switches to inline
-  logging. It is registered with
-  `ddtrace.internal.atexit.register_after_threads_stopped`, which runs it right
-  after the native threads module has stopped and joined the periodic threads,
-  so it also emits what the threads log while stopping.
+Once gevent has patched `threading`, the logging and handler locks are gevent
+locks, so ddtrace threads must not wait on the application's gevent-patched
+logging locks: the main hub that would release them can be waiting for the
+thread itself, e.g. joining it before a fork. The gevent integration handles
+this, see `ddtrace/contrib/internal/gevent/logger.py`.
 
 ### Adding new fork hooks
 

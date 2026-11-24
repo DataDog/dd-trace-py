@@ -303,17 +303,3 @@ experiments:
           - name: startup-ddtrace_run_runtime_metrics
             thresholds:
               - execution_time < 10000 ms
-
-          # ddtracelogger (a debug call on a ddtrace logger, disabled or handled by a NullHandler)
-          - name: ddtracelogger-disabled
-            thresholds:
-              - execution_time < 0.002 ms
-          - name: ddtracelogger-disabled-main-hub
-            thresholds:
-              - execution_time < 0.002 ms
-          - name: ddtracelogger-enabled
-            thresholds:
-              - execution_time < 0.05 ms
-          - name: ddtracelogger-enabled-main-hub
-            thresholds:
-              - execution_time < 0.05 ms

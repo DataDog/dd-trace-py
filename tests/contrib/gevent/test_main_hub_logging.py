@@ -177,51 +177,16 @@ def test_records_are_handled_inline_when_the_queue_is_full():
     assert messages == ["third", "first", "second"], messages
 
 
-@pytest.mark.subprocess(env=CLONING, out="['logged in the child']", err=None, timeout=30)
-def test_fork_child_handles_thread_records_inline():
-    """A fork child logs inline until its main hub runs, as it might exit with os._exit before."""
-    import gevent.monkey
-
-    import ddtrace.auto  # noqa:F401
-
-    gevent.monkey.patch_all()
-
-    import logging
-    import os
-
-    import gevent
-
-    from ddtrace.internal import threads
-
-    messages = []
-
-    class ListHandler(logging.Handler):
-        def emit(self, record):
-            messages.append(record.getMessage())
-
-    threads.log.addHandler(ListHandler())
-    gevent.sleep(0)
-
-    pid = os.fork()
-    if pid == 0:
-        thread = threads.Thread(target=lambda: threads.log.warning("logged in the child"), name="test-logger")
-        thread.start()
-        thread.join()
-        os.write(1, repr(messages).encode())
-        os._exit(0)
-
-    gevent.monkey.get_original("os", "waitpid")(pid, 0)
-
-
 @pytest.mark.subprocess(
     env=CLONING,
-    out="['logged by an earlier child hook', 'logged by the forking thread']",
+    out="['logged by an earlier child hook', 'logged by the forking thread', 'logged in the child']",
     err=None,
     timeout=30,
 )
 def test_fork_from_another_thread_handles_child_records_inline():
     """The thread that forks becomes the main thread of the child. Records logged before the reset hook runs in the
-    child, while another parent thread might have held the queue lock, are not lost either.
+    child, while another parent thread might have held the queue lock, are not lost either. Nor are those of the
+    ddtrace threads of the child, which might exit with os._exit before its hub runs.
     """
     import gevent.monkey
 
@@ -263,6 +228,9 @@ def test_fork_from_another_thread_handles_child_records_inline():
         pid = fork()
         if pid == 0:
             threads.log.warning("logged by the forking thread")
+            thread = threads.Thread(target=lambda: threads.log.warning("logged in the child"), name="test-logger")
+            thread.start()
+            thread.join()
             os.write(1, repr(messages).encode())
             os._exit(0)
         waitpid(pid, 0)
@@ -273,7 +241,7 @@ def test_fork_from_another_thread_handles_child_records_inline():
 
 
 @pytest.mark.subprocess(env=CLONING, err=None, timeout=30)
-def test_queued_records_are_formatted_when_logged():
+def test_queued_records_keep_their_shape_and_the_arguments_as_logged():
     import gevent.monkey
 
     import ddtrace.auto  # noqa:F401
@@ -299,13 +267,15 @@ def test_queued_records_are_formatted_when_logged():
     threads.log.addHandler(ListHandler())
     gevent.sleep(0)
     state = {"phase": "logged"}
+    failure = []
 
     def target():
         threads.log.warning("state=%s", state)
         state["phase"] = "mutated"
         try:
             raise ValueError("boom")
-        except ValueError:
+        except ValueError as e:
+            failure.append(e)
             threads.log.warning("failed", exc_info=True)
         threads.log.warning("init", extra={"product": "test"})
 
@@ -314,10 +284,11 @@ def test_queued_records_are_formatted_when_logged():
     thread.join()
 
     assert drained.wait(timeout=10), records
+    # The message stays the constant template, and the arguments are the ones logged, even when mutated since.
+    assert records[0].msg == "state=%s" and records[0].args == {"phase": "logged"}, records[0].__dict__
     assert records[0].getMessage() == "state={'phase': 'logged'}", records[0].getMessage()
-    assert records[1].exc_info is None, records[1].exc_info
-    assert "ValueError: boom" in records[1].exc_text, records[1].exc_text
-    # The rate limiter keys product records on their message, so it gets it as logged.
+    # The exception stays on the record, for the handlers to format.
+    assert records[1].msg == "failed" and records[1].exc_info[1] is failure[0], records[1].exc_info
     assert records[2].getMessage() == "test::init", records[2].getMessage()
 
 
@@ -859,3 +830,124 @@ def test_ddtrace_loggers_are_patched_per_instance_and_unpatch_restores_them():
 
     assert logging.Manager.getLogger is get_logger
     assert not any(name in vars(logger) for logger in loggers + [early] for name in ("handle", "isEnabledFor"))
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"), err=None, timeout=30)
+def test_thread_logging_does_not_wait_for_greenlet_holding_handler_lock():
+    """A ddtrace thread that logs while a greenlet holds a handler lock can be joined from the main thread.
+
+    Once gevent patches threading, handler locks are gevent locks. The thread must not wait for one, because the
+    main thread's hub, which would let the greenlet release it, does not run during the join.
+    """
+    import gevent.monkey
+
+    import ddtrace.auto  # noqa:F401
+
+    gevent.monkey.patch_all()
+
+    import logging
+
+    import gevent
+    import gevent.event
+
+    from ddtrace.internal import threads
+
+    messages = []
+
+    class ListHandler(logging.Handler):
+        def emit(self, record):
+            messages.append(record.getMessage())
+
+    handler = ListHandler()
+    logging.getLogger("ddtrace").addHandler(handler)
+
+    release = gevent.event.Event()
+
+    def hold_handler_lock():
+        with handler.lock:
+            release.wait()
+
+    holder = gevent.spawn(hold_handler_lock)
+    gevent.sleep(0)
+
+    thread = threads.Thread(target=lambda: threads.log.warning("logged from a ddtrace thread"), name="test-logger")
+    thread.start()
+    thread.join()
+
+    release.set()
+    holder.join()
+    for _ in range(1000):
+        if messages:
+            break
+        gevent.sleep(0.01)
+
+    assert messages == ["logged from a ddtrace thread"], messages
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"), err=None, timeout=30)
+def test_fork_while_restart_timer_logs_and_greenlet_holds_handler_lock():
+    """A fork does not deadlock with the restart timer logging under _forking_lock while a greenlet holds a log lock.
+
+    Regression test for the startup deadlock of two forks within the restart timer's window.
+    """
+    import faulthandler
+
+    import gevent.monkey
+
+    import ddtrace.auto  # noqa:F401
+
+    gevent.monkey.patch_all()
+
+    import logging
+    import os
+
+    import gevent
+
+    # Dump the stacks of a deadlock before the subprocess timeout kills it.
+    faulthandler.dump_traceback_later(20, exit=True)
+    # Wait natively: the patched waitpid depends on the hub handling SIGCHLD, which varies the timing under load.
+    waitpid = gevent.monkey.get_original("os", "waitpid")
+
+    from ddtrace.internal import threads
+
+    messages = []
+
+    class ListHandler(logging.Handler):
+        def emit(self, record):
+            messages.append(record.getMessage())
+
+    handler = ListHandler()
+    logging.getLogger("ddtrace").addHandler(handler)
+    threads.log.setLevel(logging.DEBUG)
+
+    def fork():
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        waitpid(pid, 0)
+
+    worker = threads.PeriodicThread(0.01, lambda: None, name="test-worker")
+    worker.start()
+
+    # The timer restarts the worker 100ms after this fork, logging under _forking_lock.
+    fork()
+
+    def hold_handler_lock():
+        with handler.lock:
+            gevent.sleep(1)
+
+    holder = gevent.spawn(hold_handler_lock)
+    gevent.sleep(threads.ThreadRestartTimer.__timeout__ / 1e9 * 3)
+    # This fork waits for _forking_lock in its before-fork hook. The main thread then logs, waiting for the holder.
+    fork()
+
+    holder.join()
+    for _ in range(1000):
+        if "Restarting thread test-worker after fork" in messages:
+            break
+        gevent.sleep(0.01)
+
+    assert "Restarting thread test-worker after fork" in messages, messages
+    worker.stop()
+    worker.join()
+    faulthandler.cancel_dump_traceback_later()

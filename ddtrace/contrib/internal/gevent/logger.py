@@ -11,7 +11,7 @@ and loggers of the application are left alone.
 
 from _queue import Empty
 from _queue import SimpleQueue
-from _thread import get_ident
+import copy
 import logging
 import os
 import sys
@@ -20,11 +20,14 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 
-from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal import threads
 from ddtrace.internal.locks import Lock
-from ddtrace.internal.logger import _RATE_LIMITS
 from ddtrace.internal.module import ModuleWatchdog
+
+
+# The application's copy of _thread is patched by gevent, whose get_ident is greenlet-based.
+get_ident = threads._get_ident
 
 
 class MainHubLogging:
@@ -72,7 +75,8 @@ class MainHubLogging:
         """Queue the record for the main hub. Returns False when the caller should handle it inline."""
         if os.getpid() != self._pid:
             return False  # In a fork child before reset: the lock and the hub belong to the parent.
-        _format_args(record)
+        # Keep the arguments as logged, since the caller might change them before the record is handled.
+        record.args = copy.copy(record.args)
         with self._lock:
             hub, spawn_raw = self._hub, self._spawn_raw
             if hub is None or self._records.qsize() >= self.max_records:
@@ -124,20 +128,6 @@ class MainHubLogging:
             raise
 
 
-def _format_args(record: logging.LogRecord) -> None:
-    """Format the record while its arguments still hold the values they were logged with."""
-    # The rate limiter keys product records on their message, and formats them itself.
-    if hasattr(record, "product") or record.msg in _RATE_LIMITS:
-        return
-    try:
-        if record.args:
-            record.msg, record.args = record.getMessage(), None
-        if record.exc_info:
-            record.exc_text, record.exc_info = logging.Formatter().formatException(record.exc_info), None
-    except Exception:  # nosec B110
-        pass  # The handler reports the error
-
-
 main_hub_logging = MainHubLogging()
 
 
@@ -176,11 +166,8 @@ def _patch_logger(logger: logging.Logger) -> None:
         # Same as the base class, without the logging lock it takes to fill the cache.
         return level > logger.manager.disable and level >= logger.getEffectiveLevel()
 
-    try:
-        logger.handle = handle  # type: ignore[method-assign]
-        logger.isEnabledFor = is_enabled_for  # type: ignore[method-assign]
-    except AttributeError:
-        vars(logger).pop("handle", None)  # e.g. a logger class with __slots__, which keeps logging inline
+    logger.handle = handle  # type: ignore[method-assign]
+    logger.isEnabledFor = is_enabled_for  # type: ignore[method-assign]
 
 
 def _unpatch_logger(logger: logging.Logger) -> None:
@@ -206,7 +193,7 @@ def _flush_at_exit() -> None:
     main_hub_logging.flush_at_exit()
 
 
-atexit.register_after_threads_stopped(_flush_at_exit)
+threads.register_after_threads_stopped(_flush_at_exit)
 
 
 def install(gevent_hub: Any) -> None:
