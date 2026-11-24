@@ -100,7 +100,8 @@ in `ddtrace/trace/`, and startup in `ddtrace/bootstrap/`. Contrib patch modules 
 
 Shared event dispatch is in `ddtrace/internal/core/`; tracing subscribers are in
 `ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, Rust in
-`src/native/`, and profiling native code under `ddtrace/internal/datadog/profiling/`.
+`src/native/`, and profiler code in `ddtrace/profiling/`, `ddtrace/internal/profiling/`, and
+`ddtrace/internal/datadog/profiling/`.
 
 Use a skill when available; otherwise read its `SKILL.md` and follow its commands.
 Shared skills live at `.agents/skills/<name>/SKILL.md` and are discovered directly by Codex,
@@ -124,12 +125,13 @@ current signatures and defaults.
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Profiling hot spots and optimization opportunities | `profile` |
+| Profiler changes (`ddtrace/profiling/`, `ddtrace/internal/profiling/`, `ddtrace/internal/datadog/profiling/`) | `ddtrace/internal/datadog/profiling/docs/README.md` (`Architecture.md` for design; `Testing.md` for build, test, and CI checks; `Standalone.md` for `build_standalone.sh`) |
 | Build-cache performance | `debug-build-times` |
 | Native crash investigation | `analyze-crash` |
 | CPython compatibility | `find-cpython-usage`, then `compare-cpython-versions` |
 | AppSec / IAST | `.cursor/rules/appsec.mdc`; `.cursor/rules/iast.mdc` for IAST |
 | AI Guard | `.cursor/rules/ai-guard.mdc` |
-| C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc` |
+| C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc`; `docs/native-code-review.md` |
 | Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md`; `docs/contributing-architecture.rst` |
 | Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
 | Build or installation failures | `docs/troubleshooting.rst` |

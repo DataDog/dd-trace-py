@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.litellm._constants import FALLBACK_ATTEMPT_KEY
 from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
 from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
@@ -167,13 +168,23 @@ class LiteLLMIntegration(BaseLLMIntegration):
         """
         Workflow span should be submitted to LLMObs if:
             - span represents a router operation OR
-            - span represents a proxy request
+            - span represents a proxy request OR
+            - the OpenAI integration emitted the LLM span of the fallback attempt that answered the call
         LLM spans should be submitted to LLMObs if:
             - span does not represent a router operation or a proxy request
         """
-        if self.is_router_operation(operation) or span._get_ctx_item(PROXY_REQUEST):
+        if self.is_router_operation(operation):
             return "workflow"
-        return "llm"
+        downstream_llm_span = kwargs.get(FALLBACK_ATTEMPT_KEY)
+        if downstream_llm_span is None:
+            is_proxy_request = span._get_ctx_item(PROXY_REQUEST)
+        else:
+            # The span was classified from the original request. A fallback attempt decides it again from its own
+            # base URL, so a fallback that leaves an instrumented proxy for a direct provider keeps its LLM span.
+            is_proxy_request = downstream_llm_span or self._is_instrumented_proxy_url(
+                self._get_base_url(request_kwargs=kwargs)
+            )
+        return "workflow" if is_proxy_request else "llm"
 
     def _select_keys(self, data: dict[str, Any], keys_to_select: tuple[str, ...]) -> dict[str, Any]:
         new_data = {}
