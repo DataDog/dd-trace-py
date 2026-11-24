@@ -594,3 +594,11 @@ def test_product_log_exception_text_with_format_specifier():
 
     assert "example::failed arg" in output
     assert "ValueError: bad %s value" in output
+
+
+def test_product_log_formats_exc_info():
+    # format_exception takes (type, value, tb) on every supported Python; the single-argument form is 3.10+ only
+    output = _product_log_output("failed", exc_info=True, extra={"product": "example"})
+
+    assert "example::failed" in output
+    assert "ValueError: boom" in output

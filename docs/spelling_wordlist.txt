@@ -82,6 +82,7 @@ coroutine
 coroutines
 CPU
 CPython
+CTest
 CUPTI
 Cython
 datadog
@@ -380,6 +381,7 @@ username
 uvicorn
 uvloop
 uWSGI
+Valgrind
 valkey
 vendored
 vendoring
