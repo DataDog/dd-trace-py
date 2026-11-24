@@ -114,7 +114,8 @@ def test_celery_internal_exchanges_are_skipped_by_kombu():
 def test_broker_type(conf, expected, monkeypatch):
     from celery import Celery
 
-    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
+    for name in ("CELERY_BROKER_URL", "CELERY_BROKER_READ_URL", "CELERY_BROKER_WRITE_URL"):
+        monkeypatch.delenv(name, raising=False)
 
     from ddtrace.internal.datastreams.celery import _broker_type
 
@@ -124,25 +125,137 @@ def test_broker_type(conf, expected, monkeypatch):
     assert _broker_type(app, "broker_write_url") == expected
 
 
-def test_queue_name_resolution():
+@pytest.mark.parametrize(
+    "env,side,expected",
+    [
+        ({"CELERY_BROKER_URL": "redis://env:6379/0"}, "broker_write_url", "redis"),
+        ({"CELERY_BROKER_URL": "redis://env:6379/0"}, "broker_read_url", "redis"),
+        ({"CELERY_BROKER_WRITE_URL": "redis://env:6379/0"}, "broker_write_url", "redis"),
+        ({"CELERY_BROKER_WRITE_URL": "redis://env:6379/0"}, "broker_read_url", "rabbitmq"),
+        ({"CELERY_BROKER_READ_URL": "redis://env:6379/0"}, "broker_read_url", "redis"),
+        ({"CELERY_BROKER_READ_URL": "redis://env:6379/0"}, "broker_write_url", "rabbitmq"),
+    ],
+)
+def test_broker_type_reads_celery_broker_url_environment_variables(env, side, expected, monkeypatch):
     from celery import Celery
-    from kombu import Exchange
-    from kombu import Queue
 
+    from ddtrace.internal.datastreams.celery import _broker_type
+
+    for name in ("CELERY_BROKER_URL", "CELERY_BROKER_READ_URL", "CELERY_BROKER_WRITE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+
+    app = Celery("dsm_broker_env", broker="amqp://guest@localhost//")
+
+    assert _broker_type(app, side) == expected
+
+
+def test_edge_tags():
     from ddtrace.internal.datastreams.celery import _edge_tags
 
-    app = Celery("dsm_queue_name")
-    app.conf.task_queues = [Queue("images", Exchange("media"), routing_key="media.image")]
-
-    assert _edge_tags("out", app, "", "tasks", "redis") == ["direction:out", "topic:tasks", "type:redis"]
-    assert _edge_tags("in", app, "media", "media.image", "rabbitmq") == [
+    assert _edge_tags("out", "", "tasks", "redis") == ["direction:out", "topic:tasks", "type:redis"]
+    assert _edge_tags("in", "media", "media.image", "rabbitmq") == [
         "direction:in",
-        "topic:images",
+        "topic:media.image",
         "type:rabbitmq",
     ]
-    assert _edge_tags("out", app, "media", "media.video", "rabbitmq") == [
+    assert _edge_tags("out", "broadcast", None, "rabbitmq") == [
         "direction:out",
-        "exchange:media",
-        "has_routing_key:true",
+        "exchange:broadcast",
         "type:rabbitmq",
     ]
+    assert _edge_tags("in", None, None, "redis") == ["direction:in", "type:redis"]
+
+
+def _assert_routed_edge(broker_type):
+    from tests.contrib.celery.dsm_helpers import ROUTING_KEY
+    from tests.contrib.celery.dsm_helpers import checkpoints
+    from tests.contrib.celery.dsm_helpers import pathway_stats
+
+    expected_tags = f"topic:{ROUTING_KEY},type:{broker_type}"
+    outs = checkpoints("out")
+    ins = checkpoints("in")
+    assert [c[0] for c in outs] == [f"direction:out,{expected_tags}"], pathway_stats()
+    assert [c[0] for c in ins] == [f"direction:in,{expected_tags}"], pathway_stats()
+    assert ins[0][2] == outs[0][1], pathway_stats()
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_redis_task_sent_by_name_with_routing_key_has_same_topic_on_both_sides():
+    from tests.contrib.celery.base import BROKER_URL
+    from tests.contrib.celery.dsm_helpers import run_task_sent_by_name_with_routing_key
+    from tests.contrib.celery.test_data_streams import _assert_routed_edge
+
+    run_task_sent_by_name_with_routing_key(BROKER_URL)
+
+    _assert_routed_edge("redis")
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_amqp_task_sent_by_name_with_routing_key_has_same_topic_on_both_sides():
+    from tests.contrib.celery.base import AMQP_BROKER_URL
+    from tests.contrib.celery.dsm_helpers import run_task_sent_by_name_with_routing_key
+    from tests.contrib.celery.test_data_streams import _assert_routed_edge
+
+    run_task_sent_by_name_with_routing_key(AMQP_BROKER_URL)
+
+    _assert_routed_edge("rabbitmq")
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_redis_protocol_1_task_checkpoints_are_linked():
+    from tests.contrib.celery.base import BROKER_URL
+    from tests.contrib.celery.dsm_helpers import assert_linked_edge
+    from tests.contrib.celery.dsm_helpers import run_one_task
+
+    headers = run_one_task(BROKER_URL, task_protocol=1)
+
+    assert "dd-pathway-ctx-base64" in headers
+    assert_linked_edge("redis")
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_amqp_protocol_1_task_checkpoints_are_linked():
+    from tests.contrib.celery.base import AMQP_BROKER_URL
+    from tests.contrib.celery.dsm_helpers import assert_linked_edge
+    from tests.contrib.celery.dsm_helpers import run_one_task
+
+    headers = run_one_task(AMQP_BROKER_URL, task_protocol=1)
+
+    assert "dd-pathway-ctx-base64" in headers
+    assert_linked_edge("rabbitmq")
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_payload_size_counts_positional_task_arguments():
+    from tests.contrib.celery.base import BROKER_URL
+    from tests.contrib.celery.dsm_helpers import record_payload_sizes
+    from tests.contrib.celery.dsm_helpers import run_one_task
+
+    argument_size = 100_000
+    recorded = record_payload_sizes()
+    run_one_task(BROKER_URL, args=("x" * argument_size, 7))
+
+    for direction in ("direction:out", "direction:in"):
+        sizes = [size for tag, size in recorded if tag == direction]
+        assert len(sizes) == 1, recorded
+        assert sizes[0] > argument_size, recorded
+
+
+def test_payload_size_of_protocol_2_body():
+    from ddtrace.internal.datastreams.celery import _payload_size
+
+    body = (("x" * 1024, 12), {"key": b"abc"}, {"callbacks": None, "chord": None})
+
+    assert _payload_size(body) == 1024 + 2 + 3 + 3 + len("callbacks") + len("chord")
+    assert _payload_size(body, {"h": "v"}) == _payload_size(body) + 2
+
+
+def test_payload_size_of_self_referencing_body():
+    from ddtrace.internal.datastreams.celery import _payload_size
+
+    args = ["abc"]
+    args.append(args)
+
+    assert _payload_size((args, {}, {})) == 3
