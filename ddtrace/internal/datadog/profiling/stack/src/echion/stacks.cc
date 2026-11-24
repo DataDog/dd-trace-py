@@ -43,7 +43,7 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
     }
 
     if (truncation == TruncationStatus::Truncated) {
-        renderer.mark_truncated();
+        renderer.mark_truncated(1);
     }
 }
 

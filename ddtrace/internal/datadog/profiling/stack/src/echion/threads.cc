@@ -225,8 +225,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         FrameStack task_stack;
-        task->unwind(
-          echion, task_stack, using_uvloop, task->is_on_cpu ? std::numeric_limits<size_t>::max() : max_frames);
+        task->unwind(echion, task_stack, using_uvloop, task->is_on_cpu ? MAX_RECURSION_DEPTH : max_frames);
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
