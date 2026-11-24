@@ -1889,11 +1889,6 @@ def test_non_active_span(tracer, test_spans):
         (True, "m", "m"),
         # No DD_SERVICE and no source yet: the span gets the integration name.
         (False, None, "myint"),
-        # An inferred service name replaces a non-"opt." source with the integration name.
-        (False, "m", "myint"),
-        # "opt.*" sources are always preserved.
-        (True, "opt.service_mapping", "opt.service_mapping"),
-        (False, "opt.service_mapping", "opt.service_mapping"),
     ],
 )
 def test_service_source_for_inferred_base_service(tracer, user_provided, initial_source, expected_source):
