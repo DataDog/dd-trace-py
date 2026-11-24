@@ -92,6 +92,9 @@ class ValueCollector(Generic[T]):
     def stop(self) -> None:
         """Release process-wide resources. Base is a no-op."""
 
+    def reset(self) -> None:
+        """Discard interval/aggregate state carried across a runtime identity refresh. Base is a no-op."""
+
     def __repr__(self) -> str:
         return (
             f"<{self.__class__.__name__}(enabled={self.enabled},periodic={self.periodic},"
