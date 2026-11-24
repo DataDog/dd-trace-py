@@ -31,6 +31,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.phases = []
         self.roots = []
         self.scopes = []
+        self.response_scopes = []
 
         def started(ctx):
             if ctx.event.component != "flask":
@@ -45,9 +46,20 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
             if ctx.event.component == "flask":
                 self.phases.append("ended")
 
-        for name, handler in (("context.started.web.request", started), ("context.ended.web.request", ended)):
+        def response_started(ctx):
+            if ctx.event.component == "flask":
+                self.response_scopes.append(ctx)
+
+        for name, handler in (
+            ("context.started.web.request.wsgi", started),
+            ("context.ended.web.request.wsgi", ended),
+            ("context.started.web.response.wsgi", response_started),
+        ):
             core.on(name, handler)
             self.addCleanup(core.reset_listeners, name, handler)
+
+    def response_span(self, index=0):
+        return span_from_context(self.response_scopes[index])
 
     def open_response(self, path="/", app=None):
         builder = EnvironBuilder(path=path)
@@ -83,7 +95,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
             self.assertEqual(self.phases, ["started"])
             self.assertIs(self.tracer.current_root_span(), caller)
             self.assertEqual(next(response), b"first")
-            response_span = self.scopes[0].get_item("response_span")
+            response_span = self.response_span()
             self.assertEqual(children[0].parent_id, response_span.span_id)
             self.assertIs(self.tracer.current_root_span(), caller)
             self.assertEqual(list(response), [b"second"])
@@ -135,7 +147,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
             response.close()
         self.assertEqual(self.roots[0].error, 0)
         self.assertTrue(self.roots[0].finished)
-        self.assertEqual(self.scopes[0].get_item("response_span").error, 1)
+        self.assertEqual(self.response_span().error, 1)
         self.assertEqual(self.phases.count("ended"), 1)
 
     def test_close_error_finishes_response_and_request(self):
@@ -153,7 +165,7 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
             response.close()
         self.assertTrue(self.roots[0].finished)
         self.assertEqual(self.roots[0].error, 0)
-        self.assertEqual(self.scopes[0].get_item("response_span").error, 1)
+        self.assertEqual(self.response_span().error, 1)
         self.assertEqual(self.phases.count("ended"), 1)
 
     def test_application_error_finishes_request(self):
@@ -180,36 +192,6 @@ class FlaskLifecycleTestCase(BaseFlaskTestCase):
         self.assertEqual(self.roots[0].error, 0)
         self.assertEqual(self.phases.count("ended"), 1)
         self.assertTrue(all(span.finished for span in self.get_spans()))
-
-    def test_interleaved_requests_keep_independent_contexts(self):
-        seen = []
-
-        @self.app.route("/<name>")
-        def index(name):
-            def generate():
-                with self.tracer.trace("stream.child") as child:
-                    seen.append((name, child.parent_id))
-                    yield name.encode()
-
-            return flask.Response(generate())
-
-        first = self.open_response("/first")
-        second = self.open_response("/second")
-        self.assertTrue(all(root.parent_id is None for root in self.roots))
-        self.assertNotEqual(self.roots[0].trace_id, self.roots[1].trace_id)
-        self.assertEqual(next(second), b"second")
-        self.assertEqual(next(first), b"first")
-        first.close()
-        second.close()
-        self.assertEqual(
-            seen,
-            [
-                ("second", self.scopes[1].get_item("response_span").span_id),
-                ("first", self.scopes[0].get_item("response_span").span_id),
-            ],
-        )
-        self.assertEqual(self.phases.count("ended"), 2)
-        self.assertTrue(all(root.finished for root in self.roots))
 
     def test_start_response_preserves_write_callable(self):
         writes = []
@@ -481,11 +463,18 @@ def test_preserved_client_streaming(
     closed: list[str] = []
     failure = RuntimeError("stream failure")
 
+    response_contexts: list[core.ExecutionContext[Any]] = []
+
     def started(ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
         if ctx.event.component == "flask":
             contexts.append(ctx)
 
-    core.on("context.started.web.request", started)
+    def response_started(ctx: core.ExecutionContext[Any]) -> None:
+        if ctx.event.component == "flask":
+            response_contexts.append(ctx)
+
+    core.on("context.started.web.request.wsgi", started)
+    core.on("context.started.web.response.wsgi", response_started)
 
     @app.route("/stream")
     def stream() -> flask.Response:
@@ -517,7 +506,7 @@ def test_preserved_client_streaming(
                 response = client.get("/stream", buffered=False)
                 assert len(contexts) == 1
                 request_span = span_from_context(contexts[0])
-                response_span = contexts[0].get_item("response_span")
+                response_span = span_from_context(response_contexts[0])
                 assert not request_span.finished
                 assert not response_span.finished
                 assert flask.request.path == "/stream"
@@ -547,7 +536,8 @@ def test_preserved_client_streaming(
             assert core.current is caller_context
             assert tracer.current_span() is caller
     finally:
-        core.reset_listeners("context.started.web.request", started)
+        core.reset_listeners("context.started.web.request.wsgi", started)
+        core.reset_listeners("context.started.web.response.wsgi", response_started)
 
 
 @pytest.fixture
@@ -691,41 +681,3 @@ def test_manual_flask_with_deferred_tracer_initialization() -> None:
         tracer.shutdown()
         builder.close()
     assert manager._products is None
-
-
-def test_nested_wsgi_flask_interleaved_request_roots(
-    preserved_client_app: flask.Flask, tracer: Tracer, test_spans: Any
-) -> None:
-    app = preserved_client_app
-    contexts: list[Any] = []
-    responses: list[Any] = []
-
-    def started(ctx: Any) -> None:
-        contexts.append(ctx)
-
-    @app.route("/stream")
-    def stream() -> flask.Response:
-        return flask.Response(iter([b"one", b"two"]))
-
-    app.wsgi_app = DDWSGIMiddleware(app.wsgi_app)
-    core.on("context.started.web.request", started)
-    builder = EnvironBuilder(path="/stream")
-    try:
-        for _ in range(2):
-            responses.append(app(builder.get_environ(), lambda *args: None))
-        outer_first, inner_first, outer_second, inner_second = contexts
-        roots = [span_from_context(ctx) for ctx in contexts]
-        assert roots[0].parent_id is None and roots[2].parent_id is None
-        assert roots[0].trace_id != roots[2].trace_id
-        for outer, inner in ((outer_first, inner_first), (outer_second, inner_second)):
-            assert span_from_context(inner).parent_id == outer.get_item("app_span").span_id
-            assert span_from_context(inner).trace_id == span_from_context(outer).trace_id
-        for response in reversed(responses):
-            assert list(response) == [b"one", b"two"]
-            response.close()
-        assert all(span.finished for span in test_spans.pop())
-    finally:
-        for response in responses:
-            response.close()
-        builder.close()
-        core.reset_listeners("context.started.web.request", started)

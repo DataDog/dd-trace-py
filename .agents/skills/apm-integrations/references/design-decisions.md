@@ -84,28 +84,9 @@ request finishes: connection tasks can remain alive across keep-alive requests.
 Do not retain exception objects in deferred callbacks; record errors synchronously
 and allow cancellation to complete without requiring a response or tagging it as an error.
 
-Flask and WSGI use the same web request subscriber and defer their shared request context
-through response iteration. Keep application callbacks in the caller's Python Context
-so outer middleware sees its bindings and Flask context tokens remain valid. Tracing
-supplies response activation through the response event, saves the active span across
-yields and restores the ambient span after iteration/close. Do not let a new sibling
-request inherit a suspended response as its parent: use request-owner ancestry to
-distinguish nesting from unrelated execution scopes, and resolve the original caller before
-extracting the new request's headers. Preserve explicit callers and requests nested
-inside executing response callbacks. Keep suspension markers out of wire metadata
-and release them on span completion. Distinguish response setup
-failures from streaming failures when deciding request-span error attribution.
-The iterable reports completion without owning spans; the tracing-owned
-`ddtrace._trace.events.WebFrameworkResponseEvent` lets tracing create the response child.
-Keep new tracing lifecycle contracts outside contrib so subscriber initialization does not
-add tracing-to-integration imports. Request metadata is applied before public span modifiers;
-deferred WSGI completion updates tracing response status without replaying request attributes,
-response-header tags, or ASM inputs. Existing start_response hooks tag response headers; retain
-the captured headers on the event while preserving later span-tag edits and removals.
-Keep application-return security cleanup
-separate from response completion: AppSec and IAST consume
-`wsgi.application.returned` while the request context remains current. Retain
-Flask's metadata and blocking phase hooks rather than adding a second request owner.
+Flask and WSGI defer their request context through response iteration; the invariants are in
+"WSGI request lifecycle" in `ddtrace/internal/README.md`. Put WSGI-only behavior in the WSGI
+event and subscriber subclasses, not behind context-item checks in the shared web subscriber.
 
 Bottle maps request and response metadata into WebFrameworkRequestEvent and leaves
 propagation, spans, and HTTP error policy to WebFrameworkRequestSubscriber. Raised

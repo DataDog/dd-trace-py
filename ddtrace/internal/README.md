@@ -200,46 +200,6 @@ listeners once that integration module has loaded. Ray unpatching retains comple
 listeners for active work. Tracing retains its existing shutdown behavior
 and keeps these listeners registered.
 
-Flask and WSGI use the shared web request subscriber and one deferred
-`WebFrameworkRequestEvent` context. Application
-return emits `wsgi.application.returned` while that context is still current, so
-AppSec and IAST finalize at their existing boundary before response iteration.
-`WebFrameworkResponseEvent` in `ddtrace._trace.events` describes the returned response;
-tracing creates its response child span. This tracing-owned contract uses a base
-`TracingEvent` context rather than importing integration-owned request event types.
-WSGI completion applies response status metadata without replaying request or response-header
-tags, so later overrides and redactions survive streaming and cleanup. Response headers remain
-captured on the event; the existing start_response hooks tag them on the span. Deferred
-completion does not republish ASM inputs; response-time security hooks supply those before
-application-return cleanup.
-The response iterable reports exhaustion, failure, and early
-closure by completing the request context. Tracing finishes the response span
-before the request span, preserving response-only error attribution for streaming
-failures and ignoring `GeneratorExit`. Closing an iterable that raises still
-completes its lifecycle, and repeated completion or close does not finish spans twice.
-Flask's route, body inspection, response preparation, and blocking hooks retain
-their existing order. These integrations remain span-dependent. Their service is
-resolved at span creation; deferred completion preserves later changes to the live
-request span instead of resolving its service again.
-
-Application execution, iteration, and closure run in the caller's Python Context,
-so outer middleware can observe application ContextVar bindings and the active
-request root. Flask context-preservation tokens remain in their original Context.
-Tracing supplies a response context manager that resumes the active span saved at
-each yield and restores the ambient span afterward. This preserves stream-child
-parenting for interleaved responses without isolating application context variables.
-A suspended response records its original caller and an opaque request-owner token
-in private span data. The owner token distinguishes genuinely nested request setup
-from siblings, including siblings inside untraced wrapper scopes. A sibling request
-skips that suspended response before processing
-its own distributed headers. Explicit callers and nested frameworks retain their
-parents. The marker is disabled while response callbacks execute, so requests made
-inside iteration or closure remain children of the active response; finishing the
-response releases the marker.
-Response setup failures, including iterator construction, mark the request and
-response spans as errored; failures after the response is ready retain response-only
-attribution.
-
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
 `LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
@@ -256,6 +216,17 @@ remote activation, and runtime switches share `load_appsec()` / `disable_appsec(
 product `stop()` also removes the operation listeners. These bundles do not own
 request cleanup, whose listeners remain registered separately. Repeated activation
 restores listeners after a reset without caching registration state.
+
+### WSGI request lifecycle
+
+Flask and WSGI open a `WSGIRequestEvent` context that stays open until the response
+iterable completes, with a nested `WSGIResponseEvent` context for the response span.
+- AppSec and IAST finalize on `wsgi.application.returned`, at application return, before
+  the response is iterated.
+- Completion tags only the response status. Request attributes, response headers and the
+  service are tagged at entry or by `start_response` hooks, so later overrides survive.
+- Iteration failures and early closure mark only the response span (`GeneratorExit` is
+  not an error). Failures before the iterable is returned mark both spans.
 
 ## Remote Configuration Callbacks
 

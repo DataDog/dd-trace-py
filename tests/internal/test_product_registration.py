@@ -54,14 +54,14 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
     assert "ddtrace._trace.http_meta" not in sys.modules
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
-    assert not core.has_listeners("web.response")
+    assert not core.has_listeners("context.started.web.response.wsgi")
     assert not core.has_listeners("context.exception")
 
     import ddtrace.contrib  # noqa: F401
 
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("web.response")
+    assert core.has_listeners("context.started.web.response.wsgi")
     assert core.has_listeners("context.exception")
 
 
@@ -93,7 +93,7 @@ def test_tracing_product_start_registers_unloaded_subscribers() -> None:
     product.start()
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("web.response")
+    assert core.has_listeners("context.started.web.response.wsgi")
     assert core.has_listeners("context.exception")
 
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
@@ -126,5 +126,5 @@ def test_subscriber_package_import_activates_manual_request_bundles() -> None:
 
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("web.response")
+    assert core.has_listeners("context.started.web.response.wsgi")
     assert not core.has_listeners("context.exception")

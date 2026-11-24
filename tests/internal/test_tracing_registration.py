@@ -33,14 +33,14 @@ def test_deferred_global_initialization_keeps_registration_imports_lazy() -> Non
 def test_web_response_contract_does_not_import_contrib() -> None:
     import sys
 
-    from ddtrace._trace.events import WebFrameworkResponseEvent
+    from ddtrace._trace.web_framework import WSGIResponseEvent
     from ddtrace.internal import core
 
-    assert WebFrameworkResponseEvent.event_name == "web.response"
+    assert WSGIResponseEvent.event_name == "web.response.wsgi"
     assert not any(name == "ddtrace.contrib" or name.startswith("ddtrace.contrib.") for name in tuple(sys.modules))
     assert "ddtrace._trace.subscribers" not in sys.modules
     assert "ddtrace.trace" not in sys.modules
-    assert not core.has_listeners("web.response")
+    assert not core.has_listeners("context.started.web.response.wsgi")
     assert not core.has_listeners("context.started.web.request")
 
 
@@ -178,7 +178,7 @@ def test_deferred_global_initialization_preserves_manual_tracing() -> None:
         assert core.has_listeners("context.ended." + event_name), event_name
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("web.response")
+    assert core.has_listeners("context.started.web.response.wsgi")
     # Exception activation still requires product startup in this deferred mode.
     assert not core.has_listeners("context.exception")
     assert tracer is not None

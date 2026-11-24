@@ -3,7 +3,6 @@ fixes:
     flask: Fixes unfinished request and response spans when closing a streamed
     response raises an exception. The same fix applies to WSGI middleware.
     WSGI response setup failures also mark the request span as errored.
-    Interleaved requests without a shared parent no longer share a trace.
   - |
     flask: Ensures requests blocked before application execution include the
     component and server span kind tags.
