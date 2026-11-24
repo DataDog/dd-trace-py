@@ -564,6 +564,8 @@ def test_class_view_http404_not_flagged_as_error(client, test_spans):
     for span in view_spans:
         assert span.error == 0, span.name
         assert span.get_tag(ERROR_TYPE) is None, span.name
+        assert span.get_tag(ERROR_MSG) is None, span.name
+        assert span.get_tag(ERROR_STACK) is None, span.name
 
 
 def test_class_view_exception_flagged_as_error(client, test_spans):
@@ -3034,6 +3036,32 @@ async def test_async_class_view(test_spans):
         resource="tests.contrib.django.views.AsyncView.get",
         error=0,
     )
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async views require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_class_view_http404_not_flagged_as_error(test_spans):
+    """Http404 raised from an async class-based view must not flag any view span as errored."""
+    from django.test import AsyncClient
+
+    async_client = AsyncClient()
+    resp = await async_client.get("/async-404-view/")
+    assert resp.status_code == 404
+
+    root = test_spans.get_root_span()
+    assert root.error == 0
+
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+    get_spans = list(test_spans.filter_spans(name="django.view.get"))
+    assert len(get_spans) == 1
+    assert get_spans[0].resource == "tests.contrib.django.views.AsyncNotFoundView.get"
+
+    view_spans = [s for s in test_spans.spans if s.name.startswith("django.view")]
+    for span in view_spans:
+        assert span.error == 0, span.name
+        assert span.get_tag(ERROR_TYPE) is None, span.name
+        assert span.get_tag(ERROR_MSG) is None, span.name
+        assert span.get_tag(ERROR_STACK) is None, span.name
 
 
 @pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async views require Django 4.1+")

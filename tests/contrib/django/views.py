@@ -210,6 +210,11 @@ class AsyncView(View):
         return HttpResponse("async response")
 
 
+class AsyncNotFoundView(View):
+    async def get(self, request):
+        raise Http404("DNE")
+
+
 async def async_function_view(request):
     return HttpResponse("async function response")
 
