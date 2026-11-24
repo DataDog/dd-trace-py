@@ -1,10 +1,9 @@
 """
-filelock==3.7.1
+filelock==3.14.0
 
 https://pypi.org/project/filelock/
 """
 
-import contextlib
 import os
 import tempfile
 
@@ -29,16 +28,13 @@ def pkg_filelock_view():
         file_name = request.args.get("package_param", "default.lock")
 
         # Example usage of filelock package
-        lock_path = os.path.join(tempfile.gettempdir(), os.path.basename(file_name))
-        lock = FileLock(lock_path, timeout=1)
-        try:
-            with lock.acquire(timeout=1):
-                result_output = f"Lock acquired for file: {file_name}"
-        except Timeout:
-            result_output = f"Timeout: Could not acquire lock for file: {file_name}"
-        finally:
-            with contextlib.suppress(OSError):
-                os.remove(lock_path)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock = FileLock(os.path.join(tmp_dir, os.path.basename(file_name)), timeout=1)
+            try:
+                with lock.acquire(timeout=1):
+                    result_output = f"Lock acquired for file: {file_name}"
+            except Timeout:
+                result_output = f"Timeout: Could not acquire lock for file: {file_name}"
 
         response.result1 = result_output
     except Exception as e:

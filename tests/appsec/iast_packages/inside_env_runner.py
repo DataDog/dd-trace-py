@@ -1,21 +1,50 @@
 from ast import unparse
 import importlib
+import pkgutil
 import sys
 from traceback import format_exc
 from types import ModuleType
+from typing import Any
+from typing import Optional
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
-def _import_module(module_name: str) -> ModuleType:
-    """Resolve module:attribute to the module that defines the attribute."""
-    module_name, _, attribute = module_name.partition(":")
-    module = importlib.import_module(module_name)
-    if attribute:
-        defining_module = getattr(module, attribute).__module__
-        if defining_module == module_name:
-            raise ValueError(f"{module_name}:{attribute} resolves to {module_name} itself, not to a submodule")
-        module = importlib.import_module(defining_module)
+def _code_file(obj: Any) -> Optional[str]:
+    if not isinstance(obj, type):
+        code = getattr(obj, "__code__", None)
+        return code.co_filename if code is not None else None
+    for klass in obj.__mro__:
+        if klass.__module__ != obj.__module__:
+            continue
+        for value in vars(klass).values():
+            code = getattr(getattr(value, "__func__", value), "__code__", None)
+            if code is not None:
+                return code.co_filename
+    return None
+
+
+def _import_module(selector: str) -> ModuleType:
+    """Import a module name, or the submodule that defines the attribute named by module:attribute.
+
+    The defining submodule must be inside the selected package and must hold the attribute's code,
+    so a re-export module or a module from another package is rejected.
+    """
+    module_name, _, attribute = selector.partition(":")
+    if not attribute:
+        return importlib.import_module(module_name)
+    obj = pkgutil.resolve_name(selector)
+    defining_name = getattr(obj, "__module__", None)
+    if not isinstance(defining_name, str) or not defining_name.startswith(module_name + "."):
+        raise ValueError(
+            f"{selector} must name a class or function defined in a submodule of {module_name}, "
+            f"but its module is {defining_name!r}"
+        )
+    module = importlib.import_module(defining_name)
+    defining_file = _code_file(obj)
+    if defining_file is not None and defining_file != getattr(module, "__file__", None):
+        raise ValueError(f"{selector} is only re-exported by {defining_name}; its code is in {defining_file}")
+    print(f"Resolved {selector} to {defining_name}")
     return module
 
 
@@ -79,5 +108,5 @@ if __name__ == "__main__":
     elif mode == "patched":
         sys.exit(try_patched(import_module, expect_no_change=expect_no_change == "True"))
 
-    print("Use: [python from pyenv] inside_env_runner.py patched|unpatched module_name True|False")
+    print("Use: [python from pyenv] inside_env_runner.py patched|unpatched module_name|module:attribute True|False")
     sys.exit(1)
