@@ -2,12 +2,22 @@ from ast import unparse
 import importlib
 import sys
 from traceback import format_exc
+from types import ModuleType
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
-def _iast_patched_module_and_patched_source(module_name):
+def _import_module(module_name: str) -> ModuleType:
+    """Resolve module:attribute to the module that defines the attribute."""
+    module_name, _, attribute = module_name.partition(":")
     module = importlib.import_module(module_name)
+    if attribute:
+        module = importlib.import_module(getattr(module, attribute).__module__)
+    return module
+
+
+def _iast_patched_module_and_patched_source(module_name):
+    module = _import_module(module_name)
     module_path, patched_module = astpatch_module(module)
 
     if not patched_module:
@@ -20,7 +30,7 @@ def _iast_patched_module_and_patched_source(module_name):
 
 def try_unpatched(module_name):
     try:
-        importlib.import_module(module_name)
+        _import_module(module_name)
         # TODO: check that the module is NOT patched
     except Exception:
         print(f"Unpatched import test failure: {module_name}:{format_exc()}")
