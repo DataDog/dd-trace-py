@@ -196,7 +196,7 @@ class TestDumpSettings:
             "stack.adaptive_sampling_max_interval",
             "stack.fast_copy",
             "stack.max_threads",
-            "gc.enabled",
+            "gc_time.enabled",
             "exception.enabled",
             "exception.sampling_interval",
         ):
