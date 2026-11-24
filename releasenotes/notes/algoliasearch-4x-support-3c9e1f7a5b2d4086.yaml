@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    algoliasearch: This introduces tracing support for ``algoliasearch`` 4.x. Calls to
+    ``search_single_index`` on both ``SearchClientSync`` and ``SearchClient`` (async) create an
+    ``algoliasearch.search`` span.

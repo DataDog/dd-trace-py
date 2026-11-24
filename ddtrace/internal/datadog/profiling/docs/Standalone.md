@@ -1,9 +1,9 @@
 Standalone Building and Testing
 ===============================
 
-See the accompanying `Architecture.md` for comments on the high-level design and goals of these directories.
+See the accompanying [Architecture.md](Architecture.md) for comments on the high-level design and goals of these directories.
 This document discusses some aspects of building and testing the native code in a standalone fashion, apart from the normal dd-trace-py build system.
-See `Testing.md` for every check that applies to a profiler change and the CI job that runs it.
+See [Testing.md](Testing.md) for every check that applies to a profiler change and the CI job that runs it.
 
 
 Building
@@ -26,7 +26,7 @@ There are a few reasons why a developer would use `build_standalone.sh`:
 
 Note that `build_standalone.sh` runs in GitLab's `profiling_native` jobs with the `stack_test` target.
 This runs all `dd_wrapper` and stack tests through CTest, with unsanitized, sanitizer, and Valgrind configurations.
-See `Testing.md` for the job matrix.
+See [Testing.md](Testing.md) for the job matrix.
 
 
 ### Notes
