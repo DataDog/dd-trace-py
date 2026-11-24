@@ -449,11 +449,8 @@ suites:
           python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
   crewai:
-    # TODO(py-315): crewai requires chromadb, which has no cp315 wheels in
-    # stable releases (pre-releases only), and the onnxruntime it pulls in
-    # (1.31.0 ships cp311–cp314t only) lacks 3.15 support too. Add 3.15 to the
-    # python lists once those dependencies support Python 3.15.
-    venvs_per_job: 2
+    # Python versions follow crewai's requires-python: 0.102 supports <3.13 and 1.x <3.14.
+    venvs_per_job: 3
     retry: 2
     paths:
       - '@bootstrap'
@@ -469,9 +466,10 @@ suites:
         - name: crewai
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, 'crewai~=0.102.0', 'vcrpy==7.0.0']
+        # crewai 1.x resolves aiohttp 3.14, whose streams module no longer has the class vcrpy 7.0.0 patches.
         - name: crewai
-          python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==7.0.0']
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==8.3.0']
   openai_agents:
     venvs_per_job: 5
     paths:
@@ -527,6 +525,11 @@ suites:
         - name: pydantic_ai
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==1.63.0']
+        - name: pydantic_ai
+          # pydantic-ai-slim 2.x requires Python 3.11+. Its openai 3.x client sends requests through
+          # httpx2, which vcrpy 7.0.0 does not intercept, so this row takes the latest vcrpy.
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [pytest-asyncio, vcrpy, typing_extensions, 'pydantic-ai-slim[openai]==2.71.0']
   vllm:
     # TODO(py-315): torch has no cp315 wheels yet (2.14.1 ships cp310–cp314t
     # only), and the pinned 'vllm~=0.10.2' row also resolves an onnxruntime
