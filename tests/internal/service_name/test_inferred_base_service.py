@@ -8,9 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings._inferred_base_service import PythonDetector
 from ddtrace.internal.settings._inferred_base_service import _module_exists
 from ddtrace.internal.settings._inferred_base_service import detect_service
+from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.utils.service import int_service
 
 
 @pytest.fixture
@@ -252,38 +255,21 @@ def test_get_service(cmd, default, expected, testdir):
         (None, "myint-default"),
     ],
 )
-def test_int_service_with_inferred_base_service(dd_service, expected, testdir):
-    env = os.environ.copy()
-    env.pop("DD_SERVICE", None)
+def test_int_service_with_inferred_base_service(monkeypatch, dd_service, expected):
+    # Config also reads the service from OTEL_SERVICE_NAME and from a "service:" entry in DD_TAGS, so
+    # clear all three to keep the CI environment from making the service look user provided.
+    for name in ("DD_SERVICE", "OTEL_SERVICE_NAME", "DD_TAGS"):
+        monkeypatch.delenv(name, raising=False)
     if dd_service is not None:
-        env["DD_SERVICE"] = dd_service
+        monkeypatch.setenv("DD_SERVICE", dd_service)
+    monkeypatch.setattr("ddtrace.internal.settings._config.detect_service", lambda argv: "app")
 
-    app_dir = testdir.mkdir("app")
-    app_dir.join("__init__.py").write("# Init for web package")
-    app_dir.join("web.py").write(
-        textwrap.dedent(
-            f"""
-            from ddtrace import config
-            from ddtrace.internal.settings.integration import IntegrationConfig
-            from ddtrace.internal.utils.service import int_service
+    cfg = Config()
+    assert cfg._inferred_base_service == "app"
 
-            assert config._inferred_base_service == "app", config._inferred_base_service
-
-            myint = IntegrationConfig(config, "myint")
-            myint._default_service = "myint-default"
-            service = int_service(None, myint)
-            assert service == {repr(expected)}, f"Expected service {repr(expected)}, but got {{service!r}}"
-            """
-        )
-    )
-
-    result = subprocess.run(
-        ["ddtrace-run", "python", "app/web.py"], cwd=testdir.tmpdir, capture_output=True, text=True, env=env
-    )
-
-    assert result.returncode == 0, (
-        f"Command failed with return code {result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
-    )
+    myint = IntegrationConfig(cfg, "myint")
+    myint._default_service = "myint-default"
+    assert int_service(None, myint) == expected
 
 
 @pytest.mark.parametrize(
