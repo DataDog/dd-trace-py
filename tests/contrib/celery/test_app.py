@@ -4,7 +4,6 @@ import celery
 import pytest
 
 from ddtrace import config
-from ddtrace.contrib.celery import patch_app
 from ddtrace.contrib.internal.celery.app import _traced_beat_function
 from ddtrace.contrib.internal.celery.patch import unpatch_app
 
@@ -15,11 +14,6 @@ class CeleryAppTest(CeleryBaseTestCase):
     """Ensures the default application is properly instrumented"""
 
     def test_patch_app(self):
-        assert getattr(celery.Celery(), "__datadog_patch", False)
-
-    def test_patch_app_legacy_argument(self):
-        unpatch_app(celery.Celery)
-        patch_app(celery.Celery, pin=None)
         assert getattr(celery.Celery(), "__datadog_patch", False)
 
     def test_unpatch_app(self):

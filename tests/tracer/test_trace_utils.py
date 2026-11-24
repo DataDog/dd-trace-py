@@ -15,7 +15,6 @@ from hypothesis.strategies import tuples
 import pytest
 
 from ddtrace import config
-from ddtrace.contrib import trace_utils as public_trace_utils
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal import trace_utils_async
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
@@ -1343,9 +1342,8 @@ def test_set_flattened_tags_exclude_policy():
 
 
 @pytest.mark.parametrize("is_async", [False, True])
-@pytest.mark.parametrize("public", [False, True])
 @pytest.mark.parametrize("enabled,standalone", [(True, False), (False, False), (False, True)])
-def test_with_traced_module(is_async, public, enabled, standalone, tracer):
+def test_with_traced_module(is_async, enabled, standalone, tracer):
     module = object()
     instance = object()
     calls = []
@@ -1363,10 +1361,7 @@ def test_with_traced_module(is_async, public, enabled, standalone, tracer):
     async def callback_async(*callback_args):
         return callback(*callback_args)
 
-    if public:
-        decorator = public_trace_utils.with_traced_module_async if is_async else public_trace_utils.with_traced_module
-    else:
-        decorator = trace_utils_async.with_traced_module if is_async else trace_utils.with_traced_module
+    decorator = trace_utils_async.with_traced_module if is_async else trace_utils.with_traced_module
 
     original = wrapped_async if is_async else wrapped
     wrapper = decorator(callback_async if is_async else callback)(module)
@@ -1379,15 +1374,7 @@ def test_with_traced_module(is_async, public, enabled, standalone, tracer):
             result = asyncio.run(result)
     assert result == 5
     expected = (module, original, instance, (2,), {"extra": 3})
-    if public:
-        expected = (module, None, original, instance, (2,), {"extra": 3})
     assert calls == ([expected] if enabled or standalone else [])
-
-
-@pytest.mark.parametrize("helper", [trace_utils.int_service, trace_utils.ext_service])
-def test_service_override_compatibility(helper, int_config):
-    int_config.myint.service = "integration-service"
-    assert helper(SimpleNamespace(service="override-service"), int_config.myint) == "override-service"
 
 
 @pytest.mark.parametrize("helper", [trace_utils.int_service, trace_utils.ext_service])
