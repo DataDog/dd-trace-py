@@ -830,7 +830,7 @@ def test_start_profiler_after_remote_config_disabled_all_collectors(
     assert lifecycle.current_profiler() is None
 
 
-@pytest.mark.parametrize("only_enabled", ("native_heap", "gc"))
+@pytest.mark.parametrize("only_enabled", ("native_heap", "gc_time"))
 def test_start_profiler_with_only_native_heap_or_gc_enabled(
     monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]], only_enabled: str
 ) -> None:
@@ -848,7 +848,7 @@ def test_start_profiler_with_only_native_heap_or_gc_enabled(
         profiling_config.exception,
         profiling_config.pytorch,
         profiling_config.native_heap,
-        profiling_config.gc,
+        profiling_config.gc_time,
     ):
         monkeypatch.setattr(setting, "enabled", False)
     # Native heap profiling has no collector, but the Profiler arms it when it starts.
@@ -967,7 +967,7 @@ def test_removing_config_restores_env_settings(
 @pytest.mark.subprocess(
     env={
         "DD_PROFILING_ENABLED": "true",
-        "DD_PROFILING_GC_ENABLED": "true",
+        "DD_PROFILING_GC_TIME_ENABLED": "true",
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_remote_config_profiling_off_stops_gc_collector",
     },
     err=None,
@@ -1010,7 +1010,7 @@ def test_remote_config_profiling_off_stops_gc_collector() -> None:
 @pytest.mark.subprocess(
     env={
         "DD_PROFILING_ENABLED": "false",
-        "DD_PROFILING_GC_ENABLED": "true",
+        "DD_PROFILING_GC_TIME_ENABLED": "true",
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_remote_config_settings_do_not_start_gc_only_profiler",
     },
     err=None,

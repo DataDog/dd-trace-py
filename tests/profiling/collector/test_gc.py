@@ -320,7 +320,7 @@ def test_default_gc_collector_not_installed() -> None:
     assert all(not isinstance(col, gc_collector.GCCollector) for col in profiler.Profiler()._profiler._collectors)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_GC_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_GC_TIME_ENABLED="true"))
 def test_enable_gc_collector_via_env() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import gc as gc_collector

@@ -34,7 +34,7 @@ class ProfilingConfig(DDConfig):
     memory: ProfilingConfigMemory
     heap: ProfilingConfigHeap
     native_heap: ProfilingConfigNativeHeap
-    gc: ProfilingConfigGC
+    gc_time: ProfilingConfigGCTime
     pytorch: ProfilingConfigPytorch
     exception: ProfilingConfigException
     install: bool
@@ -84,7 +84,7 @@ class ProfilingConfigNativeHeap(DDConfig):
 
     enabled: bool
 
-class ProfilingConfigGC(DDConfig):
+class ProfilingConfigGCTime(DDConfig):
     enabled: bool
 
 class ProfilingConfigPytorch(DDConfig):

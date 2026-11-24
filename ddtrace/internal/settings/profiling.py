@@ -638,8 +638,8 @@ def _validate_positive_int(value: int) -> None:
         raise ValueError("value must be >= 1")
 
 
-class ProfilingConfigGC(DDConfig):
-    __item__ = __prefix__ = "gc"
+class ProfilingConfigGCTime(DDConfig):
+    __item__ = __prefix__ = "gc_time"
 
     enabled = DDConfig.v(
         bool,
@@ -649,7 +649,7 @@ class ProfilingConfigGC(DDConfig):
         help=(
             "Whether to record CPython garbage-collection pause samples and "
             "explicit collect() counts. Disabled by default; enable with "
-            "DD_PROFILING_GC_ENABLED=true."
+            "DD_PROFILING_GC_TIME_ENABLED=true."
         ),
     )
 
@@ -723,7 +723,7 @@ ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigNativeHeap, namespace="native_heap")
-ProfilingConfig.include(ProfilingConfigGC, namespace="gc")
+ProfilingConfig.include(ProfilingConfigGCTime, namespace="gc_time")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
@@ -845,8 +845,8 @@ def config_str(config: ProfilingConfig) -> str:
         configured_features.append("heap")
     if config.native_heap.enabled:
         configured_features.append("nativeheap")
-    if config.gc.enabled:
-        configured_features.append("gc")
+    if config.gc_time.enabled:
+        configured_features.append("gctime")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
     if config.exception.enabled:

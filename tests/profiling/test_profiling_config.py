@@ -90,20 +90,25 @@ class TestProfilingGCConfig:
         self, monkeypatch: pytest.MonkeyPatch, value: Optional[str], enabled: bool
     ) -> None:
         if value is None:
-            monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
+            monkeypatch.delenv("DD_PROFILING_GC_TIME_ENABLED", raising=False)
         else:
-            monkeypatch.setenv("DD_PROFILING_GC_ENABLED", value)
+            monkeypatch.setenv("DD_PROFILING_GC_TIME_ENABLED", value)
         config: ProfilingConfig = ProfilingConfig()
-        assert config.gc.enabled is enabled
-        assert ("gc" in config_str(config).split("_")) is enabled
+        assert config.gc_time.enabled is enabled
+        assert ("gctime" in config_str(config).split("_")) is enabled
 
-    def test_registry_is_opt_in_not_fleet_default_on(self) -> None:
-        # Fleet letter A is Ruby/.NET default-on. Python is opt-in first, so
-        # the local registry must use a new letter with default false.
+    def test_old_flag_name_does_not_enable_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The rename keeps no alias: DD_PROFILING_GC_ENABLED never shipped in a release.
+        monkeypatch.delenv("DD_PROFILING_GC_TIME_ENABLED", raising=False)
+        monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
+        assert ProfilingConfig().gc_time.enabled is False
+
+    def test_registry_is_opt_in(self) -> None:
+        # A new key, so implementation A. Python is opt-in, so the default is false.
         registry_path: Path = Path(__file__).resolve().parents[2] / "supported-configurations.json"
         registry: dict[str, Any] = json.loads(registry_path.read_text())
-        entry: dict[str, Any] = registry["supportedConfigurations"]["DD_PROFILING_GC_ENABLED"][0]
-        assert entry["implementation"] == "B"
+        entry: dict[str, Any] = registry["supportedConfigurations"]["DD_PROFILING_GC_TIME_ENABLED"][0]
+        assert entry["implementation"] == "A"
         assert entry["default"] == "false"
         assert entry["type"] == "boolean"
 

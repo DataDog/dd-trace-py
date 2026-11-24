@@ -16,7 +16,7 @@ enum SampleType : std::uint16_t
     GPUTime = 1 << 7,
     GPUMemory = 1 << 8,
     GPUFlops = 1 << 9,
-    // Opt-in: registered only when DD_PROFILING_GC_ENABLED=true (not in All).
+    // Opt-in: registered only when DD_PROFILING_GC_TIME_ENABLED=true (not in All).
     GC = 1 << 10,
     All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops,
     Known = All | GC
