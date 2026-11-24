@@ -280,6 +280,9 @@ class MCPIntegration(BaseLLMIntegration):
         """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
         """
+        if not self.llmobs_enabled:
+            return
+
         params = _get_attr(request, "params", None)
         arguments = _get_attr(params, "arguments", None)
         telemetry = _get_attr(arguments, TELEMETRY_KEY, None)
@@ -293,7 +296,7 @@ class MCPIntegration(BaseLLMIntegration):
                 return
             del arguments[TELEMETRY_KEY]
 
-        if not self.llmobs_enabled or not config.mcp.enrichment_enabled:
+        if not config.mcp.enrichment_enabled:
             return
         intent = _get_attr(telemetry, INTENT_KEY, None) if config.mcp.capture_intent else None
         if intent:

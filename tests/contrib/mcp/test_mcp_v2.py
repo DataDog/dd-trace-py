@@ -494,3 +494,25 @@ def test_empty_own_telemetry_kept_when_enrichment_disabled(mcp_llmobs, test_span
 
     assert not result.is_error
     assert json.loads(result.content[0].text) == {"received": {}}
+
+
+def test_own_telemetry_argument_kept_without_llmobs(mcp_setup, test_spans):
+    from mcp import Client
+    from mcp.server.mcpserver import MCPServer
+
+    assert not LLMObs.enabled
+    server = MCPServer(name="TelemetryServer")
+
+    @server.tool(description="Records an event")
+    def record_event_apm(telemetry: dict) -> dict:
+        return {"received": telemetry}
+
+    async def run():
+        async with Client(server, mode="legacy") as client:
+            return await client.call_tool("record_event_apm", {"telemetry": {"intent": "click"}})
+
+    with override_config("mcp", dict(enrichment_enabled=True, capture_intent=True)):
+        result = asyncio.run(run())
+
+    assert not result.is_error
+    assert json.loads(result.content[0].text) == {"received": {"intent": "click"}}
