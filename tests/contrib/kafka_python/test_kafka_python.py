@@ -115,3 +115,45 @@ def test_empty_poll_span(test_spans, trace_empty_poll):
 
     spans = _spans_named(test_spans, "kafka.consume")
     assert len(spans) == (1 if trace_empty_poll else 0)
+
+
+def test_produce_span_not_active_after_send(test_spans, tracer):
+    topic = create_topic("active_span_after_send")
+    producer = make_producer()
+    try:
+        with tracer.trace("caller.work") as parent:
+            future = producer.send(topic, value=PAYLOAD)
+            assert tracer.current_span() is parent
+            with tracer.trace("after.send"):
+                pass
+        future.get(timeout=30)
+    finally:
+        producer.close()
+
+    spans = {span.name: span for span in test_spans.pop()}
+    assert spans["kafka.produce"].parent_id == parent.span_id
+    assert spans["after.send"].parent_id == parent.span_id
+
+
+def test_send_error_without_traceback(test_spans):
+    from kafka.errors import KafkaTimeoutError
+    from kafka.future import Future
+
+    from ddtrace.contrib.internal.kafka_python.patch import traced_send
+
+    topic = create_topic("send_error_without_traceback")
+    producer = make_producer()
+    try:
+        future = Future()
+        error = KafkaTimeoutError("delivery failed")
+        assert error.__traceback__ is None
+        traced_send(lambda *args, **kwargs: future, producer, (topic,), {})
+        future.failure(error)
+    finally:
+        producer.close()
+
+    (span,) = _spans_named(test_spans, "kafka.produce")
+    assert span.error == 1
+    assert span.get_tag("error.type") == "kafka.errors.KafkaTimeoutError"
+    assert "delivery failed" in span.get_tag("error.message")
+    assert span.get_tag("error.stack")

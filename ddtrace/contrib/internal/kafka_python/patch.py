@@ -1,3 +1,4 @@
+import sys
 from time import time_ns
 from typing import Any
 from typing import Callable
@@ -104,6 +105,7 @@ def traced_send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], 
         tombstone=value is None,
         message_key=_decode_key(key) if key is not None else "None",
         partition=partition,
+        activate=False,
     )
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
@@ -131,7 +133,10 @@ def traced_send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], 
             ctx.dispatch_ended_event()
 
         def on_error(error: BaseException) -> None:
-            ctx.dispatch_ended_event(type(error), error, error.__traceback__)
+            try:
+                raise error
+            except BaseException:
+                ctx.dispatch_ended_event(*sys.exc_info())
 
         try:
             future.add_callback(on_success)
