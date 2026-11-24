@@ -51,7 +51,7 @@ components:
     - ddtrace/llmobs/_integrations/vllm_utils.py
 suites:
   elevenlabs:
-    venvs_per_job: 2
+    venvs_per_job: 3
     services: [testagent]
     paths:
       - '@bootstrap'
