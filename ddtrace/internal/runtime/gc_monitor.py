@@ -18,6 +18,7 @@ from typing import Callable
 from typing import Iterator
 from typing import NamedTuple
 from typing import Optional
+import weakref
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
@@ -93,12 +94,15 @@ class GCPauseMonitor:
         # _on_gc must never wait for this lock. CPython can start a collection on a
         # thread that holds the lock, and _on_gc would then wait for its own thread. That
         # collection would never finish, and CPython would start no other collection.
-        # Forksafe because a fork can inherit the lock from a thread that the child
-        # does not have.
+        # A plain lock, not forksafe.Lock(): _on_gc takes it on every collection, and
+        # the forksafe proxy makes each acquire and release many times slower. A fork
+        # can still inherit it held by a thread that the child does not have, so
+        # _reset_monitor_locks resets it in place in the child.
         # Non-reentrant on purpose: same-thread reentry from _on_gc while snapshot
         # (or acquire) holds the lock must fail the nonblocking acquire and skip,
         # not nest. RLock would let _on_gc mutate under an outer critical section.
-        self._lock: threading_Lock = forksafe.Lock()
+        self._lock: threading_Lock = threading_Lock()
+        _monitors_with_plain_locks.add(self)
         # Stop work (remove_listener, release) for whichever thread holds the lock.
         # Stop never waits for the lock: a profiler SIGTERM/SIGINT handler runs on the
         # main thread between bytecodes, and can land while that same thread holds this
@@ -299,6 +303,18 @@ class GCPauseMonitor:
                 listener(gen, pause_ns)
             except Exception:  # nosec B110
                 pass
+
+
+_monitors_with_plain_locks: weakref.WeakSet[GCPauseMonitor] = weakref.WeakSet()
+
+
+@forksafe.register
+def _reset_monitor_locks() -> Iterator[None]:
+    # A wrapper, so the reset runs before every regular after-fork hook in the child,
+    # whatever the import order, including reset(), which takes the lock.
+    for monitor in list(_monitors_with_plain_locks):
+        monitor._lock._at_fork_reinit()  # type: ignore[attr-defined]
+    yield
 
 
 _MONITOR: Optional[GCPauseMonitor] = None

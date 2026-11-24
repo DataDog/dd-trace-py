@@ -225,10 +225,92 @@ def test_clears_reuse_the_start_list() -> None:
     assert starts == [0, 0, 0]
 
 
-def test_lock_is_forksafe() -> None:
-    """A fork can happen while another thread holds the lock, so the child must not inherit it held."""
+def test_fork_resets_the_plain_lock_in_place_before_other_child_hooks() -> None:
+    """A fork can happen while another thread holds the lock, so the child must not inherit it held.
+
+    The lock is plain, because _on_gc takes it on every collection. The child resets it from a wrapper hook,
+    which runs before the regular after-fork hooks, reset() among them, that take it.
+    """
     monitor: GCPauseMonitor = GCPauseMonitor()
-    assert isinstance(monitor._lock, forksafe.ResetObject)
+    lock: Any = monitor._lock
+    assert not isinstance(lock, forksafe.ResetObject)
+    assert gc_monitor._reset_monitor_locks in forksafe._registry_child_wrappers
+    assert lock.acquire(False)
+    reset: Iterator[None] = gc_monitor._reset_monitor_locks()
+    next(reset)
+    assert monitor._lock is lock
+    assert not lock.locked()
+    with pytest.raises(StopIteration):
+        next(reset)
+
+
+@pytest.mark.subprocess(err=None)
+def test_real_fork_resets_a_lock_held_at_fork_time() -> None:
+    # Another thread holds the monitor lock while the process forks, from the main thread and then from a second
+    # thread. Each child runs reset() as an after-fork hook; it must find the lock reset instead of waiting forever
+    # for a thread it does not have, and keep timing collections.
+    import gc
+    import os
+    import signal
+    import threading
+    import time
+    import traceback
+
+    from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
+
+    # Only explicit collections, so each child's snapshot holds exactly its own.
+    gc.disable()
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    monitor.acquire()
+    lock_held: threading.Event = threading.Event()
+    release_lock: threading.Event = threading.Event()
+
+    def hold_lock() -> None:
+        with monitor._lock:
+            lock_held.set()
+            release_lock.wait()
+
+    def fork_and_wait(statuses: list[int]) -> None:
+        pid: int = os.fork()
+        if pid == 0:
+            exit_code: int = 1
+            try:
+                assert not monitor._lock.locked()
+                gc.collect(0)
+                assert monitor.snapshot_and_reset().n_pauses == 1
+                exit_code = 0
+            except BaseException:
+                os.write(2, traceback.format_exc().encode())
+            finally:
+                os._exit(exit_code)
+        for _ in range(600):
+            waited: tuple[int, int] = os.waitpid(pid, os.WNOHANG)
+            if waited[0] == pid:
+                statuses.append(waited[1])
+                return
+            time.sleep(0.05)
+        os.kill(pid, signal.SIGKILL)
+        os.waitpid(pid, 0)
+        statuses.append(-1)
+
+    holder: threading.Thread = threading.Thread(target=hold_lock)
+    holder.start()
+    assert lock_held.wait(10)
+    statuses: list[int] = []
+    try:
+        fork_and_wait(statuses)
+        forker: threading.Thread = threading.Thread(target=fork_and_wait, args=(statuses,))
+        forker.start()
+        forker.join()
+    finally:
+        release_lock.set()
+        holder.join()
+        monitor.release()
+
+    assert len(statuses) == 2, statuses
+    for status in statuses:
+        assert status != -1, "a forked child hung, so an after-fork hook waited on the lock held at fork time"
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
 
 
 def test_install_uses_the_prebound_hook() -> None:
