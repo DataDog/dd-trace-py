@@ -12,7 +12,10 @@ def _import_module(module_name: str) -> ModuleType:
     module_name, _, attribute = module_name.partition(":")
     module = importlib.import_module(module_name)
     if attribute:
-        module = importlib.import_module(getattr(module, attribute).__module__)
+        defining_module = getattr(module, attribute).__module__
+        if defining_module == module_name:
+            raise ValueError(f"{module_name}:{attribute} resolves to {module_name} itself, not to a submodule")
+        module = importlib.import_module(defining_module)
     return module
 
 
