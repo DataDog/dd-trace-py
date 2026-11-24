@@ -76,10 +76,10 @@ def mock_evaluate_response(
     return mock_response
 
 
-def mock_evaluate_resource_response(
+def mock_evaluate_policies_response(
     action: str, reason: str = "", block: bool = True, policy: Optional[dict[str, Any]] = None
 ) -> Mock:
-    """A 200 response of the resource evaluation endpoint, with the result for the first target."""
+    """A 200 response of the policies evaluation endpoint, with the result for the first target."""
     result: dict[str, Any] = {"target_index": 0, "action": action, "reason": reason, "is_blocking_enabled": block}
     if policy is not None:
         result["policy"] = policy

@@ -108,7 +108,7 @@ class _ResourceTargetRequired(TypedDict):
 
 
 class ResourceTarget(_ResourceTargetRequired, total=False):
-    """Target of a resource evaluation. The field that type names holds the details of the target."""
+    """Target of a policy evaluation. The field that type names holds the details of the target."""
 
     mcp_server: MCPServerTarget
 
@@ -118,12 +118,12 @@ class Policy(TypedDict, total=False):
     version: str
 
 
-class _ResourceEvaluationRequired(TypedDict):
+class _PolicyEvaluationRequired(TypedDict):
     action: Action
     reason: str
 
 
-class ResourceEvaluation(_ResourceEvaluationRequired, total=False):
-    """Decision of a resource evaluation. The policy is present when the service identifies it."""
+class PolicyEvaluation(_PolicyEvaluationRequired, total=False):
+    """Decision of a policy evaluation. The policy is present when the service identifies it."""
 
     policy: Policy

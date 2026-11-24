@@ -1,4 +1,4 @@
-"""AIGuardClient._evaluate_resource: the runtime policy evaluation of one target, such as an MCP server connection."""
+"""AIGuardClient._evaluate_policies: the policy evaluation of one target, such as an MCP server connection."""
 
 import logging
 from unittest.mock import Mock
@@ -24,7 +24,7 @@ from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
 from tests.aiguard.utils import find_ai_guard_span
-from tests.aiguard.utils import mock_evaluate_resource_response
+from tests.aiguard.utils import mock_evaluate_policies_response
 
 
 EXECUTE_REQUEST = "ddtrace.aiguard._api_client.AIGuardClient._execute_request"
@@ -57,21 +57,21 @@ def _metrics(add_count_metric, metric):
 
 
 def _evaluate_auto(client):
-    return client._evaluate_resource(
+    return client._evaluate_policies(
         TARGET, Options(block=True), source=AI_GUARD.SOURCE_AUTO, integration=AI_GUARD.INTEGRATION_OPENAI_AGENTS
     )
 
 
 @patch(EXECUTE_REQUEST)
-def test_request_is_the_rfc_payload_sent_to_the_resource_endpoint(mock_execute_request, ai_guard_client):
-    mock_execute_request.return_value = mock_evaluate_resource_response("ALLOW")
+def test_request_is_the_rfc_payload_sent_to_the_policies_endpoint(mock_execute_request, ai_guard_client):
+    mock_execute_request.return_value = mock_evaluate_policies_response("ALLOW")
 
-    ai_guard_client._evaluate_resource(TARGET)
+    ai_guard_client._evaluate_policies(TARGET)
 
     # One target per request, the default profile and the meta of evaluate; never the /evaluate endpoint.
     mock_execute_request.assert_called_once_with(
-        "https://api.example.com/ai-guard/evaluate/resource",
-        {"data": {"attributes": {"profile": "default", "targets": [TARGET], "meta": META}}},
+        "https://api.example.com/ai-guard/policies/evaluate",
+        {"data": {"attributes": {"profile": "coding_agents", "targets": [TARGET], "meta": META}}},
     )
 
 
@@ -94,7 +94,7 @@ def test_request_is_the_rfc_payload_sent_to_the_resource_endpoint(mock_execute_r
 def test_result_is_selected_by_target_index(mock_execute_request, ai_guard_client, results, expected):
     mock_execute_request.return_value = _results(*results)
 
-    evaluation = ai_guard_client._evaluate_resource(TARGET, Options(block=False))
+    evaluation = ai_guard_client._evaluate_policies(TARGET, Options(block=False))
 
     assert evaluation["action"] == expected
 
@@ -114,21 +114,21 @@ def test_result_is_selected_by_target_index(mock_execute_request, ai_guard_clien
 def test_block_needs_the_remote_and_the_local_settings(
     mock_execute_request, add_count_metric, ai_guard_client, test_spans, action, remote_block, local_block, blocked
 ):
-    mock_execute_request.return_value = mock_evaluate_resource_response(action, reason="By policy", block=remote_block)
+    mock_execute_request.return_value = mock_evaluate_policies_response(action, reason="By policy", block=remote_block)
 
     if blocked:
         with pytest.raises(AIGuardAbortError) as exc_info:
-            ai_guard_client._evaluate_resource(TARGET, Options(block=local_block))
+            ai_guard_client._evaluate_policies(TARGET, Options(block=local_block))
         assert (exc_info.value.action, exc_info.value.reason) == (action, "By policy")
     else:
-        evaluation = ai_guard_client._evaluate_resource(TARGET, Options(block=local_block))
+        evaluation = ai_guard_client._evaluate_policies(TARGET, Options(block=local_block))
         assert evaluation == {"action": action, "reason": "By policy"}
 
     span = find_ai_guard_span(test_spans)
     assert span.get_tag(AI_GUARD.ACTION_TAG) == action
     assert span.get_tag(AI_GUARD.BLOCKED_TAG) == ("true" if blocked else None)
     block_tag = "true" if blocked else "false"
-    # Like evaluate, without the redacted tag: a resource evaluation never redacts.
+    # Like evaluate, without the redacted tag: a policy evaluation never redacts.
     assert _metrics(add_count_metric, AI_GUARD.REQUESTS_METRIC) == [
         (("action", action), ("block", block_tag), ("error", "false"), ("skipped", "false")) + SDK
     ]
@@ -139,19 +139,19 @@ def test_block_needs_the_remote_and_the_local_settings(
 def test_missing_remote_blocking_setting_does_not_block(mock_execute_request, ai_guard_client):
     mock_execute_request.return_value = _results({"target_index": 0, "action": "DENY"})
 
-    assert ai_guard_client._evaluate_resource(TARGET)["action"] == "DENY"
+    assert ai_guard_client._evaluate_policies(TARGET)["action"] == "DENY"
 
 
 @patch(EXECUTE_REQUEST)
 def test_span_identifies_the_connection_evaluation(mock_execute_request, ai_guard_client, tracer, test_spans):
     target = {"type": "mcp_server", "mcp_server": {"operation": "connect", "transport": "stdio", "command": "uvx"}}
-    mock_execute_request.return_value = mock_evaluate_resource_response(
+    mock_execute_request.return_value = mock_evaluate_policies_response(
         "DENY", reason="MCP server denied by policy", policy={"id": "policy_123", "version": "42"}
     )
 
     with tracer.trace("agent"):
         with pytest.raises(AIGuardAbortError):
-            ai_guard_client._evaluate_resource(
+            ai_guard_client._evaluate_policies(
                 target, Options(block=True), source=AI_GUARD.SOURCE_AUTO, integration=AI_GUARD.INTEGRATION_OPENAI_AGENTS
             )
     target["mcp_server"]["command"] = "changed after the evaluation"
@@ -195,7 +195,7 @@ def test_policy_is_reported_when_the_service_identifies_it(
 ):
     mock_execute_request.return_value = _results({"target_index": 0, "action": "ALLOW", "policy": policy})
 
-    evaluation = ai_guard_client._evaluate_resource(TARGET)
+    evaluation = ai_guard_client._evaluate_policies(TARGET)
 
     assert evaluation.get("policy") == expected
     span = find_ai_guard_span(test_spans)
@@ -322,11 +322,11 @@ def _assert_failed_span(test_spans):
 @patch(EXECUTE_REQUEST)
 def test_transport_failure_does_not_report_the_endpoint(mock_execute_request, ai_guard_client):
     mock_execute_request.side_effect = ConnectionFailedError(
-        f"cannot reach {ai_guard_client._endpoint}/evaluate/resource"
+        f"cannot reach {ai_guard_client._endpoint}/policies/evaluate"
     )
 
     with pytest.raises(AIGuardClientError) as exc_info:
-        ai_guard_client._evaluate_resource(TARGET)
+        ai_guard_client._evaluate_policies(TARGET)
 
     assert ai_guard_client._endpoint not in str(exc_info.value)
     assert "<endpoint>" in str(exc_info.value)
@@ -338,19 +338,19 @@ def test_failures_log_at_debug_only(mock_execute_request, ai_guard_client, caplo
 
     with caplog.at_level("DEBUG", logger="ddtrace"):
         with pytest.raises(AIGuardClientError):
-            ai_guard_client._evaluate_resource(TARGET)
+            ai_guard_client._evaluate_policies(TARGET)
 
-    assert f"AI Guard resource evaluation failed ({AI_GUARD.ERROR_CONNECTION})" in caplog.text
+    assert f"AI Guard policy evaluation failed ({AI_GUARD.ERROR_CONNECTION})" in caplog.text
     aiguard_records = [record for record in caplog.records if record.name.startswith("ddtrace.aiguard")]
     assert aiguard_records and all(record.levelno == logging.DEBUG for record in aiguard_records)
 
 
 @patch(EXECUTE_REQUEST)
 def test_root_span_is_kept_and_marked(mock_execute_request, ai_guard_client, tracer, test_spans):
-    mock_execute_request.return_value = mock_evaluate_resource_response("ALLOW")
+    mock_execute_request.return_value = mock_evaluate_policies_response("ALLOW")
 
     with tracer.trace("agent") as root_span:
-        ai_guard_client._evaluate_resource(TARGET)
+        ai_guard_client._evaluate_policies(TARGET)
 
     assert root_span.context.sampling_priority == USER_KEEP
     assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"
@@ -358,14 +358,14 @@ def test_root_span_is_kept_and_marked(mock_execute_request, ai_guard_client, tra
 
 @patch(EXECUTE_REQUEST)
 def test_request_tags_reach_the_root_and_ai_guard_spans(mock_execute_request, ai_guard_client, tracer, test_spans):
-    mock_execute_request.return_value = mock_evaluate_resource_response("DENY")
+    mock_execute_request.return_value = mock_evaluate_policies_response("DENY")
 
     with core.context_with_data("test.request"):
         with tracer.trace("web.request") as root_span:
             root_span.set_tag("http.useragent", "test-agent/1.0")
             core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, ("8.8.8.8", "10.0.0.1"))
             with pytest.raises(AIGuardAbortError):
-                ai_guard_client._evaluate_resource(TARGET)
+                ai_guard_client._evaluate_policies(TARGET)
             # The stashed IPs are used once, so a later evaluation cannot inherit them.
             assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) is None
 
@@ -384,7 +384,7 @@ def test_non_boolean_blocking_flag_is_a_bad_response(
     mock_execute_request.return_value = _results({"target_index": 0, "action": "DENY", "is_blocking_enabled": flag})
 
     with pytest.raises(AIGuardClientError, match="non-boolean is_blocking_enabled"):
-        ai_guard_client._evaluate_resource(TARGET)
+        ai_guard_client._evaluate_policies(TARGET)
 
     (span,) = [span for span in test_spans.spans if span.name == AI_GUARD.RESOURCE_TYPE]
     assert span.get_tag(AI_GUARD.ACTION_TAG) is None
@@ -398,7 +398,7 @@ def test_without_a_tracer_nothing_is_sent(mock_execute_request, ai_guard_client)
     with patch("ddtrace.aiguard._api_client.core") as core_mock:
         core_mock.root.get_item.return_value = None
         with pytest.raises(AIGuardClientError, match="requires the global tracer"):
-            ai_guard_client._evaluate_resource(TARGET)
+            ai_guard_client._evaluate_policies(TARGET)
 
     mock_execute_request.assert_not_called()
 
@@ -419,14 +419,14 @@ class _Recorder(AIGuardMiddleware):
 
 
 @patch(EXECUTE_REQUEST)
-def test_middlewares_do_not_run_for_resource_evaluations(mock_execute_request, ai_guard_client):
-    """The middleware contract is about messages, so a resource evaluation does not call the hooks."""
-    mock_execute_request.return_value = mock_evaluate_resource_response("DENY", block=True)
+def test_middlewares_do_not_run_for_policy_evaluations(mock_execute_request, ai_guard_client):
+    """The middleware contract is about messages, so a policy evaluation does not call the hooks."""
+    mock_execute_request.return_value = mock_evaluate_policies_response("DENY", block=True)
     recorder = _Recorder()
     register_middleware(recorder)
     try:
         with pytest.raises(AIGuardAbortError):
-            ai_guard_client._evaluate_resource(TARGET)
+            ai_guard_client._evaluate_policies(TARGET)
     finally:
         middleware._MIDDLEWARES.remove(recorder)
 

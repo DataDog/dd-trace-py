@@ -18,7 +18,7 @@ class AI_GUARD(metaclass=Constant_Class):
     REDACTED_TAG: str = TAG + ".redacted"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
     EVENT_TAG: str = TAG + ".event"
-    # The policy that decided a resource evaluation, when the service identifies it.
+    # The policy that decided a policy evaluation, when the service identifies it.
     POLICY_ID_TAG: str = TAG + ".policy.id"
     POLICY_VERSION_TAG: str = TAG + ".policy.version"
     # OpenAI runs hosted MCP tools itself and does not report whether it reached the server over
@@ -29,10 +29,10 @@ class AI_GUARD(metaclass=Constant_Class):
     MCP_TRANSPORT_STDIO: Literal["stdio"] = "stdio"
     # managed_by of an MCP server whose client is run by the model provider (OpenAI hosted MCP).
     MCP_MANAGED_BY_PROVIDER: Literal["provider"] = "provider"
-    # Resource evaluations: the target type and MCP server operation of a connection check, and the policy profile.
+    # Policy evaluations: the target type and MCP server operation of a connection check, and the policy profile.
     TARGET_MCP_SERVER: Literal["mcp_server"] = "mcp_server"
     MCP_OPERATION_CONNECT: Literal["connect"] = "connect"
-    POLICY_PROFILE_DEFAULT: Literal["default"] = "default"
+    POLICY_PROFILE_CODING_AGENTS: Literal["coding_agents"] = "coding_agents"
 
     # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
     # span only if an ai_guard span is created during the request.
