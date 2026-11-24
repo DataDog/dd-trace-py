@@ -600,7 +600,7 @@ def test_package_list_read_inside_a_finder_query_is_not_kept(tmp_path):
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="app_allowed", _DD_IAST_DENY_MODULES="app_denied"),
+    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="app_allowed", _DD_IAST_DENY_MODULES=""),
     parametrize=dict(_DD_TEST_DISCOVERY=("empty", "filesystem", "iast", "cold")),
 )
 def test_finder_import_uses_only_name_rules_until_discovery_completes():
@@ -628,9 +628,15 @@ def test_finder_import_uses_only_name_rules_until_discovery_completes():
         lib = app / "site-packages"
         lib.mkdir()
         source = "def combine(a, b):\n    return a + b\n"
-        for name in ("app_helper", "app_allowed", "app_denied", "finder_dep", "installed_dep"):
+        for name in ("app_helper", "app_allowed", "finder_dep", "installed_dep"):
             (app / f"{name}.py").write_text(source)
         (lib / "lib_dep.py").write_text(source)
+        # Both siblings match the same static allowlist entry; only a user deny can distinguish them.
+        static_package = lib / "s3fs"
+        static_package.mkdir()
+        (static_package / "__init__.py").touch()
+        for name in ("allowed", "denied"):
+            (static_package / f"{name}.py").write_text(source)
 
         def dist(where, name):
             info = where / f"{name}-1.0.dist-info"
@@ -660,7 +666,15 @@ def test_finder_import_uses_only_name_rules_until_discovery_completes():
             def find_distributions(self, context):
                 self.calls += 1
                 if self.calls == 1:
-                    for name in ("app_helper", "app_allowed", "app_denied", "finder_dep", "installed_dep", "lib_dep"):
+                    for name in (
+                        "app_helper",
+                        "app_allowed",
+                        "s3fs.allowed",
+                        "s3fs.denied",
+                        "finder_dep",
+                        "installed_dep",
+                        "lib_dep",
+                    ):
                         import_module(name)
                 return [dependency]
 
@@ -674,6 +688,8 @@ def test_finder_import_uses_only_name_rules_until_discovery_completes():
                 sys.modules["importlib"].__dict__.pop("metadata", None)
             packages._reset_installed_distributions()
             ast_patching.IAST_PATCHING_LAZY_LOADED = True
+            # This deny must be picked up by the nested decision, not by any earlier initialization.
+            os.environ["_DD_IAST_DENY_MODULES"] = "s3fs.denied"
             # A pre-existing native list must not authorize first-party patching either.
             ast_patching.iastpatch.set_packages_distributions({"other_package"})
             if entry == "iast":
@@ -687,7 +703,8 @@ def test_finder_import_uses_only_name_rules_until_discovery_completes():
 
             assert not instrumented("app_helper")
             assert instrumented("app_allowed")
-            assert not instrumented("app_denied")
+            assert instrumented("s3fs.allowed")
+            assert not instrumented("s3fs.denied")
             assert not instrumented("lib_dep")
             assert sys.modules["finder_dep"].loader_ran
             assert not instrumented("finder_dep")

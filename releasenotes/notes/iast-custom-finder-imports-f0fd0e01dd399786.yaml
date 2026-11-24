@@ -1,6 +1,5 @@
 ---
 fixes:
   - |
-    Code Security: Prevents IAST from re-entering a custom Python package finder or mistaking its dependencies for application code during IAST initialization.
-    For modules imported while the finder is listing distributions, IAST applies its name-based rules but does not infer first-party ownership.
+    Code Security: During IAST initialization, when ddtrace asks a custom Python package finder to list installed distributions, IAST applies its name-based rules to modules the finder imports. It no longer infers first-party ownership from an incomplete package list.
     Application modules skipped during that query remain uninstrumented on subsequent ordinary imports.
