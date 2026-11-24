@@ -5,8 +5,9 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import core
+from ddtrace.internal.datastreams.kombu import begin_celery_publish
+from ddtrace.internal.datastreams.kombu import end_celery_publish
 from ddtrace.internal.datastreams.kombu import is_celery_internal_exchange
-from ddtrace.internal.datastreams.kombu import skip_kombu_produce_checkpoint
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 
@@ -95,7 +96,11 @@ def dsm_celery_task_publish(app: Any, signal_kwargs: dict[str, Any], span: Optio
     payload_size = _payload_size(signal_kwargs.get("body"), headers)
     ctx = p.set_checkpoint(tags, payload_size=payload_size, span=span)
     DsmPathwayCodec.encode(ctx, headers)
-    skip_kombu_produce_checkpoint(headers)
+    begin_celery_publish(headers)
+
+
+def dsm_celery_task_published(signal_kwargs: dict[str, Any]) -> None:
+    end_celery_publish(signal_kwargs.get("headers"))
 
 
 def dsm_celery_task_prerun(task: Any, span: Optional[Any]) -> None:
@@ -125,4 +130,5 @@ def dsm_celery_task_prerun(task: Any, span: Optional[Any]) -> None:
 
 if config._data_streams_enabled:
     core.on("celery.task.publish.pre", dsm_celery_task_publish)
+    core.on("celery.task.publish.post", dsm_celery_task_published)
     core.on("celery.task.prerun", dsm_celery_task_prerun)

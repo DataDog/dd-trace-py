@@ -262,17 +262,42 @@ def test_payload_size_of_self_referencing_body():
     assert _payload_size((args, {}, {})) == 3
 
 
-def test_kombu_stands_down_for_an_outer_publish_after_a_nested_one():
-    from ddtrace.internal.datastreams.kombu import _checkpointed_by_upstream
-    from ddtrace.internal.datastreams.kombu import skip_kombu_produce_checkpoint
+def test_kombu_stands_down_only_while_the_celery_publish_is_in_flight():
+    from ddtrace.internal.datastreams.kombu import _checkpointed_by_celery_publish
+    from ddtrace.internal.datastreams.kombu import begin_celery_publish
+    from ddtrace.internal.datastreams.kombu import end_celery_publish
 
     outer = {"dd-pathway-ctx-base64": "outer"}
-    inner = {"dd-pathway-ctx-base64": "inner"}
+    nested = [{"dd-pathway-ctx-base64": f"nested-{i}"} for i in range(40)]
 
-    skip_kombu_produce_checkpoint(outer)
-    skip_kombu_produce_checkpoint(inner)
+    begin_celery_publish(outer)
+    for headers in nested:
+        begin_celery_publish(headers)
+        assert _checkpointed_by_celery_publish(headers)
+        end_celery_publish(headers)
+        assert not _checkpointed_by_celery_publish(headers)
 
-    assert _checkpointed_by_upstream(inner)
-    assert _checkpointed_by_upstream(outer)
-    assert not _checkpointed_by_upstream({"dd-pathway-ctx-base64": "other"})
-    assert not _checkpointed_by_upstream({})
+    assert _checkpointed_by_celery_publish(outer)
+    end_celery_publish(outer)
+    assert not _checkpointed_by_celery_publish(outer)
+    assert not _checkpointed_by_celery_publish({})
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_kombu_checkpoints_a_later_forward_of_celery_headers():
+    from ddtrace.internal.datastreams import data_streams_processor
+    from ddtrace.internal.datastreams.kombu import begin_celery_publish
+    from ddtrace.internal.datastreams.kombu import end_celery_publish
+    from ddtrace.internal.datastreams.kombu import handle_kombu_produce
+
+    headers = {"dd-pathway-ctx-base64": "AAAAAAAAAAA="}
+    begin_celery_publish(headers)
+    publish_args = [b"{}", 0, "application/json", "utf-8", headers, {}, "forwarded", False, False, ""]
+    handle_kombu_produce(publish_args, {}, None)
+    assert not data_streams_processor()._buckets
+    end_celery_publish(headers)
+
+    handle_kombu_produce(publish_args, {}, None)
+
+    tags = [t for bucket in data_streams_processor()._buckets.values() for (t, _, _) in bucket.pathway_stats]
+    assert tags == ["direction:out,topic:forwarded,type:rabbitmq"], tags
