@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    App and API Protection: Fixes an issue where the automatic user event collection mode set through
+    Remote Configuration stays in effect after that configuration is removed, when the same
+    configuration also controlled App and API Protection activation. The mode now reverts to the
+    value of ``DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE``.

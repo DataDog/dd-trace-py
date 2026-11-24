@@ -156,7 +156,7 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, AsmFe
                 if payload.path in cache:
                     if "asm" in cache[payload.path]:
                         res["asm"] = {"enabled": False}
-                    elif "auto_user_instrum" in cache[payload.path]:
+                    if "auto_user_instrum" in cache[payload.path]:
                         res["auto_user_instrum"] = {"mode": None}
                 cache.pop(payload.path, None)
             else:
