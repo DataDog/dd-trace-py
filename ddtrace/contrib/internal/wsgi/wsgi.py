@@ -83,23 +83,26 @@ class _WSGIResponseIterable:
         on_complete: Callable[[ExcInfoType], None],
         wrapped_is_iterator: bool = False,
     ) -> None:
-        self._iterator = iter(wrapped)
-        self.__wrapped__ = wrapped if wrapped_is_iterator else self._iterator
-        self._on_complete = on_complete
-        self._completed = False
-        self._closed = False
+        # PERF: set slots directly; __setattr__ forwards other names to the wrapped object.
+        _set = object.__setattr__
+        iterator = iter(wrapped)
+        _set(self, "_iterator", iterator)
+        _set(self, "__wrapped__", wrapped if wrapped_is_iterator else iterator)
+        _set(self, "_on_complete", on_complete)
+        _set(self, "_completed", False)
+        _set(self, "_closed", False)
         # PEP 3333 requires calling close() on the iterable the application returned,
         # which differs from the iterator when its __iter__ returns a new object.
         # That iterator (usually a generator) is still closed so it exits promptly.
-        self._close = getattr(wrapped, "close", None)
-        self._iterator_close = getattr(self._iterator, "close", None) if self._iterator is not wrapped else None
+        _set(self, "_close", getattr(wrapped, "close", None))
+        _set(self, "_iterator_close", getattr(iterator, "close", None) if iterator is not wrapped else None)
 
     def __iter__(self) -> _WSGIResponseIterable:
         return self
 
     def __next__(self) -> Any:
-        if self._completed:
-            raise StopIteration
+        # PERF: no completed check per chunk; an exhausted or closed iterator raises
+        # StopIteration again, and _complete only reports the first completion.
         try:
             return next(self._iterator)
         except StopIteration:
@@ -112,7 +115,7 @@ class _WSGIResponseIterable:
     def close(self) -> None:
         if self._closed:
             return
-        self._closed = True
+        object.__setattr__(self, "_closed", True)
         exc_info: ExcInfoType = (None, None, None)
         try:
             try:
@@ -129,7 +132,7 @@ class _WSGIResponseIterable:
 
     def _complete(self, exc_info: ExcInfoType = (None, None, None)) -> None:
         if not self._completed:
-            self._completed = True
+            object.__setattr__(self, "_completed", True)
             self._on_complete(exc_info)
 
     @property  # type: ignore[misc]
