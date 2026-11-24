@@ -107,7 +107,7 @@ services:
           - VP_TEST_PASSWORD=abc123
           - VP_TEST_DATABASE=docker
     azurecosmosemulator:
-        image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:c274ac17c19a5f74dbadbc99f259bc49a8640a03f6789f54d7f76cbfc33ff6b6 # vnext-preview, build 20261123.2
+        image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20261123@sha256:c274ac17c19a5f74dbadbc99f259bc49a8640a03f6789f54d7f76cbfc33ff6b6
         environment:
             ACCEPT_EULA: "Y"
             BLOB_SERVER: azurite

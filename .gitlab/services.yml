@@ -127,8 +127,7 @@
     variables:
       MOTO_PORT: 3000
   azurecosmosemulator:
-    # vnext-preview, build 20261123.2: no package update at start by default (Azure/azure-cosmos-db-emulator-docker#390)
-    name: registry.ddbuild.io/images/mirror/cosmosdb/linux/azure-cosmos-emulator@sha256:c274ac17c19a5f74dbadbc99f259bc49a8640a03f6789f54d7f76cbfc33ff6b6
+    name: registry.ddbuild.io/images/mirror/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20261123@sha256:c274ac17c19a5f74dbadbc99f259bc49a8640a03f6789f54d7f76cbfc33ff6b6
     alias: azurecosmosemulator
     variables:
       ACCEPT_EULA: "Y"
