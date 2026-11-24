@@ -332,17 +332,6 @@ def test_otel_traces_sampler_configuration_alwayson():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_TRACES_SAMPLER": "always_on"},
-    err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
-)
-def test_otel_traces_sampler_configuration_ignore_parent():
-    from tests.opentelemetry.test_config import _global_sampling_rule
-
-    sample_rate = _global_sampling_rule().sample_rate
-    assert sample_rate == 1.0, sample_rate
-
-
-@pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_off"},
     err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n",
 )

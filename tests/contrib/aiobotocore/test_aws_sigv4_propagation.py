@@ -10,6 +10,7 @@ of in the botocore tests directory.
 
 import re
 
+import botocore.auth
 import pytest
 
 import ddtrace
@@ -103,7 +104,11 @@ def test_aiobotocore_only_patch_injects_into_signed_request():
     assert "x-datadog-trace-id" in signed_headers, (
         f"aiobotocore-only patch did not get trace headers into SignedHeaders {signed_headers!r}"
     )
-    assert "traceparent" in signed_headers, f"traceparent not in SignedHeaders {signed_headers!r}"
+    assert "traceparent" in headers, f"traceparent was not injected into the request {dict(headers)!r}"
+    # Newer botocore releases never sign traceparent (SIGNED_HEADERS_BLACKLIST), so it is only
+    # expected in SignedHeaders on versions that do.
+    if "traceparent" not in getattr(botocore.auth, "SIGNED_HEADERS_BLACKLIST", ()):
+        assert "traceparent" in signed_headers, f"traceparent not in SignedHeaders {signed_headers!r}"
 
 
 def test_distributed_tracing_disabled_passes_no_headers():

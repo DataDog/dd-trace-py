@@ -88,7 +88,10 @@ with an editable or `PYTHONPATH` install would not find the one in the repositor
 
 .. code-block:: bash
 
-    python -m ddtrace.commands.ddtrace_run python my_traced_app.py
+    python -m ddtrace_commands.ddtrace_run python my_traced_app.py
+
+To build and test the profiler's native C++ extensions outside ``setup.py`` (for CTest, sanitizers, Valgrind, or static analysis),
+see the `standalone profiler build guide <https://github.com/DataDog/dd-trace-py/tree/main/ddtrace/internal/datadog/profiling/docs/Standalone.md>`_.
 
 Using `sccache` to Speed Up Builds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

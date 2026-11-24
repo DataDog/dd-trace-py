@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.litellm._constants import FALLBACK_ATTEMPT_KEY
 from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
 from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
@@ -18,12 +19,12 @@ from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
-from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_metadata
-from ddtrace.trace import Span
 
 
 MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature", "tags")
@@ -45,12 +46,12 @@ class LiteLLMIntegration(BaseLLMIntegration):
     # Shared with the contrib, which fills it in as litellm resolves providers.
     _model_map = model_map
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the contrib sets the APM model/host tags itself."""
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -77,7 +78,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
 
-    def _update_litellm_metadata(self, span: Span, kwargs: dict[str, Any], operation: str):
+    def _update_litellm_metadata(self, span: _LLMObsSpan, kwargs: dict[str, Any], operation: str) -> None:
         metadata = get_llmobs_metadata(span) or {}
         base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
@@ -128,7 +129,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
             )
         return new_model_list
 
-    def _resolve_model_name(self, span: Span, response: Optional[Any], model_name: str, model_provider: str) -> str:
+    def _resolve_model_name(
+        self, span: _LLMObsSpan, response: Optional[Any], model_name: str, model_provider: str
+    ) -> str:
         # Azure requires an arbitrary deployment name as the request model; the canonical model
         # comes from the response. azure_ai is excluded — LiteLLM rewrites its response model to
         # "azure_ai/<deployment>", which would not match the cost catalog.
@@ -138,7 +141,14 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 return str(response_model)
         return model_name
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
         model_name = self._resolve_model_name(span, response, model_name, model_provider)
@@ -153,18 +163,28 @@ class LiteLLMIntegration(BaseLLMIntegration):
         )
 
     def _get_span_kind(
-        self, span: Span, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
+        self, span: _LLMObsSpan, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
     ) -> str:
         """
         Workflow span should be submitted to LLMObs if:
             - span represents a router operation OR
-            - span represents a proxy request
+            - span represents a proxy request OR
+            - the OpenAI integration emitted the LLM span of the fallback attempt that answered the call
         LLM spans should be submitted to LLMObs if:
             - span does not represent a router operation or a proxy request
         """
-        if self.is_router_operation(operation) or span._get_ctx_item(PROXY_REQUEST):
+        if self.is_router_operation(operation):
             return "workflow"
-        return "llm"
+        downstream_llm_span = kwargs.get(FALLBACK_ATTEMPT_KEY)
+        if downstream_llm_span is None:
+            is_proxy_request = span._get_ctx_item(PROXY_REQUEST)
+        else:
+            # The span was classified from the original request. A fallback attempt decides it again from its own
+            # base URL, so a fallback that leaves an instrumented proxy for a direct provider keeps its LLM span.
+            is_proxy_request = downstream_llm_span or self._is_instrumented_proxy_url(
+                self._get_base_url(request_kwargs=kwargs)
+            )
+        return "workflow" if is_proxy_request else "llm"
 
     def _select_keys(self, data: dict[str, Any], keys_to_select: tuple[str, ...]) -> dict[str, Any]:
         new_data = {}

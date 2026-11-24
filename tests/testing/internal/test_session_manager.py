@@ -595,9 +595,11 @@ class TestSessionManagerEnvVarOverrides:
 
 
 class TestSessionManagerGitHandling:
-    def test_upload_git_data_skips_when_git_missing(self) -> None:
+    def test_upload_git_data_skips_when_git_missing(self, tmp_path: Path) -> None:
         # Create a session_manager avoid running __init__ bc of side-effects
         session_manager = SessionManager.__new__(SessionManager)
+        session_manager.workspace_path = tmp_path
+        session_manager.env_tags = {"git.commit.sha": "selected-sha"}
         with (
             patch("ddtrace.testing.internal.session_manager.Git", side_effect=RuntimeError("`git` command not found")),
             patch("ddtrace.testing.internal.session_manager.log.warning") as mock_warning,
@@ -606,8 +608,10 @@ class TestSessionManagerGitHandling:
 
         mock_warning.assert_any_call("Error calling git binary, skipping metadata upload")
 
-    def test_upload_git_data_records_telemetry_when_git_missing(self) -> None:
+    def test_upload_git_data_records_telemetry_when_git_missing(self, tmp_path: Path) -> None:
         session_manager = SessionManager.__new__(SessionManager)
+        session_manager.workspace_path = tmp_path
+        session_manager.env_tags = {"git.commit.sha": "selected-sha"}
         mock_telemetry_instance = Mock()
 
         with (
@@ -621,12 +625,16 @@ class TestSessionManagerGitHandling:
 
         mock_telemetry_instance.record_git_missing.assert_called_once()
 
-    def test_upload_git_data_aborts_when_search_commits_fails(self) -> None:
+    def test_upload_git_data_aborts_when_search_commits_fails(self, tmp_path: Path) -> None:
         session_manager = SessionManager.__new__(SessionManager)
+        session_manager.workspace_path = tmp_path
+        session_manager.env_tags = {"git.commit.sha": "selected-sha"}
+        session_manager.env_tags.setdefault("git.commit.sha", "selected-sha")
         session_manager.api_client = Mock()
         session_manager.api_client.get_known_commits.return_value = None
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
 
         with patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git):
@@ -641,13 +649,16 @@ class TestSessionManagerGitHandling:
         mock_log.warning.assert_called_with("search_commits failed, aborting git metadata upload")
         mock_telemetry.get.return_value.record_git_pack_data.assert_called_once_with(0, 0)
 
-    def test_upload_git_data_aborts_when_search_commits_fails_after_unshallow(self) -> None:
+    def test_upload_git_data_aborts_when_search_commits_fails_after_unshallow(self, tmp_path: Path) -> None:
         session_manager = SessionManager.__new__(SessionManager)
+        session_manager.workspace_path = tmp_path
         session_manager.env_tags = {}
+        session_manager.env_tags.setdefault("git.commit.sha", "selected-sha")
         session_manager.api_client = Mock()
         session_manager.api_client.get_known_commits.side_effect = [[], None]
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.side_effect = [["commit-1"], ["commit-1", "commit-2"]]
         mock_git.is_shallow_repository.return_value = True
         mock_git.get_git_version.return_value = (2, 27, 0)
@@ -742,7 +753,7 @@ class TestUpdatePrMergeBase:
         sm._update_pr_merge_base(mock_git)
         assert GitTag.PULL_REQUEST_BASE_BRANCH_SHA not in sm.env_tags
 
-    def test_upload_git_data_computes_merge_base_after_unshallow(self) -> None:
+    def test_upload_git_data_computes_merge_base_after_unshallow(self, tmp_path: Path) -> None:
         """merge-base is computed after unshallow succeeds on a shallow repo."""
         from ddtrace.testing.internal.git import GitTag
 
@@ -751,14 +762,17 @@ class TestUpdatePrMergeBase:
         expected_merge_base = "merge-base-sha"
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {
             GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
         sm.api_client.get_known_commits.side_effect = [["commit-1"], ["commit-1"]]
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = True
         mock_git.get_git_version.return_value = (2, 27, 0)
@@ -780,7 +794,7 @@ class TestUpdatePrMergeBase:
         ]
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
 
-    def test_upload_git_data_computes_merge_base_on_non_shallow_repo(self) -> None:
+    def test_upload_git_data_computes_merge_base_on_non_shallow_repo(self, tmp_path: Path) -> None:
         """merge-base is computed even when the repo is not shallow."""
         from ddtrace.testing.internal.git import GitTag
 
@@ -789,14 +803,17 @@ class TestUpdatePrMergeBase:
         expected_merge_base = "merge-base-sha"
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {
             GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
         sm.api_client.get_known_commits.return_value = []
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = False
         mock_git.get_merge_base.return_value = expected_merge_base
@@ -813,7 +830,7 @@ class TestUpdatePrMergeBase:
         mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha, warn=True)
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
 
-    def test_upload_git_data_computes_merge_base_when_all_commits_known(self) -> None:
+    def test_upload_git_data_computes_merge_base_when_all_commits_known(self, tmp_path: Path) -> None:
         """merge-base is populated even when all commits are already in the backend (no pack upload)."""
         from ddtrace.testing.internal.git import GitTag
 
@@ -822,15 +839,18 @@ class TestUpdatePrMergeBase:
         expected_merge_base = "merge-base-sha"
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {
             GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
         # Backend already knows all commits — no pack upload will happen.
         sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = False
         mock_git.get_merge_base.return_value = expected_merge_base
@@ -905,7 +925,7 @@ class TestUpdatePrMergeBase:
         mock_git.pack_objects.assert_not_called()
         sm.api_client.send_git_pack_file.assert_not_called()
 
-    def test_upload_git_data_unshallows_to_recompute_provisional_merge_base(self) -> None:
+    def test_upload_git_data_unshallows_to_recompute_provisional_merge_base(self, tmp_path: Path) -> None:
         """A merge-base computed from the shallow graph does not suppress the fetch.
 
         git treats shallow boundary commits as roots, so a local merge-base can be an
@@ -919,14 +939,17 @@ class TestUpdatePrMergeBase:
         head_sha = "head-sha"
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {
             GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
         sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = True
         mock_git.get_git_version.return_value = (2, 27, 0)
@@ -951,7 +974,7 @@ class TestUpdatePrMergeBase:
         mock_git.pack_objects.assert_not_called()
         sm.api_client.send_git_pack_file.assert_not_called()
 
-    def test_upload_git_data_keeps_local_merge_base_when_unshallow_fails(self) -> None:
+    def test_upload_git_data_keeps_local_merge_base_when_unshallow_fails(self, tmp_path: Path) -> None:
         """When the fetch fails, the provisional local merge-base is kept as a best-effort fallback."""
         from ddtrace.testing.internal.git import GitTag
 
@@ -959,14 +982,17 @@ class TestUpdatePrMergeBase:
         head_sha = "head-sha"
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {
             GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
         sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = True
         mock_git.get_git_version.return_value = (2, 27, 0)
@@ -985,7 +1011,9 @@ class TestUpdatePrMergeBase:
         mock_git.pack_objects.assert_not_called()
         sm.api_client.send_git_pack_file.assert_not_called()
 
-    def test_upload_git_data_recomputes_merge_base_when_search_commits_fails_after_unshallow(self) -> None:
+    def test_upload_git_data_recomputes_merge_base_when_search_commits_fails_after_unshallow(
+        self, tmp_path: Path
+    ) -> None:
         """The merge-base is recomputed before the post-unshallow search_commits can abort the flow.
 
         If the second search_commits request fails, upload_git_data returns early —
@@ -998,15 +1026,18 @@ class TestUpdatePrMergeBase:
         head_sha = "head-sha"
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {
             GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
         # First search_commits succeeds (commit-1 unknown), the post-unshallow retry fails.
         sm.api_client.get_known_commits.side_effect = [["commit-1"], None]
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = True
         mock_git.get_git_version.return_value = (2, 27, 0)
@@ -1028,7 +1059,7 @@ class TestUpdatePrMergeBase:
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "true-merge-base"
         mock_git.pack_objects.assert_not_called()
 
-    def test_upload_git_data_unshallows_for_merge_base_when_all_commits_known(self) -> None:
+    def test_upload_git_data_unshallows_for_merge_base_when_all_commits_known(self, tmp_path: Path) -> None:
         """The fetch still runs when all commits are known but the merge-base needs more history."""
         from ddtrace.testing.internal.git import GitTag
 
@@ -1037,14 +1068,17 @@ class TestUpdatePrMergeBase:
         expected_merge_base = "merge-base-sha"
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {
             GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
         sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = True
         mock_git.get_git_version.return_value = (2, 27, 0)
@@ -1072,12 +1106,14 @@ class TestUpdatePrMergeBase:
 class TestGitUploadKillSwitch:
     """Tests for DD_CIVISIBILITY_GIT_UPLOAD_ENABLED and DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED."""
 
-    def test_upload_disabled_skips_upload_entirely(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_upload_disabled_skips_upload_entirely(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """DD_CIVISIBILITY_GIT_UPLOAD_ENABLED=false skips search_commits, fetch, and pack upload."""
         monkeypatch.setenv("DD_CIVISIBILITY_GIT_UPLOAD_ENABLED", "false")
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {}
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
 
         mock_git = Mock()
@@ -1094,17 +1130,21 @@ class TestGitUploadKillSwitch:
         # No PR tags to resolve — not even a local merge-base is attempted.
         mock_git.get_merge_base.assert_not_called()
 
-    def test_upload_disabled_still_computes_local_merge_base(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_upload_disabled_still_computes_local_merge_base(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         """With the upload disabled, the PR merge-base is still computed from local history."""
         from ddtrace.testing.internal.git import GitTag
 
         monkeypatch.setenv("DD_CIVISIBILITY_GIT_UPLOAD_ENABLED", "false")
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {
             GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "base-sha",
             GitTag.COMMIT_HEAD_SHA: "head-sha",
         }
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
 
         mock_git = Mock()
@@ -1125,18 +1165,23 @@ class TestGitUploadKillSwitch:
         mock_git.try_all_unshallow_repository_methods.assert_not_called()
         mock_git.pack_objects.assert_not_called()
 
-    def test_unshallow_disabled_skips_fetch_but_uploads_pack_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_unshallow_disabled_skips_fetch_but_uploads_pack_data(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         """DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED=false skips the fetch, not the upload."""
         monkeypatch.setenv("DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED", "false")
 
         sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = tmp_path
         sm.env_tags = {}
+        sm.env_tags.setdefault("git.commit.sha", "selected-sha")
         sm.api_client = Mock()
         # Backend knows nothing — every commit is missing, pack upload must proceed.
         sm.api_client.get_known_commits.return_value = []
         sm.api_client.send_git_pack_file.return_value = 123
 
         mock_git = Mock()
+        mock_git.get_git_path.return_value = None
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = True
         mock_git.get_git_version.return_value = (2, 27, 0)
@@ -1606,23 +1651,22 @@ class TestUnshallowMarker:
         self._write_marker(tmp_path, head_sha="other-sha")
         assert sm._read_unshallow_done(self._make_mock_git()) is False
 
-    def test_marker_uses_local_head_not_ci_provider_sha(self, tmp_path) -> None:
-        """The marker is keyed on the local HEAD, not the CI-provider COMMIT_SHA.
-
-        CI providers can set GitTag.COMMIT_SHA to the PR source commit while the
-        local checkout is at a different (e.g. merge) commit; the fetch deepens
-        the *local* history, so only the local HEAD is a valid marker key.
-        """
-        sm = self._make_sm(tmp_path, head_sha="ci-provider-sha")
+    def test_marker_tracks_selected_sha_and_local_head(self, tmp_path) -> None:
+        """An explicit SHA override must not reuse another selection's fetch marker."""
+        sm = self._make_sm(tmp_path, head_sha="selected-sha")
         mock_git = self._make_mock_git(head_sha="head-sha")
 
-        # A marker keyed on the CI-provider SHA is not honored.
-        self._write_marker(tmp_path, head_sha="ci-provider-sha")
+        self._write_marker(tmp_path, head_sha="head-sha")
         assert sm._read_unshallow_done(mock_git) is False
 
-        # A marker keyed on the local HEAD is.
-        self._write_marker(tmp_path, head_sha="head-sha")
+        sm._mark_unshallow_done(mock_git)
         assert sm._read_unshallow_done(mock_git) is True
+        sm.env_tags["git.commit.sha"] = "another-selection"
+        assert sm._read_unshallow_done(mock_git) is False
+        sm.env_tags["git.commit.sha"] = "selected-sha"
+        assert sm._read_unshallow_done(mock_git) is True
+        mock_git.get_commit_sha.return_value = "another-checkout"
+        assert sm._read_unshallow_done(mock_git) is False
 
     def test_reshallowed_checkout_rejects_marker(self, tmp_path) -> None:
         """A re-shallow at the same commit (a different shallow boundary) re-fetches.
@@ -2262,9 +2306,19 @@ class TestParallelInit:
             known_tests_enabled=True,
             test_management_enabled=True,
         )
+        mock_git = Mock()
+        mock_git.get_git_path.return_value = None
+        mock_git.get_latest_commits.return_value = ["selected-sha"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_filtered_revisions.return_value = []
+        mock_git.pack_objects.return_value = iter([])
         with (
             patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
+            patch(
+                "ddtrace.testing.internal.session_manager.get_env_tags", return_value={"git.commit.sha": "selected-sha"}
+            ),
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
         ):
             SessionManager(self.session)
 
@@ -2541,3 +2595,103 @@ def test_mock_test_environment_resolves_and_restores_agentless_config(monkeypatc
     assert agentless_config.__dict__ is expected_state
     assert agentless_config.__dict__ == expected_values
     assert dict(os.environ) == expected_env
+
+
+def test_checkout_root_drives_ownership_metadata_and_requests(tmp_path: Path) -> None:
+    from ddtrace.testing.internal.api_client import APIClient
+    from ddtrace.testing.internal.git import GitTag
+
+    outer = tmp_path / "workflow"
+    inner = outer / "tools"
+    inner.mkdir(parents=True)
+    (outer / "CODEOWNERS").write_text("* @outer-owner\n")
+    (inner / "CODEOWNERS").write_text("* @inner-owner\n")
+    tags = {
+        CITag.WORKSPACE_PATH: str(outer),
+        GitTag.CHECKOUT_ROOT: str(inner),
+        GitTag.CHECKOUT_IS_CUSTOM: "true",
+        GitTag.COMMIT_SHA: "a" * 40,
+        GitTag.REPOSITORY_URL: "https://github.com/example/tools.git",
+        GitTag.COMMIT_HEAD_SHA: "f" * 40,
+        GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "e" * 40,
+    }
+    with (
+        patch("ddtrace.testing.internal.session_manager.TestOptWriter") as writer,
+        patch("ddtrace.testing.internal.session_manager.TestCoverageWriter"),
+        patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+    ):
+        manager = session_manager_mock().with_env_tags(tags).build_real_with_mocks()
+    assert manager.workspace_path == inner
+    assert manager.codeowners is not None
+    assert manager.codeowners.of("test_file.py") == ["@inner-owner"]
+    assert manager.env_tags[CITag.WORKSPACE_PATH] == str(outer)
+    assert manager.env_tags[GitTag.COMMIT_HEAD_SHA] == "f" * 40
+    # Global metadata is attached to tests, suites, modules and sessions.
+    writer.return_value.add_metadata.assert_any_call("*", tags)
+
+    connector = Mock()
+
+    def respond(endpoint, *args, **kwargs):
+        if endpoint.endswith("/test-management/tests"):
+            data = {"data": {"attributes": {"modules": {}}}}
+        elif endpoint.endswith("/skippable"):
+            data = {"data": [], "meta": {"correlation_id": "id"}}
+        else:
+            data = {"data": {"attributes": {}}}
+        return Mock(parsed_response=data)
+
+    connector.post_json.side_effect = respond
+    manager.connector_setup = Mock()
+    manager.connector_setup.get_connector_for_subdomain.return_value = connector
+    manager.telemetry_api = Mock()
+    with patch("ddtrace.testing.internal.session_manager.APIClient", wraps=APIClient):
+        client = manager._build_api_client()
+    client.get_settings()
+    client.get_skippable_tests()
+    client.get_test_management_properties()
+    assert connector.post_json.call_count == 3
+    for request in connector.post_json.call_args_list:
+        attributes = request.args[1]["data"]["attributes"]
+        assert attributes["sha"] == "a" * 40
+        assert attributes["repository_url"] == "https://github.com/example/tools.git"
+    assert connector.post_json.call_args_list[0].args[1]["data"]["attributes"]["branch"] == ""
+
+
+@pytest.mark.parametrize("workspace_kind", ["missing", "file"])
+@pytest.mark.parametrize("upload_path", ["enabled", "disabled", "lock-timeout"])
+def test_unavailable_ci_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workspace_kind: str, upload_path: str
+) -> None:
+    from ddtrace.testing.internal.git import GitTag
+
+    workspace = tmp_path / "host-workspace"
+    if workspace_kind == "file":
+        workspace.write_text("not a directory")
+    manager = SessionManager.__new__(SessionManager)
+    manager.workspace_path = workspace
+    manager.env_tags = {
+        CITag.WORKSPACE_PATH: str(workspace),
+        GitTag.COMMIT_SHA: "a" * 40,
+        GitTag.COMMIT_HEAD_SHA: "a" * 40,
+        GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "b" * 40,
+    }
+    expected_tags = manager.env_tags.copy()
+    manager.api_client = Mock()
+    monkeypatch.setenv("DD_CIVISIBILITY_GIT_UPLOAD_ENABLED", "false" if upload_path == "disabled" else "true")
+    lock = (
+        patch.object(manager, "_upload_lock", return_value=nullcontext(False))
+        if upload_path == "lock-timeout"
+        else nullcontext()
+    )
+    with (
+        lock,
+        patch(
+            "ddtrace.testing.internal.session_manager.get_offline_mode",
+            return_value=Mock(manifest_enabled=False, payload_files_enabled=False),
+        ),
+        patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+    ):
+        manager.upload_git_data()
+        manager.cleanup_upload_artifacts()
+    manager.api_client.get_known_commits.assert_not_called()
+    assert manager.env_tags == expected_tags

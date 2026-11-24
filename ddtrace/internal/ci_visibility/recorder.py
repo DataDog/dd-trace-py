@@ -6,7 +6,9 @@ import re
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import TypeVar
 from typing import Union
+from typing import cast
 from urllib import parse
 
 import ddtrace
@@ -32,9 +34,9 @@ from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
 from ddtrace.internal.ci_visibility._protocols import CIVisibilityProtocol
+from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
-from ddtrace.internal.ci_visibility.api._session import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
@@ -132,7 +134,9 @@ def _get_custom_configurations() -> dict[str, str]:
     return custom_configurations
 
 
-def _is_item_itr_skippable(item_id: TestVisibilityItemId, suite_skipping_mode: bool, itr_data: Optional[ITRData]):
+def _is_item_itr_skippable(
+    item_id: TestVisibilityItemId, suite_skipping_mode: bool, itr_data: Optional[ITRData]
+) -> bool:
     if itr_data is None:
         return False
 
@@ -147,7 +151,7 @@ def _is_item_itr_skippable(item_id: TestVisibilityItemId, suite_skipping_mode: b
 
 
 class CIVisibilityTracer(Tracer):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         # Allows for multiple instances of the civis tracer to be created without logging a warning
         super().__init__(*args, **kwargs)
 
@@ -203,7 +207,8 @@ class CIVisibility(Service, CIVisibilityProtocol):
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
 
-        self._configurations = ci._get_runtime_and_os_metadata()
+        # Holds the runtime and OS facets, plus any custom configurations as a nested dict.
+        self._configurations: dict[str, Union[str, dict[str, str]]] = dict(ci._get_runtime_and_os_metadata())
         custom_configurations = _get_custom_configurations()
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
@@ -253,7 +258,9 @@ class CIVisibility(Service, CIVisibilityProtocol):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
-        self._dd_env = env.get("_CI_DD_ENV", ddconfig.env)
+        # DD_ENV is commonly unset, which leaves the env None.
+        default_env: Optional[str] = ddconfig.env
+        self._dd_env = env.get("_CI_DD_ENV", default_env)
         dd_env_msg = ""
 
         if ddconfig._ci_visibility_agentless_enabled:
@@ -338,14 +345,14 @@ class CIVisibility(Service, CIVisibilityProtocol):
         log.info("Detected configurations: %s", str(self._configurations))
 
         try:
-            self._codeowners = Codeowners(cwd=self._tags.get(ci.WORKSPACE_PATH))
+            self._codeowners = Codeowners(cwd=self.get_workspace_path())
         except ValueError:
             log.warning("CODEOWNERS file is not available")
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
 
     @staticmethod
-    def _should_collect_coverage(coverage_enabled_by_api):
+    def _should_collect_coverage(coverage_enabled_by_api: bool) -> bool:
         if not coverage_enabled_by_api and not asbool(
             env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
@@ -353,7 +360,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         return True
 
     @staticmethod
-    def _should_upload_coverage_report(coverage_report_upload_enabled_by_api):
+    def _should_upload_coverage_report(coverage_report_upload_enabled_by_api: Optional[bool]) -> bool:
         """Check if coverage report upload is enabled via API settings or environment variable.
 
         Environment variable takes precedence over API settings.
@@ -469,7 +476,8 @@ class CIVisibility(Service, CIVisibilityProtocol):
             return "none"
 
         if info:
-            return info.get("config", {}).get("default_env", "none")
+            default_env: Optional[str] = info.get("config", {}).get("default_env", "none")
+            return default_env
         return "none"
 
     @classmethod
@@ -615,7 +623,12 @@ class CIVisibility(Service, CIVisibilityProtocol):
         return item_id in self._itr_data.skippable_items
 
     @classmethod
-    def enable(cls, tracer=None, config=None, service=None) -> None:
+    def enable(
+        cls,
+        tracer: Optional[Tracer] = None,
+        config: Optional[IntegrationConfig] = None,
+        service: Optional[str] = None,
+    ) -> None:
         log.debug("Enabling %s", cls.__name__)
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
@@ -721,7 +734,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         if asbool(env.get("DD_CIVISIBILITY_USE_BETA_WRITER")):
             self._set_global_span_forwarder(CIVisibilitySpanForwarder(self.tracer))
 
-        def _task_fetch_tests_to_skip():
+        def _task_fetch_tests_to_skip() -> None:
             if self.test_skipping_enabled():
                 self._fetch_tests_to_skip()
                 if self._itr_data is None:
@@ -731,7 +744,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
                 log.info("Skippable items fetched: %s", len(self._itr_data.skippable_items))
                 log.info("ITR correlation ID: %s", self._itr_data.correlation_id)
 
-        def _task_fetch_known_tests():
+        def _task_fetch_known_tests() -> None:
             if CIVisibility.is_known_tests_enabled():
                 known_test_ids = self._fetch_known_tests()
                 if known_test_ids is None:
@@ -749,7 +762,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
                         "DD_TEST_VISIBILITY_EARLY_FLAKE_DETECTION_ENABLED environment variable"
                     )
 
-        def _task_fetch_test_management_tests():
+        def _task_fetch_test_management_tests() -> None:
             if self._api_settings.test_management.enabled:
                 test_properties = self._fetch_test_management_tests()
                 if test_properties is None:
@@ -797,7 +810,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         ddtrace.tracer.configure(trace_processors=tracer_filters)
 
     @classmethod
-    def set_codeowners_of(cls, location, span=None):
+    def set_codeowners_of(cls, location: str, span: Optional[Span] = None) -> None:
         if not cls.enabled or cls._instance is None or cls._instance._codeowners is None or not location:
             return
 
@@ -815,7 +828,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
             log.debug("Error setting codeowners for %s", location, exc_info=True)
 
     @classmethod
-    def add_session(cls, session: TestVisibilitySession):
+    def add_session(cls, session: TestVisibilitySession) -> None:
         log.debug("Adding session: %s", session)
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
@@ -830,7 +843,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
     def get_item_by_id(
         cls,
         item_id: TestVisibilityItemId,
-    ):
+    ) -> Union[TestVisibilitySession, TestVisibilityModule, TestVisibilitySuite, TestVisibilityTest]:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -914,12 +927,14 @@ class CIVisibility(Service, CIVisibilityProtocol):
 
     def get_efd_api_settings(self) -> Optional[EarlyFlakeDetectionSettings]:
         if self._api_settings is None:
-            return None
+            # Always set in __init__; only tests clear it.
+            return None  # type: ignore[unreachable]
         return self._api_settings.early_flake_detection
 
     def get_atr_api_settings(self) -> Optional[AutoTestRetriesSettings]:
         if self._api_settings is None:
-            return None
+            # Always set in __init__; only tests clear it.
+            return None  # type: ignore[unreachable]
 
         if self._api_settings.flaky_test_retries_enabled:
             # NOTE: this is meant to come from integration settings but current plans to rewrite how integration
@@ -956,11 +971,12 @@ class CIVisibility(Service, CIVisibilityProtocol):
 
     def get_test_management_api_settings(self) -> Optional[TestManagementSettings]:
         if self._api_settings is None:
-            return None
+            # Always set in __init__; only tests clear it.
+            return None  # type: ignore[unreachable]
         return self._api_settings.test_management
 
     def get_workspace_path(self) -> Optional[str]:
-        return self._tags.get(ci.WORKSPACE_PATH)
+        return self._tags.get(ci.git.CHECKOUT_ROOT) or self._tags.get(ci.WORKSPACE_PATH)
 
     def is_item_itr_skippable(self, item_id: TestVisibilityItemId) -> bool:
         return _is_item_itr_skippable(item_id, self._suite_skipping_mode, self._itr_data)
@@ -1005,10 +1021,10 @@ class CIVisibility(Service, CIVisibilityProtocol):
             return
         client.set_metadata("test", capabilities.tags())
 
-    def get_ci_tags(self):
+    def get_ci_tags(self) -> dict[str, str]:
         return self._tags
 
-    def get_dd_env(self):
+    def get_dd_env(self) -> Optional[str]:
         return self._dd_env
 
     def is_known_test(self, test_id: Union[TestId, TestId]) -> bool:
@@ -1068,7 +1084,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
             headers = {"Content-Type": coverage_report_client.coverage_encoder.content_type}
             response = writer._put(data=encoded_data, headers=headers, client=coverage_report_client, no_trace=True)
 
-            success = response.status < 400
+            success: bool = response.status < 400
             if success:
                 log.info("Successfully uploaded coverage report")
             else:
@@ -1081,27 +1097,30 @@ class CIVisibility(Service, CIVisibilityProtocol):
             return False
 
 
-def _requires_civisibility_enabled(func: Callable) -> Callable:
-    def wrapper(*args, **kwargs) -> Any:
+_RequiresEnabledT = TypeVar("_RequiresEnabledT", bound=Callable[..., Any])
+
+
+def _requires_civisibility_enabled(func: _RequiresEnabledT) -> _RequiresEnabledT:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         if not CIVisibility.enabled:
             log.warning("CI Visibility is not enabled")
             raise CIVisibilityError("CI Visibility is not enabled")
         return func(*args, **kwargs)
 
-    return wrapper
+    return cast(_RequiresEnabledT, wrapper)
 
 
 @_requires_civisibility_enabled
 def on_discover_session(
-    test_command,
-    reject_duplicates,
-    test_framework,
-    test_framework_version,
-    session_operation_name,
-    module_operation_name,
-    suite_operation_name,
-    test_operation_name,
-    root_dir,
+    test_command: str,
+    reject_duplicates: bool,
+    test_framework: str,
+    test_framework_version: str,
+    session_operation_name: str,
+    module_operation_name: str,
+    suite_operation_name: str,
+    test_operation_name: str,
+    root_dir: Optional[Path],
 ) -> None:
     log.debug("Handling session discovery")
 
@@ -1171,7 +1190,7 @@ def on_discover_session(
 class CIVisibilitySpanForwarder(TraceFilter):
     """Trace filter that forwards all spans from the global tracer to the CI Visibility tracer."""
 
-    def __init__(self, tracer):
+    def __init__(self, tracer: Tracer) -> None:
         self.tracer = tracer
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:

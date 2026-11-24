@@ -146,9 +146,3 @@ def set_hash_object_tracking(result: object, value: bool) -> None:
     env = _get_iast_env()
     if env:
         env.iast_hash_object_tracking[id(result)] = value
-
-
-def clear_hash_object_tracking() -> None:
-    env = _get_iast_env()
-    if env:
-        env.iast_hash_object_tracking.clear()

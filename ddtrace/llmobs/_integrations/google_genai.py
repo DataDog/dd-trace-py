@@ -1,9 +1,9 @@
+from collections.abc import Iterable
 from collections.abc import Mapping
 import json
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -72,7 +72,7 @@ DECISION_MEDIA_MARKERS = {
 class GoogleGenAIIntegration(BaseLLMIntegration):
     _integration_name = "google_genai"
 
-    def _set_base_span_tags(self, span: SpanData, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the contrib sets the APM model/provider tags itself."""
 
     def _llmobs_set_tags(
@@ -100,7 +100,14 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         elif operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response)
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         if operation == "embedding":
             metrics = extract_embedding_metrics_google_genai(response)
         elif operation == "llm":
@@ -125,7 +132,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             model_provider=provider_name,
         )
 
-    def _llmobs_set_tags_from_llm(self, span, args, kwargs, response):
+    def _llmobs_set_tags_from_llm(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         config = kwargs.get("config")
         tools = self._extract_tools(config)
         _annotate_llmobs_span_data(
@@ -134,10 +143,10 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             input_messages=self._extract_input_messages(args, kwargs, config),
             output_messages=self._extract_output_messages(response),
             metrics=extract_generation_metrics_google_genai(response),
-            **({"tool_definitions": tools} if tools else {}),
+            tool_definitions=tools or None,
         )
 
-    def _llmobs_set_tags_from_decision(self, span, kwargs, response):
+    def _llmobs_set_tags_from_decision(self, span: _LLMObsSpan, kwargs: dict[str, Any], response: Any) -> None:
         """Record the decisions request body as the input and the response body, without usage, as the output.
 
         Inline media in the input is replaced by a marker, and inline images are captured as image parts. Only request
@@ -172,7 +181,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             tags={DECISION_PROVIDER_TAG: DECISION_MODEL_PROVIDER},
         )
 
-    def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
+    def _llmobs_set_tags_from_embedding(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         config = kwargs.get("config")
         _annotate_llmobs_span_data(
             span,
@@ -182,7 +193,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             metrics=extract_embedding_metrics_google_genai(response),
         )
 
-    def _extract_input_messages(self, args: list[Any], kwargs: dict[str, Any], config) -> list[Message]:
+    def _extract_input_messages(self, args: list[Any], kwargs: dict[str, Any], config: Any) -> list[Message]:
         messages: list[Message] = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
@@ -194,7 +205,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_messages_from_contents(self, contents, default_role: str) -> list[Message]:
+    def _extract_messages_from_contents(self, contents: Any, default_role: str) -> list[Message]:
         messages: list[Message] = []
         for content in normalize_contents_google_genai(contents):
             role = content.get("role") or default_role
@@ -202,10 +213,10 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 messages.append(extract_message_from_part_google_genai(part, role))
         return messages
 
-    def _extract_output_messages(self, response) -> list[Message]:
+    def _extract_output_messages(self, response: Any) -> list[Message]:
         if not response:
             return [Message(content="", role=GOOGLE_GENAI_DEFAULT_MODEL_ROLE)]
-        messages = []
+        messages: list[Message] = []
         candidates = _get_attr(response, "candidates", []) or []
         for candidate in candidates:
             content = _get_attr(candidate, "content", None)
@@ -218,28 +229,30 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 messages.append(message)
         return messages
 
-    def _extract_embedding_output_value(self, response) -> str:
+    def _extract_embedding_output_value(self, response: Any) -> str:
         embeddings = _get_attr(response, "embeddings", [])
         if embeddings:
             embedding_dim = len(embeddings[0].values)
             return f"[{len(embeddings)} embedding(s) returned with size {embedding_dim}]"
         return ""
 
-    def _extract_embedding_input_documents(self, args, kwargs, config) -> list[Document]:
+    def _extract_embedding_input_documents(
+        self, args: list[Any], kwargs: dict[str, Any], config: Any
+    ) -> list[Document]:
         contents = kwargs.get("contents")
         messages = self._extract_messages_from_contents(contents, "user")
         documents = [Document(text=str(message.get("content", ""))) for message in messages]
         return documents
 
-    def _extract_metadata(self, config, params) -> dict[str, Any]:
+    def _extract_metadata(self, config: Any, params: Iterable[str]) -> dict[str, Any]:
         if not config:
             return {}
-        metadata = {}
+        metadata: dict[str, Any] = {}
         for param in params:
             metadata[param] = _get_attr(config, param, None)
         return metadata
 
-    def _function_declaration_to_tool_definition(self, function_declaration) -> ToolDefinition:
+    def _function_declaration_to_tool_definition(self, function_declaration: Any) -> ToolDefinition:
         schema = _get_attr(function_declaration, "parameters", {}) or {}
         if hasattr(schema, "model_dump"):
             schema = schema.model_dump(exclude_none=True)
@@ -252,12 +265,12 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             schema=schema,
         )
 
-    def _extract_tools(self, config) -> list[ToolDefinition]:
+    def _extract_tools(self, config: Any) -> list[ToolDefinition]:
         try:
             from google.genai.types import FunctionDeclaration
         except ImportError:
             FunctionDeclaration = None
-        tool_definitions = []
+        tool_definitions: list[ToolDefinition] = []
         tools = _get_attr(config, "tools", []) or []
         for tool in tools:
             if (
