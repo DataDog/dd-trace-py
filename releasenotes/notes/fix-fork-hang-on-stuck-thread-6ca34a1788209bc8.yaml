@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where ``os.fork()`` hangs indefinitely when a ddtrace background thread
+    does not stop. The fork now waits at most 5 seconds for ddtrace's background threads and logs a
+    warning when one is still running.
