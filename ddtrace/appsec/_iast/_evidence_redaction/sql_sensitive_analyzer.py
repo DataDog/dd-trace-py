@@ -17,14 +17,11 @@ POSTGRESQL_ESCAPED_LITERAL = r"\$([^$]*)\$.*?\$\1\$"
 MYSQL_STRING_LITERAL = r'"(?:\\\\"|[^"])*"|\'(?:\\\\\'|[^\'])*\''
 LINE_COMMENT = r"--.*$"
 BLOCK_COMMENT = r"/\*[\s\S]*?\*/"
-EXPONENT = r"(?:E[-+]?\d+[fd]?)?"
-INTEGER_NUMBER = r"(?<!\w)\d+"
-DECIMAL_NUMBER = r"\d*\.\d+"
+EXPONENT = r"(?:E[-+]?\d+[fd]?\b)?"
+DECIMAL_NUMBER = r"(?:(?<!\w)\d+(?:\.\d*)?|\.\d+)"
 HEX_NUMBER = r"x'[0-9a-f]+'|0x[0-9a-f]+"
 BIN_NUMBER = r"b'[0-9a-f]+'|0b[0-9a-f]+"
-NUMERIC_LITERAL = (
-    r"[-+]?(?:" + "|".join([HEX_NUMBER, BIN_NUMBER, DECIMAL_NUMBER + EXPONENT, INTEGER_NUMBER + EXPONENT]) + r")"
-)
+NUMERIC_LITERAL = rf"[-+]?(?:{HEX_NUMBER}|{BIN_NUMBER}|{DECIMAL_NUMBER}{EXPONENT})"
 
 patterns = {
     DBAPI_MYSQL: re.compile(

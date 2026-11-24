@@ -57,13 +57,23 @@ def test_sqli_redaction_suite(
 
 
 @pytest.mark.parametrize("dialect", [DBAPI_SQLITE, DBAPI_PSYCOPG])
-@pytest.mark.parametrize("literal", ["12.345E3", "12.345E+3", "12.345E-3", "12E-3", "1e10"])
+@pytest.mark.parametrize(
+    "literal", ["12.345E3", "12.345E+3", "12.345E-3", "12E-3", "1e10", "1.e2", "-.5e+2", "+1.E-2", "1e2F", "1e2d"]
+)
 def test_sql_sensitive_analyzer_redacts_whole_exponent_literal(dialect, literal):
-    """The exponent belongs to the numeric literal, so it must be redacted along with the mantissa."""
-    query = "SELECT * FROM users WHERE id = "
-    evidence = Evidence(value=query + literal, dialect=dialect)
+    prefix = "SELECT "
+    evidence = Evidence(value=prefix + literal + " AS result", dialect=dialect)
 
-    assert sql_sensitive_analyzer(evidence, None, None) == [{"start": len(query), "end": len(query) + len(literal)}]
+    assert sql_sensitive_analyzer(evidence, None, None) == [{"start": len(prefix), "end": len(prefix) + len(literal)}]
+
+
+@pytest.mark.parametrize("dialect", [DBAPI_SQLITE, DBAPI_PSYCOPG])
+@pytest.mark.parametrize("suffix", ["E", "e+", "E-", "e10foo"])
+def test_sql_sensitive_analyzer_does_not_extend_redaction_past_mantissa(dialect, suffix):
+    prefix = "SELECT E10, name1e10, item_1E2, "
+    evidence = Evidence(value=prefix + "1" + suffix, dialect=dialect)
+
+    assert sql_sensitive_analyzer(evidence, None, None) == [{"start": len(prefix), "end": len(prefix) + 1}]
 
 
 def test_redacted_report_no_match(iast_context_defaults):
