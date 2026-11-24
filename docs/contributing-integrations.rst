@@ -373,27 +373,22 @@ The following is the check list for ensuring you have all of the components to h
 Demonstrating synchronous request inspection
 -------------------------------------------
 
-Bottle uses ``WebFrameworkRequestEvent`` and the shared
-``WebFrameworkRequestSubscriber`` for propagation, span creation, HTTP metadata,
-and completion. Inside that context, immediately before the matched callback,
-it dispatches ``WebFrameworkRequestInspectEvent`` from
-``ddtrace.contrib._events.web_framework``. The inspection event exposes the
-same request metadata through ``request_event``. A subscriber can leave
-``response`` unset to run the callback, or set it to a tuple of status code,
-header mapping, and byte body. Bottle converts that tuple to an ``HTTPResponse``
-and uses its existing completion path, without invoking the callback.
+Bottle dispatches ``WebFrameworkRequestInspectEvent`` from
+``ddtrace.contrib._events.web_framework`` before the matched callback, inside its
+existing request context. A subscriber reads metadata from ``request_event`` and
+leaves ``response`` unset to run the callback, or supplies a tuple of status code,
+header mapping, and byte body. Bottle converts the tuple to an ``HTTPResponse``
+and skips the callback; the shared ``WebFrameworkRequestSubscriber`` still owns
+propagation, spans, HTTP tags, and completion.
 
 ``ExampleRequestBlockingSubscriber`` in
-``tests/contrib/bottle/test_request_hooks.py`` demonstrates this extension point.
-Its header-based policy exists only in tests. A product implementing a real
-policy would register its own subscriber through its enabled lifecycle and remove
-it during teardown; the integration does not import that product. Ordinary
-listener exceptions are handled by the event dispatcher. A response assigned
-before an exception remains assigned, so subscribers should finish evaluation
-before publishing their response.
+``tests/contrib/bottle/test_request_hooks.py`` supplies a test-only blocking
+policy. Products own subscriber registration and teardown. Subscribers should
+finish evaluation before assigning a response: a later listener exception does
+not clear it.
 
-This is a contributor demonstration, not production AppSec support. The existing
-tracing-disabled fast path bypasses inspection. Request bodies, unmatched routes,
-later Bottle hooks, response inspection, SDK blocking, and streaming are outside
-this example. Production support also needs product activation, independent
-operation when tracing is disabled, policy evaluation, and end-to-end validation.
+This demonstration does not enable production AppSec support. Tracing-disabled
+requests bypass inspection. Bodies, unmatched routes, later Bottle hooks,
+response inspection, SDK blocking, and streaming remain outside its scope.
+Production support needs product activation, policy evaluation, protection when
+tracing is disabled, and end-to-end validation.
