@@ -18,12 +18,29 @@ from typing import Callable
 from typing import Iterator
 from typing import NamedTuple
 from typing import Optional
+import weakref
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
+from ddtrace.internal.logger import get_logger
 
+
+log = get_logger(__name__)
 
 GEN_COUNT: int = 3
+
+# Every section that holds the lock is short and never blocks. A lock held this long
+# was most likely left held by a signal handler that raised between _on_gc's acquire()
+# and its try, which Python code cannot prevent. Sections that would wait give up
+# instead of hanging the thread that starts the profiler or flushes runtime metrics.
+# os.fork() joins ddtrace's threads first, so a hung one would hang the fork too.
+_HELD_LOCK_TIMEOUT_S: float = 1.0
+_HELD_LOCK_POLL_S: float = 0.001
+
+
+class GCMonitorLockHeld(RuntimeError):
+    """The monitor lock stayed held for longer than any section holds it."""
+
 
 # A pause is the CPU time of the thread that collects. Python code that runs during
 # a collection (gc.callbacks, this one included, and finalizers) can hand the GIL to
@@ -93,12 +110,15 @@ class GCPauseMonitor:
         # _on_gc must never wait for this lock. CPython can start a collection on a
         # thread that holds the lock, and _on_gc would then wait for its own thread. That
         # collection would never finish, and CPython would start no other collection.
-        # Forksafe because a fork can inherit the lock from a thread that the child
-        # does not have.
+        # A plain lock, not forksafe.Lock(): _on_gc takes it on every collection, and
+        # the forksafe proxy makes each acquire and release many times slower. A fork
+        # can still inherit it held by a thread that the child does not have, so
+        # _reset_monitor_locks resets it in place in the child.
         # Non-reentrant on purpose: same-thread reentry from _on_gc while snapshot
         # (or acquire) holds the lock must fail the nonblocking acquire and skip,
         # not nest. RLock would let _on_gc mutate under an outer critical section.
-        self._lock: threading_Lock = forksafe.Lock()
+        self._lock: threading_Lock = threading_Lock()
+        _monitors_with_plain_locks.add(self)
         # Stop work (remove_listener, release) for whichever thread holds the lock.
         # Stop never waits for the lock: a profiler SIGTERM/SIGINT handler runs on the
         # main thread between bytecodes, and can land while that same thread holds this
@@ -107,6 +127,12 @@ class GCPauseMonitor:
         self._pending_releases: deque[None] = deque()
         self._refcount: int = 0
         self._fork_registered: bool = False
+        self._held_lock_logged: bool = False
+        # Set when the last release is applied inside _on_gc. CPython walks
+        # gc.callbacks by index while it calls them, so removing this hook there
+        # would skip the callback after it for that phase. The hook stays installed,
+        # inert at refcount 0, until a section outside a collection removes it.
+        self._hook_removal_pending: bool = False
         # Bind once. Each evaluation of self._on_gc builds a new bound method, and
         # _remove_gc_callback finds the installed hook by identity.
         self._gc_hook: Callable[[str, dict[str, int]], None] = self._on_gc
@@ -118,44 +144,83 @@ class GCPauseMonitor:
         # Tuple so _on_gc can iterate without allocating a copy.
         self._listeners: tuple[PauseListener, ...] = ()
 
-    def _unlock(self) -> None:
-        """Release the lock, then apply stop work queued while it was held."""
-        self._lock.release()
-        if self._pending_removes or self._pending_releases:
-            self._apply_pending()
+    def _has_pending(self, in_gc_callback: bool) -> bool:
+        return bool(
+            self._pending_removes or self._pending_releases or (self._hook_removal_pending and not in_gc_callback)
+        )
 
-    def _apply_pending(self) -> None:
+    def _apply_pending(self, in_gc_callback: bool = False) -> None:
         # Stop queues its work before it tries the lock, and every unlock checks the
         # queues after it releases, so whichever thread comes last applies the work.
-        while self._pending_removes or self._pending_releases:
+        # A failed entry is logged, not raised: the caller can be a GC callback (where
+        # CPython prints it as unraisable) or a stop that must still finish.
+        while self._has_pending(in_gc_callback):
             if not self._lock.acquire(False):
                 return
+            failed: bool = False
             try:
                 while self._pending_removes:
-                    self._apply_remove_listener_locked(self._pending_removes.popleft())
+                    listener: PauseListener = self._pending_removes[0]
+                    try:
+                        self._apply_remove_listener_locked(listener)
+                    except Exception:
+                        # Removing is idempotent, so keep it queued for the next unlock.
+                        log.debug("Failed to remove GC pause listener %r", listener, exc_info=True)
+                        failed = True
+                        break
+                    self._pending_removes.popleft()
                 while self._pending_releases:
+                    # Popped first: a release that raised after the refcount drop must
+                    # not drop it again on retry.
                     self._pending_releases.popleft()
-                    self._apply_one_release_locked()
+                    try:
+                        self._apply_one_release_locked(in_gc_callback)
+                    except Exception:
+                        log.debug("Failed to release the GC pause monitor", exc_info=True)
+                if self._hook_removal_pending and not in_gc_callback:
+                    self._hook_removal_pending = False
+                    if self._refcount == 0 and _gc_callbacks_supported():
+                        _remove_gc_callback(self._gc_hook)
             finally:
                 self._lock.release()
+            if failed:
+                return
+
+    def _wait_while_held(self) -> None:
+        if not self._lock.locked():
+            return
+        deadline: float = time.monotonic() + _HELD_LOCK_TIMEOUT_S
+        # An unpatched lock's timed acquire as the sleep, so this waits the same way
+        # under gevent, on application threads and on ddtrace threads.
+        pause: threading_Lock = threading_Lock()
+        pause.acquire()
+        while self._lock.locked():
+            if time.monotonic() >= deadline:
+                raise GCMonitorLockHeld("GC pause monitor lock held for over %ss" % _HELD_LOCK_TIMEOUT_S)
+            pause.acquire(timeout=_HELD_LOCK_POLL_S)
 
     @contextmanager
     def _holding_lock(self) -> Iterator[None]:
         # Take the lock with a with statement, not acquire() then try. Except on 3.14,
         # CPython runs no signal handler between a with statement taking the lock and
         # its protection starting, so a raising handler cannot leave the lock held.
-        # Then apply stop work queued while it was held, as _unlock does.
+        # A timed acquire would reopen that gap, so wait for the lock to be free
+        # first, and raise GCMonitorLockHeld rather than block forever on a lock that
+        # _on_gc left held. A holder that takes it between that wait and the with
+        # statement can still make the with statement wait.
+        # Then apply stop work queued while it was held, as _on_gc does.
+        self._wait_while_held()
         try:
             with self._lock:
                 yield
         finally:
-            if self._pending_removes or self._pending_releases:
+            if self._has_pending(False):
                 self._apply_pending()
 
     def _apply_remove_listener_locked(self, listener: PauseListener) -> None:
         self._listeners = tuple(item for item in self._listeners if item is not listener)
 
-    def _apply_one_release_locked(self) -> None:
+    def _apply_one_release_locked(self, in_gc_callback: bool = False) -> None:
         """Drop one refcount under the lock, and uninstall when it reaches zero."""
         if self._refcount <= 0:
             return
@@ -164,7 +229,9 @@ class GCPauseMonitor:
         if self._refcount != 0:
             return
 
-        if _gc_callbacks_supported():
+        if in_gc_callback:
+            self._hook_removal_pending = True
+        elif _gc_callbacks_supported():
             _remove_gc_callback(self._gc_hook)
         if self._fork_registered:
             forksafe.unregister(self._fork_hook)
@@ -211,18 +278,28 @@ class GCPauseMonitor:
 
     def reset(self) -> None:
         """Drop in-flight starts and the current window. Used after fork."""
-        with self._holding_lock():
-            self._clear_starts()
-            self._clear_window()
+        try:
+            with self._holding_lock():
+                self._clear_starts()
+                self._clear_window()
+        except GCMonitorLockHeld:
+            log.debug("GC pause monitor lock left held, not resetting", exc_info=True)
 
     def snapshot_and_reset(self) -> GCPauseSnapshot:
         # Copy primitives under the lock and build the tuple outside it. Allocating
         # can trigger a collection, and _on_gc would then run on this thread.
-        with self._holding_lock():
-            n_pauses: int = self._count
-            total_ns: int = self._total_ns
-            max_ns: int = self._max_ns
-            self._clear_window()
+        try:
+            with self._holding_lock():
+                n_pauses: int = self._count
+                total_ns: int = self._total_ns
+                max_ns: int = self._max_ns
+                self._clear_window()
+        except GCMonitorLockHeld:
+            # Skip this interval. The window keeps its pauses for a later snapshot.
+            if not self._held_lock_logged:
+                self._held_lock_logged = True
+                log.debug("GC pause monitor lock left held, reporting no pauses until it is free")
+            return GCPauseSnapshot(0, 0, 0)
         return GCPauseSnapshot(n_pauses, total_ns, max_ns)
 
     def _clear_starts(self) -> None:
@@ -246,18 +323,19 @@ class GCPauseMonitor:
         # later stop cannot pair with it. Writing zero without the lock is safe
         # because every other writer holds the lock and only writes zero, or is
         # _on_gc, and CPython runs one collection at a time.
+        pause_ns: int = 0
+        listeners: tuple[PauseListener, ...] = ()
         if not self._lock.acquire(False):
             self._start_ns[gen] = 0
             return
 
-        pause_ns: int = 0
-        listeners: tuple[PauseListener, ...] = ()
         # DEV: CPython runs pending signal handlers when a call returns. If a handler
         # raises between acquire() and try, the lock stays held preventing us
-        # from sending any further metrics, snapshot_and_reset() will block forever,
+        # from sending any further metrics: snapshot_and_reset() reports no pauses,
+        # acquire() and add_listener() raise GCMonitorLockHeld after a bounded wait,
         # and stop work queued by remove_listener() and release() is never applied.
         # A with statement cannot acquire without blocking, so Python code
-        # cannot closethis gap.
+        # cannot close this gap.
         try:
             if phase == _GCPhase.START:
                 # A start callback can run after release() uninstalls. Storing a
@@ -287,9 +365,13 @@ class GCPauseMonitor:
                 self._max_ns = pause_ns
             listeners = self._listeners
         finally:
+            # Released here, not in a helper: a signal handler can run when a Python
+            # function starts, before it would release.
+            self._lock.release()
             # Also applies a stop that a signal handler queued while this callback
             # held the lock.
-            self._unlock()
+            if self._pending_removes or self._pending_releases:
+                self._apply_pending(in_gc_callback=True)
 
         # Call after the lock is dropped. The tuple was swapped in add/remove,
         # so this loop does not allocate.
@@ -297,8 +379,23 @@ class GCPauseMonitor:
         for listener in listeners:
             try:
                 listener(gen, pause_ns)
-            except Exception:  # nosec B110
-                pass
+            except Exception:
+                # This can also be a signal handler's exception (a SIGALRM timeout,
+                # say). CPython drops whatever a GC callback raises, so log it rather
+                # than lose it silently.
+                log.debug("GC pause listener %r raised", listener, exc_info=True)
+
+
+_monitors_with_plain_locks: weakref.WeakSet[GCPauseMonitor] = weakref.WeakSet()
+
+
+@forksafe.register
+def _reset_monitor_locks() -> Iterator[None]:
+    # A wrapper, so the reset runs before every regular after-fork hook in the child,
+    # whatever the import order, including reset(), which takes the lock.
+    for monitor in list(_monitors_with_plain_locks):
+        monitor._lock._at_fork_reinit()  # type: ignore[attr-defined]
+    yield
 
 
 _MONITOR: Optional[GCPauseMonitor] = None
