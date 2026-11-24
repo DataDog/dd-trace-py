@@ -23,6 +23,10 @@ def _headers_as_str(headers: Any) -> dict[str, str]:
     }
 
 
+def _headers_byte_size(headers: Any) -> int:
+    return sum(_calculate_byte_size(key) + _calculate_byte_size(val) for key, val in (headers or []))
+
+
 def dsm_kafka_python_send_start(
     topic: str,
     value: Any,
@@ -36,7 +40,7 @@ def dsm_kafka_python_send_start(
     if not dsm_processor:
         return
 
-    payload_size = _calculate_byte_size(value) + _calculate_byte_size(key) + _calculate_byte_size(dict(headers))
+    payload_size = _calculate_byte_size(value) + _calculate_byte_size(key) + _headers_byte_size(headers)
 
     cluster_id = core.find_item("kafka_cluster_id")
     edge_tags = ["direction:out", f"topic:{topic}", "type:kafka"]
@@ -77,7 +81,9 @@ def dsm_kafka_python_message_consume(instance: Any, span_ctx: core.ExecutionCont
     group = instance.config.get("group_id")
     cluster_id = core.find_item("kafka_cluster_id")
 
-    payload_size = _calculate_byte_size(record.value) + _calculate_byte_size(record.key) + _calculate_byte_size(headers)
+    payload_size = (
+        _calculate_byte_size(record.value) + _calculate_byte_size(record.key) + _headers_byte_size(record.headers)
+    )
 
     ctx = DsmPathwayCodec.decode(headers, dsm_processor)
     edge_tags = ["direction:in", f"topic:{record.topic}", "type:kafka"]

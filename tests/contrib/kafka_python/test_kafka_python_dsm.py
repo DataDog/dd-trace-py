@@ -191,3 +191,37 @@ def test_produce_checkpoint_without_header_support(dsm_processor):
     ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
     producer_hash = ctx._compute_hash(producer_tags, 0)
     assert (",".join(producer_tags), producer_hash, 0) in pathway_stats_merged(dsm_processor)
+
+
+def test_payload_size_counts_raw_header_bytes(dsm_processor):
+    from ddtrace.internal.native import DDSketch
+
+    topic = create_topic("payload_raw_headers")
+    value = b"x" * 10
+    headers = [("bin", b"\xff\xfe" + b"y" * 14), ("dup", b"one"), ("dup", b"two")]
+    producer = make_producer()
+    try:
+        producer.send(topic, value=value, headers=headers).get(timeout=30)
+    finally:
+        producer.close()
+
+    consumer = make_consumer(topic)
+    try:
+        (record,) = iterate_records(consumer, 1)
+    finally:
+        consumer.close(autocommit=False)
+
+    expected_size = (
+        len(record.value or b"") + len(record.key or b"") + sum(len(key) + len(val) for key, val in record.headers)
+    )
+    user_header_bytes = sum(len(key) + len(val) for key, val in headers)
+    assert expected_size >= len(value) + user_header_bytes + len(PROPAGATION_KEY_BASE_64)
+
+    expected_sketch = DDSketch()
+    expected_sketch.add(expected_size)
+
+    stats = pathway_stats_merged(dsm_processor)
+    assert len(stats) == 2
+    for (tags, _, _), stat in stats.items():
+        assert stat.payload_size.count == 1
+        assert stat.payload_size.to_proto() == expected_sketch.to_proto()
