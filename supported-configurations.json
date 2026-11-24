@@ -6160,6 +6160,14 @@
         "internal": true
       }
     ],
+    "_DD_COVERAGE_INSTRUCTION_PROBES": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
     "_DD_COVERAGE_INTERNAL_REARM": [
       {
         "implementation": "A",
