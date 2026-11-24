@@ -1857,6 +1857,19 @@ if not IS_PYSTON:
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
+        if sys.version_info >= (3, 12) and sys.implementation.name == "cpython":
+            # Per-test line coverage on sys.monitoring. Optional: without it, coverage falls back to
+            # the Python collector.
+            ext_modules.append(
+                Extension(
+                    "ddtrace.internal.coverage._linecov",
+                    sources=[
+                        "ddtrace/internal/coverage/_linecov.c",
+                    ],
+                    extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+                    optional=True,
+                )
+            )
         ext_modules.append(
             Extension(
                 "ddtrace.appsec._iast._ast.iastpatch",
