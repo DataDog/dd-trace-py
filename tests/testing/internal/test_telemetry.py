@@ -226,6 +226,16 @@ class TestTelemetry:
             )
         ]
 
+    def test_record_coverage_counts(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_coverage_started(test_framework="pytest", coverage_library="ddtrace", count=7)
+        telemetry_api.record_coverage_finished(test_framework="pytest", coverage_library="ddtrace", count=6)
+
+        tags = (("library", "ddtrace"), ("test_framework", "pytest"))
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "code_coverage_started", 7, tags),
+            call(CIVISIBILITY, "code_coverage_finished", 6, tags),
+        ]
+
     def test_record_coverage_is_empty(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_coverage_is_empty()
 

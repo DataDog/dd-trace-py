@@ -111,7 +111,8 @@ typedef _PyCoMonitoringData dd_monitoring;
 typedef struct
 {
     uint8_t* bits;
-    uint32_t nbytes;
+    uint32_t nbytes; /* allocated */
+    uint32_t used;   /* bytes up to the last one with a bit set */
 } Bitset;
 
 static int
@@ -138,6 +139,8 @@ bitset_set(Bitset* b, uint32_t line)
     if (byte >= b->nbytes && bitset_reserve(b, byte + 1) < 0)
         return -1;
     b->bits[byte] |= (uint8_t)(0x80 >> (line & 7));
+    if (byte >= b->used)
+        b->used = byte + 1;
     return 0;
 }
 
@@ -145,28 +148,27 @@ static inline int
 bitset_has(const Bitset* b, uint32_t line)
 {
     uint32_t byte = line >> 3;
-    return byte < b->nbytes && (b->bits[byte] & (uint8_t)(0x80 >> (line & 7)));
+    return byte < b->used && (b->bits[byte] & (uint8_t)(0x80 >> (line & 7)));
 }
 
 static int
 bitset_or(Bitset* dst, const Bitset* src)
 {
-    if (src->nbytes == 0)
+    if (src->used == 0)
         return 0;
-    if (bitset_reserve(dst, src->nbytes) < 0)
+    if (bitset_reserve(dst, src->used) < 0)
         return -1;
-    for (uint32_t i = 0; i < src->nbytes; i++)
+    for (uint32_t i = 0; i < src->used; i++)
         dst->bits[i] |= src->bits[i];
+    if (src->used > dst->used)
+        dst->used = src->used;
     return 0;
 }
 
-static uint32_t
+static inline uint32_t
 bitset_used(const Bitset* b)
 {
-    uint32_t n = b->nbytes;
-    while (n > 0 && b->bits[n - 1] == 0)
-        n--;
-    return n;
+    return b->used;
 }
 
 static void
@@ -175,6 +177,7 @@ bitset_free(Bitset* b)
     PyMem_RawFree(b->bits);
     b->bits = NULL;
     b->nbytes = 0;
+    b->used = 0;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -351,8 +354,10 @@ context_set(Context* c, int32_t file_id, uint32_t line)
         uint32_t hint = g_files[file_id].hint_nbytes;
         if (bitset_reserve(b, hint > (line >> 3) ? hint : (line >> 3) + 1) < 0)
             return -1;
-        if (context_touch(c, file_id) < 0)
+        if (context_touch(c, file_id) < 0) {
+            bitset_free(b);
             return -1;
+        }
     }
     if (bitset_set(b, line) < 0)
         return -1;
@@ -834,16 +839,14 @@ Context_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
     static char* kwlist[] = { "fixture", NULL };
     int fixture = 0;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &fixture))
+    /* A test context per test: skip argument parsing when there is nothing to parse. */
+    if ((kwds != NULL || PyTuple_GET_SIZE(args) != 0) &&
+        !PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &fixture))
         return NULL;
     Context* c = (Context*)type->tp_alloc(type, 0);
     if (c == NULL)
         return NULL;
     c->kind = fixture ? CONTEXT_FIXTURE : CONTEXT_TEST;
-    if (context_reserve_files(c, g_n_files > 0 ? g_n_files - 1 : 0) < 0) {
-        Py_DECREF(c);
-        return PyErr_NoMemory();
-    }
     return (PyObject*)c;
 }
 
@@ -886,8 +889,9 @@ Context_dealloc(Context* c)
     PyObject_GC_UnTrack(c);
     context_deactivate(c);
     Context_clear(c);
-    for (int32_t i = 0; i < c->cap_files; i++)
-        bitset_free(&c->files[i]);
+    /* Only touched files have bits: context_set lists a file when it gives it bits. */
+    for (int32_t k = 0; k < c->n_touched; k++)
+        bitset_free(&c->files[c->touched[k]]);
     PyMem_RawFree(c->files);
     PyMem_RawFree(c->touched);
     Py_TYPE(c)->tp_free((PyObject*)c);
@@ -917,6 +921,46 @@ static PyObject*
 Context_pop(Context* c, PyObject* Py_UNUSED(ignored))
 {
     context_deactivate(c);
+    Py_RETURN_NONE;
+}
+
+/* enter() -> previous: push, then make this context the running one (the ctxvar init was given).
+   Returns the running context it replaced, for exit(). */
+static PyObject*
+Context_enter(Context* c, PyObject* Py_UNUSED(ignored))
+{
+    if (g_ctxvar == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "_linecov.init() was not called");
+        return NULL;
+    }
+    PyObject* previous = NULL;
+    if (PyContextVar_Get(g_ctxvar, Py_None, &previous) < 0)
+        return NULL;
+    PyObject* r = Context_push(c, NULL);
+    if (r == NULL) {
+        Py_DECREF(previous);
+        return NULL;
+    }
+    Py_DECREF(r);
+    PyObject* token = PyContextVar_Set(g_ctxvar, (PyObject*)c);
+    if (token == NULL) {
+        context_deactivate(c);
+        Py_DECREF(previous);
+        return NULL;
+    }
+    Py_DECREF(token);
+    return previous;
+}
+
+/* exit(previous): make previous the running context again, then pop. */
+static PyObject*
+Context_exit(Context* c, PyObject* previous)
+{
+    PyObject* token = PyContextVar_Set(g_ctxvar, previous);
+    context_deactivate(c);
+    if (token == NULL)
+        return NULL;
+    Py_DECREF(token);
     Py_RETURN_NONE;
 }
 
@@ -1070,6 +1114,8 @@ Context_get_fixtures(Context* c, void* Py_UNUSED(closure))
 static PyMethodDef Context_methods[] = {
     { "push", (PyCFunction)Context_push, METH_NOARGS, "Activate, re-arming disabled lines." },
     { "pop", (PyCFunction)Context_pop, METH_NOARGS, "Deactivate." },
+    { "enter", (PyCFunction)Context_enter, METH_NOARGS, "Push and run in this context; returns the previous one." },
+    { "exit", (PyCFunction)Context_exit, METH_O, "Run in the given previous context again, and pop." },
     { "bitmaps", (PyCFunction)(void (*)(void))Context_bitmaps, METH_FASTCALL, "Record bitmaps." },
     { "covered", (PyCFunction)Context_covered, METH_NOARGS, "Own lines by absolute path." },
     { NULL, NULL, 0, NULL },

@@ -140,28 +140,41 @@ def set_native_coverage_context(context: t.Any) -> None:
     native_lines.ctx_native.set(context)
 
 
-@contextlib.contextmanager
-def coverage_collection(
-    test_file: t.Optional[Path] = None,
-) -> t.Generator[CoverageData, None, None]:
-    if native_lines.enabled():
-        # Native collection needs only its own context: the generic collector stack serves the
-        # Python hooks, which native collection does not register.
-        coverage_data = CoverageData()
-        context = native_lines.new_context()
-        previous = native_lines.ctx_native.get()
-        # Pushing re-arms the lines disabled since the previous push.
-        context.push()
-        native_lines.ctx_native.set(context)
-        try:
-            yield coverage_data
-        finally:
-            native_lines.ctx_native.set(previous)
-            context.pop()
-            # The payload is built after the test finishes, from the native bitmaps.
-            coverage_data._native = context
-        return
+class _NativeCollection:
+    """Runs one test in its own native coverage context.
 
+    Native collection needs only its own context: the generic collector stack serves the Python
+    hooks, which native collection does not register. A class rather than a generator, because
+    it runs for every test.
+    """
+
+    __slots__ = ("_data", "_context", "_previous")
+
+    def __init__(self) -> None:
+        self._data = CoverageData()
+        self._context = native_lines.new_context()
+        self._previous: t.Any = None
+
+    def __enter__(self) -> CoverageData:
+        # Entering re-arms the lines disabled since the previous push.
+        self._previous = self._context.enter()
+        return self._data
+
+    def __exit__(self, exc_type: t.Any, exc_value: t.Any, tb: t.Any) -> None:
+        self._context.exit(self._previous)
+        self._previous = None
+        # The payload is built after the test finishes, from the native bitmaps.
+        self._data._native = self._context
+
+
+def coverage_collection(test_file: t.Optional[Path] = None) -> t.ContextManager[CoverageData]:
+    if native_lines.enabled():
+        return _NativeCollection()
+    return _collection_in_context(test_file)
+
+
+@contextlib.contextmanager
+def _collection_in_context(test_file: t.Optional[Path]) -> t.Generator[CoverageData, None, None]:
     with ModuleCodeCollector.CollectInContext(test_file=test_file) as coverage_collector:
         coverage_data = CoverageData()
         yield coverage_data
