@@ -430,11 +430,18 @@ def _acquired_monitor_with_listener() -> Iterator[tuple[GCPauseMonitor, PauseLis
                 forksafe.unregister(monitor._fork_hook)
 
 
-def _assert_stopped(monitor: GCPauseMonitor, pause_listener: PauseListener) -> None:
+def _assert_stopped(monitor: GCPauseMonitor, pause_listener: PauseListener, applied_in_gc: bool = False) -> None:
     assert monitor._refcount == 0
-    assert all(cb is not monitor._gc_hook for cb in gc.callbacks)
     assert monitor._fork_hook not in forksafe._registry
     assert pause_listener not in monitor._listeners
+    if applied_in_gc:
+        # Removing the hook while CPython walks gc.callbacks would skip the next
+        # callback, so _on_gc leaves it installed and inert for the next section.
+        assert monitor._hook_removal_pending
+        assert any(cb is monitor._gc_hook for cb in gc.callbacks)
+        monitor.snapshot_and_reset()
+        assert not monitor._hook_removal_pending
+    assert all(cb is not monitor._gc_hook for cb in gc.callbacks)
 
 
 @pytest.mark.parametrize("boundary", ["after_acquire", "before_release"])
@@ -464,7 +471,7 @@ def test_signal_stop_on_the_thread_that_holds_the_lock(section: str, boundary: s
         monitor._lock = lock  # type: ignore[assignment]
 
         assert _finishes(run_section), "stop waited for the lock its own thread holds"
-        _assert_stopped(monitor, pause_listener)
+        _assert_stopped(monitor, pause_listener, applied_in_gc=section == "_on_gc")
 
 
 def test_interrupt_while_a_section_takes_the_lock_does_not_leave_it_held() -> None:
@@ -615,7 +622,7 @@ def test_stop_does_not_wait_for_a_thread_that_takes_the_lock_after_it_is_applied
             let_go.set()
             holder.join(timeout=5)
 
-        _assert_stopped(monitor, pause_listener)
+        _assert_stopped(monitor, pause_listener, applied_in_gc=applied_by == "_on_gc")
 
 
 def test_acquire_right_after_the_last_release_is_applied_stays_installed() -> None:
@@ -970,3 +977,141 @@ def test_an_error_inside_a_section_releases_the_lock(monkeypatch: pytest.MonkeyP
         gc_monitor._remove_gc_callback(monitor._gc_hook)
         if monitor._fork_hook in forksafe._registry:
             forksafe.unregister(monitor._fork_hook)
+
+
+def test_failed_stop_work_inside_a_collection_is_not_raised_and_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stop work that raises while _on_gc applies it must not escape the GC callback.
+
+    CPython prints whatever a GC callback raises as unraisable, from inside the
+    application's gc.collect() or allocation. A remove that failed stays queued, and
+    the release queued behind it still applies.
+    """
+    monitor: GCPauseMonitor
+    pause_listener: PauseListener
+    with _acquired_monitor_with_listener() as (monitor, pause_listener):
+        apply_remove: Callable[[PauseListener], None] = monitor._apply_remove_listener_locked
+        failures: list[int] = [1]
+
+        def flaky_remove(listener: PauseListener) -> None:
+            if failures[0]:
+                failures[0] -= 1
+                raise MemoryError("injected")
+            apply_remove(listener)
+
+        def stop() -> None:
+            monitor.remove_listener(pause_listener)
+            monitor.release()
+
+        monkeypatch.setattr(monitor, "_apply_remove_listener_locked", flaky_remove)
+        lock: _LockWithStop = _LockWithStop(monitor._lock)
+        lock.after_acquire = stop
+        monitor._lock = lock  # type: ignore[assignment]
+        monitor._on_gc("start", {"generation": 0})
+
+        assert monitor._refcount == 0
+        assert list(monitor._pending_removes) == [pause_listener]
+        assert not monitor._lock.locked()
+        monitor.snapshot_and_reset()
+        _assert_stopped(monitor, pause_listener)
+
+
+def test_failed_remove_listener_does_not_raise_into_the_stop(monkeypatch: pytest.MonkeyPatch) -> None:
+    monitor: GCPauseMonitor
+    pause_listener: PauseListener
+    with _acquired_monitor_with_listener() as (monitor, pause_listener):
+
+        def failing_remove(listener: PauseListener) -> None:
+            raise MemoryError("injected")
+
+        monkeypatch.setattr(monitor, "_apply_remove_listener_locked", failing_remove)
+        monitor.remove_listener(pause_listener)
+        monitor.release()
+        assert monitor._refcount == 0
+        assert not monitor._lock.locked()
+        monkeypatch.undo()
+        monitor.snapshot_and_reset()
+        _assert_stopped(monitor, pause_listener)
+
+
+def test_failed_release_does_not_raise_into_the_stop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A release that raises is logged, and not applied again: it can raise after dropping the refcount."""
+    monitor: GCPauseMonitor
+    pause_listener: PauseListener
+    with _acquired_monitor_with_listener() as (monitor, pause_listener):
+        logged: list[str] = []
+        monkeypatch.setattr(gc_monitor.log, "debug", lambda msg, *args, **kwargs: logged.append(msg))
+
+        def failing_release(in_gc_callback: bool = False) -> None:
+            raise MemoryError("injected")
+
+        monkeypatch.setattr(monitor, "_apply_one_release_locked", failing_release)
+        monitor.remove_listener(pause_listener)
+        monitor.release()
+        assert logged == ["Failed to release the GC pause monitor"]
+        assert not monitor._pending_releases
+        assert not monitor._lock.locked()
+        assert pause_listener not in monitor._listeners
+        # This release raised before dropping the refcount, so its reference stays held.
+        assert monitor._refcount == 1
+        monkeypatch.undo()
+        monitor.release()
+        _assert_stopped(monitor, pause_listener)
+
+
+def test_last_release_inside_a_collection_does_not_skip_the_next_callback() -> None:
+    """CPython walks gc.callbacks by index while it calls them.
+
+    If _on_gc removed its own hook there, the callback after it would miss that phase.
+    """
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    phases: list[str] = []
+
+    def next_callback(phase: str, info: dict[str, int]) -> None:
+        phases.append(phase)
+
+    monitor.acquire()
+    gc.callbacks.append(next_callback)
+    try:
+        lock: _LockWithStop = _LockWithStop(monitor._lock)
+        armed: list[bool] = [False]
+
+        def release_during_stop() -> None:
+            if armed[0] and monitor._start_ns[2]:
+                armed[0] = False
+                monitor.release()
+            else:
+                lock.after_acquire = release_during_stop
+
+        lock.after_acquire = release_during_stop
+        monitor._lock = lock  # type: ignore[assignment]
+        armed[0] = True
+        phases.clear()
+        gc.collect()
+        assert phases[:2] == ["start", "stop"]
+        assert monitor._refcount == 0
+        monitor.snapshot_and_reset()
+        assert all(cb is not monitor._gc_hook for cb in gc.callbacks)
+    finally:
+        gc.callbacks.remove(next_callback)
+        gc_monitor._remove_gc_callback(monitor._gc_hook)
+        if monitor._fork_hook in forksafe._registry:
+            forksafe.unregister(monitor._fork_hook)
+
+
+def test_listener_error_is_logged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A listener exception can be a signal handler's (a SIGALRM timeout); do not drop it silently."""
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    logged: list[str] = []
+    monkeypatch.setattr(gc_monitor.log, "debug", lambda msg, *args, **kwargs: logged.append(msg))
+
+    def failing_listener(generation: int, pause_ns: int) -> None:
+        raise TimeoutError("customer timeout")
+
+    with _automatic_gc_disabled():
+        monitor._refcount = 1
+        monitor.add_listener(failing_listener)
+        monitor._on_gc("start", {"generation": 0})
+        monitor._on_gc("stop", {"generation": 0})
+        monitor._refcount = 0
+
+    assert logged == ["GC pause listener %r raised"]
