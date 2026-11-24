@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
@@ -10,9 +14,38 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
+from ddtrace.appsec._iast.taint_sinks._base import TEXT_TYPES
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.security._patch_utils import get_caller_frame_info
 from ddtrace.internal.settings.asm import config as asm_config
+
+
+if TYPE_CHECKING:
+    from typing import Callable
+    from typing import Optional
+    from typing import TypedDict
+    from typing import TypeVar
+    from typing import Union
+
+    from typing_extensions import Unpack
+
+    _ReturnT = TypeVar("_ReturnT")
+
+    class _CookieKwargs(TypedDict, total=False):
+        key: Optional[TEXT_TYPES]
+        name: Optional[TEXT_TYPES]
+        value: object
+        secure: Optional[bool]
+        httponly: Optional[bool]
+        samesite: Optional[str]
+        # These options are forwarded without inspection.
+        max_age: object
+        expires: object
+        path: object
+        domain: object
+        version: object
+        comment: object
+        partitioned: object
 
 
 class InsecureCookie(VulnerabilityBase):
@@ -33,7 +66,13 @@ class CookiesVulnerability(VulnerabilityBase):
     vulnerability_type = "COOKIES_VULNERABILITY"
 
     @classmethod
-    def report_cookies(cls, evidence_value, insecure_cookie, no_http_only, no_samesite) -> None:
+    def report_cookies(
+        cls,
+        evidence_value: Optional[TEXT_TYPES],
+        insecure_cookie: bool,
+        no_http_only: bool,
+        no_samesite: bool,
+    ) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         if insecure_cookie or no_http_only or no_samesite:
             if should_process_vulnerability(InsecureCookie.vulnerability_type):
@@ -94,7 +133,7 @@ def get_version() -> str:
 _IS_PATCHED = False
 
 
-def patch():
+def patch() -> None:
     global _IS_PATCHED
     if _IS_PATCHED and not asm_config._iast_is_testing:
         return
@@ -118,7 +157,12 @@ def patch():
     _set_metric_iast_instrumented_sink(VULN_NO_SAMESITE_COOKIE)
 
 
-def _iast_response_cookies(wrapped, instance, args, kwargs):
+def _iast_response_cookies(
+    wrapped: Callable[..., _ReturnT],
+    instance: object,
+    args: Union[tuple[()], tuple[Optional[TEXT_TYPES], Unpack[tuple[object, ...]]]],
+    kwargs: _CookieKwargs,
+) -> _ReturnT:
     try:
         cookie_key = args[0] if args else kwargs.get("key", kwargs.get("name"))
         cookie_value = args[1] if len(args) > 1 else kwargs.get("value")
