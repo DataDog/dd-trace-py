@@ -4,6 +4,14 @@ from ddtrace.internal.core.subscriber import SubscriberBundle
 from ddtrace.internal.settings.asm import config
 
 
+WEB_FRAMEWORK_SUBSCRIBERS = (
+    SubscriberBundle(
+        module="ddtrace.appsec._contrib.web_framework.subscribers",
+        subscribers=("AppSecWebFrameworkSubscriber",),
+    ),
+)
+
+
 EXPLOIT_PREVENTION_SUBSCRIBERS = (
     SubscriberBundle(
         module="ddtrace.appsec._contrib.dbapi.subscribers",
@@ -21,12 +29,15 @@ EXPLOIT_PREVENTION_SUBSCRIBERS = (
 
 
 def register() -> None:
-    if config._asm_enabled and config._ep_enabled:
-        for bundle in EXPLOIT_PREVENTION_SUBSCRIBERS:
+    if config._asm_enabled:
+        for bundle in WEB_FRAMEWORK_SUBSCRIBERS:
             bundle.register()
+        if config._ep_enabled:
+            for bundle in EXPLOIT_PREVENTION_SUBSCRIBERS:
+                bundle.register()
 
 
 def unregister() -> None:
     # These listeners inspect operations; request cleanup is owned by asm_listen().
-    for bundle in EXPLOIT_PREVENTION_SUBSCRIBERS:
+    for bundle in WEB_FRAMEWORK_SUBSCRIBERS + EXPLOIT_PREVENTION_SUBSCRIBERS:
         bundle.unregister()

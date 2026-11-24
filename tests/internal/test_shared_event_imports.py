@@ -7,6 +7,11 @@ import pytest
     "original_module, canonical_module, names",
     [
         (
+            "ddtrace.contrib._events.web_framework",
+            "ddtrace._trace.events",
+            ("WebFrameworkResponseEvent",),
+        ),
+        (
             "ddtrace.contrib._events.exception",
             "ddtrace.internal.core.exception",
             ("ContextExceptionEvent",),
