@@ -11,13 +11,13 @@ import re
 import pytest
 
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import SensitiveHandler
+from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
-from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability

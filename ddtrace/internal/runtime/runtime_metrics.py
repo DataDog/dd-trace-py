@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import itertools
+import sys
+from types import ModuleType
 from typing import Any
 from typing import Generic
 from typing import Iterable
@@ -13,6 +15,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
 from ddtrace.internal.constants import RUNTIME_METRICS_ENABLED_KEY
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -23,6 +26,7 @@ from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
 from ..serverless import in_aws_lambda_microvm
+from . import gc_at_fork
 from .collector import ValueCollector
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL
@@ -94,11 +98,99 @@ class RuntimeMetrics(RuntimeCollectorsIterable[tuple[str, MetricValue]]):
     ]
 
 
+# The ddtrace bootstrap (ddtrace-run or ddtrace.auto) sets up the OpenTelemetry meter provider that exports the
+# runtime metrics, once the application imports OpenTelemetry.
+_BOOTSTRAP_MODULE = "ddtrace.bootstrap.preload"
+# opentelemetry-sdk 1.16.0 is the first version whose _init_metrics() accepts the resource of that meter provider, which
+# requires an OTLP exporter 1.15.0 or higher.
+_OTEL_API_MINIMUM_VERSION = (1, 16, 0)
+_OTEL_SDK_MINIMUM_VERSION = (1, 16, 0)
+_OTLP_EXPORTER_MINIMUM_VERSION = (1, 15, 0)
+_OTLP_METRICS_EXPORTERS = {
+    "grpc": "opentelemetry-exporter-otlp-proto-grpc",
+    "http/protobuf": "opentelemetry-exporter-otlp-proto-http",
+}
+_OTLP_RUNTIME_METRICS_MODULE = "ddtrace.internal.runtime.otlp_runtime_metrics"
+
+
+def _can_export_otlp_runtime_metrics() -> bool:
+    """Whether ddtrace sets up an OpenTelemetry meter provider that can export the runtime metrics over OTLP.
+
+    This requires the ddtrace bootstrap, and the OpenTelemetry API, SDK and OTLP exporter of the configured protocol.
+    It reads the installed distributions instead of importing OpenTelemetry, which ddtrace only sets up once the
+    application imports it.
+    """
+    if _BOOTSTRAP_MODULE not in sys.modules:
+        log.warning(
+            "Runtime metrics are sent to DogStatsD: use ddtrace-run or import ddtrace.auto to export them over OTLP."
+        )
+        return False
+
+    from ddtrace.internal.packages import get_version_for_package
+    from ddtrace.internal.settings._opentelemetry import otel_config
+    from ddtrace.internal.utils.version import parse_version
+
+    protocol = otel_config.exporter.METRICS_PROTOCOL
+    exporter = _OTLP_METRICS_EXPORTERS.get(protocol)
+    if exporter is None:
+        log.warning(
+            "Runtime metrics are sent to DogStatsD: exporting them over OTLP requires the grpc or http/protobuf "
+            "protocol, not %r.",
+            protocol,
+        )
+        return False
+
+    for distribution, minimum_version in (
+        ("opentelemetry-api", _OTEL_API_MINIMUM_VERSION),
+        ("opentelemetry-sdk", _OTEL_SDK_MINIMUM_VERSION),
+        (exporter, _OTLP_EXPORTER_MINIMUM_VERSION),
+    ):
+        version = get_version_for_package(distribution)
+        if not version or parse_version(version) < minimum_version:
+            log.warning(
+                "Runtime metrics are sent to DogStatsD: exporting them over OTLP requires %s %s or higher "
+                "(installed: %s).",
+                distribution,
+                ".".join(str(x) for x in minimum_version),
+                version or "none",
+            )
+            return False
+    return True
+
+
+def _start_otlp_runtime_metrics(_opentelemetry: ModuleType) -> None:
+    """Report the runtime metrics through the OpenTelemetry metrics API once the application imports OpenTelemetry.
+
+    This is also when ddtrace sets up the OpenTelemetry meter provider. Importing OpenTelemetry before the application
+    does would load it before the application can patch it, for instance with gevent, and the ddtrace bootstrap could
+    unload it.
+    """
+    try:
+        from . import otlp_runtime_metrics
+
+        otlp_runtime_metrics.start()
+    except Exception:
+        log.warning("Failed to report runtime metrics through OpenTelemetry", exc_info=True)
+
+
+def _stop_otlp_runtime_metrics() -> None:
+    ModuleWatchdog.unregister_module_hook("opentelemetry", _start_otlp_runtime_metrics)
+    otlp_runtime_metrics = sys.modules.get(_OTLP_RUNTIME_METRICS_MODULE)
+    if otlp_runtime_metrics is not None:
+        otlp_runtime_metrics.stop()
+
+
 class RuntimeWorker(periodic.PeriodicService):
-    """Worker thread for collecting and writing runtime metrics to a DogStatsd client."""
+    """Worker thread for collecting and writing runtime metrics to a DogStatsd client.
+
+    When OpenTelemetry metrics are enabled, the runtime metrics are reported through the OpenTelemetry metrics API
+    instead, once the application imports OpenTelemetry, and no worker thread is started.
+    """
 
     enabled = False
     _instance: Optional[RuntimeWorker] = None
+    # Whether the runtime metrics are reported through the OpenTelemetry metrics API, instead of by _instance.
+    _otlp = False
     _lock = Lock()
 
     def __init__(self, interval: float = DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url: Optional[str] = None) -> None:
@@ -130,20 +222,23 @@ class RuntimeWorker(periodic.PeriodicService):
     @classmethod
     def disable(cls) -> None:
         with cls._lock:
-            if cls._instance is None:
+            if cls._otlp:
+                _stop_otlp_runtime_metrics()
+                cls._otlp = False
+            elif cls._instance is None:
                 return
-
-            cls._instance.stop()
-            # DEV: Use timeout to avoid locking on shutdown. This seems to be
-            # required on some occasions by Python 2.7. Deadlocks seem to happen
-            # when some functionalities (e.g. platform.architecture) are used
-            # which end up calling
-            #    _execute_child (/usr/lib/python2.7/subprocess.py:1023)
-            # This is a continuous attempt to read:
-            #    _eintr_retry_call (/usr/lib/python2.7/subprocess.py:125)
-            # which is the eventual cause of the deadlock.
-            cls._instance.join(1)
-            cls._instance = None
+            else:
+                cls._instance.stop()
+                # DEV: Use timeout to avoid locking on shutdown. This seems to be
+                # required on some occasions by Python 2.7. Deadlocks seem to happen
+                # when some functionalities (e.g. platform.architecture) are used
+                # which end up calling
+                #    _execute_child (/usr/lib/python2.7/subprocess.py:1023)
+                # This is a continuous attempt to read:
+                #    _eintr_retry_call (/usr/lib/python2.7/subprocess.py:125)
+                # which is the eventual cause of the deadlock.
+                cls._instance.join(1)
+                cls._instance = None
             cls.enabled = False
             core.root.set_item(RUNTIME_METRICS_ENABLED_KEY, False)
 
@@ -153,14 +248,22 @@ class RuntimeWorker(periodic.PeriodicService):
         dogstatsd_url: Optional[str] = None,
     ) -> None:
         with cls._lock:
-            if cls._instance is not None:
+            if cls._instance is not None or cls._otlp:
                 return
-            runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url)
-            runtime_worker.start()
 
-            atexit.register(cls.disable)
+            if config._otel_metrics_enabled and _can_export_otlp_runtime_metrics():
+                log.debug("Runtime metrics will be exported over OTLP once the application imports OpenTelemetry")
+                gc_at_fork.record()
+                ModuleWatchdog.after_module_imported("opentelemetry")(_start_otlp_runtime_metrics)
+                cls._otlp = True
+            else:
+                runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url)
+                runtime_worker.start()
+                cls._instance = runtime_worker
+                # Over OTLP, the OpenTelemetry SDK collects the runtime metrics a last time when it shuts down at exit:
+                # disabling them at exit could happen first and drop them.
+                atexit.register(cls.disable)
 
-            cls._instance = runtime_worker
             cls.enabled = True
             core.root.set_item(RUNTIME_METRICS_ENABLED_KEY, True)
 

@@ -11,7 +11,8 @@ A **product** is a unit of code within the library that implements functionality
 customer-facing Datadog products. Examples include the `appsec module <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/appsec>`_
 implementing functionality for `App and API Protection <https://www.datadoghq.com/product/application-security-management/>`_
 and the `profiling <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/profiling>`_ module implementing
-functionality for `Continuous Profiling <https://docs.datadoghq.com/profiler/>`_. Ideally it only contains code
+functionality for `Continuous Profiling <https://docs.datadoghq.com/profiler/>`_ (see the
+`profiler architecture guide <https://github.com/DataDog/dd-trace-py/tree/main/ddtrace/internal/datadog/profiling/docs/Architecture.md>`_). Ideally it only contains code
 that is specific to the Datadog product being supported, and no code related to Integrations.
 
 An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/v3.10.2/ddtrace/contrib/internal>`_
@@ -49,6 +50,9 @@ Step 1: Bootstrap
 
 The autoinstrumentation entrypoint is ``import ddtrace.bootstrap.sitecustomize``. This can be done in user code, either directly or via
 ``import ddtrace.auto``, or behind the scenes by ``ddtrace-run``.
+
+Keep ``ddtrace_commands.ddtrace_run`` limited to standard-library imports during normal launches;
+initialize ddtrace in the application bootstrap without preventing the application from starting.
 
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.
 These are subpackages like ``_trace``, ``profiling``, ``debugging``, ``appsec``, etc. Before starting these Products,

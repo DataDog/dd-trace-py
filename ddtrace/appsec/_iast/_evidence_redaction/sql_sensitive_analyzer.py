@@ -1,5 +1,7 @@
 import re
+from typing import Optional
 
+from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast.constants import DBAPI_MARIADB
 from ddtrace.appsec._iast.constants import DBAPI_MYSQL
 from ddtrace.appsec._iast.constants import DBAPI_MYSQLDB
@@ -17,14 +19,11 @@ POSTGRESQL_ESCAPED_LITERAL = r"\$([^$]*)\$.*?\$\1\$"
 MYSQL_STRING_LITERAL = r'"(?:\\\\"|[^"])*"|\'(?:\\\\\'|[^\'])*\''
 LINE_COMMENT = r"--.*$"
 BLOCK_COMMENT = r"/\*[\s\S]*?\*/"
-EXPONENT = r"(?:E[-+]?\\d+[fd]?)?"
-INTEGER_NUMBER = r"(?<!\w)\d+"
-DECIMAL_NUMBER = r"\d*\.\d+"
+EXPONENT = r"(?:E[-+]?\d+[fd]?\b)?"
+DECIMAL_NUMBER = r"(?:(?<!\w)\d+(?:\.\d*)?|\.\d+)"
 HEX_NUMBER = r"x'[0-9a-f]+'|0x[0-9a-f]+"
 BIN_NUMBER = r"b'[0-9a-f]+'|0b[0-9a-f]+"
-NUMERIC_LITERAL = (
-    r"[-+]?(?:" + "|".join([HEX_NUMBER, BIN_NUMBER, DECIMAL_NUMBER + EXPONENT, INTEGER_NUMBER + EXPONENT]) + r")"
-)
+NUMERIC_LITERAL = rf"[-+]?(?:{HEX_NUMBER}|{BIN_NUMBER}|{DECIMAL_NUMBER}{EXPONENT})"
 
 patterns = {
     DBAPI_MYSQL: re.compile(
@@ -41,7 +40,12 @@ patterns[DBAPI_PYMYSQL] = patterns[DBAPI_MYSQL]
 patterns[DBAPI_MYSQLDB] = patterns[DBAPI_MYSQL]
 
 
-def sql_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_pattern=None):
+def sql_sensitive_analyzer(
+    evidence: Evidence,
+    name_pattern: re.Pattern[str],
+    value_pattern: re.Pattern[str],
+    query_string_pattern: Optional[re.Pattern[bytes]] = None,
+) -> list[dict[str, int]]:
     """
     SQL sensitive analyzer for evidence redaction.
 
@@ -54,19 +58,23 @@ def sql_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_p
     Returns:
     - list: List of sensitive ranges to redact
     """
-    pattern = patterns.get(evidence.dialect, patterns[DBAPI_MYSQL])
-    tokens = []
+    evidence_value = evidence.value
+    if evidence_value is None:
+        return []
 
-    regex_result = pattern.search(evidence.value)
+    pattern = patterns.get(evidence.dialect or DBAPI_MYSQL, patterns[DBAPI_MYSQL])
+    tokens: list[dict[str, int]] = []
+
+    regex_result = pattern.search(evidence_value)
     while regex_result is not None:
         start = regex_result.start()
         end = regex_result.end()
-        start_char = evidence.value[start]
+        start_char = evidence_value[start]
         if start_char == "'" or start_char == '"':
             start += 1
             end -= 1
         elif end > start + 1:
-            next_char = evidence.value[start + 1]
+            next_char = evidence_value[start + 1]
             if start_char == "/" and next_char == "*":
                 start += 2
                 end -= 2
@@ -82,5 +90,5 @@ def sql_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_p
                     start += size
                     end -= size
         tokens.append({"start": start, "end": end})
-        regex_result = pattern.search(evidence.value, regex_result.end())
+        regex_result = pattern.search(evidence_value, regex_result.end())
     return tokens

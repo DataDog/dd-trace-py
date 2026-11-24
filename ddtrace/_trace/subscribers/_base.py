@@ -9,20 +9,20 @@ from typing import TypeVar
 from ddtrace import config
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.events import TracingEvents
+from ddtrace._trace.propagation import activate_distributed_headers
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.exception import ContextExceptionEvent
-from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.core.exception import ContextExceptionEvent
+from ddtrace.internal.core.span_lifecycle import SpanLifecycleEvents
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
+from ddtrace.internal.utils.service import set_service_and_source
 from ddtrace.trace import tracer
 
 
@@ -66,10 +66,9 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     """
     event = ctx.event
 
-    activate_distributed_headers = event.activate_distributed_headers
     integration_config = event.integration_config
-    if integration_config and activate_distributed_headers:
-        trace_utils.activate_distributed_headers(
+    if integration_config and event.activate_distributed_headers:
+        activate_distributed_headers(
             tracer,
             int_config=integration_config,
             request_headers=getattr(event, "request_headers", None),
@@ -114,7 +113,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     return span
 
 
-class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType], auto_register=False):
+class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType]):
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
@@ -132,6 +131,8 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
             def on_ended(cls, ctx, exc_info):
                 if exc_info[1]:
                     span_from_context(ctx).set_tag("error", True)
+
+        MySpanSubscriber.register()
     """
 
     # Register here events that just create / finish spans
@@ -184,7 +185,6 @@ class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[Traci
 
 
 class SpanExceptionSubscriber(Subscriber):
-    auto_register = False
     event_names = (ContextExceptionEvent.event_name,)
 
     @classmethod

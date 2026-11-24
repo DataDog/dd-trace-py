@@ -298,7 +298,7 @@ class PromptManager:
         """Trigger a background refresh if not already in progress."""
         key = req.key
 
-        def run_refresh():
+        def run_refresh() -> None:
             try:
                 self._background_refresh(req)
             finally:
