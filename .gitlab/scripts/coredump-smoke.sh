@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Crash Python on purpose and check that generate-core-backtraces.sh collects
-# the core, symbolizes it, adds the Python stack and names the running test,
-# and drops the core of a crash outside Python. This fails when CI stops
+# the core, symbolizes it and adds the Python stack, drops the core of a crash
+# outside Python, and fails with --fail-on-core. This fails when CI stops
 # producing core dumps, for example when the runners change
 # kernel.core_pattern, the testrunner image loses a writable core directory, or
 # before_script drops ulimit -c unlimited (so don't raise the limit here).
@@ -13,11 +13,7 @@ fail() {
     exit 1
 }
 
-rm -rf core-dumps test-results
-
-# A test that starts and never finishes, the way the root conftest.py records it.
-mkdir -p test-results
-printf 'start\t%s\tsmoke::test_crash\n' "$(date +%s)" > test-results/test-timeline.smoke.tsv
+rm -rf core-dumps
 
 # Crash through a console-script wrapper, the way pytest runs in CI, so the
 # backtrace script has to follow the shebang to find the interpreter.
@@ -52,4 +48,3 @@ backtrace=${backtraces[0]}
 grep -q "string_at" "$backtrace" || fail "the backtrace does not contain the crashing frame string_at"
 # py-bt prints the Python frame that called it.
 grep -q "crash-wrapper\", line 3" "$backtrace" || fail "the backtrace does not contain the Python stack"
-grep -q "smoke::test_crash (did not finish)" "$backtrace" || fail "the backtrace does not name the running test"

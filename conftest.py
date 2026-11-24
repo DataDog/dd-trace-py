@@ -12,7 +12,6 @@ import sys
 from time import time
 from typing import Callable
 from typing import Optional
-from typing import TextIO
 
 import hypothesis
 import pytest
@@ -250,14 +249,9 @@ def _probe_enabled(config) -> bool:
     return not hasattr(config, "workerinput") and os.getenv("DD_TEST_RUNTIME_PROBE") == "1"
 
 
-_test_timeline: Optional[TextIO] = None
-
-
 # Hook for dynamic configuration of pytest in CI
 # https://docs.pytest.org/en/6.2.1/reference.html#pytest.hookspec.pytest_configure
 def pytest_configure(config):
-    global _test_timeline
-
     _restart_without_host_stable_config(config)
 
     config.addinivalue_line(
@@ -292,26 +286,10 @@ def pytest_configure(config):
         # DEV: `ext` will contain the `.`, e.g. `.xml`
         config.option.xmlpath = f"{fname}.{os.getpid()}{ext}"
 
-        # Record when each test runs in this process, so that the core dump collector
-        # (.gitlab/scripts/generate-core-backtraces.sh) can name the test that was running when a
-        # process crashed. Each xdist worker runs pytest_configure and writes its own file.
-        results_dir = os.path.dirname(config.option.xmlpath)
-        os.makedirs(results_dir or ".", exist_ok=True)
-        _test_timeline = open(os.path.join(results_dir, f"test-timeline.{os.getpid()}.tsv"), "a", buffering=1)
-
     # Save per-interpreter benchmark results.
     if config.pluginmanager.hasplugin("benchmark"):
         gc = "_nogc" if config.option.benchmark_disable_gc else ""
         config.option.benchmark_save = str(time()).replace(".", "_") + gc + "_py%d_%d" % sys.version_info[:2]
-
-
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_protocol(item, nextitem):
-    if _test_timeline is not None:
-        _test_timeline.write(f"start\t{time()}\t{item.nodeid}\n")
-    yield
-    if _test_timeline is not None:
-        _test_timeline.write(f"end\t{time()}\n")
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

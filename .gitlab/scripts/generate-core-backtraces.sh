@@ -18,36 +18,6 @@ fail_on_core=0
 [ "${1:-}" = "--fail-on-core" ] && fail_on_core=1
 
 out_dir="$(pwd)/core-dumps"
-# The root conftest.py writes test-timeline.<pid>.tsv here in CI: one
-# "start<TAB><time><TAB><nodeid>" line when a test starts in that process, and
-# one "end<TAB><time>" line when it finishes.
-timeline_dir="$(pwd)/test-results"
-
-# Print the tests that were running at the given Unix time, or else the last
-# test that started before it.
-tests_running_at() {
-    local files=("$timeline_dir"/test-timeline.*.tsv)
-    [ -f "${files[0]}" ] || { echo "  (no test timeline in $timeline_dir)"; return; }
-    awk -F'\t' -v t="$1" '
-        FNR == 1 { if (started) open_test(); started = 0 }
-        $1 == "start" {
-            if (started) open_test()
-            start = $2; test = $3; started = 1
-            if (start <= t && start > last_start) { last_start = start; last_test = test }
-        }
-        $1 == "end" && started {
-            # A second of slack on each side: the core time has whole seconds.
-            if (start <= t + 1 && $2 >= t - 1) { print "  " test; found = 1 }
-            started = 0
-        }
-        END {
-            if (started) open_test()
-            if (!found) print "  none; the last test that started before it was " (last_test == "" ? "<none>" : last_test)
-        }
-        # A test with no "end" line never finished: its process died or hung.
-        function open_test() { if (start <= t + 1) { print "  " test " (did not finish)"; found = 1 } }
-    ' "${files[@]}"
-}
 
 core_pattern=$(cat /proc/sys/kernel/core_pattern)
 echo "kernel.core_pattern=${core_pattern}"
@@ -71,8 +41,7 @@ prefix=${prefix%%%*}
 
 # Artifacts must be under the project directory, so move the cores there.
 # Move them all before running gdb, so a slow or killed gdb can't keep the
-# remaining cores from being uploaded. Moving keeps the time the kernel wrote
-# the core, to find the test that was running, and lets a second run skip them.
+# remaining cores from being uploaded. Moving lets a second run skip them.
 mkdir -p "$out_dir"
 for core_file in "$core_dir/$prefix"*; do
     [ -f "$core_file" ] && mv "$core_file" "$out_dir/"
@@ -82,7 +51,7 @@ chmod -R a+r "$out_dir"
 
 for core_file in "$out_dir"/*; do
     [ -f "$core_file" ] || continue
-    case "$core_file" in *.bt.txt|*.gdb.txt) continue;; esac
+    case "$core_file" in *.bt.txt) continue;; esac
 
     output="${core_file}.bt.txt"
     [ -f "$output" ] && continue
@@ -113,8 +82,6 @@ for core_file in "$out_dir"/*; do
     py_bt=()
     [ -f "$py_gdb" ] && py_bt=(-ex "source $py_gdb" -ex "thread apply all py-bt")
 
-    # Write gdb output to a file as it goes, so a killed gdb still leaves a partial backtrace.
-    gdb_output="${core_file}.gdb.txt"
     gdb -batch \
         -ex "set auto-load safe-path /" \
         -ex "file $exe" \
@@ -124,26 +91,14 @@ for core_file in "$out_dir"/*; do
         "${py_bt[@]}" \
         -ex "info threads" \
         -ex "thread apply all bt full" \
-        > "$gdb_output" 2>&1
+        > "$output" 2>&1
 
     # Every CPython build defines _PyRuntime, in the executable or in libpython.
-    if ! grep -q '^Symbol "_PyRuntime" is' "$gdb_output"; then
+    if ! grep -q '^Symbol "_PyRuntime" is' "$output"; then
         echo "  dropped: $exe has no Python interpreter"
-        rm -f "$core_file" "$gdb_output"
+        rm -f "$core_file" "$output"
         continue
     fi
-
-    crashed_at=$(stat -c %Y "$core_file")
-    {
-        echo "Core: $(basename "$core_file")"
-        echo "Executable: $exe"
-        echo "Written at: $(date -u -d "@$crashed_at" +%Y-%m-%dT%H:%M:%SZ)"
-        echo "Tests running then:"
-        tests_running_at "$crashed_at"
-        echo
-        cat "$gdb_output"
-    } > "$output"
-    rm -f "$gdb_output"
 
     echo "  -> $output ($(wc -l < "$output") lines)"
 done
