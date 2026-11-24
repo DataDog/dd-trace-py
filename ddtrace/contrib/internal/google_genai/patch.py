@@ -41,7 +41,7 @@ def _request_event(func, instance, kwargs, operation, provider_name=None, resour
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.google_genai,
-        service=int_service(None, config.google_genai),
+        service=int_service(config.google_genai),
         resource=resource or "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,

@@ -195,4 +195,4 @@ def httpx_get_service_name(request: Any, integration_config: IntegrationConfig) 
         if request.url.port:
             service += b":" + ensure_binary(str(request.url.port))
         return ensure_text(service, errors="backslashreplace")
-    return ext_service(None, integration_config)
+    return ext_service(integration_config)

@@ -5,9 +5,9 @@ import aiokafka
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import PRODUCE
 from ddtrace.internal import core
@@ -114,7 +114,7 @@ async def traced_send(func, instance, args, kwargs):
         distributed_headers=tracing_headers,
         component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
-        service=trace_utils.ext_service(None, config.aiokafka),
+        service=trace_utils.ext_service(config.aiokafka),
         cluster_id=cluster_id,
         tombstone=value is None,
         message_key=(key.decode("utf-8", errors="replace") if isinstance(key, (bytes, bytearray)) else key)
@@ -194,7 +194,7 @@ async def traced_getone(func, instance, args, kwargs):
         activate=False,
         component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
-        service=trace_utils.ext_service(None, config.aiokafka),
+        service=trace_utils.ext_service(config.aiokafka),
         error=err,
     )
 
@@ -240,7 +240,7 @@ async def traced_getmany(func, instance, args, kwargs):
         activate=False,
         component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
-        service=trace_utils.ext_service(None, config.aiokafka),
+        service=trace_utils.ext_service(config.aiokafka),
     )
 
     with core.context_with_event(event) as ctx:

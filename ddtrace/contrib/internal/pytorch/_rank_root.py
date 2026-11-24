@@ -43,7 +43,7 @@ def _build_span(kwargs: dict[str, Any]) -> Optional[Any]:
     try:
         span = tracer.start_span(
             "pytorch.rank",
-            service=int_service(None, config.pytorch, default="pytorch"),
+            service=int_service(config.pytorch, default="pytorch"),
             child_of=tracer.current_span() if framework == "ray" else None,
             activate=False,
         )

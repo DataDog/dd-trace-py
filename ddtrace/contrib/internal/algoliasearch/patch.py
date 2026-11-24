@@ -5,7 +5,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
@@ -147,7 +147,7 @@ def _start_span():
 
 
 def _set_span_attributes(span):
-    set_service_and_source(span, trace_utils.ext_service(None, config.algoliasearch), config.algoliasearch)
+    set_service_and_source(span, trace_utils.ext_service(config.algoliasearch), config.algoliasearch)
     span._set_attribute(COMPONENT, config.algoliasearch.integration_name)
 
     # set span.kind to the type of request being performed

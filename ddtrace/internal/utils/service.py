@@ -14,30 +14,20 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
 
 
-class _ServiceOverride(Protocol):
-    service: Optional[str]
-
-
 class _SpanLike(Protocol):
     service: Optional[str]
 
     def set_tag(self, key: str, value: Any) -> None: ...
 
 
-def int_service(
-    pin: Optional[_ServiceOverride], int_config: "IntegrationConfig", default: Optional[str] = None
-) -> Optional[str]:
+def int_service(int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
 
-    For internal integrations we prioritize overrides, then global defaults and
-    lastly the default provided by the integration.
+    For internal integrations we prioritize integration configuration, then global
+    defaults and lastly the default provided by the integration.
     """
-    # Explicit service overrides take precedence over integration configuration.
-    if pin is not None and pin.service:
-        return pin.service
-
     # Config is next since it is also configured via code
     # Note that both service and service_name are used by
     # integrations.
@@ -63,16 +53,11 @@ def int_service(
     return default
 
 
-def ext_service(
-    pin: Optional[_ServiceOverride], int_config: "IntegrationConfig", default: Optional[str] = None
-) -> Optional[str]:
+def ext_service(int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
     """
-    if pin is not None and pin.service:
-        return pin.service
-
     if "service" in int_config and int_config.service is not None:
         return cast(str, int_config.service)
     if "service_name" in int_config and int_config.service_name is not None:

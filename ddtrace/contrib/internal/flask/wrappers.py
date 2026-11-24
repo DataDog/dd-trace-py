@@ -1,7 +1,7 @@
 from wrapt import function_wrapper
 
 from ddtrace import config
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -28,7 +28,7 @@ def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dis
             "flask.call",
             span_name=name,
             resource=resource,
-            service=trace_utils.int_service(None, config.flask),
+            service=trace_utils.int_service(config.flask),
             span_type=span_type,
             tags=tags,
             integration_config=config.flask,

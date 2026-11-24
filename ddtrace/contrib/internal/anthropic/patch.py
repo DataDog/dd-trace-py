@@ -42,7 +42,7 @@ def _request_event(func: Callable[..., Any], instance: Any, kwargs: Any) -> LlmR
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.anthropic,
-        service=int_service(None, config.anthropic),
+        service=int_service(config.anthropic),
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
         model=model,

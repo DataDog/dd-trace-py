@@ -14,8 +14,8 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -248,7 +248,7 @@ def _create_sanic_request_context(request: Request) -> core.ExecutionContext[Web
         http_operation="sanic.request",
         component=config.sanic.integration_name,
         integration_config=config.sanic,
-        service=trace_utils.int_service(None, config.sanic),
+        service=trace_utils.int_service(config.sanic),
         request_method=request.method,
         request_url=url,
         request_headers=headers,

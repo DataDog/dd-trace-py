@@ -53,7 +53,7 @@ def start_request(
     event = LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.openai,
-        service=int_service(None, config.openai),
+        service=int_service(config.openai),
         resource=operation_id,
         provider=None,
         submit_to_llmobs=operation_id in SUBMITTED_OPERATION_IDS if submit_to_llmobs is None else submit_to_llmobs,

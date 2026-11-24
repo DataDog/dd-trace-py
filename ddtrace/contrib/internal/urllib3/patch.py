@@ -8,8 +8,8 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.otel.http.tags import otel_client_url
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
@@ -115,7 +115,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
     parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
 
-    service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(None, config.urllib3)
+    service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(config.urllib3)
 
     # Ensure headers is always a mutable mapping for HttpClientRequestEvent subscribers.
     # Distributed tracing enablement is handled by subscribers (via integration config).

@@ -201,7 +201,7 @@ def test_trigger_wrapper(func_name, trigger_name, context_name):
             "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
         )
         assert span.name == expected_name
-        assert span.service == int_service(None, config.azure_functions)
+        assert span.service == int_service(config.azure_functions)
         assert span.resource == f"{trigger_name} {func_name}"
         assert span.span_type == SpanTypes.SERVERLESS
         assert span.get_tag("aas.function.name") == func_name  # codespell:ignore
@@ -415,7 +415,7 @@ def test_orchestration_trigger_wrapper():
             "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
         )
         assert span.name == expected_name
-        assert span.service == int_service(None, config.azure_functions)
+        assert span.service == int_service(config.azure_functions)
         assert span.resource == "Orchestration sample_orchestrator"
         assert span.span_type == SpanTypes.SERVERLESS
         assert span.get_tag("aas.function.name") == "sample_orchestrator"  # codespell:ignore

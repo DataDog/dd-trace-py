@@ -9,8 +9,8 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
@@ -66,7 +66,6 @@ class TraceTool(cherrypy.Tool):
 
     def _on_start_resource(self):
         service = trace_utils.int_service(
-            None,
             config.cherrypy,
         )
 

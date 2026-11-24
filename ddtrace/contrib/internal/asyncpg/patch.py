@@ -82,7 +82,7 @@ async def _traced_connect(func, instance, args, kwargs):
     """
     with tracer.trace("postgres.connect", span_type=SpanTypes.SQL) if is_tracing_enabled() else nullcontext() as span:
         if span is not None:
-            set_service_and_source(span, ext_service(None, config.asyncpg), config.asyncpg)
+            set_service_and_source(span, ext_service(config.asyncpg), config.asyncpg)
             span._set_attribute(COMPONENT, config.asyncpg.integration_name)
             span._set_attribute(db.SYSTEM, DBMS_NAME)
             span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
@@ -102,7 +102,7 @@ async def _traced_query(tags, method, query, args, kwargs):
         resource=query,
         span_type=SpanTypes.SQL,
     ) as span:
-        set_service_and_source(span, ext_service(None, config.asyncpg), config.asyncpg)
+        set_service_and_source(span, ext_service(config.asyncpg), config.asyncpg)
         span._set_attribute(COMPONENT, config.asyncpg.integration_name)
         span._set_attribute(db.SYSTEM, DBMS_NAME)
 

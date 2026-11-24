@@ -4,8 +4,8 @@ import wrapt
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -80,7 +80,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
-            set_service_and_source(s, trace_utils.ext_service(None, config.aiomysql), config.aiomysql)
+            set_service_and_source(s, trace_utils.ext_service(config.aiomysql), config.aiomysql)
             s._set_attribute(COMPONENT, config.aiomysql.integration_name)
 
             # set span.kind to the type of request being performed

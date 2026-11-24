@@ -9,7 +9,7 @@ from azure.eventhub.amqp import AmqpAnnotatedMessage
 
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.internal import core
@@ -29,7 +29,7 @@ def create_context(
         context_name,
         span_name=operation_name,
         resource=resource,
-        service=ext_service(None, config.azure_eventhubs),
+        service=ext_service(config.azure_eventhubs),
         span_type=SpanTypes.WORKER,
         integration_config=integration_config,
     )

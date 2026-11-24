@@ -42,6 +42,10 @@ Store connection-specific metadata directly on the connection or its tracing wra
 that manage spans directly use ``is_tracing_enabled()`` from ``ddtrace.contrib.internal.trace_utils``
 to honor the global tracing setting and standalone security mode.
 
+Resolve service names with ``int_service(config.<integration>, default=None)`` or
+``ext_service(config.<integration>, default=None)`` from ``ddtrace.internal.utils.service``.
+The public ``ddtrace.contrib.trace_utils`` helpers retain their legacy leading argument for compatibility.
+
 The Core API in ``ddtrace.internal.core`` is the abstraction layer between the integration code and code for
 Products. The integration builds and maintains a tree of ``ExecutionContext`` objects representing the state
 of the library's execution by calling ``core.context_with_data``. The integration also emits events indicating

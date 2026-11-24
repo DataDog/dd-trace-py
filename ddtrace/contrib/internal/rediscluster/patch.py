@@ -6,7 +6,7 @@ import wrapt
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.redis.patch import instrumented_execute_command
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
@@ -88,9 +88,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.REDIS,
     ) as s:
-        set_service_and_source(
-            s, trace_utils.ext_service(None, config.rediscluster, "rediscluster"), config.rediscluster
-        )
+        set_service_and_source(s, trace_utils.ext_service(config.rediscluster, "rediscluster"), config.rediscluster)
         s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
         s._set_attribute(COMPONENT, config.rediscluster.integration_name)
         s._set_attribute(db.SYSTEM, redisx.APP)

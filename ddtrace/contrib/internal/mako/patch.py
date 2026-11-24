@@ -60,7 +60,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
 
     with tracer.trace(
         func_name(wrapped),
-        int_service(None, config.mako, schematize_service_name("mako")),
+        int_service(config.mako, schematize_service_name("mako")),
         span_type=SpanTypes.TEMPLATE,
     ) as span:
         span._set_attribute(COMPONENT, "mako")

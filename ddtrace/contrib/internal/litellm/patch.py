@@ -55,7 +55,7 @@ def _request_event(operation, args, kwargs, router=None):
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.litellm,
-        service=int_service(None, config.litellm),
+        service=int_service(config.litellm),
         resource=operation,
         # The provider is only known once litellm resolves the model.
         provider="",

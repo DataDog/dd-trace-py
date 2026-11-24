@@ -91,7 +91,7 @@ def _create_event(
     return LlmRequestEvent(
         component=config.llama_index.integration_name,
         integration_config=config.llama_index,
-        service=int_service(None, config.llama_index),
+        service=int_service(config.llama_index),
         resource=resource,
         provider=provider,
         model=model,

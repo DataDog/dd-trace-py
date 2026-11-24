@@ -8,7 +8,7 @@ import wrapt
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -65,7 +65,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         schematize_cloud_api_operation("pynamodb.command", cloud_provider="aws", cloud_service="dynamodb"),
         span_type=SpanTypes.HTTP,
     ) as span:
-        set_service_and_source(span, trace_utils.ext_service(None, config.pynamodb, "pynamodb"), config.pynamodb)
+        set_service_and_source(span, trace_utils.ext_service(config.pynamodb, "pynamodb"), config.pynamodb)
         span._set_attribute(COMPONENT, config.pynamodb.integration_name)
         span._set_attribute(db.SYSTEM, "dynamodb")
 

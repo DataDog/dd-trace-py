@@ -641,7 +641,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         integration_config=config.botocore,
         span_name=function_vars.get("trace_operation"),
         service=schematize_service_name(
-            "{}.{}".format(ext_service(None, int_config=config.botocore), function_vars.get("endpoint_name"))
+            "{}.{}".format(ext_service(int_config=config.botocore), function_vars.get("endpoint_name"))
         ),
         resource=operation,
         # Bedrock runtime spans are not measured.

@@ -49,7 +49,7 @@ def create_context(
         context_name,
         span_name=operation_name,
         resource=resource,
-        service=int_service(None, config.azure_functions),
+        service=int_service(config.azure_functions),
         span_type=SpanTypes.SERVERLESS,
         distributed_headers=headers,
         child_of=parent_context,

@@ -125,7 +125,7 @@ def _request_event(
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.langchain,
-        service=int_service(None, config.langchain),
+        service=int_service(config.langchain),
         resource=resource if resource is not None else f"{instance.__module__}.{instance.__class__.__name__}",
         provider=provider,
         model=model,

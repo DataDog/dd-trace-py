@@ -267,7 +267,7 @@ class TraceMiddleware:
                 span_name=operation_name,
                 resource=resource,
                 span_type=SpanTypes.WEB,
-                service=trace_utils.int_service(None, self.integration_config),
+                service=trace_utils.int_service(self.integration_config),
                 distributed_headers=headers,
                 activate_distributed_headers=True,
                 scope=scope,

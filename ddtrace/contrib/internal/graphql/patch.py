@@ -19,7 +19,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
@@ -136,7 +136,7 @@ def _traced_parse(func, args, kwargs):
         name="graphql.parse",
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_GRAPHQL_SOURCE, source_str)
@@ -155,7 +155,7 @@ def _traced_validate(func, args, kwargs):
         name="graphql.validate",
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_GRAPHQL_SOURCE, source_str)
@@ -190,7 +190,7 @@ def _traced_execute(
         resource=source_str or None,
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
@@ -218,7 +218,7 @@ def _traced_query(func, args, kwargs):
         resource=resource or None,
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate

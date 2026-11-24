@@ -57,7 +57,7 @@ def _request_event(func, instance, args, kwargs, model_instance):
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.vertexai,
-        service=int_service(None, config.vertexai),
+        service=int_service(config.vertexai),
         resource="%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
