@@ -73,9 +73,11 @@ class GCCollector(collector.Collector):
             self._installed_collect = self._patched_collect
             gc.collect = self._installed_collect
         self._pause_listener = self._on_pause
-        self._monitor = gc_pause_monitor()
-        self._monitor.add_listener(self._pause_listener)
-        self._monitor.acquire()
+        monitor: GCPauseMonitor = gc_pause_monitor()
+        # Rollback releases _monitor, so set it only once acquire() has taken this collector's reference.
+        monitor.acquire()
+        self._monitor = monitor
+        monitor.add_listener(self._pause_listener)
         forksafe.register(self._reset_after_fork)
         LOG.debug("GCCollector started")
 

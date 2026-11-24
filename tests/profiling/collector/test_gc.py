@@ -338,3 +338,23 @@ def test_rollback_after_failed_first_start_restores_gc_collect() -> None:
         assert gc.collect is orig
     finally:
         gc.collect = orig
+
+
+@pytest.mark.parametrize("failing_call", ("add_listener", "acquire"))
+def test_rollback_after_failed_start_keeps_other_monitor_reference(failing_call: str) -> None:
+    """Rollback releases only a monitor reference this start took, so another user (runtime metrics) keeps its own."""
+    orig: Callable[..., int] = gc.collect
+    monitor: GCPauseMonitor = gc_pause_monitor()
+    monitor.acquire()
+    col: GCCollector = GCCollector()
+    try:
+        with mock.patch.object(GCPauseMonitor, failing_call, side_effect=RuntimeError("monitor failed")):
+            with pytest.raises(RuntimeError):
+                col.start()
+        col._rollback_start()
+        assert monitor._refcount == 1
+        assert monitor._gc_hook in gc.callbacks
+        assert gc.collect is orig
+    finally:
+        monitor.release()
+        gc.collect = orig
