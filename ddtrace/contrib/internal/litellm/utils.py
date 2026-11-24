@@ -1,8 +1,13 @@
 from collections import defaultdict
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import FrozenInstanceError
 from functools import cache
+from typing import Optional
 
 from ddtrace._monkey import _get_patched_modules
+from ddtrace.contrib.internal.litellm._constants import FALLBACK_ATTEMPT_KEY
+from ddtrace.contrib.internal.litellm._constants import TAG_MODEL
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
 from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
 from ddtrace.contrib.internal.litellm._constants import model_map
@@ -98,6 +103,80 @@ def has_downstream_openai_span(kwargs, model=None, operation=""):
     # litellm.text_completion() sends an OpenAI model that is not a chat model to the text completion handler.
     name = model[len("openai/") :] if model_lower.startswith("openai/") else model
     return is_completion_operation(operation) and name not in getattr(litellm, "open_ai_chat_completion_models", ())
+
+
+# Set while a call that submits an LLM span runs litellm's fallback runner, which re-enters
+# ``litellm.completion``/``acompletion`` once per attempt. Those inner calls skip their own span and record the model
+# they were asked for here, so the outer span can be attributed to the attempt that produced the response.
+_fallback_dispatch_attempts: ContextVar[Optional[dict]] = ContextVar("ddtrace_litellm_fallback_attempts", default=None)
+
+
+def has_fallbacks(kwargs):
+    """Determine whether litellm will dispatch the request through its fallback runner."""
+    import litellm
+
+    return bool(kwargs.get("fallbacks") or getattr(litellm, "model_fallbacks", None))
+
+
+_OPENAI_SDK_PROVIDERS = ("openai", "azure", "azure_text", "text-completion-openai")
+
+
+def _emits_openai_span(kwargs, model, operation="") -> bool:
+    """Determine whether the answering attempt really runs the OpenAI SDK.
+
+    ``has_downstream_openai_span`` is a loose guess, which is fine for the primary call. A fallback span is replaced
+    by a workflow span, so a wrong guess would leave the request with no LLM span.
+    """
+    if not has_downstream_openai_span(kwargs, model, operation) or kwargs.get("mock_response") is not None:
+        return False
+    provider_override = kwargs.get("custom_llm_provider")
+    if provider_override:
+        return str(provider_override).lower() in _OPENAI_SDK_PROVIDERS
+    provider, _, _ = (model or "").lower().partition("/")
+    # Bare model names ("gpt-4o") are OpenAI's own; any other provider prefix routes elsewhere ("ollama/gpt-oss").
+    return provider in _OPENAI_SDK_PROVIDERS or "/" not in (model or "")
+
+
+def _is_cache_hit(response) -> bool:
+    return bool((getattr(response, "_hidden_params", None) or {}).get("cache_hit"))
+
+
+@contextmanager
+def fallback_dispatch(ctx):
+    """Mark the wrapped call so the fallback runner's inner calls do not submit a second LLM span."""
+    event = ctx.event
+    if not (event.submit_to_llmobs and has_fallbacks(event.request_kwargs)):
+        yield
+        return
+    attempts: dict = {}
+    token = _fallback_dispatch_attempts.set(attempts)
+    try:
+        yield
+    finally:
+        _fallback_dispatch_attempts.reset(token)
+        # The runner returns the first successful attempt, which is the last one made. A dict fallback can override
+        # the messages, tools and generation params, so the span takes the whole request of that attempt.
+        attempt = attempts.get("request")
+        if attempt:
+            model, attempt_kwargs = attempt
+            event.model = model
+            span = span_from_context(ctx)
+            span.set_tag(TAG_MODEL, model)
+            # The OpenAI integration emits the LLM span when the answering attempt runs the OpenAI SDK. LLMObs then
+            # keeps this span as a workflow span, which holds the trace together without repeating tokens and cost.
+            downstream_llm_span = (
+                _emits_openai_span(attempt_kwargs, model, event.operation)
+                and event.response is not None
+                and not _is_cache_hit(event.response)
+            )
+            request_kwargs = {k: v for k, v in event.request_kwargs.items() if k != "fallbacks"}
+            for key in ("litellm_logging_obj", "litellm_call_id"):
+                attempt_kwargs.pop(key, None)
+            request_kwargs.update(attempt_kwargs)
+            request_kwargs["model"] = model
+            request_kwargs[FALLBACK_ATTEMPT_KEY] = downstream_llm_span
+            event.request_kwargs = request_kwargs
+            event.request_args = ()
 
 
 class BaseLiteLLMStreamHandler:
