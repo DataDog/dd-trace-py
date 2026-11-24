@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    django: Fixes an issue where raising ``Http404`` from a class-based view marked the view spans as errors,
+    even though Django returns a regular 404 response. Class-based views now behave like function-based views.

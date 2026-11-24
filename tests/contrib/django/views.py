@@ -182,6 +182,16 @@ def not_found_view(request):
     raise Http404("DNE")
 
 
+class NotFoundClassView(View):
+    def get(self, request):
+        raise Http404("DNE")
+
+
+class ErrorClassView(View):
+    def get(self, request):
+        raise ValueError("cbv error")
+
+
 def identify(request):
     set_user(
         tracer,

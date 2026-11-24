@@ -548,6 +548,36 @@ def test_middleware_trace_error_500(client, test_spans):
     assert mw_span.get_tag(ERROR_STACK) is not None
 
 
+def test_class_view_http404_not_flagged_as_error(client, test_spans):
+    """
+    Http404 raised from a class-based view is converted to a 404 response by Django,
+    so it must not flag any view span as errored (same as function-based views).
+    """
+    assert client.get("/404-class-view/").status_code == 404
+
+    root = test_spans.get_root_span()
+    assert root.error == 0
+    assert root.get_tag("http.status_code") == "404"
+
+    view_spans = [s for s in test_spans.spans if s.name.startswith("django.view")]
+    assert {s.name for s in view_spans} >= {"django.view", "django.view.dispatch", "django.view.get"}
+    for span in view_spans:
+        assert span.error == 0, span.name
+        assert span.get_tag(ERROR_TYPE) is None, span.name
+
+
+def test_class_view_exception_flagged_as_error(client, test_spans):
+    """Exceptions other than Http404 raised from a class-based view still flag the view spans."""
+    with pytest.raises(ValueError):
+        client.get("/error-class-view/")
+
+    for name in ("django.view", "django.view.dispatch", "django.view.get"):
+        spans = list(test_spans.filter_spans(name=name))
+        assert len(spans) == 1, name
+        assert spans[0].error == 1, name
+        assert spans[0].get_tag(ERROR_TYPE) == "builtins.ValueError", name
+
+
 def test_middleware_handled_view_exception_success(client, test_spans):
     """
     When an exception is raised in a view and then handled
