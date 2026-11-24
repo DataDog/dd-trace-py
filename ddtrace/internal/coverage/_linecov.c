@@ -52,6 +52,17 @@
 #define DD_LINECOV_FREE_THREADED 0
 #endif
 
+/* Keeps rarely run code, such as the per-code-object setup, out of the event callbacks. */
+#if defined(__GNUC__) || defined(__clang__)
+#define DD_COLD __attribute__((cold, noinline))
+#define DD_LIKELY(x) __builtin_expect(!!(x), 1)
+#define DD_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define DD_COLD
+#define DD_LIKELY(x) (x)
+#define DD_UNLIKELY(x) (x)
+#endif
+
 /* ------------------------------------------------------------------------------------------------
  * CPython monitoring data layout, needed only by the internal re-arm.
  * 3.12 and 3.13 declare it in the public cpython/code.h; 3.14 and 3.15 moved it to an internal
@@ -115,7 +126,7 @@ typedef struct
     uint32_t used;   /* bytes up to the last one with a bit set */
 } Bitset;
 
-static int
+static DD_COLD int
 bitset_reserve(Bitset* b, uint32_t nbytes)
 {
     if (nbytes <= b->nbytes)
@@ -136,7 +147,7 @@ static inline int
 bitset_set(Bitset* b, uint32_t line)
 {
     uint32_t byte = line >> 3;
-    if (byte >= b->nbytes && bitset_reserve(b, byte + 1) < 0)
+    if (DD_UNLIKELY(byte >= b->nbytes) && bitset_reserve(b, byte + 1) < 0)
         return -1;
     b->bits[byte] |= (uint8_t)(0x80 >> (line & 7));
     if (byte >= b->used)
@@ -230,20 +241,28 @@ codeinfo_free(void* p)
     PyMem_RawFree(ci);
 }
 
+/* CPython's _PyCodeObjectExtra, the layout of co_extra since 3.6. Read directly, because the events
+   look the CodeInfo up for every line: PyUnstable_Code_GetExtra() does the same, behind a call. */
+typedef struct
+{
+    Py_ssize_t ce_size;
+    void* ce_extras[1];
+} dd_code_extra;
+
 static inline CodeInfo*
 codeinfo_get(PyObject* code)
 {
-    void* p = NULL;
-    if (PyUnstable_Code_GetExtra(code, g_extra_index, &p) < 0) {
-        PyErr_Clear();
+    if (DD_UNLIKELY(!PyCode_Check(code)))
         return NULL;
-    }
-    return (CodeInfo*)p;
+    dd_code_extra* extra = (dd_code_extra*)((PyCodeObject*)code)->co_extra;
+    if (extra == NULL || g_extra_index < 0 || g_extra_index >= extra->ce_size)
+        return NULL;
+    return (CodeInfo*)extra->ce_extras[g_extra_index];
 }
 
-/* Code objects with a line disabled since the last re-arm. Strong references, so a listed
-   CodeInfo cannot be freed before it is re-armed. */
-static PyObject** g_dirty = NULL;
+/* Code objects with a line disabled since the last re-arm, by CodeInfo. The list holds a strong
+   reference to each code object, so a listed CodeInfo cannot be freed before it is re-armed. */
+static CodeInfo** g_dirty = NULL;
 static Py_ssize_t g_n_dirty = 0;
 static Py_ssize_t g_cap_dirty = 0;
 
@@ -312,7 +331,7 @@ static unsigned long long g_rearm_starts = 0;
 static unsigned long long g_switched = 0;
 static unsigned long long g_reverted = 0;
 
-static int
+static DD_COLD int
 context_reserve_files(Context* c, int32_t file_id)
 {
     if (file_id < c->cap_files)
@@ -344,8 +363,9 @@ context_touch(Context* c, int32_t file_id)
     return 0;
 }
 
-static inline int
-context_set(Context* c, int32_t file_id, uint32_t line)
+/* The first line of a file in the context, or a line past the end of its bitmap. */
+static DD_COLD int
+context_set_slow(Context* c, int32_t file_id, uint32_t line)
 {
     if (file_id >= c->cap_files && context_reserve_files(c, file_id) < 0)
         return -1;
@@ -367,6 +387,22 @@ context_set(Context* c, int32_t file_id, uint32_t line)
 }
 
 static inline int
+context_set(Context* c, int32_t file_id, uint32_t line)
+{
+    uint32_t byte = line >> 3;
+    if (DD_LIKELY(file_id < c->cap_files)) {
+        Bitset* b = &c->files[file_id];
+        if (DD_LIKELY(byte < b->nbytes)) {
+            b->bits[byte] |= (uint8_t)(0x80 >> (line & 7));
+            if (byte >= b->used)
+                b->used = byte + 1;
+            return 0;
+        }
+    }
+    return context_set_slow(c, file_id, line);
+}
+
+static inline int
 context_has(const Context* c, int32_t file_id, uint32_t line)
 {
     return file_id < c->cap_files && bitset_has(&c->files[file_id], line);
@@ -375,26 +411,32 @@ context_has(const Context* c, int32_t file_id, uint32_t line)
 /* ------------------------------------------------------------------------------------------------
  * Re-arming.
  */
-static int
+static DD_COLD int
+grow_dirty(void)
+{
+    Py_ssize_t cap = g_cap_dirty ? g_cap_dirty * 2 : 1024;
+    CodeInfo** dirty = PyMem_RawRealloc(g_dirty, sizeof(CodeInfo*) * (size_t)cap);
+    if (dirty == NULL)
+        return -1;
+    g_dirty = dirty;
+    g_cap_dirty = cap;
+    return 0;
+}
+
+static inline int
 mark_dirty(CodeInfo* ci)
 {
-    if (ci->dirty)
+    if (DD_LIKELY(ci->dirty))
         return 0;
-    if (g_n_dirty == g_cap_dirty) {
-        Py_ssize_t cap = g_cap_dirty ? g_cap_dirty * 2 : 1024;
-        PyObject** dirty = PyMem_RawRealloc(g_dirty, sizeof(PyObject*) * (size_t)cap);
-        if (dirty == NULL)
-            return -1;
-        g_dirty = dirty;
-        g_cap_dirty = cap;
-    }
+    if (g_n_dirty == g_cap_dirty && grow_dirty() < 0)
+        return -1;
     Py_INCREF(ci->code);
-    g_dirty[g_n_dirty++] = ci->code;
+    g_dirty[g_n_dirty++] = ci;
     ci->dirty = 1;
     return 0;
 }
 
-static int
+static DD_COLD int
 rearm_public(PyObject* code)
 {
     PyObject* r = PyObject_CallFunction(g_set_local_events, "iOi", g_tool_id, code, 0);
@@ -426,7 +468,7 @@ internal_rearm_possible(PyCodeObject* co)
     return 1;
 }
 
-static int
+static DD_COLD int
 compute_starts(CodeInfo* ci, PyCodeObject* co)
 {
     dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
@@ -458,16 +500,21 @@ rearm_internal(CodeInfo* ci, PyCodeObject* co)
         return 1;
     dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
     uint8_t* bytecode = (uint8_t*)co->co_code_adaptive;
-    /* Check first, so a code object is never left half re-armed. */
-    for (int32_t k = 0; k < ci->n_starts; k++) {
-        int op = bytecode[2 * ci->starts[k]];
-        if (op == g_enter_executor || op == g_instrumented_instruction)
-            return 1;
+    /* Check first, so a code object is never left half re-armed. INSTRUMENTED_INSTRUCTION needs
+       per-instruction opcodes, which internal_rearm_possible() ruled out, so only an interpreter
+       with executors (3.13 and later) has something to find. */
+    if (g_enter_executor >= 0) {
+        for (int32_t k = 0; k < ci->n_starts; k++) {
+            int op = bytecode[2 * ci->starts[k]];
+            if (op == g_enter_executor || op == g_instrumented_instruction)
+                return 1;
+        }
     }
+    uint8_t* line_tools = m->line_tools;
     for (int32_t k = 0; k < ci->n_starts; k++) {
         int32_t i = ci->starts[k];
-        if (m->line_tools != NULL)
-            m->line_tools[i] |= g_tool_bit;
+        if (line_tools != NULL)
+            line_tools[i] |= g_tool_bit;
         uint8_t op = bytecode[2 * i];
         if (op != g_instrumented_line) {
             *DD_ORIGINAL_OPCODE_PTR(m, i) = g_deopt[op];
@@ -484,7 +531,7 @@ rearm_internal(CodeInfo* ci, PyCodeObject* co)
 #define DD_COMPUTED_LINE (-127) /* CPython 3.12's line delta for a line looked up in the line table */
 
 /* Whether a LINE event can look up a line in the line table, for the instruction or the one before. */
-static int
+static DD_COLD int
 has_computed_lines(PyCodeObject* co)
 {
     dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
@@ -496,7 +543,7 @@ has_computed_lines(PyCodeObject* co)
 }
 
 /* The line of each line start, from co_lines(), which reads the line table as LINE events do. */
-static int
+static DD_COLD int
 compute_start_lines(CodeInfo* ci, PyCodeObject* co)
 {
     int32_t* lines = PyMem_RawMalloc(sizeof(int32_t) * (size_t)(ci->n_starts ? ci->n_starts : 1));
@@ -539,7 +586,7 @@ compute_start_lines(CodeInfo* ci, PyCodeObject* co)
 }
 
 /* Puts the code object back on LINE events for good, which also re-arms all its line starts. */
-static void
+static DD_COLD void
 revert_to_line_events(CodeInfo* ci, PyObject* code)
 {
     ci->probes = PROBES_LINE;
@@ -557,7 +604,7 @@ revert_to_line_events(CodeInfo* ci, PyObject* code)
 /* Decides, at the code object's first LINE event, between LINE events and INSTRUCTION probes. The
    switch needs this tool to be alone on LINE events here and nobody on INSTRUCTION events. Never
    raises. */
-static void
+static DD_COLD void
 choose_probes(CodeInfo* ci, PyCodeObject* co)
 {
     ci->probes = PROBES_LINE;
@@ -665,35 +712,46 @@ rearm_instruction_probes(CodeInfo* ci, PyCodeObject* co)
 static void
 rearm_all(void)
 {
+    /* The list is taken, not cleared: a re-arm can allocate, so the garbage collector can run a
+       finalizer whose lines list code objects again while the loop runs. */
+    CodeInfo** list = g_dirty;
     Py_ssize_t n = g_n_dirty;
+    Py_ssize_t cap = g_cap_dirty;
+    g_dirty = NULL;
     g_n_dirty = 0;
+    g_cap_dirty = 0;
     for (Py_ssize_t k = 0; k < n; k++) {
-        PyObject* code = g_dirty[k];
-        CodeInfo* ci = codeinfo_get(code);
-        if (ci != NULL) {
-            ci->dirty = 0;
-            int done = 0;
+        CodeInfo* ci = list[k];
+        PyObject* code = ci->code;
+        ci->dirty = 0;
+        int done = 0;
 #if DD_HAVE_INSTRUCTION_PROBES
-            if (ci->probes == PROBES_INSTRUCTION) {
-                if (rearm_instruction_probes(ci, (PyCodeObject*)code) != 0)
-                    revert_to_line_events(ci, code);
-                done = 1;
-            }
+        if (ci->probes == PROBES_INSTRUCTION) {
+            if (rearm_instruction_probes(ci, (PyCodeObject*)code) != 0)
+                revert_to_line_events(ci, code);
+            done = 1;
+        }
 #endif
 #if DD_HAVE_INTERNAL_REARM
-            if (!done && g_internal_rearm && ci->rearm != 2) {
-                if (rearm_internal(ci, (PyCodeObject*)code) == 0)
-                    done = 1;
-                else
-                    ci->rearm = 2;
-            }
-#endif
-            if (!done && rearm_public(code) < 0) {
-                PyErr_Clear();
-                g_errors++;
-            }
+        if (!done && g_internal_rearm && ci->rearm != 2) {
+            if (rearm_internal(ci, (PyCodeObject*)code) == 0)
+                done = 1;
+            else
+                ci->rearm = 2;
         }
+#endif
+        if (!done && rearm_public(code) < 0) {
+            PyErr_Clear();
+            g_errors++;
+        }
+        /* Last: the code object, and its CodeInfo with it, may go with this reference. */
         Py_DECREF(code);
+    }
+    if (g_dirty == NULL) {
+        g_dirty = list;
+        g_cap_dirty = cap;
+    } else {
+        PyMem_RawFree(list);
     }
 }
 
@@ -711,89 +769,98 @@ disable_line(CodeInfo* ci)
     return Py_NewRef(g_disable);
 }
 
-/* Credits a line of the code object and returns what the callback returns. */
-static PyObject*
-record_line(CodeInfo* ci, uint32_t line)
+/* A line of initialiser code: initialiser lines are process-wide, so the line is never re-armed. */
+static DD_COLD PyObject*
+record_init_line(CodeInfo* ci, uint32_t line)
 {
-    int32_t file_id = ci->file_id;
-    FileInfo* fi = &g_files[file_id];
-    g_events++;
-
-    if (ci->is_init) {
-        g_events_init++;
-        if (bitset_set(&fi->init_lines, line) < 0) {
-            g_errors++;
-            Py_RETURN_NONE;
-        }
-        return Py_NewRef(g_disable);
+    g_events_init++;
+    if (bitset_set(&g_files[ci->file_id].init_lines, line) < 0) {
+        g_errors++;
+        Py_RETURN_NONE;
     }
+    return Py_NewRef(g_disable);
+}
 
-    if (g_n_active == 0) {
-        g_events_unowned++;
-        if (bitset_set(&fi->unowned_lines, line) < 0) {
-            g_errors++;
-            Py_RETURN_NONE;
-        }
-        return disable_line(ci);
-    }
-
+/* The active context the running thread or task carries, or NULL. */
+static inline Context*
+current_owner(void)
+{
     PyObject* current = NULL;
-    if (PyContextVar_Get(g_ctxvar, NULL, &current) < 0) {
+    if (DD_UNLIKELY(PyContextVar_Get(g_ctxvar, NULL, &current) < 0)) {
         PyErr_Clear();
         g_errors++;
-        current = NULL;
+        return NULL;
     }
-    Context* owner = NULL;
-    if (current != NULL && Py_IS_TYPE(current, &ContextType) && ((Context*)current)->active)
-        owner = (Context*)current;
+    if (current == NULL)
+        return NULL;
+    Context* owner = Py_IS_TYPE(current, &ContextType) && ((Context*)current)->active ? (Context*)current : NULL;
+    /* Borrowed from here on: the context variable keeps the object alive, and no Python code runs
+       before the callback returns. */
+    Py_DECREF(current);
+    return owner;
+}
 
-    PyObject* result;
-    if (owner != NULL) {
-        if (context_set(owner, file_id, line) < 0) {
+/* Credits a line of the code object and returns what the callback returns. */
+static inline PyObject*
+record_line(CodeInfo* ci, uint32_t line)
+{
+    g_events++;
+    if (DD_UNLIKELY(ci->is_init))
+        return record_init_line(ci, line);
+    int32_t file_id = ci->file_id;
+    Context* owner = g_n_active > 0 ? current_owner() : NULL;
+    if (DD_LIKELY(owner != NULL)) {
+        if (DD_UNLIKELY(context_set(owner, file_id, line) < 0)) {
             g_errors++;
-            result = Py_NewRef(Py_None);
-            goto done;
+            Py_RETURN_NONE;
         }
     } else {
         g_events_unowned++;
-        if (bitset_set(&fi->unowned_lines, line) < 0) {
+        if (bitset_set(&g_files[file_id].unowned_lines, line) < 0) {
             g_errors++;
-            result = Py_NewRef(Py_None);
-            goto done;
+            Py_RETURN_NONE;
         }
     }
+    /* Keep the line armed while an active context lacks it: it may run there next. */
     for (int k = 0; k < g_n_active; k++) {
         Context* c = g_active[k];
         if (c != owner && !context_has(c, file_id, line)) {
             g_events_kept++;
-            result = Py_NewRef(Py_None);
-            goto done;
+            Py_RETURN_NONE;
         }
     }
-    result = disable_line(ci);
-done:
-    Py_XDECREF(current);
-    return result;
+    return disable_line(ci);
 }
 
-static PyObject*
-line_event(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+/* A line number or an instruction offset, or -1 when the argument is neither. */
+static inline long
+event_number(PyObject* arg)
 {
-    if (nargs != 2)
+    if (DD_LIKELY(PyLong_CheckExact(arg) && PyUnstable_Long_IsCompact((PyLongObject*)arg)))
+        return (long)PyUnstable_Long_CompactValue((PyLongObject*)arg);
+    long value = PyLong_AsLong(arg);
+    if (value == -1 && PyErr_Occurred())
+        PyErr_Clear();
+    return value < 0 ? -1 : value;
+}
+
+/* The callbacks are vectorcall objects rather than builtin functions: CPython then calls them
+   directly, without the argument and recursion checks of a builtin function call. */
+static PyObject*
+line_event(PyObject* Py_UNUSED(callable), PyObject* const* args, size_t nargsf, PyObject* kwnames)
+{
+    if (DD_UNLIKELY(PyVectorcall_NARGS(nargsf) != 2 || kwnames != NULL))
         return Py_NewRef(g_disable);
     CodeInfo* ci = codeinfo_get(args[0]);
-    if (ci == NULL)
+    if (DD_UNLIKELY(ci == NULL))
         return Py_NewRef(g_disable);
-    long value = PyLong_AsLong(args[1]);
-    if (value <= 0) {
-        if (value == -1 && PyErr_Occurred())
-            PyErr_Clear();
+    long value = event_number(args[1]);
+    if (DD_UNLIKELY(value <= 0))
         return Py_NewRef(g_disable);
-    }
 #if DD_HAVE_INSTRUCTION_PROBES
     /* A switch to INSTRUCTION probes from inside this callback is safe: CPython runs the original
        opcode of this line start next, and DISABLE returned for it finds no LINE event to remove. */
-    if (ci->probes == PROBES_UNDECIDED)
+    if (DD_UNLIKELY(ci->probes == PROBES_UNDECIDED))
         choose_probes(ci, (PyCodeObject*)args[0]);
 #endif
     return record_line(ci, (uint32_t)value);
@@ -801,19 +868,16 @@ line_event(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
 
 #if DD_HAVE_INSTRUCTION_PROBES
 static PyObject*
-instruction_event(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+instruction_event(PyObject* Py_UNUSED(callable), PyObject* const* args, size_t nargsf, PyObject* kwnames)
 {
-    if (nargs != 2)
+    if (DD_UNLIKELY(PyVectorcall_NARGS(nargsf) != 2 || kwnames != NULL))
         return Py_NewRef(g_disable);
     CodeInfo* ci = codeinfo_get(args[0]);
-    if (ci == NULL || ci->probes != PROBES_INSTRUCTION)
+    if (DD_UNLIKELY(ci == NULL || ci->probes != PROBES_INSTRUCTION))
         return Py_NewRef(g_disable);
-    long offset = PyLong_AsLong(args[1]);
-    if (offset < 0) {
-        if (PyErr_Occurred())
-            PyErr_Clear();
+    long offset = event_number(args[1]);
+    if (DD_UNLIKELY(offset < 0))
         return Py_NewRef(g_disable);
-    }
     int32_t index = (int32_t)(offset / 2);
     int32_t lo = 0, hi = ci->n_starts;
     while (lo < hi) {
@@ -830,6 +894,32 @@ instruction_event(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t n
     return record_line(ci, (uint32_t)ci->start_lines[lo]);
 }
 #endif
+
+typedef struct
+{
+    PyObject_HEAD vectorcallfunc vectorcall;
+} Callback;
+
+static PyTypeObject CallbackType = {
+    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "ddtrace.internal.coverage._linecov.Callback",
+    .tp_basicsize = sizeof(Callback),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_vectorcall_offset = offsetof(Callback, vectorcall),
+    .tp_call = PyVectorcall_Call,
+    .tp_doc = "A sys.monitoring callback of the collector.",
+};
+
+static int
+add_callback(PyObject* module, const char* name, vectorcallfunc function)
+{
+    Callback* callback = PyObject_New(Callback, &CallbackType);
+    if (callback == NULL)
+        return -1;
+    callback->vectorcall = function;
+    int rc = PyModule_AddObjectRef(module, name, (PyObject*)callback);
+    Py_DECREF(callback);
+    return rc;
+}
 
 /* ------------------------------------------------------------------------------------------------
  * Context type.
@@ -1636,13 +1726,6 @@ static PyMethodDef module_methods[] = {
       METH_FASTCALL,
       "Enable LINE events on a module's code tree and attach it to a file. Returns the number of "
       "code objects instrumented, or -1 when the module body looks obfuscated." },
-    { "line_event", (PyCFunction)(void (*)(void))line_event, METH_FASTCALL, "sys.monitoring LINE callback." },
-#if DD_HAVE_INSTRUCTION_PROBES
-    { "instruction_event",
-      (PyCFunction)(void (*)(void))instruction_event,
-      METH_FASTCALL,
-      "sys.monitoring INSTRUCTION callback." },
-#endif
     { "rearm", mod_rearm, METH_NOARGS, "Re-arm every disabled line start." },
     { "shared", mod_shared, METH_NOARGS, "The process's Shared record, in three parts." },
     { "stats", mod_stats, METH_NOARGS, "Counters." },
@@ -1656,7 +1739,7 @@ static struct PyModuleDef module_def = {
 PyMODINIT_FUNC
 PyInit__linecov(void)
 {
-    if (PyType_Ready(&ContextType) < 0)
+    if (PyType_Ready(&ContextType) < 0 || PyType_Ready(&CallbackType) < 0)
         return NULL;
     PyObject* m = PyModule_Create(&module_def);
     if (m == NULL)
@@ -1664,6 +1747,15 @@ PyInit__linecov(void)
     Py_INCREF(&ContextType);
     if (PyModule_AddObject(m, "Context", (PyObject*)&ContextType) < 0) {
         Py_DECREF(&ContextType);
+        Py_DECREF(m);
+        return NULL;
+    }
+    /* The sys.monitoring LINE and INSTRUCTION callbacks. */
+    if (add_callback(m, "line_event", line_event) < 0
+#if DD_HAVE_INSTRUCTION_PROBES
+        || add_callback(m, "instruction_event", instruction_event) < 0
+#endif
+    ) {
         Py_DECREF(m);
         return NULL;
     }
