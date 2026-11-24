@@ -322,11 +322,21 @@ class TelemetryWorker:
         Emits app-closing (origin process only) and flushes remaining batches
         during teardown.
 
-        WARNING: send_app_closing is currently ineffective and ignored. Since
-        the migration to libdatadog's telemetry worker, stop() always emits
-        app-closing in the origin process during teardown. If stopping
-        without app-closing is needed again, the behavior must be fixed in
-        libdatadog first (TODO).
+        WARNING: send_app_closing is currently ineffective and ignored: stop()
+        always drains the worker and emits app-closing in the origin process.
+        discard() retires the worker without draining or app-closing. Stopping
+        with a drain but without app-closing still needs a libdatadog change
+        (TODO).
+        """
+        ...
+    def discard(self, timeout_ns: int) -> bool:
+        """Retire the worker without draining its queue or emitting app-closing.
+
+        Waits at most about timeout_ns for the native task to be destroyed, with the GIL
+        released. Returns True once the worker is gone (or was already stopped), False if
+        destruction is still in progress. Either way the worker starts no new request, and later
+        calls to discard() or stop() do nothing. Never raises for a worker that is already
+        stopped or whose task failed.
         """
         ...
     def flush(self) -> None:
