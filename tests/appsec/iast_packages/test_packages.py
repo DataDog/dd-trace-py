@@ -141,6 +141,7 @@ class PackageForTesting:
         skip_python_version=None,
         test_e2e=True,
         import_name=None,
+        # A module name, or module:attribute to validate the submodule that defines the attribute.
         import_module_to_validate=None,
         test_propagation=False,
         fixme_propagation_fails=None,

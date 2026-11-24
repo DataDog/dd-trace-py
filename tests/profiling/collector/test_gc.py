@@ -778,3 +778,61 @@ def test_real_fork_resets_gc_state_in_the_child_only() -> None:
         assert col._explicit_count == 3
     finally:
         col.stop()
+
+
+# A fresh process for the same reason as test_gc_pause_samples_appear_in_profile: ddup fixes its sample types on
+# the first start().
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_exported_counts_and_durations"),
+    err=None,
+)
+def test_gc_exported_counts_and_durations() -> None:
+    # Check the exported values, not only that gc-time samples exist: one generation's pauses export as one sample
+    # carrying their count (gc-samples) and summed duration (gc-time), and the explicit gc.collect() count rides on
+    # the gc.config sample, whose gc-time is zero.
+    import gc
+    import os
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.gc import GCCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.pprof_utils import pprof_pb2
+
+    pprof_prefix: str = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename: str = pprof_prefix + "." + str(os.getpid())
+    ddup.config(
+        env="test", service="test_gc_exported_counts_and_durations", version="1.0", output_filename=pprof_prefix
+    )
+    ddup.config_sample_type(ddup.SAMPLE_TYPE_GC)
+    ddup.start()
+
+    # Only explicit collections, so the window holds exactly the pauses below.
+    gc.disable()
+    col: GCCollector = GCCollector()
+    col.start()
+    try:
+        for _ in range(3):
+            gc.collect(0)
+        gen0_pauses: int = col._pause_count[0]
+        gen0_total_ns: int = col._pause_total_ns[0]
+        explicit_calls: int = col._explicit_count
+        col.snapshot()
+    finally:
+        col.stop()
+    ddup.upload()
+
+    assert explicit_calls == 3
+    assert gen0_pauses >= 2
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    gc_time: int = pprof_utils.get_sample_type_index(profile, "gc-time")
+    gc_samples: int = pprof_utils.get_sample_type_index(profile, "gc-samples")
+
+    gen0: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_function(profile, profile.sample, "gc.collect[gen=0]")
+    assert len(gen0) == 1, gen0
+    assert gen0[0].value[gc_samples] == gen0_pauses
+    assert gen0[0].value[gc_time] == gen0_total_ns
+
+    config: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_function(profile, profile.sample, "gc.config")
+    assert len(config) == 1, config
+    assert config[0].value[gc_samples] == explicit_calls
+    assert config[0].value[gc_time] == 0
