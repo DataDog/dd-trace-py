@@ -707,7 +707,8 @@ def test_real_fork_resets_gc_state_in_the_child_only() -> None:
 
     # Only explicit collections, so both sides of the fork can compare exact counts.
     gc.disable()
-    col: GCCollector = GCCollector()
+    # Pauses at or above the event threshold leave the window totals, so put it out of reach.
+    col: GCCollector = GCCollector(pause_event_threshold_ms=60_000.0)
     col.start()
     monitor: gc_monitor.GCPauseMonitor = gc_monitor.gc_pause_monitor()
     gc.collect()
