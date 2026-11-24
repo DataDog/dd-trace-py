@@ -1821,7 +1821,4 @@ def test_set_http_meta_response_only_preserves_request_attributes(span: Span, in
     assert str(span._get_attribute("http.response.status_code" if otel else "http.status_code")) == "503"
     assert span.get_tag("http.status_msg") == "Unavailable"
     assert span.get_tag("http.response.headers.x-final") == "response"
-    assert len(calls) == 1
-    assert calls[0][1:10] == (None,) * 9
-    assert calls[0][10:12] == (503, {"x-final": "response"})
-    assert calls[0][13] is None
+    assert calls == []

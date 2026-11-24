@@ -399,7 +399,7 @@ def set_http_meta(
     :param response_headers: the HTTP response headers
     :param raw_uri: the full raw HTTP URI (including ports and query)
     :param request_cookies: the HTTP request cookies as a dict
-    :param response_only: Apply response metadata without replaying request attributes or route data.
+    :param response_only: Apply tracing response metadata without replaying request attributes or ASM inputs.
     :param request_path_params: the parameters of the HTTP URL as set by the framework. Polymorphic: a mapping of
         ``{name: value}`` for frameworks that bind named parameters (Django ``resolver_match.kwargs``, Flask
         ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
@@ -483,26 +483,27 @@ def set_http_meta(
     if retries_remain is not None:
         span._set_attribute(http.RETRIES_REMAIN, str(retries_remain))
 
-    core.dispatch(
-        "set_http_meta_for_asm",
-        (
-            span,
-            request_ip,
-            raw_uri,
-            route,
-            method,
-            request_headers,
-            request_cookies,
-            parsed_query,
-            request_path_params,
-            request_body,
-            status_code,
-            response_headers,
-            response_cookies,
-            peer_ip,
-            headers_are_case_sensitive,
-        ),
-    )
+    if not response_only:
+        core.dispatch(
+            "set_http_meta_for_asm",
+            (
+                span,
+                request_ip,
+                raw_uri,
+                route,
+                method,
+                request_headers,
+                request_cookies,
+                parsed_query,
+                request_path_params,
+                request_body,
+                status_code,
+                response_headers,
+                response_cookies,
+                peer_ip,
+                headers_are_case_sensitive,
+            ),
+        )
 
     if route is not None:
         span._set_attribute(http.ROUTE, route)

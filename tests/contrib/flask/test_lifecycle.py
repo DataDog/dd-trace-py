@@ -377,6 +377,53 @@ def preserved_client_app() -> Iterator[flask.Flask]:
         unpatch()
 
 
+@pytest.mark.parametrize("integration", ["flask", "wsgi"])
+@pytest.mark.parametrize("termination", ["exhaustion", "close"])
+def test_response_completion_does_not_publish_asm_inputs(
+    preserved_client_app: flask.Flask, integration: str, termination: str
+) -> None:
+    inputs: list[tuple[Any, ...]] = []
+    returned: list[Span] = []
+
+    def capture_inputs(*args: Any) -> None:
+        inputs.append(args)
+
+    def application_returned(ctx: core.ExecutionContext[WebFrameworkRequestEvent], exc_info: ExcInfoType) -> None:
+        returned.append(span_from_context(ctx))
+
+    @preserved_client_app.route("/")
+    def index() -> flask.Response:
+        return flask.Response(iter([b"first", b"second"]), status=201, headers={"X-Final": "response"})
+
+    def wsgi_application(environ: dict[str, Any], start_response: Any) -> Iterator[bytes]:
+        start_response("201 Created", [("X-Final", "response")])
+        return iter([b"first", b"second"])
+
+    app = DDWSGIMiddleware(wsgi_application) if integration == "wsgi" else preserved_client_app
+    core.on("set_http_meta_for_asm", capture_inputs)
+    core.on("wsgi.application.returned", application_returned)
+    builder = EnvironBuilder(path="/")
+    try:
+        response = app(builder.get_environ(), lambda *args: None)
+        try:
+            assert len(returned) == 1
+            assert not returned[0].finished
+            assert any(str(args[10]) == "201" and dict(args[11] or {}).get("X-Final") == "response" for args in inputs)
+            before_completion = list(inputs)
+            assert next(response) == b"first"
+            if termination == "exhaustion":
+                assert list(response) == [b"second"]
+            response.close()
+            assert all(span.finished for span in returned)
+            assert inputs == before_completion
+        finally:
+            response.close()
+    finally:
+        builder.close()
+        core.reset_listeners("set_http_meta_for_asm", capture_inputs)
+        core.reset_listeners("wsgi.application.returned", application_returned)
+
+
 @pytest.mark.parametrize("termination", ["exhaustion", "early_close", "stream_error"])
 @pytest.mark.parametrize("outer_wsgi", [False, True])
 def test_preserved_client_streaming(
