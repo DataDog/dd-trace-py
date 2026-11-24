@@ -1716,7 +1716,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kafka_python:
-    venvs_per_job: 4
+    venvs_per_job: 5
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
@@ -1728,6 +1728,7 @@ suites:
       - tests/contrib/kafka_python/*
     services:
       - kafka
+      - testagent
     matrix:
       command: pytest {cmdargs} tests/contrib/kafka_python
       env:

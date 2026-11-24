@@ -2374,7 +2374,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
+        "default": "kafka",
         "aliases": [
           "DD_KAFKA_PYTHON_SERVICE_NAME"
         ]
