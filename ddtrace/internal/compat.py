@@ -181,8 +181,15 @@ def iscoroutinefunction(func: Any) -> bool:
     (for example on sync_to_async wrappers), and so does unittest.mock.AsyncMock on
     Python < 3.10. Keep accepting it so the result matches on every supported version.
     The marker is read from sys.modules so this never imports asyncio by itself.
+
+    With module cloning, the application imports its own copy of inspect after ddtrace
+    starts, and inspect.markcoroutinefunction tags functions with a sentinel private to
+    that copy. So also ask the inspect module the application uses, as asyncio did.
     """
     if inspect.iscoroutinefunction(func):
+        return True
+    app_inspect = sys.modules.get("inspect")
+    if app_inspect is not None and app_inspect is not inspect and app_inspect.iscoroutinefunction(func):
         return True
     marker = getattr(sys.modules.get("asyncio.coroutines"), "_is_coroutine", None)
     return marker is not None and getattr(func, "_is_coroutine", None) is marker

@@ -2,6 +2,7 @@
 
 import asyncio
 import functools
+import sys
 from unittest import mock
 import warnings
 
@@ -123,3 +124,35 @@ def test_iscoroutinefunction(func, expected):
         asyncio_iscoroutinefunction = getattr(asyncio, "iscoroutinefunction", None)
         if asyncio_iscoroutinefunction is not None:
             assert iscoroutinefunction(func) is asyncio_iscoroutinefunction(func)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="inspect.markcoroutinefunction is new in Python 3.12")
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_iscoroutinefunction_with_module_cloning():
+    # The application gets a fresh copy of inspect, distinct from the one ddtrace imported.
+    import inspect
+    import sys
+
+    import ddtrace.auto  # noqa:F401  (runs cleanup_loaded_modules())
+    from ddtrace.internal import compat
+
+    assert inspect is not compat.inspect, "module cloning did not give the application its own inspect"
+
+    def app():
+        pass
+
+    # Sync callable marked as a coroutine function by the application's inspect (as asgiref does).
+    inspect.markcoroutinefunction(app)
+
+    assert inspect.iscoroutinefunction(app)
+    assert compat.iscoroutinefunction(app)
+
+    import asyncio
+    import warnings
+
+    with warnings.catch_warnings():
+        # Deprecated in Python 3.14; the helper must keep agreeing with it.
+        warnings.simplefilter("ignore", DeprecationWarning)
+        if hasattr(asyncio, "iscoroutinefunction"):
+            assert asyncio.iscoroutinefunction(app)
+    assert not compat.iscoroutinefunction(sys.exit)
