@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the service source tag reported the integration name instead of the user-provided source when ``DD_SERVICE`` is set to the same value as the automatically inferred service name.

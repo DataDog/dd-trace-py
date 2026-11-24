@@ -29,6 +29,8 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
@@ -1878,6 +1880,34 @@ def test_non_active_span(tracer, test_spans):
     traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 2
+
+
+@pytest.mark.parametrize(
+    "user_provided,initial_source,expected_source",
+    [
+        # DD_SERVICE equals the inferred service: the user-provided source is kept.
+        (True, "m", "m"),
+        # No DD_SERVICE and no source yet: the span gets the integration name.
+        (False, None, "myint"),
+        # An inferred service name replaces a non-"opt." source with the integration name.
+        (False, "m", "myint"),
+        # "opt.*" sources are always preserved.
+        (True, "opt.service_mapping", "opt.service_mapping"),
+        (False, "opt.service_mapping", "opt.service_mapping"),
+    ],
+)
+def test_service_source_for_inferred_base_service(tracer, user_provided, initial_source, expected_source):
+    with override_global_config(dict(service="myapp")):
+        with mock.patch.object(config, "_inferred_base_service", "myapp"):
+            with mock.patch.object(config, "_is_user_provided_service", user_provided):
+                with tracer.trace("op") as span:
+                    span.service = "myapp"
+                    span._set_attribute(COMPONENT, "myint")
+                    if initial_source is not None:
+                        span._set_attribute(_SERVICE_SOURCE, initial_source)
+
+    assert span.service == "myapp"
+    assert span.get_tag(_SERVICE_SOURCE) == expected_source
 
 
 def test_service_mapping():
