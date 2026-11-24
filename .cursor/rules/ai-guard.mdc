@@ -119,7 +119,7 @@ the openai-agents MCP server listeners, gated by `DD_AI_GUARD_MCP_ENABLED`. Keep
 
 `AIGuardClient._evaluate_policies()` evaluates one target against the AI Guard policies, for example an MCP
 server connection. It is protected: no integration calls it yet, and it is not part of the public SDK.
-- It sends one target to `{endpoint}/policies/evaluate`, with the `coding_agents` profile and `meta`.
+- It sends one target to `{endpoint}/policies/evaluate`, with the `custom_agents` profile and `meta`.
 - It uses the result whose `target_index` is the int 0, or a single result without `target_index`.
   A missing or ambiguous result is a `bad_response` error and never an `ALLOW`.
 - It applies the blocking rule of `evaluate()`. Middlewares do not run for it. It shares only

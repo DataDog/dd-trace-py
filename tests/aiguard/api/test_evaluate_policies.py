@@ -71,7 +71,7 @@ def test_request_is_the_rfc_payload_sent_to_the_policies_endpoint(mock_execute_r
     # One target per request, the default profile and the meta of evaluate; never the /evaluate endpoint.
     mock_execute_request.assert_called_once_with(
         "https://api.example.com/ai-guard/policies/evaluate",
-        {"data": {"attributes": {"profile": "coding_agents", "targets": [TARGET], "meta": META}}},
+        {"data": {"attributes": {"profile": "custom_agents", "targets": [TARGET], "meta": META}}},
     )
 
 

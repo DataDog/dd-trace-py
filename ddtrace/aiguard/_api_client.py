@@ -756,7 +756,7 @@ class AIGuardClient:
                 span.set_tag(AI_GUARD.SOURCE_TAG, clamped_source)
                 span.set_tag(AI_GUARD.INTEGRATION_TAG, clamped_integration)
                 attributes = {
-                    "profile": AI_GUARD.POLICY_PROFILE_CODING_AGENTS,
+                    "profile": AI_GUARD.POLICY_PROFILE_CUSTOM_AGENTS,
                     "targets": [target],
                     "meta": self._meta,
                 }

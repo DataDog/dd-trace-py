@@ -32,7 +32,7 @@ class AI_GUARD(metaclass=Constant_Class):
     # Policy evaluations: the target type and MCP server operation of a connection check, and the policy profile.
     TARGET_MCP_SERVER: Literal["mcp_server"] = "mcp_server"
     MCP_OPERATION_CONNECT: Literal["connect"] = "connect"
-    POLICY_PROFILE_CODING_AGENTS: Literal["coding_agents"] = "coding_agents"
+    POLICY_PROFILE_CUSTOM_AGENTS: Literal["custom_agents"] = "custom_agents"
 
     # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
     # span only if an ai_guard span is created during the request.
