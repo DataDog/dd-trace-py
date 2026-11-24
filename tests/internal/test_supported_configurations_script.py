@@ -22,6 +22,14 @@ _MODULE: types.ModuleType = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_MODULE)
 
 
+# check_registry() scans the dd-trace-py checkout (it reads ddtrace/_monkey.py for the integration list). CI runs this
+# suite against an installed ddtrace whose source tree is not checked out, so those tests need the sources.
+requires_source_tree = pytest.mark.skipif(
+    not (_MODULE.REPO_ROOT / "ddtrace" / "_monkey.py").is_file(),
+    reason="needs the dd-trace-py source tree, which is absent when testing an installed ddtrace",
+)
+
+
 def _registry(*names: str) -> dict[str, Any]:
     return {"supportedConfigurations": {name: [{}] for name in names}}
 
@@ -34,6 +42,7 @@ def isolated_package_roots(monkeypatch):
     monkeypatch.setattr(_MODULE, "_STRING_CONSTANTS_CACHE", {})
 
 
+@requires_source_tree
 def test_check_registry_reports_unregistered_var_in_extra_root(tmp_path, capsys, isolated_package_roots):
     (tmp_path / "mod.py").write_text('import os\nos.environ.get("DD_PACKAGE_ONLY_VAR")\n')
 
@@ -44,6 +53,7 @@ def test_check_registry_reports_unregistered_var_in_extra_root(tmp_path, capsys,
     assert str(tmp_path) in out
 
 
+@requires_source_tree
 def test_check_registry_accepts_registered_var_in_extra_root(tmp_path, capsys, isolated_package_roots):
     (tmp_path / "mod.py").write_text('import os\nos.environ.get("DD_PACKAGE_ONLY_VAR")\n')
 
@@ -53,6 +63,7 @@ def test_check_registry_accepts_registered_var_in_extra_root(tmp_path, capsys, i
     assert "DD_PACKAGE_ONLY_VAR" not in capsys.readouterr().out.split("Unregistered vars:")[-1]
 
 
+@requires_source_tree
 def test_check_registry_default_roots_are_ddtrace_and_installed_packages(
     tmp_path, capsys, monkeypatch, isolated_package_roots
 ):
@@ -66,6 +77,7 @@ def test_check_registry_default_roots_are_ddtrace_and_installed_packages(
     assert str(_MODULE.REPO_ROOT / "ddtrace") in out
 
 
+@requires_source_tree
 def test_check_registry_default_roots_without_packages_scan_only_ddtrace(capsys, isolated_package_roots):
     # Nothing installed: only ddtrace/ is scanned, exactly as before the packages existed.
     _MODULE.check_registry(_registry())
