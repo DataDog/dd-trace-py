@@ -15,7 +15,7 @@ def test_data_streams_sqs_send_and_receive():
     from ddtrace.contrib.internal.aiobotocore.patch import patch
     from ddtrace.internal.datastreams import data_streams_processor
     from tests.contrib.aiobotocore.utils import aiobotocore_client
-    from tests.datastreams.utils import pathway_stats_merged
+    from tests.datastreams.utils import pathway_payload_counts
 
     patch()
     queue_name = "aiobotocore-dsm-sqs"
@@ -41,21 +41,73 @@ def test_data_streams_sqs_send_and_receive():
     for message in messages:
         assert "dd-pathway-ctx-base64" in json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
 
-    stats = pathway_stats_merged(data_streams_processor())
+    counts = pathway_payload_counts(data_streams_processor())
     out_entries = [
-        (h, p, s) for (tags, h, p), s in stats.items() if tags == "direction:out,topic:%s,type:sqs" % queue_name
+        (h, p, c) for (tags, h, p), c in counts.items() if tags == "direction:out,topic:%s,type:sqs" % queue_name
     ]
     in_entries = [
-        (h, p, s) for (tags, h, p), s in stats.items() if tags == "direction:in,topic:%s,type:sqs" % queue_name
+        (h, p, c) for (tags, h, p), c in counts.items() if tags == "direction:in,topic:%s,type:sqs" % queue_name
     ]
-    assert len(out_entries) == 1, stats
-    assert len(in_entries) == 1, stats
-    out_hash, out_parent, out_stats = out_entries[0]
-    _, in_parent, in_stats = in_entries[0]
+    assert len(out_entries) == 1, counts
+    assert len(in_entries) == 1, counts
+    out_hash, out_parent, out_count = out_entries[0]
+    _, in_parent, in_count = in_entries[0]
     assert out_parent == 0
     assert in_parent == out_hash
-    assert out_stats.payload_size.count == 3
-    assert in_stats.payload_size.count == 3
+    assert out_count == 3
+    assert in_count == 3
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=None)
+def test_data_streams_concurrent_tasks_keep_their_own_pathway():
+    import asyncio
+
+    from ddtrace.contrib.internal.aiobotocore.patch import patch
+    from ddtrace.internal.datastreams import data_streams_processor
+    from tests.contrib.aiobotocore.utils import aiobotocore_client
+    from tests.datastreams.utils import pathway_stats_merged
+
+    patch()
+
+    async def run():
+        async with aiobotocore_client("sqs", None) as sqs:
+            urls = {}
+            for name in ("in-a", "in-b", "out-a", "out-b"):
+                urls[name] = (await sqs.create_queue(QueueName="aiobotocore-dsm-tasks-" + name))["QueueUrl"]
+            await sqs.send_message(QueueUrl=urls["in-a"], MessageBody="a")
+            await sqs.send_message(QueueUrl=urls["in-b"], MessageBody="b")
+            a_received = asyncio.Event()
+            b_received = asyncio.Event()
+
+            async def worker(source, target, received, wait_for):
+                messages = []
+                while not messages:
+                    response = await sqs.receive_message(QueueUrl=urls[source], WaitTimeSeconds=1)
+                    messages = response.get("Messages", [])
+                received.set()
+                await wait_for.wait()
+                await sqs.send_message(QueueUrl=urls[target], MessageBody=messages[0]["Body"])
+
+            await asyncio.gather(
+                worker("in-a", "out-a", a_received, b_received),
+                worker("in-b", "out-b", b_received, a_received),
+            )
+            for url in urls.values():
+                await sqs.delete_queue(QueueUrl=url)
+
+    asyncio.run(run())
+
+    stats = pathway_stats_merged(data_streams_processor())
+
+    def entry(tags):
+        entries = [(h, p) for (t, h, p) in stats if t == tags]
+        assert len(entries) == 1, (tags, stats)
+        return entries[0]
+
+    for name in ("a", "b"):
+        in_hash, _ = entry("direction:in,topic:aiobotocore-dsm-tasks-in-%s,type:sqs" % name)
+        _, out_parent = entry("direction:out,topic:aiobotocore-dsm-tasks-out-%s,type:sqs" % name)
+        assert out_parent == in_hash, name
 
 
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=None)
@@ -109,7 +161,7 @@ def test_data_streams_kinesis_put_and_get():
     from ddtrace.contrib.internal.aiobotocore.patch import patch
     from ddtrace.internal.datastreams import data_streams_processor
     from tests.contrib.aiobotocore.utils import aiobotocore_client
-    from tests.datastreams.utils import pathway_stats_merged
+    from tests.datastreams.utils import pathway_payload_counts
 
     patch()
     stream_name = "aiobotocore-dsm-stream"
@@ -140,18 +192,18 @@ def test_data_streams_kinesis_put_and_get():
     for record in records:
         assert "dd-pathway-ctx-base64" in json.loads(record["Data"])["_datadog"]
 
-    stats = pathway_stats_merged(data_streams_processor())
-    out_entries = [(h, p, s) for (tags, h, p), s in stats.items() if tags.startswith("direction:out,")]
-    in_entries = [(h, p, s) for (tags, h, p), s in stats.items() if tags.startswith("direction:in,")]
-    assert {tags for (tags, _, _) in stats} == {
+    counts = pathway_payload_counts(data_streams_processor())
+    assert {tags for (tags, _, _) in counts} == {
         "direction:out,topic:%s,type:kinesis" % stream_arn,
         "direction:in,topic:%s,type:kinesis" % stream_arn,
-    }, stats
-    assert len(out_entries) == 1, stats
-    assert len(in_entries) == 1, stats
-    assert out_entries[0][2].payload_size.count == 3
+    }, counts
+    out_entries = [(h, p, c) for (tags, h, p), c in counts.items() if tags.startswith("direction:out,")]
+    in_entries = [(h, p, c) for (tags, h, p), c in counts.items() if tags.startswith("direction:in,")]
+    assert len(out_entries) == 1, counts
+    assert len(in_entries) == 1, counts
+    assert out_entries[0][2] == 3
     assert in_entries[0][1] == out_entries[0][0]
-    assert in_entries[0][2].payload_size.count == 3
+    assert in_entries[0][2] == 3
 
 
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=b"")

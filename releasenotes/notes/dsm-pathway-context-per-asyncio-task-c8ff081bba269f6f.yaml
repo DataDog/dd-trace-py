@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    data streams monitoring: Fixes an issue where concurrent asyncio tasks running on the same thread shared
+    one pathway, so a message produced by one task could be linked to a message consumed by another task.
