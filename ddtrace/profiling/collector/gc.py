@@ -83,11 +83,6 @@ class GCCollector(collector.Collector):
     _event_thread_id: list[int]
     _event_native_id: list[int]
     _event_count: int
-    _snap_event_gen: list[int]
-    _snap_event_pause_ns: list[int]
-    _snap_event_end_ns: list[int]
-    _snap_event_thread_id: list[int]
-    _snap_event_native_id: list[int]
     _event_threshold_ns: int
     _dropped_pause_count: int
     _dropped_pause_ns: int
@@ -109,20 +104,14 @@ class GCCollector(collector.Collector):
         self._lock = forksafe.Lock()
         self._pause_count = [0] * _GEN_COUNT
         self._pause_total_ns = [0] * _GEN_COUNT
-        # Preallocate the pause-event ring once. _on_pause must not allocate.
+        # Preallocate the pause-event ring. _on_pause must not allocate, and
+        # snapshot() swaps in lists it allocated before taking the lock.
         self._event_gen = [0] * _MAX_PAUSE_EVENTS
         self._event_pause_ns = [0] * _MAX_PAUSE_EVENTS
         self._event_end_ns = [0] * _MAX_PAUSE_EVENTS
         self._event_thread_id = [0] * _MAX_PAUSE_EVENTS
         self._event_native_id = [0] * _MAX_PAUSE_EVENTS
         self._event_count = 0
-        # Snapshot scratch mirrors the ring so we never slice/allocate under
-        # the lock (a GC pause while we hold it would be dropped).
-        self._snap_event_gen = [0] * _MAX_PAUSE_EVENTS
-        self._snap_event_pause_ns = [0] * _MAX_PAUSE_EVENTS
-        self._snap_event_end_ns = [0] * _MAX_PAUSE_EVENTS
-        self._snap_event_thread_id = [0] * _MAX_PAUSE_EVENTS
-        self._snap_event_native_id = [0] * _MAX_PAUSE_EVENTS
         self._dropped_pause_count = 0
         self._dropped_pause_ns = 0
         self._explicit_count = 0
@@ -225,6 +214,14 @@ class GCCollector(collector.Collector):
         # Skip this interval if a pause listener or patched collect already
         # holds the lock. Waiting would hang shutdown when a signal interrupts
         # the main thread mid-_on_pause / _patched_collect.
+        # The pause-event lists are swapped out rather than copied, so each call
+        # owns the lists it emits from even if two flushes overlap. Their
+        # replacements are allocated before taking the lock.
+        fresh_gen: list[int] = [0] * _MAX_PAUSE_EVENTS
+        fresh_pause_ns: list[int] = [0] * _MAX_PAUSE_EVENTS
+        fresh_end_ns: list[int] = [0] * _MAX_PAUSE_EVENTS
+        fresh_thread_id: list[int] = [0] * _MAX_PAUSE_EVENTS
+        fresh_native_id: list[int] = [0] * _MAX_PAUSE_EVENTS
         if not self._lock.acquire(False):
             return
         try:
@@ -235,12 +232,16 @@ class GCCollector(collector.Collector):
             t1: int = self._pause_total_ns[1]
             t2: int = self._pause_total_ns[2]
             event_count: int = self._event_count
-            for i in range(event_count):
-                self._snap_event_gen[i] = self._event_gen[i]
-                self._snap_event_pause_ns[i] = self._event_pause_ns[i]
-                self._snap_event_end_ns[i] = self._event_end_ns[i]
-                self._snap_event_thread_id[i] = self._event_thread_id[i]
-                self._snap_event_native_id[i] = self._event_native_id[i]
+            event_gen: list[int] = self._event_gen
+            event_pause_ns: list[int] = self._event_pause_ns
+            event_end_ns: list[int] = self._event_end_ns
+            event_thread_id: list[int] = self._event_thread_id
+            event_native_id: list[int] = self._event_native_id
+            self._event_gen = fresh_gen
+            self._event_pause_ns = fresh_pause_ns
+            self._event_end_ns = fresh_end_ns
+            self._event_thread_id = fresh_thread_id
+            self._event_native_id = fresh_native_id
             explicit: int = self._explicit_count
             dropped_count: int = self._dropped_pause_count
             dropped_ns: int = self._dropped_pause_ns
@@ -258,17 +259,17 @@ class GCCollector(collector.Collector):
             self._lock.release()
 
         for i in range(event_count):
-            gen: int = self._snap_event_gen[i]
-            thread_id: int = self._snap_event_thread_id[i]
+            gen: int = event_gen[i]
+            thread_id: int = event_thread_id[i]
             event_handle: ddup.SampleHandle = ddup.SampleHandle()
-            event_handle.push_gctime(self._snap_event_pause_ns[i], 1)
+            event_handle.push_gctime(event_pause_ns[i], 1)
             event_handle.push_frame(_GEN_NAMES[gen], _GC_FILE, 0, gen)
             event_handle.push_gc_generation(gen)
             event_handle.push_gc_event(_GC_EVENT_PAUSE)
-            event_handle.push_monotonic_ns(self._snap_event_end_ns[i])
+            event_handle.push_monotonic_ns(event_end_ns[i])
             # push_threadinfo drops all three labels when the name is empty.
             thread_name: str = _threading.get_thread_name(thread_id) or str(thread_id)
-            event_handle.push_threadinfo(thread_id, self._snap_event_native_id[i], thread_name)
+            event_handle.push_threadinfo(thread_id, event_native_id[i], thread_name)
             event_handle.flush_sample()
 
         pause_count: tuple[int, int, int] = (c0, c1, c2)

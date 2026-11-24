@@ -165,11 +165,6 @@ def _make_isolated_collector(pause_event_threshold_ms: float = 1.0) -> GCCollect
     col._event_thread_id = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._event_native_id = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._event_count = 0
-    col._snap_event_gen = [0] * gc_collector._MAX_PAUSE_EVENTS
-    col._snap_event_pause_ns = [0] * gc_collector._MAX_PAUSE_EVENTS
-    col._snap_event_end_ns = [0] * gc_collector._MAX_PAUSE_EVENTS
-    col._snap_event_thread_id = [0] * gc_collector._MAX_PAUSE_EVENTS
-    col._snap_event_native_id = [0] * gc_collector._MAX_PAUSE_EVENTS
     col._dropped_pause_count = 0
     col._dropped_pause_ns = 0
     col._explicit_count = 0
@@ -359,6 +354,31 @@ def test_pause_event_keeps_native_id_after_thread_exits() -> None:
     assert len(events) == 1
     threadinfo: tuple[int, int, str] = events[0].push_threadinfo.call_args[0]
     assert threadinfo[:2] == (worker.ident, worker.native_id)
+
+
+def test_overlapping_snapshots_emit_each_pause_once() -> None:
+    col: GCCollector = _make_isolated_collector(pause_event_threshold_ms=1.0)
+    col._on_pause(2, 7_000_000)
+    handles: list[mock.MagicMock] = []
+
+    def make_handle() -> mock.MagicMock:
+        handle: mock.MagicMock = mock.MagicMock()
+        handles.append(handle)
+        if len(handles) == 1:
+            # A second flush runs while the first is still emitting its samples.
+            col._on_pause(1, 3_000_000)
+            col.snapshot()
+        return handle
+
+    with mock.patch.object(gc_collector, "ddup") as mock_ddup:
+        mock_ddup.SampleHandle.side_effect = make_handle
+        col.snapshot()
+
+    events: list[mock.MagicMock] = [h for h in handles if h.push_gc_event.called]
+    emitted: list[tuple[int, int]] = sorted(
+        (h.push_gc_generation.call_args[0][0], h.push_gctime.call_args[0][0]) for h in events
+    )
+    assert emitted == [(1, 3_000_000), (2, 7_000_000)]
 
 
 def test_pause_events_past_cap_roll_into_aggregates() -> None:
