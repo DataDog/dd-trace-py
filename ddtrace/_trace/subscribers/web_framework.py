@@ -127,7 +127,10 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
         event: WebFrameworkRequestEvent = ctx.event
         status_code = event.response_status_code
         method = event.request_method
-        res_headers = event.response_headers
+        deferred_response = ctx.get_item("middleware") is not None
+        # Flask/WSGI start_response hooks already tag headers. Replaying them at
+        # completion would overwrite later span-tag edits or restore removed tags.
+        res_headers = None if deferred_response else event.response_headers
 
         span: Span = span_from_context(ctx)
 
@@ -167,7 +170,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
                 peer_ip=None if request_tagged else event.peer_ip,
-                response_only=ctx.get_item("middleware") is not None,
+                response_only=deferred_response,
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)

@@ -439,6 +439,7 @@ def test_request_tag_overrides_survive_completion(
         else ["http.method", "http.url", "http.query.string"]
     ) + ["http.request.headers.x-private"]
     client_key = "client.address" if otel else "http.client_ip"
+    response_keys = ["http.response.headers.x-final", "custom.response.header"]
 
     def redact(span: Span, names: list[str]) -> None:
         for name in names:
@@ -478,7 +479,9 @@ def test_request_tag_overrides_survive_completion(
     def app(environ: dict[str, Any], start_response: Callable[..., Any]) -> Response:
         if terminal == "application_error":
             raise failure
-        start_response("201 Created", [("X-Final", "response")])
+        start_response("201 Created", [("X-Final", "response"), ("X-Custom", "custom")])
+        assert [roots[0]._get_attribute(key) for key in response_keys] == ["response", "custom"]
+        redact(roots[0], response_keys)
         # Completion must not recalculate request IP after application redaction.
         core.current.set_item("http.request.remote_ip", "203.0.113.9")
         redact(roots[0], [client_key])
@@ -495,7 +498,14 @@ def test_request_tag_overrides_survive_completion(
     }
     with (
         override_global_config(dict(_otel_trace_semantics_enabled=otel, _retrieve_client_ip=True)),
-        override_http_config("wsgi", dict(trace_query_string=True, trace_headers=["x-private", "x-final"])),
+        override_http_config(
+            "wsgi",
+            dict(
+                _header_tags={"x-custom": "custom.response.header"},
+                trace_query_string=True,
+                trace_headers=["x-private", "x-final"],
+            ),
+        ),
     ):
         middleware = DDWSGIMiddleware(app, span_modifier=modifier)
         if terminal == "application_error":
@@ -529,7 +539,8 @@ def test_request_tag_overrides_survive_completion(
             assert root._get_attribute(client_key) == expected
             status_key = "http.response.status_code" if otel else "http.status_code"
             assert str(root._get_attribute(status_key)) == "201"
-            assert root.get_tag("http.response.headers.x-final") == "response"
+            for key in response_keys:
+                assert root._get_attribute(key) == expected, key
         assert all(span.finished for span in test_spans.pop())
 
 

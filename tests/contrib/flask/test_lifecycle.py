@@ -20,6 +20,7 @@ from ddtrace.trace import Tracer
 from ddtrace.trace import tracer as global_tracer
 from tests.utils import override_config
 from tests.utils import override_global_config
+from tests.utils import override_http_config
 
 from . import BaseFlaskTestCase
 
@@ -375,6 +376,51 @@ def preserved_client_app() -> Iterator[flask.Flask]:
         yield flask.Flask(__name__)
     finally:
         unpatch()
+
+
+@pytest.mark.parametrize("remove", [False, True])
+@pytest.mark.parametrize("termination", ["exhaustion", "close"])
+def test_response_header_tag_edits_survive_completion(
+    preserved_client_app: flask.Flask, remove: bool, termination: str
+) -> None:
+    roots: list[Span] = []
+    header_tags = ["http.response.headers.x-final", "custom.response.header"]
+
+    @preserved_client_app.route("/")
+    def index() -> flask.Response:
+        def generate() -> Iterator[bytes]:
+            span = global_tracer.current_root_span()
+            assert span is not None
+            roots.append(span)
+            assert [span._get_attribute(key) for key in header_tags] == ["response", "custom"]
+            for key in header_tags:
+                if remove:
+                    span._remove_attribute(key)
+                else:
+                    span._set_attribute(key, "redacted")
+            yield b"first"
+            yield b"second"
+
+        return flask.Response(generate(), headers={"X-Final": "response", "X-Custom": "custom"})
+
+    builder = EnvironBuilder(path="/")
+    try:
+        with override_http_config(
+            "flask", dict(_header_tags={"x-custom": "custom.response.header"}, trace_headers=["x-final"])
+        ):
+            response = preserved_client_app(builder.get_environ(), lambda *args: None)
+            try:
+                assert next(response) == b"first"
+                if termination == "exhaustion":
+                    assert list(response) == [b"second"]
+                response.close()
+                assert len(roots) == 1 and roots[0].finished
+                expected = None if remove else "redacted"
+                assert [roots[0]._get_attribute(key) for key in header_tags] == [expected, expected]
+            finally:
+                response.close()
+    finally:
+        builder.close()
 
 
 @pytest.mark.parametrize("integration", ["flask", "wsgi"])

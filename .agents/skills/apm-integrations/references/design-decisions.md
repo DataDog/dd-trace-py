@@ -99,8 +99,10 @@ The iterable reports completion without owning spans; the tracing-owned
 `ddtrace._trace.events.WebFrameworkResponseEvent` lets tracing create the response child.
 Keep new tracing lifecycle contracts outside contrib so subscriber initialization does not
 add tracing-to-integration imports. Request metadata is applied before public span modifiers;
-deferred WSGI completion applies tracing-only response metadata to preserve overrides and redactions
-without republishing ASM inputs. Keep application-return security cleanup
+deferred WSGI completion updates tracing response status without replaying request attributes,
+response-header tags, or ASM inputs. Existing start_response hooks tag response headers; retain
+the captured headers on the event while preserving later span-tag edits and removals.
+Keep application-return security cleanup
 separate from response completion: AppSec and IAST consume
 `wsgi.application.returned` while the request context remains current. Retain
 Flask's metadata and blocking phase hooks rather than adding a second request owner.
