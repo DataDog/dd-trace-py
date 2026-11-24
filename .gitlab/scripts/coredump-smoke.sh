@@ -37,7 +37,9 @@ rc=0
 wait $! || rc=$?
 [ "$rc" -eq 139 ] || fail "expected sleep to die with SIGSEGV (exit 139), got exit $rc"
 
-bash .gitlab/scripts/generate-core-backtraces.sh
+rc=0
+bash .gitlab/scripts/generate-core-backtraces.sh --fail-on-core || rc=$?
+[ "$rc" -eq 1 ] || fail "expected --fail-on-core to exit 1 for the Python core, got exit $rc"
 
 shopt -s nullglob
 backtraces=(core-dumps/*.bt.txt)
