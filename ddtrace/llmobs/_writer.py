@@ -5,6 +5,7 @@ import os
 import tempfile
 from typing import Any
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 import urllib
@@ -65,6 +66,8 @@ logger = get_logger(__name__)
 
 
 _SHOULD_USE_AGENTLESS: Optional[bool] = None
+
+_WriterT = TypeVar("_WriterT", bound="BaseLLMObsWriter")
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -184,17 +187,17 @@ class BaseLLMObsWriter(PeriodicService):
             ),
         )(self._send_payload)
 
-    def start(self, *args, **kwargs):
+    def start(self, *args: Any, **kwargs: Any) -> None:
         super().start()
         logger.debug("started %r to %r", self.__class__.__name__, self._url)
         atexit.register(self.on_shutdown)
 
-    def stop(self, timeout=None):
+    def stop(self, timeout: Optional[float] = None) -> None:
         super().stop(timeout=timeout)
         logger.debug("stopped %r to %r", self.__class__.__name__, self._url)
         atexit.unregister(self.on_shutdown)
 
-    def on_shutdown(self):
+    def on_shutdown(self) -> None:  # type: ignore[override]  # base declares it as a staticmethod
         self.periodic()
 
     def _get_tenant_buffer(self, target: RoutingTarget) -> _TenantBuffer:
@@ -268,9 +271,9 @@ class BaseLLMObsWriter(PeriodicService):
             self._buffer.append(event)
             self._buffer_size += event_size
 
-    def _encode(self, payload, num_events):
+    def _encode(self, payload: Any, num_events: int) -> Optional[str]:
         try:
-            enc_llm_events = safe_json(payload)
+            enc_llm_events: str = safe_json(payload)
             logger.debug("encoded %d LLMObs %s events to be sent", num_events, self.EVENT_TYPE)
             return enc_llm_events
         except TypeError:
@@ -357,12 +360,12 @@ class BaseLLMObsWriter(PeriodicService):
 
     def _send_payload(
         self,
-        payload: bytes,
+        payload: Union[str, bytes],
         num_events: int,
         intake: Optional[str] = None,
         endpoint: Optional[str] = None,
         headers: Optional[dict[str, str]] = None,
-    ):
+    ) -> Response:
         intake = intake if intake is not None else self._intake
         endpoint = endpoint if endpoint is not None else self._endpoint
         headers = headers if headers is not None else self._headers
@@ -401,11 +404,11 @@ class BaseLLMObsWriter(PeriodicService):
     def _url(self) -> str:
         return f"{self._intake}{self._endpoint}"
 
-    def _data(self, events):
+    def _data(self, events: list[Any]) -> Union[dict[str, Any], list[dict[str, Any]]]:
         """Return payload containing events to be encoded and submitted to LLM Observability."""
         raise NotImplementedError
 
-    def recreate(self):
+    def recreate(self: _WriterT) -> _WriterT:
         return self.__class__(
             interval=self._interval,
             timeout=self._timeout,
@@ -457,9 +460,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
         }
 
-    def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+    def request(self, method: str, path: str, body: JSONType = None, timeout: float = TIMEOUT) -> Response:
         try:
-            return self._request_with_retry(method, path, body, timeout)
+            response: Response = self._request_with_retry(method, path, body, timeout)
+            return response
         except RetryError as e:
             # Return the last response if all retries were exhausted on a retryable HTTP error.
             if isinstance(e.args[0], Response):
@@ -472,7 +476,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
         until=lambda result: isinstance(result, Response) and result.status not in (408, 429) and result.status < 500,
     )
-    def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+    def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout: float = TIMEOUT) -> Response:
         headers = {"Content-Type": "application/json", **self._auth_headers()}
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
@@ -486,7 +490,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         finally:
             conn.close()
 
-    def publish_custom_evaluator(self, evaluation: dict[str, Any]):
+    def publish_custom_evaluator(self, evaluation: dict[str, Any]) -> None:
         path = "/api/unstable/llm-obs/v1/config/evaluators/custom"
         resp = self.request(
             "PUT", path, body={"data": {"type": "evaluator_config", "attributes": {"evaluation": evaluation}}}
@@ -726,7 +730,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             filter_tags=tags,
         )
 
-    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True):
+    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True) -> None:
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             file_name = os.path.basename(tmp.name)
             file_name_parts = file_name.rsplit(".", 1)
@@ -1039,7 +1043,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_id: str,
         events: list[LLMObsExperimentEvalMetricEvent],
         tags: list[str],
-        spans: Optional[list[dict]] = None,
+        spans: Optional[list[dict[str, Any]]] = None,
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
         attributes: dict[str, JSONType] = {
@@ -1065,7 +1069,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         project_name: Optional[str] = None,
         experiment_name: Optional[str] = None,
         include_eval_metrics: bool = True,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Fetch span events for a prior experiment run.
 
         Pass ``experiment_id`` for direct UUID lookup, or ``project_name`` +
@@ -1099,7 +1103,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         resp = self.request("GET", path)
         if resp.status != 200:
             raise ValueError(f"Failed to get experiment events: {resp.status} {resp.get_json()}")
-        return resp.get_json()
+        events: dict[str, Any] = resp.get_json()
+        return events
 
     def evaluator_infer(
         self,
@@ -1158,7 +1163,7 @@ class LLMObsAPIClient:
         _override_url: str = override_url or env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
         self._base_url: str = _override_url or f"https://api.{_site}"
 
-    def get_spans(self, base_params: dict) -> list[dict]:
+    def get_spans(self, base_params: dict[str, Any]) -> list[dict[str, Any]]:
         if not self._api_key:
             raise ValueError("API key not set")
         if not self._app_key:
@@ -1168,7 +1173,7 @@ class LLMObsAPIClient:
             "DD-APPLICATION-KEY": self._app_key,
             "Accept": "application/vnd.api+json",
         }
-        spans: list[dict] = []
+        spans: list[dict[str, Any]] = []
         cursor = None
         while True:
             params = dict(base_params)

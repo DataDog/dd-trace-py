@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from ast import unparse
 import logging
+import os
+from pathlib import Path
+from textwrap import dedent
 from unittest import mock
 
 import pytest
@@ -594,3 +597,147 @@ def test_package_list_read_inside_a_finder_query_is_not_kept(tmp_path):
     finally:
         reset()
         ast_patching.initialize_iast_lists()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_IAST_ENABLED="true", _DD_IAST_PATCH_MODULES="app_allowed", _DD_IAST_DENY_MODULES=""),
+    parametrize=dict(_DD_TEST_DISCOVERY=("empty", "filesystem", "iast", "cold")),
+)
+def test_finder_import_uses_only_name_rules_until_discovery_completes():
+    from importlib import import_module
+    from importlib.machinery import PathFinder
+    from importlib.machinery import SourceFileLoader
+    from importlib.metadata import PathDistribution
+    from importlib.util import spec_from_file_location
+    import os
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+    from unittest.mock import patch
+
+    from ddtrace.appsec._iast import enable_iast_propagation
+    from ddtrace.appsec._iast._ast import ast_patching
+    from ddtrace.internal import packages
+
+    entry = os.environ["_DD_TEST_DISCOVERY"]
+    enable_iast_propagation()
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        app = root / "app"
+        app.mkdir()
+        lib = app / "site-packages"
+        lib.mkdir()
+        source = "def combine(a, b):\n    return a + b\n"
+        for name in ("app_helper", "app_allowed", "finder_dep", "installed_dep"):
+            (app / f"{name}.py").write_text(source)
+        (lib / "lib_dep.py").write_text(source)
+        # Both siblings match the same static allowlist entry; only a user deny can distinguish them.
+        static_package = lib / "s3fs"
+        static_package.mkdir()
+        (static_package / "__init__.py").touch()
+        for name in ("allowed", "denied"):
+            (static_package / f"{name}.py").write_text(source)
+
+        def dist(where, name):
+            info = where / f"{name}-1.0.dist-info"
+            info.mkdir()
+            (info / "METADATA").write_text(f"Name: {name}\nVersion: 1.0\n")
+            (info / "top_level.txt").write_text(name)
+            return PathDistribution(info)
+
+        dependency = dist(root, "finder_dep")  # Only the finder knows about this distribution.
+        if entry == "filesystem":
+            dist(app, "installed_dep")
+
+        class Loader(SourceFileLoader):
+            def exec_module(self, module):
+                module.loader_ran = True
+                super().exec_module(module)
+
+        class Finder:
+            calls = 0
+
+            def find_spec(self, fullname, *args):
+                if fullname == "finder_dep":
+                    path = str(app / "finder_dep.py")
+                    return spec_from_file_location(fullname, path, loader=Loader(fullname, path))
+                return None
+
+            def find_distributions(self, context):
+                self.calls += 1
+                if self.calls == 1:
+                    for name in (
+                        "app_helper",
+                        "app_allowed",
+                        "s3fs.allowed",
+                        "s3fs.denied",
+                        "finder_dep",
+                        "installed_dep",
+                        "lib_dep",
+                    ):
+                        import_module(name)
+                return [dependency]
+
+        finder = Finder()
+        meta_path = sys.meta_path[:]
+        meta_path.insert(meta_path.index(PathFinder), finder)
+        path = [str(app), str(lib), str(packages.stdlib_path), str(packages.stdlib_path / "lib-dynload")]
+        with patch.object(sys, "meta_path", meta_path), patch.object(sys, "path", path):
+            if entry == "cold":
+                sys.modules.pop("importlib.metadata", None)
+                sys.modules["importlib"].__dict__.pop("metadata", None)
+            packages._reset_installed_distributions()
+            ast_patching.IAST_PATCHING_LAZY_LOADED = True
+            # This deny must be picked up by the nested decision, not by any earlier initialization.
+            os.environ["_DD_IAST_DENY_MODULES"] = "s3fs.denied"
+            # A pre-existing native list must not authorize first-party patching either.
+            ast_patching.iastpatch.set_packages_distributions({"other_package"})
+            if entry == "iast":
+                ast_patching._should_iast_patch("app_entry")
+            else:
+                packages.get_package_distributions()
+            assert finder.calls == 1
+
+            def instrumented(name):
+                return "add_aspect" in sys.modules[name].combine.__code__.co_names
+
+            assert not instrumented("app_helper")
+            assert instrumented("app_allowed")
+            assert instrumented("s3fs.allowed")
+            assert not instrumented("s3fs.denied")
+            assert not instrumented("lib_dep")
+            assert sys.modules["finder_dep"].loader_ran
+            assert not instrumented("finder_dep")
+            assert not instrumented("installed_dep")
+            # Now use the completed inventory, even for code outside the finder.
+            assert not ast_patching._should_iast_patch("finder_dep.next")
+            assert not ast_patching.IAST_PATCHING_LAZY_LOADED
+
+
+def test_ddtrace_run_finder_imports_during_startup(tmp_path, python_process, monkeypatch):
+    for name in ("finder_helper", "finder_allowed", "finder_dependency", "later_helper"):
+        (tmp_path / f"{name}.py").write_text("def combine(a, b):\n    return a + b\n")
+    fixture = Path(__file__).parents[1] / "fixtures" / "distribution_finder"
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join((str(fixture), str(tmp_path))), prepend=os.pathsep)
+    monkeypatch.setenv("DD_IAST_ENABLED", "true")
+    monkeypatch.setenv("_DD_IAST_PATCH_MODULES", "finder_allowed")
+    python_process(
+        dedent(
+            """\
+            import sys
+
+            # These modules must already have executed inside the startup query.
+            def patched(module):
+                return "add_aspect" in module.combine.__code__.co_names
+
+            assert not patched(sys.modules["finder_helper"])
+            assert patched(sys.modules["finder_allowed"])
+            dependency = sys.modules["finder_dependency"]
+            assert dependency.loader_ran and not patched(dependency)
+
+            import later_helper
+            assert patched(later_helper)
+            """
+        ),
+        ddtrace_run=True,
+    ).check_returncode()

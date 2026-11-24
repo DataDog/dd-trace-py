@@ -1,3 +1,4 @@
+import io
 import logging
 import time
 from unittest import mock
@@ -354,3 +355,28 @@ def test_logger_log_level_from_env(monkeypatch):
         assert get_logger("ddtrace.example.warning").level == logging.WARNING
 
         assert get_logger("ddtrace.package_with_underscore.submodule").level == logging.ERROR
+
+
+def _product_log_output(*args, exc_message="boom", **kwargs):
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger = get_logger("ddtrace.test_product_log")
+    logger.addHandler(handler)
+    try:
+        with mock.patch.object(ddtrace.internal.logger, "_rate_limit", 0):
+            try:
+                raise ValueError(exc_message)
+            except ValueError:
+                logger.error(*args, **kwargs)
+    finally:
+        logger.removeHandler(handler)
+    return stream.getvalue()
+
+
+def test_product_log_formats_exc_info():
+    # format_exception takes (type, value, tb) on every supported Python; the single-argument form is 3.10+ only
+    output = _product_log_output("failed", exc_info=True, extra={"product": "example"})
+
+    assert "example::failed" in output
+    assert "ValueError: boom" in output

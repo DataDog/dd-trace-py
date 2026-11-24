@@ -16,7 +16,6 @@ from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import Signal
-from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal import core
 from ddtrace.internal.compat import ExcInfoType
@@ -57,7 +56,7 @@ PROBE_ID_TAG_NAME = "debugger.probeid"
 
 
 @dataclass
-class DynamicSpan(Signal):
+class DynamicSpan(Signal, probes=(SpanFunctionProbe,)):
     """Dynamically created span"""
 
     _span_cm: t.Optional[SpanProtocol] = field(init=False, default=None)
@@ -111,8 +110,15 @@ class DynamicSpan(Signal):
 
 
 @dataclass
-class SpanDecoration(LogSignal):
+class SpanDecoration(LogSignal, probes=(SpanDecorationFunctionProbe, SpanDecorationLineProbe)):
     """Decorate a span."""
+
+    @classmethod
+    def create(
+        cls, probe: Probe, frame: FrameType, thread: t.Any, trace_context: t.Optional[t.Any], meter: Metrics.Meter
+    ) -> "SpanDecoration":
+        # Decorations look up their target span when they run, so they do not keep the trace context.
+        return cls(probe=probe, frame=frame, thread=thread)
 
     def _decorate_span(self, scope: t.Mapping[str, t.Any]) -> None:
         probe = t.cast(SpanDecorationMixin, self.probe)
@@ -164,24 +170,3 @@ class SpanDecoration(LogSignal):
 
     def has_message(self) -> bool:
         return bool(self.errors)
-
-
-@probe_to_signal.register
-def _(
-    probe: SpanFunctionProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter
-) -> DynamicSpan:
-    return DynamicSpan(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
-
-
-@probe_to_signal.register
-def _(
-    probe: SpanDecorationFunctionProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter
-) -> SpanDecoration:
-    return SpanDecoration(probe=probe, frame=frame, thread=thread)
-
-
-@probe_to_signal.register
-def _(
-    probe: SpanDecorationLineProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter
-) -> SpanDecoration:
-    return SpanDecoration(probe=probe, frame=frame, thread=thread)

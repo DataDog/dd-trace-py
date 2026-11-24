@@ -188,6 +188,13 @@ variables:
   tags: [ "macos:sonoma-amd64", "specific:true" ]
   variables:
     ARCH_TAG: "amd64"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
+      - "debugwheelhouse/*.log"
+      - "debugwheelhouse/*.zip"
+      - ".macos-wheel-cache/cp312-v1.zip"
   # Diagnostics for "sccache: error: Connection to server timed out" on this runner
   before_script:
     - .gitlab/scripts/sccache-diagnostics.sh start

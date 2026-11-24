@@ -1,3 +1,7 @@
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Optional
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
@@ -5,6 +9,10 @@ from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._writer import LLMObsSpanEvent
+
+
+if TYPE_CHECKING:
+    from concurrent.futures import ThreadPoolExecutor
 
 
 logger = get_logger(__name__)
@@ -17,7 +25,9 @@ class EvaluatorRunner(PeriodicService):
     2. triggers evaluator runs over buffered finished spans on each `periodic` call
     """
 
-    def __init__(self, interval: float, llmobs_service=None, evaluators=None):
+    def __init__(
+        self, interval: float, llmobs_service: Optional[Any] = None, evaluators: Optional[list[Any]] = None
+    ) -> None:
         super().__init__(interval=interval)
         self._lock = RLock()
         self._buffer: list[tuple[LLMObsSpanEvent, _LLMObsSpan]] = []
@@ -26,14 +36,14 @@ class EvaluatorRunner(PeriodicService):
         self.llmobs_service = llmobs_service
         # Lazy executor: importing concurrent.futures at import time loads concurrent.futures.thread
         # and fails scripts/global-lock-detection.py (CI detect_global_locks).
-        self._executor = None
+        self._executor: Optional[ThreadPoolExecutor] = None
         self.sampler = EvaluatorRunnerSampler()
-        self.evaluators = [] if evaluators is None else evaluators
+        self.evaluators: list[Any] = [] if evaluators is None else evaluators
 
         if len(self.evaluators) > 0:
             return
 
-    def start(self, *args, **kwargs):
+    def start(self, *args: Any, **kwargs: Any) -> None:
         if not self.evaluators:
             logger.debug("no evaluators configured, not starting %r", self.__class__.__name__)
             return
@@ -87,8 +97,8 @@ class EvaluatorRunner(PeriodicService):
                             if self._executor is None:
                                 from concurrent.futures import ThreadPoolExecutor
 
-                                self._executor = ThreadPoolExecutor()  # type: ignore[assignment]
-                            self._executor.submit(evaluator.run_and_submit_evaluation, span_event)  # type: ignore[attr-defined]
+                                self._executor = ThreadPoolExecutor()
+                            self._executor.submit(evaluator.run_and_submit_evaluation, span_event)
                         else:
                             evaluator.run_and_submit_evaluation(span_event)
         except RuntimeError as e:

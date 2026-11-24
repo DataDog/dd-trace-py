@@ -97,7 +97,8 @@ class BedrockIntegration(BaseLLMIntegration):
         }
         """
         if operation == "agent":
-            return self._llmobs_set_tags_agent(span, args, kwargs, response)
+            self._llmobs_set_tags_agent(span, args, kwargs, response)
+            return
 
         metadata = {}
         usage_metrics = {}
@@ -174,10 +175,17 @@ class BedrockIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions if tool_definitions else None,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         if operation == "agent":
             span_kind = "agent"
-            usage_metrics = {}
+            usage_metrics: dict[str, Any] = {}
             model_id = None
         else:
             span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
@@ -198,7 +206,9 @@ class BedrockIntegration(BaseLLMIntegration):
             model_provider="bedrock",
         )
 
-    def _llmobs_set_tags_agent(self, span, args, kwargs, response):
+    def _llmobs_set_tags_agent(
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         if not self.llmobs_enabled or not span:
             return
         try:
@@ -221,7 +231,7 @@ class BedrockIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, output_value=str(response))
 
-    def translate_bedrock_traces(self, traces, root_span) -> None:
+    def translate_bedrock_traces(self, traces: Any, root_span: _LLMObsSpan) -> None:
         """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
         if not traces or not self.llmobs_enabled:
             return
@@ -258,7 +268,7 @@ class BedrockIntegration(BaseLLMIntegration):
             step_span.finish(finish_time=step_finish_ns / 1e9)
 
     @staticmethod
-    def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:
+    def _extract_input_message_for_converse(prompt: Any) -> list[Message]:
         """Extract input messages from the stored prompt for converse
 
         `prompt` is an array of `message` objects. Each `message` has a role and content field.
@@ -283,7 +293,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message_for_converse(response: dict[str, Any]):
+    def _extract_output_message_for_converse(response: dict[str, Any]) -> list[Message]:
         """Extract output messages from the stored prompt for converse
 
         `response` contains an `output` field that stores a nested `message` field.
@@ -306,7 +316,7 @@ class BedrockIntegration(BaseLLMIntegration):
     @staticmethod
     def _converse_output_stream_processor() -> Generator[
         None,
-        dict[str, Any],
+        Optional[dict[str, Any]],
         tuple[list[Message], dict[str, str], dict[str, int]],
     ]:
         """
@@ -407,7 +417,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return messages, metadata, usage_metrics
 
     @staticmethod
-    def _extract_input_message(prompt) -> list[Message]:
+    def _extract_input_message(prompt: Any) -> list[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
@@ -455,7 +465,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message(response) -> list[Message]:
+    def _extract_output_message(response: Any) -> list[Message]:
         """Extract output messages from the stored response.
 
         Most Bedrock providers return plain text. Anthropic models return an
@@ -474,7 +484,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 return get_messages_from_anthropic_content("assistant", resp_text)
         return []
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Any) -> Optional[str]:
         instance = kwargs.get("instance")
         endpoint = getattr(instance, "_endpoint", None)
         endpoint_host = getattr(endpoint, "host", None) if endpoint else None

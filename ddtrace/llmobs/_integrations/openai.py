@@ -53,7 +53,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_attribute("openai.request.provider", provider_name(self._base_url(span) or ""))
         return span
 
-    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the openai integration sets the OpenAI APM tags."""
 
     def llmobs_set_tags(
@@ -70,7 +70,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         super().llmobs_set_tags(span, args, kwargs, response=response, operation=operation)
 
-    def _get_model_provider(self, span) -> str:
+    def _get_model_provider(self, span: _LLMObsSpan) -> str:
         if self._is_provider(span, "azure"):
             return "azure_openai"
         elif self._is_provider(span, "openai"):
@@ -88,7 +88,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         base_url = span._get_ctx_item(BASE_URL) or span._get_ctx_item(REQUEST_BASE_URL)
         return str(base_url) if base_url else None
 
-    def _is_provider(self, span, provider):
+    def _is_provider(self, span: _LLMObsSpan, provider: str) -> bool:
         """Check if the traced operation is from the given provider."""
         base_url = self._base_url(span)
         if not base_url:
@@ -266,7 +266,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             metadata=metadata,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         span_kind = (
             "workflow"
             if span._get_ctx_item(PROXY_REQUEST)
@@ -359,7 +366,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             }
         return None
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Any) -> Optional[str]:
         instance = kwargs.get("instance")
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None
