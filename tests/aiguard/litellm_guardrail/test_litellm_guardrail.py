@@ -1858,6 +1858,25 @@ def test_responses_answer_references_its_hosted_mcp_servers(mock_req, guardrail_
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_saved_prompt_answer_references_the_echoed_hosted_mcp_servers(mock_req, guardrail_monitor, test_spans):
+    mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+    # A saved prompt resolves its tools server-side, so only the answer declares them.
+    data = _api_request_data("/v1/responses", prompt={"id": "pmpt_1"})
+    answer = _responses_answer([MCP_CALL, _output_message("DeepWiki answered.")])
+    answer.tools = MCP_TOOLS
+
+    with override_ai_guard_config(dict(_ai_guard_mcp_enabled=True)):
+        asyncio.run(
+            guardrail_monitor.async_post_call_success_hook(data=data, user_api_key_dict=Mock(), response=answer)
+        )
+
+    mock_req.assert_called_once()
+    attributes = _evaluated_attributes(mock_req)
+    assert attributes["mcp_servers"][0]["id"] == DEEPWIKI_ID
+    assert attributes["mcp_servers"][0]["url"] == "https://mcp.deepwiki.com"
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_responses_answer_has_no_mcp_metadata_when_mcp_is_disabled(mock_req, guardrail, test_spans):
     mock_req.return_value = mock_evaluate_response("DENY", reason="leak", block=True)
     data = _api_request_data("/v1/responses", input="Ask DeepWiki about dd-trace-py", tools=MCP_TOOLS)

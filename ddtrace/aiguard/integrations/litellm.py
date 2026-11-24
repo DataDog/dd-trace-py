@@ -36,6 +36,7 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
+from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import _Claim
 from ddtrace.aiguard._context import is_aiguard_context_active
@@ -404,7 +405,11 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
             response_messages.extend(Message(role="assistant", content=c.text or "") for c in response.choices)
         elif route == "aresponses":
             try:
-                mcp_servers = _hosted_mcp_servers(data.get("tools"))
+                tools = data.get("tools")
+                if not isinstance(tools, (list, tuple)):
+                    # A saved prompt resolves its tools server-side; the response echoes them.
+                    tools = _get(response, "tools")
+                mcp_servers = _hosted_mcp_servers(tools)
             except Exception:
                 # As in the OpenAI listener, a tools declaration that cannot be read only drops the MCP metadata.
                 verbose_proxy_logger.debug("Datadog AI Guard: cannot read the hosted MCP servers", exc_info=True)
