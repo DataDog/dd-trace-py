@@ -225,16 +225,18 @@ def _target_result(body: Any) -> Optional[dict[str, Any]]:
         return None
     if not isinstance(results, list):
         return None
-    matches = []
-    for position, result in enumerate(results):
-        index = result.get("target_index", position) if isinstance(result, dict) else None
-        # bool is a subclass of int, so the exact type check also rejects False.
-        if type(index) is int and index == 0:
-            matches.append(result)
-    if len(matches) != 1:
+    if len(results) == 1 and isinstance(results[0], dict) and "target_index" not in results[0]:
+        return results[0]
+    # With several results, any result without target_index makes the answer ambiguous, in any order.
+    if any(isinstance(result, dict) and "target_index" not in result for result in results):
         return None
-    # Without target_index, only a single result can refer to the single target.
-    return matches[0] if len(results) == 1 or "target_index" in matches[0] else None
+    # bool is a subclass of int, so the exact type check also rejects False.
+    matches = [
+        result
+        for result in results
+        if isinstance(result, dict) and type(result["target_index"]) is int and result["target_index"] == 0
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _policy_field(policy: Any, key: str) -> Optional[str]:
@@ -572,9 +574,6 @@ class AIGuardClient:
                         ),
                         AI_GUARD.ERROR_BAD_RESPONSE,
                     )
-
-                if not isinstance(blocking_enabled, bool):
-                    raise _classified(_non_boolean_blocking_error(), AI_GUARD.ERROR_BAD_RESPONSE)
 
                 span.set_tag(AI_GUARD.ACTION_TAG, action)
                 redacted_messages = messages

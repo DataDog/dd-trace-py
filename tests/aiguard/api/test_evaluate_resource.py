@@ -267,6 +267,12 @@ def test_transport_failures_are_classified_as_in_evaluate(
             id="list position and target_index both match",
         ),
         pytest.param(
+            _results({"target_index": 0, "action": "ALLOW"}, {"action": "DENY"}),
+            AI_GUARD.ERROR_BAD_RESPONSE,
+            None,
+            id="target_index then a result without target_index",
+        ),
+        pytest.param(
             _results({"action": "ALLOW"}, {"action": "DENY"}),
             AI_GUARD.ERROR_BAD_RESPONSE,
             None,
