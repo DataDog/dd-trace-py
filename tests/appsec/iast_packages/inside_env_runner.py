@@ -14,18 +14,23 @@ from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 def _code_files(obj: Any) -> set[str]:
     if inspect.isclass(obj):
         candidates = [
-            value for klass in obj.__mro__ if klass.__module__ == obj.__module__ for value in vars(klass).values()
+            (klass.__qualname__ + ".", value)
+            for klass in obj.__mro__
+            if klass.__module__ == obj.__module__
+            for value in vars(klass).values()
         ]
     else:
-        candidates = [obj]
+        candidates = [("", obj)]
     files = set()
-    for value in candidates:
+    for owner_prefix, value in candidates:
         value = getattr(value, "__func__", value)
         if isinstance(value, property):
             value = value.fget
         try:
             value = inspect.unwrap(value)
         except ValueError:
+            continue
+        if not getattr(value, "__qualname__", "").startswith(owner_prefix):
             continue
         code = getattr(value, "__code__", None)
         if code is not None and not code.co_filename.startswith("<"):
@@ -38,8 +43,9 @@ def _import_module(selector: str) -> ModuleType:
 
     The attribute must be a class or function whose module is inside the selected package. When the
     attribute has Python code, at least one of its functions or methods must be in that module's file,
-    so a re-export module is rejected. A class without Python methods must have its class statement in
-    that module's source. C-extension classes are trusted on their __module__ alone.
+    so a re-export module is rejected. Only functions defined in the class body count, not helpers such
+    as the ones dataclasses attach. A class without such methods must have its class statement in that
+    module's source. Classes from compiled extensions are rejected, since IAST can't patch them.
     """
     module_name, _, attribute = selector.partition(":")
     if not attribute:
@@ -59,14 +65,17 @@ def _import_module(selector: str) -> ModuleType:
         raise ValueError(f"{selector} is only re-exported by {defining_name}; its code is in {sorted(code_files)}")
     if not code_files:
         try:
-            source = inspect.getsource(obj)
+            source_file = inspect.getsourcefile(obj)
         except TypeError:
-            print(f"No Python source for {selector}; trusting its module {defining_name}")
+            source_file = None
+        if source_file is None:
+            raise ValueError(f"{selector} is defined in a compiled extension ({defining_name}), which IAST can't patch")
+        try:
+            source = inspect.getsource(obj)
         except OSError:
             raise ValueError(f"{selector} has no definition in {defining_name}") from None
-        else:
-            if not re.search(rf"^\s*(class|def) {re.escape(obj.__name__)}\b", source, re.MULTILINE):
-                raise ValueError(f"{selector} has no definition in {defining_name}")
+        if not re.search(rf"^\s*(class|def) {re.escape(obj.__name__)}\b", source, re.MULTILINE):
+            raise ValueError(f"{selector} has no definition in {defining_name}")
     print(f"Resolved {selector} to {defining_name}")
     return module
 
