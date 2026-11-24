@@ -1,17 +1,17 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from types import ModuleType
 from typing import TYPE_CHECKING
 from typing import Union
 
 import asyncpg
-import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import iswrapped
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -75,72 +75,41 @@ def _get_connection_tags(conn: asyncpg.Connection) -> dict[str, str]:
     }
 
 
-class _TracedConnection(wrapt.ObjectProxy):
-    def __init__(self, conn, pin):
-        super().__init__(conn)
-        tags = _get_connection_tags(conn)
-        tags[db.SYSTEM] = DBMS_NAME
-        conn_pin = pin.clone(tags=tags)
-        # Keep the pin on the protocol
-        conn_pin.onto(self._protocol)
-
-    def __setddpin__(self, pin):
-        pin.onto(self._protocol)
-
-    def __getddpin__(self):
-        return Pin.get_from(self._protocol)
-
-
-@with_traced_module
-async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
+async def _traced_connect(func, instance, args, kwargs):
     """Traced asyncpg.connect().
 
-    connect() is instrumented and patched to return a connection proxy.
+    Connection metadata is stored on the protocol used to execute queries.
     """
-    # When using a pool, there's a connection_class args
-    is_pool_context = "connection_class" in kwargs
+    with tracer.trace("postgres.connect", span_type=SpanTypes.SQL) if is_tracing_enabled() else nullcontext() as span:
+        if span is not None:
+            set_service_and_source(span, ext_service(None, config.asyncpg), config.asyncpg)
+            span._set_attribute(COMPONENT, config.asyncpg.integration_name)
+            span._set_attribute(db.SYSTEM, DBMS_NAME)
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-    with tracer.trace("postgres.connect", span_type=SpanTypes.SQL) as span:
-        set_service_and_source(span, ext_service(pin, config.asyncpg), config.asyncpg)
-        span._set_attribute(COMPONENT, config.asyncpg.integration_name)
-        span._set_attribute(db.SYSTEM, DBMS_NAME)
-
-        # set span.kind to the type of request being performed
-        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-
-        raw_conn = await func(*args, **kwargs)
-        if is_pool_context:
-            # Return the unwrapped connection to avoid _TracedConnection errors
-            # when using a pool with a custom connect param
-            connection_tags = _get_connection_tags(raw_conn)
-            connection_tags[db.SYSTEM] = DBMS_NAME
-            conn_pin = pin.clone(tags=connection_tags)
-            conn_pin.onto(raw_conn._protocol)
-            span.set_tags(connection_tags)
-            # Returns a asyncpg.connection.Connection object
-            return raw_conn
-        else:
-            # # Need an ObjectProxy when not using pools since Connection uses slots
-            conn = _TracedConnection(raw_conn, pin)
-            span.set_tags(_get_connection_tags(conn))
-            # Returns a _TracedConnection object
-            return conn
+        conn = await func(*args, **kwargs)
+        tags = _get_connection_tags(conn)
+        tags[db.SYSTEM] = DBMS_NAME
+        conn._protocol._datadog_db_tags = tags
+        if span is not None:
+            span.set_tags(tags)
+        return conn
 
 
-async def _traced_query(pin, method, query, args, kwargs):
+async def _traced_query(tags, method, query, args, kwargs):
     with tracer.trace(
         schematize_database_operation("postgres.query", database_provider="postgresql"),
         resource=query,
         span_type=SpanTypes.SQL,
     ) as span:
-        set_service_and_source(span, ext_service(pin, config.asyncpg), config.asyncpg)
+        set_service_and_source(span, ext_service(None, config.asyncpg), config.asyncpg)
         span._set_attribute(COMPONENT, config.asyncpg.integration_name)
         span._set_attribute(db.SYSTEM, DBMS_NAME)
 
         # set span.kind to the type of request being performed
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
-        span.set_tags(pin.tags)
+        span.set_tags(tags)
 
         # dispatch DBM
         result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -153,14 +122,14 @@ async def _traced_query(pin, method, query, args, kwargs):
 
 
 @with_traced_module
-async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
+async def _traced_protocol_execute(asyncpg, func, instance, args, kwargs):
     state: Union[str, PreparedStatement] = get_argument_value(args, kwargs, 0, "state")
     query = state if isinstance(state, str) or isinstance(state, bytes) else state.query
-    return await _traced_query(pin, func, query, args, kwargs)
+    return await _traced_query(getattr(instance, "_datadog_db_tags", {}), func, query, args, kwargs)
 
 
 def _patch(asyncpg: ModuleType) -> None:
-    wrap(asyncpg, "connect", _traced_connect(asyncpg))
+    wrap(asyncpg, "connect", _traced_connect)
     for method in _PROTOCOL_METHODS:
         wrap(asyncpg.protocol, "Protocol.%s" % method, _traced_protocol_execute(asyncpg))
 
@@ -171,7 +140,6 @@ def patch() -> None:
     if getattr(asyncpg, "_datadog_patch", False):
         return
 
-    Pin().onto(asyncpg)
     _patch(asyncpg)
 
     asyncpg._datadog_patch = True

@@ -3,12 +3,12 @@ Generic dbapi tracing code.
 """
 
 from collections.abc import Mapping
+from typing import Any
 from typing import Optional
 
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -53,7 +53,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def __init__(
         self,
         cursor,
-        pin: Optional[Pin] = None,
+        pin: Optional[Any] = None,
         cfg: Optional[Mapping[str, str]] = None,
         db_tags: Optional[Mapping[str, str]] = None,
     ):

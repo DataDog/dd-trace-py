@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.asyncpg.patch import _PROTOCOL_METHODS
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
+from ddtrace.ext import db
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.trace import tracer
@@ -582,3 +583,98 @@ class AsyncPgTestCase(AsyncioTestCase):
             assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("custom_class", [False, True])
+async def test_native_connection_identity(custom_class, test_spans):
+    class CustomConnection(asyncpg.Connection):
+        pass
+
+    connection_class = CustomConnection if custom_class else asyncpg.Connection
+    conn = await asyncpg.connect(
+        host=POSTGRES_CONFIG["host"],
+        port=POSTGRES_CONFIG["port"],
+        user=POSTGRES_CONFIG["user"],
+        password=POSTGRES_CONFIG["password"],
+        database=POSTGRES_CONFIG["dbname"],
+        **({"connection_class": connection_class} if custom_class else {}),
+    )
+    try:
+        assert type(conn) is connection_class
+        assert await conn.fetchval("SELECT 1") == 1
+    finally:
+        await conn.close()
+    assert [span.name for span in test_spans.get_spans()] == ["postgres.connect", "postgres.query"]
+
+
+@pytest.mark.asyncio
+async def test_connection_metadata_isolation(test_spans):
+    connections = []
+    try:
+        for database in (POSTGRES_CONFIG["dbname"], "template1"):
+            connections.append(
+                await asyncpg.connect(
+                    host=POSTGRES_CONFIG["host"],
+                    port=POSTGRES_CONFIG["port"],
+                    user=POSTGRES_CONFIG["user"],
+                    password=POSTGRES_CONFIG["password"],
+                    database=database,
+                )
+            )
+        test_spans.reset()
+        for conn in (connections[0], connections[1], connections[0]):
+            await conn.fetchval("SELECT current_database()")
+        assert [span.get_tag(db.NAME) for span in test_spans.get_spans()] == [
+            POSTGRES_CONFIG["dbname"],
+            "template1",
+            POSTGRES_CONFIG["dbname"],
+        ]
+    finally:
+        for conn in connections:
+            await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_connection_created_with_tracing_disabled(tracer, test_spans):
+    with mock.patch.object(tracer, "enabled", False):
+        conn = await asyncpg.connect(
+            host=POSTGRES_CONFIG["host"],
+            port=POSTGRES_CONFIG["port"],
+            user=POSTGRES_CONFIG["user"],
+            password=POSTGRES_CONFIG["password"],
+            database=POSTGRES_CONFIG["dbname"],
+        )
+        assert type(conn) is asyncpg.Connection
+        assert await conn.fetchval("SELECT 1") == 1
+    assert test_spans.get_spans() == []
+    try:
+        assert await conn.fetchval("SELECT 2") == 2
+    finally:
+        await conn.close()
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+    assert spans[0].get_tag(db.NAME) == POSTGRES_CONFIG["dbname"]
+
+
+@pytest.mark.asyncio
+async def test_pool_custom_connection_class(test_spans):
+    class CustomConnection(asyncpg.Connection):
+        pass
+
+    async with asyncpg.create_pool(
+        host=POSTGRES_CONFIG["host"],
+        port=POSTGRES_CONFIG["port"],
+        user=POSTGRES_CONFIG["user"],
+        password=POSTGRES_CONFIG["password"],
+        database=POSTGRES_CONFIG["dbname"],
+        connection_class=CustomConnection,
+        min_size=1,
+        max_size=1,
+    ) as pool:
+        async with pool.acquire() as conn:
+            assert type(conn._con) is CustomConnection
+            assert await conn.fetchval("SELECT 1") == 1
+    queries = [span for span in test_spans.get_spans() if span.resource == "SELECT 1"]
+    assert len(queries) == 1
+    assert queries[0].name == "postgres.query"

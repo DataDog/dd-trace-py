@@ -32,14 +32,14 @@ try:
     HAS_GRPC_AIO = True
     # NOTE: These are not defined in constants.py because we would end up having
     # try-except in both files.
-    GRPC_AIO_PIN_MODULE_SERVER = grpc.aio.Server
-    GRPC_AIO_PIN_MODULE_CLIENT = grpc.aio.Channel
+    GRPC_AIO_PATCH_TARGET_SERVER = grpc.aio.Server
+    GRPC_AIO_PATCH_TARGET_CLIENT = grpc.aio.Channel
 except ImportError:
     HAS_GRPC_AIO = False
     # NOTE: These are defined just to prevent a 'not defined' error.
     # Be sure not to use them when `HAS_GRPC_AIO` is False.
-    GRPC_AIO_PIN_MODULE_SERVER = None
-    GRPC_AIO_PIN_MODULE_CLIENT = None
+    GRPC_AIO_PATCH_TARGET_SERVER = None
+    GRPC_AIO_PATCH_TARGET_CLIENT = None
 
 config._add(
     "grpc_server",
@@ -111,9 +111,9 @@ def unpatch():
 
 
 def _patch_client():
-    if getattr(constants.GRPC_PIN_MODULE_CLIENT, "__datadog_patch", False):
+    if getattr(constants.GRPC_PATCH_TARGET_CLIENT, "__datadog_patch", False):
         return
-    constants.GRPC_PIN_MODULE_CLIENT.__datadog_patch = True
+    constants.GRPC_PATCH_TARGET_CLIENT.__datadog_patch = True
 
     _w("grpc", "insecure_channel", _client_channel_interceptor)
     _w("grpc", "secure_channel", _client_channel_interceptor)
@@ -121,18 +121,18 @@ def _patch_client():
 
 
 def _patch_aio_client():
-    if getattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False):
+    if getattr(GRPC_AIO_PATCH_TARGET_CLIENT, "__datadog_patch", False):
         return
-    GRPC_AIO_PIN_MODULE_CLIENT.__datadog_patch = True
+    GRPC_AIO_PATCH_TARGET_CLIENT.__datadog_patch = True
 
     _w("grpc.aio", "insecure_channel", _aio_client_channel_interceptor)
     _w("grpc.aio", "secure_channel", _aio_client_channel_interceptor)
 
 
 def _unpatch_client():
-    if not getattr(constants.GRPC_PIN_MODULE_CLIENT, "__datadog_patch", False):
+    if not getattr(constants.GRPC_PATCH_TARGET_CLIENT, "__datadog_patch", False):
         return
-    constants.GRPC_PIN_MODULE_CLIENT.__datadog_patch = False
+    constants.GRPC_PATCH_TARGET_CLIENT.__datadog_patch = False
 
     _u(grpc, "secure_channel")
     _u(grpc, "insecure_channel")
@@ -140,42 +140,42 @@ def _unpatch_client():
 
 
 def _unpatch_aio_client():
-    if not getattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False):
+    if not getattr(GRPC_AIO_PATCH_TARGET_CLIENT, "__datadog_patch", False):
         return
-    GRPC_AIO_PIN_MODULE_CLIENT.__datadog_patch = False
+    GRPC_AIO_PATCH_TARGET_CLIENT.__datadog_patch = False
 
     _u(grpc.aio, "insecure_channel")
     _u(grpc.aio, "secure_channel")
 
 
 def _patch_server():
-    if getattr(constants.GRPC_PIN_MODULE_SERVER, "__datadog_patch", False):
+    if getattr(constants.GRPC_PATCH_TARGET_SERVER, "__datadog_patch", False):
         return
-    constants.GRPC_PIN_MODULE_SERVER.__datadog_patch = True
+    constants.GRPC_PATCH_TARGET_SERVER.__datadog_patch = True
 
     _w("grpc", "server", _server_constructor_interceptor)
 
 
 def _patch_aio_server():
-    if getattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
+    if getattr(GRPC_AIO_PATCH_TARGET_SERVER, "__datadog_patch", False):
         return
-    GRPC_AIO_PIN_MODULE_SERVER.__datadog_patch = True
+    GRPC_AIO_PATCH_TARGET_SERVER.__datadog_patch = True
 
     _w("grpc.aio", "server", _aio_server_constructor_interceptor)
 
 
 def _unpatch_server():
-    if not getattr(constants.GRPC_PIN_MODULE_SERVER, "__datadog_patch", False):
+    if not getattr(constants.GRPC_PATCH_TARGET_SERVER, "__datadog_patch", False):
         return
-    constants.GRPC_PIN_MODULE_SERVER.__datadog_patch = False
+    constants.GRPC_PATCH_TARGET_SERVER.__datadog_patch = False
 
     _u(grpc, "server")
 
 
 def _unpatch_aio_server():
-    if not getattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
+    if not getattr(GRPC_AIO_PATCH_TARGET_SERVER, "__datadog_patch", False):
         return
-    GRPC_AIO_PIN_MODULE_SERVER.__datadog_patch = False
+    GRPC_AIO_PATCH_TARGET_SERVER.__datadog_patch = False
 
     _u(grpc.aio, "server")
 

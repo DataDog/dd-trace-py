@@ -21,7 +21,6 @@ from urllib import parse
 
 import wrapt
 
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
@@ -327,16 +326,12 @@ def _sanitized_url(url: str) -> str:
 
 
 def with_traced_module(func):
-    """Helper for providing tracing essentials (module and pin) for tracing
-    wrappers.
-
-    This helper enables tracing wrappers to dynamically be disabled when the
-    corresponding pin is disabled.
+    """Provide the module to wrappers while honoring tracing and standalone settings.
 
     Usage::
 
         @with_traced_module
-        def my_traced_wrapper(django, pin, func, instance, args, kwargs):
+        def my_traced_wrapper(django, func, instance, args, kwargs):
             # Do tracing stuff
             pass
 
@@ -347,13 +342,9 @@ def with_traced_module(func):
 
     def with_mod(mod):
         def wrapper(wrapped, instance, args, kwargs):
-            pin = Pin._find(instance, mod)
-            if pin and not pin.enabled():
+            if not is_tracing_enabled():
                 return wrapped(*args, **kwargs)
-            elif not pin:
-                log.debug("Pin not found for traced method %r", wrapped)
-                return wrapped(*args, **kwargs)
-            return func(mod, pin, wrapped, instance, args, kwargs)
+            return func(mod, wrapped, instance, args, kwargs)
 
         return wrapper
 

@@ -14,7 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
 
 
-class _PinLike(Protocol):
+class _ServiceOverride(Protocol):
     service: Optional[str]
 
 
@@ -25,7 +25,7 @@ class _SpanLike(Protocol):
 
 
 def int_service(
-    pin: Optional[_PinLike], int_config: "IntegrationConfig", default: Optional[str] = None
+    pin: Optional[_ServiceOverride], int_config: "IntegrationConfig", default: Optional[str] = None
 ) -> Optional[str]:
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
@@ -34,7 +34,7 @@ def int_service(
     For internal integrations we prioritize overrides, then global defaults and
     lastly the default provided by the integration.
     """
-    # Pin has top priority since it is user defined in code
+    # Explicit service overrides take precedence over integration configuration.
     if pin is not None and pin.service:
         return pin.service
 
@@ -64,7 +64,7 @@ def int_service(
 
 
 def ext_service(
-    pin: Optional[_PinLike], int_config: "IntegrationConfig", default: Optional[str] = None
+    pin: Optional[_ServiceOverride], int_config: "IntegrationConfig", default: Optional[str] = None
 ) -> Optional[str]:
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates

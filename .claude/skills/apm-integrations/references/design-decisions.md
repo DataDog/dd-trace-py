@@ -11,13 +11,12 @@ library calls at runtime. Each integration registers in `ddtrace/_monkey.py`
 The `_datadog_patch` flag on the module prevents double-patching. Always check
 `getattr(mylib, '_datadog_patch', False)` before wrapping and set it to `True`.
 
-## Pin System (DEPRECATED)
+## Integration Configuration
 
-`Pin` attaches tracing metadata (service name, tracer) to library instances.
-Many existing integrations use `Pin().onto(module)` and `Pin.get_from(instance)`.
-Pin is DEPRECATED -- do NOT use it in new integrations. It remains in existing
-integrations (redis, kafka, grpc, psycopg, flask, celery, etc.) but
-new code should use `context_with_event` or `context_with_data` instead.
+Read settings from `config.<integration>`. Connection-specific tags belong on the
+connection or its tracing wrapper.
+Direct span wrappers use `is_tracing_enabled()` to honor both the tracer setting
+and standalone security mode.
 
 ## The contrib/internal/ Split
 
@@ -43,10 +42,9 @@ afterward. Deferred integrations must set `dispatch_end_event=False` and call
 listeners consume (~80+ event listeners that create spans). Used by botocore,
 flask, httpx, django. This pattern decouples patch code from span creation.
 
-**Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
-a `Pin` to the library module/instance, wrapper functions call
-`Pin.get_from(instance)` to get the tracer, then use `tracer.trace()` to create
-spans directly. Still used by redis, kafka, grpc, celery, etc.
+**Direct spans** (existing integrations): Wrappers check `is_tracing_enabled()`,
+read `config.<integration>`, and use `tracer.trace()` to create spans directly.
+Keep this pattern when maintaining existing integrations such as Celery.
 
 ## LLM Integration Pattern
 
@@ -59,7 +57,6 @@ workflow; LLMObs lifecycle and extraction details belong in that skill.
 | File | Purpose |
 |------|---------|
 | `ddtrace/_monkey.py` | PATCH_MODULES registry |
-| `ddtrace/_trace/pin.py` | Pin system (DEPRECATED for new code) |
 | `ddtrace/_trace/trace_handlers.py` | Span creation for context_with_data integrations |
 | `ddtrace/_trace/events.py` | TracingEvent base class (NEW events API) |
 | `ddtrace/_trace/subscribers/_base.py` | TracingSubscriber base (NEW events API) |

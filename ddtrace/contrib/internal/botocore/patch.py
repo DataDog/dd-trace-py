@@ -14,7 +14,6 @@ import wrapt
 
 import ddtrace
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 
 # _http_propagation_suppressed is the shared seam telling the
 # urllib3-layer subscriber to skip its own injection during AWS calls. See the
@@ -22,6 +21,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import SpanKind
@@ -136,8 +136,7 @@ def _inject_trace_headers_handler(request, **kwargs):
     ):
         return
 
-    # Uses the global tracer's current_span() because the before-sign
-    # event hands us the AWSRequest, not the client, so there's no Pin to read here.
+    # The before-sign event hands us an AWSRequest; use the active span.
     span = ddtrace.tracer.current_span()
     if span is None:
         return
@@ -248,9 +247,7 @@ def patch():
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
-    Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
-    Pin().onto(botocore.parsers.ResponseParser)
     _PATCHED_SUBMODULES.clear()
 
 
@@ -275,8 +272,7 @@ def patch_submodules(submodules: Union[list[str], bool]) -> None:
 
 
 def patched_lib_fn(original_func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
+    if not is_tracing_enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
 
     # Don't trace response parsing for the internal bedrock:GetInferenceProfile call.
@@ -287,7 +283,6 @@ def patched_lib_fn(original_func, instance, args, kwargs):
             "botocore.instrumented_lib_function",
             span_name=f"{original_func.__module__}.{original_func.__name__}",
             tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
-            pin=pin,
         ) as ctx,
         span_from_context(ctx),
     ):
@@ -295,8 +290,8 @@ def patched_lib_fn(original_func, instance, args, kwargs):
 
 
 @with_traced_module
-def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
-    if not pin or not pin.enabled():
+def patched_api_call(botocore, original_func, instance, args, kwargs):
+    if not is_tracing_enabled():
         return original_func(*args, **kwargs)
 
     # Skip tracing the internal bedrock:GetInferenceProfile call we make to resolve an
@@ -325,7 +320,6 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "endpoint_name": endpoint_name,
         "operation": operation,
         "params": params,
-        "pin": pin,
         "trace_operation": trace_operation,
         "integration": botocore._datadog_integration,
     }
@@ -394,7 +388,6 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
     # default patched api call that is used generally for several services / operations
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
-    pin = function_vars.get("pin")
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
@@ -406,8 +399,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             params=params,
             endpoint_name=endpoint_name,
             operation=operation,
-            service=schematize_service_name(f"{ext_service(pin, int_config=config.botocore)}.{endpoint_name}"),
-            pin=pin,
+            service=schematize_service_name(f"{ext_service(None, int_config=config.botocore)}.{endpoint_name}"),
             span_name=function_vars.get("trace_operation"),
             span_type=SpanTypes.HTTP,
             span_key="instrumented_api_call",

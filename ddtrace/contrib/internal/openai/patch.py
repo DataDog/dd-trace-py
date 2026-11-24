@@ -233,7 +233,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, args, kwargs):
     resp, err = None, None
     try:
         # Start the hook
-        hook = endpoint_hook().handle_request(None, integration, instance, span, args, kwargs)
+        hook = endpoint_hook().handle_request(integration, instance, span, args, kwargs)
         hook.send(None)
 
         resp, err = yield

@@ -60,7 +60,7 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Monkey-patching** is the core instrumentation mechanism. Don't break it; understand it before modifying integrations.
 - **Performance-critical code uses C/C++/Cython/Rust** — profile and benchmark when touching these paths.
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
-- **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
+- **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `patch`/`unpatch` pattern with integration configuration.
 
 ## PR Guidelines
 

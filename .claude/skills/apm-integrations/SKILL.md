@@ -6,7 +6,7 @@ description: |
   system, context_with_data, context_with_event (new), registration, testing
   through the repository test runner, and common anti-patterns. LLM/AI integrations should use this
   skill for APM-side workflow only; use llmobs-integrations for LLMObs-specific
-  lifecycle, extraction, streaming, and VCR guidance. Pin is DEPRECATED.
+  lifecycle, extraction, streaming, and VCR guidance. Integration configuration lives in config.<integration>.
   Triggers: "dd-trace-py", "ddtrace", "contrib", "integration", "patch.py",
   "trace_handlers", "PATCH_MODULES", "context_with_data", "context_with_event",
   "TracingEvent", "VCR", "cassette", "generative-ai", "LLM integration",
@@ -27,14 +27,14 @@ Patch Module (ddtrace/contrib/internal/)  -->  Spans + Tags
 **Standard integrations** use one of these patterns:
 - **`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers emit events via `core.context_with_data()`, listeners in `trace_handlers.py` create spans (e.g., botocore, flask, django).
 - **`context_with_event()` + `TracingEvent`** (NEW — preferred for new integrations): Typed event-driven pattern using `core.context_with_event()` with `TracingEvent` subclasses and `TracingSubscriber`. Read concrete examples such as `ddtrace/contrib/internal/httpx/patch.py` and `ddtrace/contrib/internal/aiohttp/patch.py`, plus infrastructure in `ddtrace/_trace/events.py` and `ddtrace/_trace/subscribers/`.
-- **`Pin` + `tracer.trace()`** (DEPRECATED — do not use in new integrations): Many existing integrations use `Pin.get_from()` + `tracer.trace()` (e.g., redis, kafka, grpc). Do NOT use Pin in new code.
+- **Direct spans** (existing integrations): Use `is_tracing_enabled()` and `config.<integration>` with `tracer.trace()` when maintaining an integration that already manages spans directly.
 
 **LLM integrations** still use the APM integration workflow for contrib module layout, patch registration, and APM span tests, but LLMObs-specific span lifecycle and extraction belong in the `llmobs-integrations` skill.
 
 ## Key Concepts
 
 - **`_datadog_patch` guard** -- prevents double-patching on repeated `patch()` calls
-- **Pin is DEPRECATED** -- many existing integrations still use `Pin.get_from()` and `Pin().onto()`, but do NOT use Pin in new integrations. Prefer `context_with_event` (new) or `context_with_data` (existing)
+- **Integration configuration** -- read `config.<integration>` directly; keep connection metadata on the connection or wrapper. Direct span wrappers use `is_tracing_enabled()` to honor standalone security mode as well as global tracing settings.
 - **`config._add()`** -- registers integration config at module level, before `patch()` runs
 - **`get_version()` / `_supported_versions()`** -- required exports for version detection
 - **`PATCH_MODULES`** -- registration dict in `ddtrace/_monkey.py` for `patch_all()` discovery

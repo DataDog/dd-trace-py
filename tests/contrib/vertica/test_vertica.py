@@ -8,6 +8,8 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.vertica.patch import _dispatch_query_event
+from ddtrace.contrib.internal.vertica.patch import _find_routine_config
+from ddtrace.contrib.internal.vertica.patch import cursor_span_end
 from ddtrace.contrib.internal.vertica.patch import patch
 from ddtrace.contrib.internal.vertica.patch import unpatch
 from ddtrace.internal import core
@@ -561,3 +563,35 @@ class TestVertica(TracerTestCase):
         assert spans[2].name == "vertica.query"  # previously fetchone
         assert spans[3].name == "vertica.query"  # previously fetchone
         assert spans[4].name == "vertica.query"  # previously fetchall
+
+
+def test_routine_config_prefers_subclass():
+    class Connection:
+        pass
+
+    class CustomConnection(Connection):
+        pass
+
+    conf = {
+        "patch": {
+            f"{Connection.__module__}.{Connection.__name__}": {"routines": {"cursor": {"trace_enabled": False}}},
+            f"{CustomConnection.__module__}.{CustomConnection.__name__}": {
+                "routines": {"cursor": {"trace_enabled": True}}
+            },
+        }
+    }
+    assert _find_routine_config(conf, CustomConnection(), "cursor") == {"trace_enabled": True}
+    assert _find_routine_config(conf, Connection(), "cursor") == {"trace_enabled": False}
+
+
+def test_cursor_metadata_isolation():
+    from types import SimpleNamespace
+
+    cursors = []
+    for host in ("primary", "replica"):
+        connection = SimpleNamespace(options={"host": host, "port": 5433, "database": host})
+        cursor = SimpleNamespace()
+        cursor_span_end(connection, cursor, None, {})
+        cursors.append(cursor)
+    assert cursors[0]._datadog_db_tags["out.host"] == "primary"
+    assert cursors[1]._datadog_db_tags["out.host"] == "replica"

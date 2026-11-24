@@ -17,11 +17,11 @@ import wrapt
 from wrapt.importer import when_imported
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.routing import extract_request_method_list
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
+from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
@@ -101,8 +101,8 @@ def _supported_versions() -> dict[str, str]:
     return {"django": ">=2.2.8"}
 
 
-@trace_utils.with_traced_module
-def traced_populate(django, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_populate(django, func, instance, args, kwargs):
     """django.apps.registry.Apps.populate is the method used to populate all the apps.
 
     It is used as a hook to install instrumentation for 3rd party apps (like DRF).
@@ -164,16 +164,14 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
 
 def traced_func(django, name, resource=None, ignored_excs=None):
-    def wrapped(django, pin, func, instance, args, kwargs):
+    def wrapped(django, func, instance, args, kwargs):
         tags = {COMPONENT: config_django.integration_name}
 
         if iscoroutinefunction(func):
 
             async def _async():
                 with (
-                    core.context_with_data(
-                        "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
-                    ) as ctx,
+                    core.context_with_data("django.func.wrapped", span_name=name, resource=resource, tags=tags) as ctx,
                     span_from_context(ctx),
                 ):
                     # Don't flag the span as errored on routine ASGI cancellation (#17728).
@@ -193,7 +191,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
             return _async()
 
         with (
-            core.context_with_data("django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin) as ctx,
+            core.context_with_data("django.func.wrapped", span_name=name, resource=resource, tags=tags) as ctx,
             span_from_context(ctx),
         ):
             core.dispatch(
@@ -208,11 +206,11 @@ def traced_func(django, name, resource=None, ignored_excs=None):
             )
             return func(*args, **kwargs)
 
-    return trace_utils.with_traced_module(wrapped)(django)
+    return with_traced_module(wrapped)(django)
 
 
-@trace_utils.with_traced_module
-def traced_load_middleware(django, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_load_middleware(django, func, instance, args, kwargs):
     """
     Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
     middlewares and to trigger endpoint discovery.
@@ -315,8 +313,8 @@ def _instrument_view(django, view):
     return view
 
 
-@trace_utils.with_traced_module
-def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
+@with_traced_module
+def traced_urls_path(django, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
         view_from_args = False
@@ -336,8 +334,8 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-@trace_utils.with_traced_module
-def traced_as_view(django, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_as_view(django, func, instance, args, kwargs):
     """
     Wrapper for django's View.as_view class method
     """
@@ -349,8 +347,8 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
 
 
-@trace_utils.with_traced_module
-def traced_technical_500_response(django, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_technical_500_response(django, func, instance, args, kwargs):
     """
     Wrapper for django's views.debug.technical_500_response
     """
@@ -366,8 +364,8 @@ def traced_technical_500_response(django, pin, func, instance, args, kwargs):
     return response
 
 
-@trace_utils.with_traced_module
-def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_get_asgi_application(django, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
     from ddtrace.internal.constants import COMPONENT
 
@@ -378,8 +376,8 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     return TraceMiddleware(func(*args, **kwargs), integration_config=config_django, span_modifier=django_asgi_modifier)
 
 
-@trace_utils.with_traced_module
-def traced_login(django, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_login(django, func, instance, args, kwargs):
     func(*args, **kwargs)
     mode = asm_config._user_event_mode
     if mode == "disabled":
@@ -387,13 +385,13 @@ def traced_login(django, pin, func, instance, args, kwargs):
     try:
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
-        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user), config_django))
+        core.dispatch("django.login", (request, user, mode, _DjangoUserInfoRetriever(user), config_django))
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
 
-@trace_utils.with_traced_module
-def traced_authenticate(django, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_authenticate(django, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
     mode = asm_config._user_event_mode
     if mode == "disabled":
@@ -401,7 +399,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     try:
         result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "django.auth",
-            (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config_django),
+            (result_user, mode, kwargs, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config_django),
         ).user
         if result and result.value[0]:
             return result.value[1]
@@ -411,11 +409,11 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     return result_user
 
 
-@trace_utils.with_traced_module
-def patch_create_user(django, pin, func, instance, args, kwargs):
+@with_traced_module
+def patch_create_user(django, func, instance, args, kwargs):
     user = func(*args, **kwargs)
     core.dispatch(
-        "django.create_user", (config_django, pin, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
+        "django.create_user", (config_django, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
     )
     return user
 
@@ -444,8 +442,6 @@ def unwrap_views(func, instance, args, kwargs):
 
 
 def _patch(django):
-    Pin().onto(django)
-
     when_imported("django.apps.registry")(lambda m: trace_utils.wrap(m, "Apps.populate", traced_populate(django)))
 
     # Always wrapped: endpoint discovery also hangs off load_middleware. traced_load_middleware checks
