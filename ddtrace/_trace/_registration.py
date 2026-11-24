@@ -9,7 +9,8 @@ WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.web_framework",
     subscribers=(
         "WebFrameworkRequestSubscriber",
-        "WebFrameworkResponseSubscriber",
+        "WSGIRequestSubscriber",
+        "WSGIResponseSubscriber",
     ),
 )
 

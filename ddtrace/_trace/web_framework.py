@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import ClassVar
 from typing import Optional
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import WEB_REQUEST_STARTING_EVENT
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.http import HttpRequestBaseEvent
 from ddtrace.internal.schema import SpanDirection
@@ -15,6 +17,8 @@ from ddtrace.internal.schema import schematize_url_operation
 class WebFrameworkEvents(str, Enum):
     WEB_REQUEST = "web.request"
     WEB_REQUEST_STARTING = WEB_REQUEST_STARTING_EVENT
+    WSGI_REQUEST = "web.request.wsgi"
+    WSGI_RESPONSE = "web.response.wsgi"
 
 
 @dataclass
@@ -55,7 +59,30 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     # Tag the request headers and the peer IP when the span starts, so listeners see them while the handler runs.
     tag_request_on_start: bool = event_field(default=False)
 
+    # Whether completion replays request attributes and response headers. Integrations that
+    # tag them as they happen disable it so later overrides and redactions are not replaced.
+    tag_request_on_end: ClassVar[bool] = True
+
     def __post_init__(self) -> None:
         self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.INBOUND
         )
+
+
+@dataclass
+class WSGIRequestEvent(WebFrameworkRequestEvent):
+    """A WSGI request whose context ends after its response iterable completes."""
+
+    event_name = WebFrameworkEvents.WSGI_REQUEST.value
+
+    tag_request_on_end = False
+
+
+@dataclass
+class WSGIResponseEvent(Event):
+    """A WSGI response iterable returned by the application, nested in its request context."""
+
+    event_name = WebFrameworkEvents.WSGI_RESPONSE.value
+
+    component: str = event_field()
+    operation_name: str = event_field()

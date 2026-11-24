@@ -660,14 +660,18 @@ def start_context(waf_callable: Optional[WafCallable], span: SpanData, rc_produc
                 rc_products=rc_products,
             ),
         )
+        event = getattr(getattr(core, "current"), "event", None)
         headers_case_sensitive = core.get_item("headers_case_sensitive")
         if headers_case_sensitive is None:
-            event = getattr(getattr(core, "current"), "event", None)
             headers_case_sensitive = getattr(event, "headers_case_sensitive", False)
+        headers = core.get_item("headers")
+        if headers is None:
+            # Events-based web framework instrumentation stores request headers on the event.
+            headers = getattr(event, "request_headers", None)
 
         asm_request_context_set(
             core.get_item("remote_addr"),
-            core.get_item("headers"),
+            headers,
             headers_case_sensitive,
             core.get_item("block_request_callable"),
         )

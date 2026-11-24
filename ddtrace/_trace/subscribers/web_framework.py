@@ -1,11 +1,8 @@
-from collections.abc import Iterator
-from contextlib import contextmanager
 from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import _set_inferred_proxy_tags
-from ddtrace._trace.events import WebFrameworkResponseEvent
 from ddtrace._trace.http_meta import set_http_meta
 from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace._trace.http_tags import set_instrumentation_resource
@@ -14,81 +11,28 @@ from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
+from ddtrace._trace.subscribers._base import _finish_span
 from ddtrace._trace.web_framework import WebFrameworkRequestEvent
+from ddtrace._trace.web_framework import WSGIRequestEvent
+from ddtrace._trace.web_framework import WSGIResponseEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
-_DEFERRED_RESPONSE_PARENT = "_dd.web.response_parent"
-_REQUEST_OWNER = "_dd.web.request_owner"
-
-
-def _clear_response_parent(span: Span) -> None:
-    span._set_ctx_item(_DEFERRED_RESPONSE_PARENT, None)
-
 
 class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent]):
-    """Shared tracing and deferred request ownership for web framework integrations."""
+    """Shared tracing logic for web framework integrations."""
 
     event_names = (WebFrameworkRequestEvent.event_name,)
-
-    @classmethod
-    def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
-        if ctx.get_item("middleware") is not None:
-            provider = tracer.context_provider
-            active = provider.active()
-            while isinstance(active, Span):
-                suspended = active._get_ctx_item(_DEFERRED_RESPONSE_PARENT)
-                if suspended is None:
-                    break
-                owner = ctx.parent
-                while owner is not None and owner.get_item(_REQUEST_OWNER) is not suspended[0]:
-                    owner = owner.parent
-                if owner is not None:
-                    break
-                # A sibling response remains visible to outer middleware, but
-                # must not become this request's implicit parent.
-                provider.activate(suspended[1])
-                active = provider.active()
-            # Capture before the base subscriber activates distributed headers.
-            ctx.set_item("request_parent_context", active)
-            ctx.set_item(_REQUEST_OWNER, object())
-        super()._on_context_started(ctx)
-
-    @classmethod
-    def _on_context_ended(
-        cls,
-        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
-        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    ) -> None:
-        if ctx.get_item("middleware") is not None:
-            # WSGI resolved its initial service at entry. Keep later span overrides,
-            # including when the application failed before creating a response span.
-            ctx.set_item("resolve_service_on_finish", False)
-        response_span = ctx.get_item("response_span")
-        if response_span is None:
-            super()._on_context_ended(ctx, exc_info)
-            return
-
-        # Setup can fail after response span creation but before the middleware
-        # returns an iterable. Those failures also belong to the request span.
-        request_exc_info = (None, None, None) if ctx.get_item("response_ready", False) else exc_info
-        try:
-            try:
-                exc_type, exc_value, traceback = exc_info
-                if exc_type is not None and exc_value is not None and not issubclass(exc_type, GeneratorExit):
-                    response_span.set_exc_info(exc_type, exc_value, traceback)
-            finally:
-                response_span.finish()
-        finally:
-            super()._on_context_ended(ctx, request_exc_info)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
@@ -127,10 +71,9 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
         event: WebFrameworkRequestEvent = ctx.event
         status_code = event.response_status_code
         method = event.request_method
-        deferred_response = ctx.get_item("middleware") is not None
-        # Flask/WSGI start_response hooks already tag headers. Replaying them at
-        # completion would overwrite later span-tag edits or restore removed tags.
-        res_headers = None if deferred_response else event.response_headers
+        # Integrations that tag at entry (WSGI start_response hooks) skip replaying headers
+        # here, which would overwrite later span-tag edits or restore removed tags.
+        res_headers = event.response_headers if event.tag_request_on_end else None
 
         span: Span = span_from_context(ctx)
 
@@ -160,8 +103,8 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             set_http_meta(
                 span=span,
                 integration_config=event.integration_config,
-                method=method or None,
-                url=event.request_url or None,
+                method=method,
+                url=event.request_url,
                 query=event.query,
                 trace_query_string=event.trace_query_string,
                 status_code=status_code,
@@ -170,7 +113,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
                 peer_ip=None if request_tagged else event.peer_ip,
-                response_only=deferred_response,
+                response_only=not event.tag_request_on_end,
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
@@ -180,42 +123,49 @@ class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent])
             span._set_attribute(tk, tv)
 
 
-class WebFrameworkResponseSubscriber(Subscriber):
-    """Keep a deferred response span inside its shared request lifecycle."""
+class WSGIRequestSubscriber(WebFrameworkRequestSubscriber):
+    """Trace a WSGI request whose context ends when its response iterable completes."""
 
-    event_names = (WebFrameworkResponseEvent.event_name,)
+    event_names = (WSGIRequestEvent.event_name,)
 
     @classmethod
-    def on_event(cls, event: WebFrameworkResponseEvent) -> None:
-        ctx = event.request_context
-        request_event = ctx.event
-        response_span = tracer.start_span(event.operation_name, child_of=span_from_context(ctx), activate=True)
-        response_span._set_attribute(COMPONENT, request_event.component)
-        ctx.set_item("response_span", response_span)
-        response_span._set_ctx_item(
-            _DEFERRED_RESPONSE_PARENT, (ctx.get_item(_REQUEST_OWNER), ctx.get_item("request_parent_context"))
-        )
-        response_span._on_finish_callbacks.insert(0, _clear_response_parent)
-        event.span_modifier(response_span, event.response)
-        provider = tracer.context_provider
-        active = provider.active()
+    def _finish_span(
+        cls,
+        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        # The service is resolved at entry. Span modifiers and applications may replace it
+        # before the response finishes streaming, so do not resolve it again here.
+        _finish_span(ctx, exc_info, resolve_service=False)
 
-        @contextmanager
-        def response_context() -> Iterator[None]:
-            nonlocal active
-            previous = provider.active()
-            suspended = response_span._get_ctx_item(_DEFERRED_RESPONSE_PARENT)
-            response_span._set_ctx_item(_DEFERRED_RESPONSE_PARENT, None)
-            try:
-                provider.activate(active)
-                yield
-            finally:
-                # A generator can suspend inside a child span across yields.
-                active = provider.active()
-                if not response_span.finished:
-                    response_span._set_ctx_item(_DEFERRED_RESPONSE_PARENT, suspended)
-                provider.activate(previous)
-                # Completion may have finished the saved ambient span too.
-                provider.active()
 
-        event.response_context = response_context
+class WSGIResponseSubscriber(ContextSubscriber[WSGIResponseEvent]):
+    """Trace a WSGI response iterable as a child of its request span."""
+
+    event_names = (WSGIResponseEvent.event_name,)
+
+    @classmethod
+    def on_started(cls, ctx: core.ExecutionContext[WSGIResponseEvent]) -> None:
+        event = ctx.event
+        request_ctx = ctx.parent
+        parent = find_span_on_context(request_ctx) if request_ctx is not None else None
+        span = tracer.start_span(event.operation_name, child_of=parent, activate=True)
+        span._set_attribute(COMPONENT, event.component)
+        store_span_on_context(ctx, span)
+
+    @classmethod
+    def on_ended(
+        cls,
+        ctx: core.ExecutionContext[WSGIResponseEvent],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        span = find_span_on_context(ctx)
+        if span is None:
+            return
+        try:
+            _, exc_value, traceback = exc_info
+            # A server closing the response early raises GeneratorExit; that is not an error.
+            if exc_value is not None and not isinstance(exc_value, GeneratorExit):
+                span.set_exc_info(type(exc_value), exc_value, traceback)
+        finally:
+            span.finish()

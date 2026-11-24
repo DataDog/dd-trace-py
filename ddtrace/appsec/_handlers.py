@@ -76,6 +76,19 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
 }
 
 
+def _find_integration_config() -> Any:
+    """Return the nearest integration config from context data or an events-based context."""
+    ctx: Optional[core.ExecutionContext[Any]] = core.current
+    while ctx is not None:
+        integration_config = ctx.get_item("integration_config")
+        if integration_config is None:
+            integration_config = getattr(getattr(ctx, "event", None), "integration_config", None)
+        if integration_config is not None:
+            return integration_config
+        ctx = ctx.parent
+    return None
+
+
 def _on_set_http_meta_for_normalized_route(
     span: SpanData,
     request_ip: Optional[str],
@@ -102,7 +115,7 @@ def _on_set_http_meta_for_normalized_route(
     asm_env = get_active_asm_context()
     if asm_env is None or asm_env.normalized_route_emitted:
         return
-    integration_config = core.find_item("integration_config")
+    integration_config = _find_integration_config()
     integration_name = getattr(integration_config, "integration_name", None)
     if not isinstance(integration_name, str):
         return

@@ -32,6 +32,7 @@ TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
 def _finish_span(
     ctx: core.ExecutionContext[TracingEventType],
     exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    resolve_service: bool = True,
 ) -> None:
     """Finish the span in the context.
 
@@ -44,7 +45,7 @@ def _finish_span(
     if not span:
         return
 
-    if ctx.get_item("resolve_service_on_finish", True):
+    if resolve_service:
         set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
@@ -156,7 +157,15 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
                 handler(ctx, exc_info)
         finally:
             if getattr(ctx.event, "_end_span", True):
-                _finish_span(ctx, exc_info)
+                cls._finish_span(ctx, exc_info)
+
+    @classmethod
+    def _finish_span(
+        cls,
+        ctx: core.ExecutionContext[TracingEventType],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        _finish_span(ctx, exc_info)
 
 
 class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[TracingEventType]):

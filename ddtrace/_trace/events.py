@@ -3,13 +3,9 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from typing import TYPE_CHECKING
-from typing import Any
-from typing import Callable
 from typing import ClassVar
-from typing import ContextManager
 from typing import Optional
 
-from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.settings.integration import IntegrationConfig
 
@@ -96,16 +92,3 @@ class TracingEvent(Event):
         setattr(event, "span_type", span_type)
         setattr(event, "span_kind", span_kind)
         return event
-
-
-@dataclass
-class WebFrameworkResponseEvent(Event):
-    """A deferred response is ready for iteration after its application returns."""
-
-    event_name = "web.response"
-
-    request_context: ExecutionContext[TracingEvent]
-    operation_name: str
-    response: Any
-    span_modifier: Callable[[Any, Any], None]
-    response_context: Optional[Callable[[], ContextManager[None]]] = None

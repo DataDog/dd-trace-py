@@ -5,13 +5,12 @@ import sys
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import ContextManager
 from typing import Iterable
 from typing import Optional
 
-from ddtrace._trace.events import WebFrameworkResponseEvent
 from ddtrace._trace.http_tags import set_instrumentation_resource
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WSGIRequestEvent
+from ddtrace.contrib._events.web_framework import WSGIResponseEvent
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
@@ -76,7 +75,6 @@ class _WSGIResponseIterable:
         "_closed",
         "_close",
         "_iterator_close",
-        "_context",
     )
 
     def __init__(
@@ -84,9 +82,7 @@ class _WSGIResponseIterable:
         wrapped: Iterable[Any],
         on_complete: Callable[[ExcInfoType], None],
         wrapped_is_iterator: bool = False,
-        context: Optional[Callable[[], ContextManager[None]]] = None,
     ) -> None:
-        self._context = context
         self._iterator = iter(wrapped)
         self.__wrapped__ = wrapped if wrapped_is_iterator else self._iterator
         self._on_complete = on_complete
@@ -102,12 +98,6 @@ class _WSGIResponseIterable:
         return self
 
     def __next__(self) -> Any:
-        if self._context is not None:
-            with self._context():
-                return self._next()
-        return self._next()
-
-    def _next(self) -> Any:
         if self._completed:
             raise StopIteration
         try:
@@ -123,13 +113,6 @@ class _WSGIResponseIterable:
         if self._closed:
             return
         self._closed = True
-        if self._context is not None:
-            with self._context():
-                self._close_response()
-        else:
-            self._close_response()
-
-    def _close_response(self) -> None:
         exc_info: ExcInfoType = (None, None, None)
         try:
             try:
@@ -218,7 +201,7 @@ class _DDWSGIMiddlewareBase:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
         headers = get_request_headers(environ)
-        event = WebFrameworkRequestEvent(
+        event = WSGIRequestEvent(
             component=self._config.integration_name,
             integration_config=self._config,
             http_operation=(
@@ -238,11 +221,6 @@ class _DDWSGIMiddlewareBase:
         ctx.set_items(
             {
                 "remote_addr": environ.get("REMOTE_ADDR"),
-                "headers": headers,
-                "headers_case_sensitive": True,
-                "service": event.service,
-                "middleware_config": self._config,
-                "integration_config": self._config,
                 "distributed_headers": environ,
                 "environ": environ,
                 "middleware": self,
@@ -266,9 +244,18 @@ class _DDWSGIMiddlewareBase:
         closing_iterable = ()
         not_blocked = True
         application_exc_info: ExcInfoType = (None, None, None)
+        response_ctx: Optional[core.ExecutionContext[WSGIResponseEvent]] = None
+
+        def complete(exc_info: ExcInfoType) -> None:
+            try:
+                if response_ctx is not None:
+                    response_ctx.dispatch_ended_event(*exc_info)
+            finally:
+                # Response failures belong to the response span only.
+                ctx.dispatch_ended_event()
+
         with ctx:
             try:
-                event.request_headers = {}
                 ctx.set_item("wsgi.construct_url", construct_url)
 
                 def blocked_view():
@@ -335,33 +322,36 @@ class _DDWSGIMiddlewareBase:
                     if hasattr(self, "_response_call_modifier")
                     else self._response_span_modifier
                 )
-                response_event = WebFrameworkResponseEvent(
-                    request_context=ctx,
-                    operation_name=(
-                        self._response_call_name if hasattr(self, "_response_call_name") else self._response_span_name
+                response_ctx = core.context_with_event(
+                    WSGIResponseEvent(
+                        component=self._config.integration_name,
+                        operation_name=(
+                            self._response_call_name
+                            if hasattr(self, "_response_call_name")
+                            else self._response_span_name
+                        ),
                     ),
-                    response=closing_iterable,
-                    span_modifier=modifier,
+                    dispatch_end_event=False,
                 )
-                core.dispatch_event(response_event)
-                response = _WSGIResponseIterable(
-                    closing_iterable,
-                    lambda exc_info: ctx.dispatch_ended_event(*exc_info),
-                    self.app_is_iterator,
-                    response_event.response_context,
-                )
-                ctx.set_item("response_ready", True)
-
+                with response_ctx:
+                    modifier(span_from_context(response_ctx), closing_iterable)
+                    response = _WSGIResponseIterable(closing_iterable, complete, self.app_is_iterator)
+            except BaseException:
+                # Failures before the iterable is returned also belong to the request span.
+                application_exc_info = sys.exc_info()
+                try:
+                    if response_ctx is not None:
+                        response_ctx.dispatch_ended_event(*application_exc_info)
+                finally:
+                    ctx.dispatch_ended_event(*application_exc_info)
+                raise
+            else:
                 if stop_iteration_exception:
                     # Close the request and app spans without treating socket closure as an error.
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
-                    ctx.dispatch_ended_event()
+                    complete((None, None, None))
                     raise stop_iteration_exception
                 return response
-            except BaseException:
-                application_exc_info = sys.exc_info()
-                ctx.dispatch_ended_event(*application_exc_info)
-                raise
             finally:
                 # Security analysis ends at application return, before deferred response iteration.
                 try:
