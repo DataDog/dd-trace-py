@@ -270,7 +270,7 @@ def track_user_signup_event(
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT}.sdk", "true")
         else:
-            span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT_MODE}.auto.mode", login_events_mode)
+            span._set_attribute(APPSEC.USER_SIGNUP_EVENT_MODE, login_events_mode)
 
         return
     else:

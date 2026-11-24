@@ -11,7 +11,6 @@ import pytest
 from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext.ci import _filter_sensitive_info
-from tests import utils
 
 
 def _ci_fixtures():
@@ -26,16 +25,6 @@ def _updateenv(monkeypatch, env):
     for k, v in env.items():
         # monkeypatch logs a warning if values passed to setenv are not strings
         monkeypatch.setenv(str(k), str(v))
-
-
-@pytest.fixture
-def git_repo_empty(tmpdir):
-    yield utils.git_repo_empty(tmpdir)
-
-
-@pytest.fixture
-def git_repo(git_repo_empty):
-    yield utils.git_repo(git_repo_empty)
 
 
 @pytest.mark.parametrize("name,environment,tags", _ci_fixtures())
@@ -545,12 +534,12 @@ def test_extract_clone_defaultremotename():
         "ddtrace.ext.git._git_subprocess_cmd_with_details",
         return_value=git._GitSubprocessDetails("default_remote_name", "", 10, 0),
     ) as mock_git_subprocess_cmd_with_details:
-        remote_name, _, duration, returncode = git._extract_clone_defaultremotename_with_details(cwd=git_repo)
+        remote_name, _, duration, returncode = git._extract_clone_defaultremotename_with_details(cwd="repo")
         assert remote_name == "default_remote_name"
         assert duration == 10
         assert returncode == 0
         mock_git_subprocess_cmd_with_details.assert_called_once_with(
-            "config", "--default", "origin", "--get", "clone.defaultRemoteName", cwd=git_repo
+            "config", "--default", "origin", "--get", "clone.defaultRemoteName", cwd="repo"
         )
 
 
