@@ -130,10 +130,12 @@ class TestPikaTracing(PikaTestCase):
     def test_consume_generator(self):
         self._publish()
         received = None
-        for method, _properties, body in self.channel.consume(self.queue, inactivity_timeout=5):
+        stream = self.channel.consume(self.queue, inactivity_timeout=5)
+        for method, _properties, body in stream:
             received = body
             self.channel.basic_ack(method.delivery_tag)
             break
+        stream.close()
         self.channel.cancel()
 
         assert received == b"hello"
@@ -141,12 +143,37 @@ class TestPikaTracing(PikaTestCase):
         (receive,) = self._spans_by_name()[pikax.RECEIVE_NAME]
         assert receive.get_tag(pikax.METHOD) == "consume"
         assert receive.parent_id == publish.span_id
+        assert receive.error == 0
+
+    def test_consume_generator_processing_nests_under_receive_span(self):
+        forward_queue = f"dd-pika-fwd-{self.suffix}"
+        self.channel.queue_declare(queue=forward_queue, exclusive=True)
+        self._publish()
+
+        stream = self.channel.consume(self.queue, inactivity_timeout=5)
+        for method, _properties, _body in stream:
+            active_span = self.tracer.current_span()
+            self.channel.basic_ack(method.delivery_tag)
+            self.channel.basic_publish(exchange="", routing_key=forward_queue, body=b"forwarded")
+            break
+        stream.close()
+        self.channel.cancel()
+
+        spans = self._spans_by_name()
+        (receive,) = spans[pikax.RECEIVE_NAME]
+        (forward,) = [s for s in spans[pikax.PUBLISH_NAME] if s.resource == forward_queue]
+        assert active_span is receive
+        assert forward.parent_id == receive.span_id
+        assert receive.error == 0
+        assert receive.get_tag("error.type") is None
 
     def test_consume_generator_inactivity_timeout(self):
         items = []
-        for item in self.channel.consume(self.queue, inactivity_timeout=0.2):
+        stream = self.channel.consume(self.queue, inactivity_timeout=0.2)
+        for item in stream:
             items.append(item)
             break
+        stream.close()
         self.channel.cancel()
 
         assert items == [(None, None, None)]

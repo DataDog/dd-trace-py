@@ -162,12 +162,22 @@ def _traced_blocking_consume(
     wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Iterator[Any]:
     queue = get_argument_value(args, kwargs, 0, "queue", optional=True) or ""
-    for item in wrapped(*args, **kwargs):
-        if item is not None and item[0] is not None:
+    consumer = wrapped(*args, **kwargs)
+    try:
+        for item in consumer:
+            if item is None or item[0] is None:
+                yield item
+                continue
             method, properties, body = item
             with core.context_with_event(_receive_event(instance, queue, method, properties, body, "consume")) as ctx:
                 _dispatch_receive(ctx, queue, properties, body)
-        yield item
+                try:
+                    yield item
+                except GeneratorExit:
+                    ctx.dispatch_ended_event()
+                    raise
+    finally:
+        consumer.close()
 
 
 def patch() -> None:
