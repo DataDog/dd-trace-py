@@ -11,10 +11,13 @@ PROFILING_SPAN_TYPE_KEY = "_dd.profiling.span_type"
 
 def attach_profiler_link(ctx: Context, local_root_span_id: int, span_type: Optional[str]) -> None:
     """Attach profiler linkage to a Context copy without mutating a shared _meta dict."""
-    ctx._meta = dict(ctx._meta)
-    ctx._meta[PROFILING_LOCAL_ROOT_SPAN_ID_KEY] = f"{local_root_span_id:016x}"
+    meta = dict(ctx._meta)
+    meta[PROFILING_LOCAL_ROOT_SPAN_ID_KEY] = f"{local_root_span_id:016x}"
     if span_type is not None:
-        ctx._meta[PROFILING_SPAN_TYPE_KEY] = span_type
+        meta[PROFILING_SPAN_TYPE_KEY] = span_type
+    # Assign the finished dict: the native _meta setter copies these keys into typed fields
+    # that the stack profiler reads without the GIL. It cannot see later in-place changes.
+    ctx._meta = meta
 
 
 def read_profiler_link(ctx: Context) -> tuple[int, Optional[str]]:

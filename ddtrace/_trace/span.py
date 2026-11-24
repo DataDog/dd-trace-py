@@ -35,6 +35,7 @@ from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.native._native import _profiler_layout_set_span_type
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.time import Time
 
@@ -563,3 +564,8 @@ class Span(SpanData):
             self.parent_id,
             self.name,
         )
+
+
+# Record the production span type in the profiler layout descriptor, so the stack profiler can
+# recognize spans without calling into Python.
+_profiler_layout_set_span_type(Span)

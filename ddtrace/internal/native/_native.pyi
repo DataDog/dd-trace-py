@@ -1928,6 +1928,11 @@ def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: .
 
 DD_CONTEXTVAR: contextvars.ContextVar[Optional[ActiveTrace]]
 
+# PyCapsule holding the read-only layout descriptor described in src/native/profiler_layout/profiler_layout.h.
+_profiler_layout: Any
+
+def _profiler_layout_set_span_type(cls: type[SpanData]) -> bool: ...
+
 class BaseContextProvider(abc.ABC):
     """A ``ContextProvider`` is an interface that provides the blueprint
     for a callable class, capable to retrieve the current active

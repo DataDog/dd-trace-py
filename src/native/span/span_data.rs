@@ -9,8 +9,11 @@ use pyo3::{
 };
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
+use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
+
 use crate::context::Context;
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
+use crate::profiler_layout::{field_offset, span_types, CopyRange, SpanOffsets};
 use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
     v04::{
@@ -37,22 +40,52 @@ const SAMPLING_RATE_KEYS: [&str; 3] = ["_dd.rule_psr", "_dd.agent_psr", "_dd.lim
     subclass
 )]
 #[derive(Default)]
+// `repr(C)` keeps the fields that the stack profiler reads without the GIL in one contiguous
+// range (`span_id` through `finished`), so a reader gets all of them with one copy. See
+// `crate::profiler_layout`. Keep that range contiguous and do not add fields inside it unless
+// the profiler layout version changes.
+#[repr(C)]
 pub struct SpanData {
-    pub name: PyBackedString,
-    pub service: PyBackedString,
-    pub resource: PyBackedString,
-    pub span_type: PyBackedString,
     pub trace_id: u128,
+    // --- Fields read by the stack profiler without the GIL (start) ---
     pub span_id: u64,
     pub parent_id: u64,
+    /// The parent `Span` (a `SpanData` subclass), or `None` for a root span.
+    /// Set from Python during span creation; read natively by the context
+    /// provider when walking the ancestor chain in `_update_active`.
+    ///
+    /// Like `_local_root` and `_parent_context`, this is set before the span is published
+    /// (`Tracer._start_span` via `_inherit_from_parent`) and never reassigned afterwards; the
+    /// stack profiler relies on that to follow it without the GIL. Setters store the new
+    /// value before dropping the old one.
+    pub _parent: Option<Py<PyAny>>,
+    /// The process-local root span, or `None` when this span is the local root.
+    ///
+    /// This mirrors the Python-facing `_local_root` property while keeping the
+    /// relationship available to native consumers without a Python slot lookup.
+    pub _local_root: Option<Py<SpanData>>,
+    /// The parent `Context` this span was created under, or `None`.
+    pub _parent_context: Option<Py<crate::context::Context>>,
+    /// Id of `span_type` in `profiler_layout::span_types`, kept in sync by every write to
+    /// `span_type`. Readers without the GIL use it instead of the string.
+    pub(crate) span_type_id: AtomicU32,
+    /// 1 when `duration` is set, else 0, kept in sync by every write to `duration`.
+    pub(crate) finished: AtomicU8,
+    // --- Fields read by the stack profiler without the GIL (end) ---
+    pub error: i32,
     pub start: i64,
     /// `None` means "not finished" (duration not yet set). Internal only — the
     /// Python-facing `duration`/`duration_ns` getters surface this as `None`/seconds.
-    pub duration: Option<i64>,
-    pub error: i32,
+    /// Write it only through `set_duration_native`, which keeps `finished` in sync.
+    pub(crate) duration: Option<i64>,
+    pub name: PyBackedString,
+    pub service: PyBackedString,
+    pub resource: PyBackedString,
+    /// Write it only through `set_span_type_native`, which keeps `span_type_id` in sync.
+    pub(crate) span_type: PyBackedString,
+    pub span_api: PyBackedString,
     pub span_links: Vec<NativeSpanLink<PyTraceData>>,
     pub span_events: Vec<NativeSpanEvent<PyTraceData>>,
-    pub span_api: PyBackedString,
     /// Unified attribute storage — source of truth for all tag/metric attributes.
     /// `meta` and `metrics` are left empty in the native span; they are materialized
     /// from this map at encode time (currently by the Python encoder via the bulk read
@@ -65,27 +98,22 @@ pub struct SpanData {
     /// Storage for meta_struct values: dict[str, Any].
     /// None until first use; initialized to an empty dict in __new__.
     pub meta_struct: Option<Py<PyDict>>,
-    /// The parent `Span` (a `SpanData` subclass), or `None` for a root span.
-    /// Set from Python during span creation; read natively by the context
-    /// provider when walking the ancestor chain in `_update_active`.
-    pub _parent: Option<Py<PyAny>>,
-    /// The process-local root span, or `None` when this span is the local root.
-    ///
-    /// This mirrors the Python-facing `_local_root` property while keeping the
-    /// relationship available to native consumers without a Python slot lookup.
-    pub _local_root: Option<Py<SpanData>>,
     /// The entry span for this service, or `None` when this span is the entry.
     ///
     /// Like `_local_root`, `None` represents `self` to preserve the existing
     /// Python property contract without creating a self-reference.
     pub _service_entry_span: Option<Py<SpanData>>,
-    /// The parent `Context` this span was created under, or `None`.
-    pub _parent_context: Option<Py<crate::context::Context>>,
     /// This span's own `Context`, built eagerly for a root span (in `__new__`, before the
     /// span is published) and lazily on first read for a child span. `None` on a child means
     /// "not yet built" — see the `context` getter.
     pub _context: Option<Py<Context>>,
 }
+
+// The profiler copies `span_id` through `finished` in one read. Keep the range small.
+const _: () = {
+    use std::mem::offset_of;
+    assert!(offset_of!(SpanData, finished) + 1 - offset_of!(SpanData, span_id) <= 48);
+};
 
 impl SpanData {
     /// Set `trace_id` and invalidate `_trace_id_py`.
@@ -97,6 +125,68 @@ impl SpanData {
     pub fn set_trace_id_native(&mut self, id: u128) {
         self.trace_id = id;
         self._trace_id_py = None;
+    }
+
+    /// Set `duration` and keep the `finished` flag that GIL-free readers use in sync.
+    #[inline(always)]
+    pub(crate) fn set_duration_native(&mut self, duration: Option<i64>) {
+        self.duration = duration;
+        self.finished
+            .store(duration.is_some() as u8, Ordering::Release);
+    }
+
+    /// Set `span_type` and keep `span_type_id` in sync.
+    ///
+    /// The id is stored before the old string is dropped, so a reader never sees an id for a
+    /// string that is being replaced.
+    #[inline(always)]
+    pub(crate) fn set_span_type_native(&mut self, py: Python<'_>, span_type: PyBackedString) {
+        let id = if span_type.is_py_none(py) {
+            span_types::NONE_ID
+        } else {
+            span_types::intern(&span_type)
+        };
+        self.span_type_id.store(id, Ordering::Release);
+        let old = std::mem::replace(&mut self.span_type, span_type);
+        drop(old);
+    }
+
+    /// Byte offsets of the fields the stack profiler reads, measured on a live object.
+    ///
+    /// pyo3 does not expose where the Rust struct starts inside the Python object, so take
+    /// each field address minus the object address.
+    pub(crate) fn profiler_offsets(py: Python<'_>) -> PyResult<SpanOffsets> {
+        let obj = Bound::new(py, Self::default())?;
+        let base = obj.as_ptr();
+        let this = obj.borrow();
+        let span_id = field_offset(base, &this.span_id);
+        let parent_id = field_offset(base, &this.parent_id);
+        let parent = field_offset(base, &this._parent);
+        let local_root = field_offset(base, &this._local_root);
+        let parent_context = field_offset(base, &this._parent_context);
+        let span_type_id = field_offset(base, &this.span_type_id);
+        let finished = field_offset(base, &this.finished);
+        let range = CopyRange::of(&[
+            (span_id, size_of::<u64>()),
+            (parent_id, size_of::<u64>()),
+            (parent, size_of::<Option<Py<PyAny>>>()),
+            (local_root, size_of::<Option<Py<SpanData>>>()),
+            (parent_context, size_of::<Option<Py<Context>>>()),
+            (span_type_id, size_of::<AtomicU32>()),
+            (finished, size_of::<AtomicU8>()),
+        ]);
+        Ok(SpanOffsets {
+            copy_offset: range.offset,
+            copy_size: range.size,
+            span_id,
+            parent_id,
+            parent,
+            local_root,
+            parent_context,
+            span_type_id,
+            finished,
+            _reserved: 0,
+        })
     }
 }
 
@@ -248,9 +338,11 @@ impl SpanData {
             Some(obj) => span.set_resource(obj),
             None => span.resource = span.name.clone_ref(py),
         }
-        span.span_type = span_type
-            .map(|obj| extract_backed_string_or_none(obj))
-            .unwrap_or_else(|| PyBackedString::py_none(py));
+        if let Some(obj) = span_type {
+            span.set_span_type_native(py, extract_backed_string_or_none(obj));
+        } else {
+            span.span_type = PyBackedString::py_none(py);
+        }
         // Initialize parent_id: None or invalid → 0 (no parent), Some(int) → parent_id
         span.parent_id = parent_id
             .and_then(|obj| obj.extract::<u64>().ok())
@@ -381,7 +473,7 @@ impl SpanData {
     #[setter]
     #[inline(always)]
     fn set_span_type(&mut self, span_type: &Bound<'_, PyAny>) {
-        self.span_type = extract_backed_string_or_none(span_type);
+        self.set_span_type_native(span_type.py(), extract_backed_string_or_none(span_type));
     }
 
     // start_ns property (maps to self.start)
@@ -408,11 +500,11 @@ impl SpanData {
     #[setter]
     #[inline(always)]
     fn set_duration_ns(&mut self, value: Option<&Bound<'_, PyAny>>) {
-        self.duration = value.and_then(|obj| {
+        self.set_duration_native(value.and_then(|obj| {
             obj.extract::<i64>()
                 .or_else(|_| obj.extract::<f64>().map(|f| f as i64))
                 .ok()
-        });
+        }));
     }
 
     // error property
@@ -519,11 +611,13 @@ impl SpanData {
     #[inline(always)]
     fn set_duration(&mut self, value: &Bound<'_, PyAny>) {
         // Convert seconds to nanoseconds
-        self.duration = value
-            .extract::<f64>()
-            .map(|s| (s * 1e9) as i64)
-            .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
-            .ok();
+        self.set_duration_native(
+            value
+                .extract::<f64>()
+                .map(|s| (s * 1e9) as i64)
+                .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
+                .ok(),
+        );
     }
 
     // parent_id property
@@ -569,13 +663,20 @@ impl SpanData {
 
     #[setter(_parent)]
     #[inline(always)]
-    fn set_parent(&mut self, value: &Bound<'_, PyAny>) {
+    fn set_parent(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
         // None → no parent; any other value is stored as-is.
-        self._parent = if value.is_none() {
+        let value = if value.is_none() {
             None
         } else {
             Some(value.clone().unbind())
         };
+        // Store the new value before dropping the old one, and drop it after releasing the
+        // borrow (see set_local_root).
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._parent, value)
+        };
+        drop(replaced);
     }
 
     // _local_root property — the local root Span, or self when this is the root.
@@ -700,13 +801,20 @@ impl SpanData {
 
     #[setter(_parent_context)]
     #[inline(always)]
-    fn set_parent_context(&mut self, value: &Bound<'_, PyAny>) {
-        self._parent_context = if value.is_none() {
+    fn set_parent_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
+        let value = if value.is_none() {
             None
         } else {
             // Silently ignore non-Context values, matching other setters' defensive style.
             value.extract::<Py<crate::context::Context>>().ok()
         };
+        // Store the new value before dropping the old one, and drop it after releasing the
+        // borrow (see set_local_root).
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._parent_context, value)
+        };
+        drop(replaced);
     }
 
     /// The trace context for this span.
@@ -1332,8 +1440,9 @@ impl SpanData {
         // Reset to Default to drop every owned Python reference so CPython can break
         // cycles. Assigning the whole struct is correct-by-construction: it cannot drift
         // out of sync with __traverse__ when fields are added. `Default` is a valid state
-        // (duration -> None = "not finished"); the object is garbage being collected, so
-        // resetting scalars and freeing collection buffers here is harmless.
+        // (duration -> None = "not finished", with finished -> 0 and span_type_id -> 0 to
+        // match); the object is garbage being collected, so resetting scalars and freeing
+        // collection buffers here is harmless.
         *self = Self::default();
     }
 }
