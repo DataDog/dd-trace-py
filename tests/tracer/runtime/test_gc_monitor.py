@@ -15,9 +15,13 @@ import pytest
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.runtime import gc_monitor
+from ddtrace.internal.runtime.constants import GC_PAUSE_MAX
+from ddtrace.internal.runtime.constants import GC_PAUSE_TIME
+from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
 from ddtrace.internal.runtime.gc_monitor import PauseListener
+from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
 
 
 # Tests that call _on_gc manually while the monitor's gc.callbacks hook is
@@ -386,6 +390,10 @@ class _LockWithStop:
         if after is not None:
             self.after_release = None
             after()
+
+    def locked(self) -> bool:
+        held: bool = self._lock.locked()
+        return held
 
     def __enter__(self) -> bool:
         return self.acquire()
@@ -844,3 +852,121 @@ def test_pause_excludes_time_other_threads_run() -> None:
     assert wall_handoff_ns >= other_ran_ns // 2, wall_handoff_ns
     assert snap.n_pauses == 1
     assert snap.max_ns < wall_handoff_ns // 5, (snap, wall_handoff_ns)
+
+
+def test_a_lock_left_held_does_not_hang_the_sections_that_wait() -> None:
+    """A signal handler that raises between _on_gc's acquire() and its try leaves the lock held.
+
+    Python code cannot close that gap. A profiler start (acquire, add_listener) on an
+    application or remote-config thread, and a runtime-metrics flush, must then give
+    up instead of blocking forever; a blocked ddtrace thread also blocks os.fork().
+    """
+    monitor: GCPauseMonitor = GCPauseMonitor()
+
+    def listener(gen: int, pause_ns: int) -> None:
+        return None
+
+    monitor._lock.acquire()
+    try:
+        outcomes: dict[str, object] = {}
+
+        def run(name: str, section: Callable[[], object]) -> None:
+            try:
+                outcomes[name] = section()
+            except gc_monitor.GCMonitorLockHeld:
+                outcomes[name] = "held"
+
+        for name, section in (
+            ("acquire", monitor.acquire),
+            ("add_listener", lambda: monitor.add_listener(listener)),
+            ("reset", monitor.reset),
+            ("snapshot_and_reset", monitor.snapshot_and_reset),
+            ("remove_listener", lambda: monitor.remove_listener(listener)),
+            ("release", monitor.release),
+        ):
+            assert _finishes(lambda: run(name, section)), f"{name} waited forever for a lock left held"
+
+        assert outcomes["acquire"] == "held"
+        assert outcomes["add_listener"] == "held"
+        assert outcomes["reset"] is None
+        assert tuple(outcomes["snapshot_and_reset"]) == (0, 0, 0)  # type: ignore[arg-type]
+        assert monitor._refcount == 0
+        assert all(cb is not monitor._gc_hook for cb in gc.callbacks)
+    finally:
+        monitor._lock.release()
+
+
+def test_snapshot_skips_a_lock_left_held_logs_once_then_reports_the_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    monitor._count, monitor._total_ns, monitor._max_ns = 1, 5, 5
+    logged: list[str] = []
+    monkeypatch.setattr(gc_monitor.log, "debug", lambda msg, *args, **kwargs: logged.append(msg))
+    lock_held: threading.Event = threading.Event()
+    release_lock: threading.Event = threading.Event()
+
+    def hold_lock() -> None:
+        with monitor._lock:
+            lock_held.set()
+            release_lock.wait(timeout=30)
+
+    holder: threading.Thread = threading.Thread(target=hold_lock, daemon=True)
+    holder.start()
+    snapshots: list[GCPauseSnapshot] = []
+    try:
+        assert lock_held.wait(timeout=5)
+        for _ in range(2):
+            assert _finishes(lambda: snapshots.append(monitor.snapshot_and_reset())), "snapshot waited forever"
+    finally:
+        release_lock.set()
+        holder.join(timeout=5)
+
+    assert [tuple(snap) for snap in snapshots] == [(0, 0, 0), (0, 0, 0)]
+    assert len(logged) == 1, logged
+    # Once the lock is free again, the next flush reports the pauses it skipped.
+    assert tuple(monitor.snapshot_and_reset()) == (1, 5, 5)
+
+
+def test_runtime_metrics_flush_does_not_wait_for_a_lock_left_held() -> None:
+    """The flush runs on the runtime-metrics worker, which os.fork() joins before it forks."""
+    collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+    monitor: Optional[GCPauseMonitor] = collector._monitor
+    assert monitor is not None
+    collected: list[Optional[list[tuple[str, Any]]]] = []
+    monitor._lock.acquire()
+    try:
+        assert _finishes(lambda: collected.append(collector.collect(GC_RUNTIME_METRICS))), "the flush waited forever"
+    finally:
+        monitor._lock.release()
+        collector.stop()
+
+    assert collected[0] is not None
+    metrics: dict[str, Any] = dict(collected[0])
+    assert metrics[GC_PAUSE_TIME] == 0
+    assert metrics[GC_PAUSE_MAX] == 0
+
+
+class _InjectedError(Exception):
+    pass
+
+
+@pytest.mark.parametrize("section", ["acquire", "reset", "snapshot_and_reset"])
+def test_an_error_inside_a_section_releases_the_lock(monkeypatch: pytest.MonkeyPatch, section: str) -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
+
+    def fail(*args: object) -> None:
+        raise _InjectedError()
+
+    if section == "acquire":
+        monkeypatch.setattr(gc_monitor, "_gc_callback_installed", fail)
+    elif section == "reset":
+        monkeypatch.setattr(monitor, "_clear_starts", fail)
+    else:
+        monkeypatch.setattr(monitor, "_clear_window", fail)
+    try:
+        with pytest.raises(_InjectedError):
+            getattr(monitor, section)()
+        assert not monitor._lock.locked()
+    finally:
+        gc_monitor._remove_gc_callback(monitor._gc_hook)
+        if monitor._fork_hook in forksafe._registry:
+            forksafe.unregister(monitor._fork_hook)
