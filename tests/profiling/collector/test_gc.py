@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gc
+import pickle
 from typing import Any
 from typing import Callable
 from typing import Iterator
@@ -382,6 +383,22 @@ def test_lock_is_created_once_and_reset_in_place_after_fork() -> None:
     assert not lock.locked()
     with pytest.raises(StopIteration):
         next(reset)
+
+
+def test_wrapped_gc_collect_still_pickles_by_reference() -> None:
+    """Applications pickle gc.collect (multiprocessing pool.apply(gc.collect), dask client.run(gc.collect)).
+
+    A bound method of the collector pickles the collector, and its lock cannot be pickled.
+    """
+    orig: Callable[..., int] = gc.collect
+    col: GCCollector = GCCollector()
+    col.start()
+    try:
+        assert gc.collect is not orig
+        assert pickle.loads(pickle.dumps(gc.collect)) is gc.collect
+    finally:
+        col.stop()
+    assert gc.collect is orig
 
 
 def test_restart_during_patched_collect_does_not_raise_into_the_caller() -> None:

@@ -82,7 +82,7 @@ class GCCollector(collector.Collector):
         installed: Optional[Callable[..., int]] = getattr(self, "_installed_collect", None)
         if installed is None:
             self._orig_collect = gc.collect
-            self._installed_collect = self._patched_collect
+            self._installed_collect = self._make_collect_wrapper()
             gc.collect = self._installed_collect
         self._pause_listener = self._on_pause
         monitor: GCPauseMonitor = gc_pause_monitor()
@@ -121,6 +121,21 @@ class GCCollector(collector.Collector):
             self._pause_count[i] = 0
             self._pause_total_ns[i] = 0
         self._explicit_count = 0
+
+    def _make_collect_wrapper(self) -> Callable[..., int]:
+        patched_collect: Callable[..., int] = self._patched_collect
+
+        def collect(*args: Any, **kwargs: Any) -> int:
+            return patched_collect(*args, **kwargs)
+
+        # pickle and cloudpickle store a function by module and name. Named as the
+        # function it replaces, gc.collect still pickles as a reference to gc.collect
+        # (multiprocessing, dask client.run(gc.collect)), not as this collector and
+        # its unpicklable lock.
+        collect.__module__ = "gc"
+        collect.__name__ = "collect"
+        collect.__qualname__ = "collect"
+        return collect
 
     def _patched_collect(self, *args: Any, **kwargs: Any) -> int:
         # When stop cannot unwrap because a later wrapper sits on top, keep the
