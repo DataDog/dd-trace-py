@@ -66,9 +66,9 @@ def test_forking_worker_flushes_in_the_work_horse():
     queue.empty()
 
     job = queue.enqueue(job_add1, 1)
-    processor.periodic()
     rq.Worker([queue], connection=connection).work(burst=True)
     assert job.get_status(refresh=True) == "finished"
+    processor.periodic()
 
     stats = read_stats(path)
     [(out_hash, _out_parent, out_count)] = entries(stats, out_tags("dsm-fork"))
@@ -320,3 +320,38 @@ def test_dsm_disabled_writes_nothing():
 
     assert "dd-pathway-ctx-base64" not in rq.job.Job.fetch(job.id, connection=connection).meta
     assert datastreams._processor is None
+
+
+@pytest.mark.subprocess(env=DSM_ENV, out=None, err=None)
+def test_enqueue_span_gets_the_pathway_hash():
+    import redis
+    import rq
+
+    from ddtrace.contrib.internal.rq.patch import patch
+    from ddtrace.internal.datastreams import rq as dsm_rq
+    from tests.contrib.config import REDIS_CONFIG
+    from tests.contrib.rq.jobs import job_add1
+
+    tagged = {}
+
+    class Span:
+        def _set_attribute(self, key, value):
+            tagged[key] = value
+
+    patch()
+    connection = redis.Redis(port=REDIS_CONFIG["port"])
+    queue = rq.Queue("dsm-span", connection=connection)
+    job = queue.create_job(job_add1, args=(1,))
+    dsm_rq.dsm_rq_enqueue_job(queue, job, Span())
+
+    assert tagged["pathway.hash"] == str(dsm_rq._pathway_hash(job.meta["dd-pathway-ctx-base64"]))
+    assert tagged["pathway.hash"] != "0"
+
+
+def test_payload_size_counts_positional_and_keyword_arguments():
+    from types import SimpleNamespace
+
+    from ddtrace.internal.datastreams.rq import _payload_size
+
+    assert _payload_size(SimpleNamespace(args=("abc", b"de", 7), kwargs={"k": "vw"})) == 8
+    assert _payload_size(SimpleNamespace(args=None, kwargs=None)) == 0

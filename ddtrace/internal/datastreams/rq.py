@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import struct
 from typing import Any
 from typing import Optional
 
@@ -19,7 +21,8 @@ def _edge_tags(direction: str, queue_name: Optional[str]) -> list[str]:
 
 
 def _payload_size(job: Any) -> int:
-    return _calculate_byte_size(getattr(job, "args", None)) + _calculate_byte_size(getattr(job, "kwargs", None))
+    args = getattr(job, "args", None) or ()
+    return sum(_calculate_byte_size(arg) for arg in args) + _calculate_byte_size(getattr(job, "kwargs", None))
 
 
 def _produce(queue: Any, job: Any, span: Optional[Any]) -> None:
@@ -39,8 +42,19 @@ def dsm_rq_create_job(queue: Any, job: Any) -> None:
     _produce(queue, job, None)
 
 
+def _pathway_hash(encoded: Any) -> Optional[int]:
+    try:
+        hash_value: int = struct.unpack("<Q", base64.b64decode(encoded)[:8])[0]
+    except Exception:
+        return None
+    return hash_value
+
+
 def dsm_rq_enqueue_job(queue: Any, job: Any, span: Optional[Any]) -> None:
     if isinstance(job.meta, dict) and PROPAGATION_KEY_BASE_64 in job.meta:
+        hash_value = _pathway_hash(job.meta[PROPAGATION_KEY_BASE_64])
+        if span is not None and hash_value is not None:
+            span._set_attribute("pathway.hash", str(hash_value))
         return
     _produce(queue, job, span)
 
