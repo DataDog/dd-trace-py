@@ -433,9 +433,9 @@ def _restart_profiler(wanted: dict[str, bool], settings: dict[str, t.Any]) -> No
     # that I'm OK with for the time being.
     # Note: this does not check for Native Heap, but Native Heap is never uninstalled/stopped,
     #   so it does not need to be checked here.
-    # GC is local-only (not RC-controlled) but stops with the profiler, so keep
-    # running when only GC remains enabled after an RC settings update.
-    if not any(wanted.values()) and not profiling_config.gc.enabled:
+    # GC is not checked either: remote config turning every collector off must stop it too,
+    #   and a settings-only update must not start a GC-only profiler.
+    if not any(wanted.values()):
         return
 
     from ddtrace.profiling.profiler import Profiler
