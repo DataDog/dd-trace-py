@@ -213,11 +213,17 @@ StackRenderer::render_frame(Frame& frame)
 }
 
 void
-StackRenderer::mark_truncated()
+StackRenderer::mark_truncated(size_t count)
 {
     if (sample != nullptr) {
-        sample->incr_dropped_frames();
+        sample->incr_dropped_frames(count);
     }
+}
+
+bool
+StackRenderer::frames_full() const
+{
+    return sample != nullptr && sample->frames_full();
 }
 
 void

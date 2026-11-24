@@ -14,6 +14,7 @@
 #include <cpython/genobject.h>
 
 #include <cstddef>
+#include <limits>
 #if PY_VERSION_HEX >= 0x030e0000
 #include <internal/pycore_frame.h>
 #include <opcode.h>
@@ -145,7 +146,11 @@ class TaskInfo
     {
     }
 
-    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop);
+    // Append up to max_depth coroutine frames to the stack, innermost first.
+    size_t unwind(EchionSampler& echion,
+                  FrameStack&,
+                  bool using_uvloop,
+                  size_t max_depth = std::numeric_limits<size_t>::max());
 };
 
 // Checks whether a Frame is the uvloop.run coroutine wrapper.

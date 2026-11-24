@@ -12,6 +12,12 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
     for (auto it = this->begin(); it != this->end(); ++it) {
+        // Frames past the sample's limit would only be counted as dropped; skip the lookups.
+        if (renderer.frames_full()) {
+            renderer.mark_truncated(static_cast<size_t>(this->end() - it));
+            break;
+        }
+
         auto& frame = *it;
 
         // The collection runs underneath everything the frame is doing, including a native call
