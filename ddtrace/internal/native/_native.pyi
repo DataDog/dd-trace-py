@@ -207,6 +207,9 @@ class SharedRuntime:
     def after_fork_parent(self) -> None:
         """Resume the shared runtime in the parent process after forking."""
         ...
+    def restart_pending(self) -> bool:
+        """Return whether the runtime was inherited through a fork and not rebuilt yet."""
+        ...
     def after_fork_child(self) -> None:
         """Re-initialize the shared runtime in the child process after forking."""
         ...
