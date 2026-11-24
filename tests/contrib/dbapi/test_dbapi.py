@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace._trace.subscribers.database import DatabaseTracingSubscriber
 from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
 from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.contrib._events.dbapi import DatabaseResultEvent
@@ -713,12 +714,13 @@ def test_disabled_tracing_calls_driver_without_database_context(tracer, test_spa
     assert test_spans.spans == []
 
 
+@pytest.mark.parametrize("configured", [False, True])
 @pytest.mark.parametrize("method_name", ["execute", "executemany", "callproc", "fetchone"])
-def test_query_preparation_is_product_neutral(tracer, test_spans, method_name):
+def test_query_preparation_is_product_neutral(tracer, test_spans, method_name, configured):
     prepared = []
     parameters = object()
     cursor = mock.Mock(rowcount=1)
-    cfg = IntegrationConfig(Config(), "db-test", service="orders-db")
+    cfg = IntegrationConfig(Config(), "db-test", service="orders-db", _dbm_propagator=object() if configured else None)
     traced = FetchTracedCursor(cursor, cfg=cfg)
 
     def prepare(event):
@@ -736,7 +738,7 @@ def test_query_preparation_is_product_neutral(tracer, test_spans, method_name):
     finally:
         core.reset_listeners(DatabaseQueryPrepareEvent.event_name, prepare)
 
-    if method_name in ("execute", "executemany"):
+    if configured and method_name in ("execute", "executemany"):
         assert len(prepared) == 1
         getattr(cursor, method_name).assert_called_once_with("/* prepared */ SELECT 1", parameters)
     else:
@@ -753,24 +755,27 @@ def test_result_metadata_hook_needs_no_span(tracer, test_spans, fails):
         def _get_post_execute_result(self, context):
             result = super()._get_post_execute_result(context)
             result.tags["driver.query_id"] = "query-123"
+            result.tags["legacy.query_id"] = "must-be-overridden"
             return result
 
         def _set_post_execute_tags(self, span):
             super()._set_post_execute_tags(span)
             span.set_tag("legacy.query_id", "legacy-123")
+            span.set_tag("db.name", "resolved")
 
     cursor = mock.Mock(rowcount=7)
     if fails:
         cursor.execute.side_effect = ValueError("driver failed")
         with pytest.raises(ValueError, match="driver failed"):
-            MetadataCursor(cursor).execute("SELECT 1")
+            MetadataCursor(cursor, db_tags={"db.name": "initial"}).execute("SELECT 1")
     else:
-        MetadataCursor(cursor).execute("SELECT 1")
+        MetadataCursor(cursor, db_tags={"db.name": "initial"}).execute("SELECT 1")
 
     (span,) = test_spans.spans
     assert span.get_metric("db.row_count") == 7
     assert span.get_tag("driver.query_id") == "query-123"
     assert span.get_tag("legacy.query_id") == "legacy-123"
+    assert span.get_tag("db.name") == "resolved"
 
 
 def test_missing_operation_span_does_not_borrow_parent(tracer, test_spans):
@@ -783,7 +788,8 @@ def test_missing_operation_span_does_not_borrow_parent(tracer, test_spans):
             args = ("SELECT 1",)
             prepare = DatabaseQueryPrepareEvent(context=context, args=args, kwargs={})
             handle_query_prepare_event(prepare)
-            core.dispatch_event(DatabaseResultEvent(context=context, row_count=99, tags={"wrong.target": "yes"}))
+            operation.result = DatabaseResultEvent(context=context, row_count=99, tags={"wrong.target": "yes"})
+            DatabaseTracingSubscriber.on_ended(context, (None, None, None))
             assert find_span_on_context(context) is None
             assert prepare.args is args
             assert tracer.current_span() is parent
@@ -829,8 +835,9 @@ def test_monkeypatched_legacy_hook_receives_real_span(tracer, test_spans):
         observed.append(span)
         original(cursor, span)
 
+    cursor = TracedCursor(mock.Mock(rowcount=7))
     with mock.patch.object(TracedCursor, "_set_post_execute_tags", autospec=True, side_effect=legacy_hook) as hook:
-        TracedCursor(mock.Mock(rowcount=7)).execute("SELECT 1")
+        cursor.execute("SELECT 1")
     hook.assert_called_once()
     assert len(test_spans.spans) == 1
     assert observed == test_spans.get_spans()
@@ -893,3 +900,31 @@ def test_legacy_propagator_suppression(tracer, suppression):
         core.reset_listeners(DatabaseQueryPrepareEvent.event_name, prepare)
     prepare.assert_not_called()
     cursor.execute.assert_called_once_with("SELECT 1")
+
+
+def test_operation_tags_override_connection_tags(tracer, test_spans):
+    cursor = mock.Mock(rowcount=1)
+    traced = TracedCursor(cursor, db_tags={"db.name": "initial"})
+    traced._trace_method(cursor.execute, "sql.query", "SELECT 1", {"db.name": "override"}, None, "SELECT 1")
+    (span,) = test_spans.spans
+    assert span.get_tag("db.name") == "override"
+
+
+def test_legacy_hook_without_operation_span_does_not_borrow_parent(tracer, test_spans):
+    hook = mock.Mock()
+
+    class LegacyCursor(TracedCursor):
+        def _set_post_execute_tags(self, span):
+            hook(span)
+
+    cursor = mock.Mock(rowcount=1)
+    DatabaseTracingSubscriber.unregister()
+    try:
+        with tracer.trace("parent") as parent:
+            LegacyCursor(cursor).execute("SELECT 1")
+            assert tracer.current_span() is parent
+    finally:
+        DatabaseTracingSubscriber.register()
+    hook.assert_not_called()
+    cursor.execute.assert_called_once_with("SELECT 1")
+    assert test_spans.spans == [parent]

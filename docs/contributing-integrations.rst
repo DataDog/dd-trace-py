@@ -102,42 +102,17 @@ Check out existing database integrations for examples of using the `dbapi`:
     - `psycopg <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/psycopg>`_
     - `mysql <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mysql>`_
 
-The shared synchronous and asynchronous DB-API wrappers, asyncpg, and aiomysql
-emit ``DatabaseOperationEvent`` through ``core.context_with_event()``. One
-tracing-owned ``DatabaseTracingSubscriber`` creates and finishes their spans,
-renders connection metadata, and handles ``DatabaseResultEvent`` cursor metadata.
-The subscriber is activated by tracing's ``DATABASE_SUBSCRIBERS`` bundle;
-integration patching and unpatching do not register or remove shared listeners.
+Database integrations emit ``DatabaseOperationEvent`` through
+``core.context_with_event()``. ``DatabaseTracingSubscriber`` extends the shared
+``TracingSubscriber`` lifecycle and applies connection and result metadata.
+DB-API cursor subclasses override ``_get_post_execute_result(context)`` to add
+result metadata such as driver query IDs.
 
-Keep ``DbQueryEvent`` separate from the tracing lifecycle. It notifies security
-subscribers about the original query and its connection encoding before tracing
-enablement is checked. Existing DB-API security checks run inside the operation
-context and before DBM injection. ``DatabaseQueryPrepareEvent`` synchronously
-exposes mutable driver arguments after the span's service and connection metadata
-are ready. DBM owns its listener and propagation-mode gating; the shared
-DB-API wrapper retains ``_self_dbm_propagator`` and the ``dbm_propagator`` argument
-of ``_trace_method`` for existing cursor extensions. Query preparation also works
-for ordinary execute methods without a configured propagator. The span resource
-continues to describe the original query. Preserve each driver's injection
-exclusions for fetches, stored procedures, and prepared statements.
-
-Publish result metadata in the driver's ``finally`` block, before the operation
-context exits. New DB-API cursor subclasses extend
-``_get_post_execute_result(context)`` to publish result metadata, including
-integration-specific ``tags``. Result events carry the exact operation context;
-tracing resolves its span without falling back to a parent or creating one.
-Existing ``_set_post_execute_tags(span)`` overrides run through a tracing-owned
-compatibility bridge after driver success or failure, but not when security
-checks prevent execution. When both hooks are overridden, result metadata is
-published before the legacy hook runs. Legacy-only overrides retain control over
-cursor metadata reads. Result collection and listener failures derived from
-``Exception`` do not replace an active driver exception or cancellation; after
-successful execution they retain the legacy exception behavior. The shared
-``_trace_method_context()`` owns this lifecycle for both synchronous and
-asynchronous DB-API cursors; their ``_trace_method()`` implementations only check
-enablement and invoke or await the driver. Preserve each driver's
-service attribution, measured flags, span types, and metadata ordering when
-adopting the shared event.
+Emit ``DbQueryEvent`` for security subscribers before tracing enablement is
+checked. ``DatabaseQueryPrepareEvent`` exposes mutable query arguments after
+span metadata is ready; DBM owns its listener and propagation-mode gating.
+Keep the original query as the span resource and preserve each driver's
+injection exclusions for fetches, stored procedures, and prepared statements.
 
 How should an integration be tested?
 ------------------------------------

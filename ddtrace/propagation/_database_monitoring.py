@@ -164,13 +164,6 @@ def handle_dbm_injection(int_config, span, args, kwargs):
     return span, args, kwargs
 
 
-def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
-    # bind_execute_many uses prepared statements which we want to avoid injection for
-    if method.__name__ != "bind_execute_many":
-        return handle_dbm_injection(int_config, span, args, kwargs)
-    return span, args, kwargs
-
-
 def handle_query_prepare_event(event: DatabaseQueryPrepareEvent) -> None:
     if not event.supports_query_rewriting:
         return
@@ -181,31 +174,15 @@ def handle_query_prepare_event(event: DatabaseQueryPrepareEvent) -> None:
     event.args, event.kwargs = args, kwargs
 
 
-_DBM_STANDARD_EVENTS = {
-    "aiomysql.execute",
-    "dbapi.execute",
-    "django-database.execute",
-    "mysql.execute",
-    "mysqldb.execute",
-    "psycopg.execute",
-    "pymysql.execute",
-    "pymongo.execute",
-}
-
-
 def listen():
     if dbm_config.propagation_mode in _DBM_INJECTION_MODES:
         core.on(DatabaseQueryPrepareEvent.event_name, handle_query_prepare_event)
-        for event in _DBM_STANDARD_EVENTS:
-            core.on(event, handle_dbm_injection, "result")
-        core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
+        core.on("pymongo.execute", handle_dbm_injection, "result")
 
 
 def unlisten():
     core.reset_listeners(DatabaseQueryPrepareEvent.event_name, handle_query_prepare_event)
-    for event in _DBM_STANDARD_EVENTS:
-        core.reset_listeners(event, handle_dbm_injection)
-    core.reset_listeners("asyncpg.execute", handle_dbm_injection_asyncpg)
+    core.reset_listeners("pymongo.execute", handle_dbm_injection)
 
 
 listen()

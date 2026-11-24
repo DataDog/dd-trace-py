@@ -14,6 +14,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace._trace.subscribers.database import _run_legacy_post_execute
 from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
 from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.contrib._events.dbapi import DatabaseResultEvent
@@ -138,22 +139,13 @@ class TracedCursor(wrapt.ObjectProxy):
                 tags=extra_tags,
             )
         ) as ctx:
-            # No reason to tag the query since it is set as the resource by the agent. See:
-            # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            # Security and IAST validations
+            # Security and IAST validations run against the original query.
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
 
-            if core.has_listeners(DatabaseQueryPrepareEvent.event_name):
-                supports_query_rewriting = bool(dbm_propagator)
-                if dbm_propagator is None and getattr(self._self_config, "_dbm_propagator", None) is None:
-                    supports_query_rewriting = method in (
-                        getattr(self.__wrapped__, "execute", None),
-                        getattr(self.__wrapped__, "executemany", None),
-                    )
-                if supports_query_rewriting:
-                    prepare = DatabaseQueryPrepareEvent(context=ctx, args=args, kwargs=kwargs)
-                    core.dispatch_event(prepare)
-                    args, kwargs = prepare.args, prepare.kwargs
+            if dbm_propagator and core.has_listeners(DatabaseQueryPrepareEvent.event_name):
+                prepare = DatabaseQueryPrepareEvent(context=ctx, args=args, kwargs=kwargs)
+                core.dispatch_event(prepare)
+                args, kwargs = prepare.args, prepare.kwargs
 
             driver_failed = True
             try:
@@ -162,14 +154,14 @@ class TracedCursor(wrapt.ObjectProxy):
             finally:
                 try:
                     legacy_hook = type(self)._set_post_execute_tags is not TracedCursor._default_post_execute_tags
-                    if legacy_hook and type(self)._get_post_execute_result is TracedCursor._default_post_execute_result:
-                        # Legacy-only overrides control whether cursor metadata can be read safely.
-                        result = DatabaseResultEvent(context=ctx)
-                    else:
-                        result = self._get_post_execute_result(ctx)
+                    if (
+                        not legacy_hook
+                        or type(self)._get_post_execute_result is not TracedCursor._default_post_execute_result
+                    ):
+                        ctx.event.result = self._get_post_execute_result(ctx)
                     if legacy_hook:
-                        result.legacy_post_execute = self._set_post_execute_tags
-                    core.dispatch_event(result, allow_raise=True)
+                        # Existing cursor extensions run last and receive the active operation span.
+                        _run_legacy_post_execute(ctx, self._set_post_execute_tags)
                 except Exception:
                     if not driver_failed:
                         raise
@@ -238,9 +230,7 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, None, proc, *args)
 
     def _get_post_execute_result(self, context: core.ExecutionContext[DatabaseOperationEvent]) -> DatabaseResultEvent:
-        return DatabaseResultEvent(
-            context=context, row_count=getattr(self.__wrapped__, "rowcount", None), row_count_as_tag=True
-        )
+        return DatabaseResultEvent(context=context, row_count=getattr(self.__wrapped__, "rowcount", None))
 
     _default_post_execute_result = _get_post_execute_result
 
@@ -393,7 +383,6 @@ class TracedConnection(wrapt.ObjectProxy):
             operation_name=name,
             service=ext_service(None, self._self_config),
             measured=False,
-            metadata_before_tags=True,
             span_type=None,
             connection_tags=self._self_db_tags,
             tags=extra_tags,

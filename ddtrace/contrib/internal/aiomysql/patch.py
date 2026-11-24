@@ -86,8 +86,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             operation_name=self._self_datadog_name,
             resource=resource,
             service=trace_utils.ext_service(None, config.aiomysql),
-            service_from_config=True,
-            metadata_before_tags=True,
             connection_tags=self._self_db_tags,
             tags=dict(extra_tags),
         )
@@ -104,14 +102,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 return result
             finally:
                 try:
-                    core.dispatch_event(
-                        DatabaseResultEvent(
-                            context=ctx,
-                            row_count=self.rowcount,
-                            row_number=self.rownumber,
-                            skip_none_row_count=False,
-                        ),
-                        allow_raise=True,
+                    ctx.event.result = DatabaseResultEvent(
+                        context=ctx, row_count=self.rowcount, row_number=self.rownumber
                     )
                 except Exception:
                     if not driver_failed:

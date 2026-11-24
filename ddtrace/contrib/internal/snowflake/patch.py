@@ -1,11 +1,14 @@
 import wrapt
 
 from ddtrace import config
+from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
+from ddtrace.contrib._events.dbapi import DatabaseResultEvent
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
@@ -47,9 +50,10 @@ class _SFTracedCursor(TracedCursor):
     def executemany(self, command: str, *args: object, **kwargs: object) -> object:
         return super().executemany(command, *args, **kwargs)
 
-    def _set_post_execute_tags(self, span):
-        super()._set_post_execute_tags(span)
-        span._set_attribute("sfqid", self.__wrapped__.sfqid)
+    def _get_post_execute_result(self, context: core.ExecutionContext[DatabaseOperationEvent]) -> DatabaseResultEvent:
+        result = super()._get_post_execute_result(context)
+        result.tags["sfqid"] = self.__wrapped__.sfqid
+        return result
 
 
 def patch():

@@ -109,10 +109,8 @@ async def _traced_connect(
         integration_config=config.asyncpg,
         operation_name="postgres.connect",
         service=ext_service(pin, config.asyncpg),
-        service_from_config=True,
-        metadata_before_tags=True,
         measured=False,
-        db_system=DBMS_NAME,
+        connection_tags={db.SYSTEM: DBMS_NAME},
     )
     with core.context_with_event(event):
         raw_conn = await func(*args, **kwargs)
@@ -123,13 +121,13 @@ async def _traced_connect(
             connection_tags[db.SYSTEM] = DBMS_NAME
             conn_pin = pin.clone(tags=connection_tags)
             conn_pin.onto(raw_conn._protocol)
-            event.set_connection_tags(connection_tags)
+            event.connection_tags.update(connection_tags)
             # Returns a asyncpg.connection.Connection object
             return raw_conn
         else:
             # # Need an ObjectProxy when not using pools since Connection uses slots
             conn = _TracedConnection(raw_conn, pin)
-            event.set_connection_tags(_get_connection_tags(conn))
+            event.connection_tags.update(_get_connection_tags(conn))
             # Returns a _TracedConnection object
             return conn
 
@@ -142,11 +140,8 @@ async def _traced_query(
         integration_config=config.asyncpg,
         operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         service=ext_service(pin, config.asyncpg),
-        service_from_config=True,
-        metadata_before_tags=True,
         resource=query,
-        db_system=DBMS_NAME,
-        connection_tags=pin.tags,
+        connection_tags={db.SYSTEM: DBMS_NAME, **(pin.tags or {})},
     )
     with core.context_with_event(event) as ctx:
         # dispatch DBM
