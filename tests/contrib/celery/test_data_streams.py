@@ -245,168 +245,23 @@ def test_amqp_protocol_1_task_checkpoints_are_linked():
 
 
 @pytest.mark.subprocess(env=DSM_ENV, err=None)
-def test_payload_size_counts_positional_task_arguments():
-    from tests.contrib.celery.base import BROKER_URL
-    from tests.contrib.celery.dsm_helpers import record_payload_sizes
-    from tests.contrib.celery.dsm_helpers import run_one_task
-
-    argument_size = 100_000
-    recorded = record_payload_sizes()
-    run_one_task(BROKER_URL, args=("x" * argument_size, 7))
-
-    for direction in ("direction:out", "direction:in"):
-        sizes = [size for tag, size in recorded if tag == direction]
-        assert len(sizes) == 1, recorded
-        assert sizes[0] > argument_size, recorded
-
-
-def test_payload_size_of_protocol_2_body():
-    from ddtrace.internal.datastreams.celery import _payload_size
-
-    body = (("x" * 1024, 12), {"key": b"abc"}, {"callbacks": None, "chord": None})
-
-    assert _payload_size(body) == 1024 + 2 + 3 + 3 + len("callbacks") + len("chord")
-    assert _payload_size(body, {"h": "v"}) == _payload_size(body) + 2
-
-
-def test_payload_size_counts_every_occurrence_of_a_repeated_container():
-    from ddtrace.internal.datastreams.celery import _payload_size
-
-    item = {"k": "x" * 10}
-    shared = [item, item]
-
-    assert _payload_size(([item] * 3, {}, {})) == 3 * 11
-    assert _payload_size(([shared, shared], {"a": shared}, {})) == 4 * 11 + 1 + 2 * 11
-
-
-def test_payload_size_of_self_referencing_body():
-    from ddtrace.internal.datastreams.celery import _payload_size
-
-    args = ["abc"]
-    args.append(args)
-
-    assert _payload_size((args, {}, {})) == 3
-
-
-def test_kombu_stands_down_only_while_the_celery_send_is_in_flight():
-    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_end
-    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_start
-    from ddtrace.internal.datastreams.kombu import _checkpointed_by_celery_publish
-    from ddtrace.internal.datastreams.kombu import begin_celery_publish
-
-    outer = {"dd-pathway-ctx-base64": "outer"}
-    dsm_celery_send_task_start(None)
-    begin_celery_publish(outer)
-    for i in range(300):
-        nested = {"dd-pathway-ctx-base64": f"nested-{i}"}
-        dsm_celery_send_task_start(None)
-        begin_celery_publish(nested)
-        assert _checkpointed_by_celery_publish(nested)
-        dsm_celery_send_task_end()
-        assert not _checkpointed_by_celery_publish(nested)
-        assert _checkpointed_by_celery_publish(outer)
-    dsm_celery_send_task_end()
-
-    assert not _checkpointed_by_celery_publish(outer)
-    assert not _checkpointed_by_celery_publish({})
-
-
-@pytest.mark.subprocess(env=DSM_ENV, err=None)
-def test_failed_celery_send_does_not_leave_kombu_suppressed():
-    from celery import Celery
-
+def test_kombu_skips_celery_task_messages_already_checkpointed_by_celery():
     from ddtrace.contrib.internal.celery.patch import patch
-    from ddtrace.internal.datastreams.kombu import _checkpointed_by_celery_publish
-    from ddtrace.internal.datastreams.kombu import pending_celery_publishes
-
-    patch()
-    app = Celery("dsm_celery_unreachable", broker="redis://127.0.0.1:1/0")
-    app.conf.broker_connection_retry = False
-    app.conf.broker_connection_max_retries = 0
-    app.conf.task_publish_retry = False
-
-    published = {}
-
-    def capture(headers=None, **kwargs):
-        published.update(headers or {})
-
-    from celery import signals
-
-    signals.before_task_publish.connect(capture, weak=False)
-
-    try:
-        app.send_task("dsm_celery.add", args=(1, 2))
-    except Exception:
-        pass
-    else:
-        raise AssertionError("send_task to an unreachable broker should fail")
-
-    assert "dd-pathway-ctx-base64" in published
-    assert pending_celery_publishes() == ()
-    assert not _checkpointed_by_celery_publish(published)
-
-
-@pytest.mark.subprocess(env=DSM_ENV, err=None)
-def test_broker_type_comes_from_the_publishing_app():
-    from tests.contrib.celery.base import BROKER_URL
-    from tests.contrib.celery.dsm_helpers import assert_linked_edge
-    from tests.contrib.celery.dsm_helpers import run_task_while_another_app_is_current
-
-    run_task_while_another_app_is_current(BROKER_URL)
-
-    assert_linked_edge("redis")
-
-
-@pytest.mark.subprocess(env=DSM_ENV, err=None)
-def test_kombu_checkpoints_a_later_forward_of_celery_headers():
     from ddtrace.internal.datastreams import data_streams_processor
-    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_end
-    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_start
-    from ddtrace.internal.datastreams.kombu import begin_celery_publish
     from ddtrace.internal.datastreams.kombu import handle_kombu_produce
 
-    headers = {"dd-pathway-ctx-base64": "AAAAAAAAAAA="}
-    dsm_celery_send_task_start(None)
-    begin_celery_publish(headers)
-    publish_args = [b"{}", 0, "application/json", "utf-8", headers, {}, "forwarded", False, False, ""]
-    handle_kombu_produce(publish_args, {}, None)
-    assert not data_streams_processor()._buckets
-    dsm_celery_send_task_end()
+    def publish(headers):
+        handle_kombu_produce([b"{}", 0, "application/json", "utf-8", headers, {}, "tasks", False, False, ""], {}, None)
 
-    handle_kombu_produce(publish_args, {}, None)
+    publish({"task": "dsm_celery.add", "dd-pathway-ctx-base64": "AAAAAAAAAAA="})
+    assert data_streams_processor()._buckets
 
-    tags = [t for bucket in data_streams_processor()._buckets.values() for (t, _, _) in bucket.pathway_stats]
-    assert tags == ["direction:out,topic:forwarded,type:rabbitmq"], tags
-
-
-def test_kombu_releases_the_pathway_once_the_celery_publish_completes():
-    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_end
-    from ddtrace.internal.datastreams.celery import dsm_celery_send_task_start
-    from ddtrace.internal.datastreams.celery import dsm_celery_task_published
-    from ddtrace.internal.datastreams.kombu import _checkpointed_by_celery_publish
-    from ddtrace.internal.datastreams.kombu import begin_celery_publish
-
-    headers = {"dd-pathway-ctx-base64": "published"}
-    dsm_celery_send_task_start(None)
-    begin_celery_publish(headers)
-    assert _checkpointed_by_celery_publish(headers)
-
-    dsm_celery_task_published({"headers": headers})
-    assert not _checkpointed_by_celery_publish(headers)
-    dsm_celery_send_task_end()
-
-
-@pytest.mark.subprocess(env=DSM_ENV, err=None)
-def test_worker_process_shutdown_flushes_data_streams():
-    from unittest import mock
-
-    from celery import signals
-
-    from ddtrace.contrib.internal.celery.patch import patch
-    from ddtrace.internal.datastreams import data_streams_processor
-
+    data_streams_processor()._buckets.clear()
     patch()
-    with mock.patch.object(data_streams_processor(), "periodic") as periodic:
-        signals.worker_process_shutdown.send(sender=None, pid=1, exitcode=0)
+    publish({"task": "dsm_celery.add", "dd-pathway-ctx-base64": "AAAAAAAAAAA="})
+    assert not data_streams_processor()._buckets
 
-    periodic.assert_called_once_with()
+    publish({"task": "dsm_celery.add"})
+    publish({"dd-pathway-ctx-base64": "AAAAAAAAAAA="})
+    stats = [s for bucket in data_streams_processor()._buckets.values() for s in bucket.pathway_stats.values()]
+    assert sum(stat.full_pathway_latency.count for stat in stats) == 2

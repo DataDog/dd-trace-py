@@ -53,7 +53,6 @@ def patch_app(app, pin=None):
 
     # Patch apply_async
     trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
-    trace_utils.wrap("celery.app.base", "Celery.send_task", _traced_send_task)
 
     # When celery starts the beat process it closes all open file descriptors with `close_open_fds`.
     # This causes panics as it closes the native runtime file descriptors.
@@ -68,7 +67,6 @@ def patch_app(app, pin=None):
     signals.after_task_publish.connect(trace_after_publish, weak=False)
     signals.task_failure.connect(trace_failure, weak=False)
     signals.task_retry.connect(trace_retry, weak=False)
-    signals.worker_process_shutdown.connect(_dispatch_worker_process_shutdown, weak=False)
     return app
 
 
@@ -87,7 +85,6 @@ def unpatch_app(app):
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
     trace_utils.unwrap(celery.app.task.Task, "apply_async")
-    trace_utils.unwrap(celery.app.base.Celery, "send_task")
     trace_utils.unwrap(celery.platforms, "close_open_fds")
 
     signals.task_prerun.disconnect(trace_prerun)
@@ -96,7 +93,6 @@ def unpatch_app(app):
     signals.after_task_publish.disconnect(trace_after_publish)
     signals.task_failure.disconnect(trace_failure)
     signals.task_retry.disconnect(trace_retry)
-    signals.worker_process_shutdown.disconnect(_dispatch_worker_process_shutdown)
 
 
 def _traced_beat_function(integration_config, fn_name, resource_fn=None):
@@ -118,18 +114,6 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
             return func(*args, **kwargs)
 
     return _traced_beat_inner
-
-
-def _dispatch_worker_process_shutdown(*args, **kwargs):
-    core.dispatch("celery.worker_process.shutdown", ())
-
-
-def _traced_send_task(func, instance, args, kwargs):
-    core.dispatch("celery.send_task.start", (instance,))
-    try:
-        return func(*args, **kwargs)
-    finally:
-        core.dispatch("celery.send_task.end", ())
 
 
 def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):

@@ -1,7 +1,5 @@
-from contextvars import ContextVar
 import sys
 from typing import Any
-from typing import Optional
 
 from ddtrace import config
 from ddtrace.contrib.internal.kombu.utils import HEADER_POS
@@ -20,9 +18,7 @@ log = get_logger(__name__)
 _CELERY_EVENTS_EXCHANGE = "celeryev"
 _CELERY_PIDBOX_SUFFIX = ".pidbox"
 
-_MAX_PENDING_CELERY_PUBLISHES = 256
-
-_pending_celery_publishes: ContextVar[tuple[str, ...]] = ContextVar("dsm_kombu_pending_celery_publishes", default=())
+_CELERY_TASK_HEADER = "task"
 
 
 def _celery_instrumented() -> bool:
@@ -40,44 +36,19 @@ def is_celery_internal_exchange(exchange: Any) -> bool:
     )
 
 
-def _pathway(headers: Any) -> Optional[str]:
-    return headers.get(PROPAGATION_KEY_BASE_64) if isinstance(headers, dict) else None
-
-
-def begin_celery_publish(headers: dict[str, Any]) -> None:
-    pathway = _pathway(headers)
-    if pathway is None:
-        return
-    pending = _pending_celery_publishes.get()
-    _pending_celery_publishes.set((pending + (pathway,))[-_MAX_PENDING_CELERY_PUBLISHES:])
-
-
-def end_celery_publish(headers: Any) -> None:
-    pathway = _pathway(headers)
-    pending = _pending_celery_publishes.get()
-    if pathway is None or pathway not in pending:
-        return
-    index = len(pending) - 1 - pending[::-1].index(pathway)
-    _pending_celery_publishes.set(pending[:index] + pending[index + 1 :])
-
-
-def pending_celery_publishes() -> tuple[str, ...]:
-    return _pending_celery_publishes.get()
-
-
-def restore_pending_celery_publishes(pending: tuple[str, ...]) -> None:
-    _pending_celery_publishes.set(pending)
-
-
-def _checkpointed_by_celery_publish(headers: Any) -> bool:
-    pathway = _pathway(headers)
-    return pathway is not None and pathway in _pending_celery_publishes.get()
+def _checkpointed_by_celery(headers: Any) -> bool:
+    return (
+        isinstance(headers, dict)
+        and _CELERY_TASK_HEADER in headers
+        and PROPAGATION_KEY_BASE_64 in headers
+        and _celery_instrumented()
+    )
 
 
 def handle_kombu_produce(args, kwargs, span):
     from . import data_streams_processor as processor
 
-    if _checkpointed_by_celery_publish(args[HEADER_POS]):
+    if _checkpointed_by_celery(args[HEADER_POS]):
         return
     routing_key = get_routing_key_from_args(args)
     exchange = get_exchange_from_args(args)

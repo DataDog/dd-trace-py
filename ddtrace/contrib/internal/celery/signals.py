@@ -175,7 +175,6 @@ def _inject_distributed_headers(context: Context, kwargs: dict):
 
 
 def trace_after_publish(*args, **kwargs):
-    core.dispatch("celery.task.publish.post", (kwargs,))
     task_name = kwargs.get("sender")
     task = registry.tasks.get(task_name)
     task_id = retrieve_task_id(kwargs)

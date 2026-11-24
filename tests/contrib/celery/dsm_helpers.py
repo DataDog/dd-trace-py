@@ -67,26 +67,6 @@ def run_one_task(broker_url, with_kombu=False, task_protocol=None, args=(2, 3)):
     return published_headers
 
 
-def run_task_while_another_app_is_current(broker_url):
-    patch_celery()
-
-    app = Celery("dsm_celery", broker=broker_url)
-    app.conf.task_default_queue = QUEUE
-    app.conf.broker_connection_retry_on_startup = True
-
-    @app.task(name="dsm_celery.add")
-    def add(x, y):
-        return x + y
-
-    _, task_ran = _capture_publish_and_run()
-
-    with start_worker(app, pool="solo", perform_ping_check=False, shutdown_timeout=30):
-        other = Celery("dsm_celery_other", broker="memory://")
-        other.set_current()
-        add.delay(2, 3)
-        assert task_ran.wait(timeout=30)
-
-
 def run_task_sent_by_name_with_routing_key(broker_url):
     patch_celery()
 
@@ -109,20 +89,6 @@ def run_task_sent_by_name_with_routing_key(broker_url):
     with start_worker(worker_app, pool="solo", perform_ping_check=False, shutdown_timeout=30):
         producer_app.send_task("dsm_celery.create_order", args=(1,), exchange=ROUTED_EXCHANGE, routing_key=ROUTING_KEY)
         assert task_ran.wait(timeout=30)
-
-
-def record_payload_sizes():
-    from ddtrace.internal.datastreams.processor import DataStreamsCtx
-
-    recorded = []
-    original = DataStreamsCtx.set_checkpoint
-
-    def set_checkpoint(self, tags, *args, **kwargs):
-        recorded.append((tags[0], kwargs.get("payload_size", 0)))
-        return original(self, tags, *args, **kwargs)
-
-    DataStreamsCtx.set_checkpoint = set_checkpoint
-    return recorded
 
 
 def assert_linked_edge(broker_type):
