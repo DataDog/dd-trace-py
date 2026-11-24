@@ -1,3 +1,7 @@
+from typing import Any
+from typing import Callable
+from typing import MutableMapping
+
 import structlog
 
 import ddtrace
@@ -8,7 +12,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 
 
-config._add(
+# Config._add is shared with other integrations and is not typed yet.
+config._add(  # type: ignore[no-untyped-call]
     "structlog",
     dict(),
 )
@@ -22,13 +27,13 @@ def _supported_versions() -> dict[str, str]:
     return {"structlog": ">=20.2.0"}
 
 
-def _tracer_injection(_, __, event_dict):
+def _tracer_injection(_: Any, __: str, event_dict: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
     if config._logs_injection:
         event_dict.update(ddtrace.tracer.get_log_correlation_context())
     return event_dict
 
 
-def _w_get_logger(func, instance, args, kwargs):
+def _w_get_logger(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """
     Append the tracer injection processor to the ``default_processors`` list used by the logger
     Ensures that the tracer injection processor is the first processor in the chain and only injected once
@@ -50,7 +55,7 @@ def _w_get_logger(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def _w_configure(func, instance, args, kwargs):
+def _w_configure(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """
     Injects the tracer injection processor to the ``processors`` list parameter when configuring a logger
     Ensures that the tracer injection processor is the first processor in the chain and only injected once
@@ -65,7 +70,7 @@ def _w_configure(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def _w_reset_defaults(func, instance, args, kwargs):
+def _w_reset_defaults(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
     """
     Reset the default_processors list to the original defaults
     Ensures that the tracer injection processor is injected after to the default_processors list
@@ -82,7 +87,7 @@ def _w_reset_defaults(func, instance, args, kwargs):
     return
 
 
-def patch():
+def patch() -> None:
     """
     Patch ``structlog`` module for injection of tracer information
     by appending a processor before creating a logger via ``structlog.get_logger``
@@ -105,7 +110,7 @@ def patch():
         _w(structlog, "reset_defaults", _w_reset_defaults)
 
 
-def unpatch():
+def unpatch() -> None:
     if getattr(structlog, "_datadog_patch", False):
         structlog._datadog_patch = False
 
