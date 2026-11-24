@@ -86,7 +86,30 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## Shared tracing event contracts
+
+Product-neutral HTTP event definitions live in `ddtrace.internal.core.http`, synchronous
+exception notifications in `ddtrace.internal.core.exception`, and span lifecycle listener
+contracts in `ddtrace.internal.core.span_lifecycle`. The web
+request event combines HTTP and tracing fields in `ddtrace._trace.web_framework`.
+The previous HTTP, exception, and web request paths in `ddtrace.contrib._events` remain
+aliases. Span lifecycle consumers import directly from `ddtrace.internal.core.span_lifecycle`.
+
+The shared tracing subscriber base and web request subscriber import these contracts
+and tracing-owned HTTP metadata and propagation helpers directly, without depending
+on the contrib compatibility modules. This separates their dependencies from integration
+import side effects. Web request subscribers retain explicit activation through tracing
+product startup or the normal global tracer initialization hook. With global tracer
+initialization disabled, importing the subscriber package alone does not activate the
+web request bundle.
+
 ## Subscriber bundles
+
+Product-neutral subscriber machinery (`Subscriber`, `ContextSubscriber`, and
+`SubscriberBundle`) lives in `ddtrace.internal.core.subscriber`. Keep shared
+dispatch and registration behavior there. Span-creating bases (`TracingSubscriber`
+and `SpanLifecycleSubscriber`) and span exception handling remain in
+`ddtrace._trace.subscribers._base`, alongside the tracing subscribers that use them.
 
 Products can group related subscribers with `SubscriberBundle` from
 `ddtrace.internal.core.subscriber`:

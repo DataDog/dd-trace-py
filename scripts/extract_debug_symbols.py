@@ -19,6 +19,7 @@ import fnmatch
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -179,7 +180,37 @@ def verify_dsym_bundle(dsym_path: Path) -> bool:
     return True
 
 
-def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
+def macho_uuids(path: Path) -> set[tuple[str, str]]:
+    result = subprocess.run(["xcrun", "dwarfdump", "--uuid", str(path)], capture_output=True, text=True)
+    if result.returncode != 0:
+        return set()
+    return set(re.findall(r"^UUID: ([A-Fa-f0-9-]{36}) \(([^)]+)\)", result.stdout, re.MULTILINE))
+
+
+def dsym_matches(library: Path, bundle: Path) -> bool:
+    contents = bundle / "Contents"
+    dwarf_file = contents / "Resources" / "DWARF" / library.name
+    if not dwarf_file.is_file() or not (contents / "Info.plist").is_file():
+        return False
+
+    uuids = macho_uuids(library)
+    return bool(uuids) and uuids == macho_uuids(dwarf_file)
+
+
+def reuse_dsym_bundle(library: Path, cached_bundle: Path) -> Optional[str]:
+    if not cached_bundle.is_dir():
+        return None
+    if not dsym_matches(library, cached_bundle):
+        print(f"Cached .dSYM UUIDs do not match {library}; generating symbols locally")
+        return None
+
+    destination = library.with_suffix(".dSYM")
+    shutil.copytree(cached_bundle, destination)
+    print(f"Reused UUID-matched .dSYM bundle for {library}")
+    return str(destination)
+
+
+def create_and_strip_debug_symbols(so_file: str, cached_bundle: Optional[Path] = None) -> Union[str, None]:
     """
     Create debug symbols from a shared object and strip them from the original.
 
@@ -235,8 +266,8 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
         dsymutil = shutil.which("dsymutil")
         strip = shutil.which("strip")
 
-        debug_path = None
-        if dsymutil:
+        debug_path = reuse_dsym_bundle(Path(so_file), cached_bundle) if cached_bundle is not None else None
+        if debug_path is None and dsymutil:
             # 1) Emit dSYM - let dsymutil handle the detection
             debug_path = create_dsym_bundle(so_file, dsymutil)
 
@@ -280,7 +311,9 @@ def find_dynamic_libraries_in_wheel(wheel_path: str, ignore_patterns: list[str] 
     return dynamic_libs
 
 
-def process_dynamic_library_from_wheel(lib_filename: str, lib_content: bytes, temp_dir: str) -> Union[str, None]:
+def process_dynamic_library_from_wheel(
+    lib_filename: str, lib_content: bytes, temp_dir: str, cached_symbols_dir: Optional[Path] = None
+) -> Union[str, None]:
     """
     Process a dynamic library (.so or .dylib) from a wheel to create debug symbols.
 
@@ -288,6 +321,7 @@ def process_dynamic_library_from_wheel(lib_filename: str, lib_content: bytes, te
         lib_filename: Original filename in the wheel
         lib_content: Binary content of the dynamic library file
         temp_dir: Temporary directory to work in
+        cached_symbols_dir: Extracted debug symbols from the seed wheel, if available
 
     Returns:
         Path to the created debug symbol file, or None if no debug symbols were created
@@ -301,7 +335,10 @@ def process_dynamic_library_from_wheel(lib_filename: str, lib_content: bytes, te
     print(f"Processing dynamic library: {lib_filename}")
 
     try:
-        debug_file = create_and_strip_debug_symbols(lib_path)
+        cached_bundle = None
+        if cached_symbols_dir is not None:
+            cached_bundle = cached_symbols_dir / Path(lib_filename).with_suffix(".dSYM")
+        debug_file = create_and_strip_debug_symbols(lib_path, cached_bundle)
         if debug_file:
             print(f"Created debug symbols: {debug_file}")
             return debug_file
@@ -374,7 +411,10 @@ def update_wheel_with_stripped_dynamic_libraries(wheel_path: str, temp_dir: str)
 
 
 def process_wheel(
-    wheel_path: str, output_dir: Optional[str] = None, ignore_patterns: list[str] = None
+    wheel_path: str,
+    output_dir: Optional[str] = None,
+    ignore_patterns: list[str] = None,
+    cached_symbols_dir: Optional[Path] = None,
 ) -> tuple[Optional[str], bool]:
     """Process a single wheel file.
 
@@ -404,7 +444,7 @@ def process_wheel(
 
         # Process each dynamic library file from the wheel
         for lib_filename, lib_content in dynamic_libs:
-            debug_file = process_dynamic_library_from_wheel(lib_filename, lib_content, temp_dir)
+            debug_file = process_dynamic_library_from_wheel(lib_filename, lib_content, temp_dir, cached_symbols_dir)
             if debug_file:
                 debug_files.append(debug_file)
             else:
@@ -435,6 +475,7 @@ def main():
     parser = argparse.ArgumentParser(description="Extract debug symbols from wheels")
     parser.add_argument("wheel", help="Path to the wheel file")
     parser.add_argument("--output-dir", "-o", help="Output directory for debug symbol packages")
+    parser.add_argument("--reuse-dsym-from", type=Path, help="Directory of UUID-matched macOS dSYM bundles to reuse")
     parser.add_argument(
         "--ignore-patterns",
         default="libddwaf*",
@@ -442,6 +483,10 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.reuse_dsym_from is not None and platform.system() != "Darwin":
+        parser.error("--reuse-dsym-from is only supported on macOS")
+    if args.reuse_dsym_from is not None and not args.reuse_dsym_from.is_dir():
+        parser.error("--reuse-dsym-from requires an existing directory")
 
     if not os.path.exists(args.wheel):
         print(f"Error: Wheel file not found: {args.wheel}")
@@ -451,7 +496,7 @@ def main():
     ignore_patterns = [p.strip() for p in args.ignore_patterns.split(",") if p.strip()]
 
     try:
-        debug_package_path, success = process_wheel(args.wheel, args.output_dir, ignore_patterns)
+        debug_package_path, success = process_wheel(args.wheel, args.output_dir, ignore_patterns, args.reuse_dsym_from)
         if not success:
             print("ERROR: Failed to extract debug symbols from wheel")
             print("This usually means one or more .so files were not built with debug symbols (-g flag)")

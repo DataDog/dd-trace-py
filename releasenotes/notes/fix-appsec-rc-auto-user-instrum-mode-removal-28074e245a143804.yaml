@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    App and API Protection: Fixes an issue where updating or removing a remote configuration can
+    leave protection enabled or disable it unexpectedly, or leave automatic user event collection
+    in the wrong mode. Each setting now follows the most recent remaining remote configuration that
+    specifies it, or falls back to local configuration (including ``DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE``).

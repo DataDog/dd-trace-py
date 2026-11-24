@@ -18,6 +18,8 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.util import is_import_data_enabled
+from ddtrace.internal.coverage.util import warn_import_data_disabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
@@ -137,7 +139,12 @@ def _report_coverage_to_span(
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
 
             workspace_path = getattr(coverage_data, "_workspace_path", Path("/"))
-            files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=True)
+            include_imported = is_import_data_enabled()
+            if not include_imported:
+                # This path reports through _get_covered_lines() directly and so bypasses
+                # expand_context_lines/files, where the opt-out warning would otherwise fire.
+                warn_import_data_disabled()
+            files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=include_imported)
             if not files:
                 return
             span._set_attribute(
