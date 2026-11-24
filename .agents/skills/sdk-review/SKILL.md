@@ -56,7 +56,9 @@ Run each lens as its own fresh, read-only subagent. Start as many reviewers conc
 
 Each reviewer reads every changed hunk in its scope, not a sample. For a large diff (roughly 1,000 or more changed lines), split the changed files into groups of about 500 changed lines. Keep related files together, such as a class and its test. Give each lens one reviewer per group, and merge each lens's results before reporting. Each reviewer still receives the full file list and commit messages for context. Report any hunk a reviewer did not read as a coverage limitation.
 
-A changed line that clearly matches a rule's `Flag:` line is a finding unless a `Not when:` line or "Don't flag" entry applies. Report it even if the impact is small, at `P3`, rather than dropping it as minor. If you aren't sure the line matches, leave it out. Don't report "borderline" or "plausible" findings. Cite only rule IDs that exist in the lens file.
+A changed line that clearly matches a rule's `Flag:` line is a finding unless a `Not when:` line or "Don't flag" entry applies. A `Not when:` applies only when every condition in it holds, and the finding's evidence must show each one. Report it even if the impact is small, at `P3`, rather than dropping it as minor. If you aren't sure the line matches, leave it out. Don't report "borderline" or "plausible" findings. Cite only rule IDs that exist in the lens file.
+
+An explanation from the author never cancels a matching finding. This includes the PR description, a commit message, a code comment, and the PR's stated design. Report the finding as acknowledged: add an `Acknowledged:` line that quotes the explanation and says where it is. Acknowledged findings are `P3`, unless the code contradicts the explanation or the explanation doesn't address the rule's concern; then keep the usual severity. The human reviewer decides whether the explanation is enough. Add an `Acknowledged:` line only when there is an explanation to quote.
 
 The rules are not exhaustive. Also report a clear problem within the lens's scope that no rule describes, such as a bug, a race or a broken contract, and mark it `no rule`. The same bar applies: report it only if you are sure it is a real problem in the changed code, and never as borderline or plausible.
 
@@ -75,6 +77,8 @@ A missing lens is incomplete coverage, not approval.
 
 Verify findings against the frozen diff and committed context. Remove duplicates, preserve the responsible lens, and order findings by severity. Ignore unrelated pre-existing issues.
 
+Never drop a lens finding that cites a rule. You may merge it with a duplicate, keeping every location. When you disagree with it, keep it and add a `Coordinator note:` with your reasoning; the human reviewer decides. Your reasoning might be that the finding is speculative, misreads the rule, concerns unchanged code, or is explained by the author. You may drop a `no rule` finding only when the evidence shows it is wrong. List each such drop under `Dropped`, with the lens and reason.
+
 Before reporting, re-resolve the selected refs and restart the review if they differ from the frozen SHAs.
 
-Report findings first, then the resolved scope, coverage for every lens, excluded working-tree changes, and limitations. If every lens completes with no surviving finding, say `No actionable findings`. If any lens is missing, say `Review incomplete`.
+Report findings first, then an `Acknowledged` section listing each acknowledged finding in one or two lines (rule ID, location, the quoted explanation), then `Dropped`, the resolved scope, coverage for every lens, excluded working-tree changes, and limitations. If every lens completes with no surviving finding, say `No actionable findings`. If any lens is missing, say `Review incomplete`.

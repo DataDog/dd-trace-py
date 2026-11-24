@@ -50,29 +50,22 @@ Repo-specific idioms: configuration, logging, shared helpers, test patterns, and
 ### CONV-4.3: Use snapshot tests for integration spans
 - Flag: new integration tests that assert span attributes one by one where a snapshot under `tests/snapshots/` would cover them.
 
-### CONV-4.4: Write new tests as module-level pytest functions with pytest idioms
-- Flag: a new `TracerTestCase` subclass, a manual `try`/`except ImportError` guard instead of `pytest.importorskip`, or `pytest.mark.subprocess` where the `run_python_code_in_subprocess` fixture gives a clearer scenario.
-
 ## 5. Dependencies and native
 
 ### CONV-5.1: Pin every libdatadog crate to the same release tag
 - Flag: a libdatadog crate in `src/native/Cargo.toml` pinned to a commit SHA, or bumped to a different `rev` than the other libdatadog crates, which ships two libdatadog versions.
-- Not when: the PR description says why the release can't wait and when the pin will move to a tag.
 - ❌ `libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "3f2a9c1" }`
 - ✅ `libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v50.0.0" }`
 
 ## 6. Repository and CI
 
-### CONV-6.1: Add CODEOWNERS entries for new paths, with valid team handles
-- Flag: new contrib or test directories, workflows, scripts, skills, native modules, or benchmarks with no `.github/CODEOWNERS` entry for the owning team (so they fall to an unrelated team), or a team handle that doesn't exist.
-
-### CONV-6.2: Edit skills under `.agents/skills/`
+### CONV-6.1: Edit skills under `.agents/skills/`
 - Flag: changes under `.claude/skills/`, which is a compatibility symlink to `.agents/skills/`. See [AGENTS.md](../../../../AGENTS.md).
 
-### CONV-6.3: Schedule expensive benchmark jobs like the existing ones
+### CONV-6.2: Schedule expensive benchmark jobs like the existing ones
 - Flag: a new benchmark job that runs on every push or PR instead of following the macrobenchmark schedule rules, or explicit Kubernetes CPU/memory requests without `DD_DISABLE_VPA`.
 
-### CONV-6.4: Add codespell false positives to `ignore-words-list`
+### CONV-6.3: Add codespell false positives to `ignore-words-list`
 - Flag: whole lines added to `.codespellignorelines` to silence one word, instead of adding the word to `ignore-words-list` in `setup.cfg`.
 
 ## Don't flag

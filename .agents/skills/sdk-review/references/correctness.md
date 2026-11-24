@@ -30,23 +30,17 @@ Bugs, races, unhandled edge cases, and tests that pass when they shouldn't. For 
 ### COR-3.1: Build WSGI request paths from `SCRIPT_NAME` plus `PATH_INFO`
 - Flag: a request path or route computed from `PATH_INFO` alone, which is wrong for apps mounted under a prefix.
 
-### COR-3.2: Don't leave panicking stubs reachable from Python or libdatadog
-- Flag: a Rust trait impl or function containing `todo!()`/`unimplemented!()` that foreign code can call, which panics inside the customer process.
+### COR-3.2: Don't leave unmarked stubs reachable from Python or libdatadog
+- Flag: new code that reaches `todo!()`/`unimplemented!()`/`raise NotImplementedError` with no TODO comment, or one that foreign code can call, which panics inside the customer process. This includes a stub in the diff, and new code that delegates to an existing stub through `Self::from`, `.into()` or a trait method. Follow each new delegation to the impl it calls.
+- ❌ `fn from_owned(value: String) -> Self { Self::from(value) }`, where `impl From<String>` is `todo!()`
+- ✅ implement `From<String>`; or remove `from_owned` until it is needed; or mark it `// TODO: unimplemented, From<String> is a todo!()` and make sure no caller can reach it
 
 ### COR-3.3: Keep package metadata consistent with what is published
 - Flag: a trove classifier or supported-version claim for a Python version that `requires-python` excludes or that has no published wheels yet.
 
 ## 4. Tests
 
-### COR-4.1: Make regression tests fail without the fix
-- Flag: a test that only asserts nothing raised or blocked (for example, a fork test that never checks the child's `fork:child` metric arrives), or a raising callback that doesn't record it was invoked.
-- ❌ `def cb(): raise ValueError()` … `refresh_identity()` (passes even if `cb` never runs)
-- ✅ `def cb(): seen.append(1); raise ValueError()` … `assert seen == [1]`
-
-### COR-4.2: Explain snapshot changes instead of regenerating to match
-- Flag: a snapshot update that drops or changes a tag (for example, `_dd.svc_src`) with no code change or PR explanation showing the new value is intended.
-
-### COR-4.3: Reset benchmark state between pyperf runs
+### COR-4.1: Reset benchmark state between pyperf runs
 - Flag: a benchmark scenario that reuses a writer, buffer, or cache across runs, so later runs measure accumulated state.
 
 ## Don't flag

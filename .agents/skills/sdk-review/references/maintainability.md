@@ -21,8 +21,8 @@ Duplication, dead code, comments, naming, and test value.
 ### MAINT-1.3: Comment invariants that aren't visible at the call site
 - Flag: a relaxed `mypy.ini` section, a dispatch whose order relative to `super()` matters, a guard against dispatching twice, a fork or deadlock workaround, or a generated file format, with no comment saying why.
 
-### MAINT-1.4: Keep TODOs accurate, and mark unimplemented stubs as TODO
-- Flag: a TODO whose stated removal condition is wrong (the code stays valid after that event), or an unimplemented stub with no TODO. Update a TODO rather than deleting it; see [AGENTS.md](../../../../AGENTS.md#development-constraints).
+### MAINT-1.4: Keep TODO conditions accurate
+- Flag: a TODO whose stated removal condition is wrong, so the code stays valid after that event. Update a TODO rather than deleting it; see [AGENTS.md](../../../../AGENTS.md#development-constraints). Unmarked stubs are covered by COR-3.2.
 
 ### MAINT-1.5: Preserve existing rST structure when editing a docstring
 - Flag: a docstring edit that drops `.. warning::` or other directives, or reformats content that didn't change.

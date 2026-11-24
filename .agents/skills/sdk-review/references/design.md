@@ -60,7 +60,6 @@ Where code belongs, who owns state, and API and type shape.
 
 ### DES-4.1: Keep changes unrelated to the PR's stated goal out of the PR
 - Flag: formatting-only edits, import-style changes, skill or tooling edits, dependency bumps, or fixes that the PR title and description don't cover. See [Pull Request Requirements](../../../../docs/contributing.rst).
-- Not when: the change is needed for this PR's CI to pass and the description says so.
 
 ### DES-4.2: Separate user-facing fixes and new integrations from refactors
 - Flag: a behaviour change or bug fix (often with its own release note) inside a refactor, CI, or tooling PR, or a new integration bundled with an unrelated change.
