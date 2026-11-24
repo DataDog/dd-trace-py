@@ -18,6 +18,7 @@ _BROKER_TYPES = {
     "librabbitmq": "rabbitmq",
     "redis": "redis",
     "rediss": "redis",
+    "sentinel": "redis",
 }
 
 

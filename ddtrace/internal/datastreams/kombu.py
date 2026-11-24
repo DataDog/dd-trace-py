@@ -1,6 +1,5 @@
 from contextvars import ContextVar
 from typing import Any
-from typing import Optional
 
 from ddtrace import config
 from ddtrace.contrib.internal.kombu.utils import HEADER_POS
@@ -19,7 +18,9 @@ log = get_logger(__name__)
 _CELERY_EVENTS_EXCHANGE = "celeryev"
 _CELERY_PIDBOX_SUFFIX = ".pidbox"
 
-_checkpointed_upstream: ContextVar[Optional[str]] = ContextVar("dsm_kombu_checkpointed_upstream", default=None)
+_MAX_CHECKPOINTED_UPSTREAM = 16
+
+_checkpointed_upstream: ContextVar[tuple[str, ...]] = ContextVar("dsm_kombu_checkpointed_upstream", default=())
 
 
 def is_celery_internal_exchange(exchange: Any) -> bool:
@@ -29,12 +30,18 @@ def is_celery_internal_exchange(exchange: Any) -> bool:
 
 
 def skip_kombu_produce_checkpoint(headers: dict[str, Any]) -> None:
-    _checkpointed_upstream.set(headers.get(PROPAGATION_KEY_BASE_64))
+    pathway = headers.get(PROPAGATION_KEY_BASE_64)
+    if pathway is None:
+        return
+    recent = _checkpointed_upstream.get()
+    _checkpointed_upstream.set((recent + (pathway,))[-_MAX_CHECKPOINTED_UPSTREAM:])
 
 
 def _checkpointed_by_upstream(headers: Any) -> bool:
-    pathway = _checkpointed_upstream.get()
-    return pathway is not None and isinstance(headers, dict) and headers.get(PROPAGATION_KEY_BASE_64) == pathway
+    if not isinstance(headers, dict):
+        return False
+    pathway = headers.get(PROPAGATION_KEY_BASE_64)
+    return pathway is not None and pathway in _checkpointed_upstream.get()
 
 
 def handle_kombu_produce(args, kwargs, span):

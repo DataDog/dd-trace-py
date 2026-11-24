@@ -103,6 +103,7 @@ def test_celery_internal_exchanges_are_skipped_by_kombu():
         ({"broker_url": "rediss://localhost:6379/0"}, "redis"),
         ({"broker_url": "redis+socket:///tmp/redis.sock"}, "redis"),
         ({"broker_url": ["redis://a:6379/0", "redis://b:6379/0"]}, "redis"),
+        ({"broker_url": "sentinel://s1:26379;sentinel://s2:26379"}, "redis"),
         ({"broker_url": "sqs://"}, None),
         ({"broker_url": "memory://"}, None),
         ({"broker_url": None}, "rabbitmq"),
@@ -259,3 +260,19 @@ def test_payload_size_of_self_referencing_body():
     args.append(args)
 
     assert _payload_size((args, {}, {})) == 3
+
+
+def test_kombu_stands_down_for_an_outer_publish_after_a_nested_one():
+    from ddtrace.internal.datastreams.kombu import _checkpointed_by_upstream
+    from ddtrace.internal.datastreams.kombu import skip_kombu_produce_checkpoint
+
+    outer = {"dd-pathway-ctx-base64": "outer"}
+    inner = {"dd-pathway-ctx-base64": "inner"}
+
+    skip_kombu_produce_checkpoint(outer)
+    skip_kombu_produce_checkpoint(inner)
+
+    assert _checkpointed_by_upstream(inner)
+    assert _checkpointed_by_upstream(outer)
+    assert not _checkpointed_by_upstream({"dd-pathway-ctx-base64": "other"})
+    assert not _checkpointed_by_upstream({})
