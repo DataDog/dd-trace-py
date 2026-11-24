@@ -26,8 +26,7 @@ from ddtrace.internal.locks import Lock
 from ddtrace.internal.module import ModuleWatchdog
 
 
-# The application's copy of _thread is patched by gevent, whose get_ident is greenlet-based.
-get_ident = threads._get_ident
+get_ident = threads.get_ident  # Not the one of gevent, which is greenlet-based once it patches _thread.
 
 
 class MainHubLogging:
@@ -38,6 +37,10 @@ class MainHubLogging:
 
     def __init__(self) -> None:
         self._threading_patched = False
+        self._installed = False
+        self._get_logger: Optional[Callable[..., logging.Logger]] = None
+        self._hub_init: Optional[Callable[..., None]] = None
+        self._gevent_hub: Any = None
         self.reset()
 
     def reset(self) -> None:
@@ -127,47 +130,97 @@ class MainHubLogging:
                 self._draining = False
             raise
 
+    def install(self, gevent_hub: Any) -> None:
+        """Hand the records of ddtrace threads to the main hub once gevent creates it. Called when gevent is patched."""
+        if self._installed:
+            return
+        self._installed = True
 
-main_hub_logging = MainHubLogging()
+        forksafe.register(self._reset_after_fork)
+        threads.exit_hooks.register_after_threads_stopped(self.flush_at_exit)
 
+        @ModuleWatchdog.after_module_imported("multiprocessing.util")
+        def _(mp_util: Any) -> None:
+            # A multiprocessing child exits with os._exit once these finalizers have run, and skips atexit.
+            if self._installed:
+                mp_util.register_after_fork(self, lambda m: mp_util.Finalize(m, m.flush_at_exit, exitpriority=0))
 
-def _reset_after_fork() -> None:
-    main_hub_logging.reset()
-    # The thread that forked is the main thread of the child. gevent reinitializes the loop of its hub after the fork
-    # hooks, so records go to that hub again once it runs.
-    gevent_hub = sys.modules.get("gevent.hub")
-    if gevent_hub is not None and (hub := gevent_hub._get_hub()) is not None:
-        hub.loop.run_callback(main_hub_logging.set_hub, hub, gevent_hub.spawn_raw)
+        # The single entry point that creates loggers, which also covers modules that call logging.getLogger directly.
+        self._get_logger = get_logger = logging.Manager.getLogger
+
+        def getLogger(manager: logging.Manager, name: str) -> logging.Logger:
+            logger = get_logger(manager, name)
+            if _is_ddtrace(name):
+                self._patch_logger(logger)
+            return logger
+
+        logging.Manager.getLogger = getLogger  # type: ignore[method-assign,assignment]
+        for logger in _loggers():
+            self._patch_logger(logger)
+
+        self._gevent_hub = gevent_hub
+        self._hub_init = hub_init = gevent_hub.Hub.__init__
+
+        def __init__(hub: Any, *args: Any, **kwargs: Any) -> None:
+            hub_init(hub, *args, **kwargs)
+            self.set_hub(hub, gevent_hub.spawn_raw)
+
+        gevent_hub.Hub.__init__ = __init__
+        # gevent might have been imported, and its main hub created, before ddtrace patched it.
+        if (hub := gevent_hub._get_hub()) is not None:
+            self.set_hub(hub, gevent_hub.spawn_raw)
+
+    def uninstall(self) -> None:
+        """Handle the loggers inline again, and emit the records queued. Called when gevent is unpatched."""
+        if not self._installed:
+            return
+        self._installed = False
+
+        logging.Manager.getLogger = self._get_logger  # type: ignore[method-assign,assignment]
+        self._gevent_hub.Hub.__init__ = self._hub_init
+        self._get_logger = self._hub_init = self._gevent_hub = None
+        forksafe.unregister(self._reset_after_fork)
+        threads.exit_hooks.unregister_after_threads_stopped(self.flush_at_exit)
+        for logger in _loggers():
+            _unpatch_logger(logger)
+        self.flush_at_exit()
+
+    def _reset_after_fork(self) -> None:
+        self.reset()
+        # The thread that forked is the main thread of the child. gevent reinitializes the loop of its hub after the
+        # fork hooks, so records go to that hub again once it runs.
+        gevent_hub = sys.modules.get("gevent.hub")
+        if gevent_hub is not None and (hub := gevent_hub._get_hub()) is not None:
+            hub.loop.run_callback(self.set_hub, hub, gevent_hub.spawn_raw)
+
+    def _patch_logger(self, logger: logging.Logger) -> None:
+        """Hand the records of a ddtrace logger to the main hub when they are logged off the main thread."""
+        if "handle" in vars(logger):
+            return
+        cls = type(logger)
+
+        def handle(record: logging.LogRecord) -> None:
+            if self.runs_inline() or not self.put(logger, record):
+                cls.handle(logger, record)
+
+        def is_enabled_for(level: int) -> bool:
+            if logger.disabled:
+                return False
+            try:
+                return bool(logger._cache[level])  # type: ignore[attr-defined]
+            except KeyError:
+                pass
+            if self.runs_inline():
+                return cls.isEnabledFor(logger, level)
+            # Same as the base class, without the logging lock it takes to fill the cache.
+            return level > logger.manager.disable and level >= logger.getEffectiveLevel()
+
+        logger.handle = handle  # type: ignore[method-assign]
+        logger.isEnabledFor = is_enabled_for  # type: ignore[method-assign]
 
 
 def _is_ddtrace(name: str) -> bool:
     return name == "ddtrace" or name.startswith("ddtrace.")
-
-
-def _patch_logger(logger: logging.Logger) -> None:
-    """Hand the records of a ddtrace logger to the main hub when they are logged off the main thread."""
-    if "handle" in vars(logger):
-        return
-    cls = type(logger)
-
-    def handle(record: logging.LogRecord) -> None:
-        if main_hub_logging.runs_inline() or not main_hub_logging.put(logger, record):
-            cls.handle(logger, record)
-
-    def is_enabled_for(level: int) -> bool:
-        if logger.disabled:
-            return False
-        try:
-            return bool(logger._cache[level])  # type: ignore[attr-defined]
-        except KeyError:
-            pass
-        if main_hub_logging.runs_inline():
-            return cls.isEnabledFor(logger, level)
-        # Same as the base class, without the logging lock it takes to fill the cache.
-        return level > logger.manager.disable and level >= logger.getEffectiveLevel()
-
-    logger.handle = handle  # type: ignore[method-assign]
-    logger.isEnabledFor = is_enabled_for  # type: ignore[method-assign]
 
 
 def _unpatch_logger(logger: logging.Logger) -> None:
@@ -181,77 +234,3 @@ def _loggers() -> list[logging.Logger]:
         for logger in list(logging.Logger.manager.loggerDict.values())
         if isinstance(logger, logging.Logger) and _is_ddtrace(logger.name)
     ]
-
-
-_mp_hook_registered = False
-_get_logger: Optional[Callable[..., logging.Logger]] = None
-_hub_init: Optional[Callable[..., None]] = None
-_gevent_hub: Any = None
-
-
-def _flush_at_exit() -> None:
-    main_hub_logging.flush_at_exit()
-
-
-threads.register_after_threads_stopped(_flush_at_exit)
-
-
-def install(gevent_hub: Any) -> None:
-    """Hand the records of ddtrace threads to the main hub once gevent creates it. Called when gevent is patched."""
-    global _get_logger, _hub_init, _gevent_hub, _mp_hook_registered
-
-    if _get_logger is not None:
-        return
-
-    forksafe.register(_reset_after_fork)
-
-    if not _mp_hook_registered:
-        _mp_hook_registered = True
-
-        @ModuleWatchdog.after_module_imported("multiprocessing.util")
-        def _(mp_util: Any) -> None:
-            # A multiprocessing child exits with os._exit once these finalizers have run, and skips atexit.
-            mp_util.register_after_fork(
-                main_hub_logging, lambda m: mp_util.Finalize(m, m.flush_at_exit, exitpriority=0)
-            )
-
-    # The single entry point that creates loggers, which also covers modules that call logging.getLogger directly.
-    _get_logger = get_logger = logging.Manager.getLogger
-
-    def getLogger(self: logging.Manager, name: str) -> logging.Logger:
-        logger = get_logger(self, name)
-        if _is_ddtrace(name):
-            _patch_logger(logger)
-        return logger
-
-    logging.Manager.getLogger = getLogger  # type: ignore[method-assign]
-    for logger in _loggers():
-        _patch_logger(logger)
-
-    _gevent_hub = gevent_hub
-    _hub_init = hub_init = gevent_hub.Hub.__init__
-
-    def __init__(self: Any, *args: Any, **kwargs: Any) -> None:
-        hub_init(self, *args, **kwargs)
-        main_hub_logging.set_hub(self, gevent_hub.spawn_raw)
-
-    gevent_hub.Hub.__init__ = __init__
-    # gevent might have been imported, and its main hub created, before ddtrace patched it.
-    if (hub := gevent_hub._get_hub()) is not None:
-        main_hub_logging.set_hub(hub, gevent_hub.spawn_raw)
-
-
-def uninstall() -> None:
-    """Handle the loggers inline again, and emit the records queued. Called when gevent is unpatched."""
-    global _get_logger, _hub_init, _gevent_hub
-
-    if _get_logger is None:
-        return
-
-    logging.Manager.getLogger = _get_logger  # type: ignore[method-assign]
-    _gevent_hub.Hub.__init__ = _hub_init
-    _get_logger = _hub_init = _gevent_hub = None
-    forksafe.unregister(_reset_after_fork)
-    for logger in _loggers():
-        _unpatch_logger(logger)
-    main_hub_logging.flush_at_exit()

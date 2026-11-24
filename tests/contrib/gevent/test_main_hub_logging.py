@@ -147,9 +147,9 @@ def test_records_are_handled_inline_when_the_queue_is_full():
     import gevent
     import gevent.event
 
-    from ddtrace.contrib.internal.gevent.logger import main_hub_logging
     from ddtrace.internal import threads
 
+    main_hub_logging = gevent.__datadog_main_hub_logging
     main_hub_logging.max_records = 2
     messages = []
     drained = gevent.event.Event()
@@ -199,7 +199,6 @@ def test_fork_from_another_thread_handles_child_records_inline():
 
     import gevent
 
-    from ddtrace.contrib.internal.gevent.logger import main_hub_logging
     from ddtrace.internal import forksafe
     from ddtrace.internal import threads
 
@@ -214,7 +213,7 @@ def test_fork_from_another_thread_handles_child_records_inline():
 
     def early_child_hook():
         # As if another thread of the parent had held the lock when forking.
-        main_hub_logging._lock.acquire()
+        gevent.__datadog_main_hub_logging._lock.acquire()
         threads.log.warning("logged by an earlier child hook")
 
     forksafe._registry.insert(0, early_child_hook)
@@ -473,7 +472,6 @@ def test_record_queued_during_exit_flush_is_emitted():
 
     import gevent
 
-    from ddtrace.contrib.internal.gevent.logger import main_hub_logging
     from ddtrace.internal import threads
 
     messages = []
@@ -490,6 +488,7 @@ def test_record_queued_during_exit_flush_is_emitted():
     putting.acquire()
     flushed = allocate_lock()
     flushed.acquire()
+    main_hub_logging = gevent.__datadog_main_hub_logging
     records = main_hub_logging._records
 
     class PausingQueue:
