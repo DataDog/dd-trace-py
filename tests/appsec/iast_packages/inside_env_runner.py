@@ -2,6 +2,7 @@ from ast import unparse
 import importlib
 import inspect
 import pkgutil
+import re
 import sys
 from traceback import format_exc
 from types import ModuleType
@@ -37,8 +38,8 @@ def _import_module(selector: str) -> ModuleType:
 
     The attribute must be a class or function whose module is inside the selected package. When the
     attribute has Python code, at least one of its functions or methods must be in that module's file,
-    so a re-export module is rejected. Attributes without Python code, such as C-extension classes,
-    are trusted on their __module__ alone.
+    so a re-export module is rejected. A class without Python methods must have its class statement in
+    that module's source. C-extension classes are trusted on their __module__ alone.
     """
     module_name, _, attribute = selector.partition(":")
     if not attribute:
@@ -57,7 +58,15 @@ def _import_module(selector: str) -> ModuleType:
     if code_files and getattr(module, "__file__", None) not in code_files:
         raise ValueError(f"{selector} is only re-exported by {defining_name}; its code is in {sorted(code_files)}")
     if not code_files:
-        print(f"No Python code found for {selector}; trusting its module {defining_name}")
+        try:
+            source = inspect.getsource(obj)
+        except TypeError:
+            print(f"No Python source for {selector}; trusting its module {defining_name}")
+        except OSError:
+            raise ValueError(f"{selector} has no definition in {defining_name}") from None
+        else:
+            if not re.search(rf"^\s*(class|def) {re.escape(obj.__name__)}\b", source, re.MULTILINE):
+                raise ValueError(f"{selector} has no definition in {defining_name}")
     print(f"Resolved {selector} to {defining_name}")
     return module
 
