@@ -623,7 +623,7 @@ def test_microvm_reconfiguration_flush_does_not_block_tracing_or_refresh():
             assert not errors
             assert not aggregator._retired_writers
             old_exporter.send.assert_called_once()
-            old_exporter.drop.assert_called_once()
+            old_exporter.discard.assert_called_once()
             old_exporter.shutdown.assert_not_called()
         finally:
             release_send.set()
@@ -678,7 +678,7 @@ def test_microvm_reconfiguration_preserves_traces_and_keeps_writer_on_build_fail
             assert aggregator.writer is not old_writer
             assert not aggregator._retired_writers
             old_exporter.send.assert_called_once()
-            old_exporter.drop.assert_not_called()
+            old_exporter.discard.assert_not_called()
             old_exporter.shutdown.assert_called_once_with(3_000_000_000)
 
             failed_writer = aggregator.writer
@@ -880,10 +880,10 @@ def test_microvm_reconfiguration_joins_detached_sender_outside_identity_lock():
                     assert not aggregator._retired_writers
                     assert old_exporter.send.call_count == (0 if refresh else 1)
                     if refresh:
-                        old_exporter.drop.assert_called_once()
+                        old_exporter.discard.assert_called_once()
                         old_exporter.shutdown.assert_not_called()
                     else:
-                        old_exporter.drop.assert_not_called()
+                        old_exporter.discard.assert_not_called()
                         old_exporter.shutdown.assert_called_once_with(3_000_000_000)
                 finally:
                     release_send.set()
@@ -1016,7 +1016,7 @@ def test_microvm_shutdown_retries_failed_retired_writer_teardown():
                 assert old_writer._worker.ident not in periodic_threads
                 if refresh:
                     old_writer._exporter.shutdown.assert_not_called()
-                    old_writer._exporter.drop.assert_called_once()
+                    old_writer._exporter.discard.assert_called_once()
                 else:
                     old_writer._exporter.shutdown.assert_called_once_with(3_000_000_000)
             finally:
@@ -1347,7 +1347,7 @@ def test_microvm_shutdown_rejects_exporter_built_by_in_progress_downgrade():
                 active_exporter.send.assert_called_once()
                 assert len(late_exporters) == 1
                 late_exporters[0].shutdown.assert_called_once_with(3_000_000_000)
-                late_exporters[0].drop.assert_not_called()
+                late_exporters[0].discard.assert_not_called()
                 late_exporters[0].send.assert_not_called()
             finally:
                 release_build.set()
@@ -1697,6 +1697,7 @@ def test_tracer_microvm_send_stuck_in_retries_does_not_block_spans_or_refresh():
     from ddtrace._trace.tracer import Tracer
     import ddtrace.internal._runtime_id as runtime_impl
     from ddtrace.internal.writer import NativeWriter
+    from ddtrace.internal.writer.writer import _EXPORTER_DISCARD_TIMEOUT_NS
     from ddtrace.trace import Span
 
     old_writer = NativeWriter("http://dne:1234", processing_interval=0.01)
@@ -1744,7 +1745,7 @@ def test_tracer_microvm_send_stuck_in_retries_does_not_block_spans_or_refresh():
         old_writer.join(timeout=5)
 
         assert old_writer._exporter_dropped is True
-        stuck_exporter.drop.assert_called_once_with()
+        stuck_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         # The spans buffered during the stall were discarded with the old writer.
         assert stuck_exporter.send.call_count == 1
     finally:
@@ -1773,6 +1774,7 @@ def test_tracer_microvm_refresh_with_telemetry_does_not_wait_for_stuck_send():
     from ddtrace._trace.tracer import Tracer
     import ddtrace.internal._runtime_id as runtime_impl
     from ddtrace.internal.writer import NativeWriter
+    from ddtrace.internal.writer.writer import _EXPORTER_DISCARD_TIMEOUT_NS
     from ddtrace.trace import Span
 
     old_writer = NativeWriter("http://dne:1234", processing_interval=0.01)
@@ -1809,7 +1811,7 @@ def test_tracer_microvm_refresh_with_telemetry_does_not_wait_for_stuck_send():
         old_writer.join(timeout=5)
 
         assert old_writer._exporter_dropped is True
-        stuck_exporter.drop.assert_called_once_with()
+        stuck_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         assert stuck_exporter.send.call_count == 1
     finally:
         release_send.set()
@@ -1831,6 +1833,7 @@ def test_tracer_microvm_sync_send_stuck_in_retries_does_not_block_spans_or_refre
     from ddtrace._trace.tracer import Tracer
     import ddtrace.internal._runtime_id as runtime_impl
     from ddtrace.internal.writer import NativeWriter
+    from ddtrace.internal.writer.writer import _EXPORTER_DISCARD_TIMEOUT_NS
 
     old_writer = NativeWriter("http://dne:1234", sync_mode=True)
     send_started = threading.Event()
@@ -1872,7 +1875,7 @@ def test_tracer_microvm_sync_send_stuck_in_retries_does_not_block_spans_or_refre
 
         assert not finishing.is_alive()
         assert old_writer._exporter_dropped is True
-        stuck_exporter.drop.assert_called_once_with()
+        stuck_exporter.discard.assert_called_once_with(_EXPORTER_DISCARD_TIMEOUT_NS)
         stuck_exporter.shutdown.assert_not_called()
         assert stuck_exporter.send.call_count == 1
     finally:

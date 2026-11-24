@@ -3,14 +3,17 @@ use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, stats::CardinalityLimitConfig, TelemetryConfig, TraceExporter,
     TraceExporterBuilder, TraceExporterInputFormat, TraceExporterOutputFormat,
 };
-use libdd_shared_runtime::ForkSafeRuntime;
+use libdd_shared_runtime::{BlockingRuntime as _, ForkSafeRuntime};
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::collections::BTreeMap;
+use std::future::Future as _;
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
 mod trace_buffer;
-use crate::shared_runtime::SharedRuntimePy;
+use crate::shared_runtime::{ensure_after_fork_child, SharedRuntimePy};
 use exceptions::TraceExporterErrorPy;
 use trace_buffer::TraceBufferPy;
 
@@ -305,7 +308,8 @@ impl TraceExporterBuilderPy {
     /// one without registering the fork hooks.
     fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
         let shared_runtime = shared_runtime.as_arc()?;
-        self.try_as_mut()?.set_shared_runtime(shared_runtime);
+        self.try_as_mut()?
+            .set_shared_runtime(Arc::clone(&shared_runtime));
         let exporter = TraceExporterPy {
             inner: Some(
                 self.builder
@@ -314,6 +318,7 @@ impl TraceExporterBuilderPy {
                     .build::<NativeCapabilities>()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
+            shared_runtime,
         };
         Ok(exporter)
     }
@@ -327,6 +332,8 @@ impl TraceExporterBuilderPy {
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
     inner: Option<TraceExporter<NativeCapabilities, ForkSafeRuntime>>,
+    // The runtime the exporter's workers run on, kept to wait for `discard()` without the GIL.
+    shared_runtime: Arc<ForkSafeRuntime>,
 }
 
 #[pymethods]
@@ -394,6 +401,64 @@ impl TraceExporterPy {
     fn drop(&mut self) -> PyResult<()> {
         drop(self.inner.take());
         Ok(())
+    }
+
+    /// Retire the exporter's background workers without flushing them, waiting at most
+    /// `timeout_ns` for them to be destroyed.
+    ///
+    /// The stats, `/info` fetcher, DogStatsD and exporter-owned telemetry workers are cancelled:
+    /// no final stats or telemetry are sent, unlike `shutdown()`, and the workers do not stay
+    /// registered on the shared runtime, unlike `drop()`. It borrows the exporter immutably, so a
+    /// `send()` on another thread may be in progress; sends that start afterwards still export
+    /// traces but report no telemetry or health metrics.
+    ///
+    /// Returns true once the workers are gone (or the exporter was already consumed), false if
+    /// they are still being destroyed when the wait ends. Either way they are cancelled and start
+    /// no new request, except that a stats send already being polled when the wait ends early may
+    /// still start one. The discard is claimed before anything that can fail, and fork and runtime
+    /// shutdown finish a claimed retirement instead of flushing or restarting the workers. Calling
+    /// it again is safe. Never raises.
+    #[pyo3(signature = (timeout_ns))]
+    fn discard(&self, py: Python<'_>, timeout_ns: u64) -> bool {
+        let Some(exporter) = self.inner.as_ref() else {
+            return true;
+        };
+        // Claims every worker with atomic stores: no registry lock, no executor. Claim before the
+        // fork-restart check below, so a pending child restart drops the workers instead of
+        // restarting them.
+        let mut discard = Box::pin(exporter.shutdown_without_flush_async());
+        if let Err(e) = ensure_after_fork_child(&self.shared_runtime) {
+            tracing::debug!("trace exporter: discard left to the runtime after fork: {e}");
+            return false;
+        }
+        // The first poll locks the worker registry and cancels every worker. The registry lock must
+        // not be held at the fork instant (see WorkerHandle::discard), so poll with the GIL held,
+        // where a Python-managed fork cannot be in progress. Like shutdown_without_flush(), make it
+        // outside the executor, so an executor error cannot leave the claimed workers running.
+        let first_poll = discard
+            .as_mut()
+            .poll(&mut Context::from_waker(Waker::noop()));
+        let result = match first_poll {
+            Poll::Ready(result) => result,
+            Poll::Pending => match py.detach(|| {
+                self.shared_runtime
+                    .block_on_with_timeout(discard, Duration::from_nanos(timeout_ns))
+            }) {
+                Ok(result) => result,
+                Err(e) => {
+                    // Timed out, or no executor to wait on: the workers are already cancelled and
+                    // finish retiring in the background.
+                    tracing::debug!("trace exporter: discard did not finish: {e}");
+                    return false;
+                }
+            },
+        };
+        if let Err(e) = result {
+            // A graceful shutdown() claimed a worker first (and may have flushed it), or a worker
+            // task failed: the worker is gone either way.
+            tracing::debug!("trace exporter: discard: {e}");
+        }
+        true
     }
 
     fn debug(&self) -> String {
