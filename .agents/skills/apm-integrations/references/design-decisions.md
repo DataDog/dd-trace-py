@@ -60,10 +60,10 @@ Retain the returned response until deferred completion as a fallback if an earli
 callback fails, while preserving metadata supplied by successful response preparation.
 
 Products own subscriber activation. Integrations emit events without importing product
-bundle declarations or registering subscriber classes. Tracing product startup and normal
-global tracer initialization use the same tracing-owned helper to activate all declared
-bundles. Global initialization uses an import hook to defer activation until the
-subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
+bundle declarations or registering subscriber classes. Tracing product startup and manual
+instrumentation use the same tracing-owned registration helper. The import hook in
+`ddtrace/_monkey.py` defers manual activation until the subscriber package finishes loading
+through contrib; product startup activates immediately. Activation also occurs when
 `DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
 the product manager.
 All subscriber classes require explicit registration; class definitions only collect handlers.

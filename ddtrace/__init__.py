@@ -42,31 +42,11 @@ if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
 
     _on_trace_module_imported(sys.modules["ddtrace.trace"])
 
-    from wrapt.importer import when_imported as _when_imported
-
-    from ddtrace._trace._registration import register_subscribers as _register_subscribers
-
-    # Manual instrumentation does not run the product manager. Activate its
-    # listeners after the subscriber package finishes loading with integrations.
-    # Bare tracer imports stay lightweight, and subscriber bases are ready first.
-    _when_imported("ddtrace._trace.subscribers")(lambda _: _register_subscribers())
 else:
     from ddtrace.internal.module import ModuleWatchdog  # noqa: E402
 
     # An explicit import of ddtrace.trace still creates the global tracer.
     ModuleWatchdog.register_module_hook("ddtrace.trace", _on_trace_module_imported)
-
-    from wrapt.importer import when_imported as _when_imported
-
-    # Manual WSGI/Flask instrumentation still needs request listeners. Wait for
-    # the package to finish loading so subscriber imports see ready dependencies.
-    def _register_manual_request_subscribers(_module: object) -> None:
-        from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
-        from ddtrace._trace._registration import register_subscribers
-
-        register_subscribers((WEB_FRAMEWORK_SUBSCRIBERS,))
-
-    _when_imported("ddtrace._trace.subscribers")(_register_manual_request_subscribers)
 
 # Initialize DSM support and register DSM handlers (if enabled)
 import ddtrace.internal.datastreams as _  # noqa: E402, F401
