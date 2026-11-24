@@ -490,7 +490,8 @@ def my_child_wrapper():
 
 **Keep hooks non-blocking.** By the time a hook registered *after*
 `ddtrace.internal.threads._before_fork` runs, all periodic threads have already
-been stopped, so there are no locks held by those threads to worry about. (Hooks
+been stopped, so there are no locks held by those threads to worry about, except
+for a thread that did not stop in time (see the join timeout below). (Hooks
 registered *before* that point run while periodic threads may still be active,
 so they must not assume threads have stopped.) The concern is speed: a hook that
 blocks
@@ -513,10 +514,14 @@ callback is suppressed during this stop so that writers do not flush their
 queues into the child — flushing would duplicate traces already buffered in
 the parent.
 
-> **Important:** `_before_fork` calls `join()` on every active worker with no
-> timeout. Blocking operations in a `periodic()` callback are fine, but they
-> must use their own timeouts — an unbounded block will prevent `fork()` from
-> returning until the operation completes, which can hang pre-fork servers.
+> **Important:** `_before_fork` waits at most 5 seconds in total
+> (`_FORK_JOIN_TIMEOUT_NS`) for the active workers to stop. Blocking operations
+> in a `periodic()` callback are fine, but they must use their own timeouts — a
+> worker still running after that is logged and left running, and the fork
+> happens in the middle of its operation. The child, which does not have the
+> worker, restarts the thread but inherits any lock the worker held that is not
+> reset after a fork. The parent restarts the thread once the worker stops, and
+> later forks do not wait for it again.
 
 **Phase 2 — after fork**
 

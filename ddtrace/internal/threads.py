@@ -151,8 +151,9 @@ class Thread(PeriodicThread):
     """A fork-safe thread."""
 
     # A one-shot thread runs its target exactly once, ever. _before_fork()
-    # joins it to completion before the fork happens, so by the time restart
-    # decisions are made it has already done its job. __autorestart__ = False
+    # joins it before the fork happens, so by the time restart decisions are
+    # made it has already done its job, or, if it outlived the join timeout, is
+    # finishing it in the parent. __autorestart__ = False
     # stops the child from restarting it; the parent path also skips it
     # explicitly (see ThreadRestartTimer._restart_threads) since force=True
     # there bypasses __autorestart__ by design for genuinely periodic threads.
@@ -169,6 +170,18 @@ class Thread(PeriodicThread):
 
 # Set of running periodic threads that need to be restarted after a fork.
 _threads_to_restart_after_fork: set[_PeriodicThread] = set()
+
+# How long the before-fork hook waits in total for the periodic threads to stop.
+# os.fork() runs on an application thread, so a thread that does not stop, e.g.
+# one blocked on a lock that is never released, delays it by at most this much
+# instead of hanging it.
+_FORK_JOIN_TIMEOUT_NS: int = int(5e9)
+
+
+def _is_running(thread: _PeriodicThread) -> bool:
+    # A worker removes itself from periodic_threads when it exits, so this stays
+    # true after a join that timed out.
+    return periodic_threads.get(thread.ident) is thread
 
 
 # A typical scenario is that of forking worker threads in a loop. For the
@@ -212,6 +225,10 @@ class ThreadRestartTimer(PeriodicThread):
             # threads. This way we avoid stopping and restarting the threads
             # in between forks.
             if monotonic_ns() >= self._timestamp:  # 100ms
+                # A thread that a fork went ahead without can still be running.
+                # Restarting it would start a second worker next to that one, so
+                # it stays pending, and this timer with it, until it stops.
+                still_running: set[_PeriodicThread] = set()
                 for thread in _threads_to_restart_after_fork.copy():
                     if isinstance(thread, ThreadRestartTimer):
                         # Skip any ThreadRestartTimer instance,
@@ -220,16 +237,19 @@ class ThreadRestartTimer(PeriodicThread):
                         continue
                     if isinstance(thread, Thread):
                         # One-shot threads already ran to completion during
-                        # _before_fork()'s join. force=True below bypasses
+                        # _before_fork()'s join, unless they outlived it. force=True below bypasses
                         # __autorestart__, so they must be excluded explicitly
                         # to avoid re-running their target in the parent.
+                        continue
+                    if _is_running(thread):
+                        still_running.add(thread)
                         continue
                     log.debug("Restarting thread %s after fork", thread.name)
                     try:
                         thread._after_fork(force=self._force_restart)
                     except Exception as e:
                         errors.append((True, thread.name, e))
-                _threads_to_restart_after_fork.clear()
+                _threads_to_restart_after_fork.intersection_update(still_running)
 
                 for thread_start in _threads_to_start_after_fork:
                     if not self._force_restart and not thread_start.__self__.__autorestart__:
@@ -244,7 +264,8 @@ class ThreadRestartTimer(PeriodicThread):
                 _threads_to_start_after_fork.clear()
 
                 # We no longer need this thread so we clear it.
-                self.clear()
+                if not still_running:
+                    self.clear()
 
     @classmethod
     def clear(cls):
@@ -276,6 +297,12 @@ def _after_fork_child():
     global _forking
 
     _forking = False
+
+    # A thread that the fork went ahead without has no worker in the child. Drop
+    # its entry so that it stops looking running and restarts like the others.
+    for thread in _threads_to_restart_after_fork:
+        if _is_running(thread):
+            del periodic_threads[thread.ident]
 
     # Clean up child-ineligible workers now and remove them from the pending set.
     # A nested fork may promote the timer to the parent-side force policy, which must only apply
@@ -319,6 +346,16 @@ def _before_fork() -> None:
     with _forking_lock:
         _forking = True
 
+    # Threads that an earlier fork went ahead without, and that are still
+    # running. They are not waited for again. Only the restart timer restarts
+    # threads in this set, and takes them out when it does, except itself: it
+    # restarts after every fork while it stays in, so it is always waited for.
+    left_running: set[_PeriodicThread] = {
+        thread
+        for thread in _threads_to_restart_after_fork
+        if not isinstance(thread, ThreadRestartTimer) and _is_running(thread)
+    }
+
     # Take note of all the periodic threads that are running and will need to be
     # restarted.
     _threads_to_restart_after_fork.update(periodic_threads.values())
@@ -330,7 +367,16 @@ def _before_fork() -> None:
         log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
 
-    # Join all the threads to ensure they are stopped before the fork.
-    for thread in _threads_to_restart_after_fork:
+    # Join all the threads to ensure they are stopped before the fork, within
+    # _FORK_JOIN_TIMEOUT_NS. The fork goes ahead with any thread still running,
+    # in the middle of what it was doing, so the child inherits the locks it holds.
+    deadline: int = monotonic_ns() + _FORK_JOIN_TIMEOUT_NS
+    for thread in _threads_to_restart_after_fork - left_running:
         log.debug("Joining thread %s before fork", thread.name)
-        thread.join()
+        thread.join(max(deadline - monotonic_ns(), 0) / 1e9)
+        if _is_running(thread):
+            log.warning(
+                "periodic thread %s did not stop within %.1fs before fork, forking without waiting for it",
+                thread.name,
+                _FORK_JOIN_TIMEOUT_NS / 1e9,
+            )

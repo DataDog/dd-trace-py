@@ -72,8 +72,9 @@ FS-3 Background work uses ddtrace thread primitives
 
 Only these take part in the fork protocol: they are stopped and joined before the fork, and
 periodic workers are restarted afterwards. A one-shot ``threads.Thread`` is joined to completion
-before the fork and never runs again in either process, so a task that must also run in the
-child has to be started again from an after-in-child hook or the product's restart path.
+before the fork, unless it outlives the timeout in `FS-7`_, and never runs again in either
+process, so a task that must also run in the child has to be started again from an
+after-in-child hook or the product's restart path.
 
 A raw ``threading.Thread`` keeps running in the parent during the fork, may hold locks the child
 inherits, and does not exist in the child. Under gevent, a thread created through the
@@ -134,9 +135,11 @@ itself (``ThreadRestartTimer``).
 FS-7 Blocking calls in thread targets are bounded
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The before-fork hook joins every periodic thread without a timeout, so the application's
-``fork()`` waits until the current ``periodic()`` call returns. Every network call, queue read,
-lock acquisition or event wait in a thread target needs a timeout.
+The before-fork hook waits up to 5 seconds in total for the periodic threads to stop, so the
+application's ``fork()`` waits until the current ``periodic()`` calls return or that time is up.
+A thread still running then is left running while the process forks, and the child inherits any
+lock it holds (`FS-4`_). Every network call, queue read, lock acquisition or event wait in a
+thread target needs a timeout.
 
 .. _FS-8:
 

@@ -1,6 +1,7 @@
 import errno
 from threading import Event
 from threading import Thread as StdThread
+from time import monotonic
 from time import sleep
 from unittest import mock
 
@@ -109,6 +110,134 @@ def test_thread_before_fork_joins_and_parent_does_not_restart():
         threads.ThreadRestartTimer.clear()
         threads._threads_to_restart_after_fork.clear()
         threads._forking = False
+
+
+def test_before_fork_stops_waiting_for_a_thread_that_does_not_stop(monkeypatch) -> None:
+    """os.fork() runs on an application thread, so a thread that does not stop must delay it, not hang it."""
+    monkeypatch.setattr(threads, "_FORK_JOIN_TIMEOUT_NS", int(1e9))
+    entered: Event = Event()
+    release: Event = Event()
+    calls: list[int] = []
+
+    def target() -> None:
+        calls.append(1)
+        entered.set()
+        # No timeout, on purpose: the bound is for targets that break that rule.
+        release.wait()
+
+    t: threads.PeriodicThread = threads.PeriodicThread(0.01, target, name="test-stuck-before-fork")
+    t.start()
+    assert entered.wait(timeout=5), "thread did not start in time"
+
+    returned: Event = Event()
+
+    def before_fork() -> None:
+        threads._before_fork()
+        returned.set()
+
+    forker: StdThread = StdThread(target=before_fork, daemon=True)
+    try:
+        with mock.patch.object(threads.log, "warning") as warning:
+            start: float = monotonic()
+            forker.start()
+            # Without the bound, _before_fork() waits for release forever: fail here instead of hanging.
+            assert returned.wait(timeout=5), "_before_fork() kept waiting for a thread that does not stop"
+            assert monotonic() - start >= 0.9
+        assert [call.args[1] for call in warning.call_args_list] == ["test-stuck-before-fork"]
+
+        # Restarting the thread now would add a second worker next to the blocked one.
+        threads._after_fork_parent()
+        sleep(0.3)
+        assert calls == [1]
+
+        # Once the blocked worker stops, the parent restarts the thread.
+        release.set()
+        for _ in range(100):
+            if len(calls) > 1:
+                break
+            sleep(0.05)
+        assert len(calls) > 1
+    finally:
+        release.set()
+        forker.join(timeout=5)
+        t.stop()
+        t.join(timeout=5)
+        threads.ThreadRestartTimer.clear()
+        threads._threads_to_restart_after_fork.clear()
+        threads._forking = False
+
+
+@pytest.mark.subprocess(err=lambda err: err.count("did not stop within") == 1)
+def test_fork_goes_ahead_without_a_thread_that_does_not_stop() -> None:
+    """A real os.fork() returns while a thread does not stop. The child, which does not have that thread, restarts
+    it, and later forks from two threads do not wait for it again.
+    """
+    import os
+    from threading import Event
+    from threading import Thread as StdThread
+    from time import monotonic
+
+    from ddtrace.internal import threads
+
+    threads._FORK_JOIN_TIMEOUT_NS = int(1e9)
+
+    entered: Event = Event()
+    release: Event = Event()
+
+    def target() -> None:
+        entered.set()
+        # No timeout, on purpose: the bound is for targets that break that rule.
+        release.wait()
+
+    t: threads.PeriodicThread = threads.PeriodicThread(0.01, target, name="test-stuck-fork")
+    t.start()
+    assert entered.wait(timeout=5), "thread did not start in time"
+    entered.clear()
+
+    forked: Event = Event()
+
+    def watchdog() -> None:
+        # Without the bound, os.fork() never returns: fail here rather than at the subprocess timeout.
+        if not forked.wait(timeout=10):
+            os._exit(42)
+
+    StdThread(target=watchdog, daemon=True).start()
+
+    try:
+        pid: int = os.fork()
+        if pid == 0:
+            release.set()
+            os._exit(0 if entered.wait(timeout=5) else 12)
+        forked.set()
+        _, status = os.waitpid(pid, 0)
+        assert os.WEXITSTATUS(status) == 0, "the child did not restart the thread"
+
+        def fork_three_times() -> None:
+            for _ in range(3):
+                child: int = os.fork()
+                if child == 0:
+                    os._exit(0)
+                os.waitpid(child, 0)
+
+        forkers: list[StdThread] = [StdThread(target=fork_three_times) for _ in range(2)]
+        start: float = monotonic()
+        for forker in forkers:
+            forker.start()
+        for forker in forkers:
+            forker.join()
+        # Waiting for the thread again would take 1s per fork.
+        assert monotonic() - start < 3, "later forks waited for the thread again"
+
+        # The parent restarts the thread only once its blocked worker has stopped.
+        assert not entered.is_set()
+        release.set()
+        assert entered.wait(timeout=5), "the parent did not restart the thread"
+    finally:
+        # The exit hook joins periodic threads without a timeout, so a failed
+        # assertion must not leave the thread blocked.
+        release.set()
+    t.stop()
+    t.join(timeout=5)
 
 
 @pytest.mark.subprocess()
@@ -344,6 +473,7 @@ def test_restart_failures_are_logged_after_releasing_forking_lock(monkeypatch):
 
     class FailingPeriodicThread:
         name = "failing-restart"
+        ident = None
 
         def _after_fork(self, force):
             raise OSError(errno.EAGAIN, "Resource temporarily unavailable")
