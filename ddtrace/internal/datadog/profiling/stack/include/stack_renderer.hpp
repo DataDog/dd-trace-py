@@ -65,6 +65,8 @@ struct ThreadState
     std::string name;
     microsecond_t wall_time_ns = 0;
     microsecond_t cpu_time_ns = 0;
+    // Whether a sample of this tick already holds cpu_time_ns. A thread's CPU time goes to one sample per tick.
+    bool cpu_time_charged = false;
     int64_t now_time_ns = 0;
 };
 
@@ -87,6 +89,9 @@ class StackRenderer
     std::unordered_map<StringTable::Key, string_id> string_id_cache;
     std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
 
+    void push_thread_context();
+    void charge_cpu_time();
+
   public:
     StackRenderer();
     void render_thread_begin(PyThreadState* tstate,
@@ -101,7 +106,12 @@ class StackRenderer
     void render_frame(Frame& frame);
     void mark_truncated();
     void render_gc_frame();
+    // Charges the thread's CPU time to the current sample.
     void render_cpu_time(microsecond_t cpu_time_us);
+    // Records the thread's CPU time for render_task_begin to charge to the on-CPU task, if any.
+    void defer_cpu_time(microsecond_t cpu_time_us);
+    // Starts a sample that carries only the thread's CPU time, when no task sample took it. Returns whether it did.
+    bool render_cpu_only_thread_begin();
     void render_native_frame(const std::string& name, const std::string& module);
     void render_stack_end();
 
