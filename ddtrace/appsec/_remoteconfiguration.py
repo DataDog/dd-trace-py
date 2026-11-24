@@ -148,22 +148,29 @@ class AppSecCallback(RCCallback):
 
 
 def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, AsmFeaturesResult]) -> AsmFeaturesResult:
-    res: AsmFeaturesResult = {}
+    touched: set[str] = set()
     for payload in payload_list:
-        if payload.metadata.product_name == "ASM_FEATURES":
-            payload_content = payload.content
-            if payload_content is None:
-                if payload.path in cache:
-                    if "asm" in cache[payload.path]:
-                        res["asm"] = {"enabled": False}
-                    if "auto_user_instrum" in cache[payload.path]:
-                        res["auto_user_instrum"] = {"mode": None}
-                cache.pop(payload.path, None)
-            else:
-                asm_features_content = cast(AsmFeaturesResult, payload_content)
-                res.update(asm_features_content)
-                cache[payload.path] = asm_features_content
-    return res
+        if payload.metadata.product_name != "ASM_FEATURES":
+            continue
+        # Each delivery replaces the full path. Pop before reinserting so cache order
+        # records delivery order even when an existing path is updated.
+        touched.update(cache.pop(payload.path, {}))
+        if payload.content is not None:
+            features = cast(AsmFeaturesResult, payload.content)
+            touched.update(features)
+            cache[payload.path] = features
+
+    result: AsmFeaturesResult = {}
+    if "asm" in touched:
+        result["asm"] = next(
+            (features["asm"] for features in reversed(cache.values()) if "asm" in features), {"enabled": False}
+        )
+    if "auto_user_instrum" in touched:
+        result["auto_user_instrum"] = next(
+            (features["auto_user_instrum"] for features in reversed(cache.values()) if "auto_user_instrum" in features),
+            {"mode": None},
+        )
+    return result
 
 
 def _process_asm_features(

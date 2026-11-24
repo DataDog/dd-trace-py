@@ -29,10 +29,10 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
-from tests.appsec.utils import build_payload
 from tests.appsec.utils import get_waf_addresses
 from tests.utils import override_env
 from tests.utils import override_global_config
+from tests.utils import remote_config_build_payload as build_payload
 
 
 @pytest.fixture
@@ -374,48 +374,60 @@ def test_rc_activation_with_auto_user_appsec_fixed(tracer, rc_poller, auto_user,
     disable_appsec_rc()
 
 
-def test_update_asm_features_removal_resets_all_cached_keys():
+@pytest.mark.parametrize(
+    "replacement, expected",
+    [
+        (None, {"asm": {"enabled": False}, "auto_user_instrum": {"mode": None}}),
+        ({"asm": {"enabled": True}}, {"asm": {"enabled": True}, "auto_user_instrum": {"mode": None}}),
+        (
+            {"auto_user_instrum": {"mode": "disabled"}},
+            {"asm": {"enabled": False}, "auto_user_instrum": {"mode": "disabled"}},
+        ),
+    ],
+)
+def test_update_asm_features_resets_removed_keys(replacement, expected):
     cache = {}
-    _update_asm_features(
-        [
-            build_payload(
-                "ASM_FEATURES", {"asm": {"enabled": True}, "auto_user_instrum": {"mode": "anonymization"}}, "config"
-            )
-        ],
-        cache,
-    )
+    combined = {"asm": {"enabled": True}, "auto_user_instrum": {"mode": "anonymization"}}
+    _update_asm_features([build_payload("ASM_FEATURES", combined, "config")], cache)
 
-    result = _update_asm_features([build_payload("ASM_FEATURES", None, "config")], cache)
-
-    assert result == {"asm": {"enabled": False}, "auto_user_instrum": {"mode": None}}
-    assert cache == {}
+    update = build_payload("ASM_FEATURES", replacement, "config")
+    assert _update_asm_features([update], cache) == expected
+    assert cache == ({} if replacement is None else {update.path: replacement})
 
 
-def test_rc_removal_of_combined_asm_features_resets_auto_user_instrumentation_rc_mode(rc_poller):
+def test_update_asm_features_removal_restores_last_delivered_surviving_values():
+    cache = {}
+
+    def deliver(path, content):
+        return _update_asm_features([build_payload("ASM_FEATURES", content, path)], cache)
+
+    deliver("first", {"asm": {"enabled": True}})
+    deliver("second", {"auto_user_instrum": {"mode": "identification"}})
+    refreshed = {"asm": {"enabled": True}, "auto_user_instrum": {"mode": "anonymization"}}
+    deliver("first", refreshed)
+    deliver("combined", {"asm": {"enabled": False}, "auto_user_instrum": {"mode": "disabled"}})
+
+    assert deliver("combined", None) == refreshed
+    assert deliver("second", None) == {"auto_user_instrum": refreshed["auto_user_instrum"]}
+    assert deliver("second", None) == {}
+
+
+def test_rc_removal_of_combined_asm_features_restores_local_user_event_mode():
     callback = AppSecCallback(mock.Mock(), mock.Mock())
-    global_config = dict(
+    combined = {"asm": {"enabled": True}, "auto_user_instrum": {"mode": "anonymization"}}
+    with mock.patch.multiple(
+        asm_config,
         _asm_enabled=True,
         _asm_can_be_enabled=False,
-        _remote_config_enabled=True,
+        _auto_user_instrumentation_enabled=True,
+        _auto_user_instrumentation_local_mode="identification",
         _auto_user_instrumentation_rc_mode=None,
-    )
-    with override_global_config(global_config):
-        try:
-            callback(
-                [
-                    build_payload(
-                        "ASM_FEATURES",
-                        {"asm": {"enabled": True}, "auto_user_instrum": {"mode": "anonymization"}},
-                        "config",
-                    )
-                ]
-            )
-            assert asm_config._auto_user_instrumentation_rc_mode == "anonymization"
+    ):
+        callback([build_payload("ASM_FEATURES", combined, "config")])
+        assert asm_config._user_event_mode == "anonymization"
 
-            callback([build_payload("ASM_FEATURES", None, "config")])
-            assert asm_config._auto_user_instrumentation_rc_mode is None
-        finally:
-            disable_appsec_rc()
+        callback([build_payload("ASM_FEATURES", None, "config")])
+        assert asm_config._user_event_mode == "identification"
 
 
 def test_rc_activation_ip_blocking_data(tracer, rc_poller, appsec_callback):
