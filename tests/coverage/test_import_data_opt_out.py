@@ -11,6 +11,68 @@ selected).
 import pytest
 
 
+WARNING_MESSAGE = "Import-time coverage data is disabled"
+
+
+def _reset_import_data_warning(monkeypatch):
+    from ddtrace.internal.coverage import util
+
+    monkeypatch.setattr(util, "_import_data_disabled_warned", False)
+    return util
+
+
+class _RecordingLog:
+    """Stand-in for util.log that records warnings, dodging ddtrace's rate-limited handler."""
+
+    def __init__(self):
+        self.warnings = []
+
+    def warning(self, message, *args):
+        self.warnings.append(message % args if args else message)
+
+
+def test_warn_import_data_disabled_once_per_process(monkeypatch):
+    util = _reset_import_data_warning(monkeypatch)
+    recording_log = _RecordingLog()
+    monkeypatch.setattr(util, "log", recording_log)
+
+    util.warn_import_data_disabled()
+    util.warn_import_data_disabled()
+
+    assert len(recording_log.warnings) == 1
+    assert WARNING_MESSAGE in recording_log.warnings[0]
+
+
+def test_internal_coverage_report_path_warns_on_opt_out(monkeypatch):
+    """The unittest internal-coverage reporter bypasses expand_context_* and must warn on its own."""
+    from ddtrace.internal.ci_visibility import coverage as ci_visibility_coverage
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    util = _reset_import_data_warning(monkeypatch)
+    recording_log = _RecordingLog()
+    monkeypatch.setattr(util, "log", recording_log)
+    monkeypatch.setenv("_DD_COVERAGE_INCLUDE_IMPORT_DATA", "false")
+    monkeypatch.setattr(ci_visibility_coverage, "USE_DD_COVERAGE", True)
+
+    # An un-entered context reports via the internal-coverage path without touching
+    # any collector state; the early return on the empty report must not skip the warning.
+    coverage_data = ModuleCodeCollector.CollectInContext()
+
+    class FakeSpan:
+        def __init__(self):
+            self.attributes = {}
+
+        def _set_attribute(self, name, value):
+            self.attributes[name] = value
+
+    span = FakeSpan()
+    ci_visibility_coverage._report_coverage_to_span(coverage_data, span, "/")
+    ci_visibility_coverage._report_coverage_to_span(coverage_data, span, "/")
+
+    assert len(recording_log.warnings) == 1
+    assert WARNING_MESSAGE in recording_log.warnings[0]
+
+
 def test_is_import_data_enabled(monkeypatch):
     from ddtrace.internal.coverage.util import is_import_data_enabled
 
