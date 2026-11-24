@@ -17,6 +17,7 @@ from ddtrace.llmobs.types import AgentManifest
 from tests.contrib.pydantic_ai.utils import ABSENT
 from tests.contrib.pydantic_ai.utils import MANIFEST_FIELD_CASES
 from tests.contrib.pydantic_ai.utils import MANIFEST_LEAK_CASES
+from tests.contrib.pydantic_ai.utils import MODEL
 from tests.contrib.pydantic_ai.utils import PYDANTIC_AI_TAGS
 from tests.contrib.pydantic_ai.utils import _assert_contains
 from tests.contrib.pydantic_ai.utils import _function_model
@@ -29,10 +30,26 @@ from tests.contrib.pydantic_ai.utils import expected_agent_metadata
 from tests.contrib.pydantic_ai.utils import expected_calculate_square_tool
 from tests.contrib.pydantic_ai.utils import expected_foo_tool
 from tests.contrib.pydantic_ai.utils import foo_tool
+from tests.contrib.pydantic_ai.utils import prepare_tools_kwargs
+from tests.contrib.pydantic_ai.utils import retries_kwargs
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
 PYDANTIC_AI_VERSION = parse_version(pydantic_ai.__version__)
+
+# 2.x removed stream(), stream_structured() and stream_responses() for stream_output() and stream_response().
+STREAM_OUTPUT_METHOD = "stream_output" if PYDANTIC_AI_VERSION >= (2, 0, 0) else "stream"
+# stream_output() exists on every pin; below 2.x stream() is its deprecated alias.
+STREAM_OUTPUT_METHODS = ["stream_output"] if PYDANTIC_AI_VERSION >= (2, 0, 0) else ["stream", "stream_output"]
+STREAM_RESPONSE_METHODS = (
+    ["stream_response"] if PYDANTIC_AI_VERSION >= (2, 0, 0) else ["stream_structured", "stream_responses"]
+)
+
+
+def _response_of(chunk):
+    """stream_structured() and stream_responses() yield (response, is_last); stream_response() the response alone."""
+    return chunk[0] if isinstance(chunk, tuple) else chunk
+
 
 TOOL_DESCRIPTION_METADATA = {"description": "Calculates the square of a number"}
 
@@ -48,7 +65,7 @@ class TestLLMObsPydanticAI:
         system_prompt = "dummy system prompt"
         with request_vcr.use_cassette("agent_iter.yaml"):
             agent = pydantic_ai.Agent(
-                model="gpt-4o",
+                model=MODEL,
                 name="test_agent",
                 instructions=instructions,
                 system_prompt=system_prompt,
@@ -75,7 +92,7 @@ class TestLLMObsPydanticAI:
 
     def test_agent_run_sync(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             result = agent.run_sync("Hello, world!")
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -89,12 +106,13 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
 
-    async def test_agent_run_stream(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
+    @pytest.mark.parametrize("stream_method", STREAM_OUTPUT_METHODS)
+    async def test_agent_run_stream(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, stream_method):
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
-                async for chunk in result.stream(debounce_by=None):
+                async for chunk in getattr(result, stream_method)(debounce_by=None):
                     output = chunk
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -116,7 +134,7 @@ class TestLLMObsPydanticAI:
         """
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
                 async for chunk in result.stream_text(debounce_by=None, delta=delta):
                     output = output + chunk if delta else chunk
@@ -132,7 +150,7 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
 
-    @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
+    @pytest.mark.parametrize("stream_method", STREAM_RESPONSE_METHODS)
     async def test_agent_run_stream_method(
         self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, stream_method
     ):
@@ -141,11 +159,11 @@ class TestLLMObsPydanticAI:
 
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
                 stream_func = getattr(result, stream_method)
                 async for chunk in stream_func():
-                    output = chunk[0].parts[0].content
+                    output = _response_of(chunk).parts[0].content
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert_llmobs_span_data(
@@ -165,12 +183,18 @@ class TestLLMObsPydanticAI:
         """Test that the span is still finished when the stream is exited early"""
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
-                async for chunk, last in result.stream_responses():
-                    assert not last  # assert this is not the last chunk
-                    output = chunk.parts[0].content
-                    break
+                if PYDANTIC_AI_VERSION >= (2, 0, 0):
+                    async for chunk in result.stream_response():
+                        assert chunk.state == "incomplete"  # assert this is not the last chunk
+                        output = chunk.parts[0].content
+                        break
+                else:
+                    async for chunk, last in result.stream_responses():
+                        assert not last  # assert this is not the last chunk
+                        output = chunk.parts[0].content
+                        break
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert_llmobs_span_data(
@@ -186,7 +210,7 @@ class TestLLMObsPydanticAI:
     async def test_agent_run_stream_get_output(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
                 output = await result.get_output()
         spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -205,10 +229,10 @@ class TestLLMObsPydanticAI:
         instructions = "Use the provided tool to calculate the square of 2."
         with request_vcr.use_cassette("agent_run_stream_with_tools.yaml"):
             agent = pydantic_ai.Agent(
-                model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions
+                model=MODEL, name="test_agent", tools=[calculate_square_tool], instructions=instructions
             )
             async with agent.run_stream("What is the square of 2?") as result:
-                async for chunk in result.stream():
+                async for chunk in getattr(result, STREAM_OUTPUT_METHOD)():
                     output = chunk
         trace = test_spans.pop_traces()[0]
         agent_span_data = _get_llmobs_data_metastruct(trace[0])
@@ -233,7 +257,7 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
 
-    @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
+    @pytest.mark.parametrize("stream_method", STREAM_RESPONSE_METHODS)
     async def test_agent_run_stream_method_with_tool(
         self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, stream_method
     ):
@@ -247,7 +271,7 @@ class TestLLMObsPydanticAI:
         instructions = "Use the provided tool to calculate the square of 2."
         with request_vcr.use_cassette("agent_run_stream_structured_with_tool.yaml"):
             agent = pydantic_ai.Agent(
-                model="gpt-4o",
+                model=MODEL,
                 name="test_agent",
                 tools=[calculate_square_tool],
                 instructions=instructions,
@@ -265,7 +289,7 @@ class TestLLMObsPydanticAI:
             span_kind="agent",
             name="test_agent",
             input_value="What is the square of 2?",
-            output_value=safe_json(output[0].parts[0].args, ensure_ascii=False),
+            output_value=safe_json(_response_of(output).parts[0].args, ensure_ascii=False),
             metadata=expected_agent_metadata(
                 instructions=instructions,
                 tools=expected_calculate_square_tool(),
@@ -288,10 +312,10 @@ class TestLLMObsPydanticAI:
     async def test_agent_run_stream_error(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             with pytest.raises(Exception, match="test error"):
                 async with agent.run_stream("Hello, world!") as result:
-                    stream = result.stream(debounce_by=None)
+                    stream = getattr(result, STREAM_OUTPUT_METHOD)(debounce_by=None)
                     async for chunk in stream:
                         output = chunk
                         raise Exception("test error")
@@ -311,7 +335,7 @@ class TestLLMObsPydanticAI:
     async def test_agent_iter(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         output = ""
         with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             async with agent.iter("Hello, world!") as agent_run:
                 async for _ in agent_run:
                     pass
@@ -330,7 +354,7 @@ class TestLLMObsPydanticAI:
 
     async def test_agent_iter_error(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             with pytest.raises(Exception, match="test error"):
                 async with agent.iter("Hello, world!") as agent_run:
                     async for _ in agent_run:
@@ -349,7 +373,7 @@ class TestLLMObsPydanticAI:
 
         with request_vcr.use_cassette("agent_run_stream_with_toolset.yaml"):
             agent = pydantic_ai.Agent(
-                model="gpt-4o",
+                model=MODEL,
                 name="test_agent",
                 toolsets=[FunctionToolset(tools=[calculate_square_tool])],
                 tools=[foo_tool],
@@ -374,7 +398,7 @@ class TestLLMObsPydanticAI:
 
         message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
         with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             result = await agent.run(message_history=message_history)
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -398,9 +422,9 @@ class TestLLMObsPydanticAI:
         message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             async with agent.run_stream(message_history=message_history) as result:
-                async for chunk in result.stream(debounce_by=None):
+                async for chunk in getattr(result, STREAM_OUTPUT_METHOD)(debounce_by=None):
                     output = chunk
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -421,7 +445,7 @@ class TestLLMObsPydanticAI:
 
         message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
         with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             async with agent.iter(message_history=message_history) as agent_run:
                 async for _ in agent_run:
                     pass
@@ -447,7 +471,7 @@ class TestLLMObsPydanticAI:
 
         message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
         with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            agent = pydantic_ai.Agent(model=MODEL, name="test_agent")
             result = await agent.run("Hello, world!", message_history=message_history)
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -488,10 +512,10 @@ class TestLLMObsPydanticAISpanLinks:
         instructions = "Use the provided tool to calculate the square of 2."
         with request_vcr.use_cassette("agent_run_stream_with_tools.yaml"):
             agent = pydantic_ai.Agent(
-                model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions
+                model=MODEL, name="test_agent", tools=[calculate_square_tool], instructions=instructions
             )
             async with agent.run_stream("What is the square of 2?") as result:
-                async for _ in result.stream(debounce_by=None):
+                async for _ in getattr(result, STREAM_OUTPUT_METHOD)(debounce_by=None):
                     pass
 
         trace = test_spans.pop_traces()[0]
@@ -854,7 +878,11 @@ class TestPydanticAIAgentManifest:
         Agent(retries=3, output_retries=2) reports retries 2 with tool_retries 3, not one number.
         """
         _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", retries=3, output_retries=2, end_strategy="exhaustive"
+            pydantic_ai,
+            test_spans,
+            name="test_agent",
+            end_strategy="exhaustive",
+            **retries_kwargs(retries=3, output_retries=2),
         )
 
         settings = manifest["agent_settings"]
@@ -891,8 +919,13 @@ class TestPydanticAIAgentManifest:
 
         with mock.patch.object(type(model), "model_name", hostile):
             agent = pydantic_ai.Agent(model=model, name="test_agent")
-            await agent.run("Hello, world!")
-            manifest = _manifest_of(test_spans.pop_traces()[0][0])
+            if PYDANTIC_AI_VERSION >= (2, 0, 0):
+                # Built directly: from 2.x pydantic-ai itself calls model_name.lower() during a run, so
+                # the span path cannot reach the builder with one.
+                manifest = integration_for("pydantic_ai")._build_agent_manifest(agent)
+            else:
+                await agent.run("Hello, world!")
+                manifest = _manifest_of(test_spans.pop_traces()[0][0])
 
         assert "model" not in manifest
         assert "Omit()" not in safe_json(manifest)
@@ -1066,7 +1099,11 @@ class TestPydanticAIAgentManifest:
         """
         # output_retries, not tool_timeout: the hazard is reachable on every pin, tool_timeout is 1.63.0+.
         _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", output_retries=float("inf"), model=_test_model()
+            pydantic_ai,
+            test_spans,
+            name="test_agent",
+            model=_test_model(),
+            **retries_kwargs(output_retries=float("inf")),
         )
 
         json.dumps(manifest, allow_nan=False)
@@ -1117,7 +1154,7 @@ class TestPydanticAIAgentManifest:
             return [d for d in defs if d.name != "delete_account"]
 
         _, manifest = await self._run(
-            pydantic_ai, test_spans, name="test_agent", prepare_tools=drop_destructive, model=_test_model()
+            pydantic_ai, test_spans, name="test_agent", model=_test_model(), **prepare_tools_kwargs(drop_destructive)
         )
 
         prep = [cap for cap in manifest["capabilities"] if cap.get("type") == "tool_preparation"]

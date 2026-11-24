@@ -527,6 +527,11 @@ suites:
         - name: pydantic_ai
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==1.63.0']
+        - name: pydantic_ai
+          # pydantic-ai-slim 2.x requires Python 3.11+. Its openai 3.x client sends requests through
+          # httpx2, which vcrpy 7.0.0 does not intercept, so this row takes the latest vcrpy.
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [pytest-asyncio, vcrpy, typing_extensions, 'pydantic-ai-slim[openai]==2.71.0']
   vllm:
     # TODO(py-315): torch has no cp315 wheels yet (2.14.1 ships cp310–cp314t
     # only), and the pinned 'vllm~=0.10.2' row also resolves an onnxruntime
