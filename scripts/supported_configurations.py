@@ -398,6 +398,26 @@ def _scan_envier_module(
         )
 
 
+def _patch_modules() -> tuple[list[str], set[str]]:
+    """Return the integrations in ``ddtrace/_monkey.py``'s PATCH_MODULES and those not patchable via env var."""
+    assigns = {
+        node.targets[0].id: node.value
+        for node in ast.walk(ast.parse((REPO_ROOT / "ddtrace" / "_monkey.py").read_text()))
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in ("PATCH_MODULES", "_NOT_PATCHABLE_VIA_ENVVAR")
+    }
+    pm_node = assigns["PATCH_MODULES"]
+    assert isinstance(pm_node, ast.Dict)  # nosec B101
+    patch_modules = [k.value for k in pm_node.keys if isinstance(k, ast.Constant)]
+
+    np_node = assigns["_NOT_PATCHABLE_VIA_ENVVAR"]
+    assert isinstance(np_node, (ast.Set, ast.List, ast.Tuple))  # nosec B101
+    not_patchable = {e.value for e in np_node.elts if isinstance(e, ast.Constant)}
+    return patch_modules, not_patchable
+
+
 def check_registry(data: dict[str, Any], scan_roots: Sequence[Path] | None = None) -> int:
     """Verify every DD_*/_DD_*/OTEL_*/DATADOG_* var referenced in the scanned sources is in the registry.
 
@@ -442,21 +462,7 @@ def check_registry(data: dict[str, Any], scan_roots: Sequence[Path] | None = Non
                 _scan_envier_module(module, envier_vars, private_registry_mismatches)
 
     # Dynamic vars from PATCH_MODULES: DD_TRACE_{NAME}_ENABLED, DD_{NAME}_SERVICE[_NAME]
-    assigns = {
-        node.targets[0].id: node.value
-        for node in ast.walk(ast.parse((REPO_ROOT / "ddtrace" / "_monkey.py").read_text()))
-        if isinstance(node, ast.Assign)
-        and len(node.targets) == 1
-        and isinstance(node.targets[0], ast.Name)
-        and node.targets[0].id in ("PATCH_MODULES", "_NOT_PATCHABLE_VIA_ENVVAR")
-    }
-    pm_node = assigns["PATCH_MODULES"]
-    assert isinstance(pm_node, ast.Dict)  # nosec B101
-    patch_modules = [k.value for k in pm_node.keys if isinstance(k, ast.Constant)]
-
-    np_node = assigns["_NOT_PATCHABLE_VIA_ENVVAR"]
-    assert isinstance(np_node, (ast.Set, ast.List, ast.Tuple))  # nosec B101
-    not_patchable = {e.value for e in np_node.elts if isinstance(e, ast.Constant)}
+    patch_modules, not_patchable = _patch_modules()
 
     for name in patch_modules:
         n = name.upper()
