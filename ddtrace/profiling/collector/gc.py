@@ -5,7 +5,9 @@ import logging
 import time
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from typing import Optional
+import weakref
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
@@ -47,7 +49,6 @@ class GCCollector(collector.Collector):
     Thresholds, freeze count, and cumulative collection totals are DEBUG-only.
     """
 
-    _lock: threading_Lock
     _pause_count: list[int]
     _pause_total_ns: list[int]
     _explicit_count: int
@@ -57,8 +58,18 @@ class GCCollector(collector.Collector):
     _pause_listener: Optional[PauseListener]
     _monitor: Optional[GCPauseMonitor]
 
+    def __init__(self) -> None:
+        super().__init__()
+        # A plain lock, not forksafe.Lock(): _on_pause takes it on every collection, and
+        # the forksafe proxy makes each acquire and release many times slower. Created
+        # once: a restart that replaced it would leave a caller between its acquire and
+        # release to release the new, unheld lock, raising into gc.collect(). A fork can
+        # inherit it held by a thread that the child does not have, so
+        # _reset_collector_locks resets it in place in the child.
+        self._lock: threading_Lock = threading_Lock()
+        _collectors_with_plain_locks.add(self)
+
     def _start_service(self) -> None:
-        self._lock = forksafe.Lock()
         self._pause_count = [0] * _GEN_COUNT
         self._pause_total_ns = [0] * _GEN_COUNT
         self._explicit_count = 0
@@ -211,3 +222,15 @@ class GCCollector(collector.Collector):
                 total_collections,
                 explicit,
             )
+
+
+_collectors_with_plain_locks: weakref.WeakSet[GCCollector] = weakref.WeakSet()
+
+
+@forksafe.register
+def _reset_collector_locks() -> Iterator[None]:
+    # A wrapper, so the reset runs before every regular after-fork hook in the child,
+    # whatever the import order, including _reset_after_fork, which takes the lock.
+    for col in list(_collectors_with_plain_locks):
+        col._lock._at_fork_reinit()  # type: ignore[attr-defined]
+    yield

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import gc
+from typing import Any
 from typing import Callable
+from typing import Iterator
 from unittest import mock
 
 import pytest
@@ -110,7 +112,6 @@ def _make_isolated_collector() -> GCCollector:
     interference from real background GC events.
     """
     col = GCCollector()
-    col._lock = forksafe.Lock()
     col._pause_count = [0, 0, 0]
     col._pause_total_ns = [0, 0, 0]
     col._explicit_count = 0
@@ -358,6 +359,60 @@ def test_rollback_after_failed_start_keeps_other_monitor_reference(failing_call:
     finally:
         monitor.release()
         gc.collect = orig
+
+
+def test_lock_is_created_once_and_reset_in_place_after_fork() -> None:
+    """The lock is plain, because _on_pause takes it on every collection, and a restart keeps it.
+
+    A forked child resets it from a wrapper hook, which runs before _reset_after_fork and the other regular
+    after-fork hooks that take it.
+    """
+    col: GCCollector = GCCollector()
+    lock: Any = col._lock
+    assert not isinstance(lock, forksafe.ResetObject)
+    for _ in range(2):
+        col.start()
+        col.stop()
+    assert col._lock is lock
+    assert gc_collector._reset_collector_locks in forksafe._registry_child_wrappers
+    assert lock.acquire(False)
+    reset: Iterator[None] = gc_collector._reset_collector_locks()
+    next(reset)
+    assert col._lock is lock
+    assert not lock.locked()
+    with pytest.raises(StopIteration):
+        next(reset)
+
+
+def test_restart_during_patched_collect_does_not_raise_into_the_caller() -> None:
+    """Profiler.stop(); Profiler.start() reuses its collectors.
+
+    An application thread inside gc.collect() between the counter's acquire and release
+    must release the lock it took, so a restart on another thread must not replace it.
+    """
+    col: GCCollector = GCCollector()
+    lock: Any = col._lock
+    col.start()
+
+    class RestartAfterAcquire:
+        """The lock the application thread took; another thread restarts the collector right then."""
+
+        def acquire(self, blocking: bool = True) -> bool:
+            acquired: bool = lock.acquire(blocking)
+            col.stop()
+            col.start()
+            return acquired
+
+        def release(self) -> None:
+            lock.release()
+
+    col._lock = RestartAfterAcquire()  # type: ignore[assignment]
+    try:
+        assert isinstance(gc.collect(), int)
+        assert not lock.locked()
+    finally:
+        col.stop()
+        col._lock = lock
 
 
 def test_patched_collect_forwards_the_caller_arguments() -> None:
