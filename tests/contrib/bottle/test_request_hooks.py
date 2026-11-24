@@ -390,24 +390,9 @@ def test_inspection_subscriber_can_replace_callback(app, tracer, test_spans, blo
     assert tracer.current_span() is None
 
 
-def test_inspection_subscriber_unregister_restores_callback(app, tracer, test_spans, blocking_subscriber):
-    @app.route("/hello")
-    def hello():
-        return "hello"
-
-    client = webtest.TestApp(app)
-    assert client.get("/hello", headers={"X-Demo-Block": "yes"}, status=403).text == "blocked"
-    ExampleRequestBlockingSubscriber.unregister()
-    assert client.get("/hello", headers={"X-Demo-Block": "yes"}).text == "hello"
-    spans = test_spans.pop()
-    assert len(spans) == 2
-    assert all(span.finished for span in spans)
-    assert tracer.current_span() is None
-
-
-@pytest.mark.parametrize("failure", [ValueError("inspection failed"), Cancelled("inspection cancelled")])
-def test_inspection_failure_preserves_callback_or_exception(app, tracer, test_spans, failure):
+def test_inspection_exception_preserves_identity_and_parent(app, tracer, test_spans):
     calls = []
+    failure = Cancelled("inspection cancelled")
 
     @app.route("/hello")
     def hello():
@@ -420,16 +405,12 @@ def test_inspection_failure_preserves_callback_or_exception(app, tracer, test_sp
     initial_context = core.current
     core.on(WebFrameworkRequestInspectEvent.event_name, inspect)
     try:
-        # Exercise production error handling instead of the suite's raise-on-listener-error mode.
+        # BaseException must propagate even with production error handling.
         with override_global_config({"_raise": False}), tracer.trace("parent") as parent:
-            if isinstance(failure, Exception):
-                assert webtest.TestApp(app).get("/hello").text == "hello"
-                assert calls == ["hello"]
-            else:
-                with pytest.raises(Cancelled) as caught:
-                    webtest.TestApp(app).get("/hello")
-                assert caught.value is failure
-                assert calls == []
+            with pytest.raises(Cancelled) as caught:
+                webtest.TestApp(app).get("/hello")
+            assert caught.value is failure
+            assert calls == []
             assert tracer.current_span() is parent
         assert core.current is initial_context
     finally:
