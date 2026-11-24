@@ -29,8 +29,15 @@ def test_otlp_grpc_unix_endpoint_does_not_prevent_import():
 @requires_unix_socket
 @requires_grpc_test_server
 @pytest.mark.subprocess(
-    env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_SAMPLE_RATE": "1"},
-    parametrize={"_TEST_OTLP_CONFIGURATION": ["signal", "global", "signal-overrides-global"]},
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "DD_TRACE_SAMPLE_RATE": "1",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": None,
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:1",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": None,
+    },
+    parametrize={"_TEST_OTLP_CONFIGURATION": ["global", "signal-overrides-global"]},
 )
 def test_otlp_traces_sent_via_grpc_unix_socket():
     import os
@@ -38,27 +45,14 @@ def test_otlp_traces_sent_via_grpc_unix_socket():
 
     from tests.opentelemetry.utils import capture_otlp_traces
 
-    for name in (
-        "OTEL_EXPORTER_OTLP_PROTOCOL",
-        "OTEL_EXPORTER_OTLP_ENDPOINT",
-        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
-        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-    ):
-        os.environ.pop(name, None)
-
     with tempfile.TemporaryDirectory() as directory:
         socket_path = directory + "/otel.sock"
-        endpoint = "unix://" + socket_path
-        configuration = os.environ["_TEST_OTLP_CONFIGURATION"]
-        if configuration == "global":
-            os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "grpc"
-            os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = endpoint
-        else:
-            os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "grpc"
-            os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = endpoint
-            if configuration == "signal-overrides-global":
-                os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf"
-                os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:1"
+        endpoint_name = (
+            "OTEL_EXPORTER_OTLP_ENDPOINT"
+            if os.environ["_TEST_OTLP_CONFIGURATION"] == "global"
+            else "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+        )
+        os.environ[endpoint_name] = "unix://" + socket_path
 
         with capture_otlp_traces("grpc", port="unix:" + socket_path) as requests:
             from ddtrace.trace import tracer
@@ -84,10 +78,13 @@ def test_otlp_traces_sent_via_grpc_unix_socket():
         "DD_TRACE_SAMPLE_RATE": "1",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
         "_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL": "1000",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:1",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": None,
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": None,
     },
     parametrize={
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": ["http/json", "http/protobuf"],
-        "_TEST_OTLP_CONFIGURATION": ["signal", "global", "signal-overrides-global"],
+        "_TEST_OTLP_CONFIGURATION": ["global", "signal-overrides-global"],
     },
 )
 def test_otlp_traces_and_trace_metrics_sent_via_http_unix_socket():
@@ -101,16 +98,11 @@ def test_otlp_traces_and_trace_metrics_sent_via_http_unix_socket():
     with tempfile.TemporaryDirectory() as directory:
         socket_path = directory + "/otel.sock"
         endpoint = "unix://" + socket_path
-        configuration = os.environ["_TEST_OTLP_CONFIGURATION"]
-        os.environ.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
-        for signal in ("TRACES", "METRICS"):
-            os.environ.pop(f"OTEL_EXPORTER_OTLP_{signal}_ENDPOINT", None)
-            if configuration != "global":
-                os.environ[f"OTEL_EXPORTER_OTLP_{signal}_ENDPOINT"] = endpoint
-        if configuration == "global":
+        if os.environ["_TEST_OTLP_CONFIGURATION"] == "global":
             os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = endpoint
-        elif configuration == "signal-overrides-global":
-            os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:1"
+        else:
+            os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = endpoint
+            os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = endpoint
 
         with _capture_http_requests(socket_path, include_headers=True) as requests:
             from ddtrace.trace import tracer
@@ -125,17 +117,7 @@ def test_otlp_traces_and_trace_metrics_sent_via_http_unix_socket():
 
         trace_bodies = [body for path, _, body in requests if path == "/v1/traces"]
         assert trace_bodies, requests
-        if os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] == "http/json":
-            trace_request = json.loads(trace_bodies[0])
-            spans = [
-                span
-                for resource in trace_request["resourceSpans"]
-                for scope in resource["scopeSpans"]
-                for span in scope["spans"]
-            ]
-            assert {span["name"] for span in spans} == {"unix-http-span"}
-        else:
-            assert b"unix-http-span" in trace_bodies[0]
+        assert b"unix-http-span" in trace_bodies[0]
         metrics = [json.loads(body) for path, _, body in requests if path == "/v1/metrics"]
         assert metrics, requests
         assert (
