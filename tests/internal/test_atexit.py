@@ -142,3 +142,12 @@ def test_register_on_exit_signal_exception_reraised_when_testing_raise() -> None
 
     atexit.register_on_exit_signal(bad_handler)
     os.kill(os.getpid(), signal.SIGTERM)
+
+
+@pytest.mark.subprocess(out="stopped\nafter threads\n", err=None)
+def test_register_after_threads_stopped_runs_after_threads_are_joined():
+    from ddtrace.internal import atexit
+    from ddtrace.internal import threads
+
+    atexit.register_after_threads_stopped(lambda: print("after threads"))
+    threads.PeriodicThread(60, lambda: None, name="after-threads-test", on_shutdown=lambda: print("stopped")).start()

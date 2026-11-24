@@ -37,3 +37,4 @@ class PeriodicThread:
 
 periodic_threads: dict[int, PeriodicThread]
 PERIODIC_STOP: object
+def _at_exit() -> None: ...

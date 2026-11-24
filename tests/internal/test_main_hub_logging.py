@@ -817,12 +817,12 @@ def test_hub_of_the_thread_that_forked_is_the_main_hub_of_the_child():
 
 
 @pytest.mark.subprocess(env=CLONING, err=None, timeout=30)
-def test_ddtrace_loggers_are_main_hub_loggers_from_creation():
-    """Changing the class of an existing logger makes it slower on Python 3.12+."""
+def test_ddtrace_loggers_are_patched_per_instance_and_unpatch_restores_them():
+    """Nothing changes the class of a logger, and only ddtrace loggers are patched."""
     import logging
 
     early = logging.getLogger("ddtrace.test.early")
-    plain = type(early)
+    get_logger = logging.Manager.getLogger
 
     import gevent.monkey
 
@@ -830,32 +830,32 @@ def test_ddtrace_loggers_are_main_hub_loggers_from_creation():
 
     gevent.monkey.patch_all()
 
-    import gevent
+    from ddtrace.contrib.internal.gevent.patch import patch
+    from ddtrace.contrib.internal.gevent.patch import unpatch
+    from ddtrace.internal.logger import get_logger as get_ddtrace_logger
 
-    from ddtrace.internal.logger import HandoffLogger
-    from ddtrace.internal.logger import get_logger
+    patch()
 
     class CustomLogger(logging.Logger):
         pass
 
     child = logging.getLogger("ddtrace.test.placeholder.child")  # Its parent is a placeholder until it is created
-    loggers = [get_logger("ddtrace.test.get_logger"), logging.getLogger("ddtrace.test.getLogger"), child]
+    loggers = [get_ddtrace_logger("ddtrace.test.get_logger"), logging.getLogger("ddtrace.test.getLogger"), child]
     loggers.append(logging.getLogger("ddtrace.test.placeholder"))
     logging.setLoggerClass(CustomLogger)
     custom = logging.getLogger("ddtrace.test.custom")
     logging.setLoggerClass(logging.Logger)
     loggers.append(custom)
-    classes = [type(logger) for logger in loggers]
+    other = logging.getLogger("test.other")
 
-    assert all(isinstance(logger, HandoffLogger) for logger in loggers), classes
-    assert isinstance(custom, CustomLogger)
-    assert type(logging.getLogger("test.other")) is logging.Logger
+    assert logging.Manager.getLogger is not get_logger
+    # A logger created before ddtrace patched gevent is patched too.
+    assert all("handle" in vars(logger) for logger in loggers + [early])
+    assert type(early) is logging.Logger and type(custom) is CustomLogger
+    assert "handle" not in vars(other) and "isEnabledFor" not in vars(other)
     assert child.parent is loggers[3]
 
-    gevent.sleep(0)  # Creates the main hub.
+    unpatch()
 
-    loggers.append(get_logger("ddtrace.test.after_hub"))
-    classes.append(HandoffLogger)
-    assert [type(logger) for logger in loggers] == classes
-    # A logger created before ddtrace was imported is converted.
-    assert isinstance(early, HandoffLogger) and plain is logging.Logger
+    assert logging.Manager.getLogger is get_logger
+    assert not any(name in vars(logger) for logger in loggers + [early] for name in ("handle", "isEnabledFor"))

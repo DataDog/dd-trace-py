@@ -30,17 +30,14 @@ Usage:
 
 """
 
-import atexit
 import collections
 from dataclasses import dataclass
 from dataclasses import field
-from functools import cache
 import logging
 import time
 import traceback
 from typing import DefaultDict
 from typing import Optional
-from typing import Protocol
 from typing import Tuple
 from typing import Union
 
@@ -114,98 +111,6 @@ def get_logger(name: str) -> logging.Logger:
             logger.setLevel(level)
 
     return logger
-
-
-class LogHandoff(Protocol):
-    """Takes over the records of ddtrace loggers, e.g. to handle them on another thread."""
-
-    def runs_inline(self) -> bool:
-        """Whether the current thread handles its records itself."""
-
-    def put(self, logger: "HandoffLogger", record: logging.LogRecord) -> bool:
-        """Take the record over. Returns False when the caller should handle it inline."""
-
-    def flush_at_exit(self) -> None:
-        """Handle the records taken over. Runs at exit, once the native threads have joined."""
-
-
-_handoff: Optional[LogHandoff] = None
-
-
-class HandoffLogger(logging.Logger):
-    """A ddtrace logger whose records a LogHandoff can take over."""
-
-    def handle(self, record: logging.LogRecord) -> None:
-        if (handoff := _handoff) is None or handoff.runs_inline() or not handoff.put(self, record):
-            super().handle(record)
-
-    def handle_inline(self, record: logging.LogRecord) -> None:
-        """Handle a record taken over, on the current thread."""
-        super().handle(record)
-
-
-@cache
-def _handoff_logger_class(cls: type) -> type:
-    return HandoffLogger if cls is logging.Logger else type(cls.__name__, (HandoffLogger, cls), {})
-
-
-def _is_ddtrace(name: str) -> bool:
-    return name == "ddtrace" or name.startswith("ddtrace.")
-
-
-class _HandoffLoggerClass:
-    """Creates the ddtrace loggers as handoff loggers, as changing the class of a logger makes it slower on 3.12+.
-
-    Set as the logger class of the logging manager, which calls it only to create a logger.
-    """
-
-    def __init__(self, logger_class: Optional[type]) -> None:
-        self.logger_class = logger_class
-
-    def __call__(self, name: str) -> logging.Logger:
-        cls = self.logger_class or logging.getLoggerClass()
-        return (_handoff_logger_class(cls) if _is_ddtrace(name) else cls)(name)
-
-
-def _is_enabled_for(self: logging.Logger, level: int) -> bool:
-    if self.disabled:
-        return False
-    try:
-        return self._cache[level]  # type: ignore[attr-defined]
-    except KeyError:
-        pass
-    if (handoff := _handoff) is None or handoff.runs_inline():
-        return logging.Logger.isEnabledFor(self, level)
-    # Same as the base class, without the logging lock it takes to fill the cache.
-    return level > self.manager.disable and level >= self.getEffectiveLevel()
-
-
-def set_log_handoff(handoff: LogHandoff) -> None:
-    """Let the handoff take over the records of the ddtrace loggers."""
-    global _handoff
-
-    _handoff = handoff
-    # Only set with a handoff, so that ddtrace loggers otherwise answer like the base class, also when it is patched.
-    HandoffLogger.isEnabledFor = _is_enabled_for  # type: ignore[method-assign]
-    # Convert the ddtrace loggers created before the logger class was set.
-    for logger in list(logging.Logger.manager.loggerDict.values()):
-        if isinstance(logger, logging.Logger) and not isinstance(logger, HandoffLogger) and _is_ddtrace(logger.name):
-            try:
-                logger.__class__ = _handoff_logger_class(type(logger))  # type: ignore[arg-type]
-            except TypeError:
-                pass  # e.g. a logger class with __slots__, which keeps logging inline
-
-
-def _flush_handoff_at_exit() -> None:
-    if (handoff := _handoff) is not None:
-        handoff.flush_at_exit()
-
-
-if not isinstance(logging.Logger.manager.loggerClass, _HandoffLoggerClass):
-    logging.Logger.manager.loggerClass = _HandoffLoggerClass(logging.Logger.manager.loggerClass)  # type: ignore[assignment]
-# Registered before the native threads module registers the hook that joins them, so that it runs after it.
-# Not ddtrace.internal.atexit: it imports that module, and registering later would flush before the join.
-atexit.register(_flush_handoff_at_exit)
 
 
 _RATE_LIMITS = {}

@@ -7,6 +7,8 @@ import logging
 import signal
 import typing
 
+from ddtrace.internal import _threads
+from ddtrace.internal import threads
 from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.threads import is_main_thread
 from ddtrace.internal.utils import signals
@@ -60,6 +62,33 @@ def unregister(func: typing.Callable) -> None:
     """Unregister *func* from atexit, handling the safe-wrapper indirection."""
     wrapped = _atexit_wrapped.pop(func, None)
     atexit.unregister(wrapped if wrapped is not None else func)
+
+
+_after_threads_stopped: list[typing.Callable[[], None]] = []
+
+
+def _run_after_threads_stopped() -> None:
+    for func in _after_threads_stopped:
+        _make_safe_wrapper(func)()
+
+
+def register_after_threads_stopped(func: typing.Callable[[], None]) -> None:
+    """Register a function to run at exit, right after the periodic threads have been stopped and joined.
+
+    Use it to handle what those threads produced while stopping, which a function registered with ``register``
+    runs too early for.
+    """
+    _after_threads_stopped.append(func)
+
+
+# The native threads module registers the hook that stops and joins the periodic threads when it is first imported,
+# which happens before this module, followed by the hook of ddtrace.internal.threads that releases the boot gate
+# before the join. Hooks run in reverse order of registration, so register ours first and the others again after it.
+atexit.unregister(_threads._at_exit)
+atexit.unregister(threads._release_boot_gate_at_exit)
+atexit.register(_run_after_threads_stopped)
+atexit.register(_threads._at_exit)
+atexit.register(threads._release_boot_gate_at_exit)
 
 
 # registers a function to be called when an exit signal (TERM or INT) or received.

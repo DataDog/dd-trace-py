@@ -542,22 +542,19 @@ native ddtrace thread that waits for one depends on the main thread's hub,
 which can be waiting for that thread, e.g. joining it before a fork.
 `main_hub_logging` in `ddtrace.contrib.internal.gevent.logger` breaks that
 cycle. The gevent integration installs it when it patches gevent, and it plugs
-into ddtrace loggers through the generic `LogHandoff` seam of
-`ddtrace.internal.logger`:
+into the ddtrace loggers:
 
 - Once gevent creates the hub of the main thread, records logged by ddtrace
   loggers on other threads are queued, and a single greenlet on the main hub
   handles them in order. Records logged on the main thread, before the hub
   exists, or without patched `threading` are handled inline, as is a record
   logged while the queue is full.
-- ddtrace loggers are created as `HandoffLogger`, also through
-  `logging.getLogger`: the logger module sets the logger class of the logging
-  manager to `_HandoffLoggerClass` when it is imported. Changing the class of
-  an existing logger makes its attribute lookups slower on Python 3.12+, so
-  only the ddtrace loggers created before are converted, when the hub is
-  created. The `isEnabledFor` override, which skips the logging lock off the
-  main thread, is also only set then, so that without a handoff ddtrace loggers
-  answer like `logging.Logger`, also when a test patches it.
+- The ddtrace loggers are patched per instance, not by class: `install` wraps
+  `logging.Manager.getLogger`, the single entry point that creates loggers,
+  and sets `handle` and `isEnabledFor` on the ddtrace loggers it returns and
+  on the ones that exist already. Loggers of the application are not touched.
+  `isEnabledFor` skips the logging lock off the main thread. `unpatch` removes
+  the wrappers and restores `getLogger`.
 - Records are formatted when queued, so mutable arguments and exceptions are
   captured as logged.
 - After fork, the child resets it with a `forksafe.register` hook and logs
@@ -567,11 +564,10 @@ into ddtrace loggers through the generic `LogHandoff` seam of
   the main hub. A `multiprocessing` child emits its queued records with a
   `multiprocessing.util.Finalize`, since it exits with `os._exit`.
 - At exit, `flush_at_exit` emits the queued records and switches to inline
-  logging. The logger module registers the hook that calls it with the stdlib
-  `atexit` when it is imported, before the native threads module registers the hook that joins the
-  periodic threads, so it runs after that join and also emits what the threads
-  log while stopping. `ddtrace.internal.atexit` is not used, since it imports
-  the native threads module first.
+  logging. It is registered with
+  `ddtrace.internal.atexit.register_after_threads_stopped`, which runs it right
+  after the native threads module has stopped and joined the periodic threads,
+  so it also emits what the threads log while stopping.
 
 ### Adding new fork hooks
 
