@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    runtime metrics: Adds support for exporting runtime metrics over OTLP, under their OpenTelemetry semantic
+    convention names, when ``DD_RUNTIME_METRICS_ENABLED`` and ``DD_METRICS_OTEL_ENABLED`` are both true.
