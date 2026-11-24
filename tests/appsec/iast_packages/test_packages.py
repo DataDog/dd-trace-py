@@ -370,7 +370,7 @@ _PACKAGES = [
         "foobar",
         "Lock acquired for file: foobar",
         "",
-        import_module_to_validate="filelock._api",
+        import_module_to_validate="filelock:BaseFileLock",
     ),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
@@ -1024,6 +1024,7 @@ def _template_venv_locked():
                 "cattrs",
                 "pytest",
                 "charset_normalizer",
+                "urllib3",
                 this_dd_trace_py_path,
             ]
             subprocess.check_call([PIP_EXECUTABLE, "install", *deps_to_install])
