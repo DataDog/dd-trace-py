@@ -101,7 +101,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         headers_case_sensitive=True,
         span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
         resource=otel_resource or utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(config_django),
+        service=trace_utils.int_service(None, config_django),
         span_type=SpanTypes.WEB,
         tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
         integration_config=config_django,

@@ -6,7 +6,7 @@ import werkzeug
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -599,7 +599,7 @@ def request_patcher(name):
             core.context_with_data(
                 "flask._patched_request",
                 span_name=".".join(("flask", name)),
-                service=trace_utils.int_service(config.flask),
+                service=trace_utils.int_service(None, config.flask),
                 flask_config=config.flask,
                 flask_request=flask.request,
                 ignored_exception_type=NotFound,

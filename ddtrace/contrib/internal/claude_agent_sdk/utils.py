@@ -42,7 +42,7 @@ def request_event(
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.claude_agent_sdk,
-        service=int_service(config.claude_agent_sdk),
+        service=int_service(None, config.claude_agent_sdk),
         resource=resource,
         span_name=span_name,
         provider="",

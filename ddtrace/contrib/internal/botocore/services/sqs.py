@@ -144,7 +144,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                 "botocore.patched_sqs_api_call",
                 parent=parent_ctx,
                 span_name=call_name,
-                service=schematize_service_name(f"{ext_service(int_config=config.botocore)}.{endpoint_name}"),
+                service=schematize_service_name(f"{ext_service(None, int_config=config.botocore)}.{endpoint_name}"),
                 span_type=SpanTypes.HTTP,
                 child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 activate=True,

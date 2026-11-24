@@ -16,7 +16,6 @@ from hypothesis.strategies import tuples
 import pytest
 
 from ddtrace import config
-from ddtrace.contrib import trace_utils as public_trace_utils
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal import trace_utils_async
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
@@ -406,20 +405,20 @@ def test_int_service(int_config, config_val, default, global_service, expected):
     if global_service:
         int_config.service = global_service
 
-    assert trace_utils.int_service(int_config.myint, default) in [expected, "pytest"]
+    assert trace_utils.int_service(None, int_config.myint, default) in [expected, "pytest"]
 
 
 def test_int_service_integration(int_config, tracer):
-    assert trace_utils.int_service(int_config.myint) in ["tests.tracer", "pytest"]
+    assert trace_utils.int_service(None, int_config.myint) in ["tests.tracer", "pytest"]
 
     with override_global_config(dict(service="global-svc")):
         # ensure int config picks up overridden changes
         config.myint = int_config.myint
         config.myint.global_config = config
 
-        assert trace_utils.int_service(config.myint) == "global-svc"
+        assert trace_utils.int_service(None, config.myint) == "global-svc"
 
-        with tracer.trace("something", service=trace_utils.int_service(config.myint)) as s:
+        with tracer.trace("something", service=trace_utils.int_service(None, config.myint)) as s:
             assert s.service == "global-svc"
 
 
@@ -434,7 +433,7 @@ def test_ext_service(int_config, config_val, default, expected):
     if config_val:
         int_config.myint.service = config_val
 
-    assert trace_utils.ext_service(int_config.myint, default) == expected
+    assert trace_utils.ext_service(None, int_config.myint, default) == expected
 
 
 @pytest.mark.subprocess(
@@ -1803,14 +1802,6 @@ def test_with_traced_module(is_async, enabled, standalone, tracer):
 @pytest.mark.parametrize("helper", [trace_utils.int_service, trace_utils.ext_service])
 def test_service_name_and_integration_default(helper, int_config):
     int_config.myint._default_service = "integration-default"
-    assert helper(int_config.myint, "fallback") == "integration-default"
+    assert helper(None, int_config.myint, "fallback") == "integration-default"
     int_config.myint.service_name = "configured-service"
-    assert helper(int_config.myint, "fallback") == "configured-service"
-
-
-@pytest.mark.parametrize("helper", [public_trace_utils.int_service, public_trace_utils.ext_service])
-@pytest.mark.parametrize("service,expected", [("override", "override"), ("", "configured"), (None, "configured")])
-def test_public_service_helper_compatibility(helper, service, expected, int_config):
-    int_config.myint.service = "configured"
-    assert helper(SimpleNamespace(service=service), int_config.myint, "fallback") == expected
-    assert helper(pin=None, int_config=int_config.myint, default="fallback") == "configured"
+    assert helper(None, int_config.myint, "fallback") == "configured-service"

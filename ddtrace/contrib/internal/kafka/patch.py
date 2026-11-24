@@ -6,9 +6,9 @@ from typing import Optional
 import confluent_kafka
 
 from ddtrace import config
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
-from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
@@ -218,7 +218,7 @@ def traced_produce(func, instance, args, kwargs):
         distributed_headers=tracing_headers,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
-        service=trace_utils.ext_service(config.kafka),
+        service=trace_utils.ext_service(None, config.kafka),
         cluster_id=cluster_id,
         partition=partition,
         tombstone=value is None,
@@ -294,7 +294,7 @@ def _instrument_message(messages, start_ns, instance, err):
         propagation_as_span_links=config.kafka.propagation_as_span_links,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
-        service=trace_utils.ext_service(config.kafka),
+        service=trace_utils.ext_service(None, config.kafka),
         error=err,
     )
 

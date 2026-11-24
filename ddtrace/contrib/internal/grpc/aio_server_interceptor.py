@@ -20,7 +20,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.utils import set_grpc_method_meta
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -181,7 +181,7 @@ def _create_span(method: str, invocation_metadata: grpc.HandlerCallDetails, meth
         span_type=SpanTypes.GRPC,
         resource=method,
     )
-    set_service_and_source(span, trace_utils.int_service(config.grpc_aio_server), config.grpc_aio_server)
+    set_service_and_source(span, trace_utils.int_service(None, config.grpc_aio_server), config.grpc_aio_server)
 
     span._set_attribute(COMPONENT, config.grpc_aio_server.integration_name)
 

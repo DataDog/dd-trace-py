@@ -62,7 +62,7 @@ class TracedAsyncCursor(TracedCursor):
         measured = name == self._self_datadog_name
 
         with tracer.trace(
-            name, service=ext_service(self._self_config), resource=resource, span_type=SpanTypes.SQL
+            name, service=ext_service(None, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
                 s._set_attribute(_SPAN_MEASURED_KEY, 1)
@@ -259,7 +259,7 @@ class TracedAsyncConnection(TracedConnection):
         if not is_tracing_enabled():
             return await method(*args, **kwargs)
 
-        with tracer.trace(name, service=ext_service(self._self_config)) as s:
+        with tracer.trace(name, service=ext_service(None, self._self_config)) as s:
             s._set_attribute(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed

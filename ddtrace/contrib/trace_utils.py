@@ -1,7 +1,6 @@
 from typing import Any
 from typing import Awaitable
 from typing import Callable
-from typing import Optional
 
 from ddtrace.contrib.internal.redis_utils import MULTI_KEY_COMMANDS  # noqa: F401
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS  # noqa: F401
@@ -14,9 +13,9 @@ from ddtrace.contrib.internal.trace_utils import RESPONSE  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import USER_AGENT_PATTERNS  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import distributed_tracing_enabled  # noqa: F401
-from ddtrace.contrib.internal.trace_utils import ext_service as _ext_service
+from ddtrace.contrib.internal.trace_utils import ext_service  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url  # noqa: F401
-from ddtrace.contrib.internal.trace_utils import int_service as _int_service
+from ddtrace.contrib.internal.trace_utils import int_service  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import iswrapped  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import set_flattened_tags  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import set_http_meta  # noqa: F401
@@ -25,27 +24,12 @@ from ddtrace.contrib.internal.trace_utils import unwrap  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import with_traced_module as _with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap  # noqa: F401
 from ddtrace.contrib.internal.trace_utils_async import with_traced_module as _with_traced_module_async
-from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 
 
 # TODO: Add trace utils that should not be public to the list below
 _DEPRECATED_MODULE_ATTRIBUTES = []
-
-
-def int_service(pin: Optional[Any], int_config: IntegrationConfig, default: Optional[str] = None) -> Optional[str]:
-    """Return an internal service name, preserving the legacy override argument."""
-    if pin is not None and pin.service:
-        return pin.service
-    return _int_service(int_config, default)
-
-
-def ext_service(pin: Optional[Any], int_config: IntegrationConfig, default: Optional[str] = None) -> Optional[str]:
-    """Return an external service name, preserving the legacy override argument."""
-    if pin is not None and pin.service:
-        return pin.service
-    return _ext_service(int_config, default)
 
 
 def with_traced_module(func: Callable[..., Any]) -> Callable[..., Any]:

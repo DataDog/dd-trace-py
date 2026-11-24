@@ -5,7 +5,7 @@ import dramatiq
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -61,7 +61,9 @@ def _traced_send_with_options_function(integration_config: Config) -> Callable[[
             "dramatiq.Actor.send_with_options",
             span_type=SpanTypes.WORKER,
         ) as span:
-            set_service_and_source(span, trace_utils.ext_service(int_config=integration_config), integration_config)
+            set_service_and_source(
+                span, trace_utils.ext_service(pin=None, int_config=integration_config), integration_config
+            )
             span.set_tags(
                 {
                     SPAN_KIND: SpanKind.PRODUCER,

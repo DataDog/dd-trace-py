@@ -109,7 +109,7 @@ def _request_event(resource, operation, args, kwargs, instance=None) -> LlmReque
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.langgraph,
-        service=int_service(config.langgraph),
+        service=int_service(None, config.langgraph),
         resource=resource,
         provider=None,
         submit_to_llmobs=True,

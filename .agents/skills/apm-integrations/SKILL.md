@@ -18,8 +18,6 @@ when introducing a pattern or resolving a design question.
   them. See `ddtrace/_trace/trace_handlers.py`; do not mix lifecycle owners accidentally.
 - Read config.<integration> directly and store connection metadata on its connection or wrapper.
   Direct span wrappers use is_tracing_enabled() for global and standalone enablement.
-- Internal service helpers take (int_config, default=None); the legacy leading argument
-  is accepted only by the public ddtrace.contrib.trace_utils compatibility helpers.
 - LLM/AI lifecycle and extraction: use `llmobs-integrations` when those behaviors change.
 
 Preserve patch idempotency and symmetric unpatching, including deferred ModuleWatchdog hooks.

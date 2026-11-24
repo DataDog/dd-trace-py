@@ -89,7 +89,7 @@ def _connect(func, instance, args, kwargs):
         conn = func(*args, **kwargs)
     else:
         with tracer.trace("MySQLdb.connection.connect", span_type=SpanTypes.SQL) as span:
-            set_service_and_source(span, ext_service(config.mysqldb), config.mysqldb)
+            set_service_and_source(span, ext_service(None, config.mysqldb), config.mysqldb)
             span._set_attribute(COMPONENT, config.mysqldb.integration_name)
 
             # set span.kind to the type of operation being performed

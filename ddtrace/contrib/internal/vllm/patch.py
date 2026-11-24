@@ -193,7 +193,7 @@ def _request_event(model_name: Optional[str], trace_headers: Optional[dict[str, 
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.vllm,
-        service=int_service(config.vllm),
+        service=int_service(None, config.vllm),
         resource=OPERATION_ID,
         provider=PROVIDER_NAME,
         model=model_name,

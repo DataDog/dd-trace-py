@@ -10,7 +10,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -208,7 +208,7 @@ class _ClientInterceptor(
             resource=client_call_details.method,
             child_of=parent,
         )
-        set_service_and_source(span, trace_utils.ext_service(config.grpc), config.grpc)
+        set_service_and_source(span, trace_utils.ext_service(None, config.grpc), config.grpc)
 
         span._set_attribute(COMPONENT, config.grpc.integration_name)
 

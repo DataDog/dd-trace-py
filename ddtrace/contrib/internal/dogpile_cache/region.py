@@ -21,7 +21,7 @@ def _wrap_get_create(func, instance, args, kwargs):
         resource="get_or_create",
         span_type=SpanTypes.CACHE,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(config.dogpile_cache), config.dogpile_cache)
+        set_service_and_source(span, trace_utils.int_service(None, config.dogpile_cache), config.dogpile_cache)
         span._set_attribute(COMPONENT, config.dogpile_cache.integration_name)
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         span.set_tag("key", key)
@@ -43,7 +43,7 @@ def _wrap_get_create_multi(func, instance, args, kwargs):
         resource="get_or_create_multi",
         span_type="cache",
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(config.dogpile_cache), config.dogpile_cache)
+        set_service_and_source(span, trace_utils.int_service(None, config.dogpile_cache), config.dogpile_cache)
         span._set_attribute(COMPONENT, config.dogpile_cache.integration_name)
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         span.set_tag("keys", keys)

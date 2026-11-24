@@ -58,7 +58,7 @@ def _request_event(resource, span_name, operation, args, kwargs, model=None) -> 
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.pydantic_ai,
-        service=int_service(config.pydantic_ai),
+        service=int_service(None, config.pydantic_ai),
         resource=resource,
         provider=provider or "",
         model=model_name,

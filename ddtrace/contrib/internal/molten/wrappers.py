@@ -3,8 +3,8 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.events import TracingEvent
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.molten import MoltenRouteEvent
-from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
@@ -23,7 +23,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
             operation_name=func_name(wrapped),
             component=config.molten.integration_name,
             integration_config=config.molten,
-            service=trace_utils.int_service(config.molten),
+            service=trace_utils.int_service(None, config.molten),
             resource=resource,
             span_type="",  # no SpanType matches
             span_kind=SpanKind.SERVER,

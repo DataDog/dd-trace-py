@@ -89,7 +89,9 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
         headers = dict(headers)
     kwargs["headers"] = headers
 
-    service: Optional[str] = url.host if config.aiohttp_client.split_by_domain else ext_service(config.aiohttp_client)
+    service: Optional[str] = (
+        url.host if config.aiohttp_client.split_by_domain else ext_service(None, config.aiohttp_client)
+    )
 
     # Params can be included separately from the URL, so include them in query extraction.
     url_str = str(url.update_query(params) if params else url)

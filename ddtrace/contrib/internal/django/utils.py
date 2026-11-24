@@ -16,7 +16,7 @@ from ddtrace._trace.otel.http.resource import otel_http_resource
 from ddtrace._trace.otel.http.tags import normalize_http_method
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
 from ddtrace.contrib.internal.django.compat import user_is_authenticated
 from ddtrace.ext import SpanTypes
@@ -249,7 +249,7 @@ def _before_request_tags(span, request):
     # DEV: Do not set `span.resource` here, leave it as `None`
     #      until `_set_resolver_tags` so we can know if the user
     #      has explicitly set it during the request lifetime
-    span.service = trace_utils.int_service(config.django)
+    span.service = trace_utils.int_service(None, config.django)
     span.span_type = SpanTypes.WEB
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 

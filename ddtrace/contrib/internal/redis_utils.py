@@ -157,7 +157,7 @@ def _instrument_redis_execute_pipeline(config_integration, cmds, instance):
         "redis.execute_pipeline",
         span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
-        service=trace_utils.ext_service(config_integration),
+        service=trace_utils.ext_service(None, config_integration),
         span_type=SpanTypes.REDIS,
         measured=True,
         tags=_build_tags(cmd_string, instance, config_integration.integration_name),
@@ -173,7 +173,7 @@ def _instrument_redis_cmd(config_integration, instance, args):
     with core.context_with_data(
         "redis.command",
         span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
-        service=trace_utils.ext_service(config_integration),
+        service=trace_utils.ext_service(None, config_integration),
         span_type=SpanTypes.REDIS,
         resource=query.split(" ")[0] if config_integration.resource_only_command else query,
         measured=True,

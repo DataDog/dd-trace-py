@@ -57,7 +57,7 @@ def _get_service_name(request, hostname) -> Optional[str]:
     if config.requests["split_by_domain"] and hostname:
         return hostname
 
-    return ext_service(config.requests)
+    return ext_service(None, config.requests)
 
 
 def _wrap_send(func, instance, args, kwargs):

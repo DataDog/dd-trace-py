@@ -457,7 +457,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             params=params,
             endpoint_name=endpoint_name,
             operation=operation,
-            service=schematize_service_name(f"{ext_service(int_config=config.botocore)}.{endpoint_name}"),
+            service=schematize_service_name(f"{ext_service(None, int_config=config.botocore)}.{endpoint_name}"),
             span_name=function_vars.get("trace_operation"),
             span_type=SpanTypes.HTTP,
             span_key="instrumented_api_call",

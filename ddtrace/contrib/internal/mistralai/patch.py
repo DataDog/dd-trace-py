@@ -70,7 +70,7 @@ def _request_event(
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.mistralai,
-        service=int_service(config.mistralai),
+        service=int_service(None, config.mistralai),
         resource="%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider,
         model=model,

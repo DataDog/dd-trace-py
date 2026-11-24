@@ -67,7 +67,7 @@ def wrap_function(name):
             span_type=SpanTypes.HTTP,
         ) as span:
             set_service_and_source(
-                span, ext_service(config.consul, default=schematize_service_name(consulx.SERVICE)), config.consul
+                span, ext_service(None, config.consul, default=schematize_service_name(consulx.SERVICE)), config.consul
             )
             span._set_attribute(COMPONENT, config.consul.integration_name)
 

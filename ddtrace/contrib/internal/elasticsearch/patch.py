@@ -136,7 +136,7 @@ def _get_perform_request_coro(transport):
             return
 
         with tracer.trace("elasticsearch.query", span_type=SpanTypes.ELASTICSEARCH) as span:
-            set_service_and_source(span, ext_service(config.elasticsearch), config.elasticsearch)
+            set_service_and_source(span, ext_service(None, config.elasticsearch), config.elasticsearch)
 
             span._set_attribute(COMPONENT, config.elasticsearch.integration_name)
 

@@ -6,7 +6,7 @@ from celery import signals
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.celery.signals import trace_after_publish
 from ddtrace.contrib.internal.celery.signals import trace_before_publish
 from ddtrace.contrib.internal.celery.signals import trace_failure
@@ -92,7 +92,7 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
         ) as span:
             set_service_and_source(
                 span,
-                integration_config.worker_service_name or trace_utils.ext_service(integration_config),
+                integration_config.worker_service_name or trace_utils.ext_service(None, integration_config),
                 integration_config,
             )
             if resource_fn:

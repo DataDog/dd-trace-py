@@ -1,6 +1,6 @@
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -64,7 +64,7 @@ def traced_queue_enqueue_job(func, instance, args, kwargs):
             span_name=schematize_messaging_operation(
                 "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
             ),
-            service=trace_utils.int_service(config.rq),
+            service=trace_utils.int_service(None, config.rq),
             resource=resource,
             span_type=SpanTypes.WORKER,
             integration_config=config.rq,
@@ -92,7 +92,7 @@ def traced_queue_fetch_job(func, instance, args, kwargs):
             span_name=schematize_messaging_operation(
                 "rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING
             ),
-            service=trace_utils.int_service(config.rq),
+            service=trace_utils.int_service(None, config.rq),
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
             integration_config=config.rq,
         ) as ctx,
@@ -111,7 +111,7 @@ def traced_perform_job(func, instance, args, kwargs):
             core.context_with_data(
                 "rq.worker.perform_job",
                 span_name="rq.worker.perform_job",
-                service=trace_utils.int_service(config.rq_worker),
+                service=trace_utils.int_service(None, config.rq_worker),
                 span_type=SpanTypes.WORKER,
                 resource=job.func_name,
                 integration_config=config.rq_worker,

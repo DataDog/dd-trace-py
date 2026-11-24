@@ -53,7 +53,7 @@ def _request_event(instance: Any, request_kwargs: dict[str, Any]) -> LlmRequestE
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.typesafe,
-        service=int_service(config.typesafe),
+        service=int_service(None, config.typesafe),
         resource=f"{instance.__class__.__name__}.system_one",
         provider="typesafe",
         model=model,

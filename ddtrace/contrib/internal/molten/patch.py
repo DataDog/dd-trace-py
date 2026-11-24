@@ -5,8 +5,8 @@ import molten
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
@@ -88,7 +88,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
         http_operation="molten.request",
         component=config.molten.integration_name,
         integration_config=config.molten,
-        service=trace_utils.int_service(config.molten),
+        service=trace_utils.int_service(None, config.molten),
         resource=func_name(wrapped),
         tags={"molten.version": get_version()},
         request_method=request.method,

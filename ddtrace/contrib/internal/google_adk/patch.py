@@ -111,7 +111,7 @@ def _request_event(resource, operation, provider_name, model_name, args, kwargs,
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.google_adk,
-        service=int_service(config.google_adk),
+        service=int_service(None, config.google_adk),
         resource=resource,
         provider=provider_name,
         model=model_name,

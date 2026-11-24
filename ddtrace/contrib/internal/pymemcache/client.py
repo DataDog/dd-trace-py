@@ -13,7 +13,7 @@ import wrapt
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
@@ -299,7 +299,7 @@ def _trace(func, method_name, tags, *args, **kwargs):
         resource=method_name,
         span_type=SpanTypes.CACHE,
     ) as span:
-        service = trace_utils.ext_service(config.pymemcache)
+        service = trace_utils.ext_service(None, config.pymemcache)
         set_service_and_source(span, service, config.pymemcache)
         span._set_attribute(COMPONENT, config.pymemcache.integration_name)
         span._set_attribute(db.SYSTEM, memcachedx.DBMS_NAME)

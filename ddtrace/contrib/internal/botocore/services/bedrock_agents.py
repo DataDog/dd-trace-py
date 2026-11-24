@@ -71,9 +71,9 @@ def patched_bedrock_agents_api_call(original_func, instance, args, kwargs, funct
     event = LlmRequestEvent(
         component=BEDROCK_COMPONENT,
         integration_config=config.botocore,
-        service=int_service(config.botocore),
+        service=int_service(None, config.botocore),
         resource=schematize_service_name(
-            "{}.{}".format(ext_service(int_config=config.botocore), function_vars.get("endpoint_name"))
+            "{}.{}".format(ext_service(None, int_config=config.botocore), function_vars.get("endpoint_name"))
         ),
         span_name=f"Bedrock Agent {agent_id}",
         provider=None,

@@ -13,6 +13,7 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config as ddconfig
+from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -75,7 +76,6 @@ from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabi
 from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.utils.service import int_service as get_int_service
 from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer
@@ -245,7 +245,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
             # Use service if provided to enable() or __init__()
             int_service = None
             if self.config is not None:
-                int_service = get_int_service(self.config)
+                int_service = trace_utils.int_service(None, self.config)
             # check if repository URL detected from environment or .git, and service name unchanged
             if (
                 self._tags.get(ci.git.REPOSITORY_URL, None)

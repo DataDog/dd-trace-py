@@ -105,7 +105,7 @@ def patched_connect_factory(psycopg_module):
             with core.context_with_data(
                 "psycopg.patched_connect",
                 span_name=f"{connect_func.__module__}.{connect_func.__name__}",
-                service=ext_service(config.psycopg),
+                service=ext_service(None, config.psycopg),
                 span_type=SpanTypes.SQL,
                 tags={
                     SPAN_KIND: SpanKind.CLIENT,

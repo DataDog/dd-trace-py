@@ -11,7 +11,7 @@ from azure.servicebus.amqp import AmqpAnnotatedMessage
 
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
@@ -30,7 +30,7 @@ def create_context(
         context_name,
         span_name=operation_name,
         resource=resource,
-        service=ext_service(config.azure_servicebus),
+        service=ext_service(None, config.azure_servicebus),
         span_type=SpanTypes.WORKER,
         integration_config=integration_config,
     )

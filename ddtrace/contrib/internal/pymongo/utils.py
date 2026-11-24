@@ -12,7 +12,7 @@ from pymongo.message import _Query
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -50,7 +50,7 @@ def create_checkout_span():
         f"pymongo.{_CHECKOUT_FN_NAME}",
         span_type=SpanTypes.MONGODB,
     )
-    set_service_and_source(span, trace_utils.ext_service(config.pymongo), config.pymongo)
+    set_service_and_source(span, trace_utils.ext_service(None, config.pymongo), config.pymongo)
     span._set_attribute(COMPONENT, config.pymongo.integration_name)
     span._set_attribute(db.SYSTEM, mongox.SERVICE)
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)

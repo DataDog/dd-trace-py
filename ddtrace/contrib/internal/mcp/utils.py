@@ -118,7 +118,7 @@ def request_event(
     event = LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.mcp,
-        service=int_service(config.mcp),
+        service=int_service(None, config.mcp),
         resource=resource,
         provider="",
         submit_to_llmobs=True,
