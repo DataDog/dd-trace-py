@@ -380,3 +380,91 @@ def test_patched_collect_forwards_the_caller_arguments() -> None:
     finally:
         col.stop()
         gc.collect = orig
+
+
+@pytest.mark.subprocess(err=None)
+def test_real_fork_resets_gc_state_in_the_child_only() -> None:
+    # Fork for real while another thread holds the collector's and the monitor's locks. The child must reset both,
+    # keep counting collections, and not hang on those locks; the parent keeps its own counts.
+    import gc
+    import os
+    import signal
+    import threading
+    import time
+    import traceback
+
+    from ddtrace.internal.runtime import gc_monitor
+    from ddtrace.profiling.collector.gc import GCCollector
+
+    # Only explicit collections, so both sides of the fork can compare exact counts.
+    gc.disable()
+    col: GCCollector = GCCollector()
+    col.start()
+    monitor: gc_monitor.GCPauseMonitor = gc_monitor.gc_pause_monitor()
+    gc.collect()
+    gc.collect(0)
+    # Stands in for a collection another thread had started when the process forked.
+    monitor._start_ns[2] = 1
+    parent_collector: tuple[list[int], list[int], int] = (
+        list(col._pause_count),
+        list(col._pause_total_ns),
+        col._explicit_count,
+    )
+    parent_monitor: tuple[int, int, int] = (monitor._count, monitor._total_ns, monitor._max_ns)
+    assert parent_collector[2] == 2
+    assert sum(parent_collector[0]) == parent_monitor[0] >= 2
+
+    locks_held: threading.Event = threading.Event()
+    release_locks: threading.Event = threading.Event()
+
+    def hold_locks() -> None:
+        with col._lock, monitor._lock:
+            locks_held.set()
+            release_locks.wait()
+
+    holder: threading.Thread = threading.Thread(target=hold_locks)
+    holder.start()
+    assert locks_held.wait(10)
+
+    pid: int = os.fork()
+    if pid == 0:
+        exit_code: int = 1
+        try:
+            assert col._pause_count == [0, 0, 0]
+            assert col._pause_total_ns == [0, 0, 0]
+            assert col._explicit_count == 0
+            assert monitor._start_ns == [0, 0, 0]
+            assert (monitor._count, monitor._total_ns, monitor._max_ns) == (0, 0, 0)
+            gc.collect(0)
+            assert col._explicit_count == 1
+            assert sum(col._pause_count) == monitor._count >= 1
+            assert sum(col._pause_total_ns) == monitor._total_ns >= monitor._max_ns
+            exit_code = 0
+        except BaseException:
+            os.write(2, traceback.format_exc().encode())
+        finally:
+            os._exit(exit_code)
+
+    release_locks.set()
+    holder.join()
+    status: int = -1
+    for _ in range(600):
+        waited: tuple[int, int] = os.waitpid(pid, os.WNOHANG)
+        if waited[0] == pid:
+            status = waited[1]
+            break
+        time.sleep(0.05)
+    else:
+        os.kill(pid, signal.SIGKILL)
+        os.waitpid(pid, 0)
+        raise AssertionError("the forked child hung, so a fork hook waited on a lock held at fork time")
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+    try:
+        assert (list(col._pause_count), list(col._pause_total_ns), col._explicit_count) == parent_collector
+        assert (monitor._count, monitor._total_ns, monitor._max_ns) == parent_monitor
+        assert monitor._start_ns[2] == 1
+        gc.collect(0)
+        assert col._explicit_count == 3
+    finally:
+        col.stop()
