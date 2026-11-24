@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Any
+from typing import Optional
 
 import pytest
 
 from ddtrace.internal.settings.profiling import ProfilingConfig
+from ddtrace.internal.settings.profiling import config_str
 
 
 class TestMaxFramesConfig:
@@ -78,6 +82,35 @@ class TestGCFramesConfig:
         monkeypatch.setenv("DD_PROFILING_STACK_GC_ENABLED", "true")
 
         assert ProfilingConfig().stack.gc_enabled is True
+
+
+class TestProfilingGCConfig:
+    @pytest.mark.parametrize("value,enabled", ((None, False), ("false", False), ("true", True)))
+    def test_flag_sets_enabled_and_profiler_config_tag(
+        self, monkeypatch: pytest.MonkeyPatch, value: Optional[str], enabled: bool
+    ) -> None:
+        if value is None:
+            monkeypatch.delenv("DD_PROFILING_GC_TIME_ENABLED", raising=False)
+        else:
+            monkeypatch.setenv("DD_PROFILING_GC_TIME_ENABLED", value)
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.gc_time.enabled is enabled
+        assert ("gctime" in config_str(config).split("_")) is enabled
+
+    def test_old_flag_name_does_not_enable_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The rename keeps no alias: DD_PROFILING_GC_ENABLED never shipped in a release.
+        monkeypatch.delenv("DD_PROFILING_GC_TIME_ENABLED", raising=False)
+        monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
+        assert ProfilingConfig().gc_time.enabled is False
+
+    def test_registry_is_opt_in(self) -> None:
+        # A new key, so implementation A. Python is opt-in, so the default is false.
+        registry_path: Path = Path(__file__).resolve().parents[2] / "supported-configurations.json"
+        registry: dict[str, Any] = json.loads(registry_path.read_text())
+        entry: dict[str, Any] = registry["supportedConfigurations"]["DD_PROFILING_GC_TIME_ENABLED"][0]
+        assert entry["implementation"] == "A"
+        assert entry["default"] == "false"
+        assert entry["type"] == "boolean"
 
 
 class TestExcludeModulesConfig:
@@ -163,6 +196,7 @@ class TestDumpSettings:
             "stack.adaptive_sampling_max_interval",
             "stack.fast_copy",
             "stack.max_threads",
+            "gc_time.enabled",
             "exception.enabled",
             "exception.sampling_interval",
         ):
