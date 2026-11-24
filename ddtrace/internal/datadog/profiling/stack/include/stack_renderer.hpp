@@ -65,7 +65,7 @@ struct ThreadState
     std::string name;
     microsecond_t wall_time_ns = 0;
     microsecond_t cpu_time_ns = 0;
-    // Whether a sample of this tick already holds cpu_time_ns. A thread's CPU time goes to one sample per tick.
+    // Whether a sample already holds cpu_time_ns. A thread's CPU time goes to one sample per sampling cycle.
     bool cpu_time_charged = false;
     int64_t now_time_ns = 0;
 };
