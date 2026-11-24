@@ -72,12 +72,12 @@ class Frame
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(EchionSampler& echion,
                                                                     _PyInterpreterFrame* frame_addr,
                                                                     _PyInterpreterFrame** prev_addr,
-                                                                    bool* is_generator_frame = nullptr);
+                                                                    bool* is_generator_frame);
 #else
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(EchionSampler& echion,
                                                                     PyObject* frame_addr,
                                                                     PyObject** prev_addr,
-                                                                    bool* is_generator_frame = nullptr);
+                                                                    bool* is_generator_frame);
 #endif
 
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(EchionSampler& echion,

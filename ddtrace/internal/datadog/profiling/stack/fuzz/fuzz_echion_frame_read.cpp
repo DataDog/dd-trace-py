@@ -34,10 +34,10 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     {
 #if PY_VERSION_HEX >= 0x030b0000
         _PyInterpreterFrame* prev_addr = nullptr;
-        (void)Frame::read(echion_sampler, reinterpret_cast<_PyInterpreterFrame*>(p0), &prev_addr);
+        (void)Frame::read(echion_sampler, reinterpret_cast<_PyInterpreterFrame*>(p0), &prev_addr, nullptr);
 #else
         PyObject* prev_addr = nullptr;
-        (void)Frame::read(echion_sampler, reinterpret_cast<PyObject*>(p0), &prev_addr);
+        (void)Frame::read(echion_sampler, reinterpret_cast<PyObject*>(p0), &prev_addr, nullptr);
 #endif
     }
 
