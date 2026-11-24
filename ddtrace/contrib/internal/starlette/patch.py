@@ -3,6 +3,7 @@ import sys
 from typing import Any
 from typing import Mapping
 from typing import Optional
+import weakref
 
 import starlette
 from starlette import requests as starlette_requests
@@ -178,14 +179,28 @@ _MISSING = object()
 
 
 class _RouteMatchCache:
-    __slots__ = ("routes", "route_count", "cacheable", "uses_host", "results")
+    __slots__ = ("route_ids", "route_refs", "stale", "cacheable", "uses_host", "results")
 
     def __init__(self, routes: Any) -> None:
-        self.routes = routes
-        self.route_count = len(routes)
+        # Routes are only held weakly. Their endpoints can refer back to the app
+        # (closures, bound methods), and a strong reference from this cache value
+        # would keep the app, its weak key, alive forever. The ids detect added,
+        # removed, replaced or reordered top-level routes; the weakref callbacks
+        # mark the cache stale once a recorded route is freed, so a new route
+        # reusing its id is never mistaken for it.
+        stale: list[bool] = []
+        self.stale = stale
+        self.route_ids = list(map(id, routes))
         self.uses_host = False
-        self.cacheable = self._scan(routes, _known_route_matches(), getattr(starlette.routing, "Host", None), set())
         self.results: dict[tuple, Optional[tuple[str, bool]]] = {}
+        try:
+            self.route_refs = [weakref.ref(route, lambda _ref: stale.append(True)) for route in routes]
+        except TypeError:
+            # A route that cannot be weakly referenced: match without caching.
+            self.route_refs = []
+            self.cacheable = False
+            return
+        self.cacheable = self._scan(routes, _known_route_matches(), getattr(starlette.routing, "Host", None), set())
 
     def _scan(self, routes: Any, known_matches: tuple, host_class: Any, seen: set[int]) -> bool:
         """Return True if every route the matcher can visit matches on cache-key scope values only."""
@@ -197,7 +212,10 @@ class _RouteMatchCache:
             if not isinstance(route, (starlette.routing.Route, starlette.routing.Mount)) and not is_host_route:
                 # _match_route_path never calls matches() on these routes.
                 continue
-            if getattr(type(route), "matches", None) not in known_matches:
+            # Check the callable the matcher will actually call: a matches() set on
+            # the route instance overrides the one on its class.
+            route_matches = getattr(route, "matches", None)
+            if getattr(route_matches, "__func__", route_matches) not in known_matches:
                 return False
             if is_host_route:
                 self.uses_host = True
@@ -208,7 +226,7 @@ class _RouteMatchCache:
         return True
 
     def is_valid_for(self, routes: Any) -> bool:
-        return self.routes is routes and self.route_count == len(routes)
+        return not self.stale and self.route_ids == list(map(id, routes))
 
     def key(self, scope: Mapping[str, Any]) -> tuple:
         host = None

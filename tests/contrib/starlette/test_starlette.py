@@ -995,6 +995,79 @@ def test_cors_preflight_route_match_cache_sees_new_routes(tracer, test_spans):
     assert resources == ["OPTIONS /items/1", "OPTIONS /items/{item_id}"]
 
 
+def test_cors_preflight_route_match_not_cached_for_instance_matches(tracer, test_spans, count_route_walks):
+    """A matches() set on a route instance may read any part of the scope, so its results are never cached."""
+    from starlette.routing import Match
+
+    async def handler(request):
+        return PlainTextResponse("ok")
+
+    header_route = Route("/v2/{item_id}", endpoint=handler)
+    stock_matches = header_route.matches
+
+    def header_matches(scope):
+        match, child_scope = stock_matches(scope)
+        if (b"x-version", b"2") not in scope.get("headers", []):
+            return Match.NONE, {}
+        return match, child_scope
+
+    header_route.matches = header_matches
+    app = _cors_app([header_route, Route("/{item_id}/{rest:path}", handler)])
+
+    with TestClient(app) as client:
+        _preflight(client, "/v2/1", **{"x-version": "2"})
+        _preflight(client, "/v2/1")
+
+    assert count_route_walks == ["/v2/1", "/v2/1", "/v2/1", "/v2/1"]
+    resources = [span.resource for span in test_spans.filter_spans(name="starlette.request")]
+    assert resources == ["OPTIONS /v2/{item_id}", "OPTIONS /{item_id}/{rest:path}"]
+
+
+def test_cors_preflight_route_match_cache_sees_reordered_routes(tracer, test_spans):
+    """Reordering or replacing routes in place, without changing their number, invalidates the cache."""
+
+    async def handler(request):
+        return PlainTextResponse("ok")
+
+    app = _cors_app([Route("/{rest:path}", endpoint=handler), Route("/items/{item_id}", endpoint=handler)])
+
+    with TestClient(app) as client:
+        _preflight(client, "/items/1")
+        app.router.routes.reverse()
+        _preflight(client, "/items/1")
+        app.router.routes[0] = Route("/items/{other_id}", endpoint=handler)
+        _preflight(client, "/items/1")
+
+    resources = [span.resource for span in test_spans.filter_spans(name="starlette.request")]
+    assert resources == ["OPTIONS /{rest:path}", "OPTIONS /items/{item_id}", "OPTIONS /items/{other_id}"]
+
+
+def test_cors_preflight_route_match_cache_does_not_keep_app_alive(tracer, test_spans):
+    """The cache must not keep an app alive through routes whose endpoints refer back to the app."""
+    import gc
+    import weakref
+
+    import ddtrace.contrib.internal.starlette.patch as starlette_patch_module
+
+    def make_app():
+        async def describe_app(request):
+            # Refers to the app, like FastAPI's documentation endpoints do.
+            return PlainTextResponse(type(app).__name__)
+
+        app = _cors_app([Route("/about", endpoint=describe_app)])
+        return app
+
+    app = make_app()
+    with TestClient(app) as client:
+        _preflight(client, "/missing")
+    assert app in starlette_patch_module._route_match_caches
+
+    app_ref = weakref.ref(app)
+    del app, client
+    gc.collect()
+    assert app_ref() is None
+
+
 def test_cors_preflight_route_match_cache_is_bounded(tracer, test_spans):
     """The cache keeps at most _ROUTE_MATCH_CACHE_MAXSIZE entries per app."""
     from unittest import mock
