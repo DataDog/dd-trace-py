@@ -47,9 +47,10 @@ def _wrapped_run_code(*args: t.Any, **kwargs: t.Any) -> dict[str, t.Any]:
     try:
         return _run_code(*args, **kwargs)
     finally:
-        module = sys.modules[mod_name]
-        for hook in _post_run_module_hooks:
-            hook(module)
+        # DEV: runpy only registers the module in sys.modules when alter_sys is true (or for __main__)
+        if (module := sys.modules.get(mod_name)) is not None:
+            for hook in _post_run_module_hooks:
+                hook(module)
 
 
 def _patch_run_code() -> None:
@@ -135,7 +136,7 @@ def find_loader(fullname: str) -> t.Optional["Loader"]:
     return getattr(find_spec(fullname), "loader", None)
 
 
-def is_module_installed(module_name):
+def is_module_installed(module_name: str) -> bool:
     return find_loader(module_name) is not None
 
 

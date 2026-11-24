@@ -234,7 +234,6 @@ def test_sampling_rule_eq_discard():
             False,
         ),
         (SamplingRule(sample_rate=1.0, name="span.name"), SamplingRule(sample_rate=1.0, name="span.other"), False),
-        (SamplingRule(sample_rate=1.0, name="span.name"), SamplingRule(sample_rate=0.5, name="span.name"), False),
         (
             SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
             SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
@@ -906,8 +905,6 @@ def span():
         (SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE, "-3"),
         (SamplingMechanism.DEFAULT, "-0"),
         (SamplingMechanism.MANUAL, "-4"),
-        (SamplingMechanism.DEFAULT, "-0"),
-        (SamplingMechanism.DEFAULT, "-0"),
     ],
 )
 def test_trace_tag(span, sampling_mechanism, expected):

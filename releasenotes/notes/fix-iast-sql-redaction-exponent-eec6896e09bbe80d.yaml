@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: Fixes an issue where SQL injection vulnerability evidence left the exponent of a
+    numeric literal (for example ``E10`` in ``1E10``) unredacted.

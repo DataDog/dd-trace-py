@@ -69,6 +69,7 @@ docker-compose.yml                  @DataDog/apm-python-guild
 repository.datadog.yml              @DataDog/apm-python-guild
 sgconfig.yml                        @DataDog/apm-python-guild
 static-analysis.datadog.yml         @DataDog/apm-python-guild
+staging.datadog.yml                 @DataDog/apm-python-guild
 .gitlab-ci.yml                      @DataDog/apm-python-guild  @DataDog/apm-core-python
 .github/                            @DataDog/apm-python-guild  @DataDog/apm-core-python
 .gitlab/                            @DataDog/apm-python-guild  @DataDog/apm-core-python
@@ -219,6 +220,7 @@ tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/contrib/trio                  @DataDog/apm-core-python @DataDog/asm-python
 tests/internal/test_libddwaf_platform.py @DataDog/apm-core-python @DataDog/asm-python
+tests/internal/test_security_patch_utils.py @DataDog/apm-core-python @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 # scripts
 scripts/iast/*                      @DataDog/asm-python

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    runpy: Fix a ``KeyError`` raised after ``runpy.run_module`` when the module was not registered in
+    ``sys.modules``, which also hid any error raised by the module being run.
