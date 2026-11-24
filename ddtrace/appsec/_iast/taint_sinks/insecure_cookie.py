@@ -14,7 +14,6 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
-from ddtrace.appsec._iast.taint_sinks._base import TEXT_TYPES
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.security._patch_utils import get_caller_frame_info
 from ddtrace.internal.settings.asm import config as asm_config
@@ -23,29 +22,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 if TYPE_CHECKING:
     from typing import Callable
     from typing import Optional
-    from typing import TypedDict
     from typing import TypeVar
-    from typing import Union
 
-    from typing_extensions import Unpack
+    from ddtrace.appsec._iast.taint_sinks._base import TEXT_TYPES
 
     _ReturnT = TypeVar("_ReturnT")
-
-    class _CookieKwargs(TypedDict, total=False):
-        key: Optional[TEXT_TYPES]
-        name: Optional[TEXT_TYPES]
-        value: object
-        secure: Optional[bool]
-        httponly: Optional[bool]
-        samesite: Optional[str]
-        # These options are forwarded without inspection.
-        max_age: object
-        expires: object
-        path: object
-        domain: object
-        version: object
-        comment: object
-        partitioned: object
 
 
 class InsecureCookie(VulnerabilityBase):
@@ -160,18 +141,18 @@ def patch() -> None:
 def _iast_response_cookies(
     wrapped: Callable[..., _ReturnT],
     instance: object,
-    args: Union[tuple[()], tuple[Optional[TEXT_TYPES], Unpack[tuple[object, ...]]]],
-    kwargs: _CookieKwargs,
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
 ) -> _ReturnT:
     try:
         cookie_key = args[0] if args else kwargs.get("key", kwargs.get("name"))
         cookie_value = args[1] if len(args) > 1 else kwargs.get("value")
 
-        if cookie_value and cookie_key:
+        if cookie_value and isinstance(cookie_key, (str, bytes, bytearray)) and cookie_key:
             if is_iast_request_enabled() and CookiesVulnerability.has_quota():
                 report_samesite = False
                 samesite = kwargs.get("samesite", "")
-                if samesite:
+                if isinstance(samesite, str) and samesite:
                     samesite = samesite.lower()
                     report_samesite = not samesite.startswith("strict") and not samesite.startswith("lax")
 
