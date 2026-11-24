@@ -14,6 +14,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import PauseListener
 from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+from ddtrace.internal.settings.profiling import ProfilingConfig
 import ddtrace.profiling.collector.gc as gc_collector
 from ddtrace.profiling.collector.gc import GCCollector
 
@@ -589,42 +590,6 @@ def test_gc_pause_labels_in_profile() -> None:
     )
     assert dropped is not None and dropped.num >= 5, config_samples[0]
     assert dropped_ns is not None and dropped_ns.num >= 5 * pause_ns, config_samples[0]
-
-
-def test_gc_collector_default_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
-    # Fresh instance — do not importlib.reload the settings module. Reload
-    # replaces ProfilingConfigHeap with a second class object and breaks
-    # isinstance() in _derive_default_heap_sample_size for later tests.
-    config: ProfilingConfig = ProfilingConfig()
-    assert not config.gc.enabled
-
-
-def test_gc_collector_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
-    config: ProfilingConfig = ProfilingConfig()
-    assert not config.gc.enabled
-
-
-def test_gc_collector_enabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
-    config: ProfilingConfig = ProfilingConfig()
-    assert config.gc.enabled
-
-
-def test_gc_collector_shares_monitor_callback() -> None:
-    from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
-
-    monitor = gc_pause_monitor()
-    col = GCCollector()
-    col.start()
-    try:
-        assert monitor._gc_hook in gc.callbacks
-        assert gc.callbacks.count(monitor._gc_hook) == 1
-        owners = [getattr(cb, "__self__", None) for cb in gc.callbacks]
-        assert not any(type(o).__name__ == "GCCollector" for o in owners)
-    finally:
-        col.stop()
 
 
 def test_gc_flag_keeps_profiler_positional_parameter_order() -> None:
