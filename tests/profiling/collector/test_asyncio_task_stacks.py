@@ -70,25 +70,27 @@ def test_suspended_task_does_not_inherit_switching_sibling_frames() -> None:
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
-    p = profiler.Profiler()
-
-    async def switching(done: asyncio.Event) -> None:
+    async def switching() -> None:
         deadline = time.monotonic() + 1
         while time.monotonic() < deadline:
             await asyncio.sleep(0)
-        # Stop before waking sleeper so that every sample sees it suspended.
-        p.stop()
-        done.set()
 
     async def sleeper(done: asyncio.Event) -> None:
         await done.wait()
 
-    async def main() -> None:
-        done = asyncio.Event()
-        await asyncio.gather(asyncio.create_task(sleeper(done), name="sleeper"), asyncio.create_task(switching(done)))
-
+    p = profiler.Profiler()
     p.start()
-    asyncio.run(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    done = asyncio.Event()
+    sleeper_task = loop.create_task(sleeper(done), name="sleeper")
+    loop.run_until_complete(switching())
+    # Stop before waking sleeper so that every sample sees it suspended.
+    p.stop()
+    done.set()
+    loop.run_until_complete(sleeper_task)
+    asyncio.set_event_loop(None)
+    loop.close()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
