@@ -73,3 +73,117 @@ def test_pack_matches_bitmaps(tmp_path) -> None:
         assert empty.pack("filename", "bitmap") == (0, msgpack_packb([]))
         """
     )
+
+
+_CHILD_SOURCES = {
+    "pkg/__init__.py": "",
+    "pkg/__main__.py": "import sys\n\nfrom pkg.cli import main\n\nsys.exit(main(sys.argv[1:]))\n",
+    "pkg/cli.py": textwrap.dedent(
+        """\
+        import sys
+
+
+        def main(argv):
+            if argv[0] == "a":
+                print("a")
+            elif argv[0] == "b":
+                print("b")
+            elif argv[0] == "nested":
+                import subprocess
+
+                subprocess.run([sys.executable, "-m", "pkg", "a"], check=True)
+            elif argv[0] == "wait":
+                print("ready", flush=True)
+                sys.stdin.readline()
+            return 0
+        """
+    ),
+    "scripts/tool.py": textwrap.dedent(
+        """\
+        def run():
+            total = 0
+            return total
+
+
+        if __name__ == "__main__":
+            run()
+        """
+    ),
+}
+
+
+def test_child_processes_and_runpy(tmp_path) -> None:
+    """Python children started from a test's context report their lines to the test, whatever
+    environment they are given; a child that outlives its test reports to the unowned lines; and
+    module code run through runpy is recorded like imported code.
+    """
+    root = tmp_path / "repo"
+    for name, source in _CHILD_SOURCES.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(source)
+    _run_isolated(
+        f"""
+        import os
+        from pathlib import Path
+        import runpy
+        import subprocess
+        import sys
+
+        from ddtrace.internal.coverage import native_lines
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        root = os.path.realpath({str(root)!r})
+        coverage.install_coverage(Path(root))
+        # The collector claims its sys.monitoring tool when it instruments the first module.
+        sys.path.insert(0, root)
+        import pkg  # noqa: F401
+
+        assert coverage.native_line_coverage_enabled()
+
+        def lines(bitmaps, report_path):
+            for path, bitmap in bitmaps:
+                if path == report_path:
+                    return {{i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)}}
+            return set()
+
+        def run_test(command, **kwargs):
+            with coverage.coverage_collection() as data:
+                subprocess.run([sys.executable, "-m", "pkg", command], cwd=root, check=True, **kwargs)
+            return list(data.get_coverage_bitmaps(Path(root)))
+
+        bitmaps = run_test("a")
+        assert lines(bitmaps, "/pkg/cli.py") == {{1, 4, 5, 6, 16}}, bitmaps
+        assert lines(bitmaps, "/pkg/__main__.py") == {{1, 3, 5}}, bitmaps
+        directory = os.environ["_DD_COVERAGE_CHILD_DIR"]
+
+        # A replaced environment, with str or bytes keys, and a grandchild.
+        bitmaps = run_test("b", env={{"PATH": os.environ.get("PATH", "")}})
+        assert lines(bitmaps, "/pkg/cli.py") == {{1, 4, 5, 7, 8, 16}}, bitmaps
+        bitmaps = run_test("b", env={{b"PATH": os.environb.get(b"PATH", b"")}})
+        assert lines(bitmaps, "/pkg/cli.py") == {{1, 4, 5, 7, 8, 16}}, bitmaps
+        bitmaps = run_test("nested")
+        assert lines(bitmaps, "/pkg/cli.py") == {{1, 4, 5, 6, 7, 9, 10, 12, 16}}, bitmaps
+
+        # A child still running when its test ends reports to the unowned lines.
+        with coverage.coverage_collection() as data:
+            child = subprocess.Popen(
+                [sys.executable, "-m", "pkg", "wait"], cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+            )
+            assert child.stdout.readline() == b"ready\\n"
+        child.communicate(b"\\n")
+        assert lines(list(data.get_coverage_bitmaps(Path(root))), "/pkg/cli.py") == set()
+        shared = coverage.get_shared_coverage_bitmaps()
+        assert lines(shared["unowned"], "/pkg/cli.py") == {{1, 4, 5, 7, 9, 13, 14, 15, 16}}, shared
+
+        # runpy runs code it compiled itself: the function lines are the test's, the module body
+        # lines are initialiser lines, which the test gets for a file it touched.
+        with coverage.coverage_collection() as data:
+            runpy.run_path(os.path.join(root, "scripts", "tool.py"), run_name="__main__")
+        assert lines(list(data.get_coverage_bitmaps(Path(root))), "/scripts/tool.py") == {{1, 2, 3, 6, 7}}
+
+        coverage.uninstall_coverage()
+        assert "_DD_COVERAGE_CHILD_DIR" not in os.environ
+        assert native_lines._BOOTSTRAP_DIR not in os.environ.get("PYTHONPATH", "")
+        assert not os.path.exists(directory)
+        """
+    )

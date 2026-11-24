@@ -44,7 +44,31 @@ def install_coverage(workspace_path: Path, file_level_coverage: bool = False) ->
 
 
 def uninstall_coverage() -> None:
+    global _following_children
+
+    native_lines.stop_following_children()
+    _following_children = False
     ModuleCodeCollector.uninstall()
+
+
+def _follow_child_processes() -> None:
+    """Make the Python child processes of tests record their lines for this process.
+
+    Started at the first test rather than at install: a pytest-xdist controller runs no tests, and
+    its workers must not start as children of it.
+    """
+    global _following_children
+
+    _following_children = True
+    collector = ModuleCodeCollector._instance
+    if collector is None:
+        return
+    native_lines.follow_children(
+        [str(path) for path in collector._include_paths], [str(path) for path in collector._exclude_paths]
+    )
+
+
+_following_children = False
 
 
 @functools.lru_cache(maxsize=65536)
@@ -152,7 +176,12 @@ def get_native_coverage_context() -> t.Any:
 
 
 def set_native_coverage_context(context: t.Any) -> None:
-    native_lines.ctx_native.set(context)
+    native_lines.set_running(context)
+
+
+def collect_child_coverage() -> None:
+    """Merge the lines of the child processes that exited since the last call into their contexts."""
+    native_lines.collect_children()
 
 
 class _NativeCollection:
@@ -176,6 +205,8 @@ class _NativeCollection:
         return self._data
 
     def __exit__(self, exc_type: t.Any, exc_value: t.Any, tb: t.Any) -> None:
+        # Children that exited inside the window are the test's.
+        native_lines.collect_children()
         self._context.exit(self._previous)
         self._previous = None
         # The payload is built after the test finishes, from the native bitmaps.
@@ -184,6 +215,8 @@ class _NativeCollection:
 
 def coverage_collection(test_file: t.Optional[Path] = None) -> t.ContextManager[CoverageData]:
     if native_lines.enabled():
+        if not _following_children:
+            _follow_child_processes()
         return _NativeCollection()
     return _collection_in_context(test_file)
 
