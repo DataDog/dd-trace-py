@@ -1040,12 +1040,12 @@ Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eag
     echion->init_asyncio(_asyncio_scheduled_tasks, _asyncio_eager_tasks);
 }
 
-void
+bool
 Sampler::link_tasks(PyObject* parent, PyObject* child, uintptr_t loop, bool weak) noexcept
 {
     // Only sampling removes completed tasks' links, so don't add links after sampling has stopped.
     if (!is_active()) {
-        return;
+        return false;
     }
 
     try {
@@ -1057,7 +1057,9 @@ Sampler::link_tasks(PyObject* parent, PyObject* child, uintptr_t loop, bool weak
         }
     } catch (const std::exception&) {
         // Task linking is best effort and must not throw across the Python boundary.
+        return false;
     }
+    return true;
 }
 
 void

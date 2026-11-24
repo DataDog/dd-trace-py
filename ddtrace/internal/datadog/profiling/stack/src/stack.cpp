@@ -18,7 +18,6 @@
 #include "echion/vm.h"
 
 #include <cmath>
-#include <cstring>
 #include <string_view>
 #include <utility>
 
@@ -443,11 +442,8 @@ get_task_link_loop(PyObject* child)
         if (module != nullptr) {
             auto* def = PyModule_GetDef(module);
             if (def != nullptr && std::string_view(def->m_name) == "_asyncio") {
-                constexpr size_t loop_offset = offsetof(FutureObj, future_loop);
-                static_assert(loop_offset == offsetof(TaskObj, task_loop));
-                PyObject* loop;
-                std::memcpy(&loop, reinterpret_cast<const char*>(child) + loop_offset, sizeof(loop));
-                return Py_XNewRef(loop);
+                static_assert(offsetof(FutureObj, future_loop) == offsetof(TaskObj, task_loop));
+                return Py_XNewRef(reinterpret_cast<FutureObj*>(child)->future_loop);
             }
         } else {
             PyErr_Clear();
