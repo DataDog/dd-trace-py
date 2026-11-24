@@ -5,6 +5,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from .._utils import _get_source_index
+from ..constants import MAX_REDACTION_VALUE_LENGTH
 from ..constants import VULN_CMDI
 from ..constants import VULN_CODE_INJECTION
 from ..constants import VULN_HEADER_INJECTION
@@ -129,7 +130,7 @@ class SensitiveHandler:
         Returns:
         - bool: True if the value is sensible, False otherwise.
         """
-        return bool(self._value_pattern.search(value))
+        return len(value) > MAX_REDACTION_VALUE_LENGTH or bool(self._value_pattern.search(value))
 
     def is_sensible_source(self, source):
         """
