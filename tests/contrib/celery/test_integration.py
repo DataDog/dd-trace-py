@@ -846,6 +846,64 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
                 f"Found panic in celery beat output:\nstdout:\n{output}\nstderr:\n{stderr}"
             )
 
+    def test_celery_beat_keeps_sockets_after_closing_fds(self):
+        """Test that the native runtime does not use stale fds in the beat process.
+
+        The beat process rebuilds the native runtime before celery closes its file descriptors.
+        Sockets opened afterwards reuse those numbers and must not be touched by the runtime.
+        """
+        import tempfile
+        import threading
+
+        with tempfile.TemporaryDirectory() as tmp:
+            celery_proc = subprocess.Popen(
+                [
+                    "ddtrace-run",
+                    "celery",
+                    "--app=tests.contrib.celery.beat_fds_app",
+                    "worker",
+                    "--beat",
+                    "--schedule=" + os.path.join(tmp, "celerybeat-schedule"),
+                    "--loglevel=info",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            lines = []
+            done = threading.Event()
+
+            def _read():
+                for line in celery_proc.stdout:
+                    lines.append(line)
+                    if b"BEAT_FDS_" in line:
+                        done.set()
+                done.set()
+
+            reader = threading.Thread(target=_read, daemon=True)
+            reader.start()
+            try:
+                done.wait(timeout=60)
+            finally:
+                try:
+                    os.killpg(celery_proc.pid, signal.SIGTERM)
+                    celery_proc.wait(timeout=30)
+                except (ProcessLookupError, subprocess.TimeoutExpired):
+                    pass
+                # Descendants that outlive the worker would keep the pipe open.
+                try:
+                    os.killpg(celery_proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                celery_proc.wait()
+                reader.join(timeout=10)
+                celery_proc.stdout.close()
+                reader.join(timeout=10)
+                assert not reader.is_alive()
+        output = b"".join(lines)
+        assert b"BEAT_FDS_OK" in output, output
+        assert b"panic" not in output.lower(), output
+
 
 # NB the default global service name below is the inferred subprocess working directory name, which
 # the subprocess marker creates as `ddtrace_subprocess_dir` (DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME).
