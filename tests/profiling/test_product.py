@@ -307,7 +307,9 @@ def test_config_retargeted_away_loses_its_specificity(restart_profiler: _Recorde
 
     callback([_payload("a", _profiling_content({"service": "other-service"}, {"cpuTime": True}))])
 
-    assert restart_profiler.last[STACK] is False
+    # Local: mypy keeps the earlier last[STACK] is True narrowing across the callback mutation.
+    stack_after_retarget: bool = restart_profiler.last[STACK]
+    assert stack_after_retarget is False
     assert set(remoteconfig.debug_configs) == {"a", "b"}
 
 
@@ -845,35 +847,9 @@ def test_start_profiler_after_remote_config_disabled_all_collectors(
     assert lifecycle.current_profiler() is None
 
 
-def test_start_profiler_with_only_native_heap_enabled(
-    monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]]
-) -> None:
-    # Importing sitecustomize starts a profiler, so it is imported once Profiler is replaced.
-    from ddtrace.profiling.bootstrap import sitecustomize
-
-    with lifecycle.lock:
-        lifecycle.stop_profiler()
-        created_profilers.clear()
-
-    for setting in (
-        profiling_config.stack,
-        profiling_config.memory,
-        profiling_config.lock,
-        profiling_config.exception,
-        profiling_config.pytorch,
-    ):
-        monkeypatch.setattr(setting, "enabled", False)
-    # Native heap profiling has no collector, but the Profiler arms it when it starts.
-    monkeypatch.setattr(profiling_config.native_heap, "enabled", True)
-
-    sitecustomize.start_profiler()
-
-    assert created_profilers == [{}]
-    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
-
-
-def test_start_profiler_with_only_gc_enabled(
-    monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]]
+@pytest.mark.parametrize("only_enabled", ("native_heap", "gc"))
+def test_start_profiler_with_only_native_heap_or_gc_enabled(
+    monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]], only_enabled: str
 ) -> None:
     # Importing sitecustomize starts a profiler, so it is imported once Profiler is replaced.
     from ddtrace.profiling.bootstrap import sitecustomize
@@ -889,9 +865,11 @@ def test_start_profiler_with_only_gc_enabled(
         profiling_config.exception,
         profiling_config.pytorch,
         profiling_config.native_heap,
+        profiling_config.gc,
     ):
         monkeypatch.setattr(setting, "enabled", False)
-    monkeypatch.setattr(profiling_config.gc, "enabled", True)
+    # Native heap profiling has no collector, but the Profiler arms it when it starts.
+    monkeypatch.setattr(getattr(profiling_config, only_enabled), "enabled", True)
 
     sitecustomize.start_profiler()
 

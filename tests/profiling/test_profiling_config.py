@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
+from typing import Optional
 
 import pytest
 
 from ddtrace.internal.settings.profiling import ProfilingConfig
+from ddtrace.internal.settings.profiling import config_str
 
 
 class TestMaxFramesConfig:
@@ -82,45 +85,27 @@ class TestGCFramesConfig:
 
 
 class TestProfilingGCConfig:
-    def test_default_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
+    @pytest.mark.parametrize("value,enabled", ((None, False), ("false", False), ("true", True)))
+    def test_flag_sets_enabled_and_profiler_config_tag(
+        self, monkeypatch: pytest.MonkeyPatch, value: Optional[str], enabled: bool
+    ) -> None:
+        if value is None:
+            monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
+        else:
+            monkeypatch.setenv("DD_PROFILING_GC_ENABLED", value)
         config: ProfilingConfig = ProfilingConfig()
-        assert config.gc.enabled is False
+        assert config.gc.enabled is enabled
+        assert ("gc" in config_str(config).split("_")) is enabled
 
     def test_registry_is_opt_in_not_fleet_default_on(self) -> None:
         # Fleet letter A is Ruby/.NET default-on. Python is opt-in first, so
         # the local registry must use a new letter with default false.
-        from pathlib import Path
-
-        repo_root: Path = Path(__file__).resolve().parents[2]
-        registry_path: Path = repo_root / "supported-configurations.json"
+        registry_path: Path = Path(__file__).resolve().parents[2] / "supported-configurations.json"
         registry: dict[str, Any] = json.loads(registry_path.read_text())
         entry: dict[str, Any] = registry["supportedConfigurations"]["DD_PROFILING_GC_ENABLED"][0]
         assert entry["implementation"] == "B"
         assert entry["default"] == "false"
         assert entry["type"] == "boolean"
-
-    def test_enabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
-        config: ProfilingConfig = ProfilingConfig()
-        assert config.gc.enabled is True
-
-    def test_disabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
-        config: ProfilingConfig = ProfilingConfig()
-        assert config.gc.enabled is False
-
-    def test_config_str_includes_tag_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from ddtrace.internal.settings.profiling import config_str
-
-        monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
-        assert "gc" in config_str(ProfilingConfig()).split("_")
-
-    def test_config_str_omits_tag_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from ddtrace.internal.settings.profiling import config_str
-
-        monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
-        assert "gc" not in config_str(ProfilingConfig()).split("_")
 
 
 class TestExcludeModulesConfig:

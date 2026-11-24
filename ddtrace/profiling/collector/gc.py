@@ -4,6 +4,7 @@ import _thread
 import gc
 import logging
 import time
+from typing import Any
 from typing import Callable
 from typing import Optional
 
@@ -132,15 +133,18 @@ class GCCollector(collector.Collector):
             self._installed_collect = self._patched_collect
             gc.collect = self._installed_collect
         self._pause_listener = self._on_pause
-        self._monitor = gc_pause_monitor()
-        self._monitor.add_listener(self._pause_listener)
-        self._monitor.acquire()
+        monitor: GCPauseMonitor = gc_pause_monitor()
+        # Rollback releases _monitor, so set it only once acquire() has taken this collector's reference.
+        monitor.acquire()
+        self._monitor = monitor
+        monitor.add_listener(self._pause_listener)
         forksafe.register(self._reset_after_fork)
         LOG.debug("GCCollector started")
 
     def _stop_service(self) -> None:
         self._patch_active = False
-        monitor: Optional[GCPauseMonitor] = self._monitor
+        # _rollback_start also runs this after a first start that raised before these were set.
+        monitor: Optional[GCPauseMonitor] = getattr(self, "_monitor", None)
         pause_listener: Optional[PauseListener] = getattr(self, "_pause_listener", None)
         if monitor is not None and pause_listener is not None:
             monitor.remove_listener(pause_listener)
@@ -169,7 +173,7 @@ class GCCollector(collector.Collector):
         self._dropped_pause_ns = 0
         self._explicit_count = 0
 
-    def _patched_collect(self, generation: int = 2) -> int:
+    def _patched_collect(self, *args: Any, **kwargs: Any) -> int:
         # When stop cannot unwrap because a later wrapper sits on top, keep the
         # old patch in the chain as a pass-through. Restart re-activates counting
         # without wrapping again (that would cycle through the old bound method).
@@ -182,7 +186,8 @@ class GCCollector(collector.Collector):
                     self._explicit_count += 1
                 finally:
                     self._lock.release()
-        return self._orig_collect(generation)
+        # Pass on exactly what the caller gave: an earlier gc.collect wrapper may not take a generation.
+        return self._orig_collect(*args, **kwargs)
 
     def _on_pause(self, gen: int, pause_ns: int) -> None:
         # Do not allocate: object creation in a GC callback can recurse.

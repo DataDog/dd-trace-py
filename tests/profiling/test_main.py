@@ -211,6 +211,28 @@ def test_multiprocessing(method: str, tmp_path: Path) -> None:
     assert len(child_samples) > 0
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="The resource tracker is POSIX only")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Detecting the resource tracker requires sys.orig_argv")
+def test_multiprocessing_resource_tracker_not_profiled(tmp_path: Path) -> None:
+    filename = str(tmp_path / "pprof")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_ENABLED"] = "1"
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "_test_resource_tracker.py"),
+        env=env,
+    )
+    assert exitcode == 0, (stdout, stderr)
+    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+    pid, tracker_pid = list(s.strip() for s in stdout.strip().split("\n"))
+
+    files = os.listdir(tmp_path)
+    assert any(f".{pid}." in f for f in files), files
+    assert not any(f".{tracker_pid}." in f for f in files), files
+
+
 def test_subprocess_inherited_bootstrap(tmp_path: Path) -> None:
     """Children launched using subprocess with sys.executable (not ddtrace-run)
     should inherit profiling bootstrap from a ddtrace-run parent.
