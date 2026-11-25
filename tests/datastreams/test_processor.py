@@ -1,3 +1,4 @@
+import contextvars
 import gzip
 import logging
 import os
@@ -161,6 +162,21 @@ def test_data_streams_loop_protection():
     child_hash = processor.set_checkpoint(["direction:out", "topic:topicB", "type:kafka"]).hash
     expected_child_hash = ctx._compute_hash(["direction:out", "topic:topicB", "type:kafka"], parent_hash)
     assert child_hash == expected_child_hash
+
+
+def test_set_checkpoint_leaves_pathways_held_by_copied_contexts_unchanged():
+    p = DataStreamsProcessor("http://localhost:8126")
+    consume = p.set_checkpoint(["direction:in", "topic:topicA", "type:kafka"])
+    consume_hash = consume.hash
+    produce_b = contextvars.copy_context().run(p.set_checkpoint, ["direction:out", "topic:topicB", "type:kafka"])
+    produce_b_hash = produce_b.hash
+    produce_c = contextvars.copy_context().run(p.set_checkpoint, ["direction:out", "topic:topicC", "type:kafka"])
+
+    assert consume.hash == consume_hash
+    assert produce_b.hash == produce_b_hash
+    assert produce_b_hash == consume._compute_hash(["direction:out", "topic:topicB", "type:kafka"], consume_hash)
+    assert produce_c.hash == consume._compute_hash(["direction:out", "topic:topicC", "type:kafka"], consume_hash)
+    assert p._current_context.get() is consume
 
 
 def test_kafka_offset_monitoring():
