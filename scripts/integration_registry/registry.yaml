@@ -918,7 +918,7 @@ integrations:
   - ray
   tested_versions_by_dependency:
     ray:
-      min: 2.46.0
+      min: 2.48.0
       max: 2.54.1
 
 - integration_name: ray_serve
@@ -928,7 +928,7 @@ integrations:
   - ray
   tested_versions_by_dependency:
     ray:
-      min: 2.47.1
+      min: 2.48.0
       max: 2.54.1
 
 - integration_name: redis

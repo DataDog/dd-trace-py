@@ -2231,7 +2231,7 @@ suites:
       variants:
         - name: ray
           python: ['3.11', '3.12', '3.13']
-          dependencies: ['ray[default]~=2.46.0']
+          dependencies: ['ray[default]~=2.48.0']
         - name: ray
           python: ['3.11', '3.12', '3.13']
           dependencies: ['ray[default]~=2.54.1']
@@ -2256,7 +2256,7 @@ suites:
       variants:
         - name: ray_serve
           python: ['3.11', '3.12', '3.13']
-          dependencies: [fastapi, 'protobuf==4.25.8', 'ray[serve]~=2.47.1']
+          dependencies: [fastapi, 'protobuf==4.25.8', 'ray[serve]~=2.48.0']
         - name: ray_serve
           python: ['3.11', '3.12', '3.13']
           dependencies: [fastapi, 'protobuf==4.25.8', 'ray[serve]~=2.54.1']
