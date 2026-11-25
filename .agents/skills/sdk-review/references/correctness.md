@@ -35,8 +35,8 @@ Bugs, races, unhandled edge cases, and tests that pass when they shouldn't. For 
 - ❌ `fn from_owned(value: String) -> Self { Self::from(value) }`, where `impl From<String>` is `todo!()`
 - ✅ implement `From<String>`; or remove `from_owned` until it is needed; or mark it `// TODO: unimplemented, From<String> is a todo!()` and make sure no caller can reach it
 
-### COR-3.3: Keep package metadata consistent with what is published
-- Flag: a trove classifier or supported-version claim for a Python version that `requires-python` excludes or that has no published wheels yet.
+### COR-3.3: Keep package metadata consistent with the supported versions
+- Flag: a trove classifier or supported-version claim for a Python version that `requires-python` excludes, or whose wheel build in `.gitlab/package.yml` is missing or allowed to fail.
 
 ## 4. Tests
 
