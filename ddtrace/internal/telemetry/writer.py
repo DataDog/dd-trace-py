@@ -20,6 +20,7 @@ from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config
+from ddtrace.internal.telemetry_inputs import get_library
 
 from ...internal import atexit
 from ...internal import excepthook
@@ -33,7 +34,6 @@ from ..native.exceptions import is_panic_exception
 from ..periodic import PeriodicService
 from ..serverless import in_aws_lambda_microvm
 from ..utils.formats import get_test_session_token
-from ..utils.version import version as tracer_version
 from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_LOG_LEVEL
 from .constants import TELEMETRY_NAMESPACE
@@ -228,7 +228,8 @@ class TelemetryWriter:
         self._bootstrap_configurations_recorded = False
 
         # Product enablement is tracked so the version can be passed alongside each change.
-        self._product_versions: dict[str, str] = {product.value: tracer_version for product in TELEMETRY_APM_PRODUCT}
+        product_version = get_library().product_version
+        self._product_versions: dict[str, str] = {product.value: product_version for product in TELEMETRY_APM_PRODUCT}
         # Native worker rebuilds lose configuration state. Match libdatadog's bounded store.
         self._configurations: deque[tuple[str, Optional[str], str, Optional[str]]] = deque(maxlen=5000)
         # Native worker rebuilds lose integration state; keep the latest payload for replay.
@@ -355,7 +356,9 @@ class TelemetryWriter:
             )
         # Replay the latest product state for the rebuilt worker.
         for product, status in list(self._product_statuses.items()):
-            worker.add_product_change(product, status, self._product_versions.get(product, tracer_version))
+            worker.add_product_change(
+                product, status, self._product_versions.get(product, get_library().product_version)
+            )
 
     def enable(self) -> bool:
         """
@@ -783,11 +786,13 @@ class TelemetryWriter:
                 self._product_statuses[product] = status
                 if not self.enable() or (worker := self._worker) is None or not had_worker:
                     return
-                worker.add_product_change(product, status, self._product_versions.get(product, tracer_version))
+                worker.add_product_change(
+                    product, status, self._product_versions.get(product, get_library().product_version)
+                )
                 return
         if not self.enable() or (worker := self._worker) is None:
             return
-        worker.add_product_change(product, status, self._product_versions.get(product, tracer_version))
+        worker.add_product_change(product, status, self._product_versions.get(product, get_library().product_version))
 
     def add_configuration(
         self,

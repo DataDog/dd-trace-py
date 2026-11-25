@@ -127,6 +127,7 @@ components:
     - ddtrace/internal/settings/symbol_db.py
   telemetry:
     - ddtrace/internal/telemetry/*
+    - ddtrace/internal/telemetry_inputs.py
   tracing:
     - ddtrace/_logger.py
     - ddtrace/_monkey.py

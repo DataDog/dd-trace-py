@@ -19,6 +19,7 @@ from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.telemetry_inputs import get_library
 from ddtrace.internal.threads import Lock
 
 from . import modules
@@ -221,6 +222,7 @@ def update_imported_dependencies(
     except Exception:
         log.debug("update_imported_dependencies: failed to read AppSec telemetry config", exc_info=True)
         return []
+    library_key = _normalize_dep_name(get_library().name)
 
     deps: list[dict] = []
     for module_name in new_modules:
@@ -231,7 +233,7 @@ def update_imported_dependencies(
 
             name, version = dists
             key = _normalize_dep_name(name)
-            if key == "ddtrace" or key in already_imported:
+            if key == library_key or key in already_imported:
                 continue
 
             metadata: Optional[list] = [] if sca_enabled else None
