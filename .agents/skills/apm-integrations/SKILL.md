@@ -48,6 +48,7 @@ may have mypy exemptions, so passing checks alone does not establish that new co
 - [Design decisions](references/design-decisions.md): event ownership and package boundaries.
 - [Contributor guide](../../../docs/contributing-integrations.rst): compatibility and manifest policy.
 
-Use `run-tests`, `lint`, and `releasenote` for validation and PR preparation. Match current signatures
+Use `run-tests`, `lint`, and `releasenote` for validation and PR preparation. Version bumps (adding a
+newer library version to the tested matrix) do not need a release note. Match current signatures
 in source and add the required annotations. For native build failures, consult
 [troubleshooting](../../../docs/troubleshooting.rst) before deleting caches or rebuilding.

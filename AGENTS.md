@@ -122,6 +122,7 @@ current signatures and defaults.
 | Architectural dependency direction | `dependency-direction-analysis` |
 | Architectural review of a change or PR (fork safety, threads, layering) | `architecture-review`; `docs/contributing-architecture.rst` |
 | Package-split API inventories | `package-split` |
+| Pre-push or PR code review | `sdk-review` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Profiling hot spots and optimization opportunities | `profile` |
@@ -135,6 +136,10 @@ current signatures and defaults.
 | Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md`; `docs/contributing-architecture.rst` |
 | Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
 | Build or installation failures | `docs/troubleshooting.rst` |
+
+## Code Review Rules
+
+Before pushing code or creating a pull request, you must run the [sdk-review](./.claude/skills/sdk-review/SKILL.md) skill on the committed changes unless the user specifically says not to. You must also do a standard self review (using the /review or /code-review skill if available). All other required publication checks still apply.
 
 ## Pull requests
 

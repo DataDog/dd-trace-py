@@ -28,4 +28,18 @@ Configuration
    Alternatively, you can set this option with the ``DD_MCP_DISTRIBUTED_TRACING`` environment
    variable.
    Default: ``True``
+
+.. py:data:: ddtrace.config.mcp["enrichment_enabled"]
+   Whether to enrich MCP server tool calls for LLM Observability. Requires LLM Observability.
+   Each tool input schema gets a ``telemetry`` argument, which the integration removes before the tool runs.
+   The agent fills ``telemetry.intent`` with its reason for the call, which is recorded as the span's intent.
+   ``telemetry.conversation_id`` groups tool calls into sessions when MCP has no session of its own, such as over
+   stdio or with the stateless protocol. A tool call without it gets a generated ID, and its result gets an extra text
+   block that asks the agent to send the ID on later calls. The ID is set as the ``session_id`` of the server tool span.
+   Requests with an ``mcp-session-id`` header, and spans that already have a ``session_id``, keep their session.
+   Tools that declare their own ``telemetry`` argument are not changed. The ``mcp_session_source`` tag shows whether
+   the agent sent the ID back (``echoed``) or the integration generated it (``generated``).
+   Set ``DD_MCP_CAPTURE_INTENT`` to ``false`` to turn off intent capture and keep sessions.
+   Alternatively, set this option with the ``DD_MCP_ENRICHMENT_ENABLED`` environment variable.
+   Default: ``True``
 """  # noqa: E501

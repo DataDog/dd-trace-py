@@ -149,13 +149,8 @@ class VulnerabilityBase:
         1. It has one or more taint ranges (indicating user-controlled data)
         2. At least one of these ranges is NOT marked as secure with the current vulnerability type's secure mark
            (cls.secure_mark)
-        3. If origins_to_exclude is provided, at least one range must have an origin NOT in the excluded list
-           for the string to be considered tainted
-
-        The origins_to_exclude parameter allows filtering out specific taint sources:
-        - If any range has an origin different from those in origins_to_exclude, the string is considered tainted
-        - If ALL ranges come from excluded origins, the string is NOT considered tainted
-        - If origins_to_exclude is empty, only conditions 1 and 2 are checked
+        3. If origins_to_exclude is provided, at least one of the unsecured ranges must have an origin NOT in the
+           excluded list. If origins_to_exclude is empty, only conditions 1 and 2 are checked.
 
         Example:
         - origins_to_exclude=[COOKIE]
@@ -175,11 +170,16 @@ class VulnerabilityBase:
         """
         if len(ranges := get_ranges(string_to_check)) == 0:
             return False
-        if not all(_range.has_secure_mark(cls.secure_mark) for _range in ranges):
-            if origins_to_exclude:
-                return not all(_range.source.origin in origins_to_exclude for _range in ranges)
-            else:
+        secure_mark = cls.secure_mark
+        has_unsecured_range = False
+        for taint_range in ranges:
+            if taint_range.has_secure_mark(secure_mark):
+                continue
+            if not origins_to_exclude or taint_range.source.origin not in origins_to_exclude:
                 return True
-        else:
+            has_unsecured_range = True
+
+        # Origin filtering alone should not count as suppression by secure marks.
+        if not has_unsecured_range:
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY, cls.vulnerability_type)
         return False
