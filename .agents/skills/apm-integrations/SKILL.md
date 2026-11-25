@@ -16,7 +16,8 @@ when introducing a pattern or resolving a design question.
   and `ddtrace/_trace/subscribers/`.
 - Existing `context_with_data()` integrations: preserve their event/handler contract when extending
   them. See `ddtrace/_trace/trace_handlers.py`; do not mix lifecycle owners accidentally.
-- Pin remains in existing integrations, but do not introduce it into new integrations.
+- Read config.<integration> directly and store connection metadata on its connection or wrapper.
+  Direct span wrappers use is_tracing_enabled() for global and standalone enablement.
 - LLM/AI lifecycle and extraction: use `llmobs-integrations` when those behaviors change.
 
 Preserve patch idempotency and symmetric unpatching, including deferred ModuleWatchdog hooks.

@@ -39,7 +39,6 @@ TELEMETRY_FRAMEWORK_NAME = "django"
 
 
 def _on_django_login(
-    _pin: object,
     request: Any,
     user_obj: Any,
     django_config: IntegrationConfig,
@@ -93,7 +92,6 @@ def _on_django_login(
 def _on_django_auth(
     result_user: Any,
     kwargs: dict[str, Any],
-    _pin: object,
     django_config: IntegrationConfig,
 ) -> tuple[bool, Any]:
     mode = asm_config._user_event_mode
@@ -240,7 +238,6 @@ def _on_django_process(
 
 def _on_django_signup_user(
     django_config: IntegrationConfig,
-    _pin: object,
     _func: object,
     _instance: object,
     _args: tuple[object, ...],

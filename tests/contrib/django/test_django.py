@@ -148,21 +148,16 @@ def test_otel_semantics_keeps_async_request_resource_stable_during_application()
     from unittest import mock
 
     from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.django import response as django_response
     from ddtrace.ext import SpanTypes
     from ddtrace.trace import tracer
 
     captured = {}
 
-    class Handler:
-        pass
-
     class Request:
         pass
 
-    handler = Handler()
-    Pin().onto(handler)
+    handler = object()
 
     with tracer.start_span("django.request", resource="GET", span_type=SpanTypes.WEB) as span:
         span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "GET")

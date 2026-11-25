@@ -34,7 +34,6 @@ from ddtrace._trace.http_meta import _store_headers  # noqa:F401
 from ddtrace._trace.http_meta import _store_request_headers  # noqa:F401
 from ddtrace._trace.http_meta import _store_response_headers  # noqa:F401
 from ddtrace._trace.http_meta import set_http_meta  # noqa:F401
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.propagation import activate_distributed_headers  # noqa:F401
 from ddtrace._trace.propagation import distributed_tracing_enabled  # noqa:F401
 from ddtrace._trace.span import Span
@@ -105,16 +104,12 @@ def dispatch_asgi_web_request_starting(scope: Mapping[str, Any]) -> None:
 
 
 def with_traced_module(func):
-    """Helper for providing tracing essentials (module and pin) for tracing
-    wrappers.
-
-    This helper enables tracing wrappers to dynamically be disabled when the
-    corresponding pin is disabled.
+    """Provide the module to wrappers while honoring tracing and standalone settings.
 
     Usage::
 
         @with_traced_module
-        def my_traced_wrapper(django, pin, func, instance, args, kwargs):
+        def my_traced_wrapper(django, func, instance, args, kwargs):
             # Do tracing stuff
             pass
 
@@ -125,13 +120,9 @@ def with_traced_module(func):
 
     def with_mod(mod):
         def wrapper(wrapped, instance, args, kwargs):
-            pin = Pin._find(instance, mod)
-            if pin and not pin.enabled():
+            if not is_tracing_enabled():
                 return wrapped(*args, **kwargs)
-            elif not pin:
-                log.debug("Pin not found for traced method %r", wrapped)
-                return wrapped(*args, **kwargs)
-            return func(mod, pin, wrapped, instance, args, kwargs)
+            return func(mod, wrapped, instance, args, kwargs)
 
         return wrapper
 

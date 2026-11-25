@@ -40,10 +40,9 @@ symmetric.
 **Forgetting `config._add()` at module level** -- Config must be registered
 before `patch()` runs, not inside `patch()`.
 
-**Using Pin in new integrations** -- Pin is DEPRECATED. Do NOT use
-`Pin().onto()` / `Pin.get_from()` in new integrations. Use `context_with_event`
-(preferred for new code) or `context_with_data` instead. Pin remains in many
-existing integrations but should not be added to new ones.
+**Ignoring standalone security mode** -- Direct span wrappers should use
+`is_tracing_enabled()` instead of checking only `tracer.enabled`. Read integration
+settings from `config.<integration>` and keep connection tags on their owner.
 
 **Using `context_with_data` when `context_with_event` is available** -- For new
 integrations, prefer the typed `context_with_event()` + `TracingEvent` pattern

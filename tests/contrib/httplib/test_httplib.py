@@ -76,7 +76,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         When patching httplib
             we patch the correct module/methods
         """
-        self.assertIsInstance(httplib.HTTPConnection.__init__, wrapt.BoundFunctionWrapper)
+        self.assertNotIsInstance(httplib.HTTPConnection.__init__, wrapt.BoundFunctionWrapper)
         self.assertIsInstance(httplib.HTTPConnection.request, wrapt.BoundFunctionWrapper)
         self.assertIsInstance(httplib.HTTPConnection.getresponse, wrapt.BoundFunctionWrapper)
 
@@ -85,7 +85,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         When unpatching httplib
             we restore the correct module/methods
         """
-        original_init = httplib.HTTPConnection.__init__.__wrapped__
+        original_init = httplib.HTTPConnection.__init__
         original_request = httplib.HTTPConnection.request.__wrapped__
         original_getresponse = httplib.HTTPConnection.getresponse.__wrapped__
         unpatch()

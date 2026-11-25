@@ -7,7 +7,7 @@ from ddtrace.trace import tracer
 
 
 @with_traced_module
-def _traced_handle_exception(django, pin, wrapped, instance, args, kwargs):
+def _traced_handle_exception(django, wrapped, instance, args, kwargs):
     """Sets the error message, error type and exception stack trace to the current span
     before calling the original exception handler.
     """

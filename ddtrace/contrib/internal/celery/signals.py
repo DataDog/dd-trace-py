@@ -5,7 +5,6 @@ from celery import registry
 
 from ddtrace import config
 from ddtrace._trace.context import Context
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -43,10 +42,7 @@ def trace_prerun(*args, **kwargs):
         log.debug("unable to extract the Task and the task_id. This version of Celery may not be supported.")
         return
 
-    # retrieve the task Pin or fallback to the global one
-    pin = Pin.get_from(task) or Pin.get_from(task.app)
-    if pin is None:
-        log.debug("no pin found on task or task.app task_id=%s", task_id)
+    if not getattr(task.app, "__datadog_patch", False):
         return
 
     request_headers = task.request.get("headers", {})
@@ -99,7 +95,7 @@ def trace_postrun(*args, **kwargs):
 
 def trace_before_publish(*args, **kwargs):
     # `before_task_publish` signal doesn't propagate the task instance so
-    # we need to retrieve it from the Celery Registry to access the `Pin`. The
+    # we need to retrieve it from the Celery Registry. The
     # `Task` instance **does not** include any information about the current
     # execution, so it **must not** be used to retrieve `request` data.
     task_name = kwargs.get("sender")

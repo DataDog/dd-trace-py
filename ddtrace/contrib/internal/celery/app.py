@@ -4,8 +4,6 @@ import celery
 from celery import signals
 
 from ddtrace import config
-from ddtrace._trace.pin import _DD_PIN_NAME
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -15,6 +13,7 @@ from ddtrace.contrib.internal.celery.signals import trace_failure
 from ddtrace.contrib.internal.celery.signals import trace_postrun
 from ddtrace.contrib.internal.celery.signals import trace_prerun
 from ddtrace.contrib.internal.celery.signals import trace_retry
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -30,19 +29,13 @@ log = get_logger(__name__)
 
 
 def patch_app(app, pin=None):
-    """Attach the Pin class to the application and connect
-    our handlers to Celery signals.
+    """Connect tracing handlers to Celery signals.
+
+    :param pin: Retained for call compatibility; ignored.
     """
     if getattr(app, "__datadog_patch", False):
         return
     app.__datadog_patch = True
-
-    # attach the PIN object
-    pin = pin or Pin(
-        service=config.celery["worker_service_name"],
-        _config=config.celery,
-    )
-    pin.onto(app)
 
     trace_utils.wrap(
         "celery.beat",
@@ -50,7 +43,6 @@ def patch_app(app, pin=None):
         _traced_beat_function(config.celery, "apply_entry", lambda args: args[0].name),
     )
     trace_utils.wrap("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
-    pin.onto(celery.beat.Scheduler)
 
     # Patch apply_async
     trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
@@ -70,16 +62,10 @@ def patch_app(app, pin=None):
 
 
 def unpatch_app(app):
-    """Remove the Pin instance from the application and disconnect
-    our handlers from Celery signal framework.
-    """
+    """Disconnect tracing handlers from Celery signals."""
     if not getattr(app, "__datadog_patch", False):
         return
     app.__datadog_patch = False
-
-    pin = Pin.get_from(app)
-    if pin is not None:
-        delattr(app, _DD_PIN_NAME)
 
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
@@ -96,15 +82,18 @@ def unpatch_app(app):
 
 def _traced_beat_function(integration_config, fn_name, resource_fn=None):
     def _traced_beat_inner(func, instance, args, kwargs):
-        pin = Pin.get_from(instance)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             return func(*args, **kwargs)
 
         with tracer.trace(
             f"celery.beat.{fn_name}",
             span_type=SpanTypes.WORKER,
         ) as span:
-            set_service_and_source(span, trace_utils.ext_service(pin, integration_config), integration_config)
+            set_service_and_source(
+                span,
+                integration_config.worker_service_name or trace_utils.ext_service(None, integration_config),
+                integration_config,
+            )
             if resource_fn:
                 span.resource = resource_fn(args)
             span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)

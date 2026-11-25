@@ -43,7 +43,7 @@ class _EndpointHook:
     # The kind of LLM request that products tag when the span finishes, or empty for requests that are only traced.
     OPERATION = ""
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
+    def _record_request(self, ctx, instance, span, args, kwargs):
         """
         Set base-level openai tags, as well as request params from args and kwargs.
         All inherited EndpointHook classes should include a super call to this method before performing
@@ -75,17 +75,17 @@ class _EndpointHook:
             ] is not None:  # Azure OpenAI requires using "engine" instead of "model"
                 span._set_attribute("openai.request.model", str(kwargs[kw_attr]))
 
-    def handle_request(self, pin, ctx, instance, span, args, kwargs):
-        self._record_request(pin, ctx, instance, span, args, kwargs)
+    def handle_request(self, ctx, instance, span, args, kwargs):
+        self._record_request(ctx, instance, span, args, kwargs)
         resp, error = yield
         if hasattr(resp, "parse"):
             # Users can request the raw response, in which case we need to process on the parsed response
             # and return the original raw APIResponse.
-            self._record_response(pin, ctx, span, args, kwargs, resp.parse(), error)
+            self._record_response(ctx, span, args, kwargs, resp.parse(), error)
             return resp
-        return self._record_response(pin, ctx, span, args, kwargs, resp, error)
+        return self._record_response(ctx, span, args, kwargs, resp, error)
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
         for resp_attr in self._response_attrs:
             if hasattr(resp, resp_attr):
                 span._set_attribute("openai.response.%s" % resp_attr, str(getattr(resp, resp_attr, "")))
@@ -177,8 +177,8 @@ class _CompletionHook(_BaseCompletionHook):
     OPERATION_ID = "createCompletion"
     OPERATION = "completion"
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         if not resp:
             ctx.event.response = resp
             return
@@ -224,8 +224,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 except (AttributeError, TypeError):
                     pass
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
-        super()._record_request(pin, ctx, instance, span, args, kwargs)
+    def _record_request(self, ctx, instance, span, args, kwargs):
+        super()._record_request(ctx, instance, span, args, kwargs)
         self._materialize_message_content(kwargs)
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
             stream_options = kwargs.get("stream_options", {})
@@ -238,8 +238,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
             stream_options["include_usage"] = True
             kwargs["stream_options"] = stream_options
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         if not resp:
             ctx.event.response = resp
             return
@@ -265,8 +265,8 @@ class _EmbeddingHook(_EndpointHook):
     OPERATION_ID = "createEmbedding"
     OPERATION = "embedding"
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         ctx.event.response = resp
         return resp
 
@@ -279,8 +279,8 @@ class _DecisionHook(_EndpointHook):
     OPERATION_ID = "createDecision"
     OPERATION = "decision"
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
-        super()._record_request(pin, ctx, instance, span, args, kwargs)
+    def _record_request(self, ctx, instance, span, args, kwargs):
+        super()._record_request(ctx, instance, span, args, kwargs)
         # questions and input accept one-shot iterables, which the SDK would exhaust before the response is tagged
         for key in ("questions", "input"):
             value = kwargs.get(key)
@@ -291,8 +291,8 @@ class _DecisionHook(_EndpointHook):
             except TypeError:
                 pass
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         ctx.event.response = resp
         return resp
 
@@ -308,16 +308,16 @@ class _ListHook(_EndpointHook):
     HTTP_METHOD_TYPE = "GET"
     OPERATION_ID = "list"
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
-        super()._record_request(pin, ctx, instance, span, args, kwargs)
+    def _record_request(self, ctx, instance, span, args, kwargs):
+        super()._record_request(ctx, instance, span, args, kwargs)
         endpoint = span.get_tag("openai.request.endpoint")
         if endpoint.endswith("/models"):
             span.resource = "listModels"
         elif endpoint.endswith("/files"):
             span.resource = "listFiles"
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         if not resp:
             return
         if hasattr(resp, "data"):
@@ -368,8 +368,8 @@ class _RetrieveHook(_EndpointHook):
     HTTP_METHOD_TYPE = "GET"
     OPERATION_ID = "retrieve"
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
-        super()._record_request(pin, ctx, instance, span, args, kwargs)
+    def _record_request(self, ctx, instance, span, args, kwargs):
+        super()._record_request(ctx, instance, span, args, kwargs)
         endpoint = span.get_tag("openai.request.endpoint")
         if endpoint.endswith("/models"):
             span.resource = "retrieveModel"
@@ -385,8 +385,8 @@ class _RetrieveHook(_EndpointHook):
                 span._set_attribute("openai.request.file_id", kwargs.get("file_id", kwargs.get("id", "")))
         span._set_attribute("openai.request.endpoint", "%s/*" % endpoint)
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         return resp
 
 
@@ -417,8 +417,8 @@ class _DeleteHook(_EndpointHook):
     HTTP_METHOD_TYPE = "DELETE"
     OPERATION_ID = "delete"
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
-        super()._record_request(pin, ctx, instance, span, args, kwargs)
+    def _record_request(self, ctx, instance, span, args, kwargs):
+        super()._record_request(ctx, instance, span, args, kwargs)
         endpoint = span.get_tag("openai.request.endpoint")
         if endpoint.endswith("/models"):
             span.resource = "deleteModel"
@@ -434,8 +434,8 @@ class _DeleteHook(_EndpointHook):
                 span._set_attribute("openai.request.file_id", kwargs.get("file_id", kwargs.get("sid", "")))
         span._set_attribute("openai.request.endpoint", "%s/*" % endpoint)
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         if not resp:
             return
         if hasattr(resp, "data"):
@@ -470,8 +470,8 @@ class _ImageHook(_EndpointHook):
     ENDPOINT_NAME = "images"
     HTTP_METHOD_TYPE = "POST"
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
-        super()._record_request(pin, ctx, instance, span, args, kwargs)
+    def _record_request(self, ctx, instance, span, args, kwargs):
+        super()._record_request(ctx, instance, span, args, kwargs)
         span._set_attribute("openai.request.model", "dall-e")
 
 
@@ -536,16 +536,16 @@ class _FileCreateHook(_BaseFileHook):
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createFile"
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
-        super()._record_request(pin, ctx, instance, span, args, kwargs)
+    def _record_request(self, ctx, instance, span, args, kwargs):
+        super()._record_request(ctx, instance, span, args, kwargs)
         fp = args[0] if len(args) >= 1 else kwargs.get("file", "")
         if fp and hasattr(fp, "name"):
             span._set_attribute("openai.request.filename", fp.name.split("/")[-1])
         else:
             span._set_attribute("openai.request.filename", "")
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         return resp
 
 
@@ -555,12 +555,12 @@ class _FileDownloadHook(_BaseFileHook):
     OPERATION_ID = "downloadFile"
     ENDPOINT_NAME = "files/*/content"
 
-    def _record_request(self, pin, ctx, instance, span, args, kwargs):
-        super()._record_request(pin, ctx, instance, span, args, kwargs)
+    def _record_request(self, ctx, instance, span, args, kwargs):
+        super()._record_request(ctx, instance, span, args, kwargs)
         span._set_attribute("openai.request.file_id", args[0] if len(args) >= 1 else kwargs.get("file_id", ""))
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
         if not resp:
             return
         if isinstance(resp, bytes) or isinstance(resp, str):
@@ -579,9 +579,9 @@ class _ResponseHook(_BaseCompletionHook):
     OPERATION_ID = "createResponse"
     OPERATION = "response"
 
-    def _record_response(self, pin, ctx, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, ctx, span, args, kwargs, resp, error)
-        self._trace_mcp_tool_usage(pin, resp)
+    def _record_response(self, ctx, span, args, kwargs, resp, error):
+        resp = super()._record_response(ctx, span, args, kwargs, resp, error)
+        self._trace_mcp_tool_usage(resp)
         if not resp:
             ctx.event.response = resp
             return resp
@@ -590,7 +590,7 @@ class _ResponseHook(_BaseCompletionHook):
         ctx.event.response = resp
         return resp
 
-    def _trace_mcp_tool_usage(self, pin, resp):
+    def _trace_mcp_tool_usage(self, resp):
         """Detect and trace server-side MCP tool usage in the response."""
         if not resp:
             return
@@ -601,9 +601,9 @@ class _ResponseHook(_BaseCompletionHook):
             for item in messages:
                 message_type = _get_attr(item, "type", "")
                 if message_type == "mcp_call":
-                    self._create_mcp_tool_span(item, pin)
+                    self._create_mcp_tool_span(item)
 
-    def _create_mcp_tool_span(self, item, pin):
+    def _create_mcp_tool_span(self, item):
         """Creates a tool span, which products tag, to represent a server-side MCP tool call."""
         tool_id = str(_get_attr(item, "id", ""))
         tool_name = str(_get_attr(item, "name", ""))

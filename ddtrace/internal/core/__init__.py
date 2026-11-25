@@ -21,17 +21,16 @@ This example shows how ``core.context_with_data`` might be used to create a node
     import flask
 
 
-    def _patched_request(pin, wrapped, args, kwargs):
+    def _patched_request(wrapped, instance, args, kwargs):
         with core.context_with_data(
             "flask._patched_request",
-            pin=pin,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
         ) as ctx, span_from_context(ctx):
             return wrapped(*args, **kwargs)
 
 
-This example looks a bit like a span created by ``tracer.trace()``: it has a name, a ``Pin`` instance, and
+This example looks a bit like a span created by ``tracer.trace()``: it has a name and
 ``__enter__`` and ``__exit__`` functionality as a context manager. In fact, it's so similar to a span that
 the Tracing code in ``ddtrace/tracing`` can create a span directly from it (that's what ``flask_request_call``
 is in this example).

@@ -1,3 +1,7 @@
+from typing import Any
+from typing import Awaitable
+from typing import Callable
+
 from ddtrace.contrib.internal.redis_utils import MULTI_KEY_COMMANDS  # noqa: F401
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS  # noqa: F401
 from ddtrace.contrib.internal.redis_utils import SINGLE_KEY_COMMANDS  # noqa: F401
@@ -17,15 +21,37 @@ from ddtrace.contrib.internal.trace_utils import set_flattened_tags  # noqa: F40
 from ddtrace.contrib.internal.trace_utils import set_http_meta  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import set_user  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import unwrap  # noqa: F401
-from ddtrace.contrib.internal.trace_utils import with_traced_module  # noqa: F401
+from ddtrace.contrib.internal.trace_utils import with_traced_module as _with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap  # noqa: F401
-from ddtrace.contrib.internal.trace_utils_async import with_traced_module as with_traced_module_async  # noqa: F401
+from ddtrace.contrib.internal.trace_utils_async import with_traced_module as _with_traced_module_async
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 
 
 # TODO: Add trace utils that should not be public to the list below
 _DEPRECATED_MODULE_ATTRIBUTES = []
+
+
+def with_traced_module(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap a tracing callback, passing ``None`` in the removed pin argument's position."""
+
+    def wrapper(
+        mod: Any, wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> Any:
+        return func(mod, None, wrapped, instance, args, kwargs)
+
+    return _with_traced_module(wrapper)
+
+
+def with_traced_module_async(func: Callable[..., Awaitable[Any]]) -> Callable[..., Any]:
+    """Wrap an async tracing callback, passing ``None`` in the removed pin argument's position."""
+
+    async def wrapper(
+        mod: Any, wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> Any:
+        return await func(mod, None, wrapped, instance, args, kwargs)
+
+    return _with_traced_module_async(wrapper)
 
 
 def __getattr__(name):

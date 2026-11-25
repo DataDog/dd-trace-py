@@ -6,7 +6,6 @@ from typing import Optional
 from typing import cast
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.internal.mysql.cursor import MySQLTracedCursor
 from ddtrace.contrib.internal.mysqldb.cursor import MySQLdbTracedCursor
@@ -70,7 +69,7 @@ def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
 
     # Don't double wrap Django database cursors:
     #   If the underlying cursor is already wrapped (e.g. by another library),
-    #   we just add the Django tags to the existing Pin (if any) and return
+    #   we add the Django tags to the existing wrapper and return
     if is_wrapted(cursor.cursor):
         tags = {
             "django.db.vendor": vendor,
@@ -91,12 +90,7 @@ def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     #   This allows us to get Database spans for any query executed where we don't
     #   have an integration for the database library in use, or in the case that
     #   the user has disabled the integration for the database library in use.
-    pin = Pin.get_from(instance)
-    if not pin:
-        pin = get_conn_pin(instance)
-        pin.onto(instance)
-
-    service = pin.service or get_conn_service_name(alias)
+    service = get_conn_service_name(alias)
     cfg = get_conn_config(vendor, service)
 
     # The MySQL backend adds its own cursor wrapper to translate driver errors.
@@ -106,7 +100,7 @@ def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
         cursor,
         cfg=cfg,
         db_tags={
-            **pin.tags,
+            **get_conn_tags(instance),
             "django.db.vendor": vendor,
             "django.db.alias": alias,
         },
@@ -116,9 +110,7 @@ def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
 
 
 def get_new_connection(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
-    """Db tags now pass through _self_db_tags and not through pin so we have to instrument
-    the creation of the connection.
-    """
+    """Add Django metadata to connections wrapped by a database integration."""
     instance = args[0]
     db_conn = func(*args, **kwargs)
     conn_tags = getattr(db_conn, "_self_db_tags", None)
@@ -160,7 +152,7 @@ def get_conn_config(vendor: str, service: Optional[str]) -> IntegrationConfig:
     )
 
 
-def get_conn_pin(conn: Any) -> Pin:
+def get_conn_tags(conn: Any) -> dict[str, str]:
     vendor = getattr(conn, "vendor", "db")
     alias = getattr(conn, "alias", "default")
     tags = {
@@ -175,20 +167,13 @@ def get_conn_pin(conn: Any) -> Pin:
             except Exception:
                 tags[tag] = str(conn.settings_dict.get(attr))
 
-    service = get_conn_service_name(alias)
-    pin = Pin(service, tags=tags)
-    return pin
+    return tags
 
 
 def patch_conn(conn: Any) -> Any:
     if not hasattr(conn.__class__, "cursor"):
         log.debug("Connection class %r does not have a cursor method, skipping instrumentation", conn.__class__)
         return conn
-
-    # We want to be sure to pin the instance of the connection, not the base class
-    # since multiple connections can have different service names, tags, etc
-    pin = get_conn_pin(conn)
-    pin.onto(conn)
 
     # DEV: `conn` is an instance, and so `conn.cursor` is a bound method
     #      we want to wrap the unbound method on the class once

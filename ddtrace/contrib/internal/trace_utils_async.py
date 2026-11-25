@@ -4,11 +4,7 @@ async tracing utils
 Note that this module should only be imported in Python 3.5+.
 """
 
-from ddtrace._trace.pin import Pin
-from ddtrace.internal.logger import get_logger
-
-
-log = get_logger(__name__)
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 
 
 def with_traced_module(func):
@@ -16,7 +12,7 @@ def with_traced_module(func):
     Usage::
 
         @with_traced_module
-        async def my_traced_wrapper(django, pin, func, instance, args, kwargs):
+        async def my_traced_wrapper(django, func, instance, args, kwargs):
             # Do tracing stuff
             pass
 
@@ -27,13 +23,9 @@ def with_traced_module(func):
 
     def with_mod(mod):
         async def wrapper(wrapped, instance, args, kwargs):
-            pin = Pin._find(instance, mod)
-            if pin and not pin.enabled():
+            if not is_tracing_enabled():
                 return await wrapped(*args, **kwargs)
-            elif not pin:
-                log.debug("Pin not found for traced method %r", wrapped)
-                return await wrapped(*args, **kwargs)
-            return await func(mod, pin, wrapped, instance, args, kwargs)
+            return await func(mod, wrapped, instance, args, kwargs)
 
         return wrapper
 

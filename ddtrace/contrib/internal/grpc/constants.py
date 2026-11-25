@@ -1,8 +1,8 @@
 import grpc
 
 
-GRPC_PIN_MODULE_SERVER = grpc.Server
-GRPC_PIN_MODULE_CLIENT = grpc.Channel
+GRPC_PATCH_TARGET_SERVER = grpc.Server
+GRPC_PATCH_TARGET_CLIENT = grpc.Channel
 GRPC_METHOD_PATH_KEY = "grpc.method.path"
 GRPC_METHOD_PACKAGE_SERVICE_KEY = "rpc.service"
 GRPC_METHOD_PACKAGE_KEY = "grpc.method.package"

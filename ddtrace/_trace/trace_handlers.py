@@ -680,7 +680,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
-    before_request_tags(ctx.get_item("pin"), span_from_context(ctx), request)
+    before_request_tags(span_from_context(ctx), request)
     span_from_context(ctx)._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
@@ -700,7 +700,7 @@ def _django_request_path_params(request):
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
     span = span_from_context(ctx)
-    after_request_tags(ctx.get_item("pin"), span, request, response)
+    after_request_tags(span, request, response)
 
     # Forward request_path_params alongside route so AppSec normalized-route listeners can consult the matched
     # parameter map to resolve optional regex groups (RFC-1103 rule 6).

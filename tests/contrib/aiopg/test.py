@@ -8,7 +8,6 @@ from psycopg2 import extras
 import pytest
 
 # project
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.aiopg.connection import AIOTracedCursor
 from ddtrace.contrib.internal.aiopg.patch import patch
@@ -44,7 +43,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     async def test_query_is_blocked_before_execution(self):
         cursor = mock.AsyncMock()
-        traced_cursor = AIOTracedCursor(cursor, Pin())
+        traced_cursor = AIOTracedCursor(cursor)
 
         for method in ("execute", "executemany"):
             with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:

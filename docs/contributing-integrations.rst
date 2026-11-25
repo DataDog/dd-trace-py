@@ -30,17 +30,17 @@ and it's supported configurations. This module should be referenced in the ``doc
 What tools does an integration rely on?
 ---------------------------------------
 
-Integrations rely primarily on Wrapt, the Pin API, and the Core API.
+Integrations rely primarily on Wrapt, integration configuration, and the Core API.
 
 The `Wrapt <https://pypi.org/project/wrapt/>`_ library is the main piece of code that ``ddtrace`` uses to hook
 into the runtime execution of third-party libraries. The essential task of writing an integration is determining
 the functions in the third-party library that would serve as useful entrypoints and wrapping them with ``wrap_function_wrapper``.
 There are exceptions, but this is generally a useful starting point.
 
-The Pin API in ``ddtrace._trace.pin.Pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
-that can store configuration data in memory in a manner that is accessible from within functions wrapped by Wrapt.
-``Pin`` objects are most often used for storing configuration data scoped to a given integration, such as
-enable/disable flags and service name overrides.
+Integration configuration is registered with ``config._add()`` and read from ``config.<integration>``.
+Store connection-specific metadata directly on the connection or its tracing wrapper. Existing integrations
+that manage spans directly use ``is_tracing_enabled()`` from ``ddtrace.contrib.internal.trace_utils``
+to honor the global tracing setting and standalone security mode.
 
 The Core API in ``ddtrace.internal.core`` is the abstraction layer between the integration code and code for
 Products. The integration builds and maintains a tree of ``ExecutionContext`` objects representing the state

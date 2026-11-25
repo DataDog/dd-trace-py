@@ -627,7 +627,6 @@ def _resolve_application_inference_profile(model_id, model_provider, model_name,
 
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
-    pin = function_vars.get("pin")
     operation = function_vars.get("operation")
     model_id = params.get("modelId")
     model_provider, model_name = parse_model_id(model_id)
@@ -642,7 +641,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         integration_config=config.botocore,
         span_name=function_vars.get("trace_operation"),
         service=schematize_service_name(
-            "{}.{}".format(ext_service(pin, int_config=config.botocore), function_vars.get("endpoint_name"))
+            "{}.{}".format(ext_service(None, int_config=config.botocore), function_vars.get("endpoint_name"))
         ),
         resource=operation,
         # Bedrock runtime spans are not measured.

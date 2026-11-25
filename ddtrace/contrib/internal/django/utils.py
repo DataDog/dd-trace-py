@@ -163,7 +163,7 @@ def get_request_uri(request):
     return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
 
 
-def _set_resolver_tags(pin, span, request):
+def _set_resolver_tags(span, request):
     # Default to just the HTTP method when we cannot determine a reasonable resource
     resource = request.method
     route = None
@@ -245,11 +245,11 @@ def _initial_otel_resource(request: Any) -> Optional[str]:
     return otel_http_resource(normalized_method, None)
 
 
-def _before_request_tags(pin, span, request):
+def _before_request_tags(span, request):
     # DEV: Do not set `span.resource` here, leave it as `None`
     #      until `_set_resolver_tags` so we can know if the user
     #      has explicitly set it during the request lifetime
-    span.service = trace_utils.int_service(pin, config.django)
+    span.service = trace_utils.int_service(None, config.django)
     span.span_type = SpanTypes.WEB
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
@@ -307,7 +307,7 @@ def _get_request_headers(request: Any) -> Mapping[str, str]:
     return request_headers
 
 
-def _after_request_tags(pin, span: Span, request, response):
+def _after_request_tags(span: Span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
@@ -338,7 +338,7 @@ def _after_request_tags(pin, span: Span, request, response):
 
         # DEV: Resolve the view and resource name at the end of the request in case
         #      urlconf changes at any point during the request
-        _set_resolver_tags(pin, span, request)
+        _set_resolver_tags(span, request)
         if response:
             status = response.status_code
             span._set_attribute("django.response.class", func_name(response))

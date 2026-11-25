@@ -69,10 +69,10 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
 
-    def test_render_template_pin_disabled(self):
+    def test_render_template_tracing_disabled(self):
         """
         When we call a patched ``flask.render_template``
-            When the app's ``Pin`` is disabled
+            When tracing is disabled
                 We do not create any spans
         """
         self.tracer.enabled = False
@@ -123,10 +123,10 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
 
-    def test_render_template_string_pin_disabled(self):
+    def test_render_template_string_tracing_disabled(self):
         """
         When we call a patched ``flask.render_template_string``
-            When the app's ``Pin`` is disabled
+            When tracing is disabled
                 We do not create any spans
         """
         self.tracer.enabled = False
