@@ -173,6 +173,23 @@ class TestConvertAnthropicMessages:
         assert result[0]["tool_call_id"] == "toolu_1"
         assert result[0]["content"] == "72F sunny"
 
+    def test_user_tool_result_before_user_text(self):
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "toolu_1", "content": "72F sunny"},
+                    {"type": "text", "text": "Now book a flight."},
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        # The tool result answers the previous turn, so the new user text stays the last turn.
+        assert result == [
+            {"role": "tool", "tool_call_id": "toolu_1", "content": "72F sunny"},
+            {"role": "user", "content": "Now book a flight."},
+        ]
+
     def test_user_tool_result_block_list(self):
         messages = [
             {
@@ -221,11 +238,11 @@ class TestConvertAnthropicMessages:
             },
         ]
         result = _convert_anthropic_messages("Be helpful", messages)
-        # system, user(question), assistant(tool_use), user("Here's the result:"), tool(72F)
-        assert [m["role"] for m in result] == ["system", "user", "assistant", "user", "tool"]
-        assert result[3]["content"] == "Here's the result:"
-        assert result[4]["tool_call_id"] == "toolu_w"
-        assert result[4]["content"] == "72F"
+        # system, user(question), assistant(tool_use), tool(72F), user("Here's the result:")
+        assert [m["role"] for m in result] == ["system", "user", "assistant", "tool", "user"]
+        assert result[3]["tool_call_id"] == "toolu_w"
+        assert result[3]["content"] == "72F"
+        assert result[4]["content"] == "Here's the result:"
 
     def test_redacted_thinking_dropped_binary_document_marked(self):
         """``redacted_thinking`` is non-scannable and dropped; a binary

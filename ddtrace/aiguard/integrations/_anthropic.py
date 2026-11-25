@@ -349,7 +349,8 @@ def _format_content_blocks(
 
     Text and tool calls gather into one message of role. In an assistant turn, a result of a tool Anthropic runs
     (server tool or MCP connector) closes that message and follows it as a tool message, so calls, results and later
-    text keep the conversation's order, a resumed turn included. User-side tool_result blocks follow as tool messages.
+    text keep the conversation's order, a resumed turn included. User-side tool_result blocks become tool messages,
+    before the text of a user turn (they answer the previous assistant turn) and after an assistant turn.
     With mcp_servers (DD_AI_GUARD_MCP_ENABLED) each MCP connector call references its server.
     """
     messages: list[Message] = []
@@ -412,6 +413,9 @@ def _format_content_blocks(
             _report_converter_error("AI Guard anthropic: dropping unrecognised content block type %r" % (block_type,))
 
     close_turn()
+    if role != "assistant":
+        # Tool results answer the previous assistant turn, so the text of this turn comes after them.
+        return tool_results + messages
     messages.extend(tool_results)
     return messages
 
