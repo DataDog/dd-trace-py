@@ -1,4 +1,5 @@
 from ddtrace.appsec._iast.constants import HEADER_NAME_VALUE_SEPARATOR
+from ddtrace.appsec._iast.constants import MAX_REDACTION_VALUE_LENGTH
 from ddtrace.internal.logger import get_logger
 
 
@@ -19,11 +20,13 @@ def header_injection_sensitive_analyzer(evidence, name_pattern, value_pattern, q
     - list: List of sensitive ranges to redact
     """
     evidence_value = evidence.value
-    sections = evidence_value.split(HEADER_NAME_VALUE_SEPARATOR)
-    header_name = sections[0]
-    header_value = HEADER_NAME_VALUE_SEPARATOR.join(sections[1:])
+    header_name, _, header_value = evidence_value.partition(HEADER_NAME_VALUE_SEPARATOR)
 
-    if name_pattern.search(header_name) or value_pattern.search(header_value):
+    if (
+        len(header_value) > MAX_REDACTION_VALUE_LENGTH
+        or name_pattern.search(header_name)
+        or value_pattern.search(header_value)
+    ):
         return [{"start": len(header_name) + len(HEADER_NAME_VALUE_SEPARATOR), "end": len(evidence_value)}]
 
     return []

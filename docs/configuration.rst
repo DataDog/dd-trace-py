@@ -614,6 +614,9 @@ computation to the OpenTelemetry Collector or Datadog intake by default.
      description: |
          When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
          These metrics track the memory management and concurrency of the python runtime.
+         When ``DD_METRICS_OTEL_ENABLED`` is also true, they are exported over OTLP instead of DogStatsD, under their
+         OpenTelemetry semantic convention names, once the application imports ``opentelemetry``. This requires
+         ``ddtrace-run`` or ``ddtrace.auto``, and ``opentelemetry-exporter-otlp`` 1.16.0 or higher.
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
    DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED:
@@ -1007,7 +1010,7 @@ Code Security
      type: String
 
      default: |
-       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
+       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:(?!ey[I-L][\w=-])[\w=-])+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
 
      description: |
         Regular expression containing value style strings matched against vulnerability origin and evidence texts.
