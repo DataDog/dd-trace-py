@@ -1,0 +1,9 @@
+_v: 1
+name: filesystem
+display_name: Filesystem
+description: Publishes file-open attempts for security inspection without creating spans.
+packages: []
+category:
+- other
+systems: []
+creation_date: '2026-11-05'
