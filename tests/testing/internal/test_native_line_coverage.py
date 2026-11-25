@@ -31,6 +31,105 @@ def _run_isolated(script: str, cwd=None, env=None) -> str:
     return result.stdout
 
 
+_RECORDING_SCRIPT = f"""
+    import json
+    import sys
+    from unittest.mock import patch
+
+    sys.path.insert(0, {str(_REPO_ROOT)!r})
+
+    import pytest
+
+    from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
+    from tests.testing.mocks import mock_api_client_settings
+    from tests.testing.mocks import setup_standard_mocks
+
+    records = []
+
+    def put_test_coverage(self, test_run, coverage_data):
+        files = {{}}
+        for path, bitmap in coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path):
+            files[path] = sorted(
+                i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)
+            )
+        records.append({{"span_id": test_run.span_id, "files": files}})
+
+    with (
+        patch(
+            "ddtrace.testing.internal.session_manager.APIClient",
+            return_value=mock_api_client_settings(auto_retries_enabled=True, coverage_enabled=True),
+        ),
+        setup_standard_mocks(),
+        patch.object(TestOptPlugin, "_put_test_coverage", put_test_coverage),
+    ):
+        pytest.main(["--ddtrace", "-p", "no:cacheprovider", "-p", "no:randomly", "-q", "%s"])
+    print(json.dumps(records))
+"""
+
+
+def test_hooks_around_the_executions_count_for_the_test(tmp_path) -> None:
+    """The repo's hooks that run around a test's executions, outside each execution's window, run
+    for the test: their lines are in its record. pytest calls the logreport hooks after an execution,
+    and the logstart and logfinish hooks and protocol wrappers around all of them.
+    """
+    (tmp_path / "hooks_helper.py").write_text(
+        "def on_logstart():\n"
+        "    started = True\n"
+        "    return started\n"
+        "\n"
+        "\n"
+        "def on_logreport():\n"
+        "    reported = True\n"
+        "    return reported\n"
+        "\n"
+        "\n"
+        "def on_logfinish():\n"
+        "    finished = True\n"
+        "    return finished\n"
+        "\n"
+        "\n"
+        "def around_protocol():\n"
+        "    wrapped = True\n"
+        "    return wrapped\n"
+    )
+    (tmp_path / "conftest.py").write_text(
+        "import pytest\n"
+        "\n"
+        "import hooks_helper\n"
+        "\n"
+        "\n"
+        "def pytest_runtest_logstart(nodeid, location):\n"
+        "    hooks_helper.on_logstart()\n"
+        "\n"
+        "\n"
+        "def pytest_runtest_logreport(report):\n"
+        "    hooks_helper.on_logreport()\n"
+        "\n"
+        "\n"
+        "def pytest_runtest_logfinish(nodeid, location):\n"
+        "    hooks_helper.on_logfinish()\n"
+        "\n"
+        "\n"
+        "@pytest.hookimpl(hookwrapper=True)\n"
+        "def pytest_runtest_protocol(item, nextitem):\n"
+        "    hooks_helper.around_protocol()\n"
+        "    yield\n"
+    )
+    (tmp_path / "test_one.py").write_text("def test_one():\n    assert True\n")
+    output = _run_isolated(
+        _RECORDING_SCRIPT % "test_one.py",
+        cwd=tmp_path,
+        env={"DD_API_KEY": "test-key", "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "false"},
+    )
+    records = json.loads(output.strip().splitlines()[-1])
+    assert len(records) == 1 and records[0]["span_id"] is not None, records
+    files = records[0]["files"]
+    helper = next(v for k, v in files.items() if k.endswith("hooks_helper.py"))
+    conftest = next(v for k, v in files.items() if k.endswith("conftest.py"))
+    assert {2, 3, 7, 8, 12, 13, 17, 18} <= set(helper), files
+    assert {7, 11, 15, 20, 21} <= set(conftest), files
+
+
 def test_each_execution_gets_its_own_record(tmp_path) -> None:
     """A retried test sends one coverage record per execution, each with the lines that execution
     ran: here the first run fails on one branch and its automatic retry passes on the other.
@@ -50,40 +149,7 @@ def test_each_execution_gets_its_own_record(tmp_path) -> None:
         "    assert second == 2\n"
     )
     output = _run_isolated(
-        f"""
-        import json
-        import sys
-        from unittest.mock import patch
-
-        sys.path.insert(0, {str(_REPO_ROOT)!r})
-
-        import pytest
-
-        from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
-        from tests.testing.mocks import mock_api_client_settings
-        from tests.testing.mocks import setup_standard_mocks
-
-        records = []
-
-        def put_test_coverage(self, test_run, coverage_data):
-            files = {{}}
-            for path, bitmap in coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path):
-                files[path] = sorted(
-                    i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)
-                )
-            records.append({{"span_id": test_run.span_id, "files": files}})
-
-        with (
-            patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
-                return_value=mock_api_client_settings(auto_retries_enabled=True, coverage_enabled=True),
-            ),
-            setup_standard_mocks(),
-            patch.object(TestOptPlugin, "_put_test_coverage", put_test_coverage),
-        ):
-            pytest.main(["--ddtrace", "-p", "no:cacheprovider", "-p", "no:randomly", "-q", "test_flaky.py"])
-        print(json.dumps(records))
-        """,
+        _RECORDING_SCRIPT % "test_flaky.py",
         cwd=tmp_path,
         env={
             "DD_API_KEY": "test-key",

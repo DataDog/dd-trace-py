@@ -447,8 +447,10 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._osr_enabled = asbool(env.get(_OSR_ENABLED_ENV, "false"))
         # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
         self._osr_candidates: list[pytest.Item] = []
-        # Whether the current test's executions sent their own coverage records (native line coverage).
+        # Whether the current test's executions send their own coverage records (native line coverage).
         self._coverage_sent_per_run = False
+        # The latest execution and its record, until the next execution or the end of the test's window.
+        self._pending_run_coverage: t.Optional[tuple[TestRun, CoverageData]] = None
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -618,6 +620,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         if self.manager.settings.coverage_enabled:
             _CoverageTelemetry.record()
+            self._send_run_coverage()
             self._put_shared_coverage()
             uninstall_coverage()
 
@@ -901,6 +904,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._handle_itr(item, test_ref, test)
         self._apply_test_management_markers(item, test)
 
+        # A record left waiting by a test that did not finish normally.
+        self._send_run_coverage()
         self._coverage_sent_per_run = False
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             coverage_enabled = self.manager.settings.coverage_enabled
@@ -937,7 +942,9 @@ class TestOptPlugin(TestOptPluginProtocol):
             self.manager.coverage_writer.put_suite_coverage(
                 test_suite, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
             )
-        elif not self._coverage_sent_per_run:
+        elif self._coverage_sent_per_run:
+            self._send_run_coverage(enclosing=coverage_data)
+        else:
             # Another plugin ran the test protocol, so its executions did not send records of their own.
             self._put_test_coverage(test.last_test_run, coverage_data)
 
@@ -1006,8 +1013,10 @@ class TestOptPlugin(TestOptPluginProtocol):
             reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         self._set_test_run_data(test_run, item, context)
         if coverage_data is not None:
-            # After _set_test_run_data, which gives the run its span id.
-            self._put_test_coverage(test_run, coverage_data)
+            # A record waits for the next execution, or for the test's window to close: the last one
+            # also gets the lines run around the executions (see _send_run_coverage).
+            self._send_run_coverage()
+            self._pending_run_coverage = (test_run, coverage_data)
             self._coverage_sent_per_run = True
 
         TelemetryAPI.get().record_test_finished(
@@ -1018,6 +1027,22 @@ class TestOptPlugin(TestOptPluginProtocol):
         )
 
         return test_run, reports
+
+    def _send_run_coverage(self, enclosing: t.Optional[CoverageData] = None) -> None:
+        """Send the record of the latest execution, if it waits.
+
+        enclosing is the test's own window, which runs around its executions: the repo's hooks
+        that run there (pytest_runtest_logstart, logreport and logfinish, pytest_runtest_protocol
+        wrappers) run for the test, so the last execution's record gets their lines.
+        """
+        pending = self._pending_run_coverage
+        if pending is None:
+            return
+        self._pending_run_coverage = None
+        test_run, coverage_data = pending
+        if enclosing is not None:
+            coverage_data.include(enclosing)
+        self._put_test_coverage(test_run, coverage_data)
 
     def _collects_coverage_per_run(self) -> bool:
         """Whether each execution of a test gets its own coverage record.
@@ -1239,6 +1264,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         """
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             test_run, _ = self._do_one_test_run(item, nextitem=None, context=context)
+        # No test window runs around this execution.
+        self._send_run_coverage()
 
         test_run.set_tags({TestTag.IS_RETRY: TAG_TRUE, TestTag.RETRY_REASON: OUT_OF_SESSION_RETRY_REASON})
         test_run.finish()
@@ -1578,6 +1605,8 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._handle_itr(item, test_ref, test)
         self._apply_test_management_markers(item, test)
 
+        # A record left waiting by a test that did not finish normally.
+        self._send_run_coverage()
         self._coverage_sent_per_run = False
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
             coverage_enabled = self.manager.settings.coverage_enabled
@@ -1593,7 +1622,9 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         test.finish()
 
-        if not self._coverage_sent_per_run:
+        if self._coverage_sent_per_run:
+            self._send_run_coverage(enclosing=coverage_data)
+        else:
             self._put_test_coverage(test.last_test_run, coverage_data)
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:

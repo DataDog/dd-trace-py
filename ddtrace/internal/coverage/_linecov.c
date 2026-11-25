@@ -351,7 +351,7 @@ typedef struct Context
     int32_t* touched; /* file ids with at least one line, in first-touch order */
     int32_t n_touched;
     int32_t cap_touched;
-    PyObject* fixtures; /* list of the fixture contexts this one depends on, or NULL */
+    PyObject* fixtures; /* list of the contexts whose lines this one's record includes, or NULL */
     int kind;
     int active;
     int index;      /* position in g_active while active */
@@ -2671,7 +2671,11 @@ static PyMethodDef Context_methods[] = {
 static PyGetSetDef Context_getset[] = {
     { "active", (getter)Context_get_active, NULL, NULL, NULL },
     { "is_fixture", (getter)Context_get_is_fixture, NULL, NULL, NULL },
-    { "fixtures", (getter)Context_get_fixtures, NULL, "Fixture contexts this one depends on.", NULL },
+    { "fixtures",
+      (getter)Context_get_fixtures,
+      NULL,
+      "Contexts whose lines this one's record includes: the fixture setups it depends on, or a window around it.",
+      NULL },
     { "token", (getter)Context_get_token, NULL, "Names the context to child processes.", NULL },
     { NULL, NULL, NULL, NULL, NULL },
 };
