@@ -319,7 +319,7 @@ integrations:
   tested_versions_by_dependency:
     crewai:
       min: 0.102.0
-      max: 0.157.0
+      max: 1.15.39
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -803,7 +803,7 @@ integrations:
   tested_versions_by_dependency:
     pydantic-ai-slim:
       min: 0.8.1
-      max: 1.63.0
+      max: 2.71.0
 
 - integration_name: pylibmc
   is_external_package: true
