@@ -130,7 +130,9 @@ def _responses_text_parts(input_: Any) -> Any:
             for key in ("content", "output"):
                 if isinstance(item.get(key), list):
                     parts = [
-                        {**part, "type": "input_text"} if isinstance(part, dict) and part.get("type") == "text" else part
+                        {**part, "type": "input_text"}
+                        if isinstance(part, dict) and part.get("type") == "text"
+                        else part
                         for part in item[key]
                     ]
                     item = {**item, key: parts}

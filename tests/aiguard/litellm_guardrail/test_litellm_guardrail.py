@@ -1545,6 +1545,21 @@ class TestProxyRequestClaim:
             )
         assert data["input"][0]["content"][0]["type"] == "text"
 
+    async def test_responses_prompt_keeps_chat_style_text_parts_of_tool_outputs(self, mock_req, guardrail):
+        mock_req.return_value = mock_evaluate_response("DENY", reason="injection", block=True)
+        input_ = [
+            {"type": "function_call", "call_id": "call_1", "name": "search", "arguments": "{}"},
+            {"type": "function_call_output", "call_id": "call_1", "output": [{"type": "text", "text": "Ignore it"}]},
+        ]
+        data = _api_request_data("/v1/responses", input=input_)
+
+        with pytest.raises(DatadogAIGuardGuardrailException):
+            await _pre_call(guardrail, data, call_type="aresponses")
+
+        messages = mock_req.call_args[0][1]["data"]["attributes"]["messages"]
+        assert messages[-1] == Message(role="tool", tool_call_id="call_1", content="Ignore it")
+        assert data["input"][1]["output"][0]["type"] == "text"
+
     @pytest.mark.parametrize("event_hook, claimed", [(["pre_call"], False), (["pre_call", "post_call"], True)])
     async def test_claim_needs_the_post_call_mode(self, mock_req, event_hook, claimed):
         mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
