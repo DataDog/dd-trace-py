@@ -3,10 +3,8 @@ from os import path
 import sys
 from typing import TYPE_CHECKING
 from typing import Optional
-from typing import Sequence
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.logger import register_package_root_paths
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.utils.formats import asbool
 
@@ -24,29 +22,12 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
-# Code extracted from ddtrace into sibling packages logs under its own top-level name (`_ddtrace_internal.*`,
-# ...), which is not a child of `ddtrace`. Each package root maps to the path its code had inside ddtrace, so the
-# per-product `_DD_<PRODUCT>_LOG_LEVEL` settings keep their names (e.g. `_DD_INTERNAL_COVERAGE_LOG_LEVEL`).
-# New packages must be listed here and keep the `_ddtrace_` prefix that `ddtrace.internal.logger` relies on.
-LOGGER_PACKAGE_PATHS = {
-    "_ddtrace_internal": "internal",
-    "_ddtrace_coverage": "internal.coverage",
-    "_ddtrace_native": "internal.native",
-}
-register_package_root_paths(LOGGER_PACKAGE_PATHS)
-
-# Root loggers configured identically by `configure_ddtrace_logger`.
-LOGGER_ROOTS = ("ddtrace", *LOGGER_PACKAGE_PATHS)
-
 
 def configure_ddtrace_logger() -> None:
     """Configures ddtrace log levels and file paths.
 
     Customization is possible with the environment variables:
         ``DD_TRACE_DEBUG``, ``DD_TRACE_LOG_LEVEL``, ``DD_TRACE_LOG_FILE_LEVEL``, and ``DD_TRACE_LOG_FILE``
-
-    The same configuration is applied to every logger in ``LOGGER_ROOTS`` (``ddtrace`` and the root loggers of the
-    packages extracted from it), sharing a single stream handler and a single file handler.
 
     By default, when none of the settings have been changed, ddtrace loggers
         inherit from the root logger in the logging module and no logs are written to a file.
@@ -72,20 +53,16 @@ def configure_ddtrace_logger() -> None:
 
     """
     ddtrace_logger = logging.getLogger("ddtrace")
-    loggers = [logging.getLogger(name) for name in LOGGER_ROOTS]
     if get_config("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
-        # One handler shared by every root so a record is only ever written once
-        stream_handler = logging.StreamHandler()
-        for logger in loggers:
-            logger.addHandler(stream_handler)
+        ddtrace_logger.addHandler(logging.StreamHandler())
 
-    _configure_ddtrace_debug_logger(loggers)
-    _configure_ddtrace_file_logger(loggers)
+    _configure_ddtrace_debug_logger(ddtrace_logger)
+    _configure_ddtrace_file_logger(ddtrace_logger)
     # Calling _configure_ddtrace_native_logger should come after Python logging has been configured.
     _configure_ddtrace_native_logger(ddtrace_logger)
 
 
-def _configure_ddtrace_debug_logger(loggers: Sequence[logging.Logger]) -> None:
+def _configure_ddtrace_debug_logger(logger: logging.Logger) -> None:
     """Configure the ddtrace logger level based on DD_TRACE_DEBUG and DD_TRACE_LOG_LEVEL.
 
     The priority is DD_TRACE_DEBUG, then DD_TRACE_LOG_LEVEL
@@ -98,16 +75,14 @@ def _configure_ddtrace_debug_logger(loggers: Sequence[logging.Logger]) -> None:
     log_level = get_config("DD_TRACE_LOG_LEVEL")
 
     if trace_debug:
-        for logger in loggers:
-            logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
         return
 
     if log_level is not None:
         log_level_upper = log_level.upper()
         try:
             log_level_value = getattr(logging, log_level_upper)
-            for logger in loggers:
-                logger.setLevel(log_level_value)
+            logger.setLevel(log_level_value)
         except AttributeError:
             log.warning(
                 "DD_TRACE_LOG_LEVEL is invalid (%s). Default log level will be used. "
@@ -116,7 +91,7 @@ def _configure_ddtrace_debug_logger(loggers: Sequence[logging.Logger]) -> None:
             )
 
 
-def _configure_ddtrace_file_logger(loggers: Sequence[logging.Logger]) -> None:
+def _configure_ddtrace_file_logger(logger: logging.Logger) -> None:
     log_file_level = get_config("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
     try:
         file_log_level_value = getattr(logging, log_file_level)
@@ -127,13 +102,7 @@ def _configure_ddtrace_file_logger(loggers: Sequence[logging.Logger]) -> None:
         )
     max_file_bytes = get_config("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES, int)
     log_path = get_config("DD_TRACE_LOG_FILE")
-    # A rotating handler must be shared: one handler per root would rotate the same file independently.
-    file_handler = _add_file_handler(
-        logger=loggers[0], log_path=log_path, log_level=file_log_level_value, max_file_bytes=max_file_bytes
-    )
-    if file_handler is not None:
-        for logger in loggers[1:]:
-            logger.addHandler(file_handler)
+    _add_file_handler(logger=logger, log_path=log_path, log_level=file_log_level_value, max_file_bytes=max_file_bytes)
 
 
 def _add_file_handler(
