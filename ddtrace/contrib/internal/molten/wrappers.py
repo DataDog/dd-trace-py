@@ -9,6 +9,7 @@ from ddtrace.contrib._events.molten import MoltenRouteEvent
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace.internal.wrapt_typing import ObjectProxy
 
 
 MOLTEN_REQUEST_CONTEXT_KEY = "molten.request.context"
@@ -42,7 +43,7 @@ def trace_func(resource):
     return _trace_func
 
 
-class WrapperComponent(wrapt.ObjectProxy):
+class WrapperComponent(ObjectProxy):
     def can_handle_parameter(self, *args, **kwargs):
         func = self.__wrapped__.can_handle_parameter
         cname = func_name(self.__wrapped__)
@@ -50,7 +51,7 @@ class WrapperComponent(wrapt.ObjectProxy):
         return trace_wrapped(resource, func, *args, **kwargs)
 
 
-class WrapperRenderer(wrapt.ObjectProxy):
+class WrapperRenderer(ObjectProxy):
     def render(self, *args, **kwargs):
         func = self.__wrapped__.render
         cname = func_name(self.__wrapped__)
@@ -58,14 +59,14 @@ class WrapperRenderer(wrapt.ObjectProxy):
         return trace_wrapped(resource, func, *args, **kwargs)
 
 
-class WrapperMiddleware(wrapt.ObjectProxy):
+class WrapperMiddleware(ObjectProxy):
     def __call__(self, *args, **kwargs):
         func = self.__wrapped__.__call__
         resource = func_name(self.__wrapped__)
         return trace_wrapped(resource, func, *args, **kwargs)
 
 
-class WrapperRouter(wrapt.ObjectProxy):
+class WrapperRouter(ObjectProxy):
     def match(self, *args, **kwargs):
         func = self.__wrapped__.match
         route_and_params = func(*args, **kwargs)

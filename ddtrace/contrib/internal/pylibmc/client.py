@@ -3,7 +3,6 @@ from contextlib import contextmanager
 import random
 
 import pylibmc
-from wrapt import ObjectProxy
 
 # project
 from ddtrace import config
@@ -23,6 +22,7 @@ from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
+from ddtrace.internal.wrapt_typing import ObjectProxy
 from ddtrace.trace import tracer
 
 

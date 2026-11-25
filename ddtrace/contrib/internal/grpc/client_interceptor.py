@@ -2,7 +2,6 @@ import collections
 from contextlib import contextmanager
 
 import grpc
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -21,6 +20,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.wrapt_typing import ObjectProxy
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
@@ -134,7 +134,7 @@ def _activated_span(span: Span):
         tracer.context_provider.activate(prev_span)
 
 
-class _WrappedResponseCallFuture(wrapt.ObjectProxy):
+class _WrappedResponseCallFuture(ObjectProxy):
     def __init__(self, wrapped, span):
         super().__init__(wrapped)
         self._span = span

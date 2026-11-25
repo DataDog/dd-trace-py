@@ -337,13 +337,14 @@ def _reset_objects() -> None:
 register(_reset_objects)
 
 
+# ResetObject is a proxy that stands in for the wrapped primitive, which its type cannot express.
 def Lock() -> _unpatched.threading_Lock:
-    return ResetObject(_unpatched.threading_Lock)
+    return typing.cast(_unpatched.threading_Lock, ResetObject(_unpatched.threading_Lock))
 
 
 def RLock() -> _unpatched.threading_RLock:
-    return ResetObject(_unpatched.threading_RLock)
+    return typing.cast(_unpatched.threading_RLock, ResetObject(_unpatched.threading_RLock))
 
 
 def Event() -> _unpatched.threading_Event:
-    return ResetObject(_unpatched.threading_Event)
+    return typing.cast(_unpatched.threading_Event, ResetObject(_unpatched.threading_Event))

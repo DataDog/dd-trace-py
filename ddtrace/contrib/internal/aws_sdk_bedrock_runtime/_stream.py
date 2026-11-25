@@ -3,12 +3,11 @@
 from typing import Any
 from typing import Optional
 
-from wrapt import ObjectProxy
-
 from ddtrace.contrib._events.aws_sdk_bedrock_runtime import BedrockStreamObserver
+from ddtrace.internal.wrapt_typing import ObjectProxy
 
 
-class InputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy base.
+class InputProxy(ObjectProxy):
     def __init__(self, wrapped: Any, state: BedrockStreamObserver) -> None:
         super().__init__(wrapped)
         self._self_state = state
@@ -51,7 +50,7 @@ class InputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy
         return result
 
 
-class OutputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy base.
+class OutputProxy(ObjectProxy):
     def __init__(self, wrapped: Any, state: BedrockStreamObserver) -> None:
         super().__init__(wrapped)
         self._self_state = state
@@ -117,7 +116,7 @@ class OutputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed prox
                 self._self_state.finish()
 
 
-class DuplexProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy base.
+class DuplexProxy(ObjectProxy):
     def __init__(self, wrapped: Any, state: BedrockStreamObserver) -> None:
         super().__init__(wrapped)
         self._self_state = state
