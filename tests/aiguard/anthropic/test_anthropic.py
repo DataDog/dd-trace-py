@@ -561,8 +561,8 @@ class TestConvertAnthropicMessages:
         tool_msg = [m for m in result if m["role"] == "tool"][0]
         assert tool_msg["content"] == "STDOUT: /tmp"
 
-    def test_server_tool_result_without_matching_tool_use_is_dropped(self):
-        """Server tool result blocks alone do not create orphan tool messages."""
+    def test_server_tool_result_without_matching_tool_use_is_kept(self):
+        """A server tool result whose call is in an earlier message (a resumed turn) is still evaluated."""
         messages = [
             {
                 "role": "assistant",
@@ -577,9 +577,10 @@ class TestConvertAnthropicMessages:
             }
         ]
         result = _convert_anthropic_messages(None, messages)
-        assert len(result) == 1
-        assert result[0]["role"] == "assistant"
-        assert result[0]["content"] == "Here are the results."
+        assert result == [
+            {"role": "assistant", "content": "Here are the results."},
+            {"role": "tool", "tool_call_id": "srv_orphan", "content": "Example: https://e.com"},
+        ]
 
     # ---------------------------------------------------------------------------
     # tool_result with image content (dd-source parity)

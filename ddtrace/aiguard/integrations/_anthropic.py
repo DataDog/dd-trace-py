@@ -402,6 +402,7 @@ def _format_content_blocks(blocks: Sequence[Any], mcp_servers: Optional[dict[str
             tool_results.extend(_format_tool_result_block(block))
         elif block_type == "mcp_tool_result":
             server_tool_results.extend(_format_tool_result_block(block))
+            seen_server_tool = True
         elif block_type == "thinking":
             # Extended-thinking blocks carry model reasoning text that AI Guard
             # should scan; the ``signature`` field is a verification token and
@@ -416,6 +417,8 @@ def _format_content_blocks(blocks: Sequence[Any], mcp_servers: Optional[dict[str
             "code_execution_tool_result",
         ):
             server_tool_results.append(_format_server_tool_result_block(block))
+            # A resumed turn's result can come without its call: text after it is still synthesis.
+            seen_server_tool = True
         elif block_type in _DROPPED_BLOCK_TYPES:
             logger.debug("AI Guard anthropic: dropping non-scannable block type %r", block_type)
         else:
@@ -453,11 +456,6 @@ def _format_system(system: Any) -> Optional[Message]:
     if not text:
         return None
     return Message(role="system", content=text)
-
-
-def _splits_around_server_results(parsed: _ParsedBlocks) -> bool:
-    """Whether server results are emitted between the calls before them and the pending calls after them."""
-    return bool(parsed.server_tool_results and (parsed.tool_calls or parsed.post_tool_calls))
 
 
 def _emit_assistant_with_server_tool(
@@ -559,7 +557,7 @@ def _convert_anthropic_messages(
             # -> optional synthesis. tool_results from user-side blocks (rare
             # in this branch but possible) are appended last to preserve
             # ordering.
-            if role == "assistant" and _splits_around_server_results(parsed):
+            if role == "assistant" and parsed.server_tool_results:
                 result.extend(_emit_assistant_with_server_tool(parsed))
                 result.extend(parsed.tool_results)
                 continue
@@ -607,7 +605,7 @@ def _convert_anthropic_response(resp: Any, mcp_servers: Optional[dict[str, MCPSe
 
         parsed = _format_content_blocks(content, mcp_servers)
 
-        if _splits_around_server_results(parsed):
+        if parsed.server_tool_results:
             return _emit_assistant_with_server_tool(parsed)
 
         content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
