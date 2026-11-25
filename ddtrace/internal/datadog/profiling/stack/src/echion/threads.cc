@@ -236,12 +236,33 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
     // An eager Task runs its first step inside create_task, while the Task that called create_task is still running.
     // Both look on CPU. The eager Task owns the sample, so that the step is sampled once. With nested eager steps, the
-    // innermost eager Task owns it: its coroutine frame is the one closest to the top of the thread stack.
+    // innermost eager Task owns it.
     const TaskInfo* eager_owner = nullptr;
     std::vector<const TaskInfo*> eager_on_cpu;
-    for (const auto& task : leaf_tasks) {
-        if (task.get().is_on_cpu && task.get().in_eager_step) {
-            eager_on_cpu.push_back(&task.get());
+#if PY_VERSION_HEX >= 0x030e0000
+    // On 3.14+, CPython records the innermost eager Task as running. Native Tasks do not enter the eager Task set.
+    // It is in an eager step when another Task's coroutine, its creator's, still executes below it.
+    if (maybe_running_task) {
+        PyObject* running_task = *maybe_running_task;
+        const bool creator_running =
+          running_task != nullptr &&
+          std::any_of(all_tasks.cbegin(), all_tasks.cend(), [running_task](const auto& task) {
+              return task->is_on_cpu && task->origin != running_task;
+          });
+        for (size_t i = 0; creator_running && eager_owner == nullptr && i < leaf_tasks.size(); i++) {
+            if (leaf_tasks[i].get().is_on_cpu && leaf_tasks[i].get().origin == running_task) {
+                eager_owner = &leaf_tasks[i].get();
+            }
+        }
+    } else
+#endif
+    {
+        // Before 3.14, the innermost eager Task is the one whose coroutine frame is closest to the top of the thread
+        // stack.
+        for (const auto& task : leaf_tasks) {
+            if (task.get().is_on_cpu && task.get().in_eager_step) {
+                eager_on_cpu.push_back(&task.get());
+            }
         }
     }
     if (eager_on_cpu.size() > 1) {
