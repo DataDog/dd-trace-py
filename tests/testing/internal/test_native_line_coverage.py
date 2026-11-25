@@ -167,6 +167,52 @@ def test_each_execution_gets_its_own_record(tmp_path) -> None:
     assert lines == [[1, 3, 6, 7, 8, 9, 10], [1, 3, 6, 7, 11, 12]], records
 
 
+def test_new_parameter_of_a_suite_fixture_replaces_the_previous_setup(tmp_path) -> None:
+    """A test that sets up a module-scoped fixture for a new parameter gets that setup's lines and not
+    the previous parameter's, which was still cached when the test's window opened.
+    """
+    (tmp_path / "fixture_helper.py").write_text(
+        textwrap.dedent(
+            """\
+            def set_up_a():
+                a = 1
+                return a
+
+
+            def set_up_b():
+                b = 2
+                return b
+            """
+        )
+    )
+    (tmp_path / "test_param.py").write_text(
+        "import pytest\n"
+        "\n"
+        "import fixture_helper\n"
+        "\n"
+        "\n"
+        '@pytest.fixture(scope="module", params=["a", "b"])\n'
+        "def resource(request):\n"
+        '    if request.param == "a":\n'
+        "        return fixture_helper.set_up_a()\n"
+        "    return fixture_helper.set_up_b()\n"
+        "\n"
+        "\n"
+        "def test_uses(resource):\n"
+        "    assert resource\n"
+    )
+    output = _run_isolated(
+        _RECORDING_SCRIPT % "test_param.py",
+        cwd=tmp_path,
+        env={"DD_API_KEY": "test-key", "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "false"},
+    )
+    records = json.loads(output.strip().splitlines()[-1])
+    assert len(records) == 2, records
+    lines = [next(v for k, v in record["files"].items() if k.endswith("fixture_helper.py")) for record in records]
+    # Lines 1 and 6 are the file's initialisers.
+    assert lines == [[1, 2, 3, 6], [1, 6, 7, 8]], records
+
+
 def test_pack_matches_bitmaps(tmp_path) -> None:
     """pack() encodes what bitmaps(True) returns, including the longer msgpack forms: more than 15
     files, paths longer than 31 bytes and bitmaps longer than 255 bytes.

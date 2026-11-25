@@ -112,6 +112,10 @@ class CoverageData:
         """Add the lines of other, whose window enclosed this one's, to this record. Native collection only."""
         native, enclosing = self._native, other._native
         if native is not None and enclosing is not None and enclosing is not native:
+            # Only the enclosing window's own lines. The suite fixtures it linked when it opened may
+            # have been replaced since, by a setup for another parameter; this record links the
+            # current ones itself.
+            del enclosing.fixtures[:]
             native.fixtures.append(enclosing)
 
     def _get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
