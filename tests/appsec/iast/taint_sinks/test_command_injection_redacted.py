@@ -1,7 +1,11 @@
+from typing import Optional
 from unittest.mock import ANY
 
 import pytest
 
+from ddtrace.appsec._iast._evidence_redaction.command_injection_sensitive_analyzer import (
+    command_injection_sensitive_analyzer,
+)
 from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
@@ -15,6 +19,11 @@ from ddtrace.appsec._iast.taint_sinks.command_injection import CommandInjection
 from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
+
+
+@pytest.mark.parametrize("value", [None, "", "ls"])
+def test_cmdi_analyzer_without_arguments(value: Optional[str]) -> None:
+    assert command_injection_sensitive_analyzer(Evidence(value=value)) == []
 
 
 @pytest.mark.parametrize(

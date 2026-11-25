@@ -23,11 +23,13 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.mcp._constants import COMPONENT
 from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
+from ddtrace.contrib.internal.mcp._constants import MCP_SESSION_ID_HEADER
 from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_ARGUMENT_EVENT
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
+from ddtrace.contrib.internal.mcp._constants import TOOL_RESULT_EVENT
 from ddtrace.contrib.internal.mcp._constants import TOOLS_LIST_RESPONSE_EVENT
 from ddtrace.contrib.internal.mcp._tool_result import DEFAULT_TOOL_ERROR_MESSAGE
 from ddtrace.contrib.internal.mcp._tool_result import get_tool_error_message
@@ -162,7 +164,7 @@ class DatadogServerMiddleware:
 
         if method == "tools/list":
             result = await call_next(ctx)
-            if config.mcp.capture_intent:
+            if config.mcp.enrichment_enabled:
                 core.dispatch(TOOLS_LIST_RESPONSE_EVENT, (result,))
             return result
 
@@ -180,6 +182,8 @@ class DatadogServerMiddleware:
         error = False
         try:
             result = await call_next(ctx)
+            if method == "tools/call" and config.mcp.enrichment_enabled:
+                core.dispatch(TOOL_RESULT_EVENT, (span_from_context(request_ctx), result))
             if method == "tools/call" and is_tool_error(result):
                 span = span_from_context(request_ctx)
                 span.error = 1
@@ -216,14 +220,24 @@ def start_server_request(method: str, ctx: Any) -> tuple[core.ExecutionContext[L
     return request_ctx, ctx
 
 
+def get_transport_session_id(headers: Any) -> Optional[str]:
+    """The session ID that stateful streamable HTTP transports send with each request."""
+    return headers.get(MCP_SESSION_ID_HEADER) if headers is not None else None
+
+
 def strip_telemetry_argument(span: Span, ctx: Any) -> Any:
-    """Records and removes the intent argument. Middleware must not mutate the wire params, so
+    """Records and removes the telemetry argument. Middleware must not mutate the wire params, so
     the stripped copy is passed down the chain through a replaced context.
     """
     params = ctx.params or {}
     arguments = params.get("arguments")
+    transport_session_id = get_transport_session_id(_get_attr(ctx.request, "headers", None))
+    # ctx.session is new for each request, its connection lasts as long as the transport
+    connection = _get_attr(getattr(ctx, "session", None), "_connection", None)
     if not isinstance(arguments, dict) or TELEMETRY_KEY not in arguments:
+        if config.mcp.enrichment_enabled:
+            core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}, transport_session_id, connection))
         return ctx
     params = {**params, "arguments": dict(arguments)}
-    core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}))
+    core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}, transport_session_id, connection))
     return dataclasses.replace(ctx, params=params)

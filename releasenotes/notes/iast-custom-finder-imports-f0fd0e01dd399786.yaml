@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: During IAST initialization, when ddtrace asks a custom Python package finder to list installed distributions, IAST applies its name-based rules to modules the finder imports. It no longer infers first-party ownership from an incomplete package list.
+    Application modules skipped during that query remain uninstrumented on subsequent ordinary imports.
