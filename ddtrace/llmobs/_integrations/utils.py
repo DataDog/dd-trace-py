@@ -349,12 +349,22 @@ def format_anthropic_tool_result_content(content) -> str:
         return safe_json(content)
     elif isinstance(content, Iterable):
         formatted_content = []
+        sources = []
         for tool_result_block in content:
-            if _get_attr(tool_result_block, "text", "") != "":
+            if _get_attr(tool_result_block, "type", None) == "web_search_result":
+                # Keep only url and title: encrypted_content is a large opaque blob.
+                source = {"url": _get_attr(tool_result_block, "url", "")}
+                title = _get_attr(tool_result_block, "title", None)
+                if title:
+                    source["title"] = title
+                sources.append(source)
+            elif _get_attr(tool_result_block, "text", "") != "":
                 formatted_content.append(_get_attr(tool_result_block, "text", ""))
             elif _get_attr(tool_result_block, "type", None) == "image":
                 # Store a placeholder for potentially enormous binary image data.
                 formatted_content.append(IMAGE_DETECTED_MARKER)
+        if sources:
+            return safe_json({"sources": sources}) or ""
         return ",".join(formatted_content)
     return str(content)
 

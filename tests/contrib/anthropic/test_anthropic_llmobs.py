@@ -486,6 +486,7 @@ class TestLLMObsAnthropic:
         assert metrics["web_search_count"] == 1
         # Web fetch has no per-call price, so it is not recorded.
         assert not any("fetch" in key for key in metrics)
+        _assert_web_search_messages(spans[0])
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_completion_web_search_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
@@ -503,6 +504,7 @@ class TestLLMObsAnthropic:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert _get_llmobs_data_metastruct(spans[0])["metrics"]["web_search_count"] == 1
+        _assert_web_search_messages(spans[0])
 
     def test_completion(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -2121,6 +2123,20 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 3
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 5
+
+
+def _assert_web_search_messages(span):
+    """The server-side search is recorded as a tool call and a result carrying its sources."""
+    messages = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"]
+    tool_call = messages[0]["tool_calls"][0]
+    assert tool_call["name"] == "web_search"
+    assert tool_call["type"] == "server_tool_use"
+    assert tool_call["arguments"]["query"]
+    tool_result = messages[1]["tool_results"][0]
+    assert tool_result["tool_id"] == tool_call["tool_id"]
+    sources = json.loads(tool_result["result"])["sources"]
+    assert sources
+    assert all(set(source) <= {"url", "title"} and source["url"] for source in sources)
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,5 @@
 import base64
+import json
 import time
 from types import SimpleNamespace
 
@@ -37,6 +38,7 @@ from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_messages
 from ddtrace.llmobs._integrations.utils import capture_plain_text_tool_usage
+from ddtrace.llmobs._integrations.utils import format_anthropic_tool_result_content
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
@@ -2077,3 +2079,17 @@ class TestOpenAIServerToolUsageMetrics:
     def test_tool_usage_without_web_search_count_falls_back(self, tool_usage):
         resp = {"output": [_web_search_call(), _web_search_call(action_type="open_page")], "tool_usage": tool_usage}
         assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}
+
+
+def test_format_anthropic_tool_result_content_web_search():
+    """Web search results keep url and title only; error objects stay JSON."""
+    results = [
+        {"type": "web_search_result", "url": "https://a.example", "title": "A", "encrypted_content": "x" * 100},
+        {"type": "web_search_result", "url": "https://b.example", "page_age": "1 day"},
+    ]
+    assert json.loads(format_anthropic_tool_result_content(results)) == {
+        "sources": [{"url": "https://a.example", "title": "A"}, {"url": "https://b.example"}]
+    }
+    error = {"type": "web_search_tool_result_error", "error_code": "max_uses_exceeded"}
+    assert json.loads(format_anthropic_tool_result_content(error)) == error
+    assert format_anthropic_tool_result_content([{"type": "text", "text": "hi"}]) == "hi"

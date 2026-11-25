@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: The Anthropic integration now records the sources of a successful server-side web
+    search as the tool result, as a JSON object of URLs and titles. Previously the result was empty.
