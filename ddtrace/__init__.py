@@ -23,7 +23,7 @@ del _registry, register_supported_configurations
 import ddtrace.internal._unpatched  # noqa
 
 
-# Telemetry does not import the tracer's identity itself. Hand it over before ._logger below imports telemetry,
+# Telemetry does not import the tracer's identity itself. Hand it over before the logger setup below imports telemetry,
 # whose writer reads it when it is created.
 from ddtrace._error_attribution import integration_from_filename as _integration_of  # noqa: E402
 from ddtrace.internal.telemetry_inputs.library import register_library as _register_library  # noqa: E402
@@ -54,7 +54,7 @@ from ddtrace.internal.native import seed as _seed  # noqa: E402
 _forksafe.register(_seed)
 del _forksafe, _seed
 
-from ._logger import configure_ddtrace_logger  # noqa: E402
+from .internal.logger_setup import configure_ddtrace_logger  # noqa: E402
 
 
 # configure ddtrace logger before other modules log

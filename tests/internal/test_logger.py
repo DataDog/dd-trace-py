@@ -6,10 +6,10 @@ from unittest import mock
 
 import pytest
 
-import ddtrace._logger
 import ddtrace.internal.logger
 from ddtrace.internal.logger import LoggingBucket
 from ddtrace.internal.logger import get_logger
+import ddtrace.internal.logger_setup
 from tests.utils import BaseTestCase
 
 
@@ -417,7 +417,7 @@ def test_configure_logger_applies_to_package_loggers(monkeypatch, tmp_path):
     monkeypatch.setenv("DD_TRACE_LOG_LEVEL", "info")
     monkeypatch.setenv("DD_TRACE_LOG_FILE", str(log_file))
     monkeypatch.setenv("DD_TRACE_LOG_FILE_LEVEL", "INFO")
-    ddtrace._logger.configure_ddtrace_logger()
+    ddtrace.internal.logger_setup.configure_ddtrace_logger()
 
     with (
         mock.patch.object(ddtrace.internal.logger, "_rate_limit", 0),
