@@ -447,6 +447,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._osr_enabled = asbool(env.get(_OSR_ENABLED_ENV, "false"))
         # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
         self._osr_candidates: list[pytest.Item] = []
+        # Whether the current test's executions sent their own coverage records (native line coverage).
+        self._coverage_sent_per_run = False
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -899,6 +901,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._handle_itr(item, test_ref, test)
         self._apply_test_management_markers(item, test)
 
+        self._coverage_sent_per_run = False
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             coverage_enabled = self.manager.settings.coverage_enabled
             # Only the import-only mode anchors the test's own file, so native collection skips the lookup.
@@ -934,7 +937,8 @@ class TestOptPlugin(TestOptPluginProtocol):
             self.manager.coverage_writer.put_suite_coverage(
                 test_suite, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
             )
-        else:
+        elif not self._coverage_sent_per_run:
+            # Another plugin ran the test protocol, so its executions did not send records of their own.
             self._put_test_coverage(test.last_test_run, coverage_data)
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
@@ -992,8 +996,19 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
-        reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
+        coverage_data: t.Optional[CoverageData] = None
+        if self._collects_coverage_per_run():
+            # Each execution, a retry included, gets its own record. The window nests in the test's.
+            with coverage_collection() as coverage_data:
+                link_suite_fixtures_in_closure(item)
+                reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
+        else:
+            reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         self._set_test_run_data(test_run, item, context)
+        if coverage_data is not None:
+            # After _set_test_run_data, which gives the run its span id.
+            self._put_test_coverage(test_run, coverage_data)
+            self._coverage_sent_per_run = True
 
         TelemetryAPI.get().record_test_finished(
             test_framework=TEST_FRAMEWORK,
@@ -1003,6 +1018,17 @@ class TestOptPlugin(TestOptPluginProtocol):
         )
 
         return test_run, reports
+
+    def _collects_coverage_per_run(self) -> bool:
+        """Whether each execution of a test gets its own coverage record.
+
+        Native line coverage only, and not in suite-skipping mode, where coverage is sent per suite.
+        """
+        return (
+            self.manager.settings.coverage_enabled
+            and native_line_coverage_enabled()
+            and self.manager.itr_skipping_level != ITRSkippingLevel.SUITE
+        )
 
     def _do_test_runs(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> None:
         test = self.tests_by_nodeid[item.nodeid]
@@ -1552,6 +1578,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._handle_itr(item, test_ref, test)
         self._apply_test_management_markers(item, test)
 
+        self._coverage_sent_per_run = False
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
             coverage_enabled = self.manager.settings.coverage_enabled
             # Only the import-only mode anchors the test's own file, so native collection skips the lookup.
@@ -1566,7 +1593,8 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         test.finish()
 
-        self._put_test_coverage(test.last_test_run, coverage_data)
+        if not self._coverage_sent_per_run:
+            self._put_test_coverage(test.last_test_run, coverage_data)
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
