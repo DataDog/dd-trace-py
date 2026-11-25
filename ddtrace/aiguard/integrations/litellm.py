@@ -126,12 +126,14 @@ def _responses_text_parts(input_: Any) -> Any:
         return input_
     items = []
     for item in input_:
-        if isinstance(item, dict) and isinstance(item.get("content"), list):
-            parts = [
-                {**part, "type": "input_text"} if isinstance(part, dict) and part.get("type") == "text" else part
-                for part in item["content"]
-            ]
-            item = {**item, "content": parts}
+        if isinstance(item, dict):
+            for key in ("content", "output"):
+                if isinstance(item.get(key), list):
+                    parts = [
+                        {**part, "type": "input_text"} if isinstance(part, dict) and part.get("type") == "text" else part
+                        for part in item[key]
+                    ]
+                    item = {**item, key: parts}
         items.append(item)
     return items
 
