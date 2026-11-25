@@ -120,6 +120,22 @@ def _answer_is_evaluated(data: dict[str, Any], call_type: Optional[str]) -> bool
     return _call_type_from_route(data) in ("aresponses", "anthropic_messages")
 
 
+def _responses_text_parts(input_: Any) -> Any:
+    """Copy a Responses input with each chat-style text part as an input_text part."""
+    if not isinstance(input_, list):
+        return input_
+    items = []
+    for item in input_:
+        if isinstance(item, dict) and isinstance(item.get("content"), list):
+            parts = [
+                {**part, "type": "input_text"} if isinstance(part, dict) and part.get("type") == "text" else part
+                for part in item["content"]
+            ]
+            item = {**item, "content": parts}
+        items.append(item)
+    return items
+
+
 async def _read_next(stream: Any) -> Any:
     """Read the next chunk of the model stream, with the read flag set during this read only."""
     token = _READING_STREAM.set(True)
@@ -482,8 +498,10 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
     ) -> Optional[list[Message]]:
         """Convert the instructions, input and prompt variables of a Responses request, or None if it fails."""
         try:
+            # litellm also accepts chat-style text parts and sends them to the model.
+            input_ = _responses_text_parts(data.get("input"))
             return _convert_openai_response_input(
-                data.get("instructions"), data.get("input"), prompt=data.get("prompt"), mcp_servers=mcp_servers
+                data.get("instructions"), input_, prompt=data.get("prompt"), mcp_servers=mcp_servers
             )
         except Exception:
             verbose_proxy_logger.debug("Datadog AI Guard: cannot convert the Responses request", exc_info=True)
