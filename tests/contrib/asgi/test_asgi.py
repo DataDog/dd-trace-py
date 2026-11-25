@@ -553,9 +553,11 @@ async def test_otel_semantics_preserves_query_without_datadog_query_tracing(scop
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("message_type", ["websocket.accept", "websocket.close"])
-async def test_websocket_send_propagates_transport_error_without_retry(message_type, caplog, test_spans):
-    message = {"type": message_type}
+@pytest.mark.parametrize(
+    "message",
+    [{"type": "websocket.accept"}, {"type": "websocket.close", "code": 1000, "reason": ""}],
+)
+async def test_websocket_send_propagates_transport_error_without_retry(message, caplog, test_spans):
     sent = []
 
     async def app(scope, receive, send):
