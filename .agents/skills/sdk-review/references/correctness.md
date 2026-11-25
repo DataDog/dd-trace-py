@@ -20,27 +20,22 @@ Bugs, races, unhandled edge cases, and tests that pass when they shouldn't. For 
 ### COR-1.3: Unregister in a product's `stop()` what its `start()` registered
 - Flag: a product that registers subscriber bundles or core listeners on start with no matching unregister on stop or disable.
 
-## 2. Concurrency
+## 2. Edge cases
 
-### COR-2.1: Don't add locks that callers can bypass
-- Flag: a lock around setters (for example, `sampling_priority`) for state that other code mutates directly (`ctx._meta[...]`, `ctx._metrics[...]`), or a lock that only repeats what the GIL already guarantees.
-
-## 3. Edge cases
-
-### COR-3.1: Build WSGI request paths from `SCRIPT_NAME` plus `PATH_INFO`
+### COR-2.1: Build WSGI request paths from `SCRIPT_NAME` plus `PATH_INFO`
 - Flag: a request path or route computed from `PATH_INFO` alone, which is wrong for apps mounted under a prefix.
 
-### COR-3.2: Don't leave unmarked stubs reachable from Python or libdatadog
+### COR-2.2: Don't leave unmarked stubs reachable from Python or libdatadog
 - Flag: new code that reaches `todo!()`/`unimplemented!()`/`raise NotImplementedError` with no TODO comment, or one that foreign code can call, which panics inside the customer process. This includes a stub in the diff, and new code that delegates to an existing stub through `Self::from`, `.into()` or a trait method. Follow each new delegation to the impl it calls.
 - ❌ `fn from_owned(value: String) -> Self { Self::from(value) }`, where `impl From<String>` is `todo!()`
 - ✅ implement `From<String>`; or remove `from_owned` until it is needed; or mark it `// TODO: unimplemented, From<String> is a todo!()` and make sure no caller can reach it
 
-### COR-3.3: Keep package metadata consistent with the supported versions
+### COR-2.3: Keep package metadata consistent with the supported versions
 - Flag: a trove classifier or supported-version claim for a Python version that `requires-python` excludes, or whose wheel build in `.gitlab/package.yml` is missing or allowed to fail.
 
-## 4. Tests
+## 3. Tests
 
-### COR-4.1: Reset benchmark state between pyperf runs
+### COR-3.1: Reset benchmark state between pyperf runs
 - Flag: a benchmark scenario that reuses a writer, buffer, or cache across runs, so later runs measure accumulated state.
 
 ## Don't flag

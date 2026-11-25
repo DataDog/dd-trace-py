@@ -22,7 +22,7 @@ Duplication, dead code, comments, naming, and test value.
 - Flag: a relaxed `mypy.ini` section, a dispatch whose order relative to `super()` matters, a guard against dispatching twice, a fork or deadlock workaround, or a generated file format, with no comment saying why.
 
 ### MAINT-1.4: Keep TODO conditions accurate
-- Flag: a TODO whose stated removal condition is wrong, so the code stays valid after that event. Update a TODO rather than deleting it; see [AGENTS.md](../../../../AGENTS.md#development-constraints). Unmarked stubs are covered by COR-3.2.
+- Flag: a TODO whose stated removal condition is wrong, so the code stays valid after that event. Update a TODO rather than deleting it; see [AGENTS.md](../../../../AGENTS.md#development-constraints). Unmarked stubs are covered by COR-2.2.
 
 ### MAINT-1.5: Preserve existing rST structure when editing a docstring
 - Flag: a docstring edit that drops `.. warning::` or other directives, or reformats content that didn't change.
@@ -42,9 +42,6 @@ Duplication, dead code, comments, naming, and test value.
 - Flag: `Any` in `ddtrace/internal/native/_native.pyi` where the concrete type is known, or a variable-length `tuple` return where the function always returns a fixed number of parts.
 - ❌ `def context(self) -> Any: ...`
 - ✅ `def context(self) -> Context: ...`
-
-### MAINT-2.5: Split long builder or configuration functions into helpers
-- Flag: a new function of many sequential configuration steps (for example, building a native exporter) that could be named helpers.
 
 ## 3. Tests
 

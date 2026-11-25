@@ -18,9 +18,6 @@ This lens is a static review of the frozen diff. Do not run the [run-benchmarks]
 ### PERF-1.2: Use Rust synchronisation inside native types
 - Flag: a native `#[pyclass]` that holds a Python `threading.Lock` object.
 
-### PERF-1.3: Mark small Rust helpers on hot paths `#[inline]`
-- Flag: a small helper in `src/native/span/` or `py_string.rs` called per span or per tag without `#[inline]`.
-
 ## 2. Hot paths
 
 ### PERF-2.1: Register feature-specific listeners only when the feature applies
@@ -46,9 +43,6 @@ This lens is a static review of the frozen diff. Do not run the [run-benchmarks]
 
 ### PERF-4.2: Keep benchmark scenarios realistic and measure only the operation
 - Flag: correctness assertions inside the timed loop, no untimed warm-up, a single hard-coded trace/parent ID pair, or no variant that compares with and without the feature (for example, with and without propagation headers).
-
-### PERF-4.3: Update microbenchmark SLOs and quarantines when results change
-- Flag: a PR that improves a benchmark without tightening its SLO in `.gitlab/benchmarks/slos/`, or that fixes a noise source without removing quarantines it made unnecessary. See [microbenchmarks.md](../../../../.gitlab/benchmarks/microbenchmarks.md).
 
 ## Don't flag
 - `Option` fields in native types kept deliberately for lazy allocation.

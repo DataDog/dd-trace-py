@@ -64,9 +64,6 @@ Where code belongs, who owns state, and API and type shape.
 ### DES-4.2: Separate user-facing fixes and new integrations from refactors
 - Flag: a behaviour change or bug fix (often with its own release note) inside a refactor, CI, or tooling PR, or a new integration bundled with an unrelated change.
 
-### DES-4.3: State the motivation and show the failure being fixed
-- Flag: a PR description that doesn't say why the change is needed, or a fix with no example of the failure it addresses. See [PULL_REQUEST_TEMPLATE.md](../../../../.github/PULL_REQUEST_TEMPLATE.md).
-
 ## 5. Documentation placement
 
 ### DES-5.1: Put contributor knowledge in developer docs, not only in agent files
