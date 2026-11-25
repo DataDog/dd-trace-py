@@ -6,6 +6,7 @@ coverage data.
 """
 
 import contextlib
+import contextvars
 import functools
 import logging
 import os
@@ -187,6 +188,19 @@ def get_native_coverage_context() -> t.Any:
 
 def set_native_coverage_context(context: t.Any) -> None:
     native_lines.set_running(context)
+
+
+def carry_native_coverage_context(copied: contextvars.Context) -> None:
+    """Make the code that runs in copied, a contextvars copy taken before the current native coverage
+    context was entered, run in that context too.
+    """
+    if not native_lines.enabled():
+        return
+    try:
+        copied.run(native_lines.ctx_native.set, native_lines.ctx_native.get())
+    except RuntimeError:
+        # The copy is entered on some thread right now: its code keeps the context it has.
+        log.debug("Could not carry the coverage context into a copied context", exc_info=True)
 
 
 def collect_child_coverage() -> None:
