@@ -52,6 +52,21 @@ def _routing_key(value: Any) -> Optional[str]:
     return value if isinstance(value, str) and value else None
 
 
+def _arguments_size(args: Any, kwargs: Any) -> int:
+    size = _calculate_byte_size(kwargs)
+    if isinstance(args, (list, tuple)):
+        size += sum(_calculate_byte_size(arg) for arg in args)
+    return size
+
+
+def _body_size(body: Any) -> int:
+    if isinstance(body, tuple) and len(body) >= 2:
+        return _arguments_size(body[0], body[1])
+    if isinstance(body, dict):
+        return _arguments_size(body.get("args"), body.get("kwargs"))
+    return _calculate_byte_size(body)
+
+
 def dsm_celery_task_publish(app: Any, signal_kwargs: dict[str, Any], span: Optional[Any]) -> None:
     from . import data_streams_processor as processor
 
@@ -69,7 +84,7 @@ def dsm_celery_task_publish(app: Any, signal_kwargs: dict[str, Any], span: Optio
         return
 
     tags = _edge_tags("out", exchange, _routing_key(signal_kwargs.get("routing_key")), broker_type)
-    payload_size = _calculate_byte_size(signal_kwargs.get("body")) + _calculate_byte_size(headers)
+    payload_size = _body_size(signal_kwargs.get("body")) + _calculate_byte_size(headers)
     ctx = p.set_checkpoint(tags, payload_size=payload_size, span=span)
     DsmPathwayCodec.encode(ctx, headers)
 
@@ -94,7 +109,7 @@ def dsm_celery_task_prerun(task: Any, span: Optional[Any]) -> None:
     if not isinstance(message_headers, dict):
         message_headers = {}
     tags = _edge_tags("in", exchange, _routing_key(delivery_info.get("routing_key")), broker_type)
-    payload_size = _calculate_byte_size(message_headers) + _calculate_byte_size(carrier.get("kwargs"))
+    payload_size = _calculate_byte_size(message_headers) + _arguments_size(carrier.get("args"), carrier.get("kwargs"))
     ctx = DsmPathwayCodec.decode({**message_headers, **carrier}, p)
     ctx.set_checkpoint(tags, payload_size=payload_size, span=span)
 

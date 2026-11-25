@@ -168,6 +168,41 @@ def test_broker_type_reads_celery_broker_url_environment_variables(env, side, ex
     assert _broker_type(app, side) == expected
 
 
+def test_body_size_counts_positional_and_keyword_arguments():
+    from ddtrace.internal.datastreams.celery import _body_size
+
+    argument = "x" * 1024
+    protocol_2 = ((argument, b"abc"), {"key": "value"}, {"callbacks": None})
+    protocol_1 = {"task": "add", "id": "1", "args": [argument, b"abc"], "kwargs": {"key": "value"}}
+
+    assert _body_size(protocol_2) == 1024 + 3 + 3 + 5
+    assert _body_size(protocol_1) == 1024 + 3 + 3 + 5
+    assert _body_size(b"raw") == 3
+
+
+@pytest.mark.subprocess(env=DSM_ENV, err=None)
+def test_payload_size_counts_positional_task_arguments():
+    from ddtrace.internal.datastreams.processor import DataStreamsCtx
+    from tests.contrib.celery.base import BROKER_URL
+    from tests.contrib.celery.dsm_helpers import run_one_task
+
+    recorded = []
+    original = DataStreamsCtx.set_checkpoint
+
+    def set_checkpoint(self, tags, *args, **kwargs):
+        recorded.append((tags[0], kwargs.get("payload_size", 0)))
+        return original(self, tags, *args, **kwargs)
+
+    DataStreamsCtx.set_checkpoint = set_checkpoint
+    argument_size = 100_000
+    run_one_task(BROKER_URL, args=("x" * argument_size, "y"))
+
+    for direction in ("direction:out", "direction:in"):
+        sizes = [size for tag, size in recorded if tag == direction]
+        assert len(sizes) == 1, recorded
+        assert sizes[0] > argument_size, recorded
+
+
 def test_edge_tags():
     from ddtrace.internal.datastreams.celery import _edge_tags
 
