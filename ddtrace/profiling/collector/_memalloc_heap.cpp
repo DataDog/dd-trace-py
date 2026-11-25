@@ -1,7 +1,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -103,13 +102,13 @@ class heap_tracker_t
      * internally if found. */
     void untrack_no_cpython(void* ptr);
 
-    /* Move the sample tracked at `from` to a different address `to`, for a realloc that moved the block. Returns
-     * whether `from` was tracked. Must be called with the GIL held and must not make any C Python API calls. */
-    bool move_no_cpython(void* from, void* to);
-
-    /* The bytes a realloc of `old_ptr` to `new_size` at `new_ptr` adds to the sampling counter. Must be called with
+    /* Move the sample tracked at `from`, if any, to `to`, for a realloc that moved the block. Must be called with
      * the GIL held and must not make any C Python API calls. */
-    size_t realloc_charge_no_cpython(void* old_ptr, void* new_ptr, size_t new_size);
+    void move_no_cpython(void* from, void* to);
+
+    /* The bytes a realloc of `old_ptr` to `new_size` at `new_ptr` allocated, which is what it adds to the sampling
+     * counter. Must be called with the GIL held and must not make any C Python API calls. */
+    size_t realloc_growth_no_cpython(void* old_ptr, void* new_ptr, size_t new_size);
 
     /* Decide whether we should sample an allocation of the given size. Accesses
      * shared state, and must be called with the GIL held and without making any C
@@ -119,8 +118,8 @@ class heap_tracker_t
 
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
-     * If an allocation at the same address is already tracked, the old traceback
-     * is deleted internally. */
+     * A sample already tracked at the same address (the one a reallocated block kept)
+     * is replaced, and its traceback returned to the pool. */
     void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
 
     void export_heap_no_cpython();
@@ -170,13 +169,11 @@ class heap_tracker_t
      * via ProfilerStats so the backend / user can detect data loss. */
     size_t cap_drops{ 0 };
 
-    /* The block last reallocated, and its size then. CPython grows some buffers by one realloc per small step
-       (str.translate with replacements longer than one character reallocates once per replaced character), so
-       charging each realloc with its full new size samples nearly every step of a large buffer: about 1.6M samples
-       for one translate of 3M characters, each one a traceback captured with the GIL held. Charging a realloc of
-       the same block only with its growth keeps the counter on bytes actually allocated. Nothing clears these on
-       free, to keep malloc and free untouched: an address freed and handed out again, or another thread's realloc
-       in between, only changes what one realloc is charged, and the pointer is never dereferenced. */
+    /* The block last reallocated, and its size then, so that a realloc of the same block is charged only its growth.
+       CPython grows some buffers by many small reallocs (str.translate), and charging each its full new size samples
+       nearly every step. Only one block is remembered: two buffers grown in turn are each charged their full size, as
+       before. Not cleared on free, to keep malloc and free untouched: a reused address only changes what its first
+       realloc is charged, and the pointer is never dereferenced. */
     void* last_realloc_ptr{ nullptr };
     size_t last_realloc_size{ 0 };
 
@@ -268,32 +265,29 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     }
 }
 
-bool
+void
 heap_tracker_t::move_no_cpython(void* from, void* to)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto node = allocs_m.extract(from);
-    if (node.empty()) {
-        return false;
+    if (!node.empty()) {
+        allocs_m.insert_or_assign(to, std::move(node.mapped()));
     }
-    std::unique_ptr<traceback_t> tb = std::move(node.mapped());
-    allocs_m.insert_or_assign(to, std::move(tb));
-    return true;
 }
 
 size_t
-heap_tracker_t::realloc_charge_no_cpython(void* old_ptr, void* new_ptr, size_t new_size)
+heap_tracker_t::realloc_growth_no_cpython(void* old_ptr, void* new_ptr, size_t new_size)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    size_t charge = new_size;
+    size_t growth = new_size;
     if (old_ptr != nullptr && old_ptr == last_realloc_ptr) {
-        charge = new_size > last_realloc_size ? new_size - last_realloc_size : 0;
+        growth = new_size > last_realloc_size ? new_size - last_realloc_size : 0;
     }
     last_realloc_ptr = new_ptr;
     last_realloc_size = new_size;
-    return charge;
+    return growth;
 }
 
 bool
@@ -325,11 +319,11 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
-    (void)it; // Unused, but needed for structured binding
-
-    /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
-    assert(inserted && "add_sample: found existing entry for key that should have been removed");
+    auto [it, inserted] = allocs_m.try_emplace(ptr);
+    if (!inserted) {
+        pool_put_no_cpython(std::move(it->second));
+    }
+    it->second = std::move(tb);
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
@@ -418,15 +412,16 @@ memalloc_heap_untrack_no_cpython(void* ptr)
     }
 }
 
-/* Take a sample of the allocation of `size` bytes at `ptr`, which the counter (now `allocated_memory_val`) chose.
- * `replace` says a sample may already be tracked at `ptr` (one a realloc left there); the new one takes its place.
- * Kept out of line so the hooks' fast path, the should_sample check, stays as small as it was. */
+/* Take the sample the counter (now `allocated_memory_val`) chose: an allocation event of `alloc_size` bytes, and
+ * the live block of `live_size` bytes at `ptr` it leaves. The two differ only for a realloc, whose event is the bytes
+ * it added to the block. Kept out of line so the hooks' fast path, the should_sample check, stays as small as it
+ * was. */
 __attribute__((noinline)) static void
 memalloc_heap_sample_invokes_cpython(uint16_t max_nframe,
                                      void* ptr,
-                                     size_t size,
+                                     size_t alloc_size,
+                                     size_t live_size,
                                      uint64_t allocated_memory_val,
-                                     bool replace,
                                      PyMemAllocatorDomain domain)
 {
 
@@ -474,7 +469,7 @@ memalloc_heap_sample_invokes_cpython(uint16_t max_nframe,
     }
 
     auto tb = heap_tracker_t::instance->pool_get_with_alloc_data_invokes_cpython(
-      size, allocated_memory_val, max_nframe, domain);
+      alloc_size, allocated_memory_val, max_nframe, domain);
 
     // Stamp the birth time once. it persists across all future export_sample() calls.
     tb->birth_ns = Datadog::get_monotonic_ns();
@@ -495,7 +490,7 @@ memalloc_heap_sample_invokes_cpython(uint16_t max_nframe,
     // This is the inverse of the probability that a contiguous region of S bytes
     // contains at least one Poisson sample point. Each sampled allocation of size S
     // represents w real allocations of that size in the population.
-    double s = static_cast<double>(size > 0 ? size : 1);
+    double s = static_cast<double>(live_size > 0 ? live_size : 1);
     double r = static_cast<double>(heap_tracker_t::instance->get_sample_size());
     double p = 1.0 - std::exp(-s / r);
     int64_t heap_count = static_cast<int64_t>(1.0 / p);
@@ -503,9 +498,6 @@ memalloc_heap_sample_invokes_cpython(uint16_t max_nframe,
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        if (replace) {
-            heap_tracker_t::instance->untrack_no_cpython(ptr);
-        }
         heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
@@ -522,7 +514,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
         return;
     }
-    memalloc_heap_sample_invokes_cpython(max_nframe, ptr, size, allocated_memory_val, false, domain);
+    memalloc_heap_sample_invokes_cpython(max_nframe, ptr, size, size, allocated_memory_val, domain);
 }
 
 void
@@ -532,22 +524,23 @@ memalloc_heap_retrack_invokes_cpython(uint16_t max_nframe,
                                       size_t new_size,
                                       PyMemAllocatorDomain domain)
 {
-    if (!heap_tracker_t::instance) {
+    heap_tracker_t* tracker = heap_tracker_t::instance;
+    if (!tracker) {
         return;
     }
-    size_t charge = heap_tracker_t::instance->realloc_charge_no_cpython(old_ptr, new_ptr, new_size);
+    /* Live heap: the block keeps the sample it had, at its new address. */
+    if (old_ptr != nullptr && old_ptr != new_ptr) {
+        tracker->move_no_cpython(old_ptr, new_ptr);
+    }
 
-    /* Grown in place, a tracked sample is already under the right address; only a new sample replaces it. A moved
-     * block takes its sample along. */
-    bool tracked_at_new = old_ptr == new_ptr;
-    if (!tracked_at_new && old_ptr != nullptr) {
-        tracked_at_new = heap_tracker_t::instance->move_no_cpython(old_ptr, new_ptr);
-    }
+    /* Allocation events: the realloc allocated only what the block grew by, and a realloc that allocated nothing is
+     * no event. A sample replaces the block's live sample once it exists. */
+    size_t growth = tracker->realloc_growth_no_cpython(old_ptr, new_ptr, new_size);
     uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(charge, &allocated_memory_val)) {
+    if (growth == 0 || !tracker->should_sample_no_cpython(growth, &allocated_memory_val)) {
         return;
     }
-    memalloc_heap_sample_invokes_cpython(max_nframe, new_ptr, new_size, allocated_memory_val, tracked_at_new, domain);
+    memalloc_heap_sample_invokes_cpython(max_nframe, new_ptr, growth, new_size, allocated_memory_val, domain);
 }
 
 void

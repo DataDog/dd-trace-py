@@ -185,14 +185,11 @@ def test_memory_collector_realloc_growth_is_charged_once(tmp_path: Path) -> None
         profile = mc.snapshot_and_parse_pprof(output_filename)
 
     alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
-    charged = 0
-    for sample in profile.sample:
-        for location_id in sample.location_id:
-            location = pprof_utils.get_location_with_id(profile, location_id)
-            names = {pprof_utils.get_function_with_id(profile, line.function_id).name for line in location.line}
-            if "_grow_by_realloc" in {profile.string_table[name] for name in names}:
-                charged += sample.value[alloc_space_idx]
-                break
+    samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    charged = sum(
+        sample.value[alloc_space_idx]
+        for sample in pprof_utils.get_samples_with_function(profile, samples, "_grow_by_realloc")
+    )
 
     # The output buffer grows to about sys.getsizeof(result) bytes in ~1.6M reallocs. Charged with its full size at
     # each one, the reported allocations come to terabytes; charged with the growth, they stay near the buffer size.

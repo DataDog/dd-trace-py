@@ -21,8 +21,9 @@ void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain);
 void
 memalloc_heap_untrack_no_cpython(void* ptr);
-/* Track a realloc of old_ptr (possibly NULL) to new_ptr. A tracked sample of old_ptr follows the block to new_ptr,
- * and a realloc of the block last reallocated charges the sampling counter only with what it grew by. */
+/* Track a realloc of old_ptr (possibly NULL) to new_ptr. As an allocation event, a realloc of the block last
+ * reallocated counts only what it grew by. In the live heap, the block keeps its sample at new_ptr unless this
+ * realloc takes a new one. */
 void
 memalloc_heap_retrack_invokes_cpython(uint16_t max_nframe,
                                       void* old_ptr,
