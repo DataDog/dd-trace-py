@@ -105,7 +105,7 @@ extern "C"
 #ifdef __cplusplus
     static_assert(sizeof(dd_profiler_layout_t) == 144, "dd_profiler_layout_t size");
 #else
-_Static_assert(sizeof(dd_profiler_layout_t) == 144, "dd_profiler_layout_t size");
+    _Static_assert(sizeof(dd_profiler_layout_t) == 144, "dd_profiler_layout_t size");
 #endif
 #endif
 
