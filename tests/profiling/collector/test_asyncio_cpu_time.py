@@ -61,9 +61,9 @@ def assert_cpu_time_matches(profile_cpu: CpuTime, ground_truth: "Counter[str]", 
     for name, expected in ground_truth.items():
         actual = profile_cpu.per_task[name]
         assert abs(actual - expected) <= 0.2 * expected + 30e6, (name, actual / 1e9, expected / 1e9, profile_cpu)
-    # A task that is not running gets no CPU time. Without the fix, the thread's CPU time went to the first pending
-    # task whenever no task ran.
-    assert profile_cpu.task_outside_burn <= 0.01 * profile_cpu.total, profile_cpu
+    # A task that is not running gets no CPU time. A task sampled while it runs outside burn, such as just before
+    # or after it, still gets that tick's CPU time, about 10 ms. Allow two such ticks.
+    assert profile_cpu.task_outside_burn <= 0.01 * profile_cpu.total + 20e6, profile_cpu
     # Charged once, and not lost when no task runs.
     assert 0.8 * thread_cpu_ns <= profile_cpu.total <= 1.05 * thread_cpu_ns, (profile_cpu, thread_cpu_ns / 1e9)
 

@@ -248,7 +248,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             });
         }
         for (size_t i = 0; running_task != nullptr && i < leaf_tasks.size(); i++) {
-            if (leaf_tasks[i].get().origin == running_task) {
+            // asyncio_running_task is read before the task snapshots, so the task may have suspended in between.
+            // Its snapshot then shows the suspended coroutine without the thread stack it ran on. Leave such a task
+            // off CPU so the tick's CPU time goes to the thread sample, which has that stack.
+            if (leaf_tasks[i].get().origin == running_task && leaf_tasks[i].get().is_on_cpu) {
                 running_leaf = i;
                 break;
             }
