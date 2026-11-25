@@ -323,3 +323,141 @@ def test_child_processes_and_runpy(tmp_path) -> None:
         assert not os.path.exists(directory)
         """
     )
+
+
+def test_exec_wrapper_behaves_like_exec() -> None:
+    """The builtins.exec replacement passes module code to the callback, and is otherwise exec():
+    same name, signature, documentation and pickling, and the caller's namespace without globals.
+    """
+    _run_isolated(
+        """
+        import builtins
+        import inspect
+        import pickle
+
+        from ddtrace.internal.coverage import _linecov
+
+        original = builtins.exec
+        wrapper = _linecov.wrap_exec(original)
+        assert _linecov.wrap_exec(original) is wrapper
+        assert (wrapper.__name__, wrapper.__qualname__, wrapper.__module__) == ("exec", "exec", "builtins")
+        assert inspect.signature(wrapper) == inspect.signature(original)
+        assert wrapper.__doc__ == original.__doc__
+        builtins.exec = wrapper
+        assert pickle.loads(pickle.dumps(wrapper)) is wrapper
+
+        seen = []
+        _linecov.set_exec_callback(seen.append)
+        code = compile("x = 1", "/nonexistent/module.py", "exec")
+        exec(code)
+        assert x == 1  # noqa: F821
+        exec("y = 2")
+        assert y == 2  # noqa: F821
+        # Code compiled from a string has a "<...>" file name, and is not passed.
+        assert seen == [code]
+
+        def probe(run):
+            namespace = {}
+            run("caller = __name__", None, namespace)
+            run("local = 3")
+            return namespace["caller"], sorted(locals())
+
+        assert probe(wrapper) == probe(original)
+
+        _linecov.set_exec_callback(None)
+        exec(code)
+        assert seen == [code]
+        """
+    )
+
+
+_MODELS_SOURCE = """\
+import os
+
+if os.environ.get("MODELS_CHECKING"):
+    MODE = "checking"
+else:
+    MODE = "runtime"
+
+
+def build(n):
+    return list(range(n))
+"""
+
+
+def test_code_run_outside_the_import_hooks(tmp_path) -> None:
+    """Module code that a loader compiles and runs itself is recorded like imported code: here a
+    sys.meta_path finder ahead of the import hooks, and spec_from_file_location() with exec_module(),
+    which runs the module body again on its other branch.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("")
+    (root / "corpus").mkdir()
+    (root / "corpus" / "models.py").write_text(_MODELS_SOURCE)
+    _run_isolated(
+        f"""
+        import importlib.abc
+        import importlib.util
+        import os
+        from pathlib import Path
+        import sys
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        root = os.path.realpath({str(root)!r})
+        coverage.install_coverage(Path(root))
+        # The collector claims its sys.monitoring tool when it instruments the first module.
+        sys.path.insert(0, root)
+        import pkg  # noqa: F401
+
+        assert coverage.native_line_coverage_enabled()
+
+        class SourceImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+            # Compiles the sources up front and runs the code objects itself, as pydantic's
+            # benchmark corpus importer does.
+            def __init__(self, directory):
+                self.codes = {{
+                    "corpus_" + path.stem: compile(path.read_text(), str(path), "exec")
+                    for path in Path(directory).glob("*.py")
+                }}
+
+            def find_spec(self, fullname, path=None, target=None):
+                return importlib.util.spec_from_loader(fullname, self) if fullname in self.codes else None
+
+            def create_module(self, spec):
+                return None
+
+            def exec_module(self, module):
+                exec(self.codes[module.__name__], module.__dict__)
+
+        sys.meta_path.insert(0, SourceImporter(os.path.join(root, "corpus")))
+
+        def lines(bitmaps, report_path):
+            for path, bitmap in bitmaps:
+                if path == report_path:
+                    return {{i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)}}
+            return set()
+
+        with coverage.coverage_collection() as data:
+            import corpus_models
+
+            corpus_models.build(2)
+        assert lines(list(data.get_coverage_bitmaps(Path(root))), "/corpus/models.py") == {{1, 3, 6, 9, 10}}
+
+        # The module body runs again under another name, on its other branch. Its lines join the
+        # file's initialiser lines, which a test that touches the file afterwards gets.
+        with coverage.coverage_collection():
+            spec = importlib.util.spec_from_file_location("models_checking", os.path.join(root, "corpus", "models.py"))
+            module = importlib.util.module_from_spec(spec)
+            os.environ["MODELS_CHECKING"] = "1"
+            spec.loader.exec_module(module)
+            del os.environ["MODELS_CHECKING"]
+        assert module.MODE == "checking"
+        with coverage.coverage_collection() as data:
+            corpus_models.build(3)
+        assert lines(list(data.get_coverage_bitmaps(Path(root))), "/corpus/models.py") == {{1, 3, 4, 6, 9, 10}}
+
+        coverage.uninstall_coverage()
+        """
+    )
