@@ -8,8 +8,8 @@ import pytest
 
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import SensitiveHandler
 from ddtrace.appsec._iast._evidence_redaction.default_sensitive_analyzer import default_sensitive_analyzer
-from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast.constants import MAX_REDACTION_VALUE_LENGTH
+from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import Source
 from ddtrace.internal.settings.asm import config as asm_config
 
