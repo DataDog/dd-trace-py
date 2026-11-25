@@ -1189,6 +1189,20 @@
         "default": "false"
       }
     ],
+    "DD_DATA_STREAMS_PIPELINES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_DATA_STREAMS_PIPELINES_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "300.0"
+      }
+    ],
     "DD_DBAPI2_SERVICE": [
       {
         "implementation": "A",
