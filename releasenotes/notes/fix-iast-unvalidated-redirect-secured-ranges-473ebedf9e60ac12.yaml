@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: Fixes a false positive unvalidated redirect vulnerability reported when a redirect URL
+    combines validated user input with a header or cookie value.

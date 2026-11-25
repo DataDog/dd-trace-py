@@ -175,11 +175,11 @@ class VulnerabilityBase:
         """
         if len(ranges := get_ranges(string_to_check)) == 0:
             return False
-        if not all(_range.has_secure_mark(cls.secure_mark) for _range in ranges):
-            if origins_to_exclude:
-                return not all(_range.source.origin in origins_to_exclude for _range in ranges)
-            else:
-                return True
+        unsecured_ranges = [_range for _range in ranges if not _range.has_secure_mark(cls.secure_mark)]
+        if unsecured_ranges:
+            # Only unsecured ranges can make the string tainted, so a secured range from a non-excluded
+            # origin must not count.
+            return not all(_range.source.origin in origins_to_exclude for _range in unsecured_ranges)
         else:
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY, cls.vulnerability_type)
         return False
