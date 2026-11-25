@@ -24,6 +24,7 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.coverage.child_bootstrap import _ddtrace_child_coverage as _child_coverage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
@@ -525,8 +526,7 @@ def _child_env(child_env: t.Any) -> t.Any:
     children = _children
     if children is None or _linecov is None:
         return child_env
-    running = ctx_native.get()
-    token = running.token if running is not None and running.active else 0
+    token = _running_token()
     if child_env is None:
         if token == _linecov.owner():
             return None
@@ -549,6 +549,52 @@ def _child_env(child_env: t.Any) -> t.Any:
     child_env[key(_CHILD_DIR_ENV)] = value(children.directory)
     child_env[key(_CHILD_OWNER_ENV)] = value(str(token))
     return child_env
+
+
+def _running_token() -> int:
+    running = ctx_native.get()
+    return running.token if running is not None and running.active else 0
+
+
+def process_record() -> t.Optional[tuple[str, int]]:
+    """Where a multiprocessing child started now writes its lines, and for which context: the record
+    directory and the token of the running context. None when child processes are not followed.
+    """
+    children = _children
+    if _linecov is None:
+        return None
+    if children is None:
+        # A multiprocessing child forked from the test process: its processes run for its context.
+        return _forked_record
+    return children.directory, _running_token()
+
+
+# What process_record() returned for this process, when it is a multiprocessing child forked from
+# the test process.
+_forked_record: t.Optional[tuple[str, int]] = None
+
+
+def run_forked_process(record: tuple[str, int], bootstrap: t.Any, process: t.Any, args: t.Any, kwargs: t.Any) -> t.Any:
+    """Run BaseProcess._bootstrap in a multiprocessing child forked from this process.
+
+    record is what process_record() returned when the process started. The lines the child runs
+    from now on go to a record file for that context, as a child process's do; the lines recorded
+    before the fork are this process's to report.
+    """
+    global _forked_record
+
+    if _linecov is None or not _enabled:
+        return bootstrap(process, *args, **kwargs)
+    directory, owner = record
+    _forked_record = record
+    _linecov.forget()
+    # Following stopped at the fork; the children of this child run for the same context.
+    python_path = env.get("PYTHONPATH")
+    entries = python_path.split(os.pathsep) if python_path else []
+    if _BOOTSTRAP_DIR not in entries:
+        env["PYTHONPATH"] = os.pathsep.join([_BOOTSTRAP_DIR] + entries)
+    env[_CHILD_DIR_ENV] = directory
+    return _child_coverage.run_process(_linecov, directory, owner, bootstrap, process, args, kwargs)
 
 
 def _execute_child(
