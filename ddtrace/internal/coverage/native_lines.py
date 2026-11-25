@@ -10,11 +10,13 @@ Enabled with _DD_COVERAGE_NATIVE_LINES=true, which also selects line-level cover
 
 from contextvars import ContextVar
 import dis
+import marshal
 import os
 import sys
 from types import CodeType
 import typing as t
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
@@ -214,12 +216,233 @@ def new_context(fixture: bool = False) -> t.Any:
     return _linecov.Context(fixture)
 
 
+def set_running(context: t.Any) -> None:
+    """Run in context (a native context or None), which child processes started from now on inherit."""
+    if _linecov is not None and _enabled:
+        _linecov.set_running(context)
+    else:
+        ctx_native.set(context)
+
+
 def shared() -> dict[str, list[tuple[str, bytes]]]:
-    """The process's Shared record: initialiser, suite-setup and unowned lines, per file."""
+    """The process's Shared record: initialiser, suite-setup and unowned lines, per file.
+
+    The records of child processes that exited after their context's window closed are part of it.
+    """
     if _linecov is None or not _enabled:
         return {}
+    collect_children()
     return t.cast(dict[str, list[tuple[str, bytes]]], _linecov.shared())
 
 
-def stats() -> dict[str, t.Any]:
-    return _linecov.stats() if _linecov is not None else {}
+# Child processes. The Python processes a context starts run on its behalf, so the lines they run
+# are the context's. See child_bootstrap/_ddtrace_child_coverage.py for the child's side.
+_CHILD_DIR_ENV = "_DD_COVERAGE_CHILD_DIR"
+_CHILD_OWNER_ENV = "_DD_COVERAGE_CHILD_OWNER"
+_BOOTSTRAP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "child_bootstrap")
+# The state file starts with the counters the collector maps; the children's configuration follows.
+_STATE_HEADER_SIZE = 64
+
+
+class _ChildProcesses:
+    __slots__ = ("directory", "records_seen", "python_path")
+
+    def __init__(self, directory: str, python_path: t.Optional[str]) -> None:
+        self.directory = directory
+        self.records_seen = 0
+        self.python_path = python_path
+
+
+_children: t.Optional[_ChildProcesses] = None
+# Popen._execute_child as it was before follow_children() wrapped it. Kept after following
+# stops, since another wrapper may have wrapped ours in the meantime.
+_original_execute_child: t.Any = None
+
+
+def _children_config(include_paths: t.Sequence[str], exclude_paths: t.Sequence[str]) -> bytes:
+    assert _linecov is not None and _report_root is not None  # nosec
+    stats = _linecov.stats()
+    lines = [
+        "root=" + _report_root,
+        "extension=" + _linecov.__file__,
+        "build=" + sys.version.replace("\n", " "),
+        "internal_rearm=%d" % stats["internal_rearm"],
+        "instruction_probes=%d" % stats["instruction_probes"],
+        "deopt=" + _deopt_table().hex(),
+        "superinstructions=" + _superinstruction_table().hex(),
+        "min_instrumented=%d" % _min_instrumented_opcode(),
+        "instrumented_line=%d" % dis.opmap.get("INSTRUMENTED_LINE", -1),
+        "instrumented_instruction=%d" % dis.opmap.get("INSTRUMENTED_INSTRUCTION", -1),
+        "enter_executor=%d" % dis.opmap.get("ENTER_EXECUTOR", -1),
+    ]
+    lines += ["include=" + path for path in include_paths]
+    lines += ["exclude=" + path for path in exclude_paths]
+    return bytes(_STATE_HEADER_SIZE) + "\n".join(lines).encode("utf-8")
+
+
+def follow_children(include_paths: t.Sequence[str], exclude_paths: t.Sequence[str]) -> None:
+    """Make the Python child processes started from now on record their lines for this process.
+
+    The bootstrap directory goes first on PYTHONPATH, so a Python child imports its
+    sitecustomize. The child reads which context it runs for from the state file, or from the
+    environment when it was started from another context than the one this process runs for,
+    and writes its lines to a record file at exit. include_paths and exclude_paths select the
+    files a child records, as they do here.
+    """
+    global _children, _original_execute_child
+
+    if _children is not None or _linecov is None or not _enabled or _report_root is None or os.name == "nt":
+        return
+    # Imported here, not at module level: only a test session that follows children needs them.
+    import shutil
+    import subprocess  # nosec
+    import tempfile
+
+    directory = tempfile.mkdtemp(prefix="dd-coverage-")
+    try:
+        state = os.path.join(directory, "state")
+        with open(state, "wb") as f:
+            f.write(_children_config(include_paths, exclude_paths))
+        _linecov.share_state(state)
+    except Exception:
+        log.debug("Child processes are not followed", exc_info=True)
+        shutil.rmtree(directory, ignore_errors=True)
+        return
+    python_path = env.get("PYTHONPATH")
+    _children = _ChildProcesses(directory, python_path)
+    env["PYTHONPATH"] = _BOOTSTRAP_DIR + (os.pathsep + python_path if python_path else "")
+    env[_CHILD_DIR_ENV] = directory
+    if subprocess.Popen._execute_child is not _execute_child:  # type: ignore[attr-defined]
+        _original_execute_child = subprocess.Popen._execute_child  # type: ignore[attr-defined]
+        subprocess.Popen._execute_child = _execute_child  # type: ignore[attr-defined]
+    _linecov.set_running(ctx_native.get())
+    forksafe.register(_stop_in_forked_child)
+
+
+def _child_env(child_env: t.Any) -> t.Any:
+    """The environment for a child that Popen starts.
+
+    It names the context the child runs for when that is not the one the state file names, and
+    keeps the bootstrap when the caller replaced the environment.
+    """
+    children = _children
+    if children is None or _linecov is None:
+        return child_env
+    running = ctx_native.get()
+    token = running.token if running is not None and running.active else 0
+    if child_env is None:
+        if token == _linecov.owner():
+            return None
+        # All of it, as the child would inherit it: env.copy() leaves out empty OTEL_* variables.
+        child_env = dict(os.environ)  # ast-grep-ignore: os-environ-fix-access
+    else:
+        child_env = dict(child_env)
+    as_bytes = any(isinstance(key, bytes) for key in child_env)
+
+    def key(name: str) -> t.Any:
+        return os.fsencode(name) if as_bytes else name
+
+    def value(text: str) -> t.Any:
+        return os.fsencode(text) if as_bytes else text
+
+    python_path = child_env.get(key("PYTHONPATH"))
+    entries = os.fsdecode(python_path).split(os.pathsep) if python_path else []
+    if _BOOTSTRAP_DIR not in entries:
+        child_env[key("PYTHONPATH")] = value(os.pathsep.join([_BOOTSTRAP_DIR] + entries))
+    child_env[key(_CHILD_DIR_ENV)] = value(children.directory)
+    child_env[key(_CHILD_OWNER_ENV)] = value(str(token))
+    return child_env
+
+
+def _execute_child(
+    self: t.Any,
+    args: t.Any,
+    executable: t.Any,
+    preexec_fn: t.Any,
+    close_fds: t.Any,
+    pass_fds: t.Any,
+    cwd: t.Any,
+    env: t.Any,
+    *rest: t.Any,
+    **kwargs: t.Any,
+) -> t.Any:
+    if _children is not None:
+        try:
+            env = _child_env(env)
+        except Exception:
+            log.debug("Could not pass the coverage context to a child process", exc_info=True)
+    return _original_execute_child(self, args, executable, preexec_fn, close_fds, pass_fds, cwd, env, *rest, **kwargs)
+
+
+def collect_children() -> None:
+    """Merge the records of the child processes that exited since the last call.
+
+    A record joins the active context it names; once that context's window has closed, or when
+    it names none, it joins the unowned lines. Cheap when no child wrote a record.
+    """
+    children = _children
+    if children is None or _linecov is None:
+        return
+    records = _linecov.records()
+    if records == children.records_seen:
+        return
+    children.records_seen = records
+    try:
+        entries = list(os.scandir(children.directory))
+    except OSError:
+        return
+    for entry in entries:
+        if not entry.name.endswith(".rec"):
+            continue
+        try:
+            with open(entry.path, "rb") as f:
+                files = marshal.load(f)  # nosec: written by this process's children
+            os.unlink(entry.path)
+            token = int(entry.name.split("-", 1)[0])
+        except Exception:
+            log.debug("Could not read the child coverage record %s", entry.path, exc_info=True)
+            continue
+        _merge_child_record(token, files)
+
+
+def _merge_child_record(token: int, files: dict[str, bytes]) -> None:
+    assert _linecov is not None and _report_root is not None  # nosec
+    for report_path, bitmap in files.items():
+        path = _report_root + report_path.replace("/", os.sep)
+        _linecov.merge(token, _file_id(path), bitmap)
+
+
+def stop_following_children() -> None:
+    """Restore the environment and remove the state directory. Records not collected are dropped."""
+    children = _stop_following()
+    if children is not None:
+        import shutil
+
+        forksafe.unregister(_stop_in_forked_child)
+        shutil.rmtree(children.directory, ignore_errors=True)
+
+
+def _stop_following() -> t.Optional[_ChildProcesses]:
+    global _children
+
+    children = _children
+    if children is None:
+        return None
+    _children = None
+    import subprocess  # nosec
+
+    if subprocess.Popen._execute_child is _execute_child:  # type: ignore[attr-defined]
+        subprocess.Popen._execute_child = _original_execute_child  # type: ignore[attr-defined]
+    if children.python_path is None:
+        env.pop("PYTHONPATH", None)
+    else:
+        env["PYTHONPATH"] = children.python_path
+    env.pop(_CHILD_DIR_ENV, None)
+    if _linecov is not None:
+        _linecov.unshare_state()
+    return children
+
+
+def _stop_in_forked_child() -> None:
+    """A forked process stops following: it would publish its contexts in its parent's state file."""
+    _stop_following()

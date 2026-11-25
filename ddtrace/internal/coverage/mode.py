@@ -51,7 +51,7 @@ class CoverageMode:
     def arm(self, import_context: bool) -> None:
         pass
 
-    def after_module_context(self, code: CodeType, module: ModuleType) -> None:
+    def after_module_context(self, code: CodeType, module: t.Optional[ModuleType]) -> None:
         """Called after entering the import context, before executing the body."""
 
     def on_module_body_finished(self, module: ModuleType) -> None:
@@ -63,7 +63,10 @@ class CoverageMode:
     def anchor_test_file(self, test_file: Path, anchor: t.Callable[[str], None]) -> None:
         """Anchor a test's file as a coverage closure root (import-only overrides)."""
 
-    def instrument_module(self, code: CodeType, module: ModuleType) -> CodeType:
+    def instrument_module(self, code: CodeType, module: t.Optional[ModuleType]) -> CodeType:
+        """Instrument a module's code. module is None only with native line collection, for code
+        that exec() or runpy runs without a module object.
+        """
         raise NotImplementedError
 
     def expand_context_lines(

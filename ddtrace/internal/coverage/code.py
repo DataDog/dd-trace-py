@@ -4,6 +4,7 @@ from copy import deepcopy
 from inspect import getmodule
 import os
 from pathlib import Path
+import runpy
 import sys
 from types import CodeType
 from types import ModuleType
@@ -119,6 +120,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             par.exec = self._exec
         except ImportError:
             pass
+        # runpy (run_module, run_path) runs module code it compiled itself, outside the import system.
+        runpy.exec = self._runpy_exec  # type: ignore[attr-defined]
 
     @classmethod
     def install(
@@ -662,8 +665,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             return False
         return not any(_is_under(path, str(exclude_path)) for exclude_path in self._exclude_paths)
 
-    def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
-        if _module is None:
+    def transform(self, code: CodeType, _module: t.Optional[ModuleType]) -> CodeType:
+        # Native line collection needs no module object.
+        if _module is None and not native_lines.enabled():
             return code
 
         # The same memoized realpath as instrument_module's, so a module's file is resolved once.
@@ -673,7 +677,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         retval = self._mode.instrument_module(code, _module)
 
         # Native line collection credits initialiser lines per file, so it opens no import contexts.
-        if self._collect_import_coverage and not native_lines.enabled():
+        if self._collect_import_coverage and _module is not None and not native_lines.enabled():
             self._enter_module_context(code, _module)
 
         self._mode.after_module_context(code, _module)
@@ -753,9 +757,18 @@ class ModuleCodeCollector(ModuleWatchdog):
         # exec built-in function.
         new_object = _object
         if isinstance(_object, CodeType) and _object.co_name == "<module>":
-            new_object = self.transform(_object, _executing_module(_object, _globals))
+            # Native line collection needs no module, which can take a scan of sys.modules to find.
+            module = None if native_lines.enabled() else _executing_module(_object, _globals)
+            new_object = self.transform(_object, module)
         # Execute the module before calling the after_import hook
         _original_exec(new_object, _globals, _locals, **kwargs)
+
+    def _runpy_exec(self, _object, _globals=None, _locals=None, **kwargs):
+        # Only native line collection instruments it: the other modes would open an import context
+        # that no after_import hook closes.
+        if native_lines.enabled() and isinstance(_object, CodeType) and _object.co_name == "<module>":
+            _object = self.transform(_object, None)
+        _original_exec(_object, _globals, _locals, **kwargs)
 
     @classmethod
     def uninstall(cls) -> None:
@@ -766,6 +779,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             par.exec = _original_exec
         except ImportError:
             pass
+        runpy.__dict__.pop("exec", None)
 
         if cls._instance is not None:
             cls._instance._mode.uninstall()
