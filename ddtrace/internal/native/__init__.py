@@ -1,8 +1,6 @@
-from typing import Optional
-
-from ddtrace.internal import forksafe as _forksafe
-from ddtrace.internal.settings import env
-
+# This package becomes the ddtrace-native package (_ddtrace_native), so it holds compiled code only and
+# imports no ddtrace Python module. The Python glue around it lives with its users: the post-fork RNG
+# reseed is registered by ddtrace/__init__.py and the on-disk configuration is read by settings._core.
 from ._native import AgentError  # noqa: F401
 from ._native import AgentResponse  # noqa: F401
 from ._native import BuilderError  # noqa: F401
@@ -24,7 +22,7 @@ from ._native import MetricContext  # noqa: F401
 from ._native import MetricNamespace  # noqa: F401
 from ._native import MetricType  # noqa: F401
 from ._native import NetworkError  # noqa: F401
-from ._native import PyConfigurator
+from ._native import PyConfigurator  # noqa: F401
 from ._native import PyTracerMetadata  # noqa: F401
 from ._native import RemoteConfigCapabilities  # noqa: F401
 from ._native import RemoteConfigChange  # noqa: F401
@@ -60,49 +58,3 @@ try:
     from ._native import ffe  # noqa: F401
 except ImportError:
     pass
-
-
-# Child processes must reseed the RNG after fork. Without a new seed, they use the
-# RNG state of the parent and generate the same trace and span IDs. Register the
-# hook here, at import time, to set it up as early as possible.
-_forksafe.register(seed)
-
-
-def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[str, Optional[str]]]:
-    """
-    Retrieves the tracer configuration from disk. Calls the PyConfigurator object
-    to read the configuration from the disk using the libdatadog shared library
-    and returns the corresponding configuration
-    See https://github.com/DataDog/libdatadog/blob/06d2b6a19d7ec9f41b3bfd4ddf521585c55298f6/library-config/src/lib.rs
-    for more information on how the configuration is read from disk
-    """
-    debug_logs = env.get("DD_TRACE_DEBUG", "false").lower().strip() in ("true", "1")
-    configurator = PyConfigurator(debug_logs)
-
-    # Check if the file override is provided via environment variables
-    # This is only used for testing purposes
-    local_file_override = env.get("_DD_SC_LOCAL_FILE_OVERRIDE", "")
-    managed_file_override = env.get("_DD_SC_MANAGED_FILE_OVERRIDE", "")
-    if local_file_override:
-        configurator.set_local_file_override(local_file_override)
-    if managed_file_override:
-        configurator.set_managed_file_override(managed_file_override)
-
-    fleet_config = {}
-    fleet_config_ids = {}
-    local_config = {}
-    try:
-        for entry in configurator.get_configuration():
-            var_name = entry["name"]
-            source = entry["source"]
-            if source == "fleet_stable_config":
-                fleet_config[var_name] = entry["value"]
-                fleet_config_ids[var_name] = entry.get("config_id")
-            elif source == "local_stable_config":
-                local_config[var_name] = entry["value"]
-            else:
-                print(f"Unknown configuration source: {source}, for {var_name}")
-    except Exception as e:
-        # No logger at this point, so we rely on good old print
-        print(f"Failed to load configuration from disk, skipping: {e}")
-    return fleet_config, local_config, fleet_config_ids

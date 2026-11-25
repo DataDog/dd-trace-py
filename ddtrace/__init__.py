@@ -18,7 +18,21 @@ del _registry, register_supported_configurations
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
+
+
+# Child processes must reseed the RNG after fork. Without a new seed, they use the RNG state of the parent and
+# generate the same trace and span IDs. The native extension does not register this itself, since it imports no
+# ddtrace Python module. Importing any ddtrace module runs this package __init__ first, and nothing above loads the
+# extension, so the hook is in place before any ID can be generated.
+from ddtrace.internal import forksafe as _forksafe  # noqa: E402
+from ddtrace.internal.native import seed as _seed  # noqa: E402
+
+
+_forksafe.register(_seed)
+del _forksafe, _seed
+
 from ._logger import configure_ddtrace_logger  # noqa: E402
+
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
