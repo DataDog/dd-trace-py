@@ -237,6 +237,16 @@ class _ExplodingMessage(dict):
         raise RuntimeError("boom")
 
 
+def test_materialized_content_survives_a_later_failure():
+    """Content read before a later message fails stays in the request copy, not lost with its iterator."""
+    result = dict(RESULT, content=(b for b in RESULT["content"]))
+    kwargs = {"messages": [{"role": "assistant", "content": [CALL, result]}, _ExplodingMessage(role="user")]}
+
+    materialize_request(kwargs)
+
+    assert kwargs["messages"][0]["content"][1]["content"] == RESULT["content"]
+
+
 def test_materialize_request_fails_open():
     message = _ExplodingMessage(role="user", content=[dict(RESULT, content=(b for b in RESULT["content"]))])
     kwargs = {"messages": [message]}

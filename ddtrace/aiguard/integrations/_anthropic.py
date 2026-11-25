@@ -616,13 +616,14 @@ def _materialize_request(kwargs: dict[str, Any]) -> None:
                 and block.get("type") in _ITERABLE_CONTENT_BLOCK_TYPES
                 and _is_unlisted_iterable(block.get("content"))
             ):
-                blocks = blocks if blocks is not None else list(content)
-                blocks[block_index] = {**block, "content": list(block["content"])}
-        if blocks is not None:
-            copied = copied if copied is not None else list(messages)
-            copied[index] = {**message, "content": blocks}
-    if copied is not None:
-        kwargs["messages"] = copied
+                listed = list(block["content"])
+                # Published at once: a later failure must not lose content that is already consumed.
+                if blocks is None:
+                    if copied is None:
+                        copied = kwargs["messages"] = list(messages)
+                    blocks = list(content)
+                    copied[index] = {**message, "content": blocks}
+                blocks[block_index] = {**block, "content": listed}
 
 
 def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServer]]:
