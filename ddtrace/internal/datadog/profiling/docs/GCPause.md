@@ -64,7 +64,7 @@ def _state() -> dict[str, int]: ...  # tests and debug logs
 
 - The wrapper keeps the reference count and serializes `start()` and `stop()` with its own lock.
   Neither the callback nor `drain()` takes that lock, so nothing that runs during a collection can leave it held.
-  Installing can release the GIL (importing `gc`, or a collection while appending to `gc.callbacks`), so a native mutex there would have to release the GIL to wait, with the finalization checks that requires.
+  Installing goes through the import machinery, which can run Python code and so release the GIL; a native mutex there would have to release the GIL to wait, with the finalization checks that requires.
 - `start(threshold_ns)` adds a reference; the first one installs the callback and starts an empty window.
   Pauses of at least `threshold_ns` become events; `None` keeps no events.
   The last caller's threshold wins.
@@ -109,7 +109,7 @@ A second consumer that drains, such as runtime metrics, needs its own window, up
 
 CPython runs one collection at a time per interpreter (a compare-and-swap on `collecting` in 3.14+ and free-threaded builds), so one thread writes the start slots at a time.
 Generations are what CPython reports, 0 to 2.
-On 3.14, whose incremental collector reports every automatic collection as generation 1, `gc.collect[gen=1]` counts those increments.
+On 3.14.0 to 3.14.4, the default build's incremental collector reports every automatic collection as generation 1, so `gc.collect[gen=1]` counts those increments.
 
 ### Clocks
 
@@ -188,10 +188,10 @@ Moving them onto `_gc_pause` is a separate change, and it needs the second windo
 
 The native module reads no environment variable.
 
-- `DD_PROFILING_GC_TIME_ENABLED` (formerly `DD_PROFILING_GC_ENABLED`) turns the GC Time collector on, and only the collector's start installs the callback.
+- `DD_PROFILING_GC_ENABLED` (to be renamed `DD_PROFILING_GC_TIME_ENABLED`) turns the GC Time collector on, and only the collector's start installs the callback.
   It is off by default, which also makes it the off switch for the native path.
   No setting chooses between native and Python pause tracking.
-- `DD_PROFILING_GC_TIME_PAUSE_EVENT_THRESHOLD_MS` (formerly `DD_PROFILING_GC_PAUSE_EVENT_THRESHOLD_MS`): float milliseconds, default 1.0, valid from 0 to infinity (`ProfilingConfigGC` in `ddtrace/internal/settings/profiling.py`).
+- `DD_PROFILING_GC_PAUSE_EVENT_THRESHOLD_MS` (to be renamed `DD_PROFILING_GC_TIME_PAUSE_EVENT_THRESHOLD_MS`): float milliseconds, default 1.0, valid from 0 to infinity (`ProfilingConfigGC` in `ddtrace/internal/settings/profiling.py`).
   `gc.py` passes it to `start()` in nanoseconds, and infinity as `None`.
   Today `GCCollector.__init__` computes `int(threshold_ms * 1_000_000)`, which raises `OverflowError` for infinity.
 - `DD_PROFILING_STACK_GC_ENABLED` is separate: it puts "Garbage collection" frames on stack samples through `GCFrameTracker`.
@@ -215,10 +215,12 @@ It keeps its per-interpreter slots, frame capture and fork handlers.
 The header compiles in `gc_frame_tracker.cpp`'s include order (`Py_BUILD_CORE`, then `internal/pycore_interp.h` on 3.15).
 The leaked singleton stays a one-line idiom in each user, because a template helper could not call `GCFrameTracker`'s private constructor.
 
-On 3.13 free-threaded builds, `append_once` is not atomic.
-`PyList_Append` enters the list's critical section again, and before 3.14 that nested entry blocks on the mutex the outer section holds, which detaches the thread and suspends the outer section.
+On 3.13 free-threaded builds, `append_once` and `remove_all` are not atomic.
+`PyList_Append` and `PySequence_DelItem` enter the list's critical section again, and before 3.14 that nested entry blocks on the mutex the outer section holds, which detaches the thread and suspends the outer section.
 `gc_pause.py` serializes installs with its lock.
 `GCFrameTracker` releases its mutex before the scan, so on 3.13t two concurrent installs could register its callback twice.
+Serializing installs does not close the `remove_all` gap: another thread that inserts or deletes entries while the outer section is suspended shifts the indexes, so the delete can remove a different entry and leave `callback` in place, or fail with `IndexError`.
+`GCFrameTracker`'s uninstall loop, which `remove_all` copies, has the same gap.
 
 ## Tests
 
@@ -254,11 +256,12 @@ Moved to the core tests, because they need exact durations, a smaller cap or an 
 For real pauses of 10 ms or more in Python tests, use `busy_cyclic_collection`: `slow_cyclic_collection` sleeps in `__del__`, which uses no thread CPU time.
 
 Core tests: `_gc_pause_core.hpp` holds the Python-free logic (windows, cap, reserve, try-locks, drain swap, fork reset).
-GoogleTest cases in `stack/test/` run in the `profiling_native` job under ASan/UBSan, TSan and Valgrind on 3.9 to 3.15 ([Testing](Testing.md)).
+GoogleTest cases in `stack/test/` run in the `profiling_native` job under ASan/UBSan and TSan on 3.9 to 3.15, and under Valgrind on 3.12 and 3.15 ([Testing](Testing.md)).
 Cases: cap and reserve, dropped counters, drain swap, contention, a real `fork()` while another thread holds the lock, and the callback and `drain()` racing under TSan.
 `scripts/check_profiling_native_coverage.py` only scans the profiling directories, so add the `_gc_pause` sources and headers to the `profiling_native` `rules:changes` and to that script.
 
-Platforms: Python tests run on Linux and macOS, and `tests/smoke_test.py`, which cibuildwheel runs for every wheel (Windows included), imports `_gc_pause`.
+Platforms: CI runs the profiling Python suites on Linux only.
+Every wheel build runs `tests/smoke_test.py` (`test_wheel` in `.gitlab/scripts/build-wheel-helpers.sh` for Linux and macOS, `.gitlab/scripts/windows-docker-test.ps1` for Windows amd64 and x86, and cibuildwheel's test command for Windows ARM64), so the smoke test imports `_gc_pause` to cover macOS and Windows.
 
 Benchmark: per-collection cost of the callback pair, native against the plain-lock Python path, on 3.9 and 3.15.
 

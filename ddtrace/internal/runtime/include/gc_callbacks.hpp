@@ -1,8 +1,8 @@
 #pragma once
 
-// Public C API helpers for a native gc.callbacks entry, shared by separately built
-// extensions. Keep this header free of Py_BUILD_CORE and valid on every supported Python
-// version: one of its users installs a callback on all of them.
+// Public C API helpers for a native gc.callbacks entry, for separately built extensions
+// to share. Keep this header free of Py_BUILD_CORE and valid on every supported Python
+// version.
 
 #ifndef PY_SSIZE_T_CLEAN
 #define PY_SSIZE_T_CLEAN
@@ -39,17 +39,16 @@ parse_phase(PyObject* phase) noexcept
     return is_stop ? Phase::stop : Phase::other;
 }
 
-// The key for parse_generation(): a new reference, or NULL with an exception set.
-// PyDict_GetItemString would build a new key string on every call, and a GC callback must
-// not allocate.
+// The key for parse_generation(): a new reference, or NULL with an exception set. Build
+// it once and reuse it: PyDict_GetItemString would build a new key string on every call.
 inline PyObject*
 new_generation_key() noexcept
 {
     return PyUnicode_InternFromString("generation");
 }
 
-// info["generation"] when it is a non-negative int that fits a long, else -1. Never
-// allocates and never leaves an exception set.
+// info["generation"] when it is a non-negative int that fits a long, else -1. Does not
+// allocate for the info dict CPython passes, and never leaves an exception set.
 inline long
 parse_generation(PyObject* info, PyObject* generation_key) noexcept
 {
@@ -139,6 +138,11 @@ append_once(PyObject* callbacks, PyObject* callback) noexcept
 // Removes every entry that is callback itself. Identity comparisons only, so no entry's
 // __eq__ runs. The caller must hold its own reference to callback, so that no removal
 // deallocates it. Returns the number of entries removed, or -1 with an exception set.
+//
+// On 3.13 free-threaded builds this is not atomic either: PySequence_DelItem enters the
+// same critical section, which suspends the outer one. Another thread that inserts or
+// deletes entries in that window shifts the indexes, so the delete can remove a different
+// entry or fail with IndexError. Serializing callers does not prevent that.
 inline Py_ssize_t
 remove_all(PyObject* callbacks, PyObject* callback) noexcept
 {
