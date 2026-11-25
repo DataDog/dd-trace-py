@@ -19,13 +19,15 @@ pub struct AiGuardX509Client {
 #[pymethods]
 impl AiGuardX509Client {
     #[new]
-    #[pyo3(signature = (runtime, *, site, api_key, app_name="dd-trace-py", app_version="0.0.0"))]
+    #[pyo3(signature = (runtime, *, site, api_key, app_name="dd-trace-py", app_version="0.0.0", register_url=None, host_tags=None))]
     fn new(
         runtime: PyRef<'_, SharedRuntimePy>,
         site: String,
         api_key: String,
         app_name: &str,
         app_version: &str,
+        register_url: Option<String>,
+        host_tags: Option<Vec<String>>,
     ) -> PyResult<Self> {
         let rt = runtime.as_arc()?;
         let config = AiGuardX509Config {
@@ -33,6 +35,8 @@ impl AiGuardX509Client {
             api_key,
             app_name: app_name.to_string(),
             app_version: app_version.to_string(),
+            register_url,
+            host_tags: host_tags.unwrap_or_default(),
         };
         let client = AiGuardX509::start_on_runtime(&rt, config)
             .map_err(|e| PyRuntimeError::new_err(format!("failed to start AiGuardX509: {e}")))?;
