@@ -344,7 +344,7 @@ def _run_isolated(script: str) -> None:
     source = "SCENARIOS = " + repr(SCENARIOS) + "\n" + HARNESS + textwrap.dedent(script)
     result = subprocess.run(
         [sys.executable, "-c", source],
-        env={**os.environ, "_DD_COVERAGE_NATIVE_LINES": "true"},
+        env={**os.environ, "_DD_COVERAGE_NATIVE_LINES": "true", "_DD_COVERAGE_BLOCK_PROBES": "true"},
         capture_output=True,
         text=True,
         timeout=120,
