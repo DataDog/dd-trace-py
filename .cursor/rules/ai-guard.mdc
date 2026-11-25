@@ -256,9 +256,11 @@ its `_CallScope`, and a stream on the per-stream state the contrib passes to
 both stream events.
 
 The LiteLLM guardrail keeps the handle in a ContextVar of the request task. It claims only when
-the data has `proxy_server_request`, the call type is a chat or text completion, `responses`,
-`aresponses` or `anthropic_messages`, and the `post_call` mode applies. On LiteLLM 1.82.6,
-`/cursor/chat/completions` also has the call type `aresponses`, so it is claimed too. AI Guard must
+the data has `proxy_server_request`, the `post_call` mode applies, and the post-call hooks evaluate
+the answer: every chat or text completion, and a `responses`, `aresponses` or `anthropic_messages`
+request that is not streamed and uses a create route (`/responses` or `/v1/messages`). Thus streamed
+Responses and Messages requests, and `/cursor/chat/completions` (call type `aresponses` on LiteLLM
+1.82.6), are not claimed, and the provider listeners keep their checks. AI Guard must
 also complete the prompt evaluation: after an AI Guard error, the provider listeners evaluate the
 prompt again. For `anthropic_messages`, the Anthropic converter must also read the body: after the
 chat conversion fallback described below, the guardrail does not claim, so a provider listener that
@@ -277,7 +279,9 @@ OpenAI Responses or the Anthropic converters. The answers of the retrieve, cance
 `/cursor/chat/completions` answer is a chat stream, so the chat stream hook evaluates it. The prompt
 of the answer evaluation comes from the request body (Responses `instructions`, `input` and `prompt`
 variables, Anthropic `system` and `messages`), never from `data["metadata"]`, which the client
-controls. The pre-call check of `/v1/messages` also uses the Anthropic converter, so it keeps the
+controls. The pre-call check of a Responses request uses the same converter, because LiteLLM drops the
+`prompt` variables that the provider gets. The pre-call check of `/v1/messages` also uses the
+Anthropic converter, so it keeps the
 system prompt, `tool_use` and `tool_result`. Before the conversion, the guardrail reads each string
 item of the `system`, message and `tool_result` content lists as a text block, in a copy, because
 the converter skips such items and LiteLLM can send them to a chat model as text. When the Anthropic

@@ -729,8 +729,8 @@ async def test_streamed_messages_answer_passes_through(litellm_proxy, openai_stu
     texts = [event["delta"].get("text") for event in _events(response) if event.get("type") == "content_block_delta"]
     assert "".join(t for t in texts if t) == ANSWER
     assert openai_stub.paths == ["/v1/chat/completions"]
-    # The OpenAI listener skips the claimed request, and the guardrail does not evaluate streamed Anthropic answers.
-    assert evaluations == [("litellm", "prompt")]
+    # The guardrail does not evaluate streamed Anthropic answers, so it does not claim and the OpenAI listener checks.
+    assert evaluations == [("litellm", "prompt"), ("openai", "prompt")]
     assert not is_aiguard_context_active()
 
 

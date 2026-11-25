@@ -56,19 +56,10 @@ from ddtrace.internal.utils.openai import openai_construct_completion_from_strea
 
 GUARDRAIL_NAME = "datadog_ai_guard"
 
-# The guardrail claims the proxy requests of these call types, because the post-call hooks evaluate their answers.
-# Streamed Responses and Messages answers still pass through without an answer evaluation.
-_ANSWER_CALL_TYPES = frozenset(
-    {
-        "completion",
-        "acompletion",
-        "text_completion",
-        "atext_completion",
-        "responses",
-        "aresponses",
-        "anthropic_messages",
-    }
-)
+# The post-call hooks evaluate the chat and text completion answers of every route and response mode.
+_CHAT_CALL_TYPES = frozenset({"completion", "acompletion", "text_completion", "atext_completion"})
+# They evaluate these answers only on the create routes, and only when they are not streamed.
+_ROUTE_CALL_TYPES = frozenset({"responses", "aresponses", "anthropic_messages"})
 
 # This variable keeps the claim of the proxy request. The proxy runs the pre-call hook in the
 # request task, and the model call and the stream get a copy of that context.
@@ -118,6 +109,15 @@ def _message_text_blocks(message: Any) -> Any:
             block = {**block, "content": _text_blocks(block["content"])}
         content.append(block)
     return {**message, "content": content}
+
+
+def _answer_is_evaluated(data: dict[str, Any], call_type: Optional[str]) -> bool:
+    """Return True if the post-call hooks evaluate the answer of this proxy request."""
+    if call_type in _CHAT_CALL_TYPES:
+        return True
+    if call_type not in _ROUTE_CALL_TYPES or data.get("stream"):
+        return False
+    return _call_type_from_route(data) in ("aresponses", "anthropic_messages")
 
 
 async def _read_next(stream: Any) -> Any:
@@ -374,10 +374,15 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
             # After the chat conversion, do not claim, so that the provider listeners also check the model call.
             claim = claim and exact
         else:
-            request_messages = self.get_guardrails_messages_for_call_type(call_type=request_call_type, data=data)
-            if not request_messages and call_type in ("text_completion", "atext_completion"):
-                request_messages = self._convert_text_prompt(data.get("prompt"))
-            messages = self._convert_request_messages(request_messages) if request_messages else None
+            messages = None
+            if request_call_type in (CallTypes.responses, CallTypes.aresponses):
+                # litellm drops the variables of a saved prompt, but the provider gets them.
+                messages = self._responses_prompt(data)
+            if not messages:
+                request_messages = self.get_guardrails_messages_for_call_type(call_type=request_call_type, data=data)
+                if not request_messages and call_type in ("text_completion", "atext_completion"):
+                    request_messages = self._convert_text_prompt(data.get("prompt"))
+                messages = self._convert_request_messages(request_messages) if request_messages else None
         if not messages:
             verbose_proxy_logger.debug("Datadog AI Guard: not running guardrail. No messages found in request")
             return data
@@ -469,14 +474,20 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         if route == "anthropic_messages":
             return self._anthropic_prompt(data)[0]
         if route == "aresponses":
-            try:
-                return _convert_openai_response_input(
-                    data.get("instructions"), data.get("input"), prompt=data.get("prompt"), mcp_servers=mcp_servers
-                )
-            except Exception:
-                verbose_proxy_logger.debug("Datadog AI Guard: cannot convert the Responses request", exc_info=True)
-                return None
+            return self._responses_prompt(data, mcp_servers)
         return self._convert_request_messages(data.get("messages") or self._convert_text_prompt(data.get("prompt")))
+
+    def _responses_prompt(
+        self, data: dict[str, Any], mcp_servers: Optional[dict[str, MCPServer]] = None
+    ) -> Optional[list[Message]]:
+        """Convert the instructions, input and prompt variables of a Responses request, or None if it fails."""
+        try:
+            return _convert_openai_response_input(
+                data.get("instructions"), data.get("input"), prompt=data.get("prompt"), mcp_servers=mcp_servers
+            )
+        except Exception:
+            verbose_proxy_logger.debug("Datadog AI Guard: cannot convert the Responses request", exc_info=True)
+            return None
 
     def _anthropic_prompt(self, data: dict[str, Any]) -> tuple[Optional[list[Message]], bool]:
         """Return the AI Guard messages of a Messages request, and True if the Anthropic converter read the body.
@@ -509,7 +520,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         # Other callers run this hook in their own task, where a claim stays.
         claim = (
             "proxy_server_request" in data
-            and call_type in _ANSWER_CALL_TYPES
+            and _answer_is_evaluated(data, call_type)
             and self.should_run_guardrail(data=data, event_type=GuardrailEventHooks.post_call) is True
         )
         return await self._on_request(data, call_type, claim=claim)
