@@ -1,4 +1,4 @@
-"""Tests for ddtrace.contrib.internal.coverage.patch module."""
+"""Tests for ddtrace.testing.internal.coverage_py.patch module."""
 
 from inspect import signature
 from io import StringIO
@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import runpy
 import tempfile
+from typing import Any
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -13,7 +14,7 @@ from coverage import Coverage
 from coverage.exceptions import NoDataError
 import pytest
 
-from ddtrace.contrib.internal.coverage import patch as coverage_patch
+from ddtrace.testing.internal.coverage_py import patch as coverage_patch
 
 
 @pytest.fixture
@@ -391,7 +392,7 @@ class TestLcovReportMemory:
         runpy.run_path(str(sources[0]))
         cov.stop()
         cov.set_option("report:skip_empty", True)
-        options = {"contexts": ["selected"], "ignore_errors": True}
+        options: dict[str, Any] = {"contexts": ["selected"], "ignore_errors": True}
         if filtered:
             options.update({"include": [str(tmp_path / "*_module.py")], "omit": [str(sources[-1])]})
         original = tmp_path / "original.lcov"
@@ -474,7 +475,7 @@ class TestLcovReportMemory:
     @pytest.mark.parametrize("ignore_errors", [False, True])
     @pytest.mark.parametrize("invalid_source", ["syntax", "missing", "non_python"])
     def test_lcov_preserves_analysis_errors(self, tmp_path: Path, monkeypatch, ignore_errors, invalid_source) -> None:
-        from ddtrace.contrib.internal.coverage import lcov
+        from ddtrace.testing.internal.coverage_py import lcov
 
         source = tmp_path / "valid.py"
         source.write_text("value = 1\n")
@@ -507,7 +508,7 @@ class TestLcovReportMemory:
 
     @pytest.mark.parametrize("filtered", [False, True])
     def test_lcov_preserves_no_data_error(self, tmp_path: Path, filtered) -> None:
-        from ddtrace.contrib.internal.coverage import lcov
+        from ddtrace.testing.internal.coverage_py import lcov
 
         cov = Coverage(config_file=False, data_file=None)
         options = {}
@@ -541,7 +542,7 @@ class TestLcovReportMemory:
     def test_lcov_closes_spool_when_rendering_fails(self, tmp_path: Path, monkeypatch) -> None:
         from coverage.lcovreport import LcovReporter
 
-        from ddtrace.contrib.internal.coverage import lcov
+        from ddtrace.testing.internal.coverage_py import lcov
 
         path = tmp_path / "module.py"
         path.write_text("value = 1\n")
@@ -618,7 +619,7 @@ class TestLcovReportMemory:
     def test_lcov_uses_native_reporter_without_file_renderer(self, tmp_path: Path, monkeypatch) -> None:
         from coverage.lcovreport import LcovReporter
 
-        from ddtrace.contrib.internal.coverage import lcov
+        from ddtrace.testing.internal.coverage_py import lcov
 
         cov = Coverage(config_file=False, data_file=None)
         monkeypatch.delattr(LcovReporter, "lcov_file", raising=False)

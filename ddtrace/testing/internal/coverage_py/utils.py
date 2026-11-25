@@ -13,14 +13,14 @@ except ImportError:
     _Coverage = None  # type: ignore[assignment,misc]
     _PathAliases = None  # type: ignore[assignment,misc]
 
-from ddtrace.contrib.internal.coverage.data import _original_sys_argv_command
-from ddtrace.contrib.internal.coverage.lcov import report_lcov
-from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
-from ddtrace.contrib.internal.coverage.patch import is_coverage_running
-from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.testing.internal.coverage_py.data import _original_sys_argv_command
+from ddtrace.testing.internal.coverage_py.lcov import report_lcov
+from ddtrace.testing.internal.coverage_py.patch import get_coverage_instance
+from ddtrace.testing.internal.coverage_py.patch import is_coverage_running
+from ddtrace.testing.internal.coverage_py.patch import owns_coverage_instance
 
 
 log = get_logger(__name__)
@@ -60,7 +60,7 @@ def _command_invokes_coverage_run(sys_argv_command: list[str]) -> bool:
 
 
 def _is_coverage_invoked_by_coverage_run() -> bool:
-    if _get_config("COVERAGE_RUN", False, asbool):
+    if asbool(env.get("COVERAGE_RUN", False)):
         return True
     return _command_invokes_coverage_run(_original_sys_argv_command)
 
@@ -77,7 +77,7 @@ def _find_pytest_cov_instance(config):
 
 def _register_pytest_cov_instance(config):
     """Register pytest-cov instance with ddtrace if available."""
-    from ddtrace.contrib.internal.coverage.patch import set_coverage_instance
+    from ddtrace.testing.internal.coverage_py.patch import set_coverage_instance
 
     cov_instance = _find_pytest_cov_instance(config)
     if cov_instance:
@@ -113,7 +113,7 @@ def _save_pytest_cov_data(config):
 
 def _generate_lcov_report(config, tmp_path, is_pytest_cov_enabled_func):
     """Generate LCOV report using either pytest-cov or ddtrace."""
-    from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
+    from ddtrace.testing.internal.coverage_py.patch import generate_lcov_report
 
     log.debug("Generating LCOV report to file: %s", tmp_path)
 
