@@ -134,8 +134,10 @@ def test_deep_suspended_task_keeps_innermost_frames() -> None:
                 ]
             )
 
-    assert deep_stacks
-    for names in deep_stacks:
+    # Samples taken before the task first runs, or while it unwinds after done.set(), are shallower.
+    suspended = [names for names in deep_stacks if names[0].endswith("wait")]
+    assert suspended, deep_stacks
+    for names in suspended:
         # The innermost frames fill the limit, and the outer coroutine frames are reported as omitted.
-        assert names[0].endswith("wait") and names[1:8] == ["deep"] * 7, names
+        assert names[1:8] == ["deep"] * 7, names
         assert len(names) == 9 and names[-1].endswith("omitted>"), names
