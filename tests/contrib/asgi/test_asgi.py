@@ -571,7 +571,7 @@ async def test_websocket_send_propagates_transport_error_without_retry(message, 
         sent.append(event)
         raise OSError("client disconnected")
 
-    scope = {"type": "websocket", "scheme": "ws", "path": "/live", "headers": []}
+    scope = {"type": "websocket", "scheme": "ws", "path": "/live", "headers": [], "client": ("127.0.0.1", 32767)}
     with override_config("asgi", {"trace_asgi_websocket_messages": True}):
         with pytest.raises(OSError, match="client disconnected"):
             await TraceMiddleware(app)(scope, receive, send)
