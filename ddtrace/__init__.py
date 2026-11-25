@@ -11,7 +11,10 @@ from ddtrace.internal.settings.env import register_supported_configurations  # n
 
 
 register_supported_configurations(
-    _registry.SUPPORTED_CONFIGURATIONS, _registry.CONFIGURATION_ALIASES, _registry.DEPRECATED_CONFIGURATIONS
+    _registry.SUPPORTED_CONFIGURATIONS,
+    _registry.CONFIGURATION_ALIASES,
+    _registry.DEPRECATED_CONFIGURATIONS,
+    _registry.SENSITIVE_CONFIGURATIONS,
 )
 del _registry, register_supported_configurations
 

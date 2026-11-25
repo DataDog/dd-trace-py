@@ -13,11 +13,15 @@ canonical name falls back to its registered legacy aliases if the canonical
 is unset. Aliases registered here must be pure renames (same value space) —
 translations like OTEL→DD belong in ``_otel_remapper.py`` instead.
 
+The registry also lists the sensitive configurations, whose values must never be reported (e.g. in telemetry).
+:func:`get_aliases` and :func:`is_sensitive` expose aliases and sensitivity to other shared code.
+
 This module does not import the registry. The owner of the registry hands it over
 with :func:`register_supported_configurations` (dd-trace-py does so at the top of
 ``ddtrace/__init__.py``). Until that happens, no key is validated (so nothing is
-logged) and no aliases are applied, i.e. reads look up the exact key in
-``os.environ``. The first registration wins; later calls are ignored.
+logged), no aliases are applied, i.e. reads look up the exact key in
+``os.environ``, and no configuration is known to be sensitive. The first
+registration wins; later calls are ignored.
 """
 
 from collections.abc import Iterable
@@ -39,6 +43,7 @@ _SUPPORTED_CONFIGURATIONS: Optional[frozenset[str]] = None
 _DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset()
 _CONFIGURATION_ALIASES: Mapping[str, Sequence[str]] = {}
 _ALIAS_TARGETS: frozenset[str] = frozenset()
+_SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset()
 _warned_keys: set[str] = set()
 
 
@@ -46,21 +51,34 @@ def register_supported_configurations(
     supported: Iterable[str],
     aliases: Mapping[str, Sequence[str]],
     deprecated: Iterable[str],
+    sensitive: Iterable[str] = (),
 ) -> bool:
     """Register the supported-configurations registry. The first registration wins.
 
     Returns True if this call installed the registry, False if one was already registered.
     """
     global _SUPPORTED_CONFIGURATIONS, _DEPRECATED_CONFIGURATIONS, _CONFIGURATION_ALIASES, _ALIAS_TARGETS
+    global _SENSITIVE_CONFIGURATIONS
 
     if _SUPPORTED_CONFIGURATIONS is not None:
         return False
     _DEPRECATED_CONFIGURATIONS = frozenset(deprecated)
+    _SENSITIVE_CONFIGURATIONS = frozenset(sensitive)
     _CONFIGURATION_ALIASES = aliases
     _ALIAS_TARGETS = frozenset(alias for names in aliases.values() for alias in names)
     # Assigned last: it is the "registered" marker checked by _validate_key.
     _SUPPORTED_CONFIGURATIONS = frozenset(supported)
     return True
+
+
+def get_aliases(name: str) -> Sequence[str]:
+    """Return the registered legacy aliases of the canonical configuration ``name``, or none."""
+    return _CONFIGURATION_ALIASES.get(name, ())
+
+
+def is_sensitive(name: str) -> bool:
+    """Return whether the configuration ``name`` is registered as sensitive, i.e. its value must not be reported."""
+    return name in _SENSITIVE_CONFIGURATIONS
 
 
 def _get_env_value(key: str) -> Optional[str]:
