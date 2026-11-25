@@ -18,6 +18,9 @@ class traceback_t
      * Used at export time to compute object age for lifecycle analysis. */
     int64_t birth_ns = 0;
 
+    /* The block's size when sampled, so that a realloc that shrinks it below that drops the sample. */
+    size_t live_size = 0;
+
     /* Constructor - also collects frames from the current Python frame chain. */
     traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain);
 

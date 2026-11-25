@@ -222,10 +222,66 @@ def test_memory_collector_realloc_growth_of_two_buffers_in_turn(tmp_path: Path) 
         size = _grow_two_in_turn(300_000)
         profile = mc.snapshot_and_parse_pprof(output_filename)
 
-    charged = _charged_alloc_space(profile, "_grow_two_in_turn.<locals>.grow")
+    charged = _charged_alloc_space(profile, "_grow_two_in_turn.<locals>.grow" if PY_311_OR_ABOVE else "grow")
 
     # Charged with its full size at each of its 300K reallocs, each string comes to tens of GB of allocations.
     assert 0 < charged < 50 * size, charged
+
+
+def _live_heap_space(profile, function_name: str) -> int:
+    idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    return sum(s.value[idx] for s in pprof_utils.get_samples_with_function(profile, samples, function_name))
+
+
+def _grow_one(nchars: int):
+    # The string lives only in the generator's frame, so `s += c` resizes it in place, by one realloc per character.
+    def grow():
+        s = ""
+        while True:
+            s += "\u00e9"
+            yield
+
+    g = grow()
+    for _ in range(nchars):
+        next(g)
+    return g
+
+
+def test_memory_collector_realloc_live_heap_is_the_whole_block(tmp_path: Path) -> None:
+    """A buffer grown by small reallocs is reported live at its whole size, not the last growth that was sampled."""
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_realloc_live_heap_is_the_whole_block")
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64 * 1024)
+    with mc:
+        kept = _grow_one(4_000_000)
+        size = sys.getsizeof("\u00e9" * 4_000_000)
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+        live = _live_heap_space(profile, "_grow_one.<locals>.grow" if PY_311_OR_ABOVE else "grow")
+        del kept
+
+    assert size / 2 < live < size * 2, (live, size)
+
+
+def _shrink_after_alloc(nbytes: int) -> bytearray:
+    b = bytearray(nbytes)
+    del b[16:]
+    return b
+
+
+def test_memory_collector_realloc_shrink_drops_stale_live_sample(tmp_path: Path) -> None:
+    """A sampled block that a realloc shrinks is not reported live at its old size."""
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_realloc_shrink_drops_stale_live_sample")
+
+    mc = memalloc.MemoryCollector(heap_sample_size=1024)
+    with mc:
+        kept = _shrink_after_alloc(8 * 1024 * 1024)
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+        live = _live_heap_space(profile, "_shrink_after_alloc")
+        del kept
+
+    # The 8 MiB buffer is sampled when allocated; after the shrink nothing near that size is still live.
+    assert live < 1024 * 1024, live
 
 
 def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:

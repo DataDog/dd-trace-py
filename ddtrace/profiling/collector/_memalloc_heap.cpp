@@ -184,7 +184,11 @@ class heap_tracker_t
      * shared state, and must be called with the GIL held and without making any C
      * Python API calls. Returns true if we should sample, and sets allocated_memory_val
      * to the current allocated_memory value. */
-    bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val);
+    bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val, void* replaces = nullptr);
+
+    /* Drop the live sample tracked at `ptr`, if any, when the block is now smaller than it was when sampled: its
+     * weights describe the larger block. Must be called with the GIL held and must not make any C Python API calls. */
+    void drop_if_shrunk_no_cpython(void* ptr, size_t size);
 
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
@@ -332,6 +336,18 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 }
 
 void
+heap_tracker_t::drop_if_shrunk_no_cpython(void* ptr, size_t size)
+{
+    memalloc_gil_debug_guard_t guard(gil_guard);
+
+    auto it = allocs_m.find(ptr);
+    if (it != allocs_m.end() && size < it->second->live_size) {
+        pool_put_no_cpython(std::move(it->second));
+        allocs_m.erase(it);
+    }
+}
+
+void
 heap_tracker_t::move_no_cpython(void* from, void* to)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
@@ -351,7 +367,7 @@ heap_tracker_t::realloc_growth_no_cpython(void* old_ptr, void* new_ptr, size_t n
 }
 
 bool
-heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
+heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val, void* replaces)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
     allocated_memory += size;
@@ -365,7 +381,7 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
     /* This cap bounds memory use but creates blind spots: once allocs_m is full,
      * new allocations are not sampled. cap_drops tracks how often this happens
      * so we can observe whether the limit is ever reached in practice. */
-    if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
+    if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT && !(replaces != nullptr && allocs_m.count(replaces) != 0)) {
         ++cap_drops;
         reset_sampling_state_no_cpython();
         return false;
@@ -553,7 +569,12 @@ memalloc_heap_sample_invokes_cpython(uint16_t max_nframe,
     double r = static_cast<double>(heap_tracker_t::instance->get_sample_size());
     double p = 1.0 - std::exp(-s / r);
     int64_t heap_count = static_cast<int64_t>(1.0 / p);
-    tb->sample.push_heap(static_cast<int64_t>(allocated_memory_val), heap_count);
+    /* A realloc's sample replaces the block's earlier one, and the bytes counted since the last sample are only its
+       recent growth, not the block. Weigh the whole block instead, by the same estimator: S / p. */
+    int64_t heap_bytes =
+      alloc_size == live_size ? static_cast<int64_t>(allocated_memory_val) : static_cast<int64_t>(s / p);
+    tb->sample.push_heap(heap_bytes, heap_count);
+    tb->live_size = live_size;
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
@@ -596,7 +617,8 @@ memalloc_heap_retrack_invokes_cpython(uint16_t max_nframe,
      * no event. A sample replaces the block's live sample once it exists. */
     size_t growth = tracker->realloc_growth_no_cpython(old_ptr, new_ptr, new_size);
     uint64_t allocated_memory_val = 0;
-    if (growth == 0 || !tracker->should_sample_no_cpython(growth, &allocated_memory_val)) {
+    if (growth == 0 || !tracker->should_sample_no_cpython(growth, &allocated_memory_val, new_ptr)) {
+        tracker->drop_if_shrunk_no_cpython(new_ptr, new_size);
         return;
     }
     memalloc_heap_sample_invokes_cpython(max_nframe, new_ptr, growth, new_size, allocated_memory_val, domain);
