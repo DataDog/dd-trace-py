@@ -13,6 +13,7 @@
 #include "sampler.hpp"
 #include "span_links.hpp"
 
+#include "echion/context_labels.h"
 #include "echion/cpython/asyncio_discovery.h"
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
@@ -44,6 +45,9 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
     // Seed before start() launches the sampling thread. Seeding after return races
     // with that thread writing non-atomic fast_copy_* strategy flags.
     seed_fast_copy_profiler_stats();
+
+    // Check the Context and span layouts once. The reader stays disabled on any mismatch.
+    init_context_reader();
 
     if (Sampler::get().start()) {
         // Enable only after start() succeeds so one_time_setup() has completed
@@ -1022,6 +1026,74 @@ stack_native_call_registry_size(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(a
     return PyLong_FromSize_t(ProfilerState::get().native_call_registry.size());
 }
 
+// Test-only: reads the span labels of a contextvars.Context the way the sampler will.
+// Returns (status, span_id, local_root_span_id, span_type, resolved) where resolved is the address of
+// the span or Context the reader resolved, or 0.
+static PyObject*
+stack_read_context_labels(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    PyObject* ctx = nullptr;
+    if (!PyArg_ParseTuple(args, "O!", &PyContext_Type, &ctx)) {
+        return nullptr;
+    }
+    init_context_reader();
+
+    ContextLabels labels;
+    uintptr_t resolved = 0;
+    const ContextReadStatus status = read_context_labels(reinterpret_cast<uintptr_t>(ctx), labels, &resolved);
+    const std::string_view span_type = span_type_name(labels.span_type_id);
+    PyObject* span_type_obj = nullptr;
+    if (status == ContextReadStatus::Ok && !span_type.empty()) {
+        span_type_obj = PyUnicode_FromStringAndSize(span_type.data(), static_cast<Py_ssize_t>(span_type.size()));
+        if (span_type_obj == nullptr) {
+            return nullptr;
+        }
+    } else {
+        Py_INCREF(Py_None);
+        span_type_obj = Py_None;
+    }
+    return Py_BuildValue("(sKKNK)",
+                         context_read_status_name(status),
+                         static_cast<unsigned long long>(labels.span_id),
+                         static_cast<unsigned long long>(labels.local_root_span_id),
+                         span_type_obj,
+                         static_cast<unsigned long long>(resolved));
+}
+
+// Test-only: None when the context reader is enabled, otherwise why it is not.
+static PyObject*
+stack_context_reader_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (init_context_reader()) {
+        Py_RETURN_NONE;
+    }
+    return PyUnicode_FromString(context_reader().error);
+}
+
+// Test-only: failure counts of the context reader, by status name.
+static PyObject*
+stack_context_reader_failures(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    PyObject* result = PyDict_New();
+    if (result == nullptr) {
+        return nullptr;
+    }
+    for (size_t i = 0; i < g_context_read_failures.size(); ++i) {
+        const auto status = static_cast<ContextReadStatus>(i);
+        if (!is_failure(status)) {
+            continue;
+        }
+        PyObject* count = PyLong_FromUnsignedLongLong(g_context_read_failures[i].load(std::memory_order_relaxed));
+        if (count == nullptr || PyDict_SetItemString(result, context_read_status_name(status), count) < 0) {
+            Py_XDECREF(count);
+            Py_DECREF(result);
+            return nullptr;
+        }
+        Py_DECREF(count);
+    }
+    return result;
+}
+
 static PyObject*
 stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
@@ -1297,6 +1369,18 @@ static PyMethodDef stack_methods[] = {
       stack_native_call_registry_size,
       METH_NOARGS,
       "Return the native call monitoring registry size" },
+    { "_read_context_labels",
+      stack_read_context_labels,
+      METH_VARARGS,
+      "Test-only: read the span labels of a contextvars.Context from raw memory" },
+    { "_context_reader_error",
+      stack_context_reader_error,
+      METH_NOARGS,
+      "Test-only: return None if the context reader is enabled, otherwise the reason" },
+    { "_context_reader_failures",
+      stack_context_reader_failures,
+      METH_NOARGS,
+      "Test-only: return the context reader failure counts by status" },
     { nullptr, nullptr, 0, nullptr }
 };
 

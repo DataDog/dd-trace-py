@@ -44,7 +44,8 @@ function(dd_wrapper_add_test name)
     target_include_directories(
         ${name} SYSTEM
         PRIVATE ${Python3_INCLUDE_DIRS} ../echion
-                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
+                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include
+                ../../../../../../src/native/profiler_layout)
     # this has to refer to the stack extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
 
@@ -95,7 +96,8 @@ function(configure_stack_internal_test name)
     target_include_directories(
         ${name} SYSTEM
         PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
-                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
+                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include
+                ../../../../../../src/native/profiler_layout)
     target_compile_definitions(${name} PRIVATE "$<TARGET_PROPERTY:${EXTENSION_NAME},COMPILE_DEFINITIONS>")
     if(LIB_INSTALL_DIR)
         set_property(
@@ -123,6 +125,9 @@ configure_stack_internal_test(test_weak_task_links)
 
 dd_wrapper_add_test(test_task_links test_task_links.cpp)
 configure_stack_internal_test(test_task_links)
+
+dd_wrapper_add_test(test_context_labels test_context_labels.cpp)
+configure_stack_internal_test(test_context_labels)
 
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
