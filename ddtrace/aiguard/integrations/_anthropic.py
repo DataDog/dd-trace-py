@@ -23,7 +23,6 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 import json
 from typing import Any
-from typing import NamedTuple
 from typing import Optional
 from typing import Union
 
@@ -103,25 +102,6 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
 # ---------------------------------------------------------------------------
 # Content-block parsing
 # ---------------------------------------------------------------------------
-
-
-class _ParsedBlocks(NamedTuple):
-    """Result of parsing a list of Anthropic content blocks.
-
-    ``pre_tool_parts`` / ``post_tool_parts`` split text + image content around
-    server-tool boundaries so an assistant turn that interleaves
-    ``server_tool_use`` blocks, server tool results, and synthesis text can be
-    emitted as three distinct AI Guard messages (tool_call -> tool_result ->
-    synthesis), matching the dd-source reference.
-    """
-
-    pre_tool_parts: list[ContentPart]
-    post_tool_parts: list[ContentPart]
-    tool_calls: list[ToolCall]
-    tool_results: list[Message]
-    server_tool_results: list[Message]
-    # Client tool_use calls after a server tool result: still pending, so they follow those results.
-    post_tool_calls: list[ToolCall]
 
 
 def _reduce_parts(parts: list[ContentPart]) -> Union[str, list[ContentPart]]:
@@ -243,10 +223,6 @@ def _format_tool_result_block(block: Any) -> list[Message]:
             content = list(content)
         except TypeError:
             pass
-        else:
-            if isinstance(block, dict) and isinstance(block.get("content"), Iterator):
-                # Written back so the SDK still sends the content this conversion consumed.
-                block["content"] = content
 
     if isinstance(content, list):
         parts = _parts_from_content_blocks(content)
@@ -360,65 +336,73 @@ def _format_document_block(block: Any) -> list[ContentPart]:
     return parts
 
 
-def _format_content_blocks(blocks: Sequence[Any], mcp_servers: Optional[dict[str, MCPServer]] = None) -> _ParsedBlocks:
-    """Walk a list of Anthropic content blocks once and bucket them by role.
+# Results of tools that Anthropic runs itself (server tools and MCP connector servers).
+_SERVER_TOOL_RESULT_TYPES = frozenset(
+    ("web_search_tool_result", "bash_code_execution_tool_result", "code_execution_tool_result", "mcp_tool_result")
+)
 
-    The split around server-tool boundaries lets the caller preserve the
-    tool_call -> tool_result -> synthesis flow AI Guard expects when an
-    assistant message interleaves a ``server_tool_use``, its result, and
-    synthesis text. MCP connector calls and results run on Anthropic's side too, so they
-    split the same way; with mcp_servers (DD_AI_GUARD_MCP_ENABLED) each call references its server.
+
+def _format_content_blocks(
+    blocks: Sequence[Any], role: str, mcp_servers: Optional[dict[str, MCPServer]] = None
+) -> list[Message]:
+    """Convert the content blocks of one Anthropic message to AI Guard messages, in block order.
+
+    Text and tool calls gather into one message of role. In an assistant turn, a result of a tool Anthropic runs
+    (server tool or MCP connector) closes that message and follows it as a tool message, so calls, results and later
+    text keep the conversation's order, a resumed turn included. User-side tool_result blocks follow as tool messages.
+    With mcp_servers (DD_AI_GUARD_MCP_ENABLED) each MCP connector call references its server.
     """
-    pre_tool_parts: list[ContentPart] = []
-    post_tool_parts: list[ContentPart] = []
-    tool_calls: list[ToolCall] = []
+    messages: list[Message] = []
     tool_results: list[Message] = []
-    server_tool_results: list[Message] = []
-    post_tool_calls: list[ToolCall] = []
-    seen_server_tool = False
+    parts: list[ContentPart] = []
+    tool_calls: list[ToolCall] = []
+
+    def close_turn() -> None:
+        # Only an assistant turn carries tool calls.
+        calls = tool_calls if role == "assistant" else []
+        if parts or calls:
+            message = Message(role=role)
+            if parts:
+                message["content"] = _reduce_parts(list(parts))
+            if calls:
+                message["tool_calls"] = list(calls)
+            messages.append(message)
+        parts.clear()
+        tool_calls.clear()
 
     for block in blocks:
         block_type = _get(block, "type", "")
         if block_type == "text":
             text = _get(block, "text", "")
             if text:
-                part = ContentPart(type="text", text=text)
-                (post_tool_parts if seen_server_tool else pre_tool_parts).append(part)
+                parts.append(ContentPart(type="text", text=text))
         elif block_type == "image":
             img_part = _format_image_block(block)
             if img_part is not None:
-                (post_tool_parts if seen_server_tool else pre_tool_parts).append(img_part)
+                parts.append(img_part)
         elif block_type == "document":
-            target = post_tool_parts if seen_server_tool else pre_tool_parts
-            target.extend(_format_document_block(block))
+            parts.extend(_format_document_block(block))
         elif block_type in ("tool_use", "server_tool_use", "mcp_tool_use"):
             tool_call = _tool_call_from_block(block)
             if block_type == "mcp_tool_use" and mcp_servers is not None:
                 _reference_connector_server(tool_call, block, mcp_servers)
-            (post_tool_calls if block_type == "tool_use" and server_tool_results else tool_calls).append(tool_call)
-            if block_type != "tool_use":
-                seen_server_tool = True
+            tool_calls.append(tool_call)
         elif block_type == "tool_result":
             tool_results.extend(_format_tool_result_block(block))
-        elif block_type == "mcp_tool_result":
-            server_tool_results.extend(_format_tool_result_block(block))
-            seen_server_tool = True
+        elif block_type in _SERVER_TOOL_RESULT_TYPES:
+            if role == "assistant":
+                close_turn()
+                if block_type == "mcp_tool_result":
+                    messages.extend(_format_tool_result_block(block))
+                else:
+                    messages.append(_format_server_tool_result_block(block))
         elif block_type == "thinking":
             # Extended-thinking blocks carry model reasoning text that AI Guard
             # should scan; the ``signature`` field is a verification token and
             # is intentionally not included.
             text = _get(block, "thinking", "") or ""
             if text:
-                part = ContentPart(type="text", text=text)
-                (post_tool_parts if seen_server_tool else pre_tool_parts).append(part)
-        elif block_type in (
-            "web_search_tool_result",
-            "bash_code_execution_tool_result",
-            "code_execution_tool_result",
-        ):
-            server_tool_results.append(_format_server_tool_result_block(block))
-            # A resumed turn's result can come without its call: text after it is still synthesis.
-            seen_server_tool = True
+                parts.append(ContentPart(type="text", text=text))
         elif block_type in _DROPPED_BLOCK_TYPES:
             logger.debug("AI Guard anthropic: dropping non-scannable block type %r", block_type)
         else:
@@ -427,9 +411,9 @@ def _format_content_blocks(blocks: Sequence[Any], mcp_servers: Optional[dict[str
             # silent gap in the scanned payload.
             _report_converter_error("AI Guard anthropic: dropping unrecognised content block type %r" % (block_type,))
 
-    return _ParsedBlocks(
-        pre_tool_parts, post_tool_parts, tool_calls, tool_results, server_tool_results, post_tool_calls
-    )
+    close_turn()
+    messages.extend(tool_results)
+    return messages
 
 
 def _format_system(system: Any) -> Optional[Message]:
@@ -458,38 +442,6 @@ def _format_system(system: Any) -> Optional[Message]:
     return Message(role="system", content=text)
 
 
-def _emit_assistant_with_server_tool(
-    parsed: _ParsedBlocks,
-) -> list[Message]:
-    """Split an assistant turn that interleaves ``server_tool_use`` + results.
-
-    AI Guard expects ``tool_call`` -> ``tool_result`` -> synthesis ordering, so
-    we emit (a) one assistant message carrying the tool_calls and any pre-tool
-    text, (b) the server tool result message(s), and (c) optionally a
-    follow-up assistant message with the post-tool synthesis text.
-    """
-    pre_text = "".join((p.get("text") or "") for p in parsed.pre_tool_parts if p.get("type") == "text")
-    result: list[Message] = []
-    # A resumed turn can start with a result whose call is in an earlier message.
-    if parsed.tool_calls or pre_text:
-        ai_msg = Message(role="assistant")
-        if pre_text:
-            ai_msg["content"] = pre_text
-        if parsed.tool_calls:
-            ai_msg["tool_calls"] = parsed.tool_calls
-        result.append(ai_msg)
-    result.extend(parsed.server_tool_results)
-    post_text = "".join((p.get("text") or "") for p in parsed.post_tool_parts if p.get("type") == "text")
-    if post_text or parsed.post_tool_calls:
-        synthesis = Message(role="assistant")
-        if post_text:
-            synthesis["content"] = post_text
-        if parsed.post_tool_calls:
-            synthesis["tool_calls"] = parsed.post_tool_calls
-        result.append(synthesis)
-    return result
-
-
 def _convert_anthropic_messages(
     system: Any, messages: Any, mcp_servers: Optional[dict[str, MCPServer]] = None
 ) -> list[Message]:
@@ -504,8 +456,8 @@ def _convert_anthropic_messages(
       ``tool_calls``.
     - assistant message with ``server_tool_use`` + server result blocks ->
       assistant ``tool_calls`` message, then ``role="tool"`` result(s), then
-      an optional synthesis assistant message (see
-      :func:`_emit_assistant_with_server_tool`). MCP connector mcp_tool_use and
+      an optional synthesis assistant message, in block order (see
+      :func:`_format_content_blocks`). MCP connector mcp_tool_use and
       mcp_tool_result blocks follow the same split.
     - user message with ``tool_result`` blocks -> separate ``role="tool"``
       messages keyed by ``tool_use_id``; the user wrapper is suppressed when
@@ -551,32 +503,7 @@ def _convert_anthropic_messages(
                 result.append(Message(role=role, content=fallback))
                 continue
 
-            parsed = _format_content_blocks(content, mcp_servers)
-
-            # Server tool pattern: split into tool_call -> server result(s)
-            # -> optional synthesis. tool_results from user-side blocks (rare
-            # in this branch but possible) are appended last to preserve
-            # ordering.
-            if role == "assistant" and parsed.server_tool_results:
-                result.extend(_emit_assistant_with_server_tool(parsed))
-                result.extend(parsed.tool_results)
-                continue
-
-            content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
-            tool_calls = parsed.tool_calls + parsed.post_tool_calls
-
-            if role == "assistant" and tool_calls:
-                ai_msg = Message(role=role, tool_calls=tool_calls)
-                if content_parts:
-                    ai_msg["content"] = _reduce_parts(content_parts)
-                result.append(ai_msg)
-            elif content_parts:
-                result.append(Message(role=role, content=_reduce_parts(content_parts)))
-            # else: emit nothing. A user wrapper that only contained
-            # tool_result blocks is suppressed -- those become standalone
-            # role="tool" messages below.
-
-            result.extend(parsed.tool_results)
+            result.extend(_format_content_blocks(content, role, mcp_servers))
     except AIGuardAbortError:
         # Block decisions surface unchanged; only converter bugs are wrapped.
         raise
@@ -603,24 +530,7 @@ def _convert_anthropic_response(resp: Any, mcp_servers: Optional[dict[str, MCPSe
         if not isinstance(content, list):
             return []
 
-        parsed = _format_content_blocks(content, mcp_servers)
-
-        if parsed.server_tool_results:
-            return _emit_assistant_with_server_tool(parsed)
-
-        content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
-        tool_calls = parsed.tool_calls + parsed.post_tool_calls
-
-        if tool_calls:
-            ai_msg = Message(role="assistant", tool_calls=tool_calls)
-            if content_parts:
-                ai_msg["content"] = _reduce_parts(content_parts)
-            return [ai_msg]
-
-        if content_parts:
-            return [Message(role="assistant", content=_reduce_parts(content_parts))]
-
-        return []
+        return _format_content_blocks(content, "assistant", mcp_servers)
     except AIGuardAbortError:
         raise
     except Exception as exc:
@@ -659,11 +569,37 @@ def _safe_convert_response(resp: Any, mcp_servers: Optional[dict[str, MCPServer]
         return None
 
 
-def materialize_mcp_servers(kwargs: dict[str, Any]) -> None:
-    """Replace an iterable mcp_servers with a list, so the SDK and every later reader see the same servers."""
-    declared = kwargs.get("mcp_servers")
-    if isinstance(declared, Iterable) and not isinstance(declared, (list, tuple, str, bytes, Mapping)):
-        kwargs["mcp_servers"] = list(declared)
+def _is_unlisted_iterable(value: Any) -> bool:
+    return isinstance(value, Iterable) and not isinstance(value, (list, tuple, str, bytes, Mapping))
+
+
+def materialize_request(kwargs: dict[str, Any]) -> None:
+    """Read the iterables of a request once, so the SDK and every AI Guard hook see the same values.
+
+    messages and mcp_servers become lists. A block whose content is an iterable gets a request-local copy with that
+    content as a list: the caller's objects are never changed, so their reusable iterables stay live.
+    """
+    for key in ("messages", "mcp_servers"):
+        if _is_unlisted_iterable(kwargs.get(key)):
+            kwargs[key] = list(kwargs[key])
+    messages = kwargs.get("messages")
+    if not isinstance(messages, (list, tuple)):
+        return
+    copied: Optional[list[Any]] = None
+    for index, message in enumerate(messages):
+        content = _get(message, "content")
+        if not isinstance(message, Mapping) or not isinstance(content, (list, tuple)):
+            continue
+        blocks: Optional[list[Any]] = None
+        for block_index, block in enumerate(content):
+            if isinstance(block, Mapping) and _is_unlisted_iterable(block.get("content")):
+                blocks = blocks if blocks is not None else list(content)
+                blocks[block_index] = {**block, "content": list(block["content"])}
+        if blocks is not None:
+            copied = copied if copied is not None else list(messages)
+            copied[index] = {**message, "content": blocks}
+    if copied is not None:
+        kwargs["messages"] = copied
 
 
 def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServer]]:
@@ -674,7 +610,7 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
     if not aiguard_config._ai_guard_mcp_enabled:
         return None
     try:
-        materialize_mcp_servers(kwargs)
+        materialize_request(kwargs)
         declared = kwargs.get("mcp_servers")
         servers: dict[str, MCPServer] = {}
         if not isinstance(declared, (list, tuple)):
@@ -748,13 +684,11 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
     if messages is None:
         logger.debug("AI Guard anthropic before-hook skipped: kwargs has no 'messages' key")
         return None
+    materialize_request(kwargs)
+    messages = kwargs["messages"]
     if not isinstance(messages, (list, tuple)):
-        try:
-            messages = list(messages)
-        except TypeError:
-            logger.debug("AI Guard anthropic before-hook skipped: messages is not iterable")
-            return None
-        kwargs["messages"] = messages
+        logger.debug("AI Guard anthropic before-hook skipped: messages is not iterable")
+        return None
     if not messages:
         # An empty messages array is not a valid Anthropic request (the SDK
         # will reject it) and is never a valid AI Guard evaluation either.
