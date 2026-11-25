@@ -22,7 +22,22 @@ def get_x509_client():
     return _x509_client
 
 
-def _create_client_with_defer_retry(site: str, api_key: str, stop_event: threading.Event):
+def _collect_host_tags() -> list[str]:
+    tags: list[str] = []
+    for key, env_var in (("env", "DD_ENV"), ("service", "DD_SERVICE"), ("version", "DD_VERSION")):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            tags.append(f"{key}:{val}")
+    return tags
+
+
+def _create_client_with_defer_retry(
+    site: str,
+    api_key: str,
+    register_url: Optional[str],
+    host_tags: list[str],
+    stop_event: threading.Event,
+):
     import ddtrace
     from ddtrace.internal.native import AiGuardX509Client
     from ddtrace.internal.native_runtime import get_native_runtime
@@ -39,6 +54,8 @@ def _create_client_with_defer_retry(site: str, api_key: str, stop_event: threadi
                 api_key=api_key,
                 app_name="dd-trace-py",
                 app_version=app_version,
+                register_url=register_url,
+                host_tags=host_tags,
             )
         except RuntimeError as exc:
             if "deferred" in str(exc) and time.monotonic() < deadline:
@@ -52,6 +69,8 @@ def _watch_x509(
     client,
     site: str,
     api_key: str,
+    register_url: Optional[str],
+    host_tags: list[str],
     stop_event: threading.Event,
     pid: int,
 ) -> None:
@@ -59,7 +78,7 @@ def _watch_x509(
 
     if client is None:
         try:
-            client = _create_client_with_defer_retry(site, api_key, stop_event)
+            client = _create_client_with_defer_retry(site, api_key, register_url, host_tags, stop_event)
         except Exception:
             log.warning("[ai-guard-x509] pid=%d failed to start x509 client after fork", pid, exc_info=True)
             return
@@ -76,24 +95,34 @@ def _watch_x509(
         log.info("[ai-guard-x509] pid=%d started after fork (site=%s)", pid, site)
 
     last_cid: Optional[str] = None
+    connected_at: Optional[float] = None
+    first_payload_logged = False
     while not stop_event.is_set():
         cid = client.connection_id()
         if cid and cid != last_cid:
             last_cid = cid
+            connected_at = time.monotonic()
+            first_payload_logged = False
             log.info("[ai-guard-x509] pid=%d connected connection_id=%s", pid, cid)
             print(f"[ai-guard-x509] pid={pid} connected connection_id={cid}", flush=True)
 
         received = client.wait_for_payload(timeout_ms=500)
         if received is not None:
             reason, payload = received
+            latency_note = ""
+            if connected_at is not None and not first_payload_logged:
+                first_payload_logged = True
+                latency_ms = (time.monotonic() - connected_at) * 1000.0
+                latency_note = f" connect_to_push_ms={latency_ms:.1f}"
             log.info(
-                "[ai-guard-x509] pid=%d received payload reason=%r payload=%r",
+                "[ai-guard-x509] pid=%d received payload reason=%r payload=%r%s",
                 pid,
                 reason,
                 payload,
+                latency_note,
             )
             print(
-                f"[ai-guard-x509] pid={pid} received payload reason={reason!r} payload={payload!r}",
+                f"[ai-guard-x509] pid={pid} received payload reason={reason!r} payload={payload!r}{latency_note}",
                 flush=True,
             )
 
@@ -110,6 +139,8 @@ def _start_x509_client(restarting_after_fork: bool = False) -> None:
         return
 
     site = os.environ.get("DD_SITE", "datadoghq.com").strip() or "datadoghq.com"
+    register_url = (aiguard_config._ai_guard_x509_register_url or "").strip() or None
+    host_tags = _collect_host_tags()
 
     with _x509_lock:
         current_pid = os.getpid()
@@ -130,14 +161,14 @@ def _start_x509_client(restarting_after_fork: bool = False) -> None:
         client = None
         if not restarting_after_fork:
             try:
-                client = _create_client_with_defer_retry(site, api_key, stop_event)
+                client = _create_client_with_defer_retry(site, api_key, register_url, host_tags, stop_event)
             except Exception:
                 log.warning("[ai-guard-x509] failed to start x509 client", exc_info=True)
                 return
 
         watcher = threading.Thread(
             target=_watch_x509,
-            args=(client, site, api_key, stop_event, current_pid),
+            args=(client, site, api_key, register_url, host_tags, stop_event, current_pid),
             name=f"dd-ai-guard-x509-{current_pid}",
             daemon=True,
         )
@@ -147,7 +178,7 @@ def _start_x509_client(restarting_after_fork: bool = False) -> None:
         _x509_pid = current_pid
         watcher.start()
         if client is not None:
-            log.info("[ai-guard-x509] pid=%d started (site=%s)", current_pid, site)
+            log.info("[ai-guard-x509] pid=%d started (site=%s register_url=%s)", current_pid, site, register_url)
 
 
 def _stop_x509_client(join: bool = False) -> None:
