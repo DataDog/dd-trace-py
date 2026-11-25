@@ -15,11 +15,8 @@ _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT = -1
 _APM_ENABLED_METRIC_KEY = "_dd.apm.enabled"
 
 _ORIGIN_KEY = "_dd.origin"
-_USER_ID_KEY = "_dd.p.usr.id"
 _HOSTNAME_KEY = "_dd.hostname"
 _RUNTIME_FAMILY = "_dd.runtime_family"
-ENV_KEY = "env"
-VERSION_KEY = "version"
 SERVICE_KEY = "service.name"
 _BASE_SERVICE_KEY = "_dd.base_service"
 SERVICE_VERSION_KEY = "service.version"
@@ -33,9 +30,6 @@ _AI_OBS_ENABLED_KEY = "_dd.ai_obs.enabled"
 _INFERRED_SPAN_KEY = "_dd.inferred_span"
 
 APPSEC_ENV = "DD_APPSEC_ENABLED"
-_CONFIG_ENDPOINT_ENV = "_DD_CONFIG_ENDPOINT"
-_CONFIG_ENDPOINT_RETRIES_ENV = "_DD_CONFIG_ENDPOINT_RETRIES"
-_CONFIG_ENDPOINT_TIMEOUT_ENV = "_DD_CONFIG_ENDPOINT_TIMEOUT"
 IAST_ENV = "DD_IAST_ENABLED"
 
 MANUAL_DROP_KEY = "manual.drop"
@@ -50,7 +44,15 @@ PID = "process_id"
 # Sampling priorities: USER_REJECT (-1) and USER_KEEP (2) explicitly tell the backend to reject or keep a trace,
 # AUTO_REJECT (0) and AUTO_KEEP (1) are the builtin sampler's decisions. They are defined in
 # ddtrace.internal.constants, which needs them and must not import this public module.
+# Defined in ddtrace.internal.constants, which the shared settings and utils need and which must not import this
+# public module.
+from ddtrace.internal.constants import _CONFIG_ENDPOINT_ENV as _CONFIG_ENDPOINT_ENV  # noqa: E402
+from ddtrace.internal.constants import _CONFIG_ENDPOINT_RETRIES_ENV as _CONFIG_ENDPOINT_RETRIES_ENV  # noqa: E402
+from ddtrace.internal.constants import _CONFIG_ENDPOINT_TIMEOUT_ENV as _CONFIG_ENDPOINT_TIMEOUT_ENV  # noqa: E402
+from ddtrace.internal.constants import _USER_ID_KEY as _USER_ID_KEY  # noqa: E402
 from ddtrace.internal.constants import AUTO_KEEP as AUTO_KEEP  # noqa: E402
 from ddtrace.internal.constants import AUTO_REJECT as AUTO_REJECT  # noqa: E402
+from ddtrace.internal.constants import ENV_KEY as ENV_KEY  # noqa: E402
 from ddtrace.internal.constants import USER_KEEP as USER_KEEP  # noqa: E402
 from ddtrace.internal.constants import USER_REJECT as USER_REJECT  # noqa: E402
+from ddtrace.internal.constants import VERSION_KEY as VERSION_KEY  # noqa: E402

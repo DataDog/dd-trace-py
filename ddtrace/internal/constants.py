@@ -14,6 +14,14 @@ AUTO_KEEP = 1
 # Use this to explicitly inform the backend that a trace should be kept and stored.
 USER_KEEP = 2
 
+# Tag keys and environment variable names that shared code needs. ddtrace.constants re-exports them.
+ENV_KEY = "env"
+VERSION_KEY = "version"
+_USER_ID_KEY = "_dd.p.usr.id"
+_CONFIG_ENDPOINT_ENV = "_DD_CONFIG_ENDPOINT"
+_CONFIG_ENDPOINT_RETRIES_ENV = "_DD_CONFIG_ENDPOINT_RETRIES"
+_CONFIG_ENDPOINT_TIMEOUT_ENV = "_DD_CONFIG_ENDPOINT_TIMEOUT"
+
 WEB_REQUEST_STARTING_EVENT = "web.request.starting"
 _WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"
 # core.root item kept current by RuntimeWorker, so shared code can tell whether runtime metrics

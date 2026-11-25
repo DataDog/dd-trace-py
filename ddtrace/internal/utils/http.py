@@ -19,8 +19,8 @@ from typing import Optional
 from typing import Union
 from urllib import parse
 
-from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
+from ddtrace.internal.constants import _USER_ID_KEY
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
