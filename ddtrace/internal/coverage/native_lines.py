@@ -5,7 +5,12 @@ in ctx_native when that context is active (a test, or a suite-scope fixture setu
 initialiser lines when the code is a module or class body, and to the process's unowned lines
 otherwise. See _linecov.c for the attribution and re-arm rules.
 
+On CPython 3.12, a code object moves at its first LINE event to INSTRUCTION probes: block probes,
+each of which credits a basic block and the blocks that dominate it, or else one probe per line
+start. Block probes also need PY_UNWIND events, and switch off for good once greenlet is imported.
+
 Enabled with _DD_COVERAGE_NATIVE_LINES=true, which also selects line-level coverage.
+_DD_COVERAGE_BLOCK_PROBES=false keeps one probe per line start.
 """
 
 from contextvars import ContextVar
@@ -18,6 +23,7 @@ import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
@@ -86,14 +92,71 @@ def _min_instrumented_opcode() -> int:
     return min((op for name, op in dis.opmap.items() if name.startswith("INSTRUMENTED_")), default=256)
 
 
+# What the block analysis needs to know of each CPython 3.12 base opcode: the BK_* kinds of _linecov.c.
+_BLOCK_KINDS = {
+    1: ("POP_JUMP_IF_FALSE", "POP_JUMP_IF_TRUE", "POP_JUMP_IF_NONE", "POP_JUMP_IF_NOT_NONE"),
+    2: ("JUMP_FORWARD",),
+    3: ("JUMP_BACKWARD", "JUMP_BACKWARD_NO_INTERRUPT"),
+    4: ("FOR_ITER",),
+    5: ("SEND",),
+    6: ("RETURN_VALUE", "RETURN_CONST", "RAISE_VARARGS"),
+    7: ("RERAISE",),
+    8: ("YIELD_VALUE",),
+    9: ("EXTENDED_ARG",),
+    10: ("PUSH_EXC_INFO",),
+    11: ("CLEANUP_THROW", "END_ASYNC_FOR"),
+    # What a handler that does not start with PUSH_EXC_INFO runs before its RERAISE.
+    12: (
+        "COPY",
+        "POP_EXCEPT",
+        "SWAP",
+        "POP_TOP",
+        "LOAD_CONST",
+        "STORE_FAST",
+        "STORE_NAME",
+        "STORE_DEREF",
+        "STORE_GLOBAL",
+        "DELETE_FAST",
+        "DELETE_NAME",
+        "DELETE_DEREF",
+        "DELETE_GLOBAL",
+        "CALL_INTRINSIC_1",
+        "NOP",
+    ),
+}
+_BLOCK_UNKNOWN_JUMP = 13
+
+
+def _block_tables() -> t.Optional[tuple[bytes, bytes]]:
+    """The block kind and the inline cache entries of each base opcode, or None when this
+    interpreter's opcodes are not CPython 3.12's.
+    """
+    cache_entries = getattr(dis, "_inline_cache_entries", None)
+    if not isinstance(cache_entries, list) or len(cache_entries) != 256:
+        return None
+    kinds = bytearray(256)
+    for kind, names in _BLOCK_KINDS.items():
+        for name in names:
+            op = dis.opmap.get(name)
+            if op is None:
+                return None
+            kinds[op] = kind
+    for op in set(dis.hasjrel) | set(dis.hasjabs):
+        if 0 <= op < _min_instrumented_opcode() and kinds[op] == 0:
+            kinds[op] = _BLOCK_UNKNOWN_JUMP
+    return bytes(kinds), bytes(cache_entries)
+
+
 def init(tool_id: int) -> bool:
     """Register the native callbacks for tool_id. Returns False when native collection is unusable."""
     global _enabled
 
     if not requested() or _linecov is None:
         return False
+    tables = _block_tables() if _linecov.HAVE_BLOCK_PROBES else None
     try:
         events = _monitoring.events
+        # Block probes start off: the first self-tests check the probes that block probes fall back on.
         internal = _linecov.init(
             tool_id=tool_id,
             line_event_index=events.LINE.bit_length() - 1,
@@ -109,6 +172,9 @@ def init(tool_id: int) -> bool:
             min_instrumented=_min_instrumented_opcode(),
             superinstructions=_superinstruction_table(),
             instruction_probes=asbool(env.get("_DD_COVERAGE_INSTRUCTION_PROBES", "true")),
+            block_probes=False,
+            block_kinds=tables[0] if tables else None,
+            cache_entries=tables[1] if tables else None,
         )
         _monitoring.register_callback(tool_id, events.LINE, _linecov.line_event)
         if _linecov.HAVE_INSTRUCTION_PROBES:
@@ -124,7 +190,103 @@ def init(tool_id: int) -> bool:
     elif _linecov.stats()["instruction_probes"] and not _self_test(tool_id, distant_lines=True):
         _linecov.set_instruction_probes(False)
         log.debug("INSTRUCTION probe self-test failed; using LINE events only")
+    # Greenlets switch frames without a yield, which block probes cannot follow.
+    if (
+        tables is not None
+        and asbool(env.get("_DD_COVERAGE_BLOCK_PROBES", "true"))
+        and "greenlet" not in sys.modules
+        and _start_block_probes(tool_id)
+    ):
+        ModuleWatchdog.after_module_imported("greenlet")(_stop_block_probes)
     return True
+
+
+def _start_block_probes(tool_id: int) -> bool:
+    """Turn block probes on, with the PY_UNWIND callback they need, if their self-test passes."""
+    assert _linecov is not None  # nosec
+    events = _monitoring.events
+    _monitoring.register_callback(tool_id, events.PY_UNWIND, _linecov.unwind_event)
+    _monitoring.set_events(tool_id, _monitoring.get_events(tool_id) | events.PY_UNWIND)
+    if _linecov.set_block_probes(True) and _block_self_test(tool_id):
+        return True
+    _linecov.disable_blocks()
+    _monitoring.set_events(tool_id, _monitoring.get_events(tool_id) & ~events.PY_UNWIND)
+    _monitoring.register_callback(tool_id, events.PY_UNWIND, None)
+    log.debug("Block probe self-test failed; using probes on every line start")
+    return False
+
+
+def _stop_block_probes(_module: t.Any) -> None:
+    """Move every code object with block probes to probes on its line starts, for good. The PY_UNWIND
+    callback stays registered, but finds no code object with block probes.
+    """
+    if _linecov is not None:
+        _linecov.disable_blocks()
+        log.debug("greenlet imported: block probes stopped")
+
+
+_BLOCK_SELF_TEST_SOURCE = """\
+def probe(n):
+    total = 0
+    for i in range(n):
+        if i % 2:
+            total += i
+        else:
+            total -= 1
+    try:
+        if n > 2:
+            raise ValueError(n)
+        total += 1
+    except ValueError:
+        total += 2
+    return total
+"""
+
+
+def _block_self_test(tool_id: int) -> bool:
+    """Check that block probes credit the lines LINE events do, for three contexts in turn.
+
+    Two copies of a function with branches, a loop and a caught exception: the first decides on LINE
+    events, the second on block probes, at their first LINE event.
+    """
+    assert _linecov is not None  # nosec
+    filenames = ("<ddtrace-linecov-lines>", "<ddtrace-linecov-blocks>")
+    functions = []
+    for filename in filenames:
+        namespace: dict[str, t.Any] = {}
+        exec(compile(_BLOCK_SELF_TEST_SOURCE, filename, "exec"), namespace)  # nosec: B102 -- fixed probe source
+        code = namespace["probe"].__code__
+        _monitoring.set_local_events(tool_id, code, _monitoring.events.LINE)
+        _linecov.attach(code, _linecov.register_file(filename, None))
+        functions.append(namespace["probe"])
+    codes = [f.__code__ for f in functions]
+    instruction_probes = bool(_linecov.stats()["instruction_probes"])
+    seen = []
+    try:
+        for k in range(3):
+            context = _linecov.Context()
+            previous = context.enter()
+            try:
+                if k == 0:
+                    _linecov.set_block_probes(False)
+                    _linecov.set_instruction_probes(False)
+                    functions[0](3)
+                    _linecov.set_instruction_probes(instruction_probes)
+                    _linecov.set_block_probes(True)
+                else:
+                    functions[0](3)
+                functions[1](3)
+            finally:
+                context.exit(previous)
+            covered = context.covered()
+            seen.append((covered.get(filenames[0]), covered.get(filenames[1])))
+        probes = [_linecov.probes(code) for code in codes]
+    finally:
+        # Re-arm first: a code object left listed would get its events back at the next re-arm.
+        _linecov.rearm()
+        for code in codes:
+            _monitoring.set_local_events(tool_id, code, 0)
+    return probes == [1, 3] and all(lines is not None and lines == blocks for lines, blocks in seen)
 
 
 def _self_test(tool_id: int, distant_lines: bool = False) -> bool:
