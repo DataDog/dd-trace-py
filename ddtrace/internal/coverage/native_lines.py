@@ -5,12 +5,13 @@ in ctx_native when that context is active (a test, or a suite-scope fixture setu
 initialiser lines when the code is a module or class body, and to the process's unowned lines
 otherwise. See _linecov.c for the attribution and re-arm rules.
 
-On CPython 3.12, a code object moves at its first LINE event to INSTRUCTION probes: block probes,
-each of which credits a basic block and the blocks that dominate it, or else one probe per line
-start. Block probes also need PY_UNWIND events, and switch off for good once greenlet is imported.
+On CPython 3.12, a code object moves at its first LINE event to INSTRUCTION probes: one probe per
+line start, or with _DD_COVERAGE_BLOCK_PROBES=true block probes, each of which credits a basic block
+and the blocks that dominate it. Block probes fire fewer events but cost more to arm, and were no
+faster on any repository measured. They also need PY_UNWIND events, and switch off for good once
+greenlet is imported.
 
 Enabled with _DD_COVERAGE_NATIVE_LINES=true, which also selects line-level coverage.
-_DD_COVERAGE_BLOCK_PROBES=false keeps one probe per line start.
 """
 
 import builtins
@@ -157,7 +158,8 @@ def init(tool_id: int) -> bool:
 
     if not requested() or _linecov is None:
         return False
-    tables = _block_tables() if _linecov.HAVE_BLOCK_PROBES else None
+    block_probes = asbool(env.get("_DD_COVERAGE_BLOCK_PROBES", "false"))
+    tables = _block_tables() if block_probes and _linecov.HAVE_BLOCK_PROBES else None
     try:
         events = _monitoring.events
         # Block probes start off: the first self-tests check the probes that block probes fall back on.
@@ -196,12 +198,7 @@ def init(tool_id: int) -> bool:
         _linecov.set_instruction_probes(False)
         log.debug("INSTRUCTION probe self-test failed; using LINE events only")
     # Greenlets switch frames without a yield, which block probes cannot follow.
-    if (
-        tables is not None
-        and asbool(env.get("_DD_COVERAGE_BLOCK_PROBES", "true"))
-        and "greenlet" not in sys.modules
-        and _start_block_probes(tool_id)
-    ):
+    if tables is not None and "greenlet" not in sys.modules and _start_block_probes(tool_id):
         ModuleWatchdog.after_module_imported("greenlet")(_stop_block_probes)
     return True
 
