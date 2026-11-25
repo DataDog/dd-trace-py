@@ -1,3 +1,4 @@
+mod ai_guard_x509;
 #[cfg(feature = "crashtracker")]
 mod crashtracker;
 #[cfg(feature = "profiling")]
@@ -74,6 +75,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_wrapped(wrap_pyfunction!(otel_thread_ctx::sync_otel_thread_context))?;
     }
     shared_runtime::register_shared_runtime(m)?;
+    ai_guard_x509::register_ai_guard_x509(m)?;
     remote_config::register_remote_config(m)?;
     data_pipeline::register_data_pipeline(m)?;
     telemetry::register_telemetry(m)?;
