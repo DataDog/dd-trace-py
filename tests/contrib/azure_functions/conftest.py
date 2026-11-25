@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from io import BufferedRandom
 import os
 import signal
 import subprocess
@@ -13,11 +14,31 @@ from tests.webclient import Client
 
 AZURE_FUNCTIONS_PORT = 7071
 AZURE_FUNCTION_APP_DIR = os.path.join(os.path.dirname(__file__), "azure_function_app")
+AZURE_FUNCTION_ROUTES = (
+    "/api/httpgetok",
+    "/api/httpgetokasync",
+    "/api/httpgeterror",
+    "/api/httppostok",
+    "/api/httpgettriggerarg",
+    "/api/httpgetfunctionnamedecorator",
+    "/api/httpgetfunctionnamenodecorator",
+    "/api/httpgetfunctionnamedecoratororder",
+    "/api/httpgetroot",
+    "/api/httpgetchild",
+)
 
 
-def _read_log(log_file: object) -> str:
-    log_file.seek(0)
-    return log_file.read().decode("utf-8", errors="replace")
+def _read_log(log_file: BufferedRandom) -> str:
+    return os.pread(log_file.fileno(), os.fstat(log_file.fileno()).st_size, 0).decode("utf-8", errors="replace")
+
+
+def _wait_for_function_routes(log_file: BufferedRandom) -> None:
+    for _ in range(100):
+        stdout = _read_log(log_file)
+        if all(route in stdout for route in AZURE_FUNCTION_ROUTES):
+            return
+        time.sleep(0.1)
+    raise TimeoutError("Azure Functions host did not finish indexing the HTTP routes")
 
 
 def _start_azure_functions_server(extra_env: dict | None = None) -> tuple[subprocess.Popen, Client]:
@@ -47,6 +68,7 @@ def _start_azure_functions_server(extra_env: dict | None = None) -> tuple[subpro
     client = Client("http://0.0.0.0:%d" % port)
     try:
         client.wait(delay=0.5, initial_wait=2.0)
+        _wait_for_function_routes(stdout_log)
     except Exception as e:
         stdout = _read_log(stdout_log)
         stderr = _read_log(stderr_log)
