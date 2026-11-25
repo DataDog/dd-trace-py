@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    ray: The minimum supported Ray version for the ``ray`` and ``ray_serve`` integrations is now 2.48.0.
+    Ray 2.46 and 2.47 are no longer supported.

@@ -90,7 +90,7 @@ config._add(
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"ray": ">=2.46.0"}
+    return {"ray": ">=2.48.0"}
 
 
 def get_version() -> str:
