@@ -14,7 +14,7 @@ colorful==0.5.8
 coverage[toml]==7.17.5
 cryptography==50.0.2
 distlib==0.4.4
-fastapi==0.165.0
+fastapi==0.136.3
 filelock==4.3.0
 frozenlist==1.8.0
 google-api-core==2.30.3

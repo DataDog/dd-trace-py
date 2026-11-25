@@ -2256,7 +2256,7 @@ suites:
       variants:
         - name: ray_serve
           python: ['3.11', '3.12', '3.13']
-          dependencies: [fastapi, 'protobuf==4.25.8', 'ray[serve]~=2.48.0']
+          dependencies: ['fastapi~=0.136.1', 'protobuf==4.25.8', 'ray[serve]~=2.48.0']
         - name: ray_serve
           python: ['3.11', '3.12', '3.13']
           dependencies: [fastapi, 'protobuf==4.25.8', 'ray[serve]~=2.54.1']
