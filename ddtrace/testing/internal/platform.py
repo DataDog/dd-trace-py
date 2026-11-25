@@ -1,6 +1,7 @@
 import json
 import logging
 import platform
+import typing as t
 
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_RUNTIME_TAGS
@@ -37,7 +38,7 @@ _OVERRIDABLE_TAGS = frozenset(
 )
 
 
-def get_platform_tags() -> dict[str, str]:
+def get_platform_tags(runtime_tags_overrides: t.Optional[t.Mapping[str, str]] = None) -> dict[str, str]:
     """Extract configuration facet tags for OS and Python runtime, applying DD_TEST_OPTIMIZATION_RUNTIME_TAGS."""
     tags = {
         PlatformTag.OS_ARCHITECTURE: platform.machine(),
@@ -46,7 +47,7 @@ def get_platform_tags() -> dict[str, str]:
         PlatformTag.RUNTIME_NAME: platform.python_implementation(),
         PlatformTag.RUNTIME_VERSION: platform.python_version(),
     }
-    tags.update(get_runtime_tags_overrides())
+    tags.update(get_runtime_tags_overrides() if runtime_tags_overrides is None else runtime_tags_overrides)
     return tags
 
 
