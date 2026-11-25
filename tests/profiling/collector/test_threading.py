@@ -945,7 +945,7 @@ def test_acquire_from_destructor_during_frame_teardown() -> None:
         # The finalizer calls the Cython lock's acquire from C, with no arguments and no Python frame.
         node = type("Node", (), {"__del__": staticmethod(lock.acquire)})()  # noqa: F841
 
-    with ThreadingLockCollector(module=threading, capture_pct=100):
+    with ThreadingLockCollector(capture_pct=100):
         for _ in range(100):
             lock = threading.Lock()
             # map calls victim from C, so node dies after victim's frame is unlinked.
@@ -972,7 +972,7 @@ def test_acquire_without_python_frame_is_not_sampled() -> None:
     test_name = "test_acquire_without_python_frame_is_not_sampled"
     init_ddup(test_name)
 
-    with ThreadingLockCollector(module=threading, capture_pct=100):
+    with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
         # The new thread runs the Cython acquire directly, so it has no Python frame.
         _thread.start_new_thread(lock.acquire, ())
