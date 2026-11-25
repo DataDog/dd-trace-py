@@ -230,6 +230,8 @@ Some providers run tools themselves and bill per call on top of token costs. Rec
 - Skip server tools with no per-call price (for example Anthropic `web_fetch_requests`).
 - For streams, read the count from the final usage event (Anthropic `message_delta`, OpenAI `response.completed`), not from content block events.
 
+Besides the count, record each server tool step as a message with one tool call and its tool result on the LLM span, on output and when the item is passed back as input. The call carries what the model asked for (search queries, code). The result carries `status` plus a compact summary (source URLs and titles, file matches, code outputs), never provider-encrypted content or full result text. Use the tool name (`web_search`), not the item type, as the tool name. Do not add these calls to the span-link tool call list: no client-side tool span runs them. See `_openai_hosted_tool_message()` in `_integrations/utils.py` and Anthropic `server_tool_use` / `web_search_tool_result` blocks.
+
 ## Agent Integrations: Stamp Kind and Name at Span Start
 
 Agent integrations have a critical ordering constraint. `_resolve_parent_agent()` in `ddtrace/llmobs/_utils.py` resolves agent attribution when a **child** span activates, not when the parent finishes. Under LIFO nesting the parent span is still open when the child starts — so any field written at span *finish* time is invisible to children that have already been attributed.

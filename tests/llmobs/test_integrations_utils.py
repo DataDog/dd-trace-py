@@ -839,6 +839,102 @@ def test_output_computer_call_screenshot_does_not_leak_base64():
     assert remote == [{"content": "https://example.com/shot.png", "role": "user"}]
 
 
+_HOSTED_TOOL_ITEMS = [
+    (
+        {
+            "id": "ws_1",
+            "type": "web_search_call",
+            "status": "completed",
+            "action": {
+                "type": "search",
+                "query": "JFK to LIS nonstop",
+                "queries": ["JFK to LIS nonstop", "JFK LIS December"],
+                "sources": [
+                    {"type": "url", "url": "https://a.example", "title": "A"},
+                    {"type": "url", "url": "https://b.example"},
+                ],
+            },
+        },
+        "web_search",
+        {"type": "search", "query": "JFK to LIS nonstop", "queries": ["JFK to LIS nonstop", "JFK LIS December"]},
+        {"status": "completed", "sources": [{"url": "https://a.example", "title": "A"}, {"url": "https://b.example"}]},
+    ),
+    (
+        {"id": "ws_2", "type": "web_search_call", "status": "failed", "action": {"type": "search", "query": "q"}},
+        "web_search",
+        {"type": "search", "query": "q"},
+        {"status": "failed"},
+    ),
+    (
+        {
+            "id": "fs_1",
+            "type": "file_search_call",
+            "status": "completed",
+            "queries": ["refund policy"],
+            "results": [{"file_id": "file_1", "filename": "policy.pdf", "score": 0.9, "text": "full chunk text"}],
+        },
+        "file_search",
+        {"queries": ["refund policy"]},
+        {"status": "completed", "results": [{"file_id": "file_1", "filename": "policy.pdf", "score": 0.9}]},
+    ),
+    (
+        {"id": "fs_2", "type": "file_search_call", "status": "failed", "queries": ["q"], "results": None},
+        "file_search",
+        {"queries": ["q"]},
+        {"status": "failed"},
+    ),
+    (
+        {
+            "id": "ci_1",
+            "type": "code_interpreter_call",
+            "status": "completed",
+            "code": "print(1)",
+            "container_id": "cntr_1",
+            "outputs": [{"type": "logs", "logs": "1\n"}, {"type": "image", "url": "https://img.example"}],
+        },
+        "code_interpreter",
+        {"code": "print(1)", "container_id": "cntr_1"},
+        {"status": "completed", "outputs": ["1\n", IMAGE_FALLBACK_MARKER]},
+    ),
+    (
+        {"id": "ci_2", "type": "code_interpreter_call", "status": "failed", "code": "1/0", "container_id": "cntr_1"},
+        "code_interpreter",
+        {"code": "1/0", "container_id": "cntr_1"},
+        {"status": "failed"},
+    ),
+]
+
+
+@pytest.mark.parametrize("item,name,arguments,result", _HOSTED_TOOL_ITEMS)
+@pytest.mark.parametrize("direction", ["output", "input"])
+def test_openai_hosted_tool_call_and_result(item, name, arguments, result, direction):
+    """Hosted tool items become a tool call plus its result, on output and when passed back as input."""
+    if direction == "output":
+        processed, tool_call_outputs, _ = _openai_parse_output_response_messages([item])
+        assert tool_call_outputs == []  # no client-side tool span will consume a span link
+    else:
+        processed, tool_call_ids = _openai_parse_input_response_messages([item])
+        assert tool_call_ids == []
+    assert processed == [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"name": name, "arguments": arguments, "tool_id": item["id"], "type": item["type"]}],
+            "tool_results": [{"name": name, "result": safe_json(result), "tool_id": item["id"], "type": "tool_result"}],
+        }
+    ]
+
+
+def test_openai_hosted_tool_call_from_sdk_object():
+    """SDK response objects parse the same as the dict form."""
+    from openai.types.responses import ResponseFunctionWebSearch
+
+    item = ResponseFunctionWebSearch.model_validate(_HOSTED_TOOL_ITEMS[0][0])
+    processed, _, _ = _openai_parse_output_response_messages([item])
+    assert processed[0]["tool_calls"][0]["arguments"] == _HOSTED_TOOL_ITEMS[0][2]
+    assert processed[0]["tool_results"][0]["result"] == safe_json(_HOSTED_TOOL_ITEMS[0][3])
+
+
 def test_normalize_prompt_variables_inline_image_degrades_to_marker():
     """A prompt variable holding an inline data URL must not put base64 on the span.
 
