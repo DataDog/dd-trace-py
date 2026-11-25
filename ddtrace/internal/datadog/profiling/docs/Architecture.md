@@ -103,7 +103,7 @@ Each upload creates a new exporter.
 
 ## Fork, gevent, uWSGI and Gunicorn
 
-General fork-safety rules are in the "Fork Safety" section of [`ddtrace/internal/README.md`](../../../../../ddtrace/internal/README.md#fork-safety).
+General fork-safety rules are in [`docs/contributing-architecture.rst`](../../../../../docs/contributing-architecture.rst) and the "Fork Safety" section of [`ddtrace/internal/README.md`](../../../../../ddtrace/internal/README.md#fork-safety).
 
 Native code resets its state with `pthread_atfork` handlers.
 These run on every `fork()`, including forks that skip Python's fork hooks, such as uWSGI workers.
@@ -177,4 +177,4 @@ Use the `find-cpython-usage` and `compare-cpython-versions` skills in `.agents/s
 
 ## Building and testing
 
-See [Standalone.md](Standalone.md).
+See [Testing.md](Testing.md) for all build, local, and CI checks, and [Standalone.md](Standalone.md) for `build_standalone.sh`.

@@ -253,11 +253,17 @@ StackRenderer::render_frame(Frame& frame)
 }
 
 void
-StackRenderer::mark_truncated()
+StackRenderer::mark_truncated(size_t count)
 {
     if (sample != nullptr) {
-        sample->incr_dropped_frames();
+        sample->incr_dropped_frames(count);
     }
+}
+
+bool
+StackRenderer::frame_limit_reached() const
+{
+    return sample != nullptr && sample->frame_limit_reached();
 }
 
 void

@@ -220,10 +220,14 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     // Without this, a parent task's coroutine chain would be walked once for each child task that
     // references it in its task chain (e.g. 10 children from asyncio.gather = 10 redundant unwinds
     // of the parent's coroutine chain).
+    // Off-CPU tasks keep only their innermost max_frames coroutine frames: rendering stops at
+    // that limit, and tasks are stitched leaf first, so deeper frames would be dropped anyway.
+    // The on-CPU task stays complete because its depth is needed to split the thread stack.
+    const size_t max_frames = echion.stack_max_frames();
     std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         FrameStack task_stack;
-        task->unwind(echion, task_stack, using_uvloop);
+        task->unwind(echion, task_stack, using_uvloop, task->is_on_cpu ? MAX_RECURSION_DEPTH : max_frames);
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
@@ -1040,7 +1044,10 @@ unwind_selected_task(EchionSampler& echion,
         if (!visited.insert(current->origin).second) {
             break;
         }
-        (void)current->unwind(echion, stack, using_uvloop);
+        // Match wall sampling: the running task stays complete for stitching, and each suspended
+        // parent keeps its innermost max_frames, since rendering stops at that limit.
+        (void)current->unwind(
+          echion, stack, using_uvloop, current == &selected ? MAX_RECURSION_DEPTH : echion.stack_max_frames());
 
         PyObject* parent_origin = nullptr;
         if (auto waiter_parent = waiter_parents.find(current->origin); waiter_parent != waiter_parents.end()) {

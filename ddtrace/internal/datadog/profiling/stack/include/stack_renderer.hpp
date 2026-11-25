@@ -103,7 +103,8 @@ class StackRenderer
                            uint64_t task_id,
                            std::optional<int64_t> walltime_ns_override = std::nullopt);
     void render_frame(Frame& frame);
-    void mark_truncated();
+    void mark_truncated(size_t count);
+    [[nodiscard]] bool frame_limit_reached() const;
     void render_gc_frame();
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
