@@ -82,19 +82,25 @@ def test_check_registry_default_roots_without_packages_scan_only_ddtrace(capsys,
     assert first_line == f"Scanning for env vars in: {_MODULE.REPO_ROOT / 'ddtrace'}"
 
 
-def test_package_source_roots_finds_installed_package(tmp_path, monkeypatch):
-    package = tmp_path / "_ddtrace_internal"
-    package.mkdir()
-    (package / "__init__.py").write_text("")
-    monkeypatch.delitem(sys.modules, "_ddtrace_internal", raising=False)
+def test_package_source_roots_finds_installed_packages(tmp_path, monkeypatch):
+    # Fake every split package, not just one: in the package-split final state several _ddtrace_*
+    # distributions are installed alongside each other, and a genuine one in site-packages must not
+    # leak into the result. The fakes are regular packages first on sys.path, so find_spec resolves
+    # each name to its fake root instead of the installed copy.
+    packages = {name: tmp_path / name for name in _MODULE.SPLIT_PACKAGES}
+    for name, package in packages.items():
+        package.mkdir()
+        (package / "__init__.py").write_text("")
+        monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.syspath_prepend(str(tmp_path))
     importlib.invalidate_caches()
     _MODULE._package_source_roots.cache_clear()
     try:
-        assert _MODULE._package_source_roots() == (package,)
+        assert _MODULE._package_source_roots() == tuple(packages[name] for name in _MODULE.SPLIT_PACKAGES)
     finally:
         _MODULE._package_source_roots.cache_clear()
-        sys.modules.pop("_ddtrace_internal", None)
+        for name in packages:
+            sys.modules.pop(name, None)
 
 
 def test_package_source_roots_skips_missing_packages(monkeypatch):
