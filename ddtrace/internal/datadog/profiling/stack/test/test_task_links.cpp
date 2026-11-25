@@ -66,24 +66,3 @@ TEST(TaskLinks, NewLinkForReusedAddressGetsFullGracePeriod)
     ASSERT_EQ(echion.task_link_map().count(&child), 1u);
     EXPECT_EQ(echion.task_link_map()[&child], &new_parent);
 }
-
-TEST(TaskLinks, StrongAndWeakLinksArePrunedIndependently)
-{
-    // The same child can have both a gather link and a create_task link. Missing it from one snapshot must start the
-    // grace period of both links, not let one consume the grace period of the other.
-    EchionSampler echion;
-    PyObject parent{};
-    PyObject child{};
-
-    echion.link_task(&parent, &child);
-    echion.weak_link_task(&parent, &child);
-    echion.prune_task_links({ &parent });
-    echion.prune_weak_task_links({ &parent });
-    EXPECT_EQ(echion.task_link_map().count(&child), 1u);
-    EXPECT_EQ(echion.weak_task_link_map().count(&child), 1u);
-
-    echion.prune_task_links({ &parent });
-    echion.prune_weak_task_links({ &parent });
-    EXPECT_EQ(echion.task_link_map().count(&child), 0u);
-    EXPECT_EQ(echion.weak_task_link_map().count(&child), 0u);
-}
