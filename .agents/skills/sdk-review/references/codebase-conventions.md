@@ -50,22 +50,15 @@ Repo-specific idioms: configuration, logging, shared helpers, test patterns, and
 ### CONV-4.3: Use snapshot tests for integration spans
 - Flag: new integration tests that assert span attributes one by one where a snapshot under `tests/snapshots/` would cover them.
 
-## 5. Dependencies and native
+## 5. Repository and CI
 
-### CONV-5.1: Pin every libdatadog crate to the same release tag
-- Flag: a libdatadog crate in `src/native/Cargo.toml` pinned to a commit SHA, or bumped to a different `rev` than the other libdatadog crates, which ships two libdatadog versions.
-- ❌ `libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "3f2a9c1" }`
-- ✅ `libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v50.0.0" }`
-
-## 6. Repository and CI
-
-### CONV-6.1: Edit skills under `.agents/skills/`
+### CONV-5.1: Edit skills under `.agents/skills/`
 - Flag: changes under `.claude/skills/`, which is a compatibility symlink to `.agents/skills/`. See [AGENTS.md](../../../../AGENTS.md).
 
-### CONV-6.2: Schedule expensive benchmark jobs like the existing ones
+### CONV-5.2: Schedule expensive benchmark jobs like the existing ones
 - Flag: a new benchmark job that runs on every push or PR instead of following the macrobenchmark schedule rules, or explicit Kubernetes CPU/memory requests without `DD_DISABLE_VPA`.
 
-### CONV-6.3: Add codespell false positives to `ignore-words-list`
+### CONV-5.3: Add codespell false positives to `ignore-words-list`
 - Flag: whole lines added to `.codespellignorelines` to silence one word, instead of adding the word to `ignore-words-list` in `setup.cfg`.
 
 ## Don't flag
