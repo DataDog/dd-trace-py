@@ -244,7 +244,7 @@ def _format_tool_result_block(block: Any) -> list[Message]:
         except TypeError:
             pass
         else:
-            if isinstance(block, dict):
+            if isinstance(block, dict) and isinstance(block.get("content"), Iterator):
                 # Written back so the SDK still sends the content this conversion consumed.
                 block["content"] = content
 
@@ -455,6 +455,11 @@ def _format_system(system: Any) -> Optional[Message]:
     return Message(role="system", content=text)
 
 
+def _splits_around_server_results(parsed: _ParsedBlocks) -> bool:
+    """Whether server results are emitted between the calls before them and the pending calls after them."""
+    return bool(parsed.server_tool_results and (parsed.tool_calls or parsed.post_tool_calls))
+
+
 def _emit_assistant_with_server_tool(
     parsed: _ParsedBlocks,
 ) -> list[Message]:
@@ -466,10 +471,15 @@ def _emit_assistant_with_server_tool(
     follow-up assistant message with the post-tool synthesis text.
     """
     pre_text = "".join((p.get("text") or "") for p in parsed.pre_tool_parts if p.get("type") == "text")
-    ai_msg = Message(role="assistant", tool_calls=parsed.tool_calls)
-    if pre_text:
-        ai_msg["content"] = pre_text
-    result: list[Message] = [ai_msg]
+    result: list[Message] = []
+    # A resumed turn can start with a result whose call is in an earlier message.
+    if parsed.tool_calls or pre_text:
+        ai_msg = Message(role="assistant")
+        if pre_text:
+            ai_msg["content"] = pre_text
+        if parsed.tool_calls:
+            ai_msg["tool_calls"] = parsed.tool_calls
+        result.append(ai_msg)
     result.extend(parsed.server_tool_results)
     post_text = "".join((p.get("text") or "") for p in parsed.post_tool_parts if p.get("type") == "text")
     if post_text or parsed.post_tool_calls:
@@ -549,7 +559,7 @@ def _convert_anthropic_messages(
             # -> optional synthesis. tool_results from user-side blocks (rare
             # in this branch but possible) are appended last to preserve
             # ordering.
-            if role == "assistant" and parsed.tool_calls and parsed.server_tool_results:
+            if role == "assistant" and _splits_around_server_results(parsed):
                 result.extend(_emit_assistant_with_server_tool(parsed))
                 result.extend(parsed.tool_results)
                 continue
@@ -597,7 +607,7 @@ def _convert_anthropic_response(resp: Any, mcp_servers: Optional[dict[str, MCPSe
 
         parsed = _format_content_blocks(content, mcp_servers)
 
-        if parsed.tool_calls and parsed.server_tool_results:
+        if _splits_around_server_results(parsed):
             return _emit_assistant_with_server_tool(parsed)
 
         content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
