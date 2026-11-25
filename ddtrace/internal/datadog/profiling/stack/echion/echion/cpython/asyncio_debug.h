@@ -25,6 +25,8 @@ struct AsyncioOffsets
 {
     size_t interpreter_tasks_head;
     size_t thread_tasks_head;
+    // Byte offset of asyncio_running_task in _PyThreadStateImpl, or 0 when unavailable.
+    size_t thread_running_task = 0;
     // Unset when the offsets do not come from a runtime table, for example in tests and the fuzz harness.
     std::optional<AsyncioTaskLayout> task_layout = std::nullopt;
 };
@@ -59,8 +61,8 @@ struct PyAsyncioDebugOffsets
 
 static_assert(sizeof(PyAsyncioDebugOffsets) == 13 * sizeof(uint64_t));
 
-// Validates every field of the table and returns the two list-head offsets with the task layout. The table has no
-// magic value, so a full schema check is what rejects memory that is not a table.
+// Validates every field of the table and returns the two list-head offsets, the running-task offset, and the task
+// layout. The table has no magic value, so a full schema check is what rejects memory that is not a table.
 std::optional<AsyncioOffsets>
 parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets);
 

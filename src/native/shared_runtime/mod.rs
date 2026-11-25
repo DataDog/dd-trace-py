@@ -300,6 +300,15 @@ impl SharedRuntimePy {
             .map_err(shared_runtime_error_to_pyerr)
     }
 
+    /// Whether this process inherited the runtime through a fork and has not rebuilt it yet.
+    fn restart_pending(&self) -> bool {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        if CHILD_RESTART_PENDING.load(Ordering::Acquire) {
+            return true;
+        }
+        self.inner.pid.load(Ordering::Acquire) != std::process::id()
+    }
+
     fn after_fork_child(&self) -> PyResult<()> {
         let runtime = self.inner.current();
         let result = runtime

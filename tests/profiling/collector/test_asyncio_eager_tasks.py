@@ -5,7 +5,9 @@ import pytest
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
 @pytest.mark.xfail(
-    sys.version_info >= (3, 14), strict=True, reason="3.14 native eager tasks are not in asyncio's eager task set"
+    sys.version_info >= (3, 14),
+    strict=True,
+    reason="3.14 native eager tasks are not in asyncio's eager task set, so their stack lacks the creator's frames",
 )
 @pytest.mark.subprocess(
     env={
@@ -112,9 +114,6 @@ def test_asyncio_eager_task_first_step_is_sampled_once() -> None:
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
-@pytest.mark.xfail(
-    sys.version_info >= (3, 14), strict=True, reason="3.14 native eager tasks are not in asyncio's eager task set"
-)
 @pytest.mark.subprocess(
     env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_eager_task_step_edges",
