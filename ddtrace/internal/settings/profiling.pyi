@@ -38,6 +38,7 @@ class ProfilingConfig(DDConfig):
     exception: ProfilingConfigException
     install: bool
     remote_config_experiment: bool
+    gc: ProfilingConfigGC
 
     def dump_settings(self) -> dict[str, Any]: ...
 
@@ -96,6 +97,14 @@ class ProfilingConfigException(DDConfig):
     enabled: bool
     sampling_interval: int
     collect_message: bool
+
+class ProfilingConfigGC(DDConfig):
+    enabled: bool
+    interval_s: int
+    top_n: int
+    survivor_threshold: int
+    referrers_enabled: bool
+    max_depth: int
 
 config: ProfilingConfig
 ddup_failure_msg: Optional[str]
