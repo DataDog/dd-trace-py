@@ -530,6 +530,8 @@ def _convert_anthropic_response(resp: Any, mcp_servers: Optional[dict[str, MCPSe
         if not isinstance(content, list):
             return []
 
+        # A response holds no user-side tool_result; the stream rebuild also gives that type to server tool results.
+        content = [block for block in content if _get(block, "type") != "tool_result"]
         return _format_content_blocks(content, "assistant", mcp_servers)
     except AIGuardAbortError:
         raise
@@ -570,15 +572,32 @@ def _safe_convert_response(resp: Any, mcp_servers: Optional[dict[str, MCPServer]
 
 
 def _is_unlisted_iterable(value: Any) -> bool:
-    return isinstance(value, Iterable) and not isinstance(value, (list, tuple, str, bytes, Mapping))
+    # SDK models iterate over their fields: they are objects, not sequences.
+    return (
+        isinstance(value, Iterable)
+        and not isinstance(value, (list, tuple, str, bytes, Mapping))
+        and not hasattr(value, "model_dump")
+    )
+
+
+# Blocks whose content the SDK types as an Iterable of blocks.
+_ITERABLE_CONTENT_BLOCK_TYPES = frozenset(("tool_result", "mcp_tool_result"))
 
 
 def materialize_request(kwargs: dict[str, Any]) -> None:
     """Read the iterables of a request once, so the SDK and every AI Guard hook see the same values.
 
-    messages and mcp_servers become lists. A block whose content is an iterable gets a request-local copy with that
-    content as a list: the caller's objects are never changed, so their reusable iterables stay live.
+    messages and mcp_servers become lists. A tool result block whose content is an iterable gets a request-local copy
+    with that content as a list: the caller's objects are never changed, so their reusable iterables stay live.
+    Fails open: an unexpected shape leaves the rest of the request as it is.
     """
+    try:
+        _materialize_request(kwargs)
+    except Exception:
+        logger.debug("AI Guard anthropic: failed to materialize the request iterables", exc_info=True)
+
+
+def _materialize_request(kwargs: dict[str, Any]) -> None:
     for key in ("messages", "mcp_servers"):
         if _is_unlisted_iterable(kwargs.get(key)):
             kwargs[key] = list(kwargs[key])
@@ -592,7 +611,11 @@ def materialize_request(kwargs: dict[str, Any]) -> None:
             continue
         blocks: Optional[list[Any]] = None
         for block_index, block in enumerate(content):
-            if isinstance(block, Mapping) and _is_unlisted_iterable(block.get("content")):
+            if (
+                isinstance(block, Mapping)
+                and block.get("type") in _ITERABLE_CONTENT_BLOCK_TYPES
+                and _is_unlisted_iterable(block.get("content"))
+            ):
                 blocks = blocks if blocks is not None else list(content)
                 blocks[block_index] = {**block, "content": list(block["content"])}
         if blocks is not None:
