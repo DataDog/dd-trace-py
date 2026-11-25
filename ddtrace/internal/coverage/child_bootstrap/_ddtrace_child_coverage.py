@@ -111,7 +111,9 @@ def _exec_hook(linecov: Any, config: dict[str, Any]) -> Callable[[CodeType], Non
         return any(_is_under(path, top) for top in includes) and not any(_is_under(path, top) for top in excludes)
 
     def file_id(filename: str) -> int:
-        if not filename or filename.startswith("<"):
+        # Python source files only, as in the test process: template engines such as Jinja compile
+        # code named after the template file. Children are followed on POSIX, where that means .py.
+        if not filename.endswith(".py") or filename.startswith("<"):
             return -1
         if os.path.isabs(filename):
             directory, _, name = filename.rpartition(os.sep)
