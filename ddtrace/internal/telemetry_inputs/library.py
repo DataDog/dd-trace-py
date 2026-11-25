@@ -1,11 +1,4 @@
-"""What telemetry needs from the library it reports for, passed in rather than imported.
-
-Telemetry moves to the ddtrace-internal package, which never imports ddtrace, so it can't read dd-trace-py's
-version itself. dd-trace-py registers it from ``ddtrace/__init__.py`` before it imports telemetry.
-
-This module sits outside the telemetry package and imports nothing from ddtrace: importing anything from the
-telemetry package runs its ``__init__``, which builds the writer and reads these inputs.
-"""
+"""The library telemetry reports for."""
 
 from typing import NamedTuple
 from typing import Optional

@@ -20,7 +20,7 @@ from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config
-from ddtrace.internal.telemetry_inputs import get_library
+from ddtrace.internal.telemetry_inputs.library import get_library
 
 from ...internal import atexit
 from ...internal import excepthook

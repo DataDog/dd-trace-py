@@ -22,7 +22,7 @@ import ddtrace.internal._unpatched  # noqa
 
 # Telemetry does not import the tracer's identity itself. Hand it over before ._logger below imports telemetry,
 # whose writer reads it when it is created.
-from ddtrace.internal.telemetry_inputs import register_library as _register_library  # noqa: E402
+from ddtrace.internal.telemetry_inputs.library import register_library as _register_library  # noqa: E402
 from ddtrace.internal.utils.version import version as _product_version  # noqa: E402
 from ddtrace.version import __version__ as _tracer_version  # noqa: E402
 

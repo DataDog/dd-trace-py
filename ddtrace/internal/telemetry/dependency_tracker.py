@@ -19,7 +19,7 @@ from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
-from ddtrace.internal.telemetry_inputs import get_library
+from ddtrace.internal.telemetry_inputs.library import get_library
 from ddtrace.internal.threads import Lock
 
 from . import modules

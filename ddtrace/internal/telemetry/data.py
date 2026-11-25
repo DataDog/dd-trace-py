@@ -5,7 +5,7 @@ import sysconfig
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.container import get_container_info
-from ddtrace.internal.telemetry_inputs import get_library
+from ddtrace.internal.telemetry_inputs.library import get_library
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 
