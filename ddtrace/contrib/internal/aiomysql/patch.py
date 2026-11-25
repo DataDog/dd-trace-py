@@ -95,10 +95,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             core.dispatch_event(injection)
             args, kwargs = injection.args, injection.kwargs
 
-            driver_failed = True
             try:
                 result = await method(*args, **kwargs)
-                driver_failed = False
                 return result
             finally:
                 try:
@@ -106,8 +104,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                         context=ctx, row_count=self.rowcount, row_number=self.rownumber
                     )
                 except Exception:
-                    if not driver_failed:
-                        raise
                     log.debug("Error publishing database result metadata", exc_info=True)
 
     async def executemany(self, query, *args, **kwargs):

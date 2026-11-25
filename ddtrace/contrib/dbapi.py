@@ -14,7 +14,6 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace._trace.subscribers.database import _run_legacy_post_execute
 from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
 from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.contrib._events.dbapi import DatabaseResultEvent
@@ -26,9 +25,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
-from ddtrace.trace import Span
 
-from ..ext import db
 from ..ext import sql
 from .internal.trace_utils import ext_service
 from .internal.trace_utils import is_tracing_enabled
@@ -147,24 +144,12 @@ class TracedCursor(wrapt.ObjectProxy):
                 core.dispatch_event(prepare)
                 args, kwargs = prepare.args, prepare.kwargs
 
-            driver_failed = True
             try:
                 yield args, kwargs
-                driver_failed = False
             finally:
                 try:
-                    legacy_hook = type(self)._set_post_execute_tags is not TracedCursor._default_post_execute_tags
-                    if (
-                        not legacy_hook
-                        or type(self)._get_post_execute_result is not TracedCursor._default_post_execute_result
-                    ):
-                        ctx.event.result = self._get_post_execute_result(ctx)
-                    if legacy_hook:
-                        # Existing cursor extensions run last and receive the active operation span.
-                        _run_legacy_post_execute(ctx, self._set_post_execute_tags)
+                    ctx.event.result = self._get_post_execute_result(ctx)
                 except Exception:
-                    if not driver_failed:
-                        raise
                     log.debug("Error publishing database result metadata", exc_info=True)
 
     def _dbapi_query_encoding(self) -> Optional[str]:
@@ -231,27 +216,6 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def _get_post_execute_result(self, context: core.ExecutionContext[DatabaseOperationEvent]) -> DatabaseResultEvent:
         return DatabaseResultEvent(context=context, row_count=getattr(self.__wrapped__, "rowcount", None))
-
-    _default_post_execute_result = _get_post_execute_result
-
-    def _set_post_execute_tags(self, span: Span) -> None:
-        """Compatibility hook for existing subclasses; new subclasses should publish result metadata."""
-        # rowcount is in the dbapi specification (https://peps.python.org/pep-0249/#rowcount)
-        # but some database drivers (cassandra-driver specifically) don't implement it.
-        row_count = getattr(self.__wrapped__, "rowcount", None)
-        if row_count is None:
-            return
-        # Necessary for django integration backward compatibility. Django integration used to provide its own
-        # implementation of the TracedCursor, which used to store the row count into a tag instead of
-        # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
-        # this tag has been added since.
-        # Check row count is an integer type to avoid comparison type error
-        span._set_attribute(db.ROWCOUNT, row_count)
-        if isinstance(row_count, int) and row_count >= 0:
-            span.set_tag(db.ROWCOUNT, cast(Any, row_count))
-
-    # Preserve the original identity so monkeypatched legacy hooks still run.
-    _default_post_execute_tags = _set_post_execute_tags
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's

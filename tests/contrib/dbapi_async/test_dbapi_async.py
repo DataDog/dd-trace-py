@@ -11,6 +11,7 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import Span
 from tests.contrib.asyncio.utils import AsyncioTestCase
@@ -668,16 +669,16 @@ class TestTracedAsyncConnection(AsyncioTestCase):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method_name", ["execute", "executemany", "callproc", "fetchone"])
 @pytest.mark.parametrize("failure_type", [None, ValueError, asyncio.CancelledError])
-async def test_post_execute_hook_receives_active_span(tracer, test_spans, method_name, failure_type):
-    hook_spans = []
+async def test_result_metadata_and_parent_restored(tracer, test_spans, method_name, failure_type):
+    contexts = []
 
     class ExtendedCursor(FetchTracedAsyncCursor):
-        def _set_post_execute_tags(self, span: Span) -> None:
-            super()._set_post_execute_tags(span)
-            assert span is tracer.current_span()
-            assert not span.finished
-            span.set_tag("driver.query_id", self.__wrapped__.query_id)
-            hook_spans.append(span)
+        def _get_post_execute_result(self, context):
+            assert core.current is context
+            result = super()._get_post_execute_result(context)
+            result.tags["driver.query_id"] = self.__wrapped__.query_id
+            contexts.append(context)
+            return result
 
     result = object()
     failure = failure_type("driver execution failed") if failure_type else None
@@ -700,8 +701,9 @@ async def test_post_execute_hook_receives_active_span(tracer, test_spans, method
             assert await getattr(traced, method_name)(*args) is result
         assert tracer.current_span() is parent
         assert core.current is execution_context
-        assert len(hook_spans) == 1
-        span = hook_spans[0]
+        assert len(contexts) == 1
+        span = find_span_on_context(contexts[0])
+        assert span is not None
         assert span.finished
         assert span.parent_id == parent.span_id
         assert span.resource == query
@@ -787,43 +789,25 @@ async def test_result_contexts_are_isolated_between_tasks(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("keyword", [False, True])
-async def test_legacy_trace_method_contract(tracer, keyword):
-    class LegacyCursor(TracedAsyncCursor):
-        async def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
-            assert dbm_propagator is self._self_dbm_propagator
-            if keyword:
-                return await super()._trace_method(
-                    method, name, resource, extra_tags, dbm_propagator=self._self_dbm_propagator, query=args[0]
-                )
-            return await super()._trace_method(
-                method, name, resource, extra_tags, self._self_dbm_propagator, *args, **kwargs
-            )
-
-    cursor = mock.Mock(spec=["execute", "rowcount"], execute=mock.AsyncMock(), rowcount=1)
-    cfg = IntegrationConfig(Config(), "db-test", _dbm_propagator=object())
-    await LegacyCursor(cursor, cfg=cfg).execute("SELECT 1")
-    if keyword:
-        cursor.execute.assert_awaited_once_with(query="SELECT 1")
-    else:
-        cursor.execute.assert_awaited_once_with("SELECT 1")
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("failure_type", [None, ValueError, asyncio.CancelledError])
-async def test_cleanup_failure_preserves_driver_error(tracer, test_spans, failure_type):
+async def test_metadata_failure_preserves_driver_outcome(tracer, test_spans, failure_type):
     failure = failure_type("driver failed") if failure_type else None
+    result = object()
     cursor = mock.AsyncMock()
+    cursor.execute.return_value = result
     cursor.execute.side_effect = failure
     type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
     try:
         raise LookupError("already handled by the application")
     except LookupError:
         with tracer.trace("parent") as parent:
-            with pytest.raises(failure_type or RuntimeError) as caught:
-                await TracedAsyncCursor(cursor).execute("SELECT 1")
             if failure is not None:
+                with pytest.raises(failure_type) as caught:
+                    await TracedAsyncCursor(cursor).execute("SELECT 1")
                 assert caught.value is failure
+            else:
+                assert await TracedAsyncCursor(cursor).execute("SELECT 1") is result
             assert tracer.current_span() is parent
-    expected = "driver failed" if failure_type else "cursor closed"
-    assert test_spans.spans[1].get_tag("error.message") == expected
+    span = test_spans.spans[1]
+    assert span.error == int(failure is not None)
+    assert span.get_tag("error.message") == ("driver failed" if failure is not None else None)

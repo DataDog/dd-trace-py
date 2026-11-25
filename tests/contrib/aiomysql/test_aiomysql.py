@@ -473,19 +473,24 @@ async def test_result_metadata_and_parent_restored(tracer, test_spans, method_na
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure_type", [None, ValueError, asyncio.CancelledError])
-async def test_cleanup_failure_preserves_driver_error(tracer, test_spans, failure_type):
+async def test_metadata_failure_preserves_driver_outcome(tracer, test_spans, failure_type):
     failure = failure_type("driver failed") if failure_type else None
+    result = object()
     cursor = mock.AsyncMock()
+    cursor.execute.return_value = result
     cursor.execute.side_effect = failure
     type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
     try:
         raise LookupError("already handled by the application")
     except LookupError:
         with tracer.trace("parent") as parent:
-            with pytest.raises(failure_type or RuntimeError) as caught:
-                await AIOTracedCursor(cursor, db_tags={}).execute("SELECT 1")
             if failure is not None:
+                with pytest.raises(failure_type) as caught:
+                    await AIOTracedCursor(cursor, db_tags={}).execute("SELECT 1")
                 assert caught.value is failure
+            else:
+                assert await AIOTracedCursor(cursor, db_tags={}).execute("SELECT 1") is result
             assert tracer.current_span() is parent
-    expected = "driver failed" if failure_type else "cursor closed"
-    assert test_spans.spans[1].get_tag("error.message") == expected
+    span = test_spans.spans[1]
+    assert span.error == int(failure is not None)
+    assert span.get_tag("error.message") == ("driver failed" if failure is not None else None)

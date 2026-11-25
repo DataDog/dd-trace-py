@@ -1,3 +1,5 @@
+import asyncio
+
 import mock
 import pytest
 
@@ -630,16 +632,16 @@ class TestTracedConnection(TracerTestCase):
 
 @pytest.mark.parametrize("method_name", ["execute", "executemany", "callproc", "fetchone"])
 @pytest.mark.parametrize("fails", [False, True])
-def test_post_execute_hook_receives_active_span(tracer, test_spans, method_name, fails):
-    hook_spans = []
+def test_result_metadata_and_parent_restored(tracer, test_spans, method_name, fails):
+    contexts = []
 
     class ExtendedCursor(FetchTracedCursor):
-        def _set_post_execute_tags(self, span: Span) -> None:
-            super()._set_post_execute_tags(span)
-            assert span is tracer.current_span()
-            assert not span.finished
-            span.set_tag("driver.query_id", self.__wrapped__.query_id)
-            hook_spans.append(span)
+        def _get_post_execute_result(self, context):
+            assert core.current is context
+            result = super()._get_post_execute_result(context)
+            result.tags["driver.query_id"] = self.__wrapped__.query_id
+            contexts.append(context)
+            return result
 
     result = object()
     failure = ValueError("driver execution failed")
@@ -663,8 +665,9 @@ def test_post_execute_hook_receives_active_span(tracer, test_spans, method_name,
             assert getattr(traced, method_name)(*args) is result
         assert tracer.current_span() is parent
         assert core.current is execution_context
-        assert len(hook_spans) == 1
-        span = hook_spans[0]
+        assert len(contexts) == 1
+        span = find_span_on_context(contexts[0])
+        assert span is not None
         assert span.finished
         assert span.parent_id == parent.span_id
         assert span.resource == query
@@ -749,35 +752,6 @@ def test_query_preparation_is_product_neutral(tracer, test_spans, method_name, c
         assert test_spans.spans[0].resource == "SELECT 1"
 
 
-@pytest.mark.parametrize("fails", [False, True])
-def test_result_metadata_hook_needs_no_span(tracer, test_spans, fails):
-    class MetadataCursor(TracedCursor):
-        def _get_post_execute_result(self, context):
-            result = super()._get_post_execute_result(context)
-            result.tags["driver.query_id"] = "query-123"
-            result.tags["legacy.query_id"] = "must-be-overridden"
-            return result
-
-        def _set_post_execute_tags(self, span):
-            super()._set_post_execute_tags(span)
-            span.set_tag("legacy.query_id", "legacy-123")
-            span.set_tag("db.name", "resolved")
-
-    cursor = mock.Mock(rowcount=7)
-    if fails:
-        cursor.execute.side_effect = ValueError("driver failed")
-        with pytest.raises(ValueError, match="driver failed"):
-            MetadataCursor(cursor, db_tags={"db.name": "initial"}).execute("SELECT 1")
-    else:
-        MetadataCursor(cursor, db_tags={"db.name": "initial"}).execute("SELECT 1")
-
-    (span,) = test_spans.spans
-    assert span.get_metric("db.row_count") == 7
-    assert span.get_tag("driver.query_id") == "query-123"
-    assert span.get_tag("legacy.query_id") == "legacy-123"
-    assert span.get_tag("db.name") == "resolved"
-
-
 def test_missing_operation_span_does_not_borrow_parent(tracer, test_spans):
     propagator = mock.Mock()
     cfg = IntegrationConfig(Config(), "db-test", _dbm_propagator=propagator)
@@ -800,92 +774,41 @@ def test_missing_operation_span_does_not_borrow_parent(tracer, test_spans):
     assert len(test_spans.spans) == 1
 
 
-def test_legacy_hook_failure_reaches_application(tracer, test_spans):
-    failure = ValueError("legacy hook failed")
+@pytest.mark.parametrize("cleanup", ["hook", "rowcount"])
+@pytest.mark.parametrize("failure_type", [None, ValueError, asyncio.CancelledError])
+def test_metadata_failure_preserves_driver_outcome(tracer, test_spans, cleanup, failure_type):
+    class MetadataCursor(TracedCursor):
+        def _get_post_execute_result(self, context):
+            raise RuntimeError("metadata hook failed")
 
-    class LegacyCursor(TracedCursor):
-        def _set_post_execute_tags(self, span):
-            assert span is tracer.current_span()
-            raise failure
-
-    cursor = mock.Mock()
-    type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
+    result = object()
+    failure = failure_type("driver failed") if failure_type else None
+    cursor = mock.Mock(rowcount=1)
+    cursor.execute.return_value = result
+    cursor.execute.side_effect = failure
+    if cleanup == "rowcount":
+        type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
+    traced = (MetadataCursor if cleanup == "hook" else TracedCursor)(cursor)
     try:
         raise LookupError("already handled by the application")
     except LookupError:
         with tracer.trace("parent") as parent:
-            with pytest.raises(ValueError) as caught:
-                LegacyCursor(cursor).execute("SELECT 1")
-            assert caught.value is failure
+            if failure is not None:
+                with pytest.raises(failure_type) as caught:
+                    traced.execute("SELECT 1")
+                assert caught.value is failure
+            else:
+                assert traced.execute("SELECT 1") is result
             assert tracer.current_span() is parent
-
-    assert len(test_spans.spans) == 2
     span = test_spans.spans[1]
     assert span.finished
-    assert span.error == 1
-    assert span.get_tag("error.message") == str(failure)
-
-
-def test_monkeypatched_legacy_hook_receives_real_span(tracer, test_spans):
-    original = TracedCursor._set_post_execute_tags
-    observed = []
-
-    def legacy_hook(cursor, span):
-        assert span is tracer.current_span()
-        observed.append(span)
-        original(cursor, span)
-
-    cursor = TracedCursor(mock.Mock(rowcount=7))
-    with mock.patch.object(TracedCursor, "_set_post_execute_tags", autospec=True, side_effect=legacy_hook) as hook:
-        cursor.execute("SELECT 1")
-    hook.assert_called_once()
-    assert len(test_spans.spans) == 1
-    assert observed == test_spans.get_spans()
-    assert observed[0].get_metric("db.row_count") == 7
-
-
-@pytest.mark.parametrize("keyword", [False, True])
-def test_legacy_trace_method_contract(tracer, keyword):
-    class LegacyCursor(TracedCursor):
-        def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
-            assert dbm_propagator is self._self_dbm_propagator
-            if keyword:
-                return super()._trace_method(
-                    method, name, resource, extra_tags, dbm_propagator=self._self_dbm_propagator, query=args[0]
-                )
-            return super()._trace_method(method, name, resource, extra_tags, self._self_dbm_propagator, *args, **kwargs)
-
-    cursor = mock.Mock(spec=["execute", "rowcount"], rowcount=1)
-    cfg = IntegrationConfig(Config(), "db-test", _dbm_propagator=object())
-    LegacyCursor(cursor, cfg=cfg).execute("SELECT 1")
-    if keyword:
-        cursor.execute.assert_called_once_with(query="SELECT 1")
-    else:
-        cursor.execute.assert_called_once_with("SELECT 1")
-
-
-@pytest.mark.parametrize("cleanup", ["hook", "rowcount"])
-def test_cleanup_failure_preserves_driver_error(tracer, test_spans, cleanup):
-    class LegacyCursor(TracedCursor):
-        def _set_post_execute_tags(self, span):
-            raise RuntimeError("hook failed")
-
-    failure = ValueError("driver failed")
-    cursor = mock.Mock(rowcount=1)
-    cursor.execute.side_effect = failure
-    if cleanup == "rowcount":
-        type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
-    traced = (LegacyCursor if cleanup == "hook" else TracedCursor)(cursor)
-    with tracer.trace("parent") as parent:
-        with pytest.raises(ValueError) as caught:
-            traced.execute("SELECT 1")
-        assert caught.value is failure
-        assert tracer.current_span() is parent
-    assert test_spans.spans[1].get_tag("error.message") == "driver failed"
+    assert span.parent_id == parent.span_id
+    assert span.error == int(failure is not None)
+    assert span.get_tag("error.message") == ("driver failed" if failure is not None else None)
 
 
 @pytest.mark.parametrize("suppression", ["argument", "cursor"])
-def test_legacy_propagator_suppression(tracer, suppression):
+def test_propagator_suppression(tracer, suppression):
     cursor = mock.Mock(rowcount=1)
     traced = TracedCursor(cursor, cfg=IntegrationConfig(Config(), "db-test", _dbm_propagator=object()))
     prepare = mock.Mock()
@@ -908,23 +831,3 @@ def test_operation_tags_override_connection_tags(tracer, test_spans):
     traced._trace_method(cursor.execute, "sql.query", "SELECT 1", {"db.name": "override"}, None, "SELECT 1")
     (span,) = test_spans.spans
     assert span.get_tag("db.name") == "override"
-
-
-def test_legacy_hook_without_operation_span_does_not_borrow_parent(tracer, test_spans):
-    hook = mock.Mock()
-
-    class LegacyCursor(TracedCursor):
-        def _set_post_execute_tags(self, span):
-            hook(span)
-
-    cursor = mock.Mock(rowcount=1)
-    DatabaseTracingSubscriber.unregister()
-    try:
-        with tracer.trace("parent") as parent:
-            LegacyCursor(cursor).execute("SELECT 1")
-            assert tracer.current_span() is parent
-    finally:
-        DatabaseTracingSubscriber.register()
-    hook.assert_not_called()
-    cursor.execute.assert_called_once_with("SELECT 1")
-    assert test_spans.spans == [parent]
