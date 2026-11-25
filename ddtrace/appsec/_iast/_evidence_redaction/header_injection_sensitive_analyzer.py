@@ -20,9 +20,7 @@ def header_injection_sensitive_analyzer(evidence, name_pattern, value_pattern, q
     - list: List of sensitive ranges to redact
     """
     evidence_value = evidence.value
-    sections = evidence_value.split(HEADER_NAME_VALUE_SEPARATOR)
-    header_name = sections[0]
-    header_value = HEADER_NAME_VALUE_SEPARATOR.join(sections[1:])
+    header_name, _, header_value = evidence_value.partition(HEADER_NAME_VALUE_SEPARATOR)
 
     if (
         len(header_value) > MAX_REDACTION_VALUE_LENGTH
