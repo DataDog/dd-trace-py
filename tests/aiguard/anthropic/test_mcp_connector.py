@@ -400,3 +400,18 @@ def test_sdk_buffered_stream_with_inline_tool_input(mock_execute_request, anthro
         pass
 
     _assert_connector_evaluations(mock_execute_request)
+
+
+@needs_connector
+@patch(EXECUTE_REQUEST)
+def test_sdk_buffered_stream_with_iterable_mcp_servers(mock_execute_request, anthropic_sdk_buffered):
+    """The deferred stream evaluation sees the servers of a generator mcp_servers, not an exhausted generator."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    transport = _Transport()
+    create = dict(CREATE, mcp_servers=(server for server in [CONNECTOR]))
+
+    for _ in _sync_client(anthropic_sdk_buffered, transport).beta.messages.create(stream=True, **create):
+        pass
+
+    _assert_connector_evaluations(mock_execute_request)
+    assert transport.requests[0]["mcp_servers"] == [CONNECTOR]

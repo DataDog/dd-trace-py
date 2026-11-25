@@ -22,6 +22,7 @@ from ddtrace.aiguard._streaming import _is_traced_stream
 from ddtrace.aiguard._streaming import _stream_analysis_enabled
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
+from ddtrace.aiguard.integrations._anthropic import materialize_mcp_servers
 from ddtrace.aiguard.integrations._anthropic_mcp import install_anthropic_mcp
 from ddtrace.aiguard.integrations._anthropic_mcp import uninstall_anthropic_mcp
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
@@ -444,6 +445,8 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
     from ddtrace.internal.utils.version import parse_version
 
     def sync_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+        # The deferred evaluation reads these kwargs, not the copy the contrib gets: no exhausted generator.
+        materialize_mcp_servers(kwargs)
         result = func(*args, **kwargs)
         if not _is_traced_stream(result):
             return result
@@ -456,6 +459,8 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
         return BufferedAIGuardStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
 
     async def async_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+        # The deferred evaluation reads these kwargs, not the copy the contrib gets: no exhausted generator.
+        materialize_mcp_servers(kwargs)
         result = await func(*args, **kwargs)
         if not _is_traced_stream(result):
             return result

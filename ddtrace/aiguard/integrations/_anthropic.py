@@ -635,6 +635,13 @@ def _safe_convert_response(resp: Any, mcp_servers: Optional[dict[str, MCPServer]
         return None
 
 
+def materialize_mcp_servers(kwargs: dict[str, Any]) -> None:
+    """Replace an iterable mcp_servers with a list, so the SDK and every later reader see the same servers."""
+    declared = kwargs.get("mcp_servers")
+    if isinstance(declared, Iterable) and not isinstance(declared, (list, tuple, str, bytes, Mapping)):
+        kwargs["mcp_servers"] = list(declared)
+
+
 def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServer]]:
     """Map each server name of the request mcp_servers (MCP connector) to its entry; None when the flag is off.
 
@@ -643,10 +650,8 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
     if not aiguard_config._ai_guard_mcp_enabled:
         return None
     try:
+        materialize_mcp_servers(kwargs)
         declared = kwargs.get("mcp_servers")
-        if isinstance(declared, Iterable) and not isinstance(declared, (list, tuple, str, bytes, Mapping)):
-            # Materialized for the SDK too, like messages, system and tools.
-            declared = kwargs["mcp_servers"] = list(declared)
         servers: dict[str, MCPServer] = {}
         if not isinstance(declared, (list, tuple)):
             return servers
