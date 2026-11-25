@@ -26,8 +26,6 @@ from ddtrace.contrib.internal.coverage.patch import stop_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
-from ddtrace.internal.ci_visibility.utils import get_relative_path as _cached_relative_path
-from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
@@ -65,6 +63,8 @@ from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.source_info import get_relative_path as _cached_relative_path
+from ddtrace.testing.internal.source_info import get_source_lines_for_test_method
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
