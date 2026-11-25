@@ -162,7 +162,8 @@ if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
     # Remove the one-off testrunner container after its command finishes.
     RUN_ARGS+=(--rm)
 
-    "${COMPOSE_COMMAND[@]}" run "${RUN_ARGS[@]}" \
+    # Replace this shell so a stop signal reaches compose, not a parent that exits first.
+    exec "${COMPOSE_COMMAND[@]}" run "${RUN_ARGS[@]}" \
         testrunner \
         bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
 else
@@ -194,7 +195,8 @@ else
         DOCKER_USER_ARGS=(--user root)
     fi
 
-    docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
+    # Replace this shell so a stop signal reaches compose, not a parent that exits first.
+    exec docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
            -e DD_TRACE_AGENT_URL \
            -e DD_TEST_RUNTIME_PROBE \
            "${GIT_MOUNT_ARGS[@]}" \
