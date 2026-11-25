@@ -18,7 +18,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.settings._telemetry import config as telemetry_config
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.telemetry_inputs.dependencies import dependency_metadata_enabled
 from ddtrace.internal.telemetry_inputs.library import get_library
 from ddtrace.internal.threads import Lock
 
@@ -48,7 +48,7 @@ class DependencyTracker:
 
     All mutable access is protected by an internal lock.
 
-    SCA-enabled state is read from the AppSec telemetry configuration.
+    Whether dependency metadata is collected is read from the registered telemetry input.
     The DependencyEntry.metadata field state drives the wire format:
     - metadata is None  -> entry serialized without "metadata" key
     - metadata is not None -> entry serialized with "metadata" key
@@ -80,7 +80,7 @@ class DependencyTracker:
             self._mark_sent(new_keys)
 
             # Skip re-report scanning when SCA is disabled, except after identity refresh.
-            if not appsec_telemetry_config.SCA_ENABLED and not self._report_all:
+            if not dependency_metadata_enabled() and not self._report_all:
                 return new_deps if new_deps else None
 
             re_report_deps = self._collect_rereports(new_keys)
@@ -124,7 +124,7 @@ class DependencyTracker:
         Caller must hold self._lock.
         """
         key = _normalize_dep_name(package_name)
-        if key not in self._imported_dependencies and appsec_telemetry_config.SCA_ENABLED:
+        if key not in self._imported_dependencies and dependency_metadata_enabled():
             version = get_version_for_package(package_name)
             if not version:
                 log.debug("Package %r not found in installed metadata", package_name)
@@ -175,7 +175,7 @@ class DependencyTracker:
 
         Called by the SCA product on start.  Sets metadata from None to []
         on all existing entries so the wire format includes the "metadata"
-        key. Future entries pick up the flag from AppSec telemetry configuration.
+        key. Future entries pick up the registered telemetry input.
         """
         with self._lock:
             for entry in self._imported_dependencies.values():
@@ -207,7 +207,7 @@ def update_imported_dependencies(
     newly discovered package.  Returns the list of serialized dependency
     dicts ready for the ``app-dependencies-loaded`` telemetry payload.
 
-    SCA-enabled state is read from ``appsec_telemetry_config.SCA_ENABLED``.
+    Whether dependency metadata is collected is read from the registered telemetry input.
 
     NOTE: This function is kept for backward compatibility with
     tests and benchmarks that call it directly.  Production code should use
@@ -218,9 +218,11 @@ def update_imported_dependencies(
     telemetry path never propagates to ``sys.excepthook``.
     """
     try:
-        sca_enabled = appsec_telemetry_config.SCA_ENABLED
+        sca_enabled = dependency_metadata_enabled()
     except Exception:
-        log.debug("update_imported_dependencies: failed to read AppSec telemetry config", exc_info=True)
+        log.debug(
+            "update_imported_dependencies: failed to read whether dependency metadata is collected", exc_info=True
+        )
         return []
     library_key = _normalize_dep_name(get_library().name)
 

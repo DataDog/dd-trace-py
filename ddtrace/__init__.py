@@ -43,6 +43,31 @@ _register_library(
 del _register_library, _product_version, _tracer_version, _integration_of
 
 
+def _register_appsec_inputs():
+    from ddtrace.internal.telemetry_inputs.configurations import register_configuration
+    from ddtrace.internal.telemetry_inputs.dependencies import register_dependency_metadata
+    from ddtrace.internal.telemetry_inputs.endpoints import register_endpoint_collection
+
+    def get_config():
+        # Imported on first use, after telemetry is imported, as before: importing settings reads config files
+        # from disk.
+        from ddtrace.internal.settings.appsec_telemetry import config
+
+        return config
+
+    # The AppSec settings are the tracer's source for what telemetry collects and are reported as configurations at
+    # import. They are read on each use, so changes at runtime apply.
+    register_dependency_metadata(lambda: bool(get_config().SCA_ENABLED))
+    register_endpoint_collection(
+        lambda: get_config().ENDPOINT_COLLECTION_ENABLED, lambda: get_config().ENDPOINT_COLLECTION_LIMIT
+    )
+    register_configuration(get_config)
+
+
+_register_appsec_inputs()
+del _register_appsec_inputs
+
+
 # Child processes must reseed the RNG after fork. Without a new seed, they use the RNG state of the parent and
 # generate the same trace and span IDs. The native extension does not register this itself, since it imports no
 # ddtrace Python module. Importing any ddtrace module runs this package __init__ first, and nothing above loads the
