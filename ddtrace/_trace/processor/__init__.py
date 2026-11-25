@@ -17,7 +17,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
-from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
@@ -26,6 +25,7 @@ from ddtrace.internal.constants import PROCESS_TAGS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._threads import periodic_threads
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules

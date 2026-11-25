@@ -1,4 +1,6 @@
 import errno
+import subprocess
+import sys
 from threading import Event
 from threading import Thread as StdThread
 from time import sleep
@@ -374,3 +376,52 @@ def test_restart_failures_are_logged_after_releasing_forking_lock(monkeypatch):
         ("failed to restart periodic thread %s after fork: %s", "failing-restart", False),
         ("failed to start periodic thread %s: %s", "failing-start", False),
     ]
+
+
+# Loads the _threads binary under a bare name (as ddtrace-native will, with another package prefix)
+# in a fresh interpreter that never imports ddtrace, then runs a periodic thread from it.
+_RELOCATED_THREADS = """
+import importlib.util
+import sys
+import threading
+
+spec = importlib.util.spec_from_file_location("_threads", sys.argv[1])
+_threads = importlib.util.module_from_spec(spec)
+sys.modules["_threads"] = _threads
+spec.loader.exec_module(_threads)
+
+assert _threads.PeriodicThread.__module__ == "_threads", _threads.PeriodicThread.__module__
+
+ran = threading.Event()
+def target():
+    ran.set()
+    return _threads.PERIODIC_STOP
+
+thread = _threads.PeriodicThread(0.01, target, name="relocated")
+thread.start()
+assert ran.wait(5)
+thread.join(5)
+assert not _threads.periodic_threads
+
+leaked = sorted(m for m in sys.modules if m.split(".")[0] == "ddtrace")
+assert not leaked, leaked
+"""
+
+
+def test_native_threads_work_relocated_without_ddtrace():
+    from ddtrace.internal.native import _threads
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _RELOCATED_THREADS, _threads.__file__],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_native_periodic_thread_type_is_named_after_its_module():
+    from ddtrace.internal.native import _threads
+
+    assert _threads.PeriodicThread.__module__ == "ddtrace.internal.native._threads"
+    assert _threads.PeriodicThread.__qualname__ == "PeriodicThread"
