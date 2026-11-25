@@ -49,8 +49,8 @@ def _get_proxy_request_route_pattern(instance, proxy_request: ProxyRequest) -> O
 
     # match_route_pattern allow to show templated route for instance
     # /name/foo -> /name/{name}
-    # match_route_pattern is not available in ray 2.46.0, therefore we will only be
-    # able to show the route_prefix to prevent high cardinality resource name
+    # match_route_pattern is only available in ray 2.52 and later. On older versions we can
+    # only show the route_prefix, to prevent high cardinality resource names
     match_route_pattern = getattr(proxy_router, "match_route_pattern", None)
     if callable(match_route_pattern):
         return match_route_pattern(route_prefix, asgi_scope)
