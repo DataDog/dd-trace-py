@@ -7,11 +7,18 @@ loads the native collector by path, records every line it runs in the workspace,
 included, since the whole child runs for the context that started it, and at exit writes them
 to a record file. The test process merges the record into that context.
 
+A multiprocessing child writes its record when its run ends instead, at the end of
+BaseProcess._bootstrap, for the context that started the process (run_process()): fork and
+forkserver children leave through os._exit(), which skips atexit, and Pool.terminate() ends its
+workers with SIGTERM.
+
 It imports no ddtrace module, so a child pays only for the collector, and any failure leaves the
 child unrecorded and otherwise unchanged. Not recorded: interpreters started with -E, -I or -S,
 which skip sitecustomize; another Python version or build than the test process's; children
-that exit through os._exit() or a signal, which skip the record; children still running when the
-test session ends; a file outside the workspace that is a link to a file in it.
+that exit through os._exit() or a signal, which skip the record, except a multiprocessing child
+that SIGTERM ends, unless its run replaced the SIGTERM handler without calling the one before;
+children still running when the test session ends; a file outside the workspace that is a link to
+a file in it.
 """
 
 from __future__ import annotations
@@ -35,6 +42,9 @@ _OWNER_ENV = "_DD_COVERAGE_CHILD_OWNER"
 _STATE_HEADER_SIZE = 64
 _TOOL_IDS = (4, 3, 1)
 _SITE_PACKAGES = frozenset(("site-packages", "dist-packages"))
+# The token of the context this process records for. A multiprocessing child takes the one its
+# Process object names (run_process()).
+_owner = 0
 
 
 def _read_config(directory: str) -> dict[str, Any]:
@@ -172,13 +182,140 @@ def _write_record(linecov: Any, directory: str, owner: int) -> None:
         finally:
             posix.close(fd)
         posix.replace(temporary, directory + "/" + name + ".rec")
+        # A process forked from the test process does not map the state file; mapping it again
+        # where it is mapped costs a few system calls.
+        linecov.share_state(directory + "/state")
         linecov.add_record()
     except Exception:  # nosec: the test process may have ended and removed the directory
         pass
 
 
+def _write_final_record(linecov: Any, directory: str) -> None:
+    _write_record(linecov, directory, _owner)
+
+
+class _ProcessRecord:
+    """Writes the record of a multiprocessing child when its run ends, or when SIGTERM arrives."""
+
+    __slots__ = ("linecov", "directory", "owner", "previous", "writing", "pending")
+
+    def __init__(self, linecov: Any, directory: str, owner: int) -> None:
+        self.linecov = linecov
+        self.directory = directory
+        self.owner = owner
+        # The SIGTERM handler in place before on_sigterm: SIG_DFL or a Python function.
+        self.previous: Any = None
+        self.writing = False
+        # A SIGTERM that arrived during write(), as (signum, frame).
+        self.pending: Any = None
+
+    def handle_sigterm(self) -> None:
+        """Write the record when SIGTERM arrives, then handle the signal as before."""
+        try:
+            import signal
+
+            previous = signal.getsignal(signal.SIGTERM)
+            # An ignored signal ends nothing, and a handler set outside Python stays.
+            if previous is signal.SIG_DFL or callable(previous):
+                self.previous = previous
+                signal.signal(signal.SIGTERM, self.on_sigterm)
+        except Exception:  # nosec: not the main thread
+            pass
+
+    def write(self) -> None:
+        self.writing = True
+        try:
+            _write_record(self.linecov, self.directory, self.owner)
+        finally:
+            self.writing = False
+
+    def on_sigterm(self, signum: int, frame: Any) -> None:
+        if self.writing:
+            # Handled once the record is written.
+            self.pending = (signum, frame)
+            return
+        self.write()
+        self.pass_on(signum, frame)
+
+    def pass_on(self, signum: int, frame: Any) -> None:
+        """Handle the signal as the handler before on_sigterm would have."""
+        previous = self.previous
+        if callable(previous):
+            # A handler that returns lets the run go on: the record written at its end is a
+            # superset of this one.
+            previous(signum, frame)
+            return
+        import posix
+        import signal
+
+        signal.signal(signum, signal.SIG_DFL)
+        posix.kill(posix.getpid(), signum)
+
+
+def run_process(linecov: Any, directory: str, owner: int, bootstrap: Any, process: Any, args: Any, kwargs: Any) -> Any:
+    """Run a multiprocessing child's BaseProcess._bootstrap, for the context owner names, and write
+    the record of its lines when the run ends or when SIGTERM arrives.
+    """
+    global _owner
+
+    _owner = owner
+    # The children of this child run for the same context.
+    os.environ[_OWNER_ENV] = str(owner)
+    record = _ProcessRecord(linecov, directory, owner)
+    record.handle_sigterm()
+    try:
+        return bootstrap(process, *args, **kwargs)
+    finally:
+        record.write()
+        # A spawn child runs atexit handlers next: their lines make a record of their own.
+        linecov.forget()
+        pending = record.pending
+        if pending is not None:
+            record.pending = None
+            record.pass_on(*pending)
+
+
+def _runs_processes(argv: list[str]) -> bool:
+    """Whether multiprocessing started this interpreter to run a process (spawn) or to fork them (forkserver)."""
+    try:
+        command = argv[argv.index("-c") + 1]
+    except (ValueError, IndexError):
+        return False
+    # Python 3.13 and later put "import sys; " before the forkserver's import.
+    return (
+        "from multiprocessing.spawn import spawn_main" in command
+        or "from multiprocessing.forkserver import main" in command
+    )
+
+
+def _cover_processes(linecov: Any, directory: str) -> None:
+    """Wrap BaseProcess._bootstrap, which a spawn child and each child a forkserver forks run.
+
+    A child forked from this process forgets the lines this process ran, which are not its own.
+    """
+    # multiprocessing imports it next anyway.
+    from multiprocessing.process import BaseProcess
+    import posix
+
+    bootstrap = BaseProcess._bootstrap  # type: ignore[attr-defined]
+    pid = posix.getpid()
+
+    def _bootstrap(self: Any, *args: Any, **kwargs: Any) -> Any:
+        if posix.getpid() != pid:
+            linecov.forget()
+        # The test process names the context on the Process object; a process started here runs
+        # for this process's context.
+        record = getattr(self, "_dd_coverage_record", None)
+        owner = record[1] if record is not None else _owner
+        return run_process(linecov, directory, owner, bootstrap, self, args, kwargs)
+
+    BaseProcess._bootstrap = _bootstrap  # type: ignore[attr-defined]
+
+
 def start() -> None:
     """Record this process's lines for the context named in its environment or the state file."""
+    global _owner
+
     directory = os.environ.get(_DIR_ENV)
     if not directory or not hasattr(sys, "monitoring"):
         return
@@ -220,13 +357,15 @@ def start() -> None:
         monitoring.register_callback(tool_id, events.INSTRUCTION, linecov.instruction_event)
     linecov.share_state(os.path.join(directory, "state"))
     named_owner = os.environ.get(_OWNER_ENV)
-    owner = int(named_owner) if named_owner else int(linecov.owner())
+    _owner = int(named_owner) if named_owner else int(linecov.owner())
     # The children of this child run for the same context, even once the test process runs another.
-    os.environ[_OWNER_ENV] = str(owner)
+    os.environ[_OWNER_ENV] = str(_owner)
     linecov.add_exec_hook(_exec_hook(linecov, config))
+    if _runs_processes(sys.orig_argv):
+        _cover_processes(linecov, directory)
 
     import atexit
 
     # Registered before any handler the child's program adds, so it runs after them: the record
     # includes what they run.
-    atexit.register(_write_record, linecov, directory, owner)
+    atexit.register(_write_final_record, linecov, directory)
