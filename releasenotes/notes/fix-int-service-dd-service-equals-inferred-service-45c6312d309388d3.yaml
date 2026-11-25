@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where spans from integrations such as Flask and FastAPI use the integration's default service name (for example ``flask``) instead of ``DD_SERVICE`` when ``DD_SERVICE`` matches the service name inferred from the command line.
