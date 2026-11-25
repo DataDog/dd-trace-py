@@ -75,6 +75,66 @@ def test_pack_matches_bitmaps(tmp_path) -> None:
     )
 
 
+def test_import_in_event_loop_with_patched_os(tmp_path) -> None:
+    """A module imported inside a running event loop is instrumented without calling the os and
+    os.path functions that blocking-call detectors (blockbuster) patch to raise there.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("")
+    (root / "sub" / "late").mkdir(parents=True)
+    (root / "sub" / "late" / "__init__.py").write_text("")
+    (root / "sub" / "late" / "work.py").write_text("def f(x):\n    y = x + 1\n    return y\n")
+    # Imported through a symbolic link, so its path needs resolving.
+    os.symlink(root / "sub", tmp_path / "linked_sub")
+    _run_isolated(
+        f"""
+        import asyncio
+        import os
+        from pathlib import Path
+        import sys
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        root = os.path.realpath({str(root)!r})
+        coverage.install_coverage(Path(root))
+        sys.path.insert(0, root)
+        sys.path.append(os.path.join(os.path.dirname(root), "linked_sub"))
+        import pkg  # noqa: F401
+
+        assert coverage.native_line_coverage_enabled()
+
+        def refuse_in_event_loop(function):
+            def wrapper(*args, **kwargs):
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    return function(*args, **kwargs)
+                raise RuntimeError("blocking call to " + function.__name__)
+
+            return wrapper
+
+        for name in ("lstat", "stat", "readlink", "getcwd"):
+            setattr(os, name, refuse_in_event_loop(getattr(os, name)))
+        for name in ("islink", "abspath", "realpath", "relpath"):
+            setattr(os.path, name, refuse_in_event_loop(getattr(os.path, name)))
+
+        async def run():
+            from late import work
+
+            return work.f(1)
+
+        with coverage.coverage_collection() as data:
+            assert asyncio.run(run()) == 2
+        bitmaps = dict(data.get_coverage_bitmaps(Path(root)))
+        bitmap = bitmaps["/sub/late/work.py"]
+        lines = {{i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)}}
+        assert lines == {{1, 2, 3}}, bitmaps
+        coverage.uninstall_coverage()
+        """
+    )
+
+
 _CHILD_SOURCES = {
     "pkg/__init__.py": "",
     "pkg/__main__.py": "import sys\n\nfrom pkg.cli import main\n\nsys.exit(main(sys.argv[1:]))\n",

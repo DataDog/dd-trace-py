@@ -183,13 +183,12 @@ def _report_path(path: str) -> t.Optional[str]:
     root = _report_root
     if root is None:
         return None
-    try:
-        relative = os.path.relpath(path, root)
-    except ValueError:
+    # Both paths are canonical, so a prefix test is enough. os.path.relpath would call os.path.abspath,
+    # which blocking-call detectors patch, and this runs for modules imported inside event loops.
+    prefix = root if root.endswith(os.sep) else root + os.sep
+    if len(path) <= len(prefix) or not path.startswith(prefix):
         return None
-    if relative == os.curdir or relative.startswith(os.pardir):
-        return None
-    return "/" + relative.replace(os.sep, "/")
+    return "/" + path[len(prefix) :].replace(os.sep, "/")
 
 
 def _file_id(path: str) -> int:
