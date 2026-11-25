@@ -2093,3 +2093,34 @@ def test_format_anthropic_tool_result_content_web_search():
     error = {"type": "web_search_tool_result_error", "error_code": "max_uses_exceeded"}
     assert json.loads(format_anthropic_tool_result_content(error)) == error
     assert format_anthropic_tool_result_content([{"type": "text", "text": "hi"}]) == "hi"
+
+
+def _web_fetch_result(source):
+    return {
+        "type": "web_fetch_result",
+        "url": "https://a.example/doc",
+        "retrieved_at": "2026-11-25T10:00:00Z",
+        "content": {"type": "document", "title": "Doc", "source": source},
+    }
+
+
+def test_format_anthropic_tool_result_content_web_fetch():
+    """Web fetch results keep url, title and capped page text; binary documents become a marker."""
+    text = _web_fetch_result({"type": "text", "media_type": "text/plain", "data": "y" * 10000})
+    assert json.loads(format_anthropic_tool_result_content(text)) == {
+        "url": "https://a.example/doc",
+        "retrieved_at": "2026-11-25T10:00:00Z",
+        "title": "Doc",
+        "text": "y" * 4096,
+    }
+    pdf = _web_fetch_result({"type": "base64", "media_type": "application/pdf", "data": "J" * 100000})
+    result = format_anthropic_tool_result_content(pdf)
+    assert "JJJJ" not in result
+    assert json.loads(result) == {
+        "url": "https://a.example/doc",
+        "retrieved_at": "2026-11-25T10:00:00Z",
+        "title": "Doc",
+        "document": "[document omitted: application/pdf]",
+    }
+    error = {"type": "web_fetch_tool_error", "error_code": "url_not_accessible"}
+    assert json.loads(format_anthropic_tool_result_content(error)) == error

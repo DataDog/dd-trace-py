@@ -3,3 +3,8 @@ fixes:
   - |
     LLM Observability: The Anthropic integration now records the sources of a successful server-side web
     search as the tool result, as a JSON object of URLs and titles. Previously the result was empty.
+  - |
+    LLM Observability: The Anthropic integration now records a server-side web fetch result as its URL,
+    title, retrieval time and page text (truncated to 4096 characters). A fetched PDF or other binary
+    document is replaced by a placeholder, so a large document no longer causes the span's input and
+    output to be dropped.

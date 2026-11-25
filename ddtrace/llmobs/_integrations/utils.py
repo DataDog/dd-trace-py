@@ -341,11 +341,33 @@ def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
         return str(message)
 
 
+# Fetched page text is replayed on every later turn; an oversized span event drops all input and output.
+_ANTHROPIC_WEB_FETCH_TEXT_MAX_CHARS = 4096
+
+
+def _summarize_web_fetch(content: dict[str, Any]) -> dict[str, Any]:
+    """Keep what identifies a fetched page; a PDF or other binary source is replaced by a marker."""
+    summary = {k: content[k] for k in ("url", "retrieved_at") if content.get(k)}
+    document = content.get("content")
+    document = document if isinstance(document, dict) else {}
+    if document.get("title"):
+        summary["title"] = document["title"]
+    source = document.get("source")
+    if isinstance(source, dict):
+        if source.get("type") == "text":
+            summary["text"] = str(source.get("data", ""))[:_ANTHROPIC_WEB_FETCH_TEXT_MAX_CHARS]
+        else:
+            summary["document"] = "[document omitted: {}]".format(source.get("media_type", "unknown"))
+    return summary
+
+
 def format_anthropic_tool_result_content(content) -> str:
     """Flatten the `content` field of an Anthropic `tool_result` block into a string."""
     if isinstance(content, str):
         return content
     elif isinstance(content, dict):
+        if content.get("type") == "web_fetch_result":
+            return safe_json(_summarize_web_fetch(content)) or ""
         return safe_json(content)
     elif isinstance(content, Iterable):
         formatted_content = []
