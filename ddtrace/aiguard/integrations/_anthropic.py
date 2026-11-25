@@ -345,13 +345,9 @@ _SERVER_TOOL_RESULT_TYPES = frozenset(
 def _format_content_blocks(
     blocks: Sequence[Any], role: str, mcp_servers: Optional[dict[str, MCPServer]] = None
 ) -> list[Message]:
-    """Convert the content blocks of one Anthropic message to AI Guard messages, in block order.
+    """Convert one Anthropic message's content blocks to AI Guard messages, in block order.
 
-    Text and tool calls gather into one message of role. In an assistant turn, a result of a tool Anthropic runs
-    (server tool or MCP connector) closes that message and follows it as a tool message, so calls, results and later
-    text keep the conversation's order, a resumed turn included. User-side tool_result blocks become tool messages,
-    before the text of a user turn (they answer the previous assistant turn) and after an assistant turn.
-    With mcp_servers (DD_AI_GUARD_MCP_ENABLED) each MCP connector call references its server.
+    A result of a tool Anthropic runs closes the assistant message before it; user turns put tool results first.
     """
     messages: list[Message] = []
     tool_results: list[Message] = []
@@ -589,11 +585,9 @@ _ITERABLE_CONTENT_BLOCK_TYPES = frozenset(("tool_result", "mcp_tool_result"))
 
 
 def materialize_request(kwargs: dict[str, Any]) -> None:
-    """Read the iterables of a request once, so the SDK and every AI Guard hook see the same values.
+    """Read the request iterables once, so the SDK and every AI Guard hook see the same values; fails open.
 
-    messages and mcp_servers become lists. A tool result block whose content is an iterable gets a request-local copy
-    with that content as a list: the caller's objects are never changed, so their reusable iterables stay live.
-    Fails open: an unexpected shape leaves the rest of the request as it is.
+    Iterable tool result content goes into a request-local block copy: the caller's objects are never changed.
     """
     try:
         _materialize_request(kwargs)
@@ -602,7 +596,7 @@ def materialize_request(kwargs: dict[str, Any]) -> None:
 
 
 def _materialize_request(kwargs: dict[str, Any]) -> None:
-    for key in ("messages", "mcp_servers"):
+    for key in ("messages", "system", "tools", "mcp_servers"):
         if _is_unlisted_iterable(kwargs.get(key)):
             kwargs[key] = list(kwargs[key])
     messages = kwargs.get("messages")
@@ -682,11 +676,7 @@ def _attach_mcp_servers(
     The payload adds the connector servers that messages reference; fails open without MCP metadata.
     """
     try:
-        tools = kwargs.get("tools")
-        if isinstance(tools, Iterable) and not isinstance(tools, (list, tuple, str, bytes, Mapping)):
-            # Materialized for the SDK too, like messages and system, so both hooks resolve the same tools.
-            tools = kwargs["tools"] = list(tools)
-        mcp_tools = request_mcp_tools(tools)
+        mcp_tools = request_mcp_tools(kwargs.get("tools"))
         servers = attach_mcp(messages, mcp_tools)
         if connector_servers:
             servers = referenced_mcp_servers(messages, (servers or []) + list(connector_servers.values()))
@@ -723,17 +713,6 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         return None
 
     system = kwargs.get("system")
-    # Top-level ``system`` may be an Iterable[TextBlockParam].
-    # Materialise generators before conversion and write them back, otherwise
-    # AI Guard consumes the iterator and the SDK later serializes an exhausted
-    # prompt.
-    if system is not None and not isinstance(system, (str, list, bytes, bytearray, dict)):
-        try:
-            system = list(system)
-        except TypeError:
-            pass
-        else:
-            kwargs["system"] = system
     connector_servers = _connector_mcp_servers(kwargs)
     ai_guard_messages = _safe_convert_messages(system, messages, connector_servers)
     if not ai_guard_messages:
