@@ -3799,7 +3799,7 @@
                         "3.13"
                     ]
                 },
-                "supportedRange": ">=2.46.0",
+                "supportedRange": ">=2.48.0",
                 "tested": [
                     "2.48.0",
                     "2.54.1"
@@ -3821,7 +3821,7 @@
                         "3.13"
                     ]
                 },
-                "supportedRange": ">=2.47.1",
+                "supportedRange": ">=2.48.0",
                 "tested": [
                     "2.48.0",
                     "2.54.1"

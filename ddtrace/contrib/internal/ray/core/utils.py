@@ -317,7 +317,7 @@ def flatten_metadata_dict(data: dict) -> dict[str, Any]:
 
 # -------------------------------------------------------------------------------------------
 # This is extracted from ray code
-# it allows to ensure compatibility with older versions of ray still maintained (2.46.0)
+# it allows to ensure compatibility with older versions of ray still maintained (2.48.0)
 # -------------------------------------------------------------------------------------------
 def get_signature(func: Any) -> inspect.Signature:
     """Get signature parameters.
