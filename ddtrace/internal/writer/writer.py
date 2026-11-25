@@ -48,7 +48,6 @@ from .. import process_tags
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
-from .._encoding import packb
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..constants import DEFAULT_TIMEOUT
@@ -57,6 +56,7 @@ from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..gitmetadata import get_git_tags
 from ..logger import get_logger
+from ..native._msgpack import packb
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
 from ..serverless import in_aws_lambda_microvm
