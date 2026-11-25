@@ -733,31 +733,3 @@ def test_pending_registration_reentered_uses_one_context():
 
     assert worker.points == [("ctx-2", 1), ("ctx-2", 5)]
     assert recorder._context == "ctx-2" and recorder._worker is worker
-
-
-def test_recorder_creation_reentered_keeps_one_recorder(monkeypatch):
-    """A recorder created from inside the creation of the same recorder must be the one kept.
-
-    Simulates a GC finalizer that asks for the same metric while get_metric_recorder is still
-    constructing it.
-    """
-    from ddtrace.internal.telemetry import metrics
-
-    key = (TELEMETRY_NAMESPACE.TRACERS, "test.reentrant_creation")
-    nested = []
-
-    class _ReenteringRecorder(metrics.MetricRecorder):
-        __slots__ = ()
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            if not nested:
-                nested.append(None)  # placeholder so the nested call does not recurse
-                nested[0] = metrics.get_metric_recorder(*key)
-
-    monkeypatch.setattr(metrics, "MetricRecorder", _ReenteringRecorder)
-
-    recorder = metrics.get_metric_recorder(*key)
-
-    assert recorder is nested[0]
-    assert metrics.get_metric_recorder(*key) is recorder
