@@ -1,8 +1,9 @@
 """Fail if Rust code under src/native imports a ddtrace Python module.
 
 The extension is built as a standalone package that must not depend on ddtrace. Python registers
-the callables native needs instead (e.g. Context._register_tracestate_helpers,
-TraceBuffer._register_packb).
+the callables native needs instead (e.g. Context._register_tracestate_helpers), or native imports a
+sibling module of its own package by a name derived at init (e.g. `_msgpack` in span/wire.rs), never
+a literal ddtrace path.
 
 This flags `py.import("ddtrace...")`, `PyModule::import(py, "ddtrace...")` and `.import(intern!(py,
 "ddtrace..."))`. Comments are ignored, and so are plain string literals such as the pyclass
@@ -44,7 +45,8 @@ def main() -> int:
         print(violation, file=sys.stderr)
     if violations:
         print(
-            "src/native must not import ddtrace modules: have Python register the callable with native instead.",
+            "src/native must not import ddtrace modules: have Python register the callable with native, "
+            "or import a sibling module of the extension's own package instead.",
             file=sys.stderr,
         )
     return 1 if violations else 0

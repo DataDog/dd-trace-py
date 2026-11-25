@@ -56,7 +56,6 @@ from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..gitmetadata import get_git_tags
 from ..logger import get_logger
-from ..native._msgpack import packb
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
 from ..serverless import in_aws_lambda_microvm
@@ -85,13 +84,6 @@ class _SpanWithContext(Protocol):
 
 
 log = get_logger(__name__)
-
-# The native TraceBuffer packs meta_struct values with this packer but does not import it itself.
-# It is registered here rather than in ddtrace.internal.native because _encoding depends on the
-# settings, which import ddtrace.internal.native: registering there would be an import cycle.
-# This module is the only one that builds a TraceBuffer, so registering at import time also
-# happens before any write(), and keeps working in environments that block later imports.
-native.TraceBuffer._register_packb(packb)
 
 LOG_ERR_INTERVAL = 60
 _OTLP_TRACER_TAG_RESERVED_KEYS = frozenset({"service", "env", "version", "runtime_id", "runtime-id"})
