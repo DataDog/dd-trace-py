@@ -54,6 +54,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     thread_state.wall_time_ns = 1000 * wall_time_us;
     thread_state.cpu_time_ns = 0; // Walltime samples are guaranteed, but CPU times are not. Initialize to 0
                                   // since we don't know if we'll get a CPU time here.
+    thread_state.cpu_time_charged = false;
 
     // Finalize the thread information we have
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
@@ -98,37 +99,60 @@ StackRenderer::render_task_begin(std::string_view task_name,
             return;
         }
 
-        // Add thread context into the sample
-        sample->push_threadinfo(
-          static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
         const int64_t walltime = walltime_ns_override.value_or(thread_state.wall_time_ns);
         sample->push_walltime(walltime, 1);
+        push_thread_context();
+    }
 
-        if (on_cpu) {
-            // initialized to 0, so possibly a no-op
-            sample->push_cputime(thread_state.cpu_time_ns, 1);
-        }
-
-        sample->push_monotonic_ns(thread_state.now_time_ns);
-
-        // We also want to make sure the tid -> span_id mapping is present in the sample for the task
-        const std::optional<Span> active_span =
-          SpanLinks::get_instance().get_active_span(SpanLinkKey::thread(thread_state.id));
-        if (active_span) {
-            sample->push_span_id(active_span->span_id);
-            sample->push_local_root_span_id(active_span->local_root_span_id);
-            sample->push_trace_type(std::string_view(active_span->span_type));
-        }
-
-        const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_state.id);
-        if (origin_task) {
-            sample->push_origin_task_id(origin_task->task_id);
-            sample->push_origin_task_name(std::string_view(origin_task->task_name));
-        }
+    if (on_cpu) {
+        charge_cpu_time();
     }
 
     sample->push_task_name(task_name);
     sample->push_task_id(task_id);
+}
+
+bool
+StackRenderer::render_cpu_only_thread_begin()
+{
+    if (thread_state.cpu_time_charged || thread_state.cpu_time_ns <= 0) {
+        return false;
+    }
+
+    // The thread sample from render_thread_begin went to the first task, so start another one for the thread.
+    sample.reset(SampleManager::start_sample());
+    if (sample == nullptr) {
+        return false;
+    }
+
+    // No wall time: the task samples already cover this tick's wall time.
+    push_thread_context();
+    charge_cpu_time();
+    return true;
+}
+
+void
+StackRenderer::push_thread_context()
+{
+    // Add thread context into the sample
+    sample->push_threadinfo(
+      static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
+    sample->push_monotonic_ns(thread_state.now_time_ns);
+
+    // We also want to make sure the tid -> span_id mapping is present in the sample for the task
+    const std::optional<Span> active_span =
+      SpanLinks::get_instance().get_active_span(SpanLinkKey::thread(thread_state.id));
+    if (active_span) {
+        sample->push_span_id(active_span->span_id);
+        sample->push_local_root_span_id(active_span->local_root_span_id);
+        sample->push_trace_type(std::string_view(active_span->span_type));
+    }
+
+    const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_state.id);
+    if (origin_task) {
+        sample->push_origin_task_id(origin_task->task_id);
+        sample->push_origin_task_name(std::string_view(origin_task->task_name));
+    }
 }
 
 void
@@ -292,7 +316,25 @@ StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
     // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
     // to the task level, but for now just keep it because this is how the v1 sampler works
     thread_state.cpu_time_ns = 1000 * cpu_time_us;
+    charge_cpu_time();
+}
+
+void
+StackRenderer::defer_cpu_time(microsecond_t cpu_time_us)
+{
+    thread_state.cpu_time_ns = 1000 * cpu_time_us;
+    thread_state.cpu_time_charged = false;
+}
+
+void
+StackRenderer::charge_cpu_time()
+{
+    if (sample == nullptr || thread_state.cpu_time_charged) {
+        return;
+    }
+    // initialized to 0, so possibly a no-op
     sample->push_cputime(thread_state.cpu_time_ns, 1);
+    thread_state.cpu_time_charged = true;
 }
 
 void
