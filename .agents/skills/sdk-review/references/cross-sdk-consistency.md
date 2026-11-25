@@ -19,5 +19,6 @@ Other repositories:
 - [Go (`dd-trace-go`)](https://github.com/DataDog/dd-trace-go)
 - [PHP (`dd-trace-php`)](https://github.com/DataDog/dd-trace-php)
 - [Ruby (`dd-trace-rb`)](https://github.com/DataDog/dd-trace-rb)
+- [Rust (`dd-trace-rs`)](https://github.com/DataDog/dd-trace-rs)
 - [C++ (`dd-trace-cpp`)](https://github.com/DataDog/dd-trace-cpp)
-- [Rust (`libdatadog`)](https://github.com/DataDog/libdatadog)
+- [Rust (`libdatadog`, provides common shared components)](https://github.com/DataDog/libdatadog)

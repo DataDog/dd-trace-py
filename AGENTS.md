@@ -139,7 +139,7 @@ current signatures and defaults.
 
 ## Code Review Rules
 
-Before pushing code or creating a pull request, you must run the [sdk-review](./.claude/skills/sdk-review/SKILL.md) skill on the committed changes unless the user specifically says not to. You must also do a standard self review (using the /review skill if available). All other required publication checks still apply.
+Before pushing code or creating a pull request, you must run the [sdk-review](./.claude/skills/sdk-review/SKILL.md) skill on the committed changes unless the user specifically says not to. You must also do a standard self review (using the /review or /code-review skill if available). All other required publication checks still apply.
 
 ## Pull requests
 
