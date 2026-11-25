@@ -125,6 +125,7 @@ def test_scheduled_dependent_and_bulk_jobs_link():
     from datetime import timezone
     import os
     import tempfile
+    import uuid
 
     import redis
     import rq
@@ -143,8 +144,8 @@ def test_scheduled_dependent_and_bulk_jobs_link():
     path = os.path.join(tempfile.mkdtemp(), "stats.jsonl")
     processor = install_capture(path)
     connection = redis.Redis(port=REDIS_CONFIG["port"])
-    queue = rq.Queue("dsm-kinds", connection=connection)
-    queue.empty()
+    name = "dsm-kinds-%s" % uuid.uuid4().hex
+    queue = rq.Queue(name, connection=connection)
 
     expected = 3
     queue.enqueue_at(datetime.now(timezone.utc) - timedelta(seconds=1), job_add1, 1)
@@ -154,14 +155,15 @@ def test_scheduled_dependent_and_bulk_jobs_link():
         queue.enqueue_many([rq.Queue.prepare_data(job_add1, (4,)), rq.Queue.prepare_data(job_add1, (5,))])
         expected += 2
     scheduler = RQScheduler([queue], connection=connection)
-    scheduler.acquire_locks()
+    assert scheduler.acquire_locks() == {name}
     scheduler.enqueue_scheduled_jobs()
+    scheduler.release_locks()
     rq.SimpleWorker([queue], connection=connection).work(burst=True)
     processor.periodic()
 
     stats = read_stats(path)
-    [(out_hash, _, out_count)] = entries(stats, out_tags("dsm-kinds"))
-    [(_, in_parent, in_count)] = entries(stats, in_tags("dsm-kinds"))
+    [(out_hash, _, out_count)] = entries(stats, out_tags(name))
+    [(_, in_parent, in_count)] = entries(stats, in_tags(name))
     assert in_parent == out_hash
     assert out_count == expected
     assert in_count == expected
