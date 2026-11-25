@@ -82,6 +82,10 @@ def _exec_hook(linecov: Any, config: dict[str, Any]) -> Callable[[CodeType], Non
     per directory: a child imports hundreds of files from a few dozen directories. Only the files
     of a workspace directory are checked for being links themselves.
     """
+    # The posix module rather than os, which the child's program may patch (pyfakefs, mock).
+    import posix
+    import stat
+
     root: str = config["root"]
     root_prefix = root if root.endswith(os.sep) else root + os.sep
     includes: list[str] = config["include"]
@@ -94,6 +98,12 @@ def _exec_hook(linecov: Any, config: dict[str, Any]) -> Callable[[CodeType], Non
     def resolve(path: str) -> str:
         resolved: str | None = linecov.realpath(path)
         return os.path.realpath(path) if resolved is None else resolved
+
+    def is_link(path: str) -> bool:
+        try:
+            return stat.S_ISLNK(posix.lstat(path).st_mode)
+        except (OSError, ValueError):
+            return False
 
     def is_instrumentable(path: str) -> bool:
         if not _SITE_PACKAGES.isdisjoint(path.split(os.sep)):
@@ -114,7 +124,7 @@ def _exec_hook(linecov: Any, config: dict[str, Any]) -> Callable[[CodeType], Non
                 return -1
             path = os.path.join(resolved, name)
             # The test process names files by their resolved path.
-            if os.path.islink(path):
+            if is_link(path):
                 path = resolve(path)
                 if not is_instrumentable(path):
                     return -1
@@ -141,17 +151,25 @@ def _exec_hook(linecov: Any, config: dict[str, Any]) -> Callable[[CodeType], Non
 
 
 def _write_record(linecov: Any, directory: str, owner: int) -> None:
+    # Through the posix module: the child's program may have left the os functions and open patched
+    # (pyfakefs, mock) by the time it exits.
     try:
         files = linecov.union()
         if not files:
             return
         import marshal
+        import posix
 
-        name = "%d-%d-%s" % (owner, os.getpid(), os.urandom(4).hex())
-        temporary = os.path.join(directory, name + ".tmp")
-        with open(temporary, "wb") as f:
-            f.write(marshal.dumps(files))
-        os.replace(temporary, os.path.join(directory, name + ".rec"))
+        name = "%d-%d-%s" % (owner, posix.getpid(), posix.urandom(4).hex())
+        temporary = directory + "/" + name + ".tmp"
+        data = memoryview(marshal.dumps(files))
+        fd = posix.open(temporary, posix.O_WRONLY | posix.O_CREAT | posix.O_TRUNC, 0o600)
+        try:
+            while data:
+                data = data[posix.write(fd, data) :]
+        finally:
+            posix.close(fd)
+        posix.replace(temporary, directory + "/" + name + ".rec")
         linecov.add_record()
     except Exception:  # nosec: the test process may have ended and removed the directory
         pass
