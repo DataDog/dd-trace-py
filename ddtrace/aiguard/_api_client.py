@@ -5,6 +5,7 @@ from copy import deepcopy
 import json
 import re
 from typing import Any
+from typing import Literal
 from typing import Optional
 from typing import TypedDict
 from urllib.parse import urlparse
@@ -451,6 +452,42 @@ class AIGuardClient:
             logger.debug("Could not apply AI Guard extra_tags", exc_info=True)
 
     @staticmethod
+    def _extract_local_content(messages: list[Message]) -> str:
+        parts: list[str] = []
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, str) and content:
+                parts.append(content)
+            elif isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict):
+                        text = item.get("text")
+                        if isinstance(text, str) and text:
+                            parts.append(text)
+        return "\n".join(parts)
+
+    @classmethod
+    def _try_local_x509_evaluate(
+        cls, messages: list[Message], tool_name: Optional[str]
+    ) -> Optional[tuple[Literal["ALLOW", "DENY", "ABORT"], str, bool, Optional[str]]]:
+        from ddtrace.internal.aiguard.product import get_x509_client
+
+        client = get_x509_client()
+        if client is None:
+            return None
+        decision = client.evaluate(cls._extract_local_content(messages), tool_name)
+        if decision.action == "FALLBACK_REMOTE":
+            return None
+        action: Literal["ALLOW", "DENY", "ABORT"] = "DENY" if decision.action == "DENY" else "ALLOW"
+        if decision.rule_id == "kill_switch":
+            reason = "Local AI Guard kill switch enabled=false"
+        elif decision.rule_id:
+            reason = f"Local AI Guard policy matched {decision.rule_id}"
+        else:
+            reason = "Local AI Guard policy decision"
+        return action, reason, decision.blocking, decision.rule_id
+
+    @staticmethod
     def _is_blocking_enabled(options: Optional[Options], remote_enabled: bool) -> bool:
         if not remote_enabled:
             return False
@@ -547,6 +584,7 @@ class AIGuardClient:
                     request_attributes["mcp_servers"] = mcp_servers
                 payload = {"data": {"attributes": request_attributes}}
                 span.set_tag(AI_GUARD.TARGET_TAG, target.value)
+                tool_name: Optional[str] = None
                 if target is EvaluationTarget.TOOL:
                     # The tool name is best effort: a tool result whose call is not in the
                     # conversation is still a tool target, it just has no name to report.
@@ -561,6 +599,36 @@ class AIGuardClient:
                     context.ai_guard_span = span
                     for middleware in _MIDDLEWARES:
                         _call_hook(middleware.pre_evaluate, context)
+
+                local_eval = self._try_local_x509_evaluate(messages, tool_name)
+                if local_eval is not None:
+                    action, reason, blocking_enabled, rule_id = local_eval
+                    span.set_tag(AI_GUARD.ACTION_TAG, action)
+                    span.set_tag(AI_GUARD.REASON_TAG, reason)
+                    span.set_tag("ai_guard.local_eval", "true")
+                    if rule_id:
+                        span.set_tag("ai_guard.local_rule_id", rule_id)
+                    should_block = self._is_blocking_enabled(options, blocking_enabled) and action != ALLOW
+                    evaluation = Evaluation(
+                        action=action,
+                        reason=reason,
+                        tags=[],
+                        sds=[],
+                        tag_probs=None,  # type: ignore[typeddict-item]
+                        messages=messages,
+                    )
+                    if context is not None:
+                        context.result = evaluation
+                    if should_block:
+                        span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
+                        raise AIGuardAbortError(
+                            action=action,
+                            reason=reason,
+                            tags=[],
+                            sds=[],
+                            tag_probs=None,
+                        )
+                    return evaluation
 
                 transport_error = None
                 try:
