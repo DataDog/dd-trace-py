@@ -1,6 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -84,6 +85,75 @@ using HeapMapType = std::unordered_map<K, V>;
    drop the (R - T) term and use C as the weight. We might want to use the full
    formula if more testing shows us to be too inaccurate.
  */
+
+/* Recently reallocated blocks and their sizes, so that a realloc is charged only its growth: CPython grows some
+   buffers by many small reallocs (str.translate), and charging each its full new size samples nearly every step.
+   A block's first realloc is charged in full, as its malloc size is not recorded. Two blocks per set, so that two
+   buffers grown in place in turn on one set don't evict each other at every step. Not thread-safe: the heap tracker
+   uses it under the GIL. */
+class realloc_size_cache_t
+{
+  public:
+    /* The bytes a realloc of `old_ptr` to `new_size` at `new_ptr` added, remembering the block's new size. */
+    size_t growth(void* old_ptr, void* new_ptr, size_t new_size)
+    {
+        set_t& new_set = set_of(new_ptr);
+        set_t& old_set = old_ptr == new_ptr ? new_set : set_of(old_ptr);
+        /* A block remembered with size 0 is charged as if unknown, which comes to the same: all of new_size. */
+        size_t old_size = old_ptr != nullptr ? old_set.take(old_ptr) : 0;
+        new_set.put(new_ptr, new_size);
+        return new_size > old_size ? new_size - old_size : 0;
+    }
+
+    /* Forget a freed block, so that a reused address starts afresh. */
+    void forget(void* ptr) { set_of(ptr).take(ptr); }
+
+    void clear() { sets.fill(set_t{}); }
+
+  private:
+    struct entry_t
+    {
+        void* ptr{ nullptr };
+        size_t size{ 0 };
+    };
+    struct set_t
+    {
+        entry_t newest;
+        entry_t older;
+
+        /* Remove the entry for `ptr`, if any, and return its size; 0 if none. */
+        size_t take(void* ptr)
+        {
+            size_t size;
+            if (newest.ptr == ptr) {
+                size = newest.size;
+                newest = older;
+            } else if (older.ptr == ptr) {
+                size = older.size;
+            } else {
+                return 0;
+            }
+            older = entry_t{};
+            return size;
+        }
+
+        void put(void* ptr, size_t size)
+        {
+            older = newest;
+            newest = entry_t{ ptr, size };
+        }
+    };
+
+    static constexpr unsigned SET_BITS = 7;
+    std::array<set_t, size_t{ 1 } << SET_BITS> sets{};
+
+    set_t& set_of(void* ptr)
+    {
+        // Fibonacci hashing spreads the aligned low bits of an address over the sets.
+        uint64_t h = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)) * 11400714819323198485ull;
+        return sets[h >> (64 - SET_BITS)];
+    }
+};
 
 class heap_tracker_t
 {
@@ -169,13 +239,7 @@ class heap_tracker_t
      * via ProfilerStats so the backend / user can detect data loss. */
     size_t cap_drops{ 0 };
 
-    /* The block last reallocated, and its size then, so that a realloc of the same block is charged only its growth.
-       CPython grows some buffers by many small reallocs (str.translate), and charging each its full new size samples
-       nearly every step. Only one block is remembered: two buffers grown in turn are each charged their full size, as
-       before. Not cleared on free, to keep malloc and free untouched: a reused address only changes what its first
-       realloc is charged, and the pointer is never dereferenced. */
-    void* last_realloc_ptr{ nullptr };
-    size_t last_realloc_size{ 0 };
+    realloc_size_cache_t realloc_sizes;
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -259,6 +323,8 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
+    realloc_sizes.forget(ptr);
+
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
         pool_put_no_cpython(std::move(node.mapped()));
@@ -281,13 +347,7 @@ heap_tracker_t::realloc_growth_no_cpython(void* old_ptr, void* new_ptr, size_t n
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    size_t growth = new_size;
-    if (old_ptr != nullptr && old_ptr == last_realloc_ptr) {
-        growth = new_size > last_realloc_size ? new_size - last_realloc_size : 0;
-    }
-    last_realloc_ptr = new_ptr;
-    last_realloc_size = new_size;
-    return growth;
+    return realloc_sizes.growth(old_ptr, new_ptr, new_size);
 }
 
 bool
@@ -371,8 +431,7 @@ heap_tracker_t::postfork_child()
     allocs_m.clear();
 
     cap_drops = 0;
-    last_realloc_ptr = nullptr;
-    last_realloc_size = 0;
+    realloc_sizes.clear();
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
