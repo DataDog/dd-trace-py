@@ -149,11 +149,24 @@ def test_source_info_imports_no_tracer_modules() -> None:
 
 
 def test_plugin_module_does_not_import_ci_visibility() -> None:
-    # The plugin still loads the tracer through ddtrace.contrib.internal.coverage, so only ci_visibility is checked.
     added = _added_modules("ddtrace.testing.internal.pytest.plugin")
 
     assert "ddtrace.testing.internal.pytest.plugin" in added
     assert [name for name in added if name.startswith("ddtrace.internal.ci_visibility")] == []
+
+
+def test_plugin_module_does_not_import_the_tracer_or_integrations() -> None:
+    added = _added_modules("ddtrace.testing.internal.pytest.plugin")
+
+    assert "ddtrace.testing.internal.pytest.plugin" in added
+    assert [
+        name
+        for name in added
+        if any(
+            name == prefix or name.startswith(prefix + ".")
+            for prefix in ("ddtrace._trace", "ddtrace.trace", "ddtrace.contrib")
+        )
+    ] == []
 
 
 def test_tracer_integration_enabled_imports_tracer(tmp_path: Path) -> None:
