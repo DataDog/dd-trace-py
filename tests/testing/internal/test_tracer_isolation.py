@@ -101,6 +101,61 @@ def test_tracer_integration_disabled_does_not_import_tracer(tmp_path: Path) -> N
     assert _tracer_imports(result["imports"]) == set()
 
 
+def test_tracer_integration_disabled_does_not_import_ci_visibility(tmp_path: Path) -> None:
+    result = _run_session(tmp_path, _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER="1")
+
+    assert [name for name in result["imports"] if name.startswith("ddtrace.internal.ci_visibility")] == []
+
+
+# Prints the ddtrace modules that importing a module loads beyond `import ddtrace`. The global tracer is off, so
+# `import ddtrace` itself loads no tracer modules.
+_ADDED_MODULES = textwrap.dedent(
+    """
+    import importlib
+    import json
+    import sys
+
+    import ddtrace
+
+    before = set(sys.modules)
+    importlib.import_module(sys.argv[1])
+    print("RESULT" + json.dumps(sorted(m for m in set(sys.modules) - before if m.startswith("ddtrace"))))
+    """
+)
+
+
+def _added_modules(module: str) -> list[str]:
+    env = {**os.environ, "_DD_GLOBAL_TRACER_INIT": "false", "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"}
+    proc = subprocess.run(
+        [sys.executable, "-c", _ADDED_MODULES, module], env=env, capture_output=True, text=True, timeout=120
+    )
+    lines = [line for line in proc.stdout.splitlines() if line.startswith("RESULT")]
+    assert lines, proc.stdout + proc.stderr
+    return t.cast("list[str]", json.loads(lines[-1][len("RESULT") :]))
+
+
+def _is_tracer_or_ci_visibility(name: str) -> bool:
+    return any(
+        name == prefix or name.startswith(prefix + ".")
+        for prefix in ("ddtrace.trace", "ddtrace._trace", "ddtrace.internal.ci_visibility", "ddtrace.internal.sampling")
+    )
+
+
+def test_source_info_imports_no_tracer_modules() -> None:
+    added = _added_modules("ddtrace.testing.internal.source_info")
+
+    assert "ddtrace.testing.internal.source_info" in added
+    assert [name for name in added if _is_tracer_or_ci_visibility(name)] == []
+
+
+def test_plugin_module_does_not_import_ci_visibility() -> None:
+    # The plugin still loads the tracer through ddtrace.contrib.internal.coverage, so only ci_visibility is checked.
+    added = _added_modules("ddtrace.testing.internal.pytest.plugin")
+
+    assert "ddtrace.testing.internal.pytest.plugin" in added
+    assert [name for name in added if name.startswith("ddtrace.internal.ci_visibility")] == []
+
+
 def test_tracer_integration_enabled_imports_tracer(tmp_path: Path) -> None:
     """Positive control: makes sure the import recording used above actually sees tracer imports."""
     result = _run_session(tmp_path, _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER="0")
