@@ -999,6 +999,10 @@ _OPENAI_HOSTED_TOOL_NAMES = {
     "file_search_call": "file_search",
     "code_interpreter_call": "code_interpreter",
 }
+# Allowlist: SDK models accept extra fields, so new provider fields must not reach the span unreviewed.
+_OPENAI_WEB_SEARCH_ACTION_KEYS = ("type", "query", "queries", "url", "pattern")
+# Code interpreter stdout can be MBs and is replayed as input on later turns; an oversized event drops all I/O.
+_HOSTED_TOOL_LOGS_MAX_CHARS = 4096
 
 
 def _openai_hosted_tool_message(item: Any) -> Message:
@@ -1010,7 +1014,9 @@ def _openai_hosted_tool_message(item: Any) -> Message:
     result: dict[str, Any] = {"status": status}
     if item_type == "web_search_call":
         action = load_data_value(_get_attr(item, "action", None)) or {}
-        arguments = {k: v for k, v in action.items() if k != "sources"} if isinstance(action, dict) else {}
+        arguments = (
+            {k: action[k] for k in _OPENAI_WEB_SEARCH_ACTION_KEYS if k in action} if isinstance(action, dict) else {}
+        )
         sources = action.get("sources") if isinstance(action, dict) else None
         if sources:
             result["sources"] = [
@@ -1033,7 +1039,9 @@ def _openai_hosted_tool_message(item: Any) -> Message:
         outputs = _get_attr(item, "outputs", None)
         if outputs:
             result["outputs"] = [
-                str(_get_attr(o, "logs", "")) if _get_attr(o, "type", None) == "logs" else IMAGE_FALLBACK_MARKER
+                str(_get_attr(o, "logs", ""))[:_HOSTED_TOOL_LOGS_MAX_CHARS]
+                if _get_attr(o, "type", None) == "logs"
+                else IMAGE_FALLBACK_MARKER
                 for o in outputs
             ]
     return Message(

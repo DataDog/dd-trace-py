@@ -902,6 +902,32 @@ _HOSTED_TOOL_ITEMS = [
         {"code": "1/0", "container_id": "cntr_1"},
         {"status": "failed"},
     ),
+    (
+        # Unknown action keys (e.g. a future page-text field) are dropped, not recorded.
+        {
+            "id": "ws_3",
+            "type": "web_search_call",
+            "status": "completed",
+            "action": {"type": "open_page", "url": "https://a.example", "page_text": "full page body"},
+        },
+        "web_search",
+        {"type": "open_page", "url": "https://a.example"},
+        {"status": "completed"},
+    ),
+    (
+        # Large stdout is capped so an oversized event cannot drop the span's whole input and output.
+        {
+            "id": "ci_3",
+            "type": "code_interpreter_call",
+            "status": "completed",
+            "code": "print('x' * 10000)",
+            "container_id": "cntr_1",
+            "outputs": [{"type": "logs", "logs": "x" * 10000}],
+        },
+        "code_interpreter",
+        {"code": "print('x' * 10000)", "container_id": "cntr_1"},
+        {"status": "completed", "outputs": ["x" * 4096]},
+    ),
 ]
 
 

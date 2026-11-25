@@ -130,6 +130,30 @@ def _decision_io(span):
     return json.loads(input_messages[0]["content"]), json.loads(output) if output else None
 
 
+def _server_tool_output_messages(web_query, file_queries):
+    """Expected output for the hosted tool items in response_server_tool_usage[_stream].yaml."""
+
+    def hosted(name, item_type, arguments, result):
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"name": name, "arguments": arguments, "tool_id": mock.ANY, "type": item_type}],
+            "tool_results": [{"name": name, "result": safe_json(result), "tool_id": mock.ANY, "type": "tool_result"}],
+        }
+
+    return [
+        hosted(
+            "web_search",
+            "web_search_call",
+            {"type": "search", "query": web_query, "queries": [web_query]},
+            {"status": "completed"},
+        ),
+        {"role": "assistant", "content": mock.ANY},
+        hosted("file_search", "file_search_call", {"queries": file_queries}, {"status": "completed"}),
+        {"role": "assistant", "content": mock.ANY},
+    ]
+
+
 class TestLLMObsOpenaiV1:
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_completion_proxy(self, mock_completions_post, openai, openai_llmobs, test_spans):
@@ -3180,6 +3204,10 @@ MUL: "*"
             name="OpenAI.createResponse",
             model_provider="openai",
             metrics={"web_search_count": 1, "storage_search_count": 1},
+            output_messages=_server_tool_output_messages(
+                "latest released version of requests Python package PyPI",
+                ["holiday policy", "company holiday policy", "leave policy", "paid holidays", "vacation policy"],
+            ),
         )
 
     @pytest.mark.skipif(
@@ -3205,6 +3233,10 @@ MUL: "*"
             name="OpenAI.createResponse",
             model_provider="openai",
             metrics={"web_search_count": 1, "storage_search_count": 1},
+            output_messages=_server_tool_output_messages(
+                "latest released version of Python package requests on PyPI",
+                ["holiday policy", "company holiday policy", "paid holidays", "paid time off", "PTO"],
+            ),
         )
 
     @pytest.mark.skipif(
