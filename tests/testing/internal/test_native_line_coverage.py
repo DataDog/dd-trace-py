@@ -41,14 +41,22 @@ _RECORDING_SCRIPT = f"""
     import pytest
 
     from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
+    from ddtrace.testing.internal.tracer_api.coverage import CoverageData
+    from ddtrace.testing.internal.tracer_api.coverage import native_record_bitmaps
     from tests.testing.mocks import mock_api_client_settings
     from tests.testing.mocks import setup_standard_mocks
 
     records = []
 
     def put_test_coverage(self, test_run, coverage_data):
+        # Natively, the plugin hands over each test's or execution's window as its record.
+        workspace = self.manager.workspace_path
+        if isinstance(coverage_data, CoverageData):
+            bitmaps = coverage_data.get_coverage_bitmaps(relative_to=workspace)
+        else:
+            bitmaps = native_record_bitmaps(coverage_data, workspace)
         files = {{}}
-        for path, bitmap in coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path):
+        for path, bitmap in bitmaps:
             files[path] = sorted(
                 i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)
             )
