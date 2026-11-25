@@ -212,13 +212,14 @@ def test_asyncio_cpu_time_idle_loop_goes_to_no_task() -> None:
     profile_cpu = cpu_time(profile)
     # No task ever runs burn, so the CPU time of task samples is only task steps' own overhead.
     assert profile_cpu.task_outside_burn <= 0.05 * ground_truth["callback"], (profile_cpu, ground_truth)
-    cpu_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+    # The callback's CPU time goes to thread samples. Some of it is charged at a tick after the callback returned, so
+    # those samples have the idle loop's stack instead of the callback's.
+    assert profile_cpu.thread >= 0.9 * ground_truth["callback"], (profile_cpu, ground_truth)
     callback_samples = pprof_utils.get_samples_with_function(
         profile, pprof_utils.get_samples_with_value_type(profile, "cpu-time"), "callback"
     )
+    assert callback_samples
     assert all(pprof_utils.get_str_label(profile, sample, "task name") is None for sample in callback_samples)
-    callback_cpu = sum(sample.value[cpu_index] for sample in callback_samples)
-    assert callback_cpu >= 0.7 * ground_truth["callback"], (callback_cpu, ground_truth)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
