@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI visibility: Fixes an issue where Early Flake Detection, Auto Test Retries, Attempt to Fix and out-of-session
+    retries of a pytest test method ran on the test class instance of the earlier attempts, so state an attempt left
+    on ``self`` could fail the retry and the tests that follow it in the class. Retries of the class's own test
+    methods now run on a new instance of the test class, as a new test does.

@@ -10,11 +10,13 @@ import logging
 from pathlib import Path
 import random
 import traceback
+import types
 import typing as t
 
 from _pytest import hookspec as pytest_hookspec
 from _pytest.reports import TestReport
 from _pytest.runner import runtestprotocol
+from _pytest.unittest import TestCaseFunction
 import pluggy
 import pytest
 
@@ -282,6 +284,75 @@ def _test_file(item: pytest.Item) -> t.Optional[Path]:
         return path if path.is_file() else None
     except (TypeError, ValueError, OSError):
         return None
+
+
+def _use_new_test_class_instance(item: pytest.Item) -> None:
+    """Before an item runs again, give its test a new instance of its test class.
+
+    pytest creates one instance of a test class per item and keeps it on the item, in item._instance (pytest 8.2 and
+    later) and in item._obj, the test method bound to it, because it runs each item once. Our retries run the same item
+    again, so without this every attempt would run on the first attempt's instance and see what earlier attempts left
+    on self. A fixture that keeps per-test state on self, like SQLAlchemy's listener cleanup, then fails the retry and
+    leaks into the tests that follow.
+
+    This is called before every attempt, right before runtestprotocol(), so it runs after anything that puts the item's
+    test method back before an attempt, and it acts only on an item that already ran. The new instance is made by the
+    class, as pytest makes one for every test. When item.obj is a method bound to an instance of exactly that class
+    (by type(), which a metaclass can't change; instances of a subclass are left alone on purpose), its own function
+    is bound to the new instance, so an item keeps a method its collector gave it under another name. When item.obj is
+    still the class's staticmethod or classmethod, only item._instance, which the fixtures use, changes. Anything else
+    in item.obj, such as a plain function from a collector or a wrapper a plugin left there, is kept with its instance,
+    as before, so a wrapper like pytest-mpl's only gets a new instance when something puts the method back before the
+    attempt. unittest items are left to pytest, which makes a new TestCase for each run, and so is pytest 6, which
+    makes a new instance in every setup and whose items' parent is an Instance node.
+
+    If the class can't make an instance (an exception, or pytest.skip() or pytest.fail() in its constructor; interrupts,
+    exits and pytest.exit() propagate), the error is logged and the attempt runs on the current one, with the test
+    method bound to the instance the fixtures use. Like a new test, and like pytest 6 and pytest-rerunfailures'
+    reruns, a retry doesn't see attributes a plugin set on the first instance before the first attempt.
+    """
+    # runtestprotocol() leaves item._request falsy after a run, and checks it the same way to spot an item run again.
+    if getattr(item, "_request", True):
+        return
+    if not isinstance(item, pytest.Function) or isinstance(item, TestCaseFunction):
+        return
+    if not isinstance(item.parent, pytest.Class):
+        return
+    test_class = item.parent.obj
+    test_method = getattr(item, "_obj", None)
+    descriptor = inspect.getattr_static(test_class, item.originalname, None)
+    function: t.Optional[t.Callable[..., t.Any]] = None
+    bound_to: object = None
+    if inspect.ismethod(test_method) and type(test_method.__self__) is test_class:
+        function, bound_to = test_method.__func__, test_method.__self__
+    elif not (
+        (isinstance(descriptor, staticmethod) and test_method is descriptor.__func__)
+        or (
+            isinstance(descriptor, classmethod)
+            and inspect.ismethod(test_method)
+            and test_method.__func__ is descriptor.__func__
+        )
+    ):
+        return
+    if function is None and type(vars(item).get("_instance")) is not test_class:
+        return
+    try:
+        instance = item.parent.newinstance()
+        if type(instance) is not test_class:
+            raise TypeError(f"{test_class!r} made an instance of {type(instance)!r}")
+    except (KeyboardInterrupt, SystemExit, GeneratorExit, pytest.exit.Exception):
+        raise
+    except BaseException:
+        # Exception, but also pytest.skip() or pytest.fail() called while making the instance.
+        log.debug("Could not make a new test class instance for %s before it runs again", item.nodeid, exc_info=True)
+        instance = vars(item).get("_instance")
+        if function is not None and type(instance) is test_class and bound_to is not instance:
+            item._obj = types.MethodType(function, instance)
+        return
+    if function is not None:
+        item._obj = types.MethodType(function, instance)
+    if "_instance" in vars(item):
+        item._instance = instance
 
 
 @contextlib.contextmanager
@@ -934,6 +1005,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
+        _use_new_test_class_instance(item)
         reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         self._set_test_run_data(test_run, item, context)
 
