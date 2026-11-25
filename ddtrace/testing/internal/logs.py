@@ -26,7 +26,7 @@ _log = logging.getLogger(__name__)
 _TRUNCATION_SUFFIX = "... [truncated]"
 
 
-class LogsWriter(BaseWriter):
+class LogsWriter(BaseWriter[Event]):
     """Sends batches of log events to the Datadog logs intake as JSON."""
 
     # Cap the in-memory buffer to avoid OOM when tests produce very large volumes of logs.
