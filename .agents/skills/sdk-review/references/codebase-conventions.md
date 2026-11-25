@@ -39,10 +39,7 @@ Repo-specific idioms: configuration, logging, shared helpers, test patterns, and
 ### CONV-4.1: Test every version the PR claims to support
 - Flag: a PR claiming support for a library major (for example, mcp 2.x) with no test venv locked to it or no matching max version in `scripts/integration_registry/registry.yaml`; or a suitespec Python list that adds `'3.15'` while still missing `'3.14'`.
 
-### CONV-4.2: Commit regenerated dependency locks with test environment changes
-- Flag: a change to a suitespec or venv definition with no matching lock file changes, or lock files left with no environment using them. See [contributing-testing.rst](../../../../docs/contributing-testing.rst).
-
-### CONV-4.3: Use snapshot tests for integration spans
+### CONV-4.2: Use snapshot tests for integration spans
 - Flag: new integration tests that assert span attributes one by one where a snapshot under `tests/snapshots/` would cover them.
 
 ## 5. Repository and CI
