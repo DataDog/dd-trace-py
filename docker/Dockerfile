@@ -47,6 +47,7 @@ RUN apt-get update \
       git \
       jq \
       libbz2-dev \
+      libc6-dbg \
       libenchant-2-dev \
       libffi-dev \
       libjemalloc2 \
