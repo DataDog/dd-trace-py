@@ -3546,6 +3546,26 @@ mod_union(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
 static PyObject* g_exec_callback = NULL;
 static int g_exec_hook_added = 0;
 
+/* Hands code to the exec callback, unless it is attached to a file already or was compiled from a
+   string. Never raises. */
+static void
+run_exec_callback(PyObject* code)
+{
+    if (codeinfo_get(code) != NULL)
+        return;
+    PyObject* filename = ((PyCodeObject*)code)->co_filename;
+    if (PyUnicode_Check(filename) && PyUnicode_GET_LENGTH(filename) > 0 && PyUnicode_READ_CHAR(filename, 0) == '<')
+        return;
+    /* A strong reference: another thread can replace or clear the callback while it runs. */
+    PyObject* callback = Py_NewRef(g_exec_callback);
+    PyObject* r = PyObject_CallOneArg(callback, code);
+    Py_DECREF(callback);
+    if (r == NULL)
+        PyErr_Clear();
+    else
+        Py_DECREF(r);
+}
+
 /* Hands the exec callback every code object that exec() or the interpreter's file runner is about
    to run: imported modules, runpy, the main script. Never fails the audited operation. */
 static int
@@ -3555,16 +3575,13 @@ exec_audit_hook(const char* event, PyObject* args, void* Py_UNUSED(data))
         return 0;
     if (!PyTuple_Check(args) || PyTuple_GET_SIZE(args) < 1 || !PyCode_Check(PyTuple_GET_ITEM(args, 0)))
         return 0;
-    PyObject* r = PyObject_CallOneArg(g_exec_callback, PyTuple_GET_ITEM(args, 0));
-    if (r == NULL)
-        PyErr_Clear();
-    else
-        Py_DECREF(r);
+    run_exec_callback(PyTuple_GET_ITEM(args, 0));
     return 0;
 }
 
 /* add_exec_hook(callback): call callback(code) before every code object exec() runs, from now on.
-   Audit hooks cannot be removed, so it is meant for child processes only. */
+   Audit hooks cannot be removed, and every audited operation pays for one, so it is meant for child
+   processes only. */
 static PyObject*
 mod_add_exec_hook(PyObject* Py_UNUSED(self), PyObject* callback)
 {
@@ -3580,6 +3597,93 @@ mod_add_exec_hook(PyObject* Py_UNUSED(self), PyObject* callback)
     Py_INCREF(callback);
     Py_XSETREF(g_exec_callback, callback);
     Py_RETURN_NONE;
+}
+
+/* set_exec_callback(callback): the function the exec wrapper calls, or None for none. */
+static PyObject*
+mod_set_exec_callback(PyObject* Py_UNUSED(self), PyObject* callback)
+{
+    if (callback != Py_None && !PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "set_exec_callback(callback)");
+        return NULL;
+    }
+    Py_XSETREF(g_exec_callback, callback == Py_None ? NULL : Py_NewRef(callback));
+    Py_RETURN_NONE;
+}
+
+static PyObject* g_original_exec = NULL;
+static PyObject* g_exec_wrapper = NULL;
+
+/* exec() as the wrapper's original runs it, after handing each code object to the exec callback. A C
+   function pushes no frame, so exec() without globals still runs in its caller's namespace. */
+static PyObject*
+wrapped_exec(PyObject* Py_UNUSED(builtins), PyObject* const* args, Py_ssize_t nargs, PyObject* kwnames)
+{
+    if (nargs >= 1 && g_exec_callback != NULL && PyCode_Check(args[0]))
+        run_exec_callback(args[0]);
+    return PyObject_Vectorcall(g_original_exec, args, (size_t)nargs, kwnames);
+}
+
+static PyMethodDef g_exec_wrapper_def = { "exec",
+                                          (PyCFunction)(void (*)(void))wrapped_exec,
+                                          METH_FASTCALL | METH_KEYWORDS,
+                                          NULL };
+
+/* wrap_exec(original) -> function: a replacement for builtins.exec that hands the exec callback each
+   code object before original runs it. It sees what every exec() lookup in a module's namespace
+   runs, the import system's included, at the cost of one C call per exec(), where an audit hook
+   would tax every audited operation. It has original's name, module, signature and documentation.
+   The first original is kept for the life of the process. */
+static PyObject*
+mod_wrap_exec(PyObject* Py_UNUSED(self), PyObject* original)
+{
+    if (g_exec_wrapper != NULL)
+        return Py_NewRef(g_exec_wrapper);
+    if (!PyCallable_Check(original)) {
+        PyErr_SetString(PyExc_TypeError, "wrap_exec(original)");
+        return NULL;
+    }
+    /* "exec(<signature>)\n--\n\n<doc>" is how a builtin's docstring carries its signature. */
+    PyObject* signature = PyObject_GetAttrString(original, "__text_signature__");
+    PyObject* doc = PyObject_GetAttrString(original, "__doc__");
+    if (signature == NULL || doc == NULL) {
+        Py_XDECREF(signature);
+        Py_XDECREF(doc);
+        return NULL;
+    }
+    PyObject* text = (PyUnicode_Check(signature) && PyUnicode_Check(doc))
+                       ? PyUnicode_FromFormat("exec%U\n--\n\n%U", signature, doc)
+                       : PyUnicode_FromString("");
+    Py_DECREF(signature);
+    Py_DECREF(doc);
+    if (text == NULL)
+        return NULL;
+    Py_ssize_t size;
+    const char* utf8 = PyUnicode_AsUTF8AndSize(text, &size);
+    char* copy = utf8 == NULL ? NULL : PyMem_RawMalloc((size_t)size + 1);
+    if (copy != NULL)
+        memcpy(copy, utf8, (size_t)size + 1);
+    Py_DECREF(text);
+    if (copy == NULL)
+        return utf8 == NULL ? NULL : PyErr_NoMemory();
+    /* Owned by the function definition, which lives as long as the process. */
+    g_exec_wrapper_def.ml_doc = size > 0 ? copy : NULL;
+    if (size == 0)
+        PyMem_RawFree(copy);
+    /* Bound to the builtins module, as exec() is: it then pickles by name, and inspect drops the
+       $module parameter of its signature. */
+    PyObject* builtins = PyImport_ImportModule("builtins");
+    if (builtins == NULL)
+        return NULL;
+    PyObject* module_name = PyUnicode_FromString("builtins");
+    PyObject* wrapper = module_name == NULL ? NULL : PyCFunction_NewEx(&g_exec_wrapper_def, builtins, module_name);
+    Py_XDECREF(module_name);
+    Py_DECREF(builtins);
+    if (wrapper == NULL)
+        return NULL;
+    g_original_exec = Py_NewRef(original);
+    g_exec_wrapper = Py_NewRef(wrapper);
+    return wrapper;
 }
 
 #if DD_HAVE_SHARED_STATE
@@ -3616,6 +3720,8 @@ static PyMethodDef module_methods[] = {
     { "merge", (PyCFunction)(void (*)(void))mod_merge, METH_FASTCALL, "Merge a child's lines." },
     { "union", mod_union, METH_NOARGS, "Every line run, by report path." },
     { "add_exec_hook", mod_add_exec_hook, METH_O, "Call a function with every code object exec() runs." },
+    { "set_exec_callback", mod_set_exec_callback, METH_O, "Set the function the exec wrapper calls." },
+    { "wrap_exec", mod_wrap_exec, METH_O, "A builtins.exec that calls the exec callback first." },
 #if DD_HAVE_SHARED_STATE
     { "realpath", mod_realpath, METH_O, "The C library's realpath(), or None when it fails." },
 #endif
