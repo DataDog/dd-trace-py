@@ -36,6 +36,11 @@ struct RawSample
     uint64_t native_tid = 0;
     uintptr_t asyncio_task = 0;
     uintptr_t greenlet_id = 0;
+    // Interpreter code object generation at capture (CPython 3.14+). A code object freed before the
+    // drain can leave its address to a new one, so frames resolve only when the generation still matches.
+    int64_t interpreter_id = 0;
+    uint64_t code_object_generation = 0;
+    bool code_object_generation_known = false;
     uint8_t coroutine_fingerprint_count = 0;
     uint16_t depth = 0;
     std::array<CoroutineFingerprint, kMaxCpuTimerCoroutineFingerprints> coroutine_fingerprints{};

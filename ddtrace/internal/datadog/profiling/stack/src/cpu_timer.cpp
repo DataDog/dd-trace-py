@@ -681,9 +681,19 @@ render_raw_sample(EchionSampler& echion, CaptureState& state, const RawSample& r
 {
     FrameStack stack;
     bool saw_invalid_frame = false;
+#if PY_VERSION_HEX >= 0x030e0000
+    // A code object freed since capture still passes validate_raw_code_object() until its memory is reused.
+    // Resolving it would cache its name under a generation the sampler already validated, and a new code
+    // object at the same address would keep that name, so leave frames from an older generation unresolved.
+    const bool code_objects_current =
+      raw.code_object_generation_known &&
+      echion.code_object_generation_validated(raw.interpreter_id, raw.code_object_generation);
+#else
+    constexpr bool code_objects_current = true;
+#endif
     for (uint16_t i = 0; i < raw.depth; i++) {
         const RawFrame& raw_frame = raw.frames[i];
-        if (!validate_raw_code_object(raw_frame)) {
+        if (!code_objects_current || !validate_raw_code_object(raw_frame)) {
             saw_invalid_frame = true;
             g_state.stage2_invalid_frame_count.fetch_add(1, std::memory_order_relaxed);
             continue;
@@ -1025,10 +1035,23 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     sample->greenlet_id = g_state.tid_table.current_greenlet_id(state->native_tid);
     sample->coroutine_fingerprint_count = 0;
     sample->depth = 0;
+    sample->code_object_generation_known = false;
 
     bool failed = false;
     PyThreadState* tstate = state->tstate;
 #if PY_VERSION_HEX >= 0x030e0000
+    PyInterpreterState* interp = nullptr;
+    if (tstate != nullptr && guarded_read_scalar(*state, interp, &tstate->interp) && interp != nullptr) {
+        const auto& interp_offsets = _PyRuntime.debug_offsets.interpreter_state;
+        const char* interp_addr = reinterpret_cast<const char*>(interp);
+        sample->code_object_generation_known =
+          guarded_read_scalar(
+            *state, sample->interpreter_id, reinterpret_cast<const int64_t*>(interp_addr + interp_offsets.id)) &&
+          guarded_read_scalar(*state,
+                              sample->code_object_generation,
+                              reinterpret_cast<const uint64_t*>(interp_addr + interp_offsets.code_object_generation));
+    }
+
     // The compile-time offset of asyncio_running_task can differ from the running 3.14 patch release.
     const size_t running_task_offset = g_state.asyncio_running_task_offset.load(std::memory_order_relaxed);
     if (tstate != nullptr && running_task_offset != 0) {
