@@ -1,5 +1,9 @@
 from itertools import chain
 import multiprocessing as mp
+import os
+import shutil
+import subprocess
+import sys
 
 import pytest
 
@@ -386,3 +390,56 @@ def test_uuid4_differs_across_fork():
     parent_values = {uuid4() for _ in range(64)}
     assert len(child_values) == 64
     assert not child_values & parent_values
+
+
+# Forks after the parent has drawn from the RNG, so a child that is not reseeded repeats the parent's values.
+_FORK_AFTER_IMPORT = """
+import os
+
+{imports}
+from ddtrace.internal import forksafe
+from ddtrace.internal.native import rand64bits
+from ddtrace.internal.native import seed
+
+assert sum(hook is seed for hook in forksafe._registry) == 1
+rand64bits()
+
+r, w = os.pipe()
+pid = os.fork()
+if pid == 0:
+    os.write(w, " ".join(str(rand64bits()) for _ in range(16)).encode())
+    os._exit(0)
+os.close(w)
+os.waitpid(pid, 0)
+child_values = set(map(int, os.read(r, 4096).decode().split()))
+parent_values = {{rand64bits() for _ in range(16)}}
+assert len(child_values) == 16, child_values
+assert not child_values & parent_values
+print("OK")
+"""
+
+
+@pytest.mark.parametrize(
+    "imports,ddtrace_run",
+    [
+        ("import ddtrace", False),
+        ("import ddtrace.auto", False),
+        ("import ddtrace.internal.native", False),
+        ("", True),
+    ],
+    ids=["ddtrace", "ddtrace.auto", "ddtrace.internal.native", "ddtrace-run"],
+)
+def test_child_is_reseeded_after_fork(imports, ddtrace_run):
+    """The reseed hook is registered however ddtrace is loaded, before any ID is generated."""
+    code = _FORK_AFTER_IMPORT.format(imports=imports)
+    command = [sys.executable, "-c", code]
+    if ddtrace_run:
+        executable = shutil.which("ddtrace-run", path=os.path.dirname(sys.executable))
+        if executable is None:
+            pytest.skip("ddtrace-run is not installed next to the interpreter")
+        command = [executable] + command
+
+    env = dict(os.environ, PYTHONWARNINGS="ignore::DeprecationWarning")
+    result = subprocess.run(command, capture_output=True, text=True, timeout=60, env=env)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().endswith("OK"), result.stdout

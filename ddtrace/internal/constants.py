@@ -2,11 +2,25 @@ from collections.abc import Generator
 from collections.abc import Iterator
 from typing import Any
 
-from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import AUTO_REJECT
-from ddtrace.constants import USER_KEEP
-from ddtrace.constants import USER_REJECT
 
+# Sampling priorities. ddtrace.constants re-exports them as public API; they are defined here so that this module
+# does not import it.
+# Use this to explicitly inform the backend that a trace should be rejected and not stored.
+USER_REJECT = -1
+# Used by the builtin sampler to inform the backend that a trace should be rejected and not stored.
+AUTO_REJECT = 0
+# Used by the builtin sampler to inform the backend that a trace should be kept and stored.
+AUTO_KEEP = 1
+# Use this to explicitly inform the backend that a trace should be kept and stored.
+USER_KEEP = 2
+
+# Tag keys and environment variable names that shared code needs. ddtrace.constants re-exports them.
+ENV_KEY = "env"
+VERSION_KEY = "version"
+_USER_ID_KEY = "_dd.p.usr.id"
+_CONFIG_ENDPOINT_ENV = "_DD_CONFIG_ENDPOINT"
+_CONFIG_ENDPOINT_RETRIES_ENV = "_DD_CONFIG_ENDPOINT_RETRIES"
+_CONFIG_ENDPOINT_TIMEOUT_ENV = "_DD_CONFIG_ENDPOINT_TIMEOUT"
 
 WEB_REQUEST_STARTING_EVENT = "web.request.starting"
 _WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"

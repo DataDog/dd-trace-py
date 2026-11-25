@@ -178,6 +178,20 @@ def _pick_alias_pair() -> tuple[str, str]:
     return canonical, aliases[0]
 
 
+def test_get_aliases_returns_the_registered_aliases():
+    canonical, aliases = next(iter(env_module._CONFIGURATION_ALIASES.items()))
+    assert env_module.get_aliases(canonical) == aliases
+    assert env_module.get_aliases("DD_NOT_A_CONFIGURATION") == ()
+
+
+def test_is_sensitive_follows_the_registered_sensitive_set():
+    from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+
+    assert SENSITIVE_CONFIGURATIONS, "the registry should list sensitive configurations"
+    assert all(env_module.is_sensitive(name) for name in SENSITIVE_CONFIGURATIONS)
+    assert not env_module.is_sensitive("DD_SERVICE")
+
+
 def test_getitem_falls_back_to_alias_when_canonical_missing(monkeypatch):
     canonical, legacy = _pick_alias_pair()
     monkeypatch.delenv(canonical, raising=False)
@@ -310,3 +324,26 @@ def test_env_before_registration_is_exact_lookup_without_validation():
     assert [line for line in lines if line.startswith("LOG ")] == [
         "LOG Unsupported Datadog configuration variable accessed: DD_TOTALLY_BOGUS_XYZ"
     ]
+
+
+def test_aliases_and_sensitivity_are_empty_before_registration():
+    """Without a registry, nothing has aliases and nothing is known to be sensitive."""
+    out = _run_python(
+        f"""
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("standalone_env", {env_module.__file__!r})
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        assert mod.get_aliases("DD_SERVICE") == ()
+        assert not mod.is_sensitive("DD_API_KEY")
+
+        assert mod.register_supported_configurations(["DD_API_KEY"], {{"DD_SERVICE": ["DD_OLD"]}}, [], ["DD_API_KEY"])
+        assert mod.get_aliases("DD_SERVICE") == ["DD_OLD"]
+        assert mod.is_sensitive("DD_API_KEY")
+        print("done")
+        """,
+        {},
+    )
+    assert out == "done"

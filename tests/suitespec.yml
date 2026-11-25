@@ -48,7 +48,6 @@ components:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
     - ddtrace/internal/_service_state.py
-    - ddtrace/internal/_threads.*
     - ddtrace/internal/_unpatched.py
     - ddtrace/internal/agent.py
     - ddtrace/internal/assembly.py
@@ -64,7 +63,7 @@ components:
     - ddtrace/internal/glob_matching.py
     - ddtrace/internal/ipc.py
     - ddtrace/internal/logger.py
-    - ddtrace/_logger.py
+    - ddtrace/internal/logger_setup.py
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
@@ -128,8 +127,10 @@ components:
     - ddtrace/internal/settings/symbol_db.py
   telemetry:
     - ddtrace/internal/telemetry/*
+    - ddtrace/internal/telemetry_inputs/*
+    - ddtrace/_error_attribution.py
   tracing:
-    - ddtrace/_logger.py
+    - ddtrace/internal/logger_setup.py
     - ddtrace/_monkey.py
     - ddtrace/_trace/*
     - ddtrace/trace/*

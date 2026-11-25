@@ -5,9 +5,9 @@ import sysconfig
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.container import get_container_info
+from ddtrace.internal.telemetry_inputs.library import get_library
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
-from ddtrace.version import __version__
 
 from ..hostname import get_hostname
 
@@ -56,7 +56,7 @@ def _get_application(key: tuple[str, str, str]) -> dict:
         "env": env or "",
         "language_name": "python",
         "language_version": _format_version_info(sys.version_info),
-        "tracer_version": __version__,
+        "tracer_version": get_library().version,
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
     }

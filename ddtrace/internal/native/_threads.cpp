@@ -46,13 +46,16 @@ _threads_clear(PyObject* module);
 static void
 _threads_free(void* module);
 
-// Interned module name for PyImport_GetModule. Written once in _threads_exec
-// before any PeriodicThread can be created; read-only thereafter (safe for
-// free-threaded mode: the import lock provides the happens-before guarantee).
+// Module name for PyImport_GetModule, taken from the module's __name__ (the
+// name it was imported under), so the source doesn't depend on where the
+// module lives: ddtrace.internal.native._threads here, _ddtrace_native._threads
+// once it ships in ddtrace-native. Written once in _threads_exec before any
+// PeriodicThread can be created; read-only thereafter (safe for free-threaded
+// mode: the import lock provides the happens-before guarantee).
 // NOTE: This is a process-global, so a second sub-interpreter reuses the string
 // object created by the first — technically incorrect for isolated
-// sub-interpreters (Python 3.12+). Safe in practice because interned strings
-// are immortal and PyImport_GetModule compares by content, but the proper fix
+// sub-interpreters (Python 3.12+). Safe in practice because the reference is
+// never released and PyImport_GetModule compares by content, but the proper fix
 // is a heap-type refactor using PyType_FromModuleAndSpec +
 // PyType_GetModuleByDef, which gives each method direct access to its module
 // state without any global lookup.
@@ -1130,7 +1133,7 @@ static PyMethodDef PeriodicThread_methods[] = {
 
 // ----------------------------------------------------------------------------
 static PyTypeObject PeriodicThreadType = {
-    .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "ddtrace.internal._threads.PeriodicThread",
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "_threads.PeriodicThread", // Qualified in _threads_exec
     .tp_basicsize = sizeof(PeriodicThread),
     .tp_itemsize = 0,
     .tp_dealloc = (destructor)PeriodicThread_dealloc,
@@ -1243,6 +1246,26 @@ _threads_free(void* module)
 static int
 _threads_exec(PyObject* m)
 {
+    // Name the type after the module, like the module-state lookup, so its __module__ follows the
+    // module without a compile-time setting. A ready static type is shared by every interpreter,
+    // so this runs once, before PyType_Ready; the name is never freed since the type outlives
+    // every module object.
+    if (!(PeriodicThreadType.tp_flags & Py_TPFLAGS_READY)) {
+        const char* module_name = PyModule_GetName(m);
+        if (module_name == NULL)
+            return -1;
+        static const char suffix[] = ".PeriodicThread";
+        size_t module_name_len = strlen(module_name);
+        char* type_name = (char*)PyMem_RawMalloc(module_name_len + sizeof(suffix));
+        if (type_name == NULL) {
+            PyErr_NoMemory();
+            return -1;
+        }
+        memcpy(type_name, module_name, module_name_len);
+        memcpy(type_name + module_name_len, suffix, sizeof(suffix));
+        PeriodicThreadType.tp_name = type_name;
+    }
+
     if (PyType_Ready(&PeriodicThreadType) < 0)
         return -1;
 
@@ -1251,7 +1274,7 @@ _threads_exec(PyObject* m)
     new (state) module_state();
 
     if (_threads_module_name == NULL) {
-        _threads_module_name = PyUnicode_InternFromString("ddtrace.internal._threads");
+        _threads_module_name = PyModule_GetNameObject(m);
         if (_threads_module_name == NULL)
             return -1;
     }

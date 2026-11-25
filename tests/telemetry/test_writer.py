@@ -11,6 +11,7 @@ from unittest import mock
 import pytest
 
 from ddtrace import config
+from ddtrace.internal._runtime_id import get_runtime_id
 import ddtrace.internal.settings._core as settings_core
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._telemetry import config as telemetry_config
@@ -21,10 +22,13 @@ from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 import ddtrace.internal.telemetry.writer as telemetry_writer_module
 from ddtrace.internal.telemetry.writer import TelemetryWriter
-from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from tests.utils import call_program
 from tests.utils import override_global_config
+
+
+# Acquire the env submodule via sys.modules because ddtrace.internal.settings re-exports dd_environ as `env`.
+env_module = sys.modules["ddtrace.internal.settings.env"]
 
 
 class _SyntheticDDConfig(DDConfig):
@@ -557,7 +561,9 @@ def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, t
     }
 
 
-def validate_request_body(received_body: dict, payload: dict, payload_type: str, seq_id: Optional[int] = None) -> dict:
+def validate_request_body(
+    received_body: dict[str, Any], payload: dict[str, Any], payload_type: str, seq_id: Optional[int] = None
+) -> dict[str, Any]:
     """used to test the body of requests received by the testagent"""
     # The native worker serializes a fixed set of 8 top-level keys. Unlike the old Python
     # body, there is no ``debug`` key anymore.
@@ -580,7 +586,7 @@ def validate_request_body(received_body: dict, payload: dict, payload_type: str,
         assert received_body["seq_id"] == seq_id
     # The wire body omits empty/None application + host fields (serde skip_serializing_if),
     # so only compare against the fields actually present in the received body.
-    expected_application = get_application(config.service, config.version, config.env)
+    expected_application = get_application(config.service, config.version, config.env)  # type: ignore[arg-type]
     assert received_body["application"] == {
         k: v for k, v in expected_application.items() if k in received_body["application"]
     }
@@ -2238,8 +2244,8 @@ def test_report_configuration_walks_ddconfig(telemetry_writer, test_agent_sessio
         synthetic_config = _SyntheticDDConfig()
 
     with mock.patch.object(
-        ddtrace.internal.telemetry,
-        "SENSITIVE_CONFIGURATIONS",
+        env_module,
+        "_SENSITIVE_CONFIGURATIONS",
         frozenset({"DD_TEST_SYNTHETIC_SENSITIVE_SETTING"}),
     ):
         ddtrace.internal.telemetry.report_configuration(synthetic_config)
@@ -2304,7 +2310,7 @@ def test_get_config_respects_aliases_and_sensitive_configurations(telemetry_writ
     alias = "DD_TEST_SYNTHETIC_LEGACY_ALIAS"
     monkeypatch.setenv(alias, "aliased_value")
 
-    with mock.patch.dict(ddtrace.internal.telemetry.CONFIGURATION_ALIASES, {canonical: [alias]}):
+    with mock.patch.dict(env_module._CONFIGURATION_ALIASES, {canonical: [alias]}):
         assert ddtrace.internal.telemetry.get_config(canonical, "default_value") == "aliased_value"
 
     telemetry_writer.periodic(force_flush=True)
@@ -2315,8 +2321,8 @@ def test_get_config_respects_aliases_and_sensitive_configurations(telemetry_writ
     sensitive_name = "DD_TEST_SYNTHETIC_SENSITIVE_GET_CONFIG_SETTING"
     monkeypatch.setenv(sensitive_name, "leaked_value")
     with mock.patch.object(
-        ddtrace.internal.telemetry,
-        "SENSITIVE_CONFIGURATIONS",
+        env_module,
+        "_SENSITIVE_CONFIGURATIONS",
         frozenset({sensitive_name}),
     ):
         assert ddtrace.internal.telemetry.get_config(sensitive_name, "default_value") == "leaked_value"
@@ -2413,3 +2419,42 @@ def test_excepthook_does_not_count_passthrough_wrapper_errors_against_an_integra
     _, add_count_metric = _excepthook_calls(telemetry_writer, layers, [len(layers) - 1], str(tmp_path / "missing"))
 
     add_count_metric.assert_not_called()
+
+
+def _traceback_raised_in(filename):
+    try:
+        exec(compile("raise ValueError('boom')", filename, "exec"), {})
+    except ValueError as e:
+        return e.__traceback__
+    raise AssertionError("unreachable")
+
+
+@pytest.mark.parametrize(
+    "filename,is_ddtrace_code,integration",
+    [
+        ("/site-packages/ddtrace/internal/x.py", True, None),
+        ("/site-packages/ddtrace/contrib/internal/flask/patch.py", True, "flask"),
+        ("/site-packages/ddtrace/contrib/flask/patch.py", True, "flask"),
+        ("/site-packages/_ddtrace_internal/x.py", True, None),
+        ("/site-packages/_ddtrace_coverage/code.py", True, None),
+        ("/site-packages/flask/app.py", False, None),
+    ],
+)
+def test_excepthook_attributes_errors_by_registered_code_roots(filename, is_ddtrace_code, integration):
+    """An unhandled exception is blamed on ddtrace when it was raised in the `ddtrace` package or in a moved
+    `_ddtrace_<package>` root, and on an integration when it was raised in ddtrace/contrib.
+    """
+    writer = mock.Mock(spec=TelemetryWriter)
+
+    TelemetryWriter._telemetry_excepthook(writer, ValueError, ValueError("boom"), _traceback_raised_in(filename))
+
+    assert writer.add_error_log.called is is_ddtrace_code
+    if integration is None:
+        writer.add_integration.assert_not_called()
+    else:
+        writer.add_integration.assert_called_once_with(integration, True, error_msg=mock.ANY)
+        assert writer.add_count_metric.call_args.args[3] == (
+            ("integration_name", integration),
+            ("error_type", "ValueError"),
+        )
+    writer.app_shutdown.assert_called_once_with()

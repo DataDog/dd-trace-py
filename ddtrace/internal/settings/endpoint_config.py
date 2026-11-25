@@ -4,9 +4,9 @@ The configuration endpoint is a URL that returns a JSON object with the configur
 It takes precedence over environment variables and configuration files.
 """
 
-from ddtrace.constants import _CONFIG_ENDPOINT_ENV
-from ddtrace.constants import _CONFIG_ENDPOINT_RETRIES_ENV
-from ddtrace.constants import _CONFIG_ENDPOINT_TIMEOUT_ENV
+from ddtrace.internal.constants import _CONFIG_ENDPOINT_ENV
+from ddtrace.internal.constants import _CONFIG_ENDPOINT_RETRIES_ENV
+from ddtrace.internal.constants import _CONFIG_ENDPOINT_TIMEOUT_ENV
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env

@@ -11,14 +11,51 @@ from ddtrace.internal.settings.env import register_supported_configurations  # n
 
 
 register_supported_configurations(
-    _registry.SUPPORTED_CONFIGURATIONS, _registry.CONFIGURATION_ALIASES, _registry.DEPRECATED_CONFIGURATIONS
+    _registry.SUPPORTED_CONFIGURATIONS,
+    _registry.CONFIGURATION_ALIASES,
+    _registry.DEPRECATED_CONFIGURATIONS,
+    _registry.SENSITIVE_CONFIGURATIONS,
 )
 del _registry, register_supported_configurations
 
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
-from ._logger import configure_ddtrace_logger  # noqa: E402
+
+
+# Telemetry does not import the tracer's identity itself. Hand it over before the logger setup below imports telemetry,
+# whose writer reads it when it is created.
+from ddtrace._error_attribution import integration_from_filename as _integration_of  # noqa: E402
+from ddtrace.internal.telemetry_inputs.library import register_library as _register_library  # noqa: E402
+from ddtrace.internal.utils.version import version as _product_version  # noqa: E402
+from ddtrace.version import __version__ as _tracer_version  # noqa: E402
+
+
+# An exception is blamed on the tracer when it is raised in the `ddtrace` package or in a `_ddtrace_<package>` root,
+# the packages that hold code moved out of it.
+_register_library(
+    "ddtrace",
+    _tracer_version,
+    _product_version,
+    code_roots=("ddtrace/", "/_ddtrace_"),
+    integration_of=_integration_of,
+)
+del _register_library, _product_version, _tracer_version, _integration_of
+
+
+# Child processes must reseed the RNG after fork. Without a new seed, they use the RNG state of the parent and
+# generate the same trace and span IDs. The native extension does not register this itself, since it imports no
+# ddtrace Python module. Importing any ddtrace module runs this package __init__ first, and nothing above loads the
+# extension, so the hook is in place before any ID can be generated.
+from ddtrace.internal import forksafe as _forksafe  # noqa: E402
+from ddtrace.internal.native import seed as _seed  # noqa: E402
+
+
+_forksafe.register(_seed)
+del _forksafe, _seed
+
+from .internal.logger_setup import configure_ddtrace_logger  # noqa: E402
+
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402

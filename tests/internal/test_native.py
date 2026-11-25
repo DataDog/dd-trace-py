@@ -193,3 +193,24 @@ rules:
         from ddtrace import config
 
         assert config.version != "my-version", f"Expected DD_VERSION to be 'my-version' but got {config.version}"
+
+
+def test_native_package_imports_no_ddtrace_module():
+    """ddtrace.internal.native becomes the ddtrace-native package, which imports no ddtrace Python module."""
+    import ast
+    from pathlib import Path
+
+    import ddtrace.internal.native
+
+    package = Path(ddtrace.internal.native.__file__).parent
+    found = []
+    for path in sorted(package.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and not node.level:
+                names = [node.module or ""]
+            else:
+                continue
+            found += [(path.name, name) for name in names if name.split(".")[0] == "ddtrace"]
+    assert not found
