@@ -109,45 +109,36 @@ def unpatch():
         # patch state, so any retained registration goes inert after unpatch.
 
 
-def _is_data_streams_call(endpoint_name, operation, params) -> bool:
-    return bool(
-        config._data_streams_enabled and params and operation in _DATA_STREAMS_OPERATIONS.get(endpoint_name, ())
-    )
-
-
-def _before_data_streams_call(ctx, endpoint_name, operation, params) -> None:
-    try:
-        if operation == "ReceiveMessage":
-            core.dispatch("botocore.sqs.ReceiveMessage.pre", (params,))
-        elif operation in ("PutRecord", "PutRecords"):
-            stream = params.get("StreamARN", params.get("StreamName", ""))
-            inject_trace_context = bool(config.botocore["distributed_tracing"])
-            for record, inject in select_records_for_injection(params, inject_trace_context):
-                update_record(ctx, record, stream, inject_trace_context=inject)
-        elif endpoint_name in ("sqs", "sns") and config.botocore["distributed_tracing"]:
-            update_messages(ctx, endpoint_service=endpoint_name)
-    except Exception:
-        log.debug("Unable to set data streams checkpoint for %s.%s", endpoint_name, operation, exc_info=True)
-
-
-def _after_data_streams_call(ctx, endpoint_name, operation, params, result) -> None:
-    try:
-        if operation == "ReceiveMessage":
-            core.dispatch("botocore.sqs.ReceiveMessage.post", (ctx, params, result, False, extract_DD_json))
-        elif operation == "GetRecords" and (params.get("StreamARN") or params.get("StreamName")):
-            dispatch_received_records(ctx, params, result, False)
-    except Exception:
-        log.debug("Unable to set data streams checkpoint for %s.%s", endpoint_name, operation, exc_info=True)
-
-
 async def _call_with_data_streams(span, original_func, args, kwargs, endpoint_name, operation, params):
+    if not (config._data_streams_enabled and params and operation in _DATA_STREAMS_OPERATIONS.get(endpoint_name, ())):
+        return await original_func(*args, **kwargs)
+
     with core.context_with_data(
         "aiobotocore.patched_api_call", params=params, endpoint_name=endpoint_name, operation=operation
     ) as ctx:
         store_span_on_context(ctx, span)
-        _before_data_streams_call(ctx, endpoint_name, operation, params)
+        try:
+            if operation == "ReceiveMessage":
+                core.dispatch("botocore.sqs.ReceiveMessage.pre", (params,))
+            elif operation in ("PutRecord", "PutRecords"):
+                stream = params.get("StreamARN", params.get("StreamName", ""))
+                inject_trace_context = bool(config.botocore["distributed_tracing"])
+                for record, inject in select_records_for_injection(params, inject_trace_context):
+                    update_record(ctx, record, stream, inject_trace_context=inject)
+            elif endpoint_name in ("sqs", "sns") and config.botocore["distributed_tracing"]:
+                update_messages(ctx, endpoint_service=endpoint_name)
+        except Exception:
+            log.debug("Unable to set data streams checkpoint for %s.%s", endpoint_name, operation, exc_info=True)
+
         result = await original_func(*args, **kwargs)
-        _after_data_streams_call(ctx, endpoint_name, operation, params, result)
+
+        try:
+            if operation == "ReceiveMessage":
+                core.dispatch("botocore.sqs.ReceiveMessage.post", (ctx, params, result, False, extract_DD_json))
+            elif operation == "GetRecords" and (params.get("StreamARN") or params.get("StreamName")):
+                dispatch_received_records(ctx, params, result, False)
+        except Exception:
+            log.debug("Unable to set data streams checkpoint for %s.%s", endpoint_name, operation, exc_info=True)
         return result
 
 
@@ -270,12 +261,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         elif _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler):
             token = _http_propagation_suppressed.set(True)
         try:
-            if _is_data_streams_call(endpoint_name, operation, params):
-                result = await _call_with_data_streams(
-                    span, original_func, args, kwargs, endpoint_name, operation, params
-                )
-            else:
-                result = await original_func(*args, **kwargs)
+            result = await _call_with_data_streams(span, original_func, args, kwargs, endpoint_name, operation, params)
         finally:
             if token is not None:
                 _http_propagation_suppressed.reset(token)
