@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Local stand-in registration server for the RC x509 Pluggable Backend POC.
+"""Local stand-in registration & live AI Guard config push server (POC).
 
 Listens on 127.0.0.1:8080 (or --port / X509_POC_SERVER_PORT).
-On POST /register with {connection_id, host_application, host_tags}, pushes a
-startup Magic Tunnel DebugService/Ping payload via staging rc-x509-cli with
-bounded retry on transient routing-table NotFound races.
 
-Usage:
-  python scripts/x509_poc_server.py [--host 127.0.0.1] [--port 8080] [--datacenter us1.staging.dog]
+Endpoints:
+  GET  /clients   - list registered tracers
+  POST /register  - register a tracer's {connection_id, host_application, host_tags}
+                    and push its scoped initial payload/config via staging rc-x509-cli
+  POST /push      - push a live JSON AI Guard config (or raw string payload) to a
+                    specific connection_id or all clients matching (service, env)
 """
 
 import argparse
@@ -23,6 +24,17 @@ from typing import Any
 
 _CLIENTS_LOCK = threading.Lock()
 _CLIENTS: dict[str, dict[str, Any]] = {}
+
+# Scoped initial configs pushed on registration when --mode=config (default in Phase 3).
+# Empty rules/tool_policies let initial evaluations return FALLBACK_REMOTE until live rules are pushed.
+_SCOPED_INITIAL_CONFIGS: dict[tuple[str, str], dict[str, Any]] = {
+    ("poc-ai-guard", "staging"): {
+        "enabled": True,
+        "blocking": True,
+        "rules": [],
+        "tool_policies": {},
+    },
+}
 
 
 def _extract_tag(host_tags: list[str], prefix: str, default: str = "unknown") -> str:
@@ -95,7 +107,7 @@ def _push_via_cli(
     }
 
 
-def make_handler(datacenter: str):
+def make_handler(datacenter: str, startup_mode: str):
     class PocHandler(BaseHTTPRequestHandler):
         def _send_json(self, status: int, data: dict[str, Any]) -> None:
             raw = json.dumps(data).encode("utf-8")
@@ -142,14 +154,64 @@ def make_handler(datacenter: str):
                         "env": env_name,
                         "registered_at": time.time(),
                     }
-                payload = f"hello service={service} env={env_name} ts={int(time.time())}"
+
+                if startup_mode == "config":
+                    scoped_cfg = _SCOPED_INITIAL_CONFIGS.get(
+                        (service, env_name),
+                        {"enabled": True, "blocking": True, "rules": [], "tool_policies": {}},
+                    )
+                    payload = json.dumps(scoped_cfg, separators=(",", ":"))
+                    reason = "poc-startup-config"
+                else:
+                    payload = f"hello service={service} env={env_name} ts={int(time.time())}"
+                    reason = "poc-startup"
+
                 print(
-                    f"[x509_poc_server] registered cid={cid} service={service} env={env_name}; pushing startup payload",
+                    f"[x509_poc_server] registered cid={cid} service={service} env={env_name}; "
+                    f"pushing {reason} ({len(payload)} B)",
                     flush=True,
                 )
-                result = _push_via_cli(datacenter, cid, "poc-startup", payload)
+                result = _push_via_cli(datacenter, cid, reason, payload)
                 print(f"[x509_poc_server] startup push result: {json.dumps(result)}", flush=True)
                 self._send_json(200 if result["ok"] else 502, result)
+                return
+
+            if self.path == "/push":
+                target_cid = body.get("connection_id")
+                target_service = body.get("service")
+                target_env = body.get("env")
+                reason = str(body.get("reason") or "poc-live-config")
+
+                if "config" in body:
+                    payload = json.dumps(body["config"], separators=(",", ":"))
+                elif "payload" in body:
+                    payload = str(body["payload"])
+                else:
+                    self._send_json(400, {"error": "provide 'config' (JSON object) or 'payload' (string)"})
+                    return
+
+                if len(payload.encode("utf-8")) > 1024:
+                    self._send_json(400, {"error": f"payload exceeds 1024 B DebugService/Ping limit ({len(payload)} B)"})
+                    return
+
+                if target_cid:
+                    cids = [str(target_cid)]
+                else:
+                    with _CLIENTS_LOCK:
+                        cids = [
+                            cid
+                            for cid, meta in _CLIENTS.items()
+                            if (not target_service or meta.get("service") == target_service)
+                            and (not target_env or meta.get("env") == target_env)
+                        ]
+
+                if not cids:
+                    self._send_json(404, {"error": "no matching registered clients"})
+                    return
+
+                results = [_push_via_cli(datacenter, cid, reason, payload) for cid in cids]
+                all_ok = all(r["ok"] for r in results)
+                self._send_json(200 if all_ok else 502, {"ok": all_ok, "pushed": len(results), "results": results})
                 return
 
             self._send_json(404, {"error": "not found"})
@@ -162,11 +224,18 @@ def main() -> int:
     parser.add_argument("--host", default=os.environ.get("X509_POC_SERVER_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("X509_POC_SERVER_PORT", "8080")))
     parser.add_argument("--datacenter", default=os.environ.get("DD_DATACENTER", "us1.staging.dog"))
+    parser.add_argument(
+        "--mode",
+        choices=("config", "hello"),
+        default=os.environ.get("X509_POC_SERVER_MODE", "config"),
+        help="Initial startup payload mode: 'config' (Phase 3 JSON) or 'hello' (Phase 2 string)",
+    )
     args = parser.parse_args()
 
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(args.datacenter))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(args.datacenter, args.mode))
     print(
-        f"[x509_poc_server] listening on http://{args.host}:{args.port} (datacenter={args.datacenter})",
+        f"[x509_poc_server] listening on http://{args.host}:{args.port} "
+        f"(datacenter={args.datacenter} mode={args.mode})",
         flush=True,
     )
     try:
