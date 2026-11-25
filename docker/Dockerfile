@@ -30,14 +30,6 @@ RUN useradd -ms /bin/bash -u 1000 bits \
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
-    && curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 2 --retry-connrefused https://mariadb.org/mariadb_release_signing_key.pgp -o /tmp/mariadb_key.pgp \
-    && gpg --no-default-keyring --keyring /tmp/mariadb_keyring.gpg --import /tmp/mariadb_key.pgp 2>/dev/null \
-    && gpg --no-default-keyring --keyring /tmp/mariadb_keyring.gpg --with-colons --fingerprint 2>/dev/null \
-       | grep -qi "^fpr:.*:177F4010FE56CA3336300305F1656F24C74CD1D8:$" \
-    && gpg --no-default-keyring --keyring /tmp/mariadb_keyring.gpg --export > /etc/apt/trusted.gpg.d/mariadb.gpg \
-    && rm -f /tmp/mariadb_key.pgp /tmp/mariadb_keyring.gpg /tmp/mariadb_keyring.gpg~ \
-    && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ trixie main" > /etc/apt/sources.list.d/mariadb.list \
-    && apt-get update \
     && apt-get install -y --no-install-recommends \
       apt-transport-https \
       autoconf \
@@ -47,6 +39,7 @@ RUN apt-get update \
       git \
       jq \
       libbz2-dev \
+      libc6-dbg \
       libenchant-2-dev \
       libffi-dev \
       libjemalloc2 \

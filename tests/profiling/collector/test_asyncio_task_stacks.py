@@ -87,3 +87,57 @@ def test_uvloop_running_task_stack_omits_wrapper() -> None:
     assert any("sync_leaf" in names and "main" in names for names in stacks), stacks
     wrappers = {"wrapper", "run.<locals>.wrapper"}
     assert not any(wrappers.intersection(names) for names in stacks), stacks
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_MAX_FRAMES": "8",
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_asyncio_deep_suspended_task",
+    },
+    err=None,
+)
+def test_deep_suspended_task_keeps_innermost_frames() -> None:
+    import asyncio
+    import os
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    async def deep(depth: int, done: asyncio.Event) -> None:
+        if depth == 0:
+            await done.wait()
+        else:
+            await deep(depth - 1, done)
+
+    async def main() -> None:
+        done = asyncio.Event()
+        task = asyncio.create_task(deep(100, done), name="deep")
+        await asyncio.sleep(1)
+        done.set()
+        await task
+
+    p = profiler.Profiler()
+    p.start()
+    asyncio.run(main())
+    p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    deep_stacks = []
+    for sample in pprof_utils.get_samples_with_label_key(profile, "task name"):
+        label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if label is not None and profile.string_table[label.str] == "deep":
+            deep_stacks.append(
+                [
+                    pprof_utils.get_location_from_id(profile, location_id).function_name
+                    for location_id in sample.location_id
+                ]
+            )
+
+    # Samples taken before the task first runs, or while it unwinds after done.set(), are shallower.
+    suspended = [names for names in deep_stacks if names[0].endswith("wait")]
+    assert suspended, deep_stacks
+    for names in suspended:
+        # The innermost frames fill the limit, and the outer coroutine frames are reported as omitted.
+        assert names[1:8] == ["deep"] * 7, names
+        assert len(names) == 9 and names[-1].endswith("omitted>"), names

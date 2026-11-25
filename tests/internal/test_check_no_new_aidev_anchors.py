@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import time
 import types
 from typing import Optional
 
@@ -343,3 +344,23 @@ def test_added_lines_flags_anchor_inside_string(
     violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
 
     assert violations == [("example.py", expected_content)]
+
+
+@pytest.mark.parametrize("quote,escaped", [("'", '\\"'), ('"', "\\'"), ("`", '\\"')])
+def test_is_anchor_line_escaped_quotes_do_not_backtrack(quote: str, escaped: str) -> None:
+    # An unterminated string full of escaped quotes used to take exponential time to scan.
+    line: str = f"+ value = {quote}" + escaped * 200 + " tail"
+
+    start: float = time.perf_counter()
+    assert not _MODULE._is_anchor_line(line)
+    assert time.perf_counter() - start < 1.0
+
+
+def test_is_anchor_line_detects_anchor_after_long_escaped_string() -> None:
+    line: str = "+ value = '" + ('\\"' * 200) + "'  # AIDE" + "V-NOTE: real anchor"
+
+    assert _MODULE._is_anchor_line(line)
+
+
+def test_is_anchor_line_ignores_anchor_inside_escaped_string() -> None:
+    assert not _MODULE._is_anchor_line('+ value = "say \\"hi\\" AIDE' + 'V-NOTE: quoted"')

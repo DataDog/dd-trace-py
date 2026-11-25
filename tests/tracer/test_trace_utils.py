@@ -424,6 +424,24 @@ def test_int_service_integration(int_config, tracer):
 
 
 @pytest.mark.parametrize(
+    "is_user_provided_service,expected",
+    [
+        # DD_SERVICE was set and happens to equal the inferred base service: it must win.
+        (True, "app"),
+        # The service was only inferred: keep the integration default.
+        (False, "myint-default"),
+    ],
+)
+def test_int_service_global_service_equal_to_inferred_base_service(int_config, is_user_provided_service, expected):
+    int_config.service = "app"
+    int_config._inferred_base_service = "app"
+    int_config._is_user_provided_service = is_user_provided_service
+    int_config.myint._default_service = "myint-default"
+
+    assert trace_utils.int_service(None, int_config.myint) == expected
+
+
+@pytest.mark.parametrize(
     "pin,config_val,default,expected",
     [
         (Pin(), None, "default-svc", "default-svc"),
@@ -530,7 +548,7 @@ def test_set_http_meta_custom_errors_via_env():
         assert span3.error == 0
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     assert int_config.myint.is_header_tracing_configured is False
     trace_utils.set_http_meta(
@@ -545,7 +563,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
@@ -574,7 +592,7 @@ def test_set_http_meta_headers_useragent_tracing_enabled(
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -587,7 +605,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -891,7 +909,7 @@ def test_ip_subnet_regression():
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
+@mock.patch("ddtrace._trace.http_meta._store_headers")
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
@@ -916,7 +934,7 @@ def test_set_http_meta_headers_useragent_tracing_disabled(
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.internal.trace_utils.log")
+@mock.patch("ddtrace._trace.http_meta.log")
 @pytest.mark.parametrize(
     "val, bad",
     [

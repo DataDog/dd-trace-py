@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    profiling: Reduces stack profiler CPU usage for asyncio applications with
+    deeply nested coroutines or deep call stacks.

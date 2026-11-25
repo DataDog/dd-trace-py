@@ -94,6 +94,13 @@ refreshes the editable ddtrace build.
 An ``-s`` after ``--`` still belongs to the test command and disables output capture.
 The legacy runner option ``-s`` before ``--`` is a no-op; use ``-r`` to refresh the installation.
 
+Profiler tests
+--------------
+
+For profiler-specific Python suites (gevent, uvloop, uWSGI, memalloc), native CTest,
+sanitizers, Valgrind, clang-tidy, and ``prof-correctness``, see the
+`profiler build and test guide <https://github.com/DataDog/dd-trace-py/tree/main/ddtrace/internal/datadog/profiling/docs/Testing.md>`_.
+
 Nightly coverage report upload
 ------------------------------
 

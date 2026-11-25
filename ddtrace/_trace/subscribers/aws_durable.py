@@ -12,7 +12,6 @@ from ddtrace.internal.span_bus import span_from_context
 
 
 class AwsDurableExecuteSubscriber(TracingSubscriber[AwsDurableExecuteEvent]):
-    auto_register = False
     event_names = (AwsDurableEvents.EXECUTE.value,)
 
     @classmethod
@@ -42,7 +41,6 @@ class AwsDurableExecuteSubscriber(TracingSubscriber[AwsDurableExecuteEvent]):
 
 
 class AwsDurableInvokeSubscriber(TracingSubscriber[AwsDurableInvokeEvent]):
-    auto_register = False
     event_names = (AwsDurableEvents.INVOKE.value,)
 
     @classmethod
@@ -66,7 +64,6 @@ class AwsDurableInvokeSubscriber(TracingSubscriber[AwsDurableInvokeEvent]):
 
 
 class AwsDurableOperationSubscriber(TracingSubscriber[AwsDurableOperationEvent]):
-    auto_register = False
     event_names = (AwsDurableEvents.OPERATION.value,)
 
     @classmethod

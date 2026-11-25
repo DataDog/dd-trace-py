@@ -509,16 +509,20 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
 
             content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
 
-            if role == "assistant" and parsed.tool_calls:
+            if role != "assistant":
+                # Tool results answer the previous assistant turn, so the text of this turn comes after them.
+                result.extend(parsed.tool_results)
+                if content_parts:
+                    result.append(Message(role=role, content=_reduce_parts(content_parts)))
+                continue
+
+            if parsed.tool_calls:
                 ai_msg = Message(role=role, tool_calls=parsed.tool_calls)
                 if content_parts:
                     ai_msg["content"] = _reduce_parts(content_parts)
                 result.append(ai_msg)
             elif content_parts:
                 result.append(Message(role=role, content=_reduce_parts(content_parts)))
-            # else: emit nothing. A user wrapper that only contained
-            # tool_result blocks is suppressed -- those become standalone
-            # role="tool" messages below.
 
             result.extend(parsed.tool_results)
     except AIGuardAbortError:

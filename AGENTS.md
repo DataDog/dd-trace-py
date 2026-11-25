@@ -100,7 +100,8 @@ in `ddtrace/trace/`, and startup in `ddtrace/bootstrap/`. Contrib patch modules 
 
 Shared event dispatch is in `ddtrace/internal/core/`; tracing subscribers are in
 `ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, Rust in
-`src/native/`, and profiling native code under `ddtrace/internal/datadog/profiling/`.
+`src/native/`, and profiler code in `ddtrace/profiling/`, `ddtrace/internal/profiling/`, and
+`ddtrace/internal/datadog/profiling/`.
 
 Use a skill when available; otherwise read its `SKILL.md` and follow its commands.
 Shared skills live at `.agents/skills/<name>/SKILL.md` and are discovered directly by Codex,
@@ -121,18 +122,24 @@ current signatures and defaults.
 | Architectural dependency direction | `dependency-direction-analysis` |
 | Architectural review of a change or PR (fork safety, threads, layering) | `architecture-review`; `docs/contributing-architecture.rst` |
 | Package-split API inventories | `package-split` |
+| Pre-push or PR code review | `sdk-review` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Profiling hot spots and optimization opportunities | `profile` |
+| Profiler changes (`ddtrace/profiling/`, `ddtrace/internal/profiling/`, `ddtrace/internal/datadog/profiling/`) | `ddtrace/internal/datadog/profiling/docs/README.md` (`Architecture.md` for design; `Testing.md` for build, test, and CI checks; `Standalone.md` for `build_standalone.sh`) |
 | Build-cache performance | `debug-build-times` |
 | Native crash investigation | `analyze-crash` |
 | CPython compatibility | `find-cpython-usage`, then `compare-cpython-versions` |
 | AppSec / IAST | `.cursor/rules/appsec.mdc`; `.cursor/rules/iast.mdc` for IAST |
 | AI Guard | `.cursor/rules/ai-guard.mdc` |
-| C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc` |
+| C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc`; `docs/native-code-review.md` |
 | Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md`; `docs/contributing-architecture.rst` |
 | Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
 | Build or installation failures | `docs/troubleshooting.rst` |
+
+## Code Review Rules
+
+Before pushing code or creating a pull request, you must run the [sdk-review](./.claude/skills/sdk-review/SKILL.md) skill on the committed changes unless the user specifically says not to. You must also do a standard self review (using the /review or /code-review skill if available). All other required publication checks still apply.
 
 ## Pull requests
 
@@ -140,8 +147,11 @@ Follow the Pull Request Requirements in `docs/contributing.rst` and use
 `.github/PULL_REQUEST_TEMPLATE.md`. Titles follow Conventional Commits (`commitlint.config.js`).
 Include validation, risks, and relevant issues. Before deciding or answering whether a release
 note is needed, invoke `releasenote` (or read `.agents/skills/releasenote/SKILL.md` if skill
-invocation is unavailable), including for internal-only refactors. Follow its decision workflow;
-when no note is needed, explain why and apply `changelog/no-changelog` to the PR.
+invocation is unavailable), including for internal-only refactors. Follow its decision workflow.
+Whether a change is customer-facing is the user's decision: ask the user for the customer-facing
+impact before choosing the commit type or deciding on a note. Propose a decision with evidence
+(files changed, visible effect). Do not pick a commit type, or apply `changelog/no-changelog`, just
+to make CI pass. `ci`, `test` and `docs` PRs need neither a note nor the label.
 
 This repository is public. PR text, commits, and release notes must describe the change itself.
 Keep internal discussions, other teams' tickets, backend/data-pipeline names, and open internal

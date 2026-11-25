@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Sampled exceptions are now scaled by the sampling interval so the
+    reported count reflects the true volume. Users will see exception rates
+    ~sampling_interval times more than what was shown previously (default is 100)

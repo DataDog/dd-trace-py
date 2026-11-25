@@ -60,6 +60,7 @@ class EchionSampler
     std::atomic<bool> asyncio_initialized_{ false };
     std::atomic<size_t> asyncio_interpreter_tasks_head_offset_{ 0 };
     std::atomic<size_t> asyncio_thread_tasks_head_offset_{ 0 };
+    std::atomic<size_t> asyncio_thread_running_task_offset_{ 0 };
 
     // Task unwinding state
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
@@ -231,6 +232,7 @@ class EchionSampler
     {
         asyncio_interpreter_tasks_head_offset_.store(offsets.interpreter_tasks_head, std::memory_order_relaxed);
         asyncio_thread_tasks_head_offset_.store(offsets.thread_tasks_head, std::memory_order_relaxed);
+        asyncio_thread_running_task_offset_.store(offsets.thread_running_task, std::memory_order_relaxed);
     }
 
     size_t asyncio_interpreter_tasks_head_offset() const
@@ -241,6 +243,12 @@ class EchionSampler
     size_t asyncio_thread_tasks_head_offset() const
     {
         return asyncio_thread_tasks_head_offset_.load(std::memory_order_relaxed);
+    }
+
+    // Offset of asyncio_running_task in _PyThreadStateImpl (Python 3.14+), or 0 when unknown.
+    size_t asyncio_thread_running_task_offset() const
+    {
+        return asyncio_thread_running_task_offset_.load(std::memory_order_relaxed);
     }
 
     void init_asyncio(PyObject* scheduled_tasks, PyObject* eager_tasks)
