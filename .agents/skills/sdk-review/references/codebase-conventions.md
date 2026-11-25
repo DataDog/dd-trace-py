@@ -24,12 +24,7 @@ Repo-specific idioms: configuration, logging, shared helpers, test patterns, and
 
 ## 2. Configuration
 
-### CONV-2.1: Parse boolean settings with `asbool`
-- Flag: a `DD_*` setting (including build flags in `setup.py`) parsed with its own set of truthy strings such as `"on"` or `"yes"`.
-- ❌ `os.getenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "").lower() in ("1", "true", "on")`
-- ✅ `asbool(os.getenv("DD_PROFILING_NATIVE_HEAP_ENABLED"))`
-
-### CONV-2.2: Register new or renamed settings with `add-new-configuration`
+### CONV-2.1: Register new or renamed settings with `add-new-configuration`
 - Flag: a new `DD_*`/`_DD_*`/`OTEL_*` variable with no matching entry in `supported-configurations.json`. See [add-new-configuration](../../add-new-configuration/SKILL.md).
 
 ## 3. Internal APIs
