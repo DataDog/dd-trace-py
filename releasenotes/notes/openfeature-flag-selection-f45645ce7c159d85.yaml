@@ -10,4 +10,6 @@ features:
     logged and every flag is loaded. One selection applies per process, and Remote Config delivery
     ignores it. LLM Observability prompt evaluation shares that selection: prompt flags outside it are
     not loaded, and if prompt evaluation starts first, the application's selection is not sent. To
-    change the selection, call ``openfeature.api.shutdown()`` before setting a new provider.
+    change the selection, call ``openfeature.api.shutdown()`` and then set a new provider, both from
+    application code rather than from a provider event handler, where shutdown can return before the
+    selection is released.

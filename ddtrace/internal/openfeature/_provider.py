@@ -160,14 +160,15 @@ class DataDogProvider(AbstractProvider):
     list accepts at most 31 strings of at most 200 UTF-8 bytes, and the request
     URL with the selection must fit in 8192 bytes; a selection that breaks a
     limit is logged and every flag is loaded. A process uses one selection: the
-    first provider to initialize sets it until every provider has shut down. A
-    provider set while another one is still running uses the running one's
-    selection, so to change it call openfeature.api.shutdown() before setting
-    the new provider. Remote Config delivery ignores the selection. LLM
-    Observability evaluates prompt flags through its own provider, which shares
-    the process selection: prompt flags outside the selection in use are not
-    loaded, and if that provider starts first, this provider's selection is not
-    sent.
+    first provider to initialize sets it until all providers have finished
+    shutting down. A provider set while another one is still running uses the
+    running one's selection, so to change it call openfeature.api.shutdown() and
+    then set the new provider, both from application code rather than from a
+    provider event handler, where shutdown can return before the selection is
+    released. Remote Config delivery ignores the selection. LLM Observability
+    evaluates prompt flags through its own provider, which shares the process
+    selection: prompt flags outside the selection in use are not loaded, and if
+    that provider starts first, this provider's selection is not sent.
     """
 
     def __init__(
