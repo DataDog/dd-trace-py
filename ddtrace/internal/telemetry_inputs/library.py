@@ -1,7 +1,13 @@
-"""The library telemetry reports for."""
+"""The library telemetry reports for: its identity, the code it owns and how its integrations are named."""
 
+from typing import Callable
 from typing import NamedTuple
 from typing import Optional
+from typing import Tuple
+
+
+def _no_integration(filename: str) -> Optional[str]:
+    return None
 
 
 class Library(NamedTuple):
@@ -13,17 +19,28 @@ class Library(NamedTuple):
     version: str
     # Sent with each product change.
     product_version: str
+    # Path fragments that mark a file as the library's code, e.g. `ddtrace/`. A file whose name contains one of
+    # them is library code. The default is no fragment: no code is attributed to the library.
+    code_roots: Tuple[str, ...] = ()  # noqa: UP006
+    # Maps the name of a file to the integration it belongs to, or None. The default names no integration.
+    integration_of: Callable[[str], Optional[str]] = _no_integration
 
 
 _library: Optional[Library] = None
 
 
-def register_library(name: str, version: str, product_version: str) -> None:
+def register_library(
+    name: str,
+    version: str,
+    product_version: str,
+    code_roots: Tuple[str, ...] = (),  # noqa: UP006
+    integration_of: Callable[[str], Optional[str]] = _no_integration,
+) -> None:
     """Set the library telemetry reports for. The first registration wins; later ones are ignored."""
     global _library
 
     if _library is None:
-        _library = Library(name, version, product_version)
+        _library = Library(name, version, product_version, tuple(code_roots), integration_of)
 
 
 def get_library() -> Library:
@@ -37,3 +54,13 @@ def get_library() -> Library:
         msg = "telemetry needs register_library() to be called before it is used"
         raise RuntimeError(msg)
     return _library
+
+
+def is_library_code(filename: str) -> bool:
+    """Return whether ``filename`` is in the code the library registered as its own."""
+    return any(root in filename for root in get_library().code_roots)
+
+
+def get_integration(filename: str) -> Optional[str]:
+    """Return the name of the integration the library says ``filename`` belongs to, or None."""
+    return get_library().integration_of(filename)

@@ -2419,3 +2419,42 @@ def test_excepthook_does_not_count_passthrough_wrapper_errors_against_an_integra
     _, add_count_metric = _excepthook_calls(telemetry_writer, layers, [len(layers) - 1], str(tmp_path / "missing"))
 
     add_count_metric.assert_not_called()
+
+
+def _traceback_raised_in(filename):
+    try:
+        exec(compile("raise ValueError('boom')", filename, "exec"), {})
+    except ValueError as e:
+        return e.__traceback__
+    raise AssertionError("unreachable")
+
+
+@pytest.mark.parametrize(
+    "filename,is_ddtrace_code,integration",
+    [
+        ("/site-packages/ddtrace/internal/x.py", True, None),
+        ("/site-packages/ddtrace/contrib/internal/flask/patch.py", True, "flask"),
+        ("/site-packages/ddtrace/contrib/flask/patch.py", True, "flask"),
+        ("/site-packages/_ddtrace_internal/x.py", True, None),
+        ("/site-packages/_ddtrace_coverage/code.py", True, None),
+        ("/site-packages/flask/app.py", False, None),
+    ],
+)
+def test_excepthook_attributes_errors_by_registered_code_roots(filename, is_ddtrace_code, integration):
+    """An unhandled exception is blamed on ddtrace when it was raised in the `ddtrace` package or in a moved
+    `_ddtrace_<package>` root, and on an integration when it was raised in ddtrace/contrib.
+    """
+    writer = mock.Mock(spec=TelemetryWriter)
+
+    TelemetryWriter._telemetry_excepthook(writer, ValueError, ValueError("boom"), _traceback_raised_in(filename))
+
+    assert writer.add_error_log.called is is_ddtrace_code
+    if integration is None:
+        writer.add_integration.assert_not_called()
+    else:
+        writer.add_integration.assert_called_once_with(integration, True, error_msg=mock.ANY)
+        assert writer.add_count_metric.call_args.args[3] == (
+            ("integration_name", integration),
+            ("error_type", "ValueError"),
+        )
+    writer.app_shutdown.assert_called_once_with()

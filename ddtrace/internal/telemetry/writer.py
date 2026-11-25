@@ -20,7 +20,9 @@ from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config
+from ddtrace.internal.telemetry_inputs.library import get_integration
 from ddtrace.internal.telemetry_inputs.library import get_library
+from ddtrace.internal.telemetry_inputs.library import is_library_code
 
 from ...internal import atexit
 from ...internal import excepthook
@@ -1241,31 +1243,19 @@ class TelemetryWriter:
             lineno = traceback.tb_frame.f_code.co_firstlineno
             filename = traceback.tb_frame.f_code.co_filename
 
-            if "ddtrace/" in _blamed_code(root_traceback).co_filename:
+            if is_library_code(_blamed_code(root_traceback).co_filename):
                 self.add_error_log("Unhandled exception from ddtrace code", (tp, None, root_traceback))
 
-            dir_parts = filename.split(os.path.sep)
-            # Check if exception was raised in the  `ddtrace.contrib` package
-            if "ddtrace" in dir_parts and "contrib" in dir_parts:
-                ddtrace_index = dir_parts.index("ddtrace")
-                contrib_index = dir_parts.index("contrib")
-                # Check if the filename has the following format:
-                # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
-                if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
-                    integration_name = dir_parts[contrib_index + 1]
-                    if "internal" in dir_parts:
-                        # Check if the filename has the format:
-                        # `../ddtrace/contrib/internal/integration_name/..(subpath and/or file)...`
-                        internal_index = dir_parts.index("internal")
-                        integration_name = dir_parts[internal_index + 1]
-                    self.add_count_metric(
-                        TELEMETRY_NAMESPACE.TRACERS,
-                        "integration_errors",
-                        1,
-                        (("integration_name", integration_name), ("error_type", tp.__name__)),
-                    )
-                    error_msg = f"{filename}:{lineno} {str(value)}"
-                    self.add_integration(integration_name, True, error_msg=error_msg)
+            integration_name = get_integration(filename)
+            if integration_name is not None:
+                self.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "integration_errors",
+                    1,
+                    (("integration_name", integration_name), ("error_type", tp.__name__)),
+                )
+                error_msg = f"{filename}:{lineno} {str(value)}"
+                self.add_integration(integration_name, True, error_msg=error_msg)
 
             self.app_shutdown()
 

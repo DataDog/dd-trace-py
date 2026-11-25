@@ -25,13 +25,22 @@ import ddtrace.internal._unpatched  # noqa
 
 # Telemetry does not import the tracer's identity itself. Hand it over before ._logger below imports telemetry,
 # whose writer reads it when it is created.
+from ddtrace._error_attribution import integration_from_filename as _integration_of  # noqa: E402
 from ddtrace.internal.telemetry_inputs.library import register_library as _register_library  # noqa: E402
 from ddtrace.internal.utils.version import version as _product_version  # noqa: E402
 from ddtrace.version import __version__ as _tracer_version  # noqa: E402
 
 
-_register_library("ddtrace", _tracer_version, _product_version)
-del _register_library, _product_version, _tracer_version
+# An exception is blamed on the tracer when it is raised in the `ddtrace` package or in a `_ddtrace_<package>` root,
+# the packages that hold code moved out of it.
+_register_library(
+    "ddtrace",
+    _tracer_version,
+    _product_version,
+    code_roots=("ddtrace/", "/_ddtrace_"),
+    integration_of=_integration_of,
+)
+del _register_library, _product_version, _tracer_version, _integration_of
 
 
 # Child processes must reseed the RNG after fork. Without a new seed, they use the RNG state of the parent and
