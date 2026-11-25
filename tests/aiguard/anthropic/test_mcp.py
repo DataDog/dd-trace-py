@@ -618,6 +618,33 @@ async def test_history_tool_calls_carry_mcp_metadata(mock_execute_request, anthr
 
 
 @patch(EXECUTE_REQUEST)
+async def test_connector_call_named_like_a_client_tool(mock_execute_request, anthropic_sdk):
+    """An MCP connector call named like a client-managed tool keeps its server and spares no call of that tool."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    connector = {"type": "url", "name": "docs", "url": "https://docs.example.com/mcp"}
+    call = {"type": "mcp_tool_use", "id": "mcptoolu_1", "name": "echo", "server_name": "docs", "input": {"text": "hi"}}
+    async with _remote_session() as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = _sync_client(anthropic_sdk, [dict(_text_body(), content=[call])])
+        client.beta.messages.create(
+            model=MODEL,
+            max_tokens=64,
+            messages=_USER,
+            tools=[tool.to_dict()],
+            mcp_servers=[connector],
+            betas=["mcp-client-2025-11-20"],
+        )
+        await tool.call({"text": "hi"})
+
+    session.call_tool.assert_awaited_once()
+    _, after, direct = _payloads(mock_execute_request)
+    docs_id = mcp_server_id(url="https://docs.example.com")
+    assert after["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": docs_id}
+    assert [(server["id"], server["managed_by"]) for server in after["mcp_servers"]] == [(docs_id, "provider")]
+    _assert_direct_call(direct, _remote_server())
+
+
+@patch(EXECUTE_REQUEST)
 async def test_response_block_prevents_tools_call(mock_execute_request, anthropic_sdk_buffered):
     mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
     async with _remote_session() as session:

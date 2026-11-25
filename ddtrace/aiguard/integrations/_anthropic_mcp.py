@@ -287,7 +287,8 @@ def attach_mcp(messages: list[Message], tools: dict[str, Any]) -> Optional[list[
         for tool_call in message.get("tool_calls") or []:
             name = tool_call["function"]["name"]
             tool = tools.get(name)
-            if tool is None:
+            # A call that already references a server (an MCP connector call) is not a call of this tool.
+            if tool is None or "mcp" in tool_call:
                 continue
             info: MCPTool = getattr(tool, _TOOL_ATTR)
             if info.server is None:
@@ -312,8 +313,12 @@ def mark_evaluated(messages: list[Message], tools: dict[str, Any]) -> None:
         for message in messages:
             for tool_call in message.get("tool_calls") or []:
                 tool = tools.get(tool_call["function"]["name"])
-                # A tool of an unidentified server has no mcp reference, but the evaluation checked its call too.
-                if tool is not None and ("mcp" in tool_call or getattr(tool, _TOOL_ATTR).server is None):
+                if tool is None:
+                    continue
+                # Only a call referencing this tool's server counts; an unidentified server's call has no reference.
+                server: Optional[MCPServer] = getattr(tool, _TOOL_ATTR).server
+                mcp = tool_call.get("mcp")
+                if (mcp["server_id"] if mcp else None) == (server["id"] if server is not None else None):
                     evaluated_calls.append((tool, tool_call["function"]["arguments"]))
         key = _trace_key()
     except Exception:

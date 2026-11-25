@@ -123,6 +123,14 @@ def test_result_content_shapes(content):
     assert messages[-1] == {"role": "tool", "tool_call_id": "mcptoolu_1", "content": "Result"}
 
 
+def test_server_reference_failure_keeps_the_call():
+    """A failure while referencing the server drops only the MCP metadata, not the evaluation."""
+    servers = {"deepwiki": dict(DEEPWIKI_SERVER, tools={})}
+    with patch("ddtrace.aiguard.integrations._anthropic.mcp_reference", side_effect=RuntimeError("boom")):
+        result = _convert_anthropic_response({"role": "assistant", "content": CONTENT}, servers)
+    assert result == _without_mcp(TURN)
+
+
 # ---------------------------------------------------------------------------
 # Listeners: payload and meta-struct
 # ---------------------------------------------------------------------------
@@ -259,14 +267,14 @@ def _sse(event, data):
     return f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()
 
 
-def _stream_body():
-    """The SSE events of BODY: text and tool calls arrive through deltas, tool results whole."""
+def _stream_body(inline_input=False):
+    """The SSE events of BODY: text and tool calls arrive through deltas (unless inline_input), tool results whole."""
     events = [_sse("message_start", {"type": "message_start", "message": dict(BODY, content=[], stop_reason=None)})]
     for index, block in enumerate(CONTENT):
         start, delta = block, None
         if block["type"] == "text":
             start, delta = {"type": "text", "text": ""}, {"type": "text_delta", "text": block["text"]}
-        elif block["type"] == "mcp_tool_use":
+        elif block["type"] == "mcp_tool_use" and not inline_input:
             start = dict(block, input={})
             delta = {"type": "input_json_delta", "partial_json": json.dumps(block["input"])}
         events.append(
@@ -286,13 +294,16 @@ def _stream_body():
 class _Transport(httpx.BaseTransport, httpx.AsyncBaseTransport):
     """Anthropic API mock answering with BODY, streamed when the request asks; records the request bodies."""
 
-    def __init__(self):
+    def __init__(self, inline_input=False):
         self.requests = []
+        self._inline_input = inline_input
 
     def _response(self, request):
         self.requests.append(json.loads(request.content))
         if self.requests[-1].get("stream"):
-            return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=_stream_body())
+            return httpx.Response(
+                200, headers={"content-type": "text/event-stream"}, content=_stream_body(self._inline_input)
+            )
         return httpx.Response(200, headers={"content-type": "application/json"}, content=json.dumps(BODY).encode())
 
     def handle_request(self, request):
@@ -375,3 +386,17 @@ def test_sdk_block_withholds_the_response(mock_execute_request, anthropic_sdk):
         _sync_client(anthropic_sdk).beta.messages.create(**CREATE)
 
     assert _attributes(mock_execute_request)[-1]["mcp_servers"] == [DEEPWIKI_SERVER]
+
+
+@needs_connector
+@patch(EXECUTE_REQUEST)
+def test_sdk_buffered_stream_with_inline_tool_input(mock_execute_request, anthropic_sdk_buffered):
+    """A tool input sent whole in content_block_start, without input deltas, is still evaluated."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    for _ in _sync_client(anthropic_sdk_buffered, _Transport(inline_input=True)).beta.messages.create(
+        stream=True, **CREATE
+    ):
+        pass
+
+    _assert_connector_evaluations(mock_execute_request)

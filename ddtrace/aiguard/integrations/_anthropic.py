@@ -185,20 +185,23 @@ def _tool_call_from_block(block: Any) -> ToolCall:
 
 
 def _reference_connector_server(tool_call: ToolCall, block: Any, mcp_servers: dict[str, MCPServer]) -> None:
-    """Reference the MCP connector server of an mcp_tool_use call by its server_name."""
-    name = tool_call["function"]["name"]
-    server_name = _get(block, "server_name")
-    if not name or not isinstance(server_name, str) or not server_name:
-        return
-    server = mcp_servers.get(server_name)
-    if server is None:
-        # A server that this request does not declare is identified by its name alone.
-        server = mcp_server(AI_GUARD.MCP_MANAGED_BY_PROVIDER, AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=server_name)
-        if server is None:
+    """Reference the MCP connector server of an mcp_tool_use call by its server_name; fails open without it."""
+    try:
+        name = tool_call["function"]["name"]
+        server_name = _get(block, "server_name")
+        if not name or not isinstance(server_name, str) or not server_name:
             return
-        mcp_servers[server_name] = server
-    # The connector exposes MCP tools to the model under their original name.
-    tool_call["mcp"] = mcp_reference(server, name, name)
+        server = mcp_servers.get(server_name)
+        if server is None:
+            # A server that this request does not declare is identified by its name alone.
+            server = mcp_server(AI_GUARD.MCP_MANAGED_BY_PROVIDER, AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=server_name)
+            if server is None:
+                return
+            mcp_servers[server_name] = server
+        # The connector exposes MCP tools to the model under their original name.
+        tool_call["mcp"] = mcp_reference(server, name, name)
+    except Exception:
+        logger.debug("AI Guard anthropic: failed to reference the MCP connector server", exc_info=True)
 
 
 def _parts_from_content_blocks(blocks: Sequence[Any]) -> list[ContentPart]:

@@ -18,6 +18,9 @@ def reconstruct_anthropic(chunks: list[Any]) -> Any:
         start_type = _get(start, "type")
         if start_type == "mcp_tool_use":
             block["server_name"] = _get(start, "server_name")
+            # The contrib only reads streamed input deltas: keep an input sent whole in the start chunk.
+            if not block.get("input") and _get(start, "input"):
+                block["input"] = _get(start, "input")
         elif start_type == "mcp_tool_result":
             block["type"] = start_type
     return message
