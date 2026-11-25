@@ -13,8 +13,10 @@ Session-level coverage does not need special-casing since the ModuleCodeCollecto
 thread-safe.
 """
 
+import contextvars
 import pickle  # nosec: B403  -- pickle is only used to serialize coverage data from a spawned thread to the main thread
 from queue import Queue
+import sys
 import threading
 
 from ddtrace.internal.coverage import native_lines
@@ -47,6 +49,8 @@ class CoverageCollectingThread(threading.Thread):
             # Native collection credits the thread's lines to the context that started it. A pool
             # worker carries no context of its own: each work item brings the submitter's.
             self._native_parent = None if _is_pool_worker(args, kwargs) else native_lines.ctx_native.get()
+            # A context passed to the thread (Python 3.14+) is the caller's, and stays untouched.
+            self._native_context_given = kwargs.get("context") is not None
             self._should_cover = False
         else:
             self._native_parent = None
@@ -66,6 +70,7 @@ class CoverageCollectingThread(threading.Thread):
         native_parent = getattr(self, "_native_parent", None)
         if native_parent is not None:
             native_lines.ctx_native.set(native_parent)
+            _set_in_thread_context(self, native_parent)
         _should_cover = getattr(self, "_should_cover", False)
         if _should_cover:
             self._coverage_context = ModuleCodeCollector.CollectInContext()
@@ -97,6 +102,18 @@ class CoverageCollectingThread(threading.Thread):
                     log.warning("Could not unpickle coverage data, not injecting coverage")
                     return
                 ModuleCodeCollector.inject_coverage(covered=thread_covered)
+
+
+def _set_in_thread_context(thread, native_parent) -> None:
+    # Python 3.14 runs the target in the context that start() made for the thread, an empty one unless
+    # the interpreter inherits contexts, so the variable set above is not visible there.
+    if sys.version_info >= (3, 14) and not getattr(thread, "_native_context_given", False):
+        context = getattr(thread, "_context", None)
+        if isinstance(context, contextvars.Context):
+            try:
+                context.run(native_lines.ctx_native.set, native_parent)
+            except Exception:
+                log.debug("Could not set the native coverage context in the thread's context", exc_info=True)
 
 
 def _is_pool_worker(args, kwargs) -> bool:
