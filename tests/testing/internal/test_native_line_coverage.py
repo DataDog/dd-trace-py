@@ -169,7 +169,7 @@ def test_each_execution_gets_its_own_record(tmp_path) -> None:
 
 def test_new_parameter_of_a_suite_fixture_replaces_the_previous_setup(tmp_path) -> None:
     """A test that sets up a module-scoped fixture for a new parameter gets that setup's lines and not
-    the previous parameter's, which was still cached when the test's window opened.
+    the previous parameter's, which was still cached when the test's setup started.
     """
     (tmp_path / "fixture_helper.py").write_text(
         textwrap.dedent(
@@ -211,6 +211,53 @@ def test_new_parameter_of_a_suite_fixture_replaces_the_previous_setup(tmp_path) 
     lines = [next(v for k, v in record["files"].items() if k.endswith("fixture_helper.py")) for record in records]
     # Lines 1 and 6 are the file's initialisers.
     assert lines == [[1, 2, 3, 6], [1, 6, 7, 8]], records
+
+
+def test_a_test_skipped_before_it_starts_gets_no_suite_fixture(tmp_path) -> None:
+    """A test a skip mark skips before its setup runs no code, so it gets no suite fixture's lines,
+    even one that is set up already. A test that a fixture skips during its setup has started: it
+    gets the suite fixtures its setup used.
+    """
+    (tmp_path / "fixture_helper.py").write_text("def set_up():\n    value = 1\n    return value\n")
+    (tmp_path / "test_skips.py").write_text(
+        "import pytest\n"
+        "\n"
+        "import fixture_helper\n"
+        "\n"
+        "\n"
+        '@pytest.fixture(scope="module")\n'
+        "def resource():\n"
+        "    return fixture_helper.set_up()\n"
+        "\n"
+        "\n"
+        "@pytest.fixture\n"
+        "def stop():\n"
+        '    pytest.skip("stops in setup")\n'
+        "\n"
+        "\n"
+        "def test_first(resource):\n"
+        "    assert resource\n"
+        "\n"
+        "\n"
+        '@pytest.mark.skip(reason="skipped before it starts")\n'
+        "def test_marked(resource):\n"
+        "    assert resource\n"
+        "\n"
+        "\n"
+        "def test_stopped(resource, stop):\n"
+        "    assert resource\n"
+    )
+    output = _run_isolated(
+        _RECORDING_SCRIPT % "test_skips.py",
+        cwd=tmp_path,
+        env={"DD_API_KEY": "test-key", "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "false"},
+    )
+    records = json.loads(output.strip().splitlines()[-1])
+    assert len(records) == 3, records
+    helper = [
+        next((v for k, v in record["files"].items() if k.endswith("fixture_helper.py")), None) for record in records
+    ]
+    assert helper == [[1, 2, 3], None, [1, 2, 3]], records
 
 
 def test_nested_windows_keep_no_lines_armed(tmp_path) -> None:
