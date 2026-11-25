@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_system_one_provider
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import load_data_value
@@ -25,7 +26,6 @@ from ddtrace.llmobs.types import Message
 log = get_logger(__name__)
 
 TYPESAFE_MODEL_PROVIDER = "typesafe"
-OPENROUTER_MODEL_PROVIDER = "openrouter"
 DECISION_PROVIDER_TAG = "decision_provider"
 TYPESAFE_DECISION_PROVIDER = "typesafe"
 # Matches the SDK's own pattern for automatic image references, which it scans request bodies for
@@ -47,11 +47,7 @@ class TypeSafeIntegration(BaseLLMIntegration):
         return str(base_url) if base_url else None
 
     def _get_model_provider(self, span: _LLMObsSpan) -> str:
-        base_url = span._get_ctx_item(REQUEST_BASE_URL) or ""
-        # The SDK can be pointed at OpenRouter, which serves the same System One API
-        if OPENROUTER_MODEL_PROVIDER in base_url.lower():
-            return OPENROUTER_MODEL_PROVIDER
-        return TYPESAFE_MODEL_PROVIDER
+        return get_system_one_provider(span._get_ctx_item(REQUEST_BASE_URL)) or TYPESAFE_MODEL_PROVIDER
 
     def _llmobs_set_tags(
         self,
