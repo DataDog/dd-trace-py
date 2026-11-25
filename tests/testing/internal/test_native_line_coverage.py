@@ -527,3 +527,64 @@ def test_code_run_outside_the_import_hooks(tmp_path) -> None:
         coverage.uninstall_coverage()
         """
     )
+
+
+_GENERATED_SOURCE = """\
+def render(name):
+    return "<p>" + name + "</p>"
+
+
+result = render("x")
+"""
+
+
+def test_only_python_source_files_are_recorded(tmp_path) -> None:
+    """Template engines such as Jinja compile code named after the template file, with the line
+    numbers of the generated code, so only .py files are recorded, by the test and by its children.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("")
+    (root / "pkg" / "helper.py").write_text(_GENERATED_SOURCE)
+    (root / "templates").mkdir()
+    (root / "templates" / "page.html").write_text("<p>{{ name }}</p>\n")
+    _run_isolated(
+        f"""
+        import os
+        from pathlib import Path
+        import subprocess
+        import sys
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        root = os.path.realpath({str(root)!r})
+        coverage.install_coverage(Path(root))
+        # The collector claims its sys.monitoring tool when it instruments the first module.
+        sys.path.insert(0, root)
+        import pkg  # noqa: F401
+
+        assert coverage.native_line_coverage_enabled()
+        source = Path(root, "pkg", "helper.py").read_text()
+        template = os.path.join(root, "templates", "page.html")
+        helper = os.path.join(root, "pkg", "helper.py")
+        # The same code compiled twice: under a template's name, as Jinja does, and under a .py name.
+        run_both = "exec(compile(%r, %r, 'exec'), {{}}); exec(compile(%r, %r, 'exec'), {{}})" % (
+            source,
+            template,
+            source,
+            helper,
+        )
+
+        with coverage.coverage_collection() as data:
+            exec(run_both, {{}})
+        paths = [path for path, _ in data.get_coverage_bitmaps(Path(root))]
+        assert "/pkg/helper.py" in paths and "/templates/page.html" not in paths, paths
+
+        with coverage.coverage_collection() as data:
+            subprocess.run([sys.executable, "-c", run_both], check=True)
+        paths = [path for path, _ in data.get_coverage_bitmaps(Path(root))]
+        assert "/pkg/helper.py" in paths and "/templates/page.html" not in paths, paths
+
+        coverage.uninstall_coverage()
+        """
+    )
