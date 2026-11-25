@@ -983,7 +983,7 @@ def test_microvm_shutdown_retries_failed_retired_writer_teardown():
 
     from ddtrace._trace.tracer import Tracer
     from ddtrace.internal import runtime
-    from ddtrace.internal.native._threads import periodic_threads
+    from ddtrace.internal._threads import periodic_threads
     from ddtrace.internal.service import ServiceStatus
     from ddtrace.internal.writer import NativeWriter
 
