@@ -5,6 +5,7 @@ A converted tool checks each call before tools/call is sent, unless its response
 
 from _thread import get_ident
 import asyncio
+from collections.abc import Collection
 from collections.abc import Mapping
 from contextvars import ContextVar
 import functools
@@ -306,14 +307,17 @@ def start_request() -> None:
     _evaluated_calls.set([_owner(), None, []])
 
 
-def mark_evaluated(messages: list[Message], tools: dict[str, Any]) -> None:
-    """Replace the evaluated MCP tool calls of this request with those of messages; [] clears them."""
+def mark_evaluated(messages: list[Message], tools: dict[str, Any], skip_ids: Collection[str] = ()) -> None:
+    """Replace the evaluated MCP tool calls of this request with those of messages; [] clears them.
+
+    skip_ids are calls the provider already ran (MCP connector), which never stand for a call of a converted tool.
+    """
     evaluated_calls: list[tuple[Any, str]] = []
     try:
         for message in messages:
             for tool_call in message.get("tool_calls") or []:
                 tool = tools.get(tool_call["function"]["name"])
-                if tool is None:
+                if tool is None or tool_call["id"] in skip_ids:
                     continue
                 # Only a call referencing this tool's server counts; an unidentified server's call has no reference.
                 server: Optional[MCPServer] = getattr(tool, _TOOL_ATTR).server

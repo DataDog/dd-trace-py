@@ -617,11 +617,17 @@ async def test_history_tool_calls_carry_mcp_metadata(mock_execute_request, anthr
     assert before["mcp_servers"] == [_remote_server()]
 
 
+@pytest.mark.parametrize(
+    "connector_url", ["https://docs.example.com/mcp", REMOTE_ORIGIN + "/connector"], ids=["other_origin", "same_origin"]
+)
 @patch(EXECUTE_REQUEST)
-async def test_connector_call_named_like_a_client_tool(mock_execute_request, anthropic_sdk):
-    """An MCP connector call named like a client-managed tool keeps its server and spares no call of that tool."""
+async def test_connector_call_named_like_a_client_tool(mock_execute_request, anthropic_sdk, connector_url):
+    """An MCP connector call named like a client-managed tool keeps its server and spares no call of that tool.
+
+    On the same origin both servers share an ID, so only the call's provenance tells them apart.
+    """
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    connector = {"type": "url", "name": "docs", "url": "https://docs.example.com/mcp"}
+    connector = {"type": "url", "name": "docs", "url": connector_url}
     call = {"type": "mcp_tool_use", "id": "mcptoolu_1", "name": "echo", "server_name": "docs", "input": {"text": "hi"}}
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
@@ -638,7 +644,7 @@ async def test_connector_call_named_like_a_client_tool(mock_execute_request, ant
 
     session.call_tool.assert_awaited_once()
     _, after, direct = _payloads(mock_execute_request)
-    docs_id = mcp_server_id(url="https://docs.example.com")
+    docs_id = mcp_server_id(url=connector_url.rsplit("/", 1)[0])
     assert after["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": docs_id}
     assert [(server["id"], server["managed_by"]) for server in after["mcp_servers"]] == [(docs_id, "provider")]
     _assert_direct_call(direct, _remote_server())

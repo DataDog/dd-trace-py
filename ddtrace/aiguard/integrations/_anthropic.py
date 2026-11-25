@@ -120,6 +120,8 @@ class _ParsedBlocks(NamedTuple):
     tool_calls: list[ToolCall]
     tool_results: list[Message]
     server_tool_results: list[Message]
+    # Client tool_use calls after a server tool result: still pending, so they follow those results.
+    post_tool_calls: list[ToolCall]
 
 
 def _reduce_parts(parts: list[ContentPart]) -> Union[str, list[ContentPart]]:
@@ -241,6 +243,10 @@ def _format_tool_result_block(block: Any) -> list[Message]:
             content = list(content)
         except TypeError:
             pass
+        else:
+            if isinstance(block, dict):
+                # Written back so the SDK still sends the content this conversion consumed.
+                block["content"] = content
 
     if isinstance(content, list):
         parts = _parts_from_content_blocks(content)
@@ -368,6 +374,7 @@ def _format_content_blocks(blocks: Sequence[Any], mcp_servers: Optional[dict[str
     tool_calls: list[ToolCall] = []
     tool_results: list[Message] = []
     server_tool_results: list[Message] = []
+    post_tool_calls: list[ToolCall] = []
     seen_server_tool = False
 
     for block in blocks:
@@ -388,7 +395,7 @@ def _format_content_blocks(blocks: Sequence[Any], mcp_servers: Optional[dict[str
             tool_call = _tool_call_from_block(block)
             if block_type == "mcp_tool_use" and mcp_servers is not None:
                 _reference_connector_server(tool_call, block, mcp_servers)
-            tool_calls.append(tool_call)
+            (post_tool_calls if block_type == "tool_use" and server_tool_results else tool_calls).append(tool_call)
             if block_type != "tool_use":
                 seen_server_tool = True
         elif block_type == "tool_result":
@@ -417,7 +424,9 @@ def _format_content_blocks(blocks: Sequence[Any], mcp_servers: Optional[dict[str
             # silent gap in the scanned payload.
             _report_converter_error("AI Guard anthropic: dropping unrecognised content block type %r" % (block_type,))
 
-    return _ParsedBlocks(pre_tool_parts, post_tool_parts, tool_calls, tool_results, server_tool_results)
+    return _ParsedBlocks(
+        pre_tool_parts, post_tool_parts, tool_calls, tool_results, server_tool_results, post_tool_calls
+    )
 
 
 def _format_system(system: Any) -> Optional[Message]:
@@ -463,8 +472,13 @@ def _emit_assistant_with_server_tool(
     result: list[Message] = [ai_msg]
     result.extend(parsed.server_tool_results)
     post_text = "".join((p.get("text") or "") for p in parsed.post_tool_parts if p.get("type") == "text")
-    if post_text:
-        result.append(Message(role="assistant", content=post_text))
+    if post_text or parsed.post_tool_calls:
+        synthesis = Message(role="assistant")
+        if post_text:
+            synthesis["content"] = post_text
+        if parsed.post_tool_calls:
+            synthesis["tool_calls"] = parsed.post_tool_calls
+        result.append(synthesis)
     return result
 
 
@@ -541,9 +555,10 @@ def _convert_anthropic_messages(
                 continue
 
             content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
+            tool_calls = parsed.tool_calls + parsed.post_tool_calls
 
-            if role == "assistant" and parsed.tool_calls:
-                ai_msg = Message(role=role, tool_calls=parsed.tool_calls)
+            if role == "assistant" and tool_calls:
+                ai_msg = Message(role=role, tool_calls=tool_calls)
                 if content_parts:
                     ai_msg["content"] = _reduce_parts(content_parts)
                 result.append(ai_msg)
@@ -586,9 +601,10 @@ def _convert_anthropic_response(resp: Any, mcp_servers: Optional[dict[str, MCPSe
             return _emit_assistant_with_server_tool(parsed)
 
         content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
+        tool_calls = parsed.tool_calls + parsed.post_tool_calls
 
-        if parsed.tool_calls:
-            ai_msg = Message(role="assistant", tool_calls=parsed.tool_calls)
+        if tool_calls:
+            ai_msg = Message(role="assistant", tool_calls=tool_calls)
             if content_parts:
                 ai_msg["content"] = _reduce_parts(content_parts)
             return [ai_msg]
@@ -672,6 +688,19 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
     except Exception:
         logger.debug("AI Guard anthropic: failed to read the MCP connector servers", exc_info=True)
         return None
+
+
+def _connector_call_ids(resp: Any) -> set[str]:
+    """IDs of the mcp_tool_use calls of a response: the provider already ran them."""
+    try:
+        content = _get(resp, "content")
+        if not isinstance(content, list):
+            return set()
+        ids = (_get(block, "id") for block in content if _get(block, "type") == "mcp_tool_use")
+        return {call_id for call_id in ids if isinstance(call_id, str)}
+    except Exception:
+        logger.debug("AI Guard anthropic: failed to read the MCP connector calls of a response", exc_info=True)
+        return set()
 
 
 def _attach_mcp_servers(
@@ -813,5 +842,5 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
     finally:
         # Requests without MCP tools leave the marks alone; with them, a block or skip clears them.
         if mcp_tools:
-            mark_evaluated(evaluated, mcp_tools)
+            mark_evaluated(evaluated, mcp_tools, _connector_call_ids(resp))
     return None
