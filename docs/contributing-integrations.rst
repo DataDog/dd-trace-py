@@ -108,8 +108,8 @@ Database integrations emit ``DatabaseOperationEvent`` through
 DB-API cursor subclasses override ``_get_post_execute_result(context)`` to add
 result metadata such as driver query IDs.
 
-Emit ``DbQueryEvent`` for security subscribers before tracing enablement is
-checked. ``DatabaseQueryPrepareEvent`` exposes mutable query arguments after
+Emit ``DbQueryEvent`` for security subscribers before checking whether tracing
+is enabled. ``DatabaseQueryPrepareEvent`` exposes mutable query arguments after
 span metadata is ready; DBM owns its listener and propagation-mode gating.
 Keep the original query as the span resource and preserve each driver's
 injection exclusions for fetches, stored procedures, and prepared statements.
