@@ -1,3 +1,7 @@
+import re
+from typing import Optional
+
+from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast.constants import HEADER_NAME_VALUE_SEPARATOR
 from ddtrace.appsec._iast.constants import MAX_REDACTION_VALUE_LENGTH
 from ddtrace.internal.logger import get_logger
@@ -6,7 +10,12 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def header_injection_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_pattern=None):
+def header_injection_sensitive_analyzer(
+    evidence: Evidence,
+    name_pattern: re.Pattern[str],
+    value_pattern: re.Pattern[str],
+    query_string_pattern: Optional[re.Pattern[bytes]] = None,
+) -> list[dict[str, int]]:
     """
     Header injection sensitive analyzer for evidence redaction.
 
@@ -20,6 +29,9 @@ def header_injection_sensitive_analyzer(evidence, name_pattern, value_pattern, q
     - list: List of sensitive ranges to redact
     """
     evidence_value = evidence.value
+    if evidence_value is None:
+        return []
+
     header_name, _, header_value = evidence_value.partition(HEADER_NAME_VALUE_SEPARATOR)
 
     if (
