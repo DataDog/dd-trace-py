@@ -325,6 +325,15 @@ class EchionSampler
         }
         return true;
     }
+
+    // Whether generation is the one last validated for the interpreter. Code objects seen at that generation
+    // were not freed before validation, so the frame identity caches can resolve them.
+    bool code_object_generation_validated(int64_t interpreter_id, uint64_t generation) const
+    {
+        return std::any_of(code_object_generations_.begin(), code_object_generations_.end(), [&](const auto& entry) {
+            return entry.interpreter_id == interpreter_id && entry.generation == generation;
+        });
+    }
 #endif
 
     void postfork_child()

@@ -221,6 +221,27 @@ TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 }
 
+TEST(SamplingCycleState, CodeObjectGenerationValidatedMatchesLastValidation)
+{
+    EchionSampler echion(2);
+    EXPECT_FALSE(echion.code_object_generation_validated(1, 1));
+
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(2, 5) }, true));
+    EXPECT_TRUE(echion.code_object_generation_validated(1, 1));
+    EXPECT_TRUE(echion.code_object_generation_validated(2, 5));
+    EXPECT_FALSE(echion.code_object_generation_validated(2, 1));
+    EXPECT_FALSE(echion.code_object_generation_validated(3, 1));
+
+    // A CPU timer sample captured before a code object was freed carries the older generation.
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 2), interpreter(2, 5) }, true));
+    EXPECT_FALSE(echion.code_object_generation_validated(1, 1));
+    EXPECT_TRUE(echion.code_object_generation_validated(1, 2));
+
+    // An incomplete snapshot validates nothing.
+    EXPECT_FALSE(echion.validate_code_object_generations({ interpreter(1, 2) }, false));
+    EXPECT_FALSE(echion.code_object_generation_validated(1, 2));
+}
+
 TEST(SamplingCycleState, CodeObjectGenerationInvalidatesStringIdentityCaches)
 {
     if (!Py_IsInitialized()) {
