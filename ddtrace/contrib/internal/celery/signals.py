@@ -68,6 +68,7 @@ def trace_prerun(*args, **kwargs):
     attach_span(task, task_id, span)
     if config.celery["distributed_tracing"]:
         attach_span_context(task, task_id, span)
+    core.dispatch("celery.task.prerun", (task, span))
 
 
 def trace_postrun(*args, **kwargs):
@@ -114,6 +115,7 @@ def trace_before_publish(*args, **kwargs):
             # This is useful for cases where the task is not attached to a span, but
             # there is a trace active (e.g. a web request span).
             _inject_distributed_headers(active, kwargs)
+        core.dispatch("celery.task.publish.pre", (task.app if task is not None else current_app, kwargs, None))
         log.debug(
             "Task was not found in the local registry. Unable to create producer span. Task name: %s, ID: %s",
             task_name,
@@ -155,6 +157,7 @@ def trace_before_publish(*args, **kwargs):
     # only on the given `Context`
     attach_span(task, task_id, span, is_publish=True)
     _inject_distributed_headers(span.context, kwargs)
+    core.dispatch("celery.task.publish.pre", (task.app, kwargs, span))
 
 
 def _inject_distributed_headers(context: Context, kwargs: dict):
