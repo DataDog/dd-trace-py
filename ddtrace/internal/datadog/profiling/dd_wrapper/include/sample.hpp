@@ -155,6 +155,9 @@ class Sample
     // record dropped frames without going through push_frame().
     void incr_dropped_frames(size_t count = 1);
 
+    // Whether the sample has reached its frame limit; further frames would only be counted as dropped.
+    [[nodiscard]] bool frame_limit_reached() const { return locations.size() >= max_nframes; }
+
     // Push an entire PyFrameObject chain to the sample.
     // This walks the frame chain and pushes each frame in leaf-to-root order.
     // Ownership: this function does not take ownership of the initial `frame`
