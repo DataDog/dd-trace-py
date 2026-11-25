@@ -9,12 +9,12 @@ Repo-specific idioms: configuration, logging, shared helpers, test patterns, and
 ## 1. Release notes
 
 ### CONV-1.1: Write release notes as one or two customer-facing sentences
-- Flag: a note that names internal mechanisms, root causes, components, metric tags, debug logs, or future plans, or runs past two sentences without a code example. See [releasenotes.rst](../../../../docs/releasenotes.rst) and the [releasenote](../../releasenote/SKILL.md) skill.
+- Flag: a note that names internal mechanisms, root causes, components, or future plans, that lists metric tags or debug logs added alongside a fix, or that runs past two sentences without a code example. See [releasenotes.rst](../../../../docs/releasenotes.rst) and the [releasenote](../../releasenote/SKILL.md) skill.
 - ❌ `Fixes a race in the span aggregator's flush buffer, which also adds new metric tags and debug logs.`
 - ✅ `Fixes an issue where spans could be dropped when the application exits during a flush.`
 
 ### CONV-1.2: Add a release note only for customer-visible changes
-- Flag: a note for a test-only, CI-only, build-tooling, or debug-log-only change, or a `fixes` entry in a PR that doesn't fix the bug.
+- Flag: a note for a test-only, CI-only or build-tooling change, or a `fixes` entry in a PR that doesn't fix the bug (for example, one that only adds a log for it). Logging changes that customers can observe need a note; see [releasenotes.rst](../../../../docs/releasenotes.rst).
 
 ### CONV-1.3: Use one fragment per PR, one entry per fix, and the right section and scope
 - Flag: several fragment files in one PR, two fixes in one entry, a performance improvement under `fixes` instead of `other`, or a scope prefix that isn't a real component (`Stats computation:` instead of `internal:`).
@@ -37,7 +37,7 @@ Repo-specific idioms: configuration, logging, shared helpers, test patterns, and
 ## 4. Tests and test environments
 
 ### CONV-4.1: Test every version the PR claims to support
-- Flag: a PR claiming support for a library major (for example, mcp 2.x) with no test venv locked to it or no matching max version in `scripts/integration_registry/registry.yaml`; or a suitespec Python list that adds `'3.15'` while still missing `'3.14'`.
+- Flag: a PR claiming support for a library major (for example, mcp 2.x) with no test venv locked to it or no matching max version in `scripts/integration_registry/registry.yaml`; or a suite that adds `'3.15'` while none of its variants covers `'3.14'`. Separate per-version variants are fine when the suite covers every version between them.
 
 ### CONV-4.2: Use snapshot tests for integration spans
 - Flag: new integration tests that assert span attributes one by one where a snapshot under `tests/snapshots/` would cover them.

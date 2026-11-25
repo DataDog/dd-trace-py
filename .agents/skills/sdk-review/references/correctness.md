@@ -18,7 +18,7 @@ Bugs, races, unhandled edge cases, and tests that pass when they shouldn't. For 
 - ✅ `_subscribers.append(fn)`, with the test unregistering it in teardown
 
 ### COR-1.3: Unregister in a product's `stop()` what its `start()` registered
-- Flag: a product that registers subscriber bundles or core listeners on start with no matching unregister on stop or disable.
+- Flag: a product that registers subscriber bundles or core listeners on start with no matching unregister on stop or disable, either at once or after its active contexts drain.
 
 ## 2. Edge cases
 
