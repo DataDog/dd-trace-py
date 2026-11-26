@@ -11,6 +11,7 @@ from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.packages import prefetch_distributions
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.trace import tracer
@@ -60,6 +61,12 @@ register_post_preload(prefetch_distributions)
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
+
+if agentless_config.log_submission:
+    # Lazy import: only pay for the handler/writer modules when the feature is enabled.
+    from ddtrace.internal.logs import enable_agentless_log_submission
+
+    enable_agentless_log_submission()
 
 
 @ModuleWatchdog.after_module_imported("opentelemetry")

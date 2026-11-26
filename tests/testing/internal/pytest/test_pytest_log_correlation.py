@@ -11,6 +11,8 @@ Uses subprocess runs so env vars are picked up by ddtrace during initialisation.
 
 from __future__ import annotations
 
+import os
+
 from _pytest.pytester import Pytester
 import pytest
 
@@ -244,6 +246,26 @@ def test_root_level_filters_child_logger_records():
     assert captured[0]["status"] == "error"
 """
 
+# The ddtrace bootstrap (ddtrace-run) installs the APM agentless log submission handler on the
+# root logger at preload. When the Test Optimization plugin installs its own LogsHandler, the APM
+# handler must be removed so records are not submitted twice.
+_TEST_NO_DUPLICATE_HANDLER = """\
+import logging
+
+from ddtrace.internal.logs import AgentlessLogsHandler
+from ddtrace.testing.internal.logs import LogsHandler
+
+
+def test_no_duplicate_log_submission_handler():
+    root_handlers = logging.getLogger().handlers
+    apm_handlers = [h for h in root_handlers if isinstance(h, AgentlessLogsHandler)]
+    logs_handlers = [h for h in root_handlers if isinstance(h, LogsHandler)]
+    assert len(apm_handlers) == 0, (
+        f"APM agentless handler still installed alongside the test plugin's handler: {root_handlers}"
+    )
+    assert len(logs_handlers) == 1, f"Expected 1 LogsHandler on root logger, got {len(logs_handlers)}"
+"""
+
 
 class TestLogCorrelation:
     def test_log_records_carry_test_span_ids(
@@ -386,6 +408,33 @@ class TestAgentlessLogSubmission:
 
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_ROOT_LEVEL_FILTERING)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_apm_agentless_handler_deduplicated(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """Under the ddtrace bootstrap, the APM log submission handler must be removed when the plugin owns logs.
+
+        DD_AGENTLESS_LOG_SUBMISSION_ENABLED now also enables APM log submission in any process
+        started with ddtrace-run. When the Test Optimization plugin installs its own LogsHandler
+        during the session, records must not be submitted twice: the APM handler is flushed and
+        removed, leaving exactly one submitting handler on the root logger.
+        """
+        import ddtrace.bootstrap
+
+        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
+        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+        # Any records the APM handler buffered before the session started are flushed when it is
+        # removed; point its writer at an unreachable local port so nothing leaves the machine.
+        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_URL", "http://127.0.0.1:9")
+        # Activate the ddtrace bootstrap sitecustomize (normally done by ddtrace-run) so the
+        # preload installs the APM handler before pytest starts.
+        monkeypatch.setenv("PYTHONPATH", os.path.dirname(ddtrace.bootstrap.__file__))
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_NO_DUPLICATE_HANDLER)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)

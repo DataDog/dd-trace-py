@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    logs: ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED=true`` together with ``DD_API_KEY`` now submits
+    Python ``logging`` records directly to the Datadog logs intake from any process started with
+    the tracer installed (for example with ``ddtrace-run``), without going through the Datadog
+    Agent. Submitted logs are correlated with traces. ``DD_LOGS_OTEL_ENABLED`` takes precedence
+    when both are set. The option previously applied only to the Test Optimization pytest plugin,
+    whose behavior is unchanged. ``DD_AGENTLESS_LOG_SUBMISSION_URL`` overrides the logs intake
+    base URL.

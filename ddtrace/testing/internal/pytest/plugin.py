@@ -472,8 +472,15 @@ class TestOptPlugin(TestOptPluginProtocol):
                         )
 
         if self.enable_log_submission:
+            from ddtrace.internal.logs import AgentlessLogsHandler
             from ddtrace.testing.internal.logs import LogsHandler
             from ddtrace.testing.internal.logs import LogsWriter
+
+            # The ddtrace bootstrap may have installed the APM agentless log handler; detach it so
+            # records are not submitted twice while this plugin owns log submission.
+            root_logger = logging.getLogger()
+            for handler in [h for h in root_logger.handlers if isinstance(h, AgentlessLogsHandler)]:
+                root_logger.removeHandler(handler)
 
             self._logs_writer = LogsWriter(
                 connector_setup=self.manager.connector_setup,
