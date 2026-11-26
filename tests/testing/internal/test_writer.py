@@ -26,6 +26,7 @@ from ddtrace.testing.internal.writer import TestOptWriter
 from ddtrace.testing.internal.writer import _calculate_async_flush_events
 from ddtrace.testing.internal.writer import _get_async_flush_events
 from ddtrace.testing.internal.writer import _get_min_flush_events
+from ddtrace.testing.internal.writer import _pack_id
 from ddtrace.testing.internal.writer import _truncate_events_meta
 from ddtrace.testing.internal.writer import _truncate_payload_metadata
 from ddtrace.testing.internal.writer import serialize_module
@@ -757,6 +758,57 @@ class TestTestCoverageWriter:
         assert event["test_suite_id"] == 456
         assert event["span_id"] == 789
         assert len(event["files"]) == 2
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_put_packed_coverage(self, mock_backend_connector: Mock, mock_telemetry: Mock) -> None:
+        """Packed coverage events go into the payload as they are, next to unpacked events."""
+        writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        test_run = Mock()
+        test_run.session.item_id = 123
+        test_run.suite.item_id = 2**40
+        test_run.span_id = 2**64 - 1
+        files = [{"filename": "/a.py", "bitmap": b"\x80"}, {"filename": "/b.py", "bitmap": b"\x01\x02"}]
+        packed_event = {"test_session_id": 123, "test_suite_id": 2**40, "span_id": 2**64 - 1, "files": files}
+        shared_event = {"test_session_id": 123, "shared": "init", "files": files}
+
+        writer.put_packed_coverage(test_run, len(files), msgpack_packb(files))
+        writer.put_event(shared_event)
+
+        assert writer._encode_events(writer.events) == msgpack_packb(
+            {"version": 2, "coverages": [packed_event, shared_event]}
+        )
+        mock_telemetry.record_coverage_files.assert_called_once_with(2)
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_put_packed_coverage_empty(self, mock_backend_connector: Mock, mock_telemetry: Mock) -> None:
+        writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+
+        writer.put_packed_coverage(Mock(), 0, msgpack_packb([]))
+
+        assert writer.events == []
+        mock_telemetry.record_coverage_is_empty.assert_called_once_with()
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_encode_many_packed_events(self, mock_backend_connector: Mock) -> None:
+        """More than 15 events need a longer array header."""
+        writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        files = [{"filename": "/a.py", "bitmap": b"\x80"}]
+        events = []
+        for span_id in range(20):
+            test_run = Mock()
+            test_run.session.item_id = 1
+            test_run.suite.item_id = 2
+            test_run.span_id = span_id
+            writer.put_packed_coverage(test_run, 1, msgpack_packb(files))
+            events.append({"test_session_id": 1, "test_suite_id": 2, "span_id": span_id, "files": files})
+
+        assert writer._encode_events(writer.events) == msgpack_packb({"version": 2, "coverages": events})
+
+    @pytest.mark.parametrize(
+        "value", [None, 0, 1, 127, 128, 255, 256, 65535, 65536, 2**32 - 1, 2**32, 2**63, 2**64 - 1, -1, 2**64]
+    )
+    def test_pack_id_matches_packer(self, value: t.Optional[int]) -> None:
+        assert _pack_id(value) == msgpack_packb(value)
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     @patch("ddtrace.testing.internal.writer.msgpack_packb")
