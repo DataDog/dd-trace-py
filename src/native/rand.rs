@@ -5,6 +5,8 @@ use rand::{
 };
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::sync::Once;
 use tracing::warn;
 
 // Set once at module init (Release) when a MicroVM environment is detected; every read is an
@@ -26,15 +28,15 @@ fn secure_random() -> bool {
     SECURE_RANDOM.load(Ordering::Acquire)
 }
 
+// The SmallRng is created on first use, so a thread (or a child process, see
+// discard_after_fork) seeds it from the OS only when it needs a value.
 struct RngState {
-    rng: SmallRng,
+    rng: Option<SmallRng>,
 }
 
 impl RngState {
-    fn new() -> Self {
-        Self {
-            rng: Self::create_rng(),
-        }
+    const fn new() -> Self {
+        Self { rng: None }
     }
 
     fn create_rng() -> SmallRng {
@@ -44,21 +46,59 @@ impl RngState {
         SmallRng::from_os_rng()
     }
 
+    fn rng(&mut self) -> &mut SmallRng {
+        self.rng.get_or_insert_with(Self::create_rng)
+    }
+
     fn gen(&mut self) -> u64 {
-        self.rng.random()
+        self.rng().random()
     }
 
     fn reseed(&mut self) {
-        self.rng = Self::create_rng();
+        self.rng = Some(Self::create_rng());
     }
 }
 
 thread_local! {
-    static RNG: RefCell<RngState> = RefCell::new(RngState::new());
+    // const: no lazy initializer and no destructor, so the fork handler can reach it without
+    // running any code beyond the thread-local lookup.
+    static RNG: RefCell<RngState> = const { RefCell::new(RngState::new()) };
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+static REGISTER_ATFORK: Once = Once::new();
+
+/// pthread_atfork child handler. Without a new seed, the child would continue the RNG
+/// sequence of the parent and generate the same trace and span IDs.
+///
+/// Only the forking thread exists in the child, and this runs on it, so this thread's RNG is
+/// the only one left to reseed. Clearing its state makes the next draw seed a new SmallRng
+/// from the OS, like a new thread does. The handler runs between fork() and its return to the
+/// caller, so it stays async-signal-safe in practice: no lock (the RNG is thread-local), no
+/// Python or GIL call and no syscall, and it allocates nothing itself; it only overwrites the
+/// thread-local in place. (The first thread-local access of a thread can make the dynamic
+/// loader allocate its TLS block, which glibc and macOS keep fork-safe; CPython also allocates
+/// in the child before any Python code runs.)
+///
+/// The RefCell cannot be borrowed at this point. A borrow lasts only for a call to gen, reseed
+/// or fill: pure Rust code that neither forks nor calls into Python, so no Python code (a
+/// callback, a Python signal handler) runs on this thread during the borrow and can fork. Other
+/// threads have their own RNG, so their borrows don't matter. Only a native signal handler that
+/// forks could interrupt a borrow; try_borrow_mut then skips the reseed instead of panicking,
+/// which would abort in this extern "C" frame.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+extern "C" fn discard_after_fork() {
+    let _ = RNG.try_with(|rng| {
+        if let Ok(mut state) = rng.try_borrow_mut() {
+            state.rng = None;
+        }
+    });
 }
 
 /// Reseed the thread-local RNG with fresh entropy from the OS.
-/// This is called after fork to ensure child processes have independent RNG state.
+///
+/// Child processes need not call this after fork: the pthread_atfork handler registered by
+/// register_rand already reseeds them.
 #[pyfunction]
 pub fn seed() {
     RNG.with(|rng| {
@@ -105,7 +145,7 @@ pub fn uuid4() -> String {
         if !OS_RNG_FAILURE_LOGGED.swap(true, Ordering::Relaxed) {
             warn!("OsRng failed generating a UUID; falling back to thread-local SmallRng");
         }
-        RNG.with(|rng| rng.borrow_mut().rng.fill(&mut bytes));
+        RNG.with(|rng| rng.borrow_mut().rng().fill(&mut bytes));
     }
     uuid::Builder::from_random_bytes(bytes)
         .into_uuid()
@@ -215,6 +255,31 @@ mod tests {
         assert!(!values.is_empty());
     }
 
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn test_discard_after_fork_reseeds_on_next_draw() {
+        with_secure_random(false, || {
+            rand64bits();
+            discard_after_fork();
+            assert!(RNG.with(|rng| rng.borrow().rng.is_none()));
+            let values: HashSet<u64> = (0..10).map(|_| rand64bits()).collect();
+            assert_eq!(values.len(), 10);
+            assert!(RNG.with(|rng| rng.borrow().rng.is_some()));
+        });
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn test_discard_after_fork_skips_a_borrowed_rng() {
+        rand64bits();
+        RNG.with(|rng| {
+            let _borrow = rng.borrow_mut();
+            // Must not panic: a panic in the extern "C" handler aborts the process.
+            discard_after_fork();
+        });
+        assert!(RNG.with(|rng| rng.borrow().rng.is_some()));
+    }
+
     #[test]
     fn test_generate_128bit_trace_id_layout_and_random_payload() {
         let mut lows = HashSet::new();
@@ -260,14 +325,29 @@ mod tests {
     }
 }
 
-/// Register the rand module functions.
+/// Register the rand module functions, and the fork handler that reseeds the RNG in child
+/// processes.
 ///
-/// ddtrace.internal.native registers seed() with ddtrace.internal.forksafe to
-/// reseed the RNG in child processes after fork.
+/// The fork handler is native, rather than a ddtrace.internal.forksafe hook, so the extension
+/// imports no Python module and needs no Python code to be safe. It also covers forks that
+/// bypass os.register_at_fork, such as uWSGI's, and runs before every Python after-fork hook,
+/// some of which generate IDs.
 pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Release store: any thread that subsequently does an Acquire load will see this value,
     // even if it was created before module import.
     SECURE_RANDOM.store(is_microvm_environment(), Ordering::Release);
+
+    // Once: the module can be initialized more than once in a process (subinterpreters), and
+    // each pthread_atfork call would add another handler.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    REGISTER_ATFORK.call_once(|| {
+        // SAFETY: discard_after_fork is an extern "C" fn with no arguments, and stays loaded
+        // for the life of the process: CPython never unloads an extension module.
+        let result = unsafe { libc::pthread_atfork(None, None, Some(discard_after_fork)) };
+        if result != 0 {
+            warn!("failed to register the RNG fork handler (error {result}): child processes may repeat the IDs of their parent");
+        }
+    });
 
     m.add_function(wrap_pyfunction!(seed, m)?)?;
     m.add_function(wrap_pyfunction!(rand64bits, m)?)?;
