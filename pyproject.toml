@@ -113,6 +113,9 @@ vllm = "ddtrace.llmobs._contrib.vllm"
 "sca" = "ddtrace.internal.sca.product"
 "tracer" = "ddtrace._trace.product"
 
+[project.entry-points.'ddtrace_internal.supported_configurations']
+ddtrace = "ddtrace.internal.settings._supported_configurations"
+
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
 Changelog = "https://github.com/DataDog/dd-trace-py/releases"

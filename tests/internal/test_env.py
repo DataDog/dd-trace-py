@@ -1,6 +1,8 @@
 import logging
 import os
+import subprocess
 import sys
+import textwrap
 
 import pytest
 
@@ -20,6 +22,7 @@ def _visible_environ() -> dict[str, str]:
 
 @pytest.fixture(autouse=True)
 def reset_warned_keys():
+    env_module.is_sensitive("")  # the registry is resolved lazily; the tests below read its globals directly
     env_module._warned_keys.clear()
     yield
     env_module._warned_keys.clear()
@@ -73,9 +76,9 @@ def test_alias_is_accepted(caplog):
 
 
 def test_deprecated_key_logs_deprecated_message(caplog):
-    if not env_module.DEPRECATED_CONFIGURATIONS:
+    if not env_module._DEPRECATED_CONFIGURATIONS:
         pytest.skip("no deprecated configurations registered")
-    deprecated_key = next(iter(env_module.DEPRECATED_CONFIGURATIONS))
+    deprecated_key = next(iter(env_module._DEPRECATED_CONFIGURATIONS))
     with caplog.at_level(logging.DEBUG, logger=ENV_LOGGER):
         env_module._validate_key(deprecated_key)
     assert "Deprecated Datadog configuration variable accessed" in caplog.text
@@ -172,8 +175,22 @@ def test_copy_returns_plain_dict():
 
 def _pick_alias_pair() -> tuple[str, str]:
     """Return (canonical, legacy) for the first registered rename alias."""
-    canonical, aliases = next(iter(env_module.CONFIGURATION_ALIASES.items()))
+    canonical, aliases = next(iter(env_module._CONFIGURATION_ALIASES.items()))
     return canonical, aliases[0]
+
+
+def test_get_aliases_returns_the_registered_aliases():
+    canonical, aliases = next(iter(env_module._CONFIGURATION_ALIASES.items()))
+    assert env_module.get_aliases(canonical) == aliases
+    assert env_module.get_aliases("DD_NOT_A_CONFIGURATION") == ()
+
+
+def test_is_sensitive_follows_the_registered_sensitive_set():
+    from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+
+    assert SENSITIVE_CONFIGURATIONS, "the registry should list sensitive configurations"
+    assert all(env_module.is_sensitive(name) for name in SENSITIVE_CONFIGURATIONS)
+    assert not env_module.is_sensitive("DD_SERVICE")
 
 
 def test_getitem_falls_back_to_alias_when_canonical_missing(monkeypatch):
@@ -245,3 +262,183 @@ def test_get_config_falls_back_to_alias_in_fleet_config(monkeypatch):
 
     val = telemetry_mod.get_config(canonical, default=None, report_telemetry=False)
     assert val == "from-fleet"
+
+
+def _run_python(code: str, env: dict[str, str]) -> str:
+    result = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(code)],
+        env={**os.environ, **env},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def test_import_ddtrace_resolves_the_registry_from_the_entry_point():
+    """ddtrace registers nothing at import; env resolves the entry point when a lookup needs it."""
+    canonical, legacy = _pick_alias_pair()
+    out = _run_python(
+        f"""
+        import ddtrace
+        from ddtrace.internal.settings.env import dd_environ, register_supported_configurations
+
+        assert dd_environ[{canonical!r}] == "from-alias"
+        assert not register_supported_configurations([], {{}}, [])  # the entry point registry won
+        assert dd_environ[{canonical!r}] == "from-alias"
+        print("ok")
+        """,
+        {legacy: "from-alias"},
+    )
+    assert out == "ok"
+
+
+_STANDALONE_ENV = textwrap.indent(
+    textwrap.dedent(
+        f"""
+import importlib.util, sys
+
+REGISTRY = "ddtrace.internal.settings._supported_configurations"
+spec = importlib.util.spec_from_file_location("standalone_env", {env_module.__file__!r})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+assert "ddtrace" not in sys.modules and REGISTRY not in sys.modules
+assert not mod._resolved and mod._SUPPORTED_CONFIGURATIONS is None
+"""
+    ),
+    "        ",
+)
+
+
+def test_registry_is_loaded_lazily_on_first_lookup():
+    out = _run_python(
+        _STANDALONE_ENV
+        + """
+        mod.dd_environ.get("DD_TOTALLY_BOGUS_XYZ")  # validation needs the registry
+        assert REGISTRY in sys.modules
+        assert mod._resolved and mod._SUPPORTED_CONFIGURATIONS is not None
+        assert mod.get_aliases("DD_SERVICE") is not None
+        assert mod.is_sensitive("DD_API_KEY")
+        print("ok")
+        """,
+        {},
+    )
+    assert out == "ok"
+
+
+@pytest.mark.parametrize("lookup", ["get_aliases('DD_SERVICE')", "is_sensitive('DD_API_KEY')"])
+def test_alias_and_sensitivity_lookups_resolve_the_registry(lookup):
+    out = _run_python(
+        _STANDALONE_ENV
+        + f"""
+        mod.{lookup}
+        assert REGISTRY in sys.modules
+        print("ok")
+        """,
+        {},
+    )
+    assert out == "ok"
+
+
+def test_explicit_registration_wins_over_the_entry_point():
+    out = _run_python(
+        _STANDALONE_ENV
+        + """
+        assert mod.register_supported_configurations(["DD_API_KEY"], {"DD_SERVICE": ["DD_OLD"]}, [])
+        assert mod.get_aliases("DD_SERVICE") == ["DD_OLD"]
+        assert mod.get_aliases("DD_ENV") == ()
+        assert not mod.is_sensitive("DD_API_KEY")
+        assert REGISTRY not in sys.modules  # the entry point was never consulted
+        print("ok")
+        """,
+        {},
+    )
+    assert out == "ok"
+
+
+def test_failing_entry_point_behaves_as_unregistered(monkeypatch, caplog):
+    monkeypatch.setattr(env_module, "_resolved", False)
+    monkeypatch.setattr(env_module, "_SUPPORTED_CONFIGURATIONS", None)
+    monkeypatch.setattr(env_module, "_CONFIGURATION_ALIASES", {})
+    monkeypatch.setattr(env_module, "_SENSITIVE_CONFIGURATIONS", frozenset())
+
+    def boom(group):
+        raise ImportError("broken registry")
+
+    monkeypatch.setattr(env_module, "_load_entry_point_module", boom)
+    with caplog.at_level(logging.DEBUG, logger=ENV_LOGGER):
+        assert env_module.dd_environ.get("DD_TOTALLY_BOGUS_XYZ") is None
+        assert env_module.get_aliases("DD_SERVICE") == ()
+        assert not env_module.is_sensitive("DD_API_KEY")
+    assert env_module._resolved
+    assert env_module._SUPPORTED_CONFIGURATIONS is None
+    assert len([r for r in caplog.records if "Could not load" in r.getMessage()]) == 1
+    assert "Unsupported Datadog configuration" not in caplog.text
+
+
+def test_missing_entry_point_behaves_as_unregistered(monkeypatch):
+    monkeypatch.setattr(env_module, "_resolved", False)
+    monkeypatch.setattr(env_module, "_SUPPORTED_CONFIGURATIONS", None)
+    monkeypatch.setattr(env_module, "_CONFIGURATION_ALIASES", {})
+    monkeypatch.setattr(env_module, "_load_entry_point_module", lambda group: None)
+    assert env_module.get_aliases("DD_SERVICE") == ()
+    assert env_module._SUPPORTED_CONFIGURATIONS is None
+
+
+def test_env_before_registration_is_exact_lookup_without_validation():
+    """Loading env.py on its own (no ddtrace package, no registry) must be safe and inert."""
+    canonical, legacy = _pick_alias_pair()
+    out = _run_python(
+        f"""
+        import importlib.util, logging, sys
+
+        logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format="LOG %(message)s")
+        spec = importlib.util.spec_from_file_location("standalone_env", {env_module.__file__!r})
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod._load_entry_point_module = lambda group: None  # no entry point: the registry stays unregistered
+        assert "ddtrace" not in sys.modules
+
+        env = mod.dd_environ
+        assert env.get("DD_TOTALLY_BOGUS_XYZ") is None  # unregistered-key debug log is skipped
+        assert {canonical!r} not in env  # aliases are not applied
+        assert env[{legacy!r}] == "from-alias"  # exact-key lookup still works
+
+        assert mod.register_supported_configurations(
+            [{canonical!r}], {{{canonical!r}: [{legacy!r}]}}, []
+        )
+        assert env[{canonical!r}] == "from-alias"
+        env.get("DD_TOTALLY_BOGUS_XYZ")
+        print("done")
+        """,
+        {legacy: "from-alias"},
+    )
+    lines = out.splitlines()
+    assert lines[-1] == "done"
+    assert [line for line in lines if line.startswith("LOG ")] == [
+        "LOG Unsupported Datadog configuration variable accessed: DD_TOTALLY_BOGUS_XYZ"
+    ]
+
+
+def test_aliases_and_sensitivity_are_empty_before_registration():
+    """Without a registry, nothing has aliases and nothing is known to be sensitive."""
+    out = _run_python(
+        f"""
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("standalone_env", {env_module.__file__!r})
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod._load_entry_point_module = lambda group: None  # no entry point: the registry stays unregistered
+
+        assert mod.get_aliases("DD_SERVICE") == ()
+        assert not mod.is_sensitive("DD_API_KEY")
+
+        assert mod.register_supported_configurations(["DD_API_KEY"], {{"DD_SERVICE": ["DD_OLD"]}}, [], ["DD_API_KEY"])
+        assert mod.get_aliases("DD_SERVICE") == ["DD_OLD"]
+        assert mod.is_sensitive("DD_API_KEY")
+        print("done")
+        """,
+        {},
+    )
+    assert out == "done"
