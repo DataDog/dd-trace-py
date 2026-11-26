@@ -215,9 +215,13 @@ def _format_tool_result_block(block: Any) -> list[Message]:
             msg["content"] = content
         return [msg]
 
-    # MessageParam tool_result.content is typed Iterable[...]; materialise
-    # generators / tuples so the block-iteration path handles them. dict and
-    # bytes/bytearray are not valid container shapes here.
+    if isinstance(content, Iterator):
+        # Reading a one-shot iterator would leave it empty for the SDK: send it intact, unevaluated.
+        _report_converter_error("AI Guard anthropic: tool result content is a one-shot iterator; not evaluated")
+        return [msg]
+
+    # tool_result.content is typed Iterable[...]: list tuples and other re-iterables.
+    # dict, bytes and bytearray are not valid containers here.
     if not isinstance(content, (list, bytes, bytearray, dict)):
         try:
             content = list(content)
@@ -574,6 +578,12 @@ def _safe_convert_response(resp: Any, mcp_servers: Optional[dict[str, MCPServer]
         return None
 
 
+def _extra_body_overrides_mcp_servers(kwargs: dict[str, Any]) -> bool:
+    """The SDK merges extra_body over the params, so its servers are the ones sent (the only way on older SDKs)."""
+    extra_body = kwargs.get("extra_body")
+    return isinstance(extra_body, Mapping) and "mcp_servers" in extra_body
+
+
 def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServer]]:
     """Map each server name of the request mcp_servers (MCP connector) to its entry; None when the flag is off.
 
@@ -583,10 +593,8 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
         return None
     try:
         declared = kwargs.get("mcp_servers")
-        extra_body = kwargs.get("extra_body")
-        if isinstance(extra_body, Mapping) and "mcp_servers" in extra_body:
-            # The SDK merges extra_body over the params, so its servers are the ones sent (the only way on older SDKs).
-            declared = extra_body["mcp_servers"]
+        if _extra_body_overrides_mcp_servers(kwargs):
+            declared = kwargs["extra_body"]["mcp_servers"]
         servers: dict[str, MCPServer] = {}
         if not isinstance(declared, (list, tuple)):
             return servers
@@ -642,7 +650,11 @@ def _list_iterable_params(kwargs: dict[str, Any]) -> None:
 
     An error raised by a caller iterable reaches the caller, as it would from the SDK.
     """
-    for key in ("messages", "system", "tools", "mcp_servers"):
+    keys = ["messages", "system", "tools"]
+    if not _extra_body_overrides_mcp_servers(kwargs):
+        # Otherwise this param is never sent: leave it unread.
+        keys.append("mcp_servers")
+    for key in keys:
         value = kwargs.get(key)
         if isinstance(value, Iterable) and not isinstance(value, (list, tuple, str, bytes, bytearray, Mapping)):
             kwargs[key] = list(value)

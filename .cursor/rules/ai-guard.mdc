@@ -140,7 +140,9 @@ converted in `_anthropic.py`:
 - Anthropic has already run the call when the response arrives: a block withholds the response only.
 - The before-hook lists iterable `messages`, `system`, `tools` and `mcp_servers` once, in the kwargs the SDK
   gets (`_list_iterable_params`), with no try/except: an error from a caller iterable propagates as it would
-  from the SDK. Buffered streams evaluate with the contrib stream handler's `request_kwargs`, that same dict.
+  from the SDK. It leaves `mcp_servers` unread when `extra_body` replaces it. Tool result content that is a
+  one-shot iterator is not read, so the SDK still sends it, and AI Guard does not evaluate it.
+  Buffered streams evaluate with the contrib stream handler's `request_kwargs`, that same dict.
 - The contrib stream rebuild drops `server_name` and renames `mcp_tool_result` to `tool_result`;
   `reconstruct_anthropic` restores both from the `content_block_start` chunks and leaves the contrib
   shape that LLM Obs reads unchanged.

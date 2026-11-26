@@ -236,6 +236,20 @@ def test_iterable_mcp_servers_param(mock_execute_request):
     assert payloads(mock_execute_request)[0]["mcp_servers"] == [DEEPWIKI_SERVER]
 
 
+@patch(EXECUTE_REQUEST)
+def test_mcp_servers_param_overridden_by_extra_body_is_not_read(mock_execute_request):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    history = USER + [{"role": "assistant", "content": CONTENT}, FOLLOW_UP]
+    unsent = iter([{"type": "url", "name": "deepwiki", "url": "https://other.example/mcp"}])
+    kwargs = {"messages": history, "mcp_servers": unsent, "extra_body": {"mcp_servers": [CONNECTOR]}}
+
+    _anthropic_messages_create_before(new_ai_guard_client(), kwargs)
+
+    assert kwargs["mcp_servers"] is unsent
+    assert next(unsent, None) is not None
+    assert payloads(mock_execute_request)[0]["mcp_servers"] == [DEEPWIKI_SERVER]
+
+
 # ---------------------------------------------------------------------------
 # Anthropic SDK: client.beta.messages.create(mcp_servers=...)
 # ---------------------------------------------------------------------------
@@ -274,6 +288,22 @@ def test_sdk_create(mock_execute_request, anthropic_sdk):
     _assert_connector_evaluations(mock_execute_request)
     # The servers reach Anthropic unchanged, authorization_token included.
     assert transport.requests[0]["mcp_servers"] == [CONNECTOR]
+
+
+@needs_connector
+@patch(EXECUTE_REQUEST)
+def test_sdk_one_shot_result_content_reaches_anthropic(mock_execute_request, anthropic_sdk):
+    """A one-shot iterator as result content is left to the SDK, which sends it intact; AI Guard skips it."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    transport = MessagesTransport([BODY])
+    result = dict(RESULT, content=iter(RESULT["content"]))
+    history = USER + [{"role": "assistant", "content": [CALL, result]}, FOLLOW_UP]
+
+    sync_client(anthropic_sdk, transport).beta.messages.create(**dict(CREATE, messages=history))
+
+    assert transport.requests[0]["messages"][1]["content"][1]["content"] == RESULT["content"]
+    before = payloads(mock_execute_request)[0]
+    assert {"role": "tool", "tool_call_id": "mcptoolu_1"} in before["messages"]
 
 
 @needs_connector
