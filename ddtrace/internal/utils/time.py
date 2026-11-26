@@ -41,6 +41,8 @@ class StopWatch:
     def start(self) -> "StopWatch":
         """Starts the watch."""
         self._started_at = Time.monotonic()
+        # A restarted watch is running again: drop the previous stop time or elapsed() would be negative
+        self._stopped_at = None
         return self
 
     def elapsed(self) -> float:
