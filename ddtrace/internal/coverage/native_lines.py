@@ -50,12 +50,17 @@ def enabled() -> bool:
     return _enabled
 
 
-def _deopt_table() -> bytes:
-    """CPython's _PyOpcode_Deopt: each specialized opcode maps to its base opcode."""
-    table = bytearray(range(256))
+def _all_opcodes() -> dict[str, int]:
     all_opmap: dict[str, int] = dict(getattr(dis, "_all_opmap", {}) or {})
     all_opmap.update(dis.opmap)
     all_opmap.update(getattr(dis, "_specialized_opmap", {}) or {})
+    return all_opmap
+
+
+def _deopt_table() -> bytes:
+    """CPython's _PyOpcode_Deopt: each specialized opcode maps to its base opcode."""
+    table = bytearray(range(256))
+    all_opmap = _all_opcodes()
     deoptmap = getattr(dis, "deoptmap", None)
     if not deoptmap:
         deoptmap = {s: base for base, family in dis._specializations.items() for s in family}  # type: ignore[attr-defined]
@@ -65,17 +70,31 @@ def _deopt_table() -> bytes:
     return bytes(table)
 
 
+def _superinstruction_table() -> bytes:
+    """1 for each CPython 3.12 superinstruction, such as LOAD_FAST__LOAD_FAST: the only opcode names with "__"."""
+    table = bytearray(256)
+    for name, op in _all_opcodes().items():
+        if "__" in name and 0 <= op < 256:
+            table[op] = 1
+    return bytes(table)
+
+
+def _min_instrumented_opcode() -> int:
+    """CPython's MIN_INSTRUMENTED_OPCODE: the instrumented opcodes are the highest ones."""
+    return min((op for name, op in dis.opmap.items() if name.startswith("INSTRUMENTED_")), default=256)
+
+
 def init(tool_id: int) -> bool:
-    """Register the native callback for tool_id. Returns False when native collection is unusable."""
+    """Register the native callbacks for tool_id. Returns False when native collection is unusable."""
     global _enabled
 
     if not requested() or _linecov is None:
         return False
     try:
-        line_event = _monitoring.events.LINE
+        events = _monitoring.events
         internal = _linecov.init(
             tool_id=tool_id,
-            line_event_index=line_event.bit_length() - 1,
+            line_event_index=events.LINE.bit_length() - 1,
             disable=_monitoring.DISABLE,
             set_local_events=_monitoring.set_local_events,
             ctxvar=ctx_native,
@@ -84,8 +103,14 @@ def init(tool_id: int) -> bool:
             enter_executor=dis.opmap.get("ENTER_EXECUTOR", -1),
             instrumented_instruction=dis.opmap.get("INSTRUMENTED_INSTRUCTION", -1),
             internal_rearm=asbool(env.get("_DD_COVERAGE_INTERNAL_REARM", "true")),
+            instruction_event_index=events.INSTRUCTION.bit_length() - 1,
+            min_instrumented=_min_instrumented_opcode(),
+            superinstructions=_superinstruction_table(),
+            instruction_probes=asbool(env.get("_DD_COVERAGE_INSTRUCTION_PROBES", "true")),
         )
-        _monitoring.register_callback(tool_id, line_event, _linecov.line_event)
+        _monitoring.register_callback(tool_id, events.LINE, _linecov.line_event)
+        if _linecov.HAVE_INSTRUCTION_PROBES:
+            _monitoring.register_callback(tool_id, events.INSTRUCTION, _linecov.instruction_event)
     except Exception:
         log.debug("Native line coverage unavailable", exc_info=True)
         return False
@@ -94,17 +119,27 @@ def init(tool_id: int) -> bool:
     if internal and not _self_test(tool_id):
         _linecov.set_internal_rearm(False)
         log.debug("Internal re-arm self-test failed; using the public re-arm")
+    elif _linecov.stats()["instruction_probes"] and not _self_test(tool_id, distant_lines=True):
+        _linecov.set_instruction_probes(False)
+        log.debug("INSTRUCTION probe self-test failed; using LINE events only")
     return True
 
 
-def _self_test(tool_id: int) -> bool:
-    """Check that contexts re-armed internally see the same lines as the first one did."""
+def _self_test(tool_id: int, distant_lines: bool = False) -> bool:
+    """Check that contexts re-armed internally see the same lines as the first one did.
+
+    With distant_lines, a long docstring puts the body more than 127 lines past the def, where
+    CPython 3.12 looks lines up in the line table, so the probe function must move to INSTRUCTION
+    probes at its first LINE event.
+    """
     assert _linecov is not None  # nosec
-    source = "def probe(n):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n"
+    docstring = "    '''" + "\n" * 300 + "    '''\n" if distant_lines else ""
+    source = f"def probe(n):\n{docstring}    total = 0\n    for i in range(n):\n        total += i\n    return total\n"
+    filename = "<ddtrace-linecov-probe>"
     namespace: dict[str, t.Any] = {}
-    exec(compile(source, "<ddtrace-linecov-probe>", "exec"), namespace)  # nosec: B102 -- fixed probe source
+    exec(compile(source, filename, "exec"), namespace)  # nosec: B102 -- fixed probe source
     code = namespace["probe"].__code__
-    file_id = _linecov.register_file("<ddtrace-linecov-probe>", None)
+    file_id = _linecov.register_file(filename, None)
     _monitoring.set_local_events(tool_id, code, _monitoring.events.LINE)
     _linecov.attach(code, file_id)
     seen = []
@@ -117,11 +152,20 @@ def _self_test(tool_id: int) -> bool:
             namespace["probe"](3)
             ctx_native.set(previous)
             ctx.pop()
-            seen.append(ctx.covered().get("<ddtrace-linecov-probe>"))
+            seen.append(ctx.covered().get(filename))
+        expected_probes = 2 if distant_lines else 1
+        probes_ok = not _linecov.HAVE_INSTRUCTION_PROBES or _linecov.probes(code) == expected_probes
     finally:
         ctx_native.set(previous)
+        # Re-arm first: a code object left listed would get its events back at the next re-arm.
+        _linecov.rearm()
         _monitoring.set_local_events(tool_id, code, 0)
-    return seen[0] is not None and seen[0] == seen[1] == seen[2] and bin(int.from_bytes(seen[0], "big")).count("1") == 4
+    return (
+        probes_ok
+        and seen[0] is not None
+        and seen[0] == seen[1] == seen[2]
+        and bin(int.from_bytes(seen[0], "big")).count("1") == 4
+    )
 
 
 def set_report_root(path: str) -> None:

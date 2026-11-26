@@ -22,7 +22,18 @@
  * - public: sys.monitoring.set_local_events(tool, code, 0) then (tool, code, LINE), which costs
  *   O(code object size).
  *
- * The callback never raises into the monitored code: an internal error is counted and the line
+ * INSTRUCTION probes (CPython 3.12 only): each LINE event computes the line of the instruction and
+ * of the one before it. CPython 3.12 stores a line as a one-byte delta from where the instruction's
+ * offset predicts it, and scans the line table from the start for any instruction whose delta does
+ * not fit. At its first LINE event, a code object with such an instruction moves to INSTRUCTION
+ * events on its line starts only, the instructions where CPython puts LINE events: the callback
+ * gets the instruction offset and reads the line from a table computed once. Every other
+ * instruction gets back the opcode it had. Both kinds deliver the same lines per context, except
+ * that a probe also fires where CPython suppresses a LINE event because the previous instruction
+ * ran on the same line, as when a coroutine resumes at an await: the await line can then be
+ * credited again, to the context the coroutine runs in.
+ *
+ * The callbacks never raise into the monitored code: an internal error is counted and the line
  * stays armed. All state is guarded by the GIL. Free-threaded builds are not supported.
  */
 #define PY_SSIZE_T_CLEAN
@@ -84,6 +95,13 @@ typedef _PyCoMonitoringData dd_monitoring;
 #if DD_LINECOV_FREE_THREADED
 #undef DD_HAVE_INTERNAL_REARM
 #define DD_HAVE_INTERNAL_REARM 0
+#endif
+
+/* CPython 3.13 and later store line deltas wide enough that LINE events never scan the line table. */
+#if DD_HAVE_INTERNAL_REARM && PY_VERSION_HEX < 0x030D0000
+#define DD_HAVE_INSTRUCTION_PROBES 1
+#else
+#define DD_HAVE_INSTRUCTION_PROBES 0
 #endif
 
 /* ------------------------------------------------------------------------------------------------
@@ -176,6 +194,13 @@ static FileInfo* g_files = NULL;
 static int32_t g_n_files = 0;
 static int32_t g_cap_files = 0;
 
+enum
+{
+    PROBES_UNDECIDED = 0, /* until the code object's first LINE event */
+    PROBES_LINE = 1,
+    PROBES_INSTRUCTION = 2, /* INSTRUCTION events on the line starts */
+};
+
 typedef struct
 {
     PyObject* code; /* borrowed: the code object owns this struct through co_extra */
@@ -183,8 +208,10 @@ typedef struct
     uint8_t is_init;  /* initialiser code: its lines go to the file's initialiser lines */
     uint8_t dirty;    /* listed in g_dirty since the last re-arm */
     uint8_t rearm;    /* 0: not decided, 1: internal, 2: public toggle */
+    uint8_t probes;   /* PROBES_* */
     int32_t n_starts; /* line-start code unit indices, computed on the first internal re-arm */
     int32_t* starts;
+    int32_t* start_lines; /* the line of each start, for INSTRUCTION probes */
 } CodeInfo;
 
 static Py_ssize_t g_extra_index = -1;
@@ -196,6 +223,7 @@ codeinfo_free(void* p)
     if (ci == NULL)
         return;
     PyMem_RawFree(ci->starts);
+    PyMem_RawFree(ci->start_lines);
     PyMem_RawFree(ci);
 }
 
@@ -261,16 +289,25 @@ static uint8_t g_deopt[256];
 static int g_instrumented_line = -1;
 static int g_enter_executor = -1;
 static int g_instrumented_instruction = -1;
+static int g_instruction_event_index = -1;
+static PyObject* g_instruction_mask_object = NULL; /* INSTRUCTION event set, as set_local_events takes it */
+static int g_instruction_probes = 0;
+static int g_min_instrumented = 256;    /* opcodes from this one up are instrumented opcodes */
+static uint8_t g_superinstruction[256]; /* 1 for an opcode that also runs the next instruction */
 
 /* Counters, for profiling and tests. */
 static unsigned long long g_events = 0;
 static unsigned long long g_events_init = 0;
 static unsigned long long g_events_unowned = 0;
 static unsigned long long g_events_kept = 0;
+static unsigned long long g_events_instruction = 0;
 static unsigned long long g_errors = 0;
 static unsigned long long g_rearm_internal = 0;
 static unsigned long long g_rearm_public = 0;
+static unsigned long long g_rearm_instruction = 0;
 static unsigned long long g_rearm_starts = 0;
+static unsigned long long g_switched = 0;
+static unsigned long long g_reverted = 0;
 
 static int
 context_reserve_files(Context* c, int32_t file_id)
@@ -438,6 +475,186 @@ rearm_internal(CodeInfo* ci, PyCodeObject* co)
 }
 #endif
 
+#if DD_HAVE_INSTRUCTION_PROBES
+#define DD_COMPUTED_LINE (-127) /* CPython 3.12's line delta for a line looked up in the line table */
+
+/* Whether a LINE event can look up a line in the line table, for the instruction or the one before. */
+static int
+has_computed_lines(PyCodeObject* co)
+{
+    dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
+    Py_ssize_t n = Py_SIZE(co);
+    for (Py_ssize_t i = co->_co_firsttraceable; i < n; i++)
+        if (m->lines[i].line_delta == DD_COMPUTED_LINE)
+            return 1;
+    return 0;
+}
+
+/* The line of each line start, from co_lines(), which reads the line table as LINE events do. */
+static int
+compute_start_lines(CodeInfo* ci, PyCodeObject* co)
+{
+    int32_t* lines = PyMem_RawMalloc(sizeof(int32_t) * (size_t)(ci->n_starts ? ci->n_starts : 1));
+    if (lines == NULL)
+        return -1;
+    PyObject* ranges = PyObject_CallMethod((PyObject*)co, "co_lines", NULL);
+    PyObject* iterator = ranges != NULL ? PyObject_GetIter(ranges) : NULL;
+    Py_XDECREF(ranges);
+    int32_t k = 0;
+    if (iterator != NULL) {
+        PyObject* item;
+        while (k < ci->n_starts && (item = PyIter_Next(iterator)) != NULL) {
+            long start = -1, end = -1, line = -1;
+            if (PyTuple_Check(item) && PyTuple_GET_SIZE(item) == 3) {
+                start = PyLong_AsLong(PyTuple_GET_ITEM(item, 0));
+                end = PyLong_AsLong(PyTuple_GET_ITEM(item, 1));
+                PyObject* number = PyTuple_GET_ITEM(item, 2);
+                if (number != Py_None)
+                    line = PyLong_AsLong(number);
+            }
+            Py_DECREF(item);
+            if (start < 0 || end < start || PyErr_Occurred())
+                break;
+            /* Ranges are contiguous and in offset order, and so are the starts. */
+            if (2L * ci->starts[k] < start)
+                break;
+            while (k < ci->n_starts && 2L * ci->starts[k] < end)
+                lines[k++] = (int32_t)line;
+        }
+        Py_DECREF(iterator);
+    }
+    if (PyErr_Occurred() || k != ci->n_starts) {
+        PyErr_Clear();
+        PyMem_RawFree(lines);
+        return -1;
+    }
+    PyMem_RawFree(ci->start_lines);
+    ci->start_lines = lines;
+    return 0;
+}
+
+/* Puts the code object back on LINE events for good, which also re-arms all its line starts. */
+static void
+revert_to_line_events(CodeInfo* ci, PyObject* code)
+{
+    ci->probes = PROBES_LINE;
+    g_reverted++;
+    PyObject* call_args[3] = { g_tool_id_object, code, g_line_mask_object };
+    PyObject* r = PyObject_Vectorcall(g_set_local_events, call_args, 3, NULL);
+    if (r == NULL) {
+        PyErr_Clear();
+        g_errors++;
+        return;
+    }
+    Py_DECREF(r);
+}
+
+/* Decides, at the code object's first LINE event, between LINE events and INSTRUCTION probes. The
+   switch needs this tool to be alone on LINE events here and nobody on INSTRUCTION events. Never
+   raises. */
+static void
+choose_probes(CodeInfo* ci, PyCodeObject* co)
+{
+    ci->probes = PROBES_LINE;
+    if (!g_instruction_probes)
+        return;
+    dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
+    if (m == NULL || m->lines == NULL || m->per_instruction_opcodes != NULL ||
+        m->active_monitors.tools[g_line_event_index] != g_tool_bit ||
+        m->active_monitors.tools[g_instruction_event_index] != 0 || !has_computed_lines(co))
+        return;
+    if (ci->starts == NULL && compute_starts(ci, co) < 0)
+        return;
+    if (compute_start_lines(ci, co) < 0)
+        return;
+    Py_ssize_t n = Py_SIZE(co);
+    uint8_t* bytecode = (uint8_t*)co->co_code_adaptive;
+    uint8_t* before = PyMem_RawMalloc((size_t)n);
+    if (before == NULL)
+        return;
+    for (Py_ssize_t i = 0; i < n; i++)
+        before[i] = bytecode[2 * i];
+    /* Replaces this tool's LINE events with INSTRUCTION events on every instruction. */
+    PyObject* call_args[3] = { g_tool_id_object, (PyObject*)co, g_instruction_mask_object };
+    PyObject* r = PyObject_Vectorcall(g_set_local_events, call_args, 3, NULL);
+    if (r == NULL) {
+        PyErr_Clear();
+        PyMem_RawFree(before);
+        revert_to_line_events(ci, (PyObject*)co);
+        return;
+    }
+    Py_DECREF(r);
+    m = (dd_monitoring*)co->_co_monitoring;
+    if (m->per_instruction_opcodes == NULL || m->active_monitors.tools[g_instruction_event_index] != g_tool_bit ||
+        m->active_monitors.tools[g_line_event_index] != 0) {
+        PyMem_RawFree(before);
+        revert_to_line_events(ci, (PyObject*)co);
+        return;
+    }
+    /* CPython allocates per_instruction_tools only once two tools share an event, and empty, which
+       would silence the probes armed then. Allocated now, CPython keeps it up to date. */
+    if (m->per_instruction_tools == NULL) {
+        uint8_t* tools = PyMem_Malloc((size_t)n);
+        if (tools == NULL) {
+            PyMem_RawFree(before);
+            revert_to_line_events(ci, (PyObject*)co);
+            return;
+        }
+        memset(tools, 0, (size_t)n);
+        m->per_instruction_tools = tools;
+    }
+    int32_t k = 0;
+    for (Py_ssize_t i = co->_co_firsttraceable; i < n; i++) {
+        int start = k < ci->n_starts && ci->starts[k] == i;
+        if (start)
+            k++;
+        /* Skips what the switch left alone: RESUME, END_FOR and inline cache entries. */
+        if (bytecode[2 * i] != g_instrumented_instruction || before[i] == g_instrumented_instruction)
+            continue;
+        if (start) {
+            m->per_instruction_tools[i] |= g_tool_bit;
+        } else {
+            /* Back to its opcode before the switch, as if never instrumented. A superinstruction
+               would run the next instruction without its probe; the first instrumentation of the
+               code object removed them, so this is only a guard. */
+            uint8_t op = before[i];
+            bytecode[2 * i] = g_superinstruction[op] ? g_deopt[op] : op;
+            m->per_instruction_opcodes[i] = 0;
+            m->per_instruction_tools[i] &= (uint8_t)~g_tool_bit;
+        }
+    }
+    PyMem_RawFree(before);
+    ci->probes = PROBES_INSTRUCTION;
+    g_switched++;
+}
+
+/* Mirrors CPython's add_per_instruction_tools() for every line start. Returns 0 on success, 1 when
+   the code object must go back to LINE events. */
+static int
+rearm_instruction_probes(CodeInfo* ci, PyCodeObject* co)
+{
+    dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
+    if (m == NULL || m->lines == NULL || m->per_instruction_opcodes == NULL || m->per_instruction_tools == NULL ||
+        !(m->active_monitors.tools[g_instruction_event_index] & g_tool_bit))
+        return 1;
+    uint8_t* bytecode = (uint8_t*)co->co_code_adaptive;
+    for (int32_t k = 0; k < ci->n_starts; k++) {
+        int32_t i = ci->starts[k];
+        m->per_instruction_tools[i] |= g_tool_bit;
+        uint8_t* op = &bytecode[2 * i];
+        if (*op == g_instrumented_line)
+            op = &m->lines[i].original_opcode; /* another tool's LINE event comes first */
+        if (*op == g_instrumented_instruction)
+            continue;
+        m->per_instruction_opcodes[i] = *op >= g_min_instrumented ? *op : g_deopt[*op];
+        *op = (uint8_t)g_instrumented_instruction;
+    }
+    g_rearm_instruction++;
+    g_rearm_starts += (unsigned long long)ci->n_starts;
+    return 0;
+}
+#endif
+
 /* Re-arms every listed code object. Errors are counted, never raised: a code object that cannot
    be re-armed only loses lines for later contexts. */
 static void
@@ -451,8 +668,15 @@ rearm_all(void)
         if (ci != NULL) {
             ci->dirty = 0;
             int done = 0;
+#if DD_HAVE_INSTRUCTION_PROBES
+            if (ci->probes == PROBES_INSTRUCTION) {
+                if (rearm_instruction_probes(ci, (PyCodeObject*)code) != 0)
+                    revert_to_line_events(ci, code);
+                done = 1;
+            }
+#endif
 #if DD_HAVE_INTERNAL_REARM
-            if (g_internal_rearm && ci->rearm != 2) {
+            if (!done && g_internal_rearm && ci->rearm != 2) {
                 if (rearm_internal(ci, (PyCodeObject*)code) == 0)
                     done = 1;
                 else
@@ -469,7 +693,7 @@ rearm_all(void)
 }
 
 /* ------------------------------------------------------------------------------------------------
- * The LINE callback.
+ * The LINE and INSTRUCTION callbacks.
  */
 static inline PyObject*
 disable_line(CodeInfo* ci)
@@ -482,21 +706,10 @@ disable_line(CodeInfo* ci)
     return Py_NewRef(g_disable);
 }
 
+/* Credits a line of the code object and returns what the callback returns. */
 static PyObject*
-line_event(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+record_line(CodeInfo* ci, uint32_t line)
 {
-    if (nargs != 2)
-        return Py_NewRef(g_disable);
-    CodeInfo* ci = codeinfo_get(args[0]);
-    if (ci == NULL)
-        return Py_NewRef(g_disable);
-    long value = PyLong_AsLong(args[1]);
-    if (value <= 0) {
-        if (value == -1 && PyErr_Occurred())
-            PyErr_Clear();
-        return Py_NewRef(g_disable);
-    }
-    uint32_t line = (uint32_t)value;
     int32_t file_id = ci->file_id;
     FileInfo* fi = &g_files[file_id];
     g_events++;
@@ -557,6 +770,61 @@ done:
     Py_XDECREF(current);
     return result;
 }
+
+static PyObject*
+line_event(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    if (nargs != 2)
+        return Py_NewRef(g_disable);
+    CodeInfo* ci = codeinfo_get(args[0]);
+    if (ci == NULL)
+        return Py_NewRef(g_disable);
+    long value = PyLong_AsLong(args[1]);
+    if (value <= 0) {
+        if (value == -1 && PyErr_Occurred())
+            PyErr_Clear();
+        return Py_NewRef(g_disable);
+    }
+#if DD_HAVE_INSTRUCTION_PROBES
+    /* A switch to INSTRUCTION probes from inside this callback is safe: CPython runs the original
+       opcode of this line start next, and DISABLE returned for it finds no LINE event to remove. */
+    if (ci->probes == PROBES_UNDECIDED)
+        choose_probes(ci, (PyCodeObject*)args[0]);
+#endif
+    return record_line(ci, (uint32_t)value);
+}
+
+#if DD_HAVE_INSTRUCTION_PROBES
+static PyObject*
+instruction_event(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    if (nargs != 2)
+        return Py_NewRef(g_disable);
+    CodeInfo* ci = codeinfo_get(args[0]);
+    if (ci == NULL || ci->probes != PROBES_INSTRUCTION)
+        return Py_NewRef(g_disable);
+    long offset = PyLong_AsLong(args[1]);
+    if (offset < 0) {
+        if (PyErr_Occurred())
+            PyErr_Clear();
+        return Py_NewRef(g_disable);
+    }
+    int32_t index = (int32_t)(offset / 2);
+    int32_t lo = 0, hi = ci->n_starts;
+    while (lo < hi) {
+        int32_t mid = lo + (hi - lo) / 2;
+        if (ci->starts[mid] < index)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    /* Not a line start: sys.monitoring.restart_events() re-armed every instruction. */
+    if (lo == ci->n_starts || ci->starts[lo] != index || ci->start_lines[lo] <= 0)
+        return Py_NewRef(g_disable);
+    g_events_instruction++;
+    return record_line(ci, (uint32_t)ci->start_lines[lo]);
+}
+#endif
 
 /* ------------------------------------------------------------------------------------------------
  * Context type.
@@ -832,18 +1100,28 @@ static PyTypeObject ContextType = {
 static PyObject*
 mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
 {
-    static char* kwlist[] = {
-        "tool_id", "line_event_index",  "disable",        "set_local_events",         "ctxvar",
-        "deopt",   "instrumented_line", "enter_executor", "instrumented_instruction", "internal_rearm",
-        NULL
-    };
+    static char* kwlist[] = { "tool_id",
+                              "line_event_index",
+                              "disable",
+                              "set_local_events",
+                              "ctxvar",
+                              "deopt",
+                              "instrumented_line",
+                              "enter_executor",
+                              "instrumented_instruction",
+                              "internal_rearm",
+                              "instruction_event_index",
+                              "min_instrumented",
+                              "superinstructions",
+                              "instruction_probes",
+                              NULL };
     int tool_id, line_event_index, instrumented_line, enter_executor, instrumented_instruction;
-    int internal_rearm = 1;
-    PyObject *disable, *set_local_events, *ctxvar;
+    int internal_rearm = 1, instruction_event_index = -1, min_instrumented = 256, instruction_probes = 0;
+    PyObject *disable, *set_local_events, *ctxvar, *superinstructions = NULL;
     Py_buffer deopt;
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwds,
-                                     "iiOOOy*iii|p",
+                                     "iiOOOy*iii|piiOp",
                                      kwlist,
                                      &tool_id,
                                      &line_event_index,
@@ -854,7 +1132,11 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
                                      &instrumented_line,
                                      &enter_executor,
                                      &instrumented_instruction,
-                                     &internal_rearm))
+                                     &internal_rearm,
+                                     &instruction_event_index,
+                                     &min_instrumented,
+                                     &superinstructions,
+                                     &instruction_probes))
         return NULL;
     if (deopt.len != 256) {
         PyBuffer_Release(&deopt);
@@ -866,8 +1148,23 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
         PyErr_SetString(PyExc_TypeError, "ctxvar must be a ContextVar");
         return NULL;
     }
+    if (superinstructions != NULL && superinstructions != Py_None &&
+        (!PyBytes_Check(superinstructions) || PyBytes_GET_SIZE(superinstructions) != 256)) {
+        PyBuffer_Release(&deopt);
+        PyErr_SetString(PyExc_ValueError, "superinstructions must be 256 bytes");
+        return NULL;
+    }
     memcpy(g_deopt, deopt.buf, 256);
     PyBuffer_Release(&deopt);
+    if (superinstructions != NULL && superinstructions != Py_None)
+        memcpy(g_superinstruction, PyBytes_AS_STRING(superinstructions), 256);
+    else
+        memset(g_superinstruction, 0, 256);
+    PyObject* instruction_mask_object = NULL;
+    if (instruction_event_index >= 0 &&
+        (instruction_mask_object = PyLong_FromLong(1L << instruction_event_index)) == NULL)
+        return NULL;
+    Py_XSETREF(g_instruction_mask_object, instruction_mask_object);
     if (g_extra_index < 0) {
         g_extra_index = PyUnstable_Eval_RequestCodeExtraIndex(codeinfo_free);
         if (g_extra_index < 0) {
@@ -900,11 +1197,17 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
     g_instrumented_line = instrumented_line;
     g_enter_executor = enter_executor;
     g_instrumented_instruction = instrumented_instruction;
+    g_instruction_event_index = instruction_event_index;
+    g_min_instrumented = min_instrumented;
     g_internal_rearm = DD_HAVE_INTERNAL_REARM && internal_rearm && instrumented_line > 0;
+    g_instruction_probes = DD_HAVE_INSTRUCTION_PROBES && g_internal_rearm && instruction_probes &&
+                           instruction_event_index >= 0 && instrumented_instruction > 0 && min_instrumented < 256;
     g_initialized = 1;
     return PyBool_FromLong(g_internal_rearm);
 }
 
+/* The probes rely on the internal re-arm, so turning it off turns them off for code objects not
+   decided yet. */
 static PyObject*
 mod_set_internal_rearm(PyObject* Py_UNUSED(self), PyObject* arg)
 {
@@ -912,7 +1215,33 @@ mod_set_internal_rearm(PyObject* Py_UNUSED(self), PyObject* arg)
     if (on < 0)
         return NULL;
     g_internal_rearm = DD_HAVE_INTERNAL_REARM && on && g_instrumented_line > 0;
+    if (!g_internal_rearm)
+        g_instruction_probes = 0;
     return PyBool_FromLong(g_internal_rearm);
+}
+
+/* Switches INSTRUCTION probes for code objects not decided yet. */
+static PyObject*
+mod_set_instruction_probes(PyObject* Py_UNUSED(self), PyObject* arg)
+{
+    int on = PyObject_IsTrue(arg);
+    if (on < 0)
+        return NULL;
+    g_instruction_probes = DD_HAVE_INSTRUCTION_PROBES && on && g_internal_rearm && g_instruction_event_index >= 0 &&
+                           g_instrumented_instruction > 0 && g_min_instrumented < 256;
+    return PyBool_FromLong(g_instruction_probes);
+}
+
+/* probes(code) -> 0 when not decided or not attached, 1 for LINE events, 2 for INSTRUCTION probes. */
+static PyObject*
+mod_probes(PyObject* Py_UNUSED(self), PyObject* code)
+{
+    if (!PyCode_Check(code)) {
+        PyErr_SetString(PyExc_TypeError, "probes(code)");
+        return NULL;
+    }
+    CodeInfo* ci = codeinfo_get(code);
+    return PyLong_FromLong(ci != NULL ? ci->probes : PROBES_UNDECIDED);
 }
 
 static PyObject*
@@ -1212,7 +1541,7 @@ done:
 static PyObject*
 mod_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
 {
-    return Py_BuildValue("{s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:n,s:i,s:i,s:i}",
+    return Py_BuildValue("{s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:n,s:i,s:i,s:i,s:i}",
                          "events",
                          g_events,
                          "events_init",
@@ -1221,14 +1550,22 @@ mod_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
                          g_events_unowned,
                          "events_kept",
                          g_events_kept,
+                         "events_instruction",
+                         g_events_instruction,
                          "errors",
                          g_errors,
                          "rearm_internal",
                          g_rearm_internal,
                          "rearm_public",
                          g_rearm_public,
+                         "rearm_instruction",
+                         g_rearm_instruction,
                          "rearm_starts",
                          g_rearm_starts,
+                         "switched",
+                         g_switched,
+                         "reverted",
+                         g_reverted,
                          "dirty",
                          g_n_dirty,
                          "active",
@@ -1236,12 +1573,16 @@ mod_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
                          "files",
                          g_n_files,
                          "internal_rearm",
-                         g_internal_rearm);
+                         g_internal_rearm,
+                         "instruction_probes",
+                         g_instruction_probes);
 }
 
 static PyMethodDef module_methods[] = {
     { "init", (PyCFunction)(void (*)(void))mod_init, METH_VARARGS | METH_KEYWORDS, "Configure the collector." },
     { "set_internal_rearm", mod_set_internal_rearm, METH_O, "Switch the internal re-arm." },
+    { "set_instruction_probes", mod_set_instruction_probes, METH_O, "Switch INSTRUCTION probes." },
+    { "probes", mod_probes, METH_O, "The kind of probes a code object uses." },
     { "register_file", (PyCFunction)(void (*)(void))mod_register_file, METH_FASTCALL, "Register a file." },
     { "attach", (PyCFunction)(void (*)(void))mod_attach, METH_FASTCALL, "Attach a code object to a file." },
     { "instrument",
@@ -1250,6 +1591,12 @@ static PyMethodDef module_methods[] = {
       "Enable LINE events on a module's code tree and attach it to a file. Returns the number of "
       "code objects instrumented, or -1 when the module body looks obfuscated." },
     { "line_event", (PyCFunction)(void (*)(void))line_event, METH_FASTCALL, "sys.monitoring LINE callback." },
+#if DD_HAVE_INSTRUCTION_PROBES
+    { "instruction_event",
+      (PyCFunction)(void (*)(void))instruction_event,
+      METH_FASTCALL,
+      "sys.monitoring INSTRUCTION callback." },
+#endif
     { "rearm", mod_rearm, METH_NOARGS, "Re-arm every disabled line start." },
     { "shared", mod_shared, METH_NOARGS, "The process's Shared record, in three parts." },
     { "stats", mod_stats, METH_NOARGS, "Counters." },
@@ -1275,6 +1622,7 @@ PyInit__linecov(void)
         return NULL;
     }
     if (PyModule_AddIntConstant(m, "HAVE_INTERNAL_REARM", DD_HAVE_INTERNAL_REARM) < 0 ||
+        PyModule_AddIntConstant(m, "HAVE_INSTRUCTION_PROBES", DD_HAVE_INSTRUCTION_PROBES) < 0 ||
         PyModule_AddIntConstant(m, "FREE_THREADED", DD_LINECOV_FREE_THREADED) < 0) {
         Py_DECREF(m);
         return NULL;
