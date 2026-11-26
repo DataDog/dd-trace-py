@@ -592,19 +592,19 @@ _ITERABLE_CONTENT_BLOCK_TYPES = frozenset(("tool_result", "mcp_tool_result"))
 
 
 def materialize_request(kwargs: dict[str, Any]) -> None:
-    """Read the request iterables once, so the SDK and every AI Guard hook see the same values; fails open.
+    """Read the request iterables once, so the SDK and every AI Guard hook see the same values.
 
-    Iterable tool result content goes into a request-local block copy: the caller's objects are never changed.
+    Tool result content goes into a request-local copy. A caller iterable's error reaches the caller; ours fail open.
     """
     caller_error: Optional[BaseException] = None
     try:
         _materialize_request(kwargs)
     except _CallerIterationError as exc:
-        # The SDK would raise it too while reading that iterable, before sending the request.
         caller_error = exc.__cause__
     except Exception:
         logger.debug("AI Guard anthropic: failed to materialize the request iterables", exc_info=True)
     if caller_error is not None:
+        # Raised outside the handler, so the caller's exception keeps its own cause and context.
         raise caller_error
 
 
@@ -655,10 +655,8 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
     if not aiguard_config._ai_guard_mcp_enabled:
         return None
     try:
+        # materialize_request already made it a list.
         declared = kwargs.get("mcp_servers")
-        if declared is not None and _is_unlisted_iterable(declared):
-            # Already a list when the before-hook ran; only the servers are needed here, not a new history pass.
-            declared = kwargs["mcp_servers"] = list(declared)
         servers: dict[str, MCPServer] = {}
         if not isinstance(declared, (list, tuple)):
             return servers

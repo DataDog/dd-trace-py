@@ -564,14 +564,28 @@ def test_pending_client_call_ends_the_turn_after_a_connector_result():
     ]
 
 
-@pytest.mark.parametrize("key", ["system", "mcp_servers"])
+_FIRST_ITEM = {
+    "messages": USER[0],
+    "system": {"type": "text", "text": "x"},
+    "tools": {"name": "get_time", "input_schema": {"type": "object"}},
+    "mcp_servers": CONNECTOR,
+}
+
+
+@pytest.mark.parametrize("key", ["messages", "system", "tools", "mcp_servers", "tool_result_content"])
 def test_caller_iterator_error_reaches_the_caller(key):
-    """An error raised while reading a caller iterable reaches the caller, as without AI Guard."""
+    """An error raised while reading a caller iterable reaches the caller with its own cause, as without AI Guard."""
 
-    def failing():
-        yield {"type": "text", "text": "x"} if key == "system" else CONNECTOR
-        raise ValueError("caller iterator failed")
+    def failing(first):
+        yield first
+        raise ValueError("caller iterator failed") from KeyError("root cause")
 
-    kwargs = {"messages": USER, key: failing()}
-    with pytest.raises(ValueError, match="caller iterator failed"):
+    if key == "tool_result_content":
+        result = dict(RESULT, content=failing(RESULT["content"][0]))
+        kwargs = {"messages": USER + [{"role": "assistant", "content": [CALL, result]}, FOLLOW_UP]}
+    else:
+        kwargs = {"messages": USER, key: failing(_FIRST_ITEM[key])}
+
+    with pytest.raises(ValueError, match="caller iterator failed") as raised:
         _anthropic_messages_create_before(new_ai_guard_client(), kwargs)
+    assert isinstance(raised.value.__cause__, KeyError)
