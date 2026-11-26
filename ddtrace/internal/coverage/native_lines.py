@@ -411,6 +411,16 @@ def new_context(fixture: bool = False) -> t.Any:
     return _linecov.Context(fixture)
 
 
+def context_type() -> t.Any:
+    """The type of a native context. Calling it makes a test context.
+
+    A test context is also a window: a with statement runs the current thread and task in it, and
+    merges the records of the child processes that exited before the window closes.
+    """
+    assert _linecov is not None  # nosec
+    return _linecov.Context
+
+
 def set_running(context: t.Any) -> None:
     """Run in context (a native context or None), which child processes started from now on inherit."""
     if _linecov is not None and _enabled:
@@ -514,6 +524,7 @@ def follow_children(include_paths: t.Sequence[str], exclude_paths: t.Sequence[st
         _original_execute_child = subprocess.Popen._execute_child  # type: ignore[attr-defined]
         subprocess.Popen._execute_child = _execute_child  # type: ignore[attr-defined]
     _linecov.set_running(ctx_native.get())
+    _linecov.set_records_callback(collect_children)
     forksafe.register(_stop_in_forked_child)
 
 
@@ -694,6 +705,7 @@ def _stop_following() -> t.Optional[_ChildProcesses]:
         env["PYTHONPATH"] = children.python_path
     env.pop(_CHILD_DIR_ENV, None)
     if _linecov is not None:
+        _linecov.set_records_callback(None)
         _linecov.unshare_state()
     return children
 
