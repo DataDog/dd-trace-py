@@ -7,5 +7,5 @@ recursive-exclude ddtrace *.manifest.yaml
 recursive-exclude * **/__pycache__/*
 prune benchmarks/
 prune releasenotes/
-prune src/native/target*
+prune src/profiling_ffi/target*
 prune src/native_heap_gotter/target*

@@ -1,8 +1,8 @@
 [build-system]
 requires = [
+    "setuptools>=62.4",
     "cython",
     "cmake>=3.24.2,<3.28",
-    "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
 ]
 build-backend = "setuptools.build_meta"
@@ -41,6 +41,7 @@ dependencies = [
     "bytecode>=0.14.0,<1; python_version~='3.11.0'",
     "bytecode>=0.13.0,<1; python_version<'3.11'",
     "ddtrace-internal==0.3.0",
+    "ddtrace-native>=0.1.0,<0.2",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
     # TODO: lift the `!=2.2.0` exclusion once wrapt ships a release that
@@ -130,6 +131,7 @@ lint = [
     "coverage==7.3.0",
     "envier==0.6.1",
     "ddtrace-internal==0.3.0",
+    "ddtrace-native>=0.1.0,<0.2",
     "openfeature-sdk~=0.8.0",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
@@ -154,7 +156,6 @@ lint = [
 clean = [
     "cython",
     "cmake>=3.24.2,<3.28",
-    "setuptools-rust<2",
     "setuptools-scm[toml]>=4",
 ]
 

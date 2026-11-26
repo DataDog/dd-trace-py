@@ -26,7 +26,7 @@ include(FindCppcheck)
 include(FindInfer)
 include(CheckSymbolExists)
 
-find_package(LibNative)
+find_package(LibProfilingFfi)
 find_package(Python3 COMPONENTS Interpreter Development.Module)
 
 # Set verbose mode so compiler and args are shown
@@ -75,7 +75,7 @@ set_source_files_properties(src/sample.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-st
 
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
-target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
+target_link_libraries(dd_wrapper PRIVATE _profiling_ffi Threads::Threads)
 
 # Figure out the suffix.  Try to approximate the cpython way of doing things.
 check_symbol_exists(__GLIBC__ "features.h" HAVE_GLIBC)
@@ -110,20 +110,18 @@ set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAM
 # Force .so extension for both Linux and macOS to match Python extension expectations
 set_target_properties(dd_wrapper PROPERTIES SUFFIX ".so")
 if(APPLE)
-    # Include both paths: 3 levels for local builds (lib/ subdirectory), 2 levels for wheel installs
-    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../../native;@loader_path/../../native"
-                                                INSTALL_RPATH "@loader_path/../../../native;@loader_path/../../native")
+    # The profiling FFI library is staged next to libdd_wrapper
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path" INSTALL_RPATH "@loader_path")
     # Add a post-build step to fix the library dependency to use @rpath
     add_custom_command(
         TARGET dd_wrapper
         POST_BUILD
-        COMMAND install_name_tool -change "_native${EXTENSION_SUFFIX}" "@rpath/_native${EXTENSION_SUFFIX}"
+        COMMAND install_name_tool -change "_profiling_ffi${EXTENSION_SUFFIX}" "@rpath/_profiling_ffi${EXTENSION_SUFFIX}"
                 $<TARGET_FILE:dd_wrapper>
         COMMENT "Fixing library dependency to use @rpath")
 else()
-    # Include both paths: 3 levels for local builds (lib/ subdirectory), 2 levels for wheel installs
-    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN/../../../native:$ORIGIN/../../native"
-                                                INSTALL_RPATH "$ORIGIN/../../../native:$ORIGIN/../../native")
+    # The profiling FFI library is staged next to libdd_wrapper
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN")
 endif()
 
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.

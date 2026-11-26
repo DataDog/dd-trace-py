@@ -11,11 +11,10 @@ MEMALLOC_DIR="${REPO_ROOT}/ddtrace/profiling/collector"
 echo "Script dir: ${SCRIPT_DIR}"
 echo "Repo root: ${REPO_ROOT}"
 
-# Build the rust native library first (required for cmake to find it)
-echo "Building rust native library..."
+# Build the profiling FFI library first (required for cmake to find it)
+echo "Building profiling FFI library..."
 pushd "${REPO_ROOT}"
-pip install setuptools_rust
-python3 setup.py build_rust --inplace
+python3 setup.py build_profiling_ffi --inplace
 popd
 
 # Configure cmake for dd_wrapper to generate compile_commands.json
@@ -27,7 +26,7 @@ cmake \
     -DCMAKE_BUILD_TYPE=Debug \
     -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
     -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
-    -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
+    -DPROFILING_FFI_LOCATION="${REPO_ROOT}/ddtrace/internal/datadog/profiling" \
     "${SCRIPT_DIR}/dd_wrapper"
 popd
 
@@ -40,7 +39,7 @@ cmake \
     -DCMAKE_BUILD_TYPE=Debug \
     -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
     -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
-    -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
+    -DPROFILING_FFI_LOCATION="${REPO_ROOT}/ddtrace/internal/datadog/profiling" \
     -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
     -DBUILD_FUZZING=ON \
     -DSTACK_USE_LIBFUZZER=OFF \
@@ -59,7 +58,7 @@ cmake \
     -DCMAKE_BUILD_TYPE=Debug \
     -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
     -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
-    -DRUST_GENERATED_HEADERS_DIR="${REPO_ROOT}/src/native/target$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")/include" \
+    -DRUST_GENERATED_HEADERS_DIR="${REPO_ROOT}/src/profiling_ffi/target$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")/include" \
     -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
     "${MEMALLOC_DIR}"
 popd

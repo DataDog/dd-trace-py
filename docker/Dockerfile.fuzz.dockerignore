@@ -16,4 +16,4 @@ tests/requirements_locks/
 build/
 coverage-*/
 dist/
-src/native/target*/
+src/profiling_ffi/target*/

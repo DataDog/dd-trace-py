@@ -32,7 +32,7 @@ flowchart TD
     handle --> sample
 
     scheduler["Scheduler<br/>ddup.upload()"] -.->|every upload interval| uploader
-    uploader --> libdatadog["libdatadog<br/>in ddtrace.internal.native._native"]
+    uploader --> libdatadog["libdatadog<br/>in _profiling_ffi"]
     libdatadog --> agent["Datadog Agent"]
 ```
 
@@ -144,7 +144,7 @@ If another library replaces those signal handlers, it goes back to the system ca
 **One libdd_wrapper.**
 `_ddup`, `_stack` and `_memalloc` all link the same prebuilt `libdd_wrapper`, which `setup.py` builds first.
 So the process has one profile and one set of fork handlers, and the wheel stays small.
-dd_wrapper uses the libdatadog code in `_native` (`src/native`, `profiling` feature), which the tracer also uses, so the wheel contains libdatadog only once.
+dd_wrapper links `_profiling_ffi` (`src/profiling_ffi`), a profiling-only cdylib that `setup.py` builds with cargo and stages next to it; its SONAME is set at link time. The tracer's `_native` ships in the `ddtrace-native` package on the same libdatadog revision, so the process holds two copies of libdatadog, one for each library.
 
 **manylinux2014.**
 The native code uses C++20 (`cmake/AnalysisFunc.cmake`), but Linux wheels must pass `auditwheel repair` for manylinux2014.

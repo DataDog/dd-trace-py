@@ -44,7 +44,7 @@ function(dd_wrapper_add_test name)
     target_include_directories(
         ${name} SYSTEM
         PRIVATE ${Python3_INCLUDE_DIRS} ../echion
-                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
+                ../../../../../../src/profiling_ffi/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
     # this has to refer to the stack extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
 
@@ -95,7 +95,7 @@ function(configure_stack_internal_test name)
     target_include_directories(
         ${name} SYSTEM
         PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
-                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
+                ../../../../../../src/profiling_ffi/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
     target_compile_definitions(${name} PRIVATE "$<TARGET_PROPERTY:${EXTENSION_NAME},COMPILE_DEFINITIONS>")
     if(LIB_INSTALL_DIR)
         set_property(

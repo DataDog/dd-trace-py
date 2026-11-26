@@ -1913,10 +1913,18 @@ def test_meta_struct_is_packed_without_importing_ddtrace():
 
 def test_native_extension_is_initialized_under_its_package():
     # The extension finds its sibling _msgpack from the name it was initialized under, so that name
-    # must carry the package.
+    # must carry the package. With the bridge, the extension is the ddtrace-native package module,
+    # so the sibling resolves inside that package; both spellings satisfy the invariant.
+    from importlib import import_module
+    import sys
+
     from ddtrace.internal.native import _native
 
-    assert _native.__name__ == "ddtrace.internal.native._native"
+    parent, _, leaf = _native.__name__.rpartition(".")
+    assert parent and leaf == "_native"
+    sibling = parent + "._msgpack"
+    import_module(sibling)
+    assert sys.modules[sibling].packb is sys.modules["ddtrace.internal.native._msgpack"].packb
 
 
 @pytest.mark.subprocess()
@@ -1925,13 +1933,17 @@ def test_meta_struct_is_dropped_when_the_sibling_packer_is_unavailable():
 
     import msgpack
 
+    # A None entry makes the import fail, as if the sibling module were missing. The packer the
+    # crate uses is the sibling of the name the extension was initialized under, which is the
+    # ddtrace-native package itself once ddtrace.internal.native bridges to it.
+    import ddtrace.internal.native as _native_pkg
     from ddtrace.trace import Span
     from tests.tracer.test_native_trace_buffer import _wait_for_payload
     from tests.tracer.test_native_trace_buffer import buffer_writer
     from tests.tracer.test_native_trace_buffer import capture_server
 
-    # A None entry makes the import fail, as if the sibling module were missing.
-    sys.modules["ddtrace.internal.native._msgpack"] = None
+    _sibling = _native_pkg._native.__name__.rpartition(".")[0] + "._msgpack"
+    sys.modules[_sibling] = None
 
     span = Span(name="op", trace_id=1, span_id=1)
     span._set_struct_tag("k", {"v": 1})

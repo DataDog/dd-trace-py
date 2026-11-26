@@ -4,7 +4,7 @@ Building and Testing the Profiler
 This guide lists every way to build and check a change to the Python profiler.
 For each check it gives the command, what the check covers, and the CI job that runs it.
 The profiler code lives in `ddtrace/profiling/`, `ddtrace/internal/profiling/`, and `ddtrace/internal/datadog/profiling/`.
-Native profiler code also depends on the Rust extension in `src/native/`.
+Native profiler code also depends on the profiling FFI crate in `src/profiling_ffi/`.
 
 
 Building
@@ -107,7 +107,7 @@ No CI job runs it, and it fails on current findings in `dd_wrapper`.
 
 ### Rust
 
-`cargo test`, `cargo clippy`, and `cargo fmt --check` for `src/native/` and `src/native_heap_gotter/`.
+`cargo test`, `cargo clippy`, and `cargo fmt --check` for `src/profiling_ffi/` and `src/native_heap_gotter/`.
 CI job: `rust ci` in [.gitlab/native.yml](../../../../../.gitlab/native.yml), on every pipeline.
 
 ### Wheels
@@ -148,12 +148,12 @@ Two jobs trigger its `downstream-python.yml` workflow against the wheels CI buil
 Both run the default scenarios `python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)` and do not block merges.
 
 - GitHub Actions: [.github/workflows/prof-correctness.yml](../../../../../.github/workflows/prof-correctness.yml).
-  It runs on pull requests that change profiler paths or `src/native/`.
+  It runs on pull requests that change profiler paths or `src/profiling_ffi/`.
   It waits up to 90 minutes for the wheels to appear in S3, then triggers the downstream run and waits for it.
   It skips fork pull requests.
   `workflow_dispatch` accepts `commit_sha` and `test_scenarios` to run other scenarios or commits.
 - GitLab: the `prof-correctness` job in [.gitlab-ci.yml](../../../../../.gitlab-ci.yml).
-  It runs after `upload all`, on `main`, on schedules, and on pushes that change profiler paths or `src/native/`.
+  It runs after `upload all`, on `main`, on schedules, and on pushes that change profiler paths or `src/profiling_ffi/`.
   Otherwise it is manual.
 
 ### GPU

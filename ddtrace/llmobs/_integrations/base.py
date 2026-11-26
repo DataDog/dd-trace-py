@@ -75,7 +75,7 @@ class BaseLLMIntegration:
 
         span = tracer.start_span(
             span_name,
-            child_of=parent_context,
+            child_of=parent_context,  # type: ignore[arg-type]  # ddtrace-native stubs stand in for Span
             resource=operation_id,
             span_type=span_type,
             activate=kwargs.get("activate", True),

@@ -676,7 +676,7 @@ def gen_pre_checks() -> None:
     check(
         name="Check native Python imports",
         command="scripts/lint native-import-check",
-        paths={"src/native/*", "scripts/check_native_python_imports.py", "scripts/lint"},
+        paths={"src/profiling_ffi/*", "scripts/check_native_python_imports.py", "scripts/lint"},
     )
     check(
         name="Check profiling native coverage",
@@ -688,7 +688,7 @@ def gen_pre_checks() -> None:
             "scripts/check_profiling_native_coverage.py",
             "scripts/gen_gitlab_config.py",
             "scripts/lint",
-            "src/native/*",
+            "src/profiling_ffi/*",
         },
     )
     check(

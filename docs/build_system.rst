@@ -41,13 +41,13 @@ To see the current build dependencies, check the `[build-system]` section in the
 .. code-block:: toml
 
     [build-system]
-    requires = ["cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
+    requires = ["cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools>=62.4"]
 
 To install all dependencies in one step, use:
 
 .. code-block:: bash
 
-    pip install 'cython' 'cmake>=3.24.2,<3.28' 'setuptools-rust<2'
+    pip install 'cython' 'cmake>=3.24.2,<3.28' 'setuptools>=62.4'
 
 Note that `pip install -e` (described below) also installs these build dependencies automatically.
 
@@ -382,7 +382,7 @@ How the Build Works
            │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
            │    └─ LibDDWafDownload.run()
            └─ build_ext → CustomBuildExt.run()
-                ├─ build_rust()          → Rust _native extension
+                ├─ build_profiling_ffi() → profiling FFI cdylib (Rust)
                 ├─ build_libdd_wrapper() → libdd_wrapper.so (C++)
                 ├─ build_shared_deps()   → absl (once, cached by sentinel file)
                 └─ super().run()         → build_extension() for every ext
