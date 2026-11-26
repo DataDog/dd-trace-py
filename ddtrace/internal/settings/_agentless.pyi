@@ -6,6 +6,8 @@ from ddtrace.internal.settings._core import DDConfig
 class AgentlessConfig(DDConfig):
     api_key: Optional[str]
     site: str
+    log_submission: bool
+    log_submission_url: Optional[str]
     enabled: bool
     _apm_tracing: Optional[bool]
     _ci_visibility: Optional[bool]

@@ -40,6 +40,13 @@
         "default": "false"
       }
     ],
+    "DD_AGENTLESS_LOG_SUBMISSION_URL": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_AGENT_HOST": [
       {
         "implementation": "C",

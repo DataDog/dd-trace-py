@@ -9,6 +9,13 @@ class AgentlessConfig(DDConfig):
     api_key = DDConfig.v(t.Optional[str], "dd.api_key", default=None)
     site = DDConfig.v(str, "dd.site", default="datadoghq.com")
 
+    #: Submit application logs directly to the Datadog logs intake from any
+    #: process, not just the Test Optimization pytest plugin. Requires an API key;
+    #: does not require the global agentless switch (parity with dd-trace-js).
+    log_submission = DDConfig.v(bool, "dd.agentless.log_submission.enabled", default=False)
+    #: Overrides the base URL of the logs intake that log submissions are sent to.
+    log_submission_url = DDConfig.v(t.Optional[str], "dd.agentless.log_submission.url", default=None)
+
     #: The global switch. Every product setting below defaults to it.
     enabled = DDConfig.v(bool, "dd.agentless.enabled", default=False)
 
@@ -49,6 +56,7 @@ class AgentlessConfig(DDConfig):
             for env_name, value in (
                 ("DD_AGENTLESS_ENABLED", self.enabled),
                 ("DD_SITE", self.site),
+                ("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", self.log_submission),
                 ("_DD_APM_TRACING_AGENTLESS_ENABLED", self.apm_tracing),
                 ("DD_CIVISIBILITY_AGENTLESS_ENABLED", self.ci_visibility),
                 ("DD_LLMOBS_AGENTLESS_ENABLED", self.llmobs),
