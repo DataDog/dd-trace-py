@@ -1,13 +1,16 @@
 import io
 import logging
+import logging.handlers
 import time
 from unittest import mock
 
 import pytest
 
+import ddtrace._logger
 import ddtrace.internal.logger
 from ddtrace.internal.logger import LoggingBucket
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import logger_name
 from tests.utils import BaseTestCase
 
 
@@ -355,6 +358,100 @@ def test_logger_log_level_from_env(monkeypatch):
         assert get_logger("ddtrace.example.warning").level == logging.WARNING
 
         assert get_logger("ddtrace.package_with_underscore.submodule").level == logging.ERROR
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("_ddtrace_internal", "ddtrace.internal"),
+        ("_ddtrace_internal.module", "ddtrace.internal.module"),
+        ("_ddtrace_internal.sub.module", "ddtrace.internal.sub.module"),
+        ("_ddtrace_coverage.code", "ddtrace.internal.coverage.code"),
+        ("_ddtrace_native.module", "ddtrace.internal.native.module"),
+        # A package root that is not listed falls back to ddtrace.<root without the prefix>
+        ("_ddtrace_foo.module", "ddtrace.foo.module"),
+        ("ddtrace.internal.module", "ddtrace.internal.module"),
+        ("other._ddtrace_internal.module", "other._ddtrace_internal.module"),
+        ("_ddtrace_", "_ddtrace_"),
+    ],
+)
+def test_get_logger_normalizes_package_module_names(name, expected):
+    with mock.patch.dict(logging.root.manager.loggerDict):
+        logger = get_logger(name)
+        assert logger.name == expected
+        assert logger is logging.getLogger(expected)
+        assert ddtrace.internal.logger.log_filter in logger.filters
+        # Stdlib-logging modules use logger_name directly and land on the same logger.
+        assert logger_name(name) == expected
+
+
+def test_logger_log_level_from_env_applies_to_moved_code(monkeypatch):
+    # The setting keeps the name it had before the code moved out of ddtrace
+    monkeypatch.setenv("_DD_INTERNAL_COVERAGE_LOG_LEVEL", "ERROR")
+    monkeypatch.setenv("_DD_INTERNAL_MODULE_LOG_LEVEL", "DEBUG")
+
+    with (
+        mock.patch.object(ddtrace.internal.logger, "LOG_LEVEL_TRIE", ddtrace.internal.logger.LoggerPrefix.build_trie()),
+        mock.patch.dict(logging.root.manager.loggerDict),
+    ):
+        assert get_logger("_ddtrace_coverage.code").level == logging.ERROR
+        assert get_logger("_ddtrace_coverage.code.nested").level == logging.ERROR
+        assert get_logger("_ddtrace_internal.module").level == logging.DEBUG
+        assert get_logger("_ddtrace_internal.other").level == logging.NOTSET
+        assert get_logger("_ddtrace_native.module").level == logging.NOTSET
+
+
+@pytest.fixture
+def restore_ddtrace_logger():
+    """Snapshot the state of the ddtrace logger and restore it after the test."""
+    logger = logging.getLogger("ddtrace")
+    level, handlers = logger.level, list(logger.handlers)
+    yield
+    for handler in list(logger.handlers):
+        if handler not in handlers:
+            logger.removeHandler(handler)
+            handler.close()
+    logger.setLevel(level)
+
+
+@pytest.mark.usefixtures("restore_ddtrace_logger")
+def test_configure_logger_applies_to_package_loggers(monkeypatch, tmp_path):
+    log_file = tmp_path / "dd.log"
+    monkeypatch.setenv("DD_TRACE_LOG_LEVEL", "info")
+    monkeypatch.setenv("DD_TRACE_LOG_FILE", str(log_file))
+    monkeypatch.setenv("DD_TRACE_LOG_FILE_LEVEL", "INFO")
+    ddtrace._logger.configure_ddtrace_logger()
+
+    with (
+        mock.patch.object(ddtrace.internal.logger, "_rate_limit", 0),
+        mock.patch.dict(logging.root.manager.loggerDict),
+    ):
+        logger = get_logger("_ddtrace_internal.x")
+        assert logger.getEffectiveLevel() == logging.INFO
+        logger.info("from-package")
+        logger.debug("below-level")
+
+    [file_handler] = [
+        h for h in logging.getLogger("ddtrace").handlers if isinstance(h, logging.handlers.RotatingFileHandler)
+    ]
+    file_handler.flush()
+    content = log_file.read_text()
+    assert "[ddtrace.internal.x]" in content
+    assert "from-package" in content
+    assert "below-level" not in content
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_DEBUG="1"), err=None)
+def test_package_loggers_are_debug_with_trace_debug():
+    import logging
+
+    import ddtrace  # noqa:F401
+    from ddtrace.internal.logger import get_logger
+
+    for name in ("_ddtrace_internal.module", "_ddtrace_coverage.code", "_ddtrace_native.module"):
+        logger = get_logger(name)
+        assert logger.name.startswith("ddtrace."), name
+        assert logger.getEffectiveLevel() == logging.DEBUG, name
 
 
 def _product_log_output(*args, exc_message="boom", **kwargs):
