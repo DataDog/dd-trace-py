@@ -12,18 +12,177 @@ Gunicorn pre-fork WSGI mode:
     ddtrace-run gunicorn -w 2 --bind 127.0.0.1:8000 scripts.x509_poc_app:app
 
 WSGI Endpoints:
-  GET  /       -> {pid, connection_id, payload}
-  POST /eval   -> local evaluate(content, tool_name) + AIGuardClient pre-check demo
+  GET  /            -> {pid, connection_id, payload}
+  POST /eval        -> local evaluate(content, tool_name) + AIGuardClient pre-check demo
+  POST /vault-chat  -> local mock OpenAI call proving zero-knowledge LLM + LLMObs egress
 """
 
+from http.server import BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 import json
 import os
+import re
 import signal
 import sys
+import threading
 import time
 from urllib.parse import parse_qs
 
 from ddtrace.internal.aiguard.product import get_x509_client
+
+
+_MOCK_LOCK = threading.Lock()
+_MOCK_BASE_URL: str | None = None
+_LAST_MOCK_REQUEST: dict | None = None
+_TOKEN_RE = re.compile(r"<[A-Z0-9_]+>")
+
+
+def _ensure_mock_openai_server() -> str:
+    global _MOCK_BASE_URL
+    with _MOCK_LOCK:
+        if _MOCK_BASE_URL is not None:
+            return _MOCK_BASE_URL
+
+        class _MockOpenAIHandler(BaseHTTPRequestHandler):
+            def log_message(self, _fmt, *_args):
+                return
+
+            def do_POST(self):
+                global _LAST_MOCK_REQUEST
+                length = int(self.headers.get("Content-Length") or "0")
+                raw = self.rfile.read(length) if length > 0 else b"{}"
+                req_json = json.loads(raw.decode("utf-8"))
+                _LAST_MOCK_REQUEST = req_json
+
+                user_texts = [
+                    m.get("content", "")
+                    for m in req_json.get("messages", [])
+                    if isinstance(m.get("content"), str)
+                ]
+                joined = " ".join(user_texts)
+                tokens = _TOKEN_RE.findall(joined)
+                if tokens:
+                    reply = "Drafted confirmation referencing " + ", ".join(tokens) + "."
+                    tool_args = json.dumps({"payload": " ".join(tokens), "dest": "external"})
+                else:
+                    reply = f"Drafted confirmation for: {joined}"
+                    tool_args = json.dumps({"payload": joined, "dest": "external"})
+
+                resp_obj = {
+                    "id": "chatcmpl-poc-vault",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": req_json.get("model", "gpt-4o-mini"),
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": reply,
+                                "tool_calls": [
+                                    {
+                                        "id": "call_webhook_1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "send_external_webhook",
+                                            "arguments": tool_args,
+                                        },
+                                    },
+                                    {
+                                        "id": "call_internal_2",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "internal_receipt_log",
+                                            "arguments": tool_args,
+                                        },
+                                    },
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 12, "completion_tokens": 18, "total_tokens": 30},
+                }
+                body = json.dumps(resp_obj).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _MockOpenAIHandler)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, name="poc-mock-openai", daemon=True).start()
+        _MOCK_BASE_URL = f"http://127.0.0.1:{port}/v1"
+        return _MOCK_BASE_URL
+
+
+def _run_vault_chat(messages: list[dict]) -> dict:
+    import openai
+
+    from ddtrace import patch
+    from ddtrace.aiguard._vault import get_last_vault_metrics
+    from ddtrace.aiguard._vault import register_vault_listeners
+    from ddtrace.internal import core
+
+    patch(openai=True)
+    register_vault_listeners()
+
+    # Capture the exact event recorded when ddtrace finishes the OpenAI span
+    # (before post-span re-hydration) to prove LLMObs stays zero-knowledge.
+    captured_span: dict = {}
+
+    def _capture_span_end(ctx, _exc_info=None):
+        ev = getattr(ctx, "event", None)
+        if ev is None:
+            return
+        kw = getattr(ev, "request_kwargs", None) or {}
+        resp = getattr(ev, "response", None)
+        out_msgs = []
+        if resp is not None:
+            for ch in getattr(resp, "choices", None) or []:
+                m = getattr(ch, "message", None)
+                if m is not None:
+                    out_msgs.append(
+                        {
+                            "role": getattr(m, "role", None),
+                            "content": getattr(m, "content", None),
+                            "tool_calls": [
+                                {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                }
+                                for tc in (getattr(m, "tool_calls", None) or [])
+                            ],
+                        }
+                    )
+        captured_span["input_messages"] = kw.get("messages")
+        captured_span["output_messages"] = out_msgs
+
+    from ddtrace.contrib._events.llm import LlmRequestEvent
+
+    ended_event = f"context.ended.{LlmRequestEvent.event_name}"
+    core.on(ended_event, _capture_span_end)
+    try:
+        base_url = _ensure_mock_openai_server()
+        oai = openai.OpenAI(api_key="poc-mock-key", base_url=base_url)
+        resp = oai.chat.completions.create(model="gpt-4o-mini", messages=messages)
+    finally:
+        core.reset_listeners(ended_event, _capture_span_end)
+
+    choice_msg = resp.choices[0].message
+    return {
+        "outbound_to_mock_llm": _LAST_MOCK_REQUEST,
+        "llmobs_span_captured": captured_span,
+        "app_received_response": {
+            "content": choice_msg.content,
+            "tool_calls": [
+                {"name": tc.function.name, "arguments": tc.function.arguments}
+                for tc in (choice_msg.tool_calls or [])
+            ],
+        },
+        "vault_metrics": get_last_vault_metrics(),
+    }
 
 
 def _eval_with_aiguard_client(content: str, tool_name: str | None) -> dict:
@@ -85,6 +244,32 @@ def _eval_with_aiguard_client(content: str, tool_name: str | None) -> dict:
 def app(environ, start_response):
     client = get_x509_client()
     path = environ.get("PATH_INFO", "/")
+
+    if path == "/vault-chat":
+        messages = [{"role": "user", "content": ""}]
+        if environ.get("REQUEST_METHOD") == "POST":
+            length = int(environ.get("CONTENT_LENGTH") or "0")
+            raw = environ["wsgi.input"].read(length) if length > 0 else b"{}"
+            data = json.loads(raw.decode("utf-8"))
+            if "messages" in data and isinstance(data["messages"], list):
+                messages = data["messages"]
+            elif "content" in data:
+                messages = [{"role": "user", "content": str(data["content"])}]
+
+        chat_res = _run_vault_chat(messages)
+        body = json.dumps(
+            {
+                "pid": os.getpid(),
+                "connection_id": client.connection_id() if client else None,
+                "sds_active": client.sds_active() if client else False,
+                **chat_res,
+            }
+        ).encode("utf-8")
+        start_response(
+            "200 OK",
+            [("Content-Type", "application/json"), ("Content-Length", str(len(body)))],
+        )
+        return [body]
 
     if path == "/eval":
         content = ""

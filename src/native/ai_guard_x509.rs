@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -109,6 +110,43 @@ impl AiGuardX509Client {
         client
             .apply_policy_json(raw.as_bytes())
             .map_err(PyValueError::new_err)
+    }
+
+    fn sds_active(&self) -> bool {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.as_ref().is_some_and(AiGuardX509::sds_active)
+    }
+
+    fn tokenize(
+        &self,
+        texts: Vec<String>,
+    ) -> (Vec<String>, HashMap<String, String>, Vec<String>) {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.as_ref() {
+            Some(client) => {
+                let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+                let res = client.tokenize(&refs);
+                (res.texts, res.vault, res.matched_rule_ids)
+            }
+            None => (texts, HashMap::new(), Vec::new()),
+        }
+    }
+
+    #[pyo3(signature = (text, vault, tool_name=None))]
+    fn detokenize(
+        &self,
+        text: &str,
+        vault: HashMap<String, String>,
+        tool_name: Option<&str>,
+    ) -> (String, Vec<String>) {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.as_ref() {
+            Some(client) => {
+                let res = client.detokenize(text, &vault, tool_name);
+                (res.text, res.blocked_tokens)
+            }
+            None => (text.to_string(), Vec::new()),
+        }
     }
 
     #[pyo3(signature = (timeout_ms=5000))]

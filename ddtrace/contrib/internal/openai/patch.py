@@ -323,6 +323,13 @@ def _patched_endpoint(patch_hook):
                 if err is None:
                     # This return takes priority over the implicit None return
                     override_return = e.value
+            if is_chat:
+                from ddtrace.aiguard._vault import finish_vault_call
+
+                finish_vault_call(
+                    override_return if (err is None and not kwargs.get("stream")) else None,
+                    provider="openai",
+                )
 
         if override_return is not None:
             return override_return

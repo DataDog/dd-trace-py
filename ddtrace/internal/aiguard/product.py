@@ -212,12 +212,19 @@ def enabled() -> bool:
 
 def start() -> None:
     from ddtrace.aiguard._initialization import load_ai_guard
+    from ddtrace.aiguard._vault import register_vault_listeners
 
+    if aiguard_config._ai_guard_x509_enabled:
+        register_vault_listeners()
     load_ai_guard()
     _start_x509_client(restarting_after_fork=False)
 
 
 def restart(join: bool = False) -> None:
+    if aiguard_config._ai_guard_x509_enabled:
+        from ddtrace.aiguard._vault import register_vault_listeners
+
+        register_vault_listeners()
     _start_x509_client(restarting_after_fork=True)
 
 

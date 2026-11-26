@@ -65,6 +65,9 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
             resp = func(*args, **kwargs)
         except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
+            from ddtrace.aiguard._vault import finish_vault_call
+
+            finish_vault_call(None, provider="anthropic")
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(resp, args, kwargs, ctx)
@@ -76,8 +79,14 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
         except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
+            from ddtrace.aiguard._vault import finish_vault_call
+
+            finish_vault_call(None, provider="anthropic")
             raise
         ctx.dispatch_ended_event()
+        from ddtrace.aiguard._vault import finish_vault_call
+
+        finish_vault_call(resp, provider="anthropic")
         return resp
 
 
@@ -90,6 +99,9 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
             resp = await func(*args, **kwargs)
         except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
+            from ddtrace.aiguard._vault import finish_vault_call
+
+            finish_vault_call(None, provider="anthropic")
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(resp, args, kwargs, ctx)
@@ -101,8 +113,14 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
         except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
+            from ddtrace.aiguard._vault import finish_vault_call
+
+            finish_vault_call(None, provider="anthropic")
             raise
         ctx.dispatch_ended_event()
+        from ddtrace.aiguard._vault import finish_vault_call
+
+        finish_vault_call(resp, provider="anthropic")
         return resp
 
 
