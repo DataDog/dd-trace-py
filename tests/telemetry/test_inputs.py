@@ -1,8 +1,12 @@
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
 
 import ddtrace._error_attribution
+from ddtrace.internal.settings import appsec_telemetry
+import ddtrace.internal.telemetry as telemetry
 from ddtrace.internal.telemetry import inputs
 from ddtrace.internal.utils import entry_points
 from ddtrace.internal.utils.version import _pep440_to_semver
@@ -186,3 +190,132 @@ def test_ddtrace_code_roots_cover_the_package_roots(unresolved, filename, expect
 )
 def test_ddtrace_names_the_integration_of_its_paths(unresolved, filename, expected):
     assert inputs.get_integration(filename) == expected
+
+
+@pytest.fixture
+def provider_set(monkeypatch):
+    """Replace the cached providers, as if the entry point group declared exactly these."""
+
+    def use(*provider_objects):
+        monkeypatch.setattr(inputs, "_providers", tuple(provider_objects))
+
+    return use
+
+
+def _declared_providers(*named):
+    """Entry points of the providers group, one per ``(name, provider)``, with a record of which were loaded."""
+    loaded = []
+
+    def entry(name, provider):
+        def load():
+            loaded.append(name)
+            return provider
+
+        return (SimpleNamespace(name=name, value=name, load=load), SimpleNamespace(metadata={"Name": "lib"}))
+
+    return [entry(name, provider) for name, provider in named], loaded
+
+
+def test_appsec_provider_is_declared_as_an_entry_point():
+    declared = {ep.name: ep.value for ep, _ in entry_points.entry_points_with_distributions(inputs.PROVIDERS_GROUP)}
+
+    assert declared == {"appsec": "ddtrace.internal.settings.appsec_telemetry:provider"}
+    assert appsec_telemetry.provider in inputs.get_providers()
+
+
+def test_providers_are_resolved_on_first_use_and_cached(monkeypatch):
+    first, second = object(), object()
+    found, loaded = _declared_providers(("b", second), ("a", first))
+    monkeypatch.setattr(inputs, "_providers", None)
+    monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
+
+    assert loaded == []
+    assert inputs.get_providers() == (first, second)
+    assert inputs.get_providers() == (first, second)
+    assert loaded == ["a", "b"]
+
+
+def test_a_provider_that_fails_to_load_is_skipped(monkeypatch):
+    found, _ = _declared_providers(("broken", None))
+    monkeypatch.setattr(found[0][0], "load", lambda: 1 / 0)
+    monkeypatch.setattr(inputs, "_providers", None)
+    monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
+
+    assert inputs.get_providers() == ()
+
+
+def test_importing_ddtrace_does_not_register_the_appsec_inputs():
+    # ``ddtrace/__init__.py`` pushes nothing: the providers are not loaded until telemetry builds its first report,
+    # which happens while ``ddtrace.internal.telemetry`` is imported and not before.
+    script = (
+        "import sys\n"
+        "import importlib.metadata as m\n"
+        "loads = []\n"
+        "orig = m.EntryPoint.load\n"
+        "def load(self):\n"
+        "    if self.group == %r:\n"
+        "        loads.append((self.name, 'ddtrace.internal.telemetry' in sys.modules))\n"
+        "    return orig(self)\n"
+        "m.EntryPoint.load = load\n"
+        "import ddtrace\n"
+        "assert loads == [('appsec', True)], loads\n"
+    ) % inputs.PROVIDERS_GROUP
+    subprocess.run([sys.executable, "-I", "-c", script], check=True)
+
+
+def test_dependency_metadata_is_disabled_without_a_provider(provider_set):
+    provider_set()
+
+    assert inputs.dependency_metadata_enabled() is False
+
+
+def test_dependency_metadata_follows_the_appsec_settings_on_each_use(monkeypatch):
+    monkeypatch.setattr(appsec_telemetry.config, "SCA_ENABLED", True)
+    assert inputs.dependency_metadata_enabled() is True
+    monkeypatch.setattr(appsec_telemetry.config, "SCA_ENABLED", None)
+    assert inputs.dependency_metadata_enabled() is False
+
+
+def test_endpoint_collection_defaults_without_a_provider(provider_set):
+    provider_set()
+    defaults = appsec_telemetry.AppSecTelemetryConfig({})
+
+    assert inputs.endpoint_collection_enabled() is defaults.ENDPOINT_COLLECTION_ENABLED is True
+    assert inputs.endpoint_collection_limit() == defaults.ENDPOINT_COLLECTION_LIMIT == 300
+
+
+def test_endpoint_collection_follows_the_appsec_settings_on_each_use(monkeypatch):
+    monkeypatch.setattr(appsec_telemetry.config, "ENDPOINT_COLLECTION_ENABLED", False)
+    monkeypatch.setattr(appsec_telemetry.config, "ENDPOINT_COLLECTION_LIMIT", 42)
+
+    assert inputs.endpoint_collection_enabled() is False
+    assert inputs.endpoint_collection_limit() == 42
+
+
+def test_a_provider_may_define_only_some_hooks(provider_set):
+    class OnlyLimit:
+        def endpoint_collection_limit(self):
+            return 7
+
+    provider_set(OnlyLimit())
+
+    assert inputs.endpoint_collection_limit() == 7
+    assert inputs.endpoint_collection_enabled() is True
+    assert inputs.dependency_metadata_enabled() is False
+    assert inputs.get_configurations() == ()
+
+
+def test_the_appsec_configuration_is_provided_for_reporting():
+    assert inputs.get_configurations() == (appsec_telemetry.config,)
+
+
+def test_configuration_report_order_is_unchanged(monkeypatch):
+    from ddtrace.internal.settings._agent import config as agent_config
+    from ddtrace.internal.settings.process_tags import process_tags_config
+
+    reported = []
+    monkeypatch.setattr(telemetry, "report_configuration", reported.append)
+
+    telemetry._report_initial_configurations()
+
+    assert reported == [appsec_telemetry.config, agent_config, process_tags_config]

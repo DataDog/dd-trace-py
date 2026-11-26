@@ -13,3 +13,24 @@ class AppSecTelemetryConfig(DDConfig):
 
 
 config = AppSecTelemetryConfig()
+
+
+class AppSecTelemetryProvider:
+    """What telemetry reads from the AppSec settings, declared in the ``ddtrace_internal.telemetry_providers`` entry
+    point group. The settings are read on each call, so changes at runtime apply.
+    """
+
+    def configurations(self) -> tuple[AppSecTelemetryConfig, ...]:
+        return (config,)
+
+    def dependency_metadata_enabled(self) -> bool:
+        return bool(config.SCA_ENABLED)
+
+    def endpoint_collection_enabled(self) -> bool:
+        return bool(config.ENDPOINT_COLLECTION_ENABLED)
+
+    def endpoint_collection_limit(self) -> int:
+        return int(config.ENDPOINT_COLLECTION_LIMIT)
+
+
+provider = AppSecTelemetryProvider()

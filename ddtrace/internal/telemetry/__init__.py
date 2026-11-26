@@ -21,11 +21,11 @@ from ddtrace.internal.settings._otel_remapper import has_ignored_exporter
 from ddtrace.internal.settings._otel_remapper import is_unset_exporter_list
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings._otel_remapper import select_exporter
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.env import get_aliases
 from ddtrace.internal.settings.env import is_sensitive
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.telemetry.inputs import get_configurations
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -256,7 +256,12 @@ def _hiding_otel_config(otel_env, dd_env):
     )
 
 
-# TODO: Remove this once the telemetry feature is refactored to a better design
-report_configuration(appsec_telemetry_config)
-report_configuration(agent_config)
-report_configuration(process_tags_config)
+def _report_initial_configurations() -> None:
+    # The configurations the telemetry providers ask for come before telemetry's own.
+    for provided_config in get_configurations():
+        report_configuration(provided_config)
+    report_configuration(agent_config)
+    report_configuration(process_tags_config)
+
+
+_report_initial_configurations()

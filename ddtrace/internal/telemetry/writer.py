@@ -20,6 +20,8 @@ from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config
+from ddtrace.internal.telemetry.inputs import endpoint_collection_enabled
+from ddtrace.internal.telemetry.inputs import endpoint_collection_limit
 from ddtrace.internal.telemetry.inputs import get_integration
 from ddtrace.internal.telemetry.inputs import get_library
 from ddtrace.internal.telemetry.inputs import is_library_code
@@ -272,7 +274,6 @@ class TelemetryWriter:
         # symbol has not been built yet.
         from ddtrace.internal.native import TelemetryWorker
         from ddtrace.internal.native_runtime import get_native_runtime
-        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
         application = get_application(config.SERVICE, config.VERSION, config.ENV)
         host = get_host_info()
@@ -322,7 +323,7 @@ class TelemetryWriter:
             # Only the root process emits app-started/app-closing; forked children
             # heartbeat with their own session id but must not re-emit them.
             emit_app_lifecycle=get_parent_runtime_id() is None,
-            endpoints_message_limit=appsec_telemetry_config.ENDPOINT_COLLECTION_LIMIT,
+            endpoints_message_limit=endpoint_collection_limit(),
             test_session_token=self._test_session_token,
             # Single-step-instrumentation install metadata
             install_id=config.INSTALL_ID,
@@ -738,9 +739,7 @@ class TelemetryWriter:
         registered before then. The native worker dedupes endpoints, so a replay overlapping with
         an eager forward cannot create duplicates.
         """
-        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
-
-        if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED or not self._enabled:
+        if not endpoint_collection_enabled() or not self._enabled:
             return
         worker = self._worker
         if worker is None:
@@ -760,9 +759,7 @@ class TelemetryWriter:
         Called from ``enable()`` to forward endpoints registered before this writer subscribed;
         endpoints registered afterwards arrive through ``_record_endpoint``.
         """
-        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
-
-        if not appsec_telemetry_config.ENDPOINT_COLLECTION_ENABLED or not self._enabled:
+        if not endpoint_collection_enabled() or not self._enabled:
             return
         worker = self._worker
         if worker is None:
