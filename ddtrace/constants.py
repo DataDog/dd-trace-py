@@ -18,8 +18,6 @@ _ORIGIN_KEY = "_dd.origin"
 _USER_ID_KEY = "_dd.p.usr.id"
 _HOSTNAME_KEY = "_dd.hostname"
 _RUNTIME_FAMILY = "_dd.runtime_family"
-ENV_KEY = "env"
-VERSION_KEY = "version"
 SERVICE_KEY = "service.name"
 _BASE_SERVICE_KEY = "_dd.base_service"
 SERVICE_VERSION_KEY = "service.version"
@@ -52,5 +50,9 @@ PID = "process_id"
 # ddtrace.internal.constants, which needs them and must not import this public module.
 from ddtrace.internal.constants import AUTO_KEEP as AUTO_KEEP  # noqa: E402
 from ddtrace.internal.constants import AUTO_REJECT as AUTO_REJECT  # noqa: E402
+
+# Tag keys the shared settings need, defined in ddtrace.internal.constants for the same reason.
+from ddtrace.internal.constants import ENV_KEY as ENV_KEY  # noqa: E402
 from ddtrace.internal.constants import USER_KEEP as USER_KEEP  # noqa: E402
 from ddtrace.internal.constants import USER_REJECT as USER_REJECT  # noqa: E402
+from ddtrace.internal.constants import VERSION_KEY as VERSION_KEY  # noqa: E402
