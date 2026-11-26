@@ -289,11 +289,45 @@ def _test_file(item: pytest.Item) -> t.Optional[Path]:
         return None
 
 
-@contextlib.contextmanager
+class _CoverageTelemetry:
+    """Tests run under coverage, recorded once per session: a metric point per test costs microseconds."""
+
+    started = 0
+    finished = 0
+
+    @classmethod
+    def record(cls) -> None:
+        api = TelemetryAPI.get()
+        if cls.started:
+            api.record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace", count=cls.started)
+        if cls.finished:
+            api.record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace", count=cls.finished)
+        cls.started = cls.finished = 0
+
+
+class _CollectCoverage:
+    """Runs one test in coverage_collection() and counts it for the session's coverage telemetry."""
+
+    __slots__ = ("_collection",)
+
+    def __init__(self, test_file: t.Optional[Path]) -> None:
+        self._collection = coverage_collection(test_file=test_file)
+
+    def __enter__(self) -> CoverageData:
+        _CoverageTelemetry.started += 1
+        return self._collection.__enter__()
+
+    def __exit__(self, exc_type: t.Any, exc_value: t.Any, tb: t.Any) -> t.Optional[bool]:
+        suppressed = self._collection.__exit__(exc_type, exc_value, tb)
+        if exc_type is None:
+            _CoverageTelemetry.finished += 1
+        return suppressed
+
+
 def _maybe_collect_coverage(
     coverage_enabled: bool, test_file: t.Optional[Path] = None
-) -> t.Generator[CoverageData, None, None]:
-    """Yield a per-test coverage collector, or a no-op when coverage is disabled.
+) -> t.ContextManager[CoverageData]:
+    """Return a per-test coverage collector, or a no-op when coverage is disabled.
 
     Entering coverage_collection() is only meaningful when the ModuleCodeCollector is
     installed, which setup_coverage_collection() gates on the same coverage_enabled flag.
@@ -307,18 +341,15 @@ def _maybe_collect_coverage(
     An empty CoverageData is what the disabled collector produced anyway, and it flows
     through the same put_coverage empty fast path, so uploads are unchanged.
 
-    The code_coverage_started/finished telemetry is recorded here, so it describes
-    coverage actually running rather than merely a test executing. That matches the
-    legacy plugin, which only reaches record_code_coverage_started() when
-    InternalTestSession.should_collect_coverage() is true.
+    The code_coverage_started/finished telemetry counts the tests entered here, so it
+    describes coverage actually running rather than merely a test executing. That matches
+    the legacy plugin, which only reaches record_code_coverage_started() when
+    InternalTestSession.should_collect_coverage() is true. The counts are recorded at
+    session finish.
     """
     if coverage_enabled:
-        TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-        with coverage_collection(test_file=test_file) as coverage_data:
-            yield coverage_data
-        TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-    else:
-        yield CoverageData()
+        return _CollectCoverage(test_file)
+    return contextlib.nullcontext(CoverageData())
 
 
 class TestPhase:
@@ -584,6 +615,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             self.manager.cleanup_upload_artifacts()
 
         if self.manager.settings.coverage_enabled:
+            _CoverageTelemetry.record()
             self._put_shared_coverage()
             uninstall_coverage()
 
@@ -1512,8 +1544,11 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
+            coverage_enabled = self.manager.settings.coverage_enabled
+            # Only the import-only mode anchors the test's own file, so native collection skips the lookup.
+            needs_test_file = coverage_enabled and not native_line_coverage_enabled()
             with _maybe_collect_coverage(
-                self.manager.settings.coverage_enabled, test_file=_test_file(item)
+                coverage_enabled, test_file=_test_file(item) if needs_test_file else None
             ) as coverage_data:
                 link_suite_fixtures_in_closure(item)
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)

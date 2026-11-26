@@ -7,6 +7,7 @@ fixtures, and the teardown of every fixture wider than a test, run for no test: 
 the process's Shared record.
 """
 
+import types
 import typing as t
 
 import pytest
@@ -28,6 +29,9 @@ _SUITE_SCOPES = frozenset(("class", "module", "package"))
 # The coverage context of the fixture's latest setup, which is the instance pytest has cached.
 _CONTEXT_ATTR = "_dd_coverage_context"
 _PATCHED_ATTR = "_dd_coverage_patched"
+# Suite-scope FixtureDefs with a context, from their setup until their finish, in setup order.
+# Tests check these rather than their whole fixture closure.
+_set_up_with_context: dict[t.Any, None] = {}
 
 
 def _is_function_scoped(scoped: t.Any) -> bool:
@@ -55,17 +59,20 @@ def link_suite_fixtures_in_closure(item: t.Any) -> None:
     reuses the cached value or never reaches setup (a skip mark). FixtureDef.execute links the
     fixtures first set up during the test.
     """
+    if not _set_up_with_context:
+        return
     user = get_native_coverage_context()
     if user is None:
         return
     info = getattr(item, "_fixtureinfo", None)
     if info is None:
         return
-    for fixturedefs in info.name2fixturedefs.values():
-        if not fixturedefs:
-            continue
+    name2fixturedefs = info.name2fixturedefs
+    for fixturedef in _set_up_with_context:
+        fixturedefs = name2fixturedefs.get(fixturedef.argname)
         # The last definition is the one this item's requests resolve to.
-        fixturedef = fixturedefs[-1]
+        if not fixturedefs or fixturedefs[-1] is not fixturedef:
+            continue
         context = getattr(fixturedef, _CONTEXT_ATTR, None)
         # pytest clears cached_result when a scope ends, so a cached fixture belongs to this test's scopes.
         if context is not None and fixturedef.cached_result is not None and context not in user.fixtures:
@@ -77,6 +84,7 @@ def _exit_setup_context(fixturedef: t.Any, context: t.Any, previous: t.Any) -> N
     if context is not None:
         context.pop()
         setattr(fixturedef, _CONTEXT_ATTR, context)
+        _set_up_with_context[fixturedef] = None
 
 
 class FixtureCoverage:
@@ -105,6 +113,9 @@ def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
     runs the teardown of wide fixtures for no test. FixtureDef.execute runs for every request of
     a fixture, cached or not, static or through request.getfixturevalue(), so it sees every use.
     No pytest hook does.
+
+    Only fixtures wider than a test get the wrapped execute and finish, on the instance: most
+    fixtures are function-scoped, never have a context, and so keep pytest's methods.
     """
     try:
         from _pytest import fixtures
@@ -113,13 +124,14 @@ def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
     fixture_def = fixtures.FixtureDef
     if getattr(fixture_def, _PATCHED_ATTR, False):
         return None
-    execute = fixture_def.execute
-    finish = fixture_def.finish
+    init = fixture_def.__init__
 
+    # The wrappers call the class methods as they are at call time, which keeps the patches other
+    # plugins apply to them later.
     def execute_recording_use(self: t.Any, request: t.Any) -> t.Any:
         before = getattr(self, _CONTEXT_ATTR, None)
         try:
-            return execute(self, request)
+            return type(self).execute(self, request)
         finally:
             context = getattr(self, _CONTEXT_ATTR, None)
             if context is not None:
@@ -132,17 +144,24 @@ def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
                         user.fixtures.append(context)
 
     def finish_for_no_test(self: t.Any, request: t.Any) -> t.Any:
-        if _is_function_scoped(self) or not native_line_coverage_enabled():
-            return finish(self, request)
+        if not native_line_coverage_enabled():
+            return type(self).finish(self, request)
         previous = get_native_coverage_context()
         set_native_coverage_context(None)
         try:
-            return finish(self, request)
+            return type(self).finish(self, request)
         finally:
             set_native_coverage_context(previous)
+            if self.cached_result is None:
+                _set_up_with_context.pop(self, None)
 
-    fixture_def.execute = execute_recording_use
-    fixture_def.finish = finish_for_no_test
+    def init_tracking_wide_fixtures(self: t.Any, *args: t.Any, **kwargs: t.Any) -> None:
+        init(self, *args, **kwargs)
+        if not _is_function_scoped(self):
+            self.execute = types.MethodType(execute_recording_use, self)
+            self.finish = types.MethodType(finish_for_no_test, self)
+
+    fixture_def.__init__ = init_tracking_wide_fixtures
     setattr(fixture_def, _PATCHED_ATTR, True)
 
     call_fixture_func = getattr(fixtures, "call_fixture_func", None)
@@ -152,6 +171,9 @@ def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
     # pytest_fixture_setup looks this function up in the module at each setup, so the patch
     # wraps every setup, and only setups: cached fixture values never reach it.
     def call_fixture_func_in_scope_context(fixturefunc: t.Any, request: t.Any, kwargs: t.Any) -> t.Any:
+        scope = getattr(request, "_scope", None)
+        if scope is not None and scope is _FUNCTION_SCOPE:
+            return call_fixture_func(fixturefunc, request, kwargs)
         if _is_function_scoped(request) or not native_line_coverage_enabled():
             return call_fixture_func(fixturefunc, request, kwargs)
         context, previous = _enter_setup_context(request.scope)
