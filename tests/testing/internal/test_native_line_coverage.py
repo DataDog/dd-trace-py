@@ -1252,8 +1252,8 @@ def test_isolated_asyncio_test_case_runs_in_the_test_context(tmp_path) -> None:
 
 def test_threads_a_test_starts_run_for_the_test(tmp_path) -> None:
     """A thread a test starts runs for the test. From Python 3.14 a thread runs its target in a
-    context that its start() creates, empty by default. A context the caller passes to the thread is
-    left untouched.
+    context that its start() creates, empty by default, or in one the caller passes. A context the
+    caller passes gets the test's native context when it names none, and no other variable.
     """
     (tmp_path / "thread_helper.py").write_text(
         "import contextvars\n"
@@ -1310,4 +1310,4 @@ def test_threads_a_test_starts_run_for_the_test(tmp_path) -> None:
     helper = next((v for k, v in records[0]["files"].items() if k.endswith("thread_helper.py")), [])
     assert {5, 6} <= set(helper), records
     if sys.version_info >= (3, 14):
-        assert json.loads((tmp_path / "names.json").read_text()) == []
+        assert json.loads((tmp_path / "names.json").read_text()) == ["ddtrace_coverage_native_context"]

@@ -1,9 +1,11 @@
-"""Where the lines of work a test starts on an event loop go, with native line coverage (CPython 3.12+).
+"""Where the lines of work a test starts on an event loop, or with an explicit context, go, with native line
+coverage (CPython 3.12+).
 
 Each test of one pytest session starts work in one way, and that work alone runs one marker line of
 spawn_helper.py. The marker line must be in the test's record and nowhere else for the ways that carry
 the test's native context, and in the Shared record only for the ways that do not. The ways that need
-uvloop, trio or anyio are left out when those are not installed.
+uvloop, trio or anyio are left out when those are not installed, and the ways that give a thread a
+context before Python 3.14.
 """
 
 import importlib.util
@@ -20,6 +22,7 @@ import pytest
 if sys.version_info < (3, 12):
     pytest.skip("native line coverage needs sys.monitoring", allow_module_level=True)
 pytest.importorskip("ddtrace.internal.coverage._linecov")
+native_lines = pytest.importorskip("ddtrace.internal.coverage.native_lines")
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -104,6 +107,18 @@ async def c_ext_via_task_type_ctx():
     return 1  # M:c_ext_via_task_type_ctx
 
 
+def thread_ctx():
+    return 1  # M:thread_ctx
+
+
+def thread_ctx_naming_an_ended_test():
+    return 1  # M:thread_ctx_naming_an_ended_test
+
+
+async def task_ctx_naming_an_ended_test():
+    return 1  # M:task_ctx_naming_an_ended_test
+
+
 def start_background_loop(asyncio):
     # An event loop on a thread started at import, before any test: it carries no test's context.
     loop = asyncio.new_event_loop()
@@ -131,22 +146,35 @@ def c_create_task_via_task_type(task_type, loop, coro, context):
 _TESTS = """\
 import asyncio
 import contextvars
+import json
+import sys
 import threading
 
 import pytest
 
+from ddtrace.internal.coverage import native_lines
 import spawn_helper as helper
 
 
 BACKGROUND_LOOP = helper.start_background_loop(asyncio)
+SAVED = {}
+
+
+def write_items(way, context):
+    # The variables a context given to the work holds once the work ran.
+    with open(f"items-{way}.json", "w") as f:
+        json.dump(sorted(var.name for var in context), f)
 
 
 def test_asyncio_loop_create_task_ctx():
+    context = contextvars.Context()
+
     async def main():
         loop = asyncio.get_running_loop()
-        await loop.create_task(helper.asyncio_loop_create_task_ctx(), context=contextvars.Context())
+        await loop.create_task(helper.asyncio_loop_create_task_ctx(), context=context)
 
     asyncio.run(main())
+    write_items("asyncio_loop_create_task_ctx", context)
 
 
 def test_asyncio_create_task_ctx():
@@ -325,6 +353,43 @@ def test_c_ext_via_task_type_ctx():
         await helper.c_create_task_via_task_type(asyncio.Task, loop, coro, contextvars.Context())
 
     asyncio.run(main())
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="threads take a context from 3.14")
+def test_thread_ctx():
+    context = contextvars.Context()
+    thread = threading.Thread(target=helper.thread_ctx, context=context)
+    thread.start()
+    thread.join(10)
+    write_items("thread_ctx", context)
+
+
+def test_save_a_context():
+    # A copy of this test's context names this test, which has ended when the tests below run.
+    SAVED["context"] = contextvars.copy_context()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="threads take a context from 3.14")
+def test_thread_ctx_naming_an_ended_test():
+    context = SAVED["context"]
+    named = context.get(native_lines.ctx_native)
+    thread = threading.Thread(target=helper.thread_ctx_naming_an_ended_test, context=context)
+    thread.start()
+    thread.join(10)
+    assert named is not None and named is not native_lines.ctx_native.get()
+    assert context.get(native_lines.ctx_native) is named
+
+
+def test_task_ctx_naming_an_ended_test():
+    context = SAVED["context"]
+    named = context.get(native_lines.ctx_native)
+
+    async def main():
+        await asyncio.get_running_loop().create_task(helper.task_ctx_naming_an_ended_test(), context=context)
+
+    asyncio.run(main())
+    assert named is not None and named is not native_lines.ctx_native.get()
+    assert context.get(native_lines.ctx_native) is named
 """
 
 # Each test's record and the Shared record's unowned part, as line numbers per file.
@@ -391,19 +456,30 @@ _CREDITED = {
     "threadsafe_create_task_ctx": (),
     "thread_runs_loop_ctx_task": (),
     "c_ext_via_method_ctx": (),
+    "thread_ctx": (),
 }
-# The ways it does not: their lines are in the Shared record.
+# The ways it does not: their lines are in the Shared record. A context that names an ended test is left
+# as it is, and the lines run in it go to the Shared record.
 _SHARED = {
     "asyncio_task_direct_ctx": (),
     "asyncio_call_soon_ctx": (),
     "uvloop_call_soon_ctx": ("uvloop",),
     "trio_system_task_ctx": ("trio",),
     "c_ext_via_task_type_ctx": (),
+    "thread_ctx_naming_an_ended_test": (),
+    "task_ctx_naming_an_ended_test": (),
 }
+# Threads take a context from Python 3.14.
+_FROM_3_14 = {"thread_ctx", "thread_ctx_naming_an_ended_test"}
 
 
 def _available(cases: dict) -> list:
-    return [name for name, needs in cases.items() if all(importlib.util.find_spec(m) is not None for m in needs)]
+    return [
+        name
+        for name, needs in cases.items()
+        if all(importlib.util.find_spec(m) is not None for m in needs)
+        and (name not in _FROM_3_14 or sys.version_info >= (3, 14))
+    ]
 
 
 @pytest.fixture(scope="module")
@@ -436,12 +512,13 @@ def session(tmp_path_factory):
         return set(next((lines for path, lines in files.items() if path.endswith("spawn_helper.py")), []))
 
     records = {name: helper_lines(files) for name, files in output["records"].items()}
-    return markers, records, helper_lines(output["shared"])
+    items = {path.stem[len("items-") :]: json.loads(path.read_text()) for path in root.glob("items-*.json")}
+    return markers, records, helper_lines(output["shared"]), items
 
 
 @pytest.mark.parametrize("way", _available(_CREDITED))
 def test_work_started_this_way_runs_for_the_test(session, way) -> None:
-    markers, records, shared = session
+    markers, records, shared, _ = session
     line = markers[way]
     holders = sorted(name for name, lines in records.items() if line in lines)
     assert holders == [f"test_{way}"], (holders, shared)
@@ -450,8 +527,16 @@ def test_work_started_this_way_runs_for_the_test(session, way) -> None:
 
 @pytest.mark.parametrize("way", _available(_SHARED))
 def test_work_started_this_way_runs_for_no_test(session, way) -> None:
-    markers, records, shared = session
+    markers, records, shared, _ = session
     line = markers[way]
     holders = sorted(name for name, lines in records.items() if line in lines)
     assert holders == [], holders
     assert line in shared
+
+
+@pytest.mark.parametrize(
+    "way", [way for way in ("asyncio_loop_create_task_ctx", "thread_ctx") if way in _available(_CREDITED)]
+)
+def test_a_given_context_gains_only_the_tracer_variable(session, way) -> None:
+    *_, items = session
+    assert items[way] == [native_lines.ctx_native.name]
