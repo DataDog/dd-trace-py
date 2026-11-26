@@ -1,0 +1,1283 @@
+/*
+ * Per-test line coverage on sys.monitoring LINE events (CPython 3.12+).
+ *
+ * Where a line event goes, exactly one of:
+ * - the file's initialiser lines, when the code object is initialiser code (a module body, or a
+ *   class body nested statically in it);
+ * - the context found in the ContextVar, when it is active: a test, or a suite-scope fixture setup;
+ * - the file's unowned lines otherwise: no context, or a context whose window has closed.
+ * A fixture context's lines also join the file's suite-setup lines when it is popped. The three
+ * per-file sets are the process's Shared record. A test's record is its own lines, the lines of
+ * the fixture contexts it depends on, and the initialiser lines of every file those touch.
+ *
+ * One-shot: the callback returns DISABLE once no active context lacks the line, so a line start
+ * fires about once per context. Initialiser lines are disabled at once and never re-armed, because
+ * their sets are process-wide. Every other code object with a disabled line is listed, and pushing
+ * a context re-arms the listed ones, so each context sees every line it runs, wherever the line
+ * ran first.
+ *
+ * Re-arming:
+ * - internal: re-instrument only the line starts of the listed code objects, as CPython's
+ *   add_line_tools() does. Used when a self-test at init passes;
+ * - public: sys.monitoring.set_local_events(tool, code, 0) then (tool, code, LINE), which costs
+ *   O(code object size).
+ *
+ * The callback never raises into the monitored code: an internal error is counted and the line
+ * stays armed. All state is guarded by the GIL. Free-threaded builds are not supported.
+ */
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
+#if PY_VERSION_HEX < 0x030C0000
+#error "_linecov requires CPython 3.12 or later"
+#endif
+
+#ifdef Py_GIL_DISABLED
+#define DD_LINECOV_FREE_THREADED 1
+#else
+#define DD_LINECOV_FREE_THREADED 0
+#endif
+
+/* ------------------------------------------------------------------------------------------------
+ * CPython monitoring data layout, needed only by the internal re-arm.
+ * 3.12 and 3.13 declare it in the public cpython/code.h; 3.14 and 3.15 moved it to an internal
+ * header, so it is mirrored here. The init self-test disables the internal re-arm if it is wrong.
+ */
+#if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x03100000
+#define DD_HAVE_INTERNAL_REARM 1
+typedef struct
+{
+    uint8_t tools[11];
+} dd_local_monitors;
+typedef struct
+{
+    uint8_t bytes_per_entry;
+    uint8_t data[1];
+} dd_line_data;
+typedef struct
+{
+    dd_local_monitors local_monitors;
+    dd_local_monitors active_monitors;
+    uint8_t* tools;
+    uintptr_t tool_versions[8];
+    dd_line_data* lines;
+    uint8_t* line_tools;
+    uint8_t* per_instruction_opcodes;
+    uint8_t* per_instruction_tools;
+} dd_monitoring;
+#define DD_ORIGINAL_OPCODE_PTR(m, i) (&(m)->lines->data[(i) * (m)->lines->bytes_per_entry])
+#elif PY_VERSION_HEX >= 0x030D0000 && PY_VERSION_HEX < 0x030E0000
+#define DD_HAVE_INTERNAL_REARM 1
+typedef _PyCoMonitoringData dd_monitoring;
+#define DD_ORIGINAL_OPCODE_PTR(m, i) (&(m)->lines->data[(i) * (m)->lines->bytes_per_entry])
+#elif PY_VERSION_HEX >= 0x030C0000 && PY_VERSION_HEX < 0x030D0000
+#define DD_HAVE_INTERNAL_REARM 1
+typedef _PyCoMonitoringData dd_monitoring;
+#define DD_ORIGINAL_OPCODE_PTR(m, i) (&(m)->lines[(i)].original_opcode)
+#else
+#define DD_HAVE_INTERNAL_REARM 0
+#endif
+
+#if DD_LINECOV_FREE_THREADED
+#undef DD_HAVE_INTERNAL_REARM
+#define DD_HAVE_INTERNAL_REARM 0
+#endif
+
+/* ------------------------------------------------------------------------------------------------
+ * Bitsets: one bit per line number, byte = line / 8, bit = 0x80 >> (line % 8), which is the
+ * payload format the intake expects.
+ */
+typedef struct
+{
+    uint8_t* bits;
+    uint32_t nbytes;
+} Bitset;
+
+static int
+bitset_reserve(Bitset* b, uint32_t nbytes)
+{
+    if (nbytes <= b->nbytes)
+        return 0;
+    uint32_t size = b->nbytes ? b->nbytes : 32;
+    while (size < nbytes)
+        size *= 2;
+    uint8_t* bits = PyMem_RawRealloc(b->bits, size);
+    if (bits == NULL)
+        return -1;
+    memset(bits + b->nbytes, 0, size - b->nbytes);
+    b->bits = bits;
+    b->nbytes = size;
+    return 0;
+}
+
+static inline int
+bitset_set(Bitset* b, uint32_t line)
+{
+    uint32_t byte = line >> 3;
+    if (byte >= b->nbytes && bitset_reserve(b, byte + 1) < 0)
+        return -1;
+    b->bits[byte] |= (uint8_t)(0x80 >> (line & 7));
+    return 0;
+}
+
+static inline int
+bitset_has(const Bitset* b, uint32_t line)
+{
+    uint32_t byte = line >> 3;
+    return byte < b->nbytes && (b->bits[byte] & (uint8_t)(0x80 >> (line & 7)));
+}
+
+static int
+bitset_or(Bitset* dst, const Bitset* src)
+{
+    if (src->nbytes == 0)
+        return 0;
+    if (bitset_reserve(dst, src->nbytes) < 0)
+        return -1;
+    for (uint32_t i = 0; i < src->nbytes; i++)
+        dst->bits[i] |= src->bits[i];
+    return 0;
+}
+
+static uint32_t
+bitset_used(const Bitset* b)
+{
+    uint32_t n = b->nbytes;
+    while (n > 0 && b->bits[n - 1] == 0)
+        n--;
+    return n;
+}
+
+static void
+bitset_free(Bitset* b)
+{
+    PyMem_RawFree(b->bits);
+    b->bits = NULL;
+    b->nbytes = 0;
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Files and code objects.
+ */
+typedef struct
+{
+    PyObject* path;        /* absolute path, as instrumented */
+    PyObject* report_path; /* path in the payload, or None when outside the workspace */
+    Bitset init_lines;     /* lines run in this file's initialiser code */
+    Bitset suite_lines;    /* lines run by suite-scope fixture setups */
+    Bitset unowned_lines;  /* lines run outside every active context */
+    uint32_t hint_nbytes;  /* largest context bitmap seen, to size new ones at once */
+} FileInfo;
+
+static FileInfo* g_files = NULL;
+static int32_t g_n_files = 0;
+static int32_t g_cap_files = 0;
+
+typedef struct
+{
+    PyObject* code; /* borrowed: the code object owns this struct through co_extra */
+    int32_t file_id;
+    uint8_t is_init;  /* initialiser code: its lines go to the file's initialiser lines */
+    uint8_t dirty;    /* listed in g_dirty since the last re-arm */
+    uint8_t rearm;    /* 0: not decided, 1: internal, 2: public toggle */
+    int32_t n_starts; /* line-start code unit indices, computed on the first internal re-arm */
+    int32_t* starts;
+} CodeInfo;
+
+static Py_ssize_t g_extra_index = -1;
+
+static void
+codeinfo_free(void* p)
+{
+    CodeInfo* ci = (CodeInfo*)p;
+    if (ci == NULL)
+        return;
+    PyMem_RawFree(ci->starts);
+    PyMem_RawFree(ci);
+}
+
+static inline CodeInfo*
+codeinfo_get(PyObject* code)
+{
+    void* p = NULL;
+    if (PyUnstable_Code_GetExtra(code, g_extra_index, &p) < 0) {
+        PyErr_Clear();
+        return NULL;
+    }
+    return (CodeInfo*)p;
+}
+
+/* Code objects with a line disabled since the last re-arm. Strong references, so a listed
+   CodeInfo cannot be freed before it is re-armed. */
+static PyObject** g_dirty = NULL;
+static Py_ssize_t g_n_dirty = 0;
+static Py_ssize_t g_cap_dirty = 0;
+
+/* ------------------------------------------------------------------------------------------------
+ * Contexts.
+ */
+enum
+{
+    CONTEXT_TEST = 0,
+    CONTEXT_FIXTURE = 1,
+};
+
+typedef struct Context
+{
+    PyObject_HEAD Bitset* files; /* indexed by file id */
+    int32_t cap_files;
+    int32_t* touched; /* file ids with at least one line, in first-touch order */
+    int32_t n_touched;
+    int32_t cap_touched;
+    PyObject* fixtures; /* list of the fixture contexts this one depends on, or NULL */
+    int kind;
+    int active;
+    int index; /* position in g_active while active */
+} Context;
+
+static PyTypeObject ContextType;
+
+static Context** g_active = NULL;
+static int g_n_active = 0;
+static int g_cap_active = 0;
+
+/* Configuration, set by init(). */
+static int g_initialized = 0;
+static int g_tool_id = -1;
+static uint8_t g_tool_bit = 0;
+static int g_line_event_index = -1;
+static long g_line_event_mask = 0;
+static PyObject* g_disable = NULL;
+static PyObject* g_set_local_events = NULL;
+static PyObject* g_tool_id_object = NULL;   /* tool id, as set_local_events takes it */
+static PyObject* g_line_mask_object = NULL; /* LINE event set, as set_local_events takes it */
+static PyObject* g_generic_scope_prefix = NULL;
+static PyObject* g_ctxvar = NULL;
+static int g_internal_rearm = 0;
+static uint8_t g_deopt[256];
+static int g_instrumented_line = -1;
+static int g_enter_executor = -1;
+static int g_instrumented_instruction = -1;
+
+/* Counters, for profiling and tests. */
+static unsigned long long g_events = 0;
+static unsigned long long g_events_init = 0;
+static unsigned long long g_events_unowned = 0;
+static unsigned long long g_events_kept = 0;
+static unsigned long long g_errors = 0;
+static unsigned long long g_rearm_internal = 0;
+static unsigned long long g_rearm_public = 0;
+static unsigned long long g_rearm_starts = 0;
+
+static int
+context_reserve_files(Context* c, int32_t file_id)
+{
+    if (file_id < c->cap_files)
+        return 0;
+    int32_t cap = c->cap_files ? c->cap_files : 64;
+    while (cap <= file_id)
+        cap *= 2;
+    Bitset* files = PyMem_RawRealloc(c->files, sizeof(Bitset) * (size_t)cap);
+    if (files == NULL)
+        return -1;
+    memset(files + c->cap_files, 0, sizeof(Bitset) * (size_t)(cap - c->cap_files));
+    c->files = files;
+    c->cap_files = cap;
+    return 0;
+}
+
+static int
+context_touch(Context* c, int32_t file_id)
+{
+    if (c->n_touched == c->cap_touched) {
+        int32_t cap = c->cap_touched ? c->cap_touched * 2 : 16;
+        int32_t* touched = PyMem_RawRealloc(c->touched, sizeof(int32_t) * (size_t)cap);
+        if (touched == NULL)
+            return -1;
+        c->touched = touched;
+        c->cap_touched = cap;
+    }
+    c->touched[c->n_touched++] = file_id;
+    return 0;
+}
+
+static inline int
+context_set(Context* c, int32_t file_id, uint32_t line)
+{
+    if (file_id >= c->cap_files && context_reserve_files(c, file_id) < 0)
+        return -1;
+    Bitset* b = &c->files[file_id];
+    if (b->nbytes == 0) {
+        uint32_t hint = g_files[file_id].hint_nbytes;
+        if (bitset_reserve(b, hint > (line >> 3) ? hint : (line >> 3) + 1) < 0)
+            return -1;
+        if (context_touch(c, file_id) < 0)
+            return -1;
+    }
+    if (bitset_set(b, line) < 0)
+        return -1;
+    if (b->nbytes > g_files[file_id].hint_nbytes)
+        g_files[file_id].hint_nbytes = b->nbytes;
+    return 0;
+}
+
+static inline int
+context_has(const Context* c, int32_t file_id, uint32_t line)
+{
+    return file_id < c->cap_files && bitset_has(&c->files[file_id], line);
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Re-arming.
+ */
+static int
+mark_dirty(CodeInfo* ci)
+{
+    if (ci->dirty)
+        return 0;
+    if (g_n_dirty == g_cap_dirty) {
+        Py_ssize_t cap = g_cap_dirty ? g_cap_dirty * 2 : 1024;
+        PyObject** dirty = PyMem_RawRealloc(g_dirty, sizeof(PyObject*) * (size_t)cap);
+        if (dirty == NULL)
+            return -1;
+        g_dirty = dirty;
+        g_cap_dirty = cap;
+    }
+    Py_INCREF(ci->code);
+    g_dirty[g_n_dirty++] = ci->code;
+    ci->dirty = 1;
+    return 0;
+}
+
+static int
+rearm_public(PyObject* code)
+{
+    PyObject* r = PyObject_CallFunction(g_set_local_events, "iOi", g_tool_id, code, 0);
+    if (r == NULL)
+        return -1;
+    Py_DECREF(r);
+    r = PyObject_CallFunction(g_set_local_events, "iOl", g_tool_id, code, g_line_event_mask);
+    if (r == NULL)
+        return -1;
+    Py_DECREF(r);
+    g_rearm_public++;
+    return 0;
+}
+
+#if DD_HAVE_INTERNAL_REARM
+/* Returns 1 when the code object can be re-armed internally, 0 when it needs the public toggle. */
+static int
+internal_rearm_possible(PyCodeObject* co)
+{
+    dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
+    if (m == NULL || m->lines == NULL)
+        return 0;
+    if (m->per_instruction_opcodes != NULL)
+        return 0; /* another tool uses INSTRUCTION events here */
+    if (!(m->active_monitors.tools[g_line_event_index] & g_tool_bit))
+        return 0;
+    if (m->line_tools == NULL && m->active_monitors.tools[g_line_event_index] != g_tool_bit)
+        return 0;
+    return 1;
+}
+
+static int
+compute_starts(CodeInfo* ci, PyCodeObject* co)
+{
+    dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
+    Py_ssize_t n = Py_SIZE(co);
+    int32_t count = 0;
+    for (Py_ssize_t i = co->_co_firsttraceable; i < n; i++)
+        if (*DD_ORIGINAL_OPCODE_PTR(m, i) != 0)
+            count++;
+    int32_t* starts = PyMem_RawMalloc(sizeof(int32_t) * (size_t)(count ? count : 1));
+    if (starts == NULL)
+        return -1;
+    int32_t k = 0;
+    for (Py_ssize_t i = co->_co_firsttraceable; i < n; i++)
+        if (*DD_ORIGINAL_OPCODE_PTR(m, i) != 0)
+            starts[k++] = (int32_t)i;
+    ci->starts = starts;
+    ci->n_starts = count;
+    return 0;
+}
+
+/* Mirrors CPython's add_line_tools() for every line start of the code object. Returns 0 on
+   success, 1 when the code object must use the public toggle instead. */
+static int
+rearm_internal(CodeInfo* ci, PyCodeObject* co)
+{
+    if (!internal_rearm_possible(co))
+        return 1;
+    if (ci->starts == NULL && compute_starts(ci, co) < 0)
+        return 1;
+    dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
+    uint8_t* bytecode = (uint8_t*)co->co_code_adaptive;
+    /* Check first, so a code object is never left half re-armed. */
+    for (int32_t k = 0; k < ci->n_starts; k++) {
+        int op = bytecode[2 * ci->starts[k]];
+        if (op == g_enter_executor || op == g_instrumented_instruction)
+            return 1;
+    }
+    for (int32_t k = 0; k < ci->n_starts; k++) {
+        int32_t i = ci->starts[k];
+        if (m->line_tools != NULL)
+            m->line_tools[i] |= g_tool_bit;
+        uint8_t op = bytecode[2 * i];
+        if (op != g_instrumented_line) {
+            *DD_ORIGINAL_OPCODE_PTR(m, i) = g_deopt[op];
+            bytecode[2 * i] = (uint8_t)g_instrumented_line;
+        }
+    }
+    g_rearm_internal++;
+    g_rearm_starts += (unsigned long long)ci->n_starts;
+    return 0;
+}
+#endif
+
+/* Re-arms every listed code object. Errors are counted, never raised: a code object that cannot
+   be re-armed only loses lines for later contexts. */
+static void
+rearm_all(void)
+{
+    Py_ssize_t n = g_n_dirty;
+    g_n_dirty = 0;
+    for (Py_ssize_t k = 0; k < n; k++) {
+        PyObject* code = g_dirty[k];
+        CodeInfo* ci = codeinfo_get(code);
+        if (ci != NULL) {
+            ci->dirty = 0;
+            int done = 0;
+#if DD_HAVE_INTERNAL_REARM
+            if (g_internal_rearm && ci->rearm != 2) {
+                if (rearm_internal(ci, (PyCodeObject*)code) == 0)
+                    done = 1;
+                else
+                    ci->rearm = 2;
+            }
+#endif
+            if (!done && rearm_public(code) < 0) {
+                PyErr_Clear();
+                g_errors++;
+            }
+        }
+        Py_DECREF(code);
+    }
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * The LINE callback.
+ */
+static inline PyObject*
+disable_line(CodeInfo* ci)
+{
+    if (mark_dirty(ci) < 0) {
+        /* Keep the line armed rather than lose it for every later context. */
+        g_errors++;
+        Py_RETURN_NONE;
+    }
+    return Py_NewRef(g_disable);
+}
+
+static PyObject*
+line_event(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    if (nargs != 2)
+        return Py_NewRef(g_disable);
+    CodeInfo* ci = codeinfo_get(args[0]);
+    if (ci == NULL)
+        return Py_NewRef(g_disable);
+    long value = PyLong_AsLong(args[1]);
+    if (value <= 0) {
+        if (value == -1 && PyErr_Occurred())
+            PyErr_Clear();
+        return Py_NewRef(g_disable);
+    }
+    uint32_t line = (uint32_t)value;
+    int32_t file_id = ci->file_id;
+    FileInfo* fi = &g_files[file_id];
+    g_events++;
+
+    if (ci->is_init) {
+        g_events_init++;
+        if (bitset_set(&fi->init_lines, line) < 0) {
+            g_errors++;
+            Py_RETURN_NONE;
+        }
+        return Py_NewRef(g_disable);
+    }
+
+    if (g_n_active == 0) {
+        g_events_unowned++;
+        if (bitset_set(&fi->unowned_lines, line) < 0) {
+            g_errors++;
+            Py_RETURN_NONE;
+        }
+        return disable_line(ci);
+    }
+
+    PyObject* current = NULL;
+    if (PyContextVar_Get(g_ctxvar, NULL, &current) < 0) {
+        PyErr_Clear();
+        g_errors++;
+        current = NULL;
+    }
+    Context* owner = NULL;
+    if (current != NULL && Py_IS_TYPE(current, &ContextType) && ((Context*)current)->active)
+        owner = (Context*)current;
+
+    PyObject* result;
+    if (owner != NULL) {
+        if (context_set(owner, file_id, line) < 0) {
+            g_errors++;
+            result = Py_NewRef(Py_None);
+            goto done;
+        }
+    } else {
+        g_events_unowned++;
+        if (bitset_set(&fi->unowned_lines, line) < 0) {
+            g_errors++;
+            result = Py_NewRef(Py_None);
+            goto done;
+        }
+    }
+    for (int k = 0; k < g_n_active; k++) {
+        Context* c = g_active[k];
+        if (c != owner && !context_has(c, file_id, line)) {
+            g_events_kept++;
+            result = Py_NewRef(Py_None);
+            goto done;
+        }
+    }
+    result = disable_line(ci);
+done:
+    Py_XDECREF(current);
+    return result;
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Context type.
+ */
+static PyObject*
+Context_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
+{
+    static char* kwlist[] = { "fixture", NULL };
+    int fixture = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &fixture))
+        return NULL;
+    Context* c = (Context*)type->tp_alloc(type, 0);
+    if (c == NULL)
+        return NULL;
+    c->kind = fixture ? CONTEXT_FIXTURE : CONTEXT_TEST;
+    if (context_reserve_files(c, g_n_files > 0 ? g_n_files - 1 : 0) < 0) {
+        Py_DECREF(c);
+        return PyErr_NoMemory();
+    }
+    return (PyObject*)c;
+}
+
+static void
+context_deactivate(Context* c)
+{
+    if (!c->active)
+        return;
+    Context* last = g_active[g_n_active - 1];
+    g_active[c->index] = last;
+    last->index = c->index;
+    g_n_active--;
+    c->active = 0;
+    if (c->kind == CONTEXT_FIXTURE) {
+        for (int32_t k = 0; k < c->n_touched; k++) {
+            int32_t f = c->touched[k];
+            if (bitset_or(&g_files[f].suite_lines, &c->files[f]) < 0)
+                g_errors++;
+        }
+    }
+}
+
+static int
+Context_traverse(Context* c, visitproc visit, void* arg)
+{
+    Py_VISIT(c->fixtures);
+    return 0;
+}
+
+static int
+Context_clear(Context* c)
+{
+    Py_CLEAR(c->fixtures);
+    return 0;
+}
+
+static void
+Context_dealloc(Context* c)
+{
+    PyObject_GC_UnTrack(c);
+    context_deactivate(c);
+    Context_clear(c);
+    for (int32_t i = 0; i < c->cap_files; i++)
+        bitset_free(&c->files[i]);
+    PyMem_RawFree(c->files);
+    PyMem_RawFree(c->touched);
+    Py_TYPE(c)->tp_free((PyObject*)c);
+}
+
+static PyObject*
+Context_push(Context* c, PyObject* Py_UNUSED(ignored))
+{
+    if (c->active)
+        Py_RETURN_NONE;
+    if (g_n_active == g_cap_active) {
+        int cap = g_cap_active ? g_cap_active * 2 : 16;
+        Context** active = PyMem_RawRealloc(g_active, sizeof(Context*) * (size_t)cap);
+        if (active == NULL)
+            return PyErr_NoMemory();
+        g_active = active;
+        g_cap_active = cap;
+    }
+    rearm_all();
+    c->index = g_n_active;
+    g_active[g_n_active++] = c;
+    c->active = 1;
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+Context_pop(Context* c, PyObject* Py_UNUSED(ignored))
+{
+    context_deactivate(c);
+    Py_RETURN_NONE;
+}
+
+/* The context and, transitively, the fixture contexts it depends on, each once. */
+static int
+collect_contexts(Context* c, Context*** out, Py_ssize_t* n, Py_ssize_t* cap)
+{
+    for (Py_ssize_t k = 0; k < *n; k++)
+        if ((*out)[k] == c)
+            return 0;
+    if (*n == *cap) {
+        Py_ssize_t size = *cap ? *cap * 2 : 8;
+        Context** grown = PyMem_RawRealloc(*out, sizeof(Context*) * (size_t)size);
+        if (grown == NULL) {
+            PyErr_NoMemory();
+            return -1;
+        }
+        *out = grown;
+        *cap = size;
+    }
+    (*out)[(*n)++] = c;
+    if (c->fixtures == NULL)
+        return 0;
+    Py_ssize_t count = PyList_GET_SIZE(c->fixtures);
+    for (Py_ssize_t k = 0; k < count; k++) {
+        PyObject* item = PyList_GET_ITEM(c->fixtures, k);
+        if (Py_IS_TYPE(item, &ContextType) && collect_contexts((Context*)item, out, n, cap) < 0)
+            return -1;
+    }
+    return 0;
+}
+
+/* bitmaps(include_init=True) -> list of (report_path, bytes) for files in the workspace: the
+   context's lines, the lines of the fixture contexts it depends on, and, with include_init, the
+   initialiser lines of every file any of them touched. */
+static PyObject*
+Context_bitmaps(Context* c, PyObject* const* args, Py_ssize_t nargs)
+{
+    int include_init = 1;
+    if (nargs > 0 && (include_init = PyObject_IsTrue(args[0])) < 0)
+        return NULL;
+    Context** ctxs = NULL;
+    Py_ssize_t n_ctxs = 0, cap_ctxs = 0;
+    uint8_t* seen = NULL;
+    PyObject* result = NULL;
+    if (collect_contexts(c, &ctxs, &n_ctxs, &cap_ctxs) < 0)
+        goto done;
+    seen = PyMem_RawCalloc(g_n_files > 0 ? (size_t)g_n_files : 1, 1);
+    if (seen == NULL) {
+        PyErr_NoMemory();
+        goto done;
+    }
+    result = PyList_New(0);
+    if (result == NULL)
+        goto done;
+    for (Py_ssize_t j = 0; j < n_ctxs; j++) {
+        Context* source = ctxs[j];
+        for (int32_t k = 0; k < source->n_touched; k++) {
+            int32_t f = source->touched[k];
+            if (seen[f])
+                continue;
+            seen[f] = 1;
+            FileInfo* fi = &g_files[f];
+            if (fi->report_path == Py_None)
+                continue;
+            uint32_t n = include_init ? bitset_used(&fi->init_lines) : 0;
+            for (Py_ssize_t i = 0; i < n_ctxs; i++) {
+                if (f < ctxs[i]->cap_files) {
+                    uint32_t used = bitset_used(&ctxs[i]->files[f]);
+                    if (used > n)
+                        n = used;
+                }
+            }
+            PyObject* bytes = PyBytes_FromStringAndSize(NULL, n);
+            if (bytes == NULL)
+                goto error;
+            uint8_t* out = (uint8_t*)PyBytes_AS_STRING(bytes);
+            memset(out, 0, n);
+            if (include_init) {
+                uint32_t used = bitset_used(&fi->init_lines);
+                for (uint32_t b = 0; b < used; b++)
+                    out[b] |= fi->init_lines.bits[b];
+            }
+            for (Py_ssize_t i = 0; i < n_ctxs; i++) {
+                if (f >= ctxs[i]->cap_files)
+                    continue;
+                const Bitset* bits = &ctxs[i]->files[f];
+                uint32_t used = bitset_used(bits);
+                for (uint32_t b = 0; b < used; b++)
+                    out[b] |= bits->bits[b];
+            }
+            PyObject* item = PyTuple_Pack(2, fi->report_path, bytes);
+            Py_DECREF(bytes);
+            if (item == NULL || PyList_Append(result, item) < 0) {
+                Py_XDECREF(item);
+                goto error;
+            }
+            Py_DECREF(item);
+        }
+    }
+    goto done;
+error:
+    Py_CLEAR(result);
+done:
+    PyMem_RawFree(ctxs);
+    PyMem_RawFree(seen);
+    return result;
+}
+
+/* covered() -> dict of absolute path -> bytearray, the context's own lines only. */
+static PyObject*
+Context_covered(Context* c, PyObject* Py_UNUSED(ignored))
+{
+    PyObject* result = PyDict_New();
+    if (result == NULL)
+        return NULL;
+    for (int32_t k = 0; k < c->n_touched; k++) {
+        int32_t f = c->touched[k];
+        Bitset* b = &c->files[f];
+        PyObject* ba = PyByteArray_FromStringAndSize((const char*)b->bits, bitset_used(b));
+        if (ba == NULL || PyDict_SetItem(result, g_files[f].path, ba) < 0) {
+            Py_XDECREF(ba);
+            Py_DECREF(result);
+            return NULL;
+        }
+        Py_DECREF(ba);
+    }
+    return result;
+}
+
+static PyObject*
+Context_get_active(Context* c, void* Py_UNUSED(closure))
+{
+    return PyBool_FromLong(c->active);
+}
+
+static PyObject*
+Context_get_is_fixture(Context* c, void* Py_UNUSED(closure))
+{
+    return PyBool_FromLong(c->kind == CONTEXT_FIXTURE);
+}
+
+static PyObject*
+Context_get_fixtures(Context* c, void* Py_UNUSED(closure))
+{
+    if (c->fixtures == NULL && (c->fixtures = PyList_New(0)) == NULL)
+        return NULL;
+    return Py_NewRef(c->fixtures);
+}
+
+static PyMethodDef Context_methods[] = {
+    { "push", (PyCFunction)Context_push, METH_NOARGS, "Activate, re-arming disabled lines." },
+    { "pop", (PyCFunction)Context_pop, METH_NOARGS, "Deactivate." },
+    { "bitmaps", (PyCFunction)(void (*)(void))Context_bitmaps, METH_FASTCALL, "Record bitmaps." },
+    { "covered", (PyCFunction)Context_covered, METH_NOARGS, "Own lines by absolute path." },
+    { NULL, NULL, 0, NULL },
+};
+
+static PyGetSetDef Context_getset[] = {
+    { "active", (getter)Context_get_active, NULL, NULL, NULL },
+    { "is_fixture", (getter)Context_get_is_fixture, NULL, NULL, NULL },
+    { "fixtures", (getter)Context_get_fixtures, NULL, "Fixture contexts this one depends on.", NULL },
+    { NULL, NULL, NULL, NULL, NULL },
+};
+
+static PyTypeObject ContextType = {
+    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "ddtrace.internal.coverage._linecov.Context",
+    .tp_basicsize = sizeof(Context),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_new = Context_new,
+    .tp_dealloc = (destructor)Context_dealloc,
+    .tp_traverse = (traverseproc)Context_traverse,
+    .tp_clear = (inquiry)Context_clear,
+    .tp_methods = Context_methods,
+    .tp_getset = Context_getset,
+};
+
+/* ------------------------------------------------------------------------------------------------
+ * Module functions.
+ */
+static PyObject*
+mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
+{
+    static char* kwlist[] = {
+        "tool_id", "line_event_index",  "disable",        "set_local_events",         "ctxvar",
+        "deopt",   "instrumented_line", "enter_executor", "instrumented_instruction", "internal_rearm",
+        NULL
+    };
+    int tool_id, line_event_index, instrumented_line, enter_executor, instrumented_instruction;
+    int internal_rearm = 1;
+    PyObject *disable, *set_local_events, *ctxvar;
+    Py_buffer deopt;
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwds,
+                                     "iiOOOy*iii|p",
+                                     kwlist,
+                                     &tool_id,
+                                     &line_event_index,
+                                     &disable,
+                                     &set_local_events,
+                                     &ctxvar,
+                                     &deopt,
+                                     &instrumented_line,
+                                     &enter_executor,
+                                     &instrumented_instruction,
+                                     &internal_rearm))
+        return NULL;
+    if (deopt.len != 256) {
+        PyBuffer_Release(&deopt);
+        PyErr_SetString(PyExc_ValueError, "deopt must be 256 bytes");
+        return NULL;
+    }
+    if (!PyContextVar_CheckExact(ctxvar)) {
+        PyBuffer_Release(&deopt);
+        PyErr_SetString(PyExc_TypeError, "ctxvar must be a ContextVar");
+        return NULL;
+    }
+    memcpy(g_deopt, deopt.buf, 256);
+    PyBuffer_Release(&deopt);
+    if (g_extra_index < 0) {
+        g_extra_index = PyUnstable_Eval_RequestCodeExtraIndex(codeinfo_free);
+        if (g_extra_index < 0) {
+            PyErr_SetString(PyExc_RuntimeError, "no code extra index available");
+            return NULL;
+        }
+    }
+    PyObject* tool_id_object = PyLong_FromLong(tool_id);
+    PyObject* line_mask_object = PyLong_FromLong(1L << line_event_index);
+    PyObject* generic_scope_prefix = PyUnicode_FromString("<generic parameters of ");
+    if (tool_id_object == NULL || line_mask_object == NULL || generic_scope_prefix == NULL) {
+        Py_XDECREF(tool_id_object);
+        Py_XDECREF(line_mask_object);
+        Py_XDECREF(generic_scope_prefix);
+        return NULL;
+    }
+    Py_XSETREF(g_tool_id_object, tool_id_object);
+    Py_XSETREF(g_line_mask_object, line_mask_object);
+    Py_XSETREF(g_generic_scope_prefix, generic_scope_prefix);
+    g_tool_id = tool_id;
+    g_tool_bit = (uint8_t)(1 << tool_id);
+    g_line_event_index = line_event_index;
+    g_line_event_mask = 1L << line_event_index;
+    Py_INCREF(disable);
+    Py_XSETREF(g_disable, disable);
+    Py_INCREF(set_local_events);
+    Py_XSETREF(g_set_local_events, set_local_events);
+    Py_INCREF(ctxvar);
+    Py_XSETREF(g_ctxvar, ctxvar);
+    g_instrumented_line = instrumented_line;
+    g_enter_executor = enter_executor;
+    g_instrumented_instruction = instrumented_instruction;
+    g_internal_rearm = DD_HAVE_INTERNAL_REARM && internal_rearm && instrumented_line > 0;
+    g_initialized = 1;
+    return PyBool_FromLong(g_internal_rearm);
+}
+
+static PyObject*
+mod_set_internal_rearm(PyObject* Py_UNUSED(self), PyObject* arg)
+{
+    int on = PyObject_IsTrue(arg);
+    if (on < 0)
+        return NULL;
+    g_internal_rearm = DD_HAVE_INTERNAL_REARM && on && g_instrumented_line > 0;
+    return PyBool_FromLong(g_internal_rearm);
+}
+
+static PyObject*
+mod_register_file(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    if (nargs != 2) {
+        PyErr_SetString(PyExc_TypeError, "register_file(path, report_path)");
+        return NULL;
+    }
+    if (g_n_files == g_cap_files) {
+        int32_t cap = g_cap_files ? g_cap_files * 2 : 256;
+        FileInfo* files = PyMem_RawRealloc(g_files, sizeof(FileInfo) * (size_t)cap);
+        if (files == NULL)
+            return PyErr_NoMemory();
+        memset(files + g_cap_files, 0, sizeof(FileInfo) * (size_t)(cap - g_cap_files));
+        g_files = files;
+        g_cap_files = cap;
+    }
+    FileInfo* fi = &g_files[g_n_files];
+    fi->path = Py_NewRef(args[0]);
+    fi->report_path = Py_NewRef(args[1]);
+    return PyLong_FromLong(g_n_files++);
+}
+
+/* Attaches a code object to a file. is_init < 0 keeps an existing initialiser mark. */
+static int
+attach_code(PyObject* code, int32_t file_id, int is_init)
+{
+    CodeInfo* ci = codeinfo_get(code);
+    if (ci == NULL) {
+        ci = PyMem_RawCalloc(1, sizeof(CodeInfo));
+        if (ci == NULL) {
+            PyErr_NoMemory();
+            return -1;
+        }
+        ci->code = code;
+        if (PyUnstable_Code_SetExtra(code, g_extra_index, ci) < 0) {
+            PyMem_RawFree(ci);
+            return -1;
+        }
+    }
+    ci->file_id = file_id;
+    if (is_init >= 0)
+        ci->is_init = (uint8_t)is_init;
+    return 0;
+}
+
+static int
+parse_file_id(PyObject* arg, int32_t* file_id)
+{
+    long value = PyLong_AsLong(arg);
+    if (value < 0 || value >= g_n_files) {
+        if (!PyErr_Occurred())
+            PyErr_SetString(PyExc_ValueError, "unknown file id");
+        return -1;
+    }
+    *file_id = (int32_t)value;
+    return 0;
+}
+
+/* attach(code, file_id[, is_init]): without is_init, an existing mark is kept. */
+static PyObject*
+mod_attach(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    if (nargs < 2 || nargs > 3 || !PyCode_Check(args[0])) {
+        PyErr_SetString(PyExc_TypeError, "attach(code, file_id, is_init=False)");
+        return NULL;
+    }
+    int32_t file_id;
+    if (parse_file_id(args[1], &file_id) < 0)
+        return NULL;
+    int is_init = -1;
+    if (nargs == 3 && (is_init = PyObject_IsTrue(args[2])) < 0)
+        return NULL;
+    if (attach_code(args[0], file_id, is_init) < 0)
+        return NULL;
+    Py_RETURN_NONE;
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Instrumenting a module.
+ */
+#define DD_CO_OPTIMIZED 0x0001
+
+/* Constants the compiler emits. None of them can come from an obfuscator's runtime. */
+static inline int
+is_literal_constant(PyObject* c)
+{
+    return c == Py_None || c == Py_Ellipsis || PyBool_Check(c) || PyCode_Check(c) || PyUnicode_CheckExact(c) ||
+           PyLong_CheckExact(c) || PyTuple_CheckExact(c) || PyBytes_CheckExact(c) || PyFloat_CheckExact(c) ||
+           PyFrozenSet_CheckExact(c) || PyComplex_CheckExact(c) || PySlice_Check(c);
+}
+
+static int
+has_prefix(PyObject* text, const char* prefix)
+{
+    Py_ssize_t size = 0;
+    const char* utf8 = PyUnicode_AsUTF8AndSize(text, &size);
+    if (utf8 == NULL) {
+        PyErr_Clear();
+        return 0;
+    }
+    size_t n = strlen(prefix);
+    return (size_t)size >= n && memcmp(utf8, prefix, n) == 0;
+}
+
+/* Mirrors ddtrace.internal.utils.obfuscation._is_runtime_object. */
+static int
+is_obfuscator_runtime_object(PyObject* c)
+{
+    PyObject* module = PyObject_GetAttrString(c, "__module__");
+    if (module == NULL) {
+        PyErr_Clear();
+        return 0;
+    }
+    if (PyModule_Check(module)) {
+        PyObject* name = PyModule_GetNameObject(module);
+        Py_DECREF(module);
+        if (name == NULL) {
+            PyErr_Clear();
+            return 0;
+        }
+        module = name;
+    }
+    int found = PyUnicode_Check(module) && (has_prefix(module, "pytransform") || has_prefix(module, "pyarmor_runtime"));
+    Py_DECREF(module);
+    return found;
+}
+
+/* Mirrors ddtrace.internal.utils.obfuscation.is_obfuscated_code. */
+static int
+is_obfuscated(PyCodeObject* co)
+{
+    PyObject* names = co->co_names;
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(names); i++) {
+        PyObject* name = PyTuple_GET_ITEM(names, i);
+        Py_ssize_t n = PyUnicode_GET_LENGTH(name);
+        if ((n == 15 && PyUnicode_CompareWithASCIIString(name, "__armor_enter__") == 0) ||
+            (n == 14 && PyUnicode_CompareWithASCIIString(name, "__armor_exit__") == 0))
+            return 1;
+    }
+    PyObject* consts = co->co_consts;
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(consts); i++) {
+        PyObject* c = PyTuple_GET_ITEM(consts, i);
+        if (!is_literal_constant(c) && is_obfuscator_runtime_object(c))
+            return 1;
+    }
+    return 0;
+}
+
+/* Class bodies are the only unoptimized code objects nested in initialiser code. A generic class
+   or function first runs a type-parameter scope at definition time, with the class body nested
+   in it. */
+static int
+is_initialiser_child(PyCodeObject* co)
+{
+    if (!(co->co_flags & DD_CO_OPTIMIZED))
+        return 1;
+    Py_ssize_t match = PyUnicode_Tailmatch(co->co_name, g_generic_scope_prefix, 0, PY_SSIZE_T_MAX, -1);
+    if (match < 0) {
+        PyErr_Clear();
+        return 0;
+    }
+    return match == 1;
+}
+
+typedef struct
+{
+    PyCodeObject* code; /* borrowed: the module code object owns the tree */
+    uint8_t is_init;
+} PendingCode;
+
+/* instrument(module_code, file_id) -> int: enables LINE events on every code object of the tree,
+   except obfuscated ones and the code nested in them, and attaches each to the file. The module
+   body and the class bodies nested statically in it are marked as initialiser code. Returns how
+   many code objects were instrumented. A code object that cannot be instrumented is counted as
+   an error and skipped, never raised. */
+static PyObject*
+mod_instrument(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    if (nargs != 2 || !PyCode_Check(args[0])) {
+        PyErr_SetString(PyExc_TypeError, "instrument(code, file_id)");
+        return NULL;
+    }
+    if (!g_initialized) {
+        PyErr_SetString(PyExc_RuntimeError, "not initialised");
+        return NULL;
+    }
+    int32_t file_id;
+    if (parse_file_id(args[1], &file_id) < 0)
+        return NULL;
+
+    PyCodeObject* root = (PyCodeObject*)args[0];
+    if (is_obfuscated(root))
+        return PyLong_FromLong(-1);
+    Py_ssize_t cap = 64, n = 0;
+    PendingCode* pending = PyMem_RawMalloc(sizeof(PendingCode) * (size_t)cap);
+    if (pending == NULL)
+        return PyErr_NoMemory();
+    pending[n].code = root;
+    pending[n].is_init = PyUnicode_CompareWithASCIIString(root->co_name, "<module>") == 0;
+    n++;
+
+    long instrumented = 0;
+    while (n > 0) {
+        PendingCode item = pending[--n];
+        PyCodeObject* co = item.code;
+        if (is_obfuscated(co))
+            continue;
+        PyObject* call_args[3] = { g_tool_id_object, (PyObject*)co, g_line_mask_object };
+        PyObject* r = PyObject_Vectorcall(g_set_local_events, call_args, 3, NULL);
+        if (r == NULL) {
+            PyErr_Clear();
+            g_errors++;
+            continue;
+        }
+        Py_DECREF(r);
+        if (attach_code((PyObject*)co, file_id, item.is_init) < 0) {
+            PyErr_Clear();
+            g_errors++;
+            continue;
+        }
+        instrumented++;
+        PyObject* consts = co->co_consts;
+        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(consts); i++) {
+            PyObject* c = PyTuple_GET_ITEM(consts, i);
+            if (!PyCode_Check(c))
+                continue;
+            if (n == cap) {
+                PendingCode* grown = PyMem_RawRealloc(pending, sizeof(PendingCode) * (size_t)(cap * 2));
+                if (grown == NULL) {
+                    g_errors++;
+                    break;
+                }
+                pending = grown;
+                cap *= 2;
+            }
+            pending[n].code = (PyCodeObject*)c;
+            pending[n].is_init = item.is_init && is_initialiser_child((PyCodeObject*)c);
+            n++;
+        }
+    }
+    PyMem_RawFree(pending);
+    return PyLong_FromLong(instrumented);
+}
+
+static PyObject*
+mod_rearm(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+    rearm_all();
+    Py_RETURN_NONE;
+}
+
+static int
+append_file_bitmap(PyObject* list, FileInfo* fi, const Bitset* b)
+{
+    uint32_t used = bitset_used(b);
+    if (used == 0 || fi->report_path == Py_None)
+        return 0;
+    PyObject* bytes = PyBytes_FromStringAndSize((const char*)b->bits, used);
+    if (bytes == NULL)
+        return -1;
+    PyObject* item = PyTuple_Pack(2, fi->report_path, bytes);
+    Py_DECREF(bytes);
+    if (item == NULL)
+        return -1;
+    int rc = PyList_Append(list, item);
+    Py_DECREF(item);
+    return rc;
+}
+
+/* shared() -> {"init": [...], "suiteSetup": [...], "unowned": [...]}, each a list of
+   (report_path, bytes) for files in the workspace. */
+static PyObject*
+mod_shared(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+    PyObject* init = PyList_New(0);
+    PyObject* suite = PyList_New(0);
+    PyObject* unowned = PyList_New(0);
+    PyObject* result = NULL;
+    if (init == NULL || suite == NULL || unowned == NULL)
+        goto done;
+    for (int32_t f = 0; f < g_n_files; f++) {
+        FileInfo* fi = &g_files[f];
+        if (append_file_bitmap(init, fi, &fi->init_lines) < 0 || append_file_bitmap(suite, fi, &fi->suite_lines) < 0 ||
+            append_file_bitmap(unowned, fi, &fi->unowned_lines) < 0)
+            goto done;
+    }
+    result = Py_BuildValue("{sOsOsO}", "init", init, "suiteSetup", suite, "unowned", unowned);
+done:
+    Py_XDECREF(init);
+    Py_XDECREF(suite);
+    Py_XDECREF(unowned);
+    return result;
+}
+
+static PyObject*
+mod_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+    return Py_BuildValue("{s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:n,s:i,s:i,s:i}",
+                         "events",
+                         g_events,
+                         "events_init",
+                         g_events_init,
+                         "events_unowned",
+                         g_events_unowned,
+                         "events_kept",
+                         g_events_kept,
+                         "errors",
+                         g_errors,
+                         "rearm_internal",
+                         g_rearm_internal,
+                         "rearm_public",
+                         g_rearm_public,
+                         "rearm_starts",
+                         g_rearm_starts,
+                         "dirty",
+                         g_n_dirty,
+                         "active",
+                         g_n_active,
+                         "files",
+                         g_n_files,
+                         "internal_rearm",
+                         g_internal_rearm);
+}
+
+static PyMethodDef module_methods[] = {
+    { "init", (PyCFunction)(void (*)(void))mod_init, METH_VARARGS | METH_KEYWORDS, "Configure the collector." },
+    { "set_internal_rearm", mod_set_internal_rearm, METH_O, "Switch the internal re-arm." },
+    { "register_file", (PyCFunction)(void (*)(void))mod_register_file, METH_FASTCALL, "Register a file." },
+    { "attach", (PyCFunction)(void (*)(void))mod_attach, METH_FASTCALL, "Attach a code object to a file." },
+    { "instrument",
+      (PyCFunction)(void (*)(void))mod_instrument,
+      METH_FASTCALL,
+      "Enable LINE events on a module's code tree and attach it to a file. Returns the number of "
+      "code objects instrumented, or -1 when the module body looks obfuscated." },
+    { "line_event", (PyCFunction)(void (*)(void))line_event, METH_FASTCALL, "sys.monitoring LINE callback." },
+    { "rearm", mod_rearm, METH_NOARGS, "Re-arm every disabled line start." },
+    { "shared", mod_shared, METH_NOARGS, "The process's Shared record, in three parts." },
+    { "stats", mod_stats, METH_NOARGS, "Counters." },
+    { NULL, NULL, 0, NULL },
+};
+
+static struct PyModuleDef module_def = {
+    PyModuleDef_HEAD_INIT, "_linecov", NULL, -1, module_methods, NULL, NULL, NULL, NULL,
+};
+
+PyMODINIT_FUNC
+PyInit__linecov(void)
+{
+    if (PyType_Ready(&ContextType) < 0)
+        return NULL;
+    PyObject* m = PyModule_Create(&module_def);
+    if (m == NULL)
+        return NULL;
+    Py_INCREF(&ContextType);
+    if (PyModule_AddObject(m, "Context", (PyObject*)&ContextType) < 0) {
+        Py_DECREF(&ContextType);
+        Py_DECREF(m);
+        return NULL;
+    }
+    if (PyModule_AddIntConstant(m, "HAVE_INTERNAL_REARM", DD_HAVE_INTERNAL_REARM) < 0 ||
+        PyModule_AddIntConstant(m, "FREE_THREADED", DD_LINECOV_FREE_THREADED) < 0) {
+        Py_DECREF(m);
+        return NULL;
+    }
+    return m;
+}

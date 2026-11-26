@@ -4,10 +4,12 @@ from copy import deepcopy
 from inspect import getmodule
 import os
 from pathlib import Path
+import sys
 from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.coverage import native_lines
 from ddtrace.internal.coverage.context_state import _PY_GE_314
 from ddtrace.internal.coverage.context_state import _get_active_collector
 from ddtrace.internal.coverage.context_state import _get_ctx_collector
@@ -32,7 +34,6 @@ from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
-from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.paths import is_contained
 from ddtrace.internal.utils.paths import relative_path
 
@@ -41,12 +42,34 @@ log = get_logger(__name__)
 
 _original_exec = exec
 
+
+def _executing_module(code: CodeType, module_globals: t.Optional[dict[str, t.Any]]) -> t.Optional[ModuleType]:
+    """The module whose body code is about to run in module_globals."""
+    # pytest runs a module body in the module's own namespace, so the module is found by name.
+    # inspect.getmodule maps every loaded module's file instead, with a realpath call for each
+    # module loaded since its previous call.
+    if module_globals is not None:
+        module = sys.modules.get(module_globals.get("__name__", ""))
+        if module is not None and module.__dict__ is module_globals:
+            return module
+    return getmodule(code)
+
+
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
 _SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
 
 
 def _is_site_packages_path(path: Path) -> bool:
     return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
+
+
+# Hosts that fold case in paths compare them through pathlib, which folds per component.
+_CASE_INSENSITIVE_PATHS = os.path.normcase("A") != "A"
+
+
+def _is_under(path: str, root: str) -> bool:
+    """Whether path is root or lives under it. Both are normalized absolute paths on a case-sensitive host."""
+    return path == root or path.startswith(root if root.endswith(os.sep) else root + os.sep)
 
 
 class ModuleCodeCollector(ModuleWatchdog):
@@ -438,6 +461,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             if _PY_GE_314:
                 _tls_coverage.stack = ctx_collectors.get()
 
+            if native_lines.enabled():
+                # Pushing re-arms the lines disabled since the previous push; nothing else to arm.
+                self._native_previous = native_lines.ctx_native.get()
+                self._native = native_lines.new_context()
+                self._native.push()
+                native_lines.ctx_native.set(self._native)
+                return self
+
             # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
             # active and update the DISABLE optimisation flag accordingly.  Then re-enable
             # monitoring only when the optimisation is active (restart_events is global and
@@ -463,6 +494,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             ctx_coverage_enabled.set(coverage_enabled)
             if _PY_GE_314:
                 _tls_coverage.stack = stack
+            native = getattr(self, "_native", None)
+            if native is not None:
+                native.pop()
+                native_lines.ctx_native.set(self._native_previous)
 
         def anchor_file(self, path: str) -> None:
             """Mark a file as covered in this scope without an import event.
@@ -476,6 +511,10 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = self._covered_lines
+            native = getattr(self, "_native", None)
+            if native is not None:
+                for path, bits in native.covered().items():
+                    covered_lines[path].update(CoverageLines.from_bytearray(bits))
             if global_instance := ModuleCodeCollector._instance:
                 global_instance._mode.expand_context_lines(covered_lines, self._import_names)
             return covered_lines
@@ -486,6 +525,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             # every file that would have been emitted by get_covered_lines().
             covered_file_paths = set(self._covered_files)
             covered_file_paths.update(self._covered_lines)
+            native = getattr(self, "_native", None)
+            if native is not None:
+                covered_file_paths.update(native.covered())
             if global_instance := ModuleCodeCollector._instance:
                 return global_instance._mode.expand_context_files(covered_file_paths, self._import_names)
             return covered_file_paths
@@ -607,18 +649,31 @@ class ModuleCodeCollector(ModuleWatchdog):
             return False
         return True
 
+    def _is_instrumentable_file(self, path: str) -> bool:
+        """_is_instrumentable_path for a canonical path string, without building a Path on case-sensitive hosts.
+
+        It runs for every module imported after installation, instrumented or not.
+        """
+        if _CASE_INSENSITIVE_PATHS:
+            return self._is_instrumentable_path(Path(path))
+        if not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.split(os.sep)):
+            return False
+        if not any(_is_under(path, str(include_path)) for include_path in self._include_paths):
+            return False
+        return not any(_is_under(path, str(exclude_path)) for exclude_path in self._exclude_paths)
+
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         if _module is None:
             return code
 
-        code_path = resolved_code_origin(code)
-
-        if not self._is_instrumentable_path(code_path):
+        # The same memoized realpath as instrument_module's, so a module's file is resolved once.
+        if not self._is_instrumentable_file(resolved_path(code.co_filename)):
             return code
 
         retval = self._mode.instrument_module(code, _module)
 
-        if self._collect_import_coverage:
+        # Native line collection credits initialiser lines per file, so it opens no import contexts.
+        if self._collect_import_coverage and not native_lines.enabled():
             self._enter_module_context(code, _module)
 
         self._mode.after_module_context(code, _module)
@@ -658,6 +713,10 @@ class ModuleCodeCollector(ModuleWatchdog):
         import-only records (no instrumentation ran during the body, so the context
         carries no line data).
         """
+        # Native line collection opens no import contexts, so there is nothing to close. Returning
+        # here also saves a realpath call for every module imported after installation.
+        if native_lines.enabled():
+            return
         if not hasattr(_module, "__file__") or _module.__file__ is None:
             return
         raw_file = _module.__file__
@@ -692,14 +751,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         # The pytest module loader doesn't implement a get_code method so we
         # need to intercept the loading of test modules by wrapping around the
         # exec built-in function.
-
-        module = getmodule(_object)
-
-        new_object = (
-            self.transform(_object, module)
-            if isinstance(_object, CodeType) and _object.co_name == "<module>"
-            else _object
-        )
+        new_object = _object
+        if isinstance(_object, CodeType) and _object.co_name == "<module>":
+            new_object = self.transform(_object, _executing_module(_object, _globals))
         # Execute the module before calling the after_import hook
         _original_exec(new_object, _globals, _locals, **kwargs)
 
