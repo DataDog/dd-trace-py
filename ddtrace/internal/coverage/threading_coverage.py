@@ -17,8 +17,10 @@ import pickle  # nosec: B403  -- pickle is only used to serialize coverage data 
 from queue import Queue
 import threading
 
+from ddtrace.internal.coverage import native_lines
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 
 
 log = get_logger(__name__)
@@ -41,7 +43,16 @@ class CoverageCollectingThread(threading.Thread):
 
         Only enables coverage if the parent process' context-level coverage is enabled.
         """
-        self._should_cover = ModuleCodeCollector.is_installed() and ModuleCodeCollector.coverage_enabled_in_context()
+        if native_lines.enabled():
+            # Native collection credits the thread's lines to the context that started it. A pool
+            # worker carries no context of its own: each work item brings the submitter's.
+            self._native_parent = None if _is_pool_worker(args, kwargs) else native_lines.ctx_native.get()
+            self._should_cover = False
+        else:
+            self._native_parent = None
+            self._should_cover = (
+                ModuleCodeCollector.is_installed() and ModuleCodeCollector.coverage_enabled_in_context()
+            )
 
         if self._should_cover:
             self._coverage_queue = Queue()
@@ -52,6 +63,9 @@ class CoverageCollectingThread(threading.Thread):
         """Collect thread-level coverage data in a context and queue it up for the parent process to absorb"""
         # Threads created before _patch_threading() never ran the patched __init__, so they
         # have no coverage state: collect nothing for them.
+        native_parent = getattr(self, "_native_parent", None)
+        if native_parent is not None:
+            native_lines.ctx_native.set(native_parent)
         _should_cover = getattr(self, "_should_cover", False)
         if _should_cover:
             self._coverage_context = ModuleCodeCollector.CollectInContext()
@@ -85,7 +99,43 @@ class CoverageCollectingThread(threading.Thread):
                 ModuleCodeCollector.inject_coverage(covered=thread_covered)
 
 
+def _is_pool_worker(args, kwargs) -> bool:
+    # Thread(group, target, ...): ThreadPoolExecutor passes target by keyword.
+    target = kwargs.get("target", args[1] if len(args) > 1 else None)
+    return getattr(target, "__module__", None) == "concurrent.futures.thread" and (
+        getattr(target, "__name__", None) == "_worker"
+    )
+
+
+def _run_in_native_context(native_context, fn, /, *args, **kwargs):
+    previous = native_lines.ctx_native.get()
+    native_lines.ctx_native.set(native_context)
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        native_lines.ctx_native.set(previous)
+
+
+def _patch_executor_submit(module) -> None:
+    executor = module.ThreadPoolExecutor
+    submit = executor.submit
+    if getattr(submit, DD_PATCH_ATTR, False):
+        return
+
+    def submit_in_native_context(self, fn, /, *args, **kwargs):
+        native_context = native_lines.ctx_native.get()
+        if native_context is None:
+            return submit(self, fn, *args, **kwargs)
+        return submit(self, _run_in_native_context, native_context, fn, *args, **kwargs)
+
+    setattr(submit_in_native_context, DD_PATCH_ATTR, True)
+    executor.submit = submit_in_native_context
+
+
 def _patch_threading():
     threading.Thread.__init__ = CoverageCollectingThread.__init__
     threading.Thread._bootstrap_inner = CoverageCollectingThread._bootstrap_inner
     threading.Thread.join = CoverageCollectingThread.join
+    if native_lines.requested():
+        # Work items carry the submitter's native context (per unit of work, not per worker thread).
+        ModuleWatchdog.after_module_imported("concurrent.futures.thread")(_patch_executor_submit)

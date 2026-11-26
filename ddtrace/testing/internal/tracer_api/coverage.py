@@ -8,6 +8,7 @@ coverage data.
 import contextlib
 import functools
 import logging
+import os
 from pathlib import Path
 import typing as t
 
@@ -17,6 +18,7 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+from ddtrace.internal.coverage import native_lines
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 import ddtrace.internal.coverage.installer
@@ -32,6 +34,7 @@ log = logging.getLogger(__name__)
 
 
 def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
+    native_lines.set_report_root(resolved_path(str(workspace_path)))
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
         collect_import_time_coverage=True,
@@ -59,8 +62,14 @@ class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
         self._covered_file_paths: t.Optional[t.Iterable[str]] = None
+        self._native: t.Any = None
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
+        if self._native is not None:
+            return _native_bitmaps(self._native, resolved_path(str(relative_to)))
+        return self._get_coverage_bitmaps(relative_to)
+
+    def _get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         # Canonicalize the workspace: instrumentation records covered paths under
         # realpath(co_filename), so a symlinked CI workspace (e.g. Jenkins
         # WORKSPACE) must be resolved to match, or files recorded under the real
@@ -84,10 +93,75 @@ class CoverageData:
                 yield path_str, covered_lines.to_bytes()
 
 
+def _native_bitmaps(native: t.Any, workspace: str) -> list[tuple[str, bytes]]:
+    """The test's own lines, the lines of the suite-scope fixture setups it depends on, and the
+    initialiser lines of every file either touched, by path relative to workspace.
+    """
+    bitmaps: list[tuple[str, bytes]] = native.bitmaps(True)
+    root = native_lines.report_root()
+    if root is None or workspace == root:
+        return bitmaps
+    # The collector names files relative to the root it was installed with.
+    rebased = []
+    for report_path, bitmap in bitmaps:
+        path_str = _relative_coverage_path(os.path.join(root, report_path), workspace)
+        if path_str is not None:
+            rebased.append((path_str, bitmap))
+    return rebased
+
+
+def get_shared_coverage_bitmaps() -> dict[str, list[tuple[str, bytes]]]:
+    """The lines this process ran outside every test, in three parts.
+
+    init: initialiser lines (module and class bodies); suiteSetup: suite-scope fixture setups;
+    unowned: everything else, such as session fixtures, suite teardown and work that carries no test.
+    Empty unless native line collection is enabled.
+    """
+    return native_lines.shared()
+
+
+def native_line_coverage_requested() -> bool:
+    return native_lines.requested()
+
+
+def native_line_coverage_enabled() -> bool:
+    return native_lines.enabled()
+
+
+def new_fixture_coverage_context() -> t.Any:
+    return native_lines.new_context(fixture=True)
+
+
+def get_native_coverage_context() -> t.Any:
+    return native_lines.ctx_native.get()
+
+
+def set_native_coverage_context(context: t.Any) -> None:
+    native_lines.ctx_native.set(context)
+
+
 @contextlib.contextmanager
 def coverage_collection(
     test_file: t.Optional[Path] = None,
 ) -> t.Generator[CoverageData, None, None]:
+    if native_lines.enabled():
+        # Native collection needs only its own context: the generic collector stack serves the
+        # Python hooks, which native collection does not register.
+        coverage_data = CoverageData()
+        context = native_lines.new_context()
+        previous = native_lines.ctx_native.get()
+        # Pushing re-arms the lines disabled since the previous push.
+        context.push()
+        native_lines.ctx_native.set(context)
+        try:
+            yield coverage_data
+        finally:
+            native_lines.ctx_native.set(previous)
+            context.pop()
+            # The payload is built after the test finishes, from the native bitmaps.
+            coverage_data._native = context
+        return
+
     with ModuleCodeCollector.CollectInContext(test_file=test_file) as coverage_collector:
         coverage_data = CoverageData()
         yield coverage_data
