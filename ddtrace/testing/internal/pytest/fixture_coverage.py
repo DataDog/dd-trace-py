@@ -2,7 +2,7 @@
 
 A class, module or package fixture's setup runs in its own coverage context, and every test whose
 fixture closure contains the fixture gets that context's lines in its record, whichever test ran
-the setup. Session
+the setup. A test skipped before it starts (a skip mark) runs no code, and gets none. Session
 fixtures, and the teardown of every fixture wider than a test, run for no test: their lines go to
 the process's Shared record.
 """
@@ -57,9 +57,9 @@ def _enter_setup_context(scope: str) -> tuple[t.Any, t.Any]:
 def link_suite_fixtures_in_closure(item: t.Any) -> None:
     """Make the running test depend on the suite-scope fixtures of its closure that are set up already.
 
-    A test depends on every class, module or package fixture in its fixture closure, also when it
-    reuses the cached value or never reaches setup (a skip mark). FixtureDef.execute links the
-    fixtures first set up during the test.
+    A test whose setup starts depends on every class, module or package fixture in its fixture
+    closure, also one its setup never requests because an earlier fixture failed. FixtureDef.execute
+    links each fixture the setup requests, cached or set up anew.
     """
     if not _set_up_with_context:
         return
@@ -92,8 +92,20 @@ def _exit_setup_context(fixturedef: t.Any, context: t.Any, previous: t.Any) -> N
     _set_up_with_context[fixturedef] = None
 
 
-class FixtureCoverage:
-    """Runs each fixture setup wider than a test in the coverage context its scope calls for.
+class SuiteFixtureLinks:
+    """Links each test to the suite-scope fixtures of its closure when its setup starts.
+
+    A plain implementation runs after the skipping plugin's, which raises for a skip mark before
+    any fixture is set up, and before the runner's, which sets the fixtures up.
+    """
+
+    @pytest.hookimpl  # type: ignore[misc]
+    def pytest_runtest_setup(self, item: t.Any) -> None:
+        link_suite_fixtures_in_closure(item)
+
+
+class FixtureCoverage(SuiteFixtureLinks):
+    """Also runs each fixture setup wider than a test in the coverage context its scope calls for.
 
     Only registered on pytest versions without _pytest.fixtures.call_fixture_func: wrapping it
     costs less than a hook wrapper around every fixture setup.
@@ -111,8 +123,8 @@ class FixtureCoverage:
             _exit_setup_context(fixturedef, context, previous)
 
 
-def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
-    """Track fixture scopes for native coverage. Returns a plugin to register when pytest needs one.
+def install_fixture_tracking() -> t.Optional[SuiteFixtureLinks]:
+    """Track fixture scopes for native coverage. Returns the plugin to register.
 
     Records which suite-scope fixtures each test uses, runs suite setups in their own contexts and
     runs the teardown of wide fixtures for no test. FixtureDef.execute runs for every request of
@@ -126,9 +138,11 @@ def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
         from _pytest import fixtures
     except ImportError:
         return None
+    call_fixture_func = getattr(fixtures, "call_fixture_func", None)
+    plugin = SuiteFixtureLinks() if call_fixture_func is not None else FixtureCoverage()
     fixture_def = fixtures.FixtureDef
     if getattr(fixture_def, _PATCHED_ATTR, False):
-        return None
+        return plugin
     init = fixture_def.__init__
 
     # The wrappers call the class methods as they are at call time, which keeps the patches other
@@ -169,9 +183,8 @@ def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
     fixture_def.__init__ = init_tracking_wide_fixtures
     setattr(fixture_def, _PATCHED_ATTR, True)
 
-    call_fixture_func = getattr(fixtures, "call_fixture_func", None)
     if call_fixture_func is None:
-        return FixtureCoverage()
+        return plugin
 
     # pytest_fixture_setup looks this function up in the module at each setup, so the patch
     # wraps every setup, and only setups: cached fixture values never reach it.
@@ -188,4 +201,4 @@ def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
             _exit_setup_context(request._fixturedef, context, previous)
 
     fixtures.call_fixture_func = call_fixture_func_in_scope_context
-    return None
+    return plugin
