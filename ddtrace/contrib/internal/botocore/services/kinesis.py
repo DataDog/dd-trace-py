@@ -69,6 +69,25 @@ def select_records_for_injection(params: list[Any], inject_trace_context: bool) 
     return records_to_inject_into
 
 
+def dispatch_received_records(ctx, params: dict[str, Any], result: dict[str, Any], propagate: bool) -> None:
+    for record in result["Records"]:
+        _, data_obj = get_kinesis_data_object(record["Data"])
+        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
+        core.dispatch(
+            "botocore.kinesis.GetRecords.post",
+            (
+                ctx,
+                params,
+                time_estimate,
+                data_obj.get("_datadog") if data_obj else None,
+                record,
+                result,
+                propagate,
+                extract_DD_json,
+            ),
+        )
+
+
 def patched_kinesis_api_call(original_func, instance, args, kwargs, function_vars):
     with core.context_with_data("botocore.patched_kinesis_api_call.propagated") as parent_ctx:
         return _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars)
@@ -92,25 +111,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
             is_getrecords_call = True
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", (params,))
             result = original_func(*args, **kwargs)
-
-            records = result["Records"]
-
-            for record in records:
-                _, data_obj = get_kinesis_data_object(record["Data"])
-                time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-                core.dispatch(
-                    f"botocore.{endpoint_name}.{operation}.post",
-                    (
-                        parent_ctx,
-                        params,
-                        time_estimate,
-                        data_obj.get("_datadog") if data_obj else None,
-                        record,
-                        result,
-                        config.botocore.propagation_enabled,
-                        extract_DD_json,
-                    ),
-                )
+            dispatch_received_records(parent_ctx, params, result, config.botocore.propagation_enabled)
 
         except Exception as e:
             getrecords_error = e

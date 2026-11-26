@@ -117,6 +117,12 @@ def test_manual_initialization_activates_all_families_without_optional_sdks() ->
     assert "vllm" not in sys.modules
     assert ddtrace.tracer is tracer
 
+    from ddtrace._trace import product
+
+    product.start()
+    assert "ray" not in sys.modules
+    assert "ddtrace._trace.subscribers.ray" not in sys.modules
+
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
 def test_deferred_global_initialization_preserves_manual_tracing() -> None:
@@ -131,3 +137,26 @@ def test_deferred_global_initialization_preserves_manual_tracing() -> None:
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.exception")
     assert tracer is not None
+
+
+def test_ray_registration_waits_for_patch_import(monkeypatch: pytest.MonkeyPatch) -> None:
+    from importlib.machinery import ModuleSpec
+    import sys
+    from types import ModuleType
+    from unittest.mock import Mock
+
+    from ddtrace._trace import _registration
+
+    ray_patch = ModuleType("ddtrace.contrib.internal.ray.patch")
+    ray_patch.__spec__ = ModuleSpec(ray_patch.__name__, loader=None)
+    monkeypatch.setattr(ray_patch.__spec__, "_initializing", True, raising=False)
+    monkeypatch.setitem(sys.modules, ray_patch.__name__, ray_patch)
+    ray_bundle = Mock()
+    monkeypatch.setattr(_registration, "RAY_SUBSCRIBERS", ray_bundle)
+
+    _registration.register_subscribers(())
+    ray_bundle.register.assert_not_called()
+
+    monkeypatch.setattr(ray_patch.__spec__, "_initializing", False)
+    _registration.register_subscribers(())
+    ray_bundle.register.assert_called_once_with()

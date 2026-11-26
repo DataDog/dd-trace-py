@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where Early Flake Detection, Auto Test Retries, and Attempt to Fix retries of
+    ``pytest-mpl`` image comparison tests fail with ``AttributeError: 'NoneType' object has no attribute 'savefig'``,
+    and where other pytest plugins that wrap the test function lose the test's return value on retries.

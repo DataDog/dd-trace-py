@@ -48,6 +48,7 @@ _inferred_service_env = pop_and_seed_inferred_service()
 
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
+from ddtrace.internal import _service_state
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
@@ -76,6 +77,12 @@ try:
     from pytest import StashKey
 except ImportError:
     StashKey = None
+
+try:
+    from _pytest.nodeid import NodeId
+except ImportError:
+    # pytest < 9.2 has no structured node ids
+    NodeId = None
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
@@ -282,6 +289,21 @@ def clear_context_after_every_test():
         if ctx is not None:
             warnings.warn(f"Context was not cleared after test, expected None, got {ctx}")
         _DD_CONTEXTVAR.set(None)
+
+
+@pytest.fixture(autouse=True)
+def restore_user_provided_service_state():
+    """
+    Restore the user-provided service flag after each test.
+
+    Each Config() call sets this process-wide flag from the current environment. The svc.user and
+    svc.auto process tags and the _dd.svc_src span tag use the flag. Without this fixture, a test
+    that calls Config() with DD_SERVICE set changes these tags for the tests that run after it in
+    the same worker.
+    """
+    original = _service_state._is_user_provided_service
+    yield
+    _service_state._is_user_provided_service = original
 
 
 def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
@@ -639,7 +661,13 @@ def pytest_collection_modifyitems(session, config, items):
         name_base = item.name
         nodeid_base = item.nodeid
 
-        item._nodeid = f"{nodeid_base}[{py_tag}]"
+        suffixed_nodeid = f"{nodeid_base}[{py_tag}]"
+        if NodeId is not None:
+            # pytest >= 9.2 derives Node.nodeid from the structured Node._id, so assigning
+            # Node._nodeid no longer has any effect.
+            item._id = NodeId.parse(suffixed_nodeid)
+        else:
+            item._nodeid = suffixed_nodeid
 
         cls = getattr(item, "cls", None)
         is_unittest = isinstance(cls, type) and issubclass(cls, TestCase)

@@ -44,14 +44,12 @@ def _exec_iast_patched_module(module_watchdog, module):
             module_path, patched_ast = astpatch_module(module)
         except Exception:
             iast_compiling_debug_log("Unexpected exception while AST patching", exc_info=True)
-            patched_ast = None
     if patched_ast:
         try:
             # Patched source is compiled in order to execute it
             compiled_code = compile(patched_ast, module_path, "exec")
         except Exception:
             iast_compiling_debug_log("Unexpected exception while compiling patched code", exc_info=True)
-            compiled_code = None
 
     if compiled_code:
         iast_compiling_debug_log(f"INSTRUMENTED CODE. executing {module_path}")

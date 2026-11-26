@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    aiobotocore: Adds Data Streams Monitoring support for Amazon SQS, Amazon SNS and Amazon Kinesis
+    calls made through ``aiobotocore`` (including ``aioboto3``). When ``DD_DATA_STREAMS_ENABLED=true``,
+    produce and consume checkpoints are set and pathway context is propagated in the same format as the
+    ``botocore`` integration, so pathways connect across ``aiobotocore``, ``botocore`` and other tracers.

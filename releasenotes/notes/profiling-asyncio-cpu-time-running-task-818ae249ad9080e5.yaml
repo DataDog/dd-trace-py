@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the stack profiler charged an asyncio thread's CPU time to a task that was
+    waiting, for example while the event loop was idle, and counted it twice during an eager task's first step.

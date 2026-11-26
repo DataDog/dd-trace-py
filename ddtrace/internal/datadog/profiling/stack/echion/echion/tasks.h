@@ -145,7 +145,8 @@ class TaskInfo
     {
     }
 
-    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop);
+    // Append up to max_depth coroutine frames to the stack, innermost first.
+    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop, size_t max_depth);
 };
 
 // Checks whether a Frame is the uvloop.run coroutine wrapper.

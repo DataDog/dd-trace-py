@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    ddtrace now requires ``ddtrace-internal`` 0.3.0, which carries the
+    ``codeowners`` implementation that previously shipped inside ddtrace.
+    The dependency itself is not new, but environments that install ddtrace
+    from a private mirror or vendored wheelhouse must mirror the new version.

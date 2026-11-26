@@ -21,7 +21,9 @@ from typing import Optional
 # Deliberately match any occurrence in added lines. False positives are
 # preferable to allowing a new deprecated label to bypass the check.
 ANCHOR_RE: re.Pattern[str] = re.compile(r"AIDE" r"V")
-STRING_RE: re.Pattern[str] = re.compile(r"""(["'`])(?:\\.|(?!\1).)*\1""")
+# Each quote form excludes its own quote and the backslash from the plain branch, so every
+# character has exactly one way to match and the regex cannot backtrack exponentially.
+STRING_RE: re.Pattern[str] = re.compile(r"""\"(?:[^"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`""")
 TRIPLE_STRING_RE: re.Pattern[str] = re.compile(r'^\s*[rRuUbBfF]{0,2}(?:\'\'\'|""").*AIDE' r"V")
 
 # Paths allowed to mention deprecated anchors in added lines: policy docs and the

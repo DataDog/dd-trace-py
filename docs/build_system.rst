@@ -88,7 +88,10 @@ with an editable or `PYTHONPATH` install would not find the one in the repositor
 
 .. code-block:: bash
 
-    python -m ddtrace.commands.ddtrace_run python my_traced_app.py
+    python -m ddtrace_commands.ddtrace_run python my_traced_app.py
+
+To build and test the profiler's native C++ extensions outside ``setup.py`` (for CTest, sanitizers, Valgrind, or static analysis),
+see the `standalone profiler build guide <https://github.com/DataDog/dd-trace-py/tree/main/ddtrace/internal/datadog/profiling/docs/Standalone.md>`_.
 
 Using `sccache` to Speed Up Builds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -394,6 +397,24 @@ How the Build Works
     ext_cache.py restore  →  copies .so files into source tree
     pip install -e .      →  skip checks fire, nothing recompiles
     ext_cache.py save     →  copies .so files into cache
+
+macOS Wheel Cache Pilot
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Use a branch under ``macos-cache-pilot/`` to opt its push pipelines into the
+CPython 3.12 macOS ``amd64`` wheel cache. The normal wheel job downloads the cache
+artifact from the latest successful pipeline on protected ``main`` in the same
+project. The main build publishes the artifact after the wheel smoke test.
+
+The job checks tracked build inputs, build flags, Python and compiler versions,
+extension source hashes, and the UUIDs of the binaries and their debug symbols.
+Python package and test modules, documentation, and release notes can change
+between the two builds. A missing or incompatible entry leaves the job to
+compile from source. Packaging still extracts or reuses matching debug symbols
+and smoke-tests the final wheel.
+
+Use the ``macOS wheel cache`` messages in the job trace to identify hits and
+misses and measure artifact download and restore time.
 
 Key Files
 ^^^^^^^^^

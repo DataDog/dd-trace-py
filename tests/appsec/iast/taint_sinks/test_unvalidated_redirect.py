@@ -1,10 +1,15 @@
 import pytest
 
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
+from ddtrace.appsec._iast.taint_sinks import _base
+from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import UnvalidatedRedirect
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import _iast_report_unvalidated_redirect
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST_DATA
@@ -99,3 +104,57 @@ def test_unvalidated_redirect_secure_mark_applied_when_quota_exhausted(iast_cont
 
     # The string should no longer be considered tainted for this vulnerability type
     assert UnvalidatedRedirect.is_tainted_pyobject(tainted_url) is False
+
+
+@pytest.mark.parametrize(
+    "secure_parameter,secure_header,expected",
+    [
+        # The only unsecured range comes from an excluded origin (header).
+        (True, False, False),
+        # The parameter range is neither secured nor excluded.
+        (False, False, True),
+        # Securing all ranges suppresses the report and records the metric.
+        (True, True, False),
+    ],
+)
+def test_unvalidated_redirect_excluded_origins_only_consider_unsecured_ranges(
+    secure_parameter, secure_header, expected, iast_context_defaults, mocker
+):
+    """A range that is both unsecured and from a non-excluded origin is required to report.
+
+    A validated parameter concatenated with a header value must not be reported: the parameter range is
+    secured and the header range comes from an excluded origin.
+    """
+    parameter = taint_pyobject(
+        "http://example.com/",
+        source_name="next",
+        source_value="http://example.com/",
+        source_origin=OriginType.PARAMETER,
+    )
+    if secure_parameter:
+        add_secure_mark(parameter, [VulnerabilityType.UNVALIDATED_REDIRECT])
+    header = taint_pyobject(
+        "path",
+        source_name="x-path",
+        source_value="path",
+        source_origin=OriginType.HEADER,
+    )
+    if secure_header:
+        add_secure_mark(header, [VulnerabilityType.UNVALIDATED_REDIRECT])
+    url = add_aspect(parameter, header)
+    assert len(get_tainted_ranges(url)) == 2
+
+    suppression_metric = mocker.spy(_base, "increment_iast_span_metric")
+    assert (
+        UnvalidatedRedirect.is_tainted_pyobject(url, origins_to_exclude=UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS)
+        is expected
+    )
+    if secure_parameter and secure_header:
+        suppression_metric.assert_called_once_with(
+            IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY, UnvalidatedRedirect.vulnerability_type
+        )
+    else:
+        suppression_metric.assert_not_called()
+
+    _iast_report_unvalidated_redirect(url)
+    assert (get_iast_reporter() is not None) is expected

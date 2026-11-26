@@ -1,9 +1,13 @@
+from collections.abc import Iterator
 from collections.abc import Sequence
 import functools
 from typing import Any
 from typing import Optional
 from typing import get_origin
 
+from ddtrace.contrib.internal.pydantic_ai._constants import TAG_MODEL
+from ddtrace.contrib.internal.pydantic_ai._constants import TAG_PROVIDER
+from ddtrace.contrib.internal.pydantic_ai.utils import get_model_and_provider
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -17,29 +21,27 @@ from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import type_name
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import AgentCapability
 from ddtrace.llmobs.types import AgentInstructionResolver
 from ddtrace.llmobs.types import AgentManifest
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
 
-# in some cases, PydanticAI uses a different provider name than what we expect
-PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
-    "google-gla": "google",
-    "google-vertex": "google",
-}
-
 FRAMEWORK_NAME = "PydanticAI"
 _OUTPUT_MARKERS = frozenset({"ToolOutput", "NativeOutput", "PromptedOutput", "TextOutput"})
+_PREPARE_TOOLS_CAPABILITIES = frozenset({"PrepareTools", "PrepareOutputTools"})
+_PROCESS_HISTORY_CAPABILITIES = frozenset({"ProcessHistory"})
+# Native tools pydantic-ai 2.x registers on every agent by itself.
+_AUTO_NATIVE_TOOLS = frozenset({"ToolSearchTool"})
 
 
-def _iter_agent_tools(agent: Any):
+def _iter_agent_tools(agent: Any) -> Iterator[tuple[str, Any]]:
     """Yield (name, tool) for the agent's function tools, de-duped first-wins, across versions."""
     seen: set[str] = set()
     tool_dicts: list[dict[str, Any]] = []
@@ -71,13 +73,16 @@ def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
 
     _instructions is a str below 1.63.0 and a mixed list after, so a resolver sits in
     _instructions_functions below and inline in _instructions after. The two are populated
-    exclusively, never both, so reading each in turn cannot double-count.
+    exclusively, never both, so reading each in turn cannot double-count. From 2.x each list entry
+    is a SourcedInstruction holding the str or resolver on .instruction.
     """
     static_texts: list[str] = []
     dynamic: list[Any] = []
     instructions = getattr(agent, "_instructions", None)
     if isinstance(instructions, (list, tuple)):
         for entry in instructions:
+            if type(entry).__name__ == "SourcedInstruction":
+                entry = getattr(entry, "instruction", None)
             if isinstance(entry, str):
                 static_texts.append(entry)
             elif callable(entry):
@@ -93,6 +98,27 @@ def _collect_instructions(agent: Any) -> tuple[list[str], list[Any]]:
     return static_texts, dynamic
 
 
+def _capabilities(agent: Any) -> list[Any]:
+    """Capabilities a 2.x agent registers. Below 2.x there are none, and the config lives on the agent."""
+    capabilities: list[Any] = []
+    # apply() walks the capability tree; pydantic-ai calls it on every agent at construction.
+    apply = getattr(getattr(agent, "_root_capability", None), "apply", None)
+    if callable(apply):
+        apply(capabilities.append)
+    return capabilities
+
+
+def _capability_functions(agent: Any, class_names: frozenset[str], attr: str) -> list[Any]:
+    """The function each matching capability wraps, in order. Matched by class name, like the output markers."""
+    fns = []
+    for capability in _capabilities(agent):
+        if type(capability).__name__ in class_names:
+            fn = getattr(capability, attr, None)
+            if callable(fn):
+                fns.append(fn)
+    return fns
+
+
 def _collect_dynamic_system_prompts(agent: Any) -> list[Any]:
     """Dynamic system-prompt resolvers. Static prompts are read straight off agent._system_prompts."""
     dynamic: list[Any] = []
@@ -105,35 +131,23 @@ def _collect_dynamic_system_prompts(agent: Any) -> list[Any]:
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
-    _running_agents: dict[int, list[int]] = {}  # dictionary mapping agent span ID to tool span ID(s)
-    _latest_agent = None  # str representing the span ID of the latest agent that was started
-    _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
-        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
-        kind = kwargs.get("kind", None)
-        if kind:
-            self._register_span(span, kind)
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself."""
+
+    def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
+        return "agent" if kwargs.get("operation") == "agent" else None
+
+    def _stamp_llmobs_span_kind_at_start(self, span: _LLMObsSpan, operation_id: str = "", **kwargs: Any) -> None:
+        super()._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
+        # Agent and tool spans carry their kind whether or not LLMObs is enabled; _llmobs_set_tags reads it back.
+        kind = kwargs.get("operation")
+        if kind in ("agent", "tool"):
             _annotate_llmobs_span_data(span, kind=kind)
-        return span
-
-    def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, **kwargs) -> None:
-        if model:
-            model_name, provider = self._get_model_and_provider(model)
-            span.set_tag("pydantic_ai.request.model", model_name)
-            if provider:
-                span.set_tag("pydantic_ai.request.provider", provider)
-
-    def _get_model_and_provider(self, model: Optional[Any]) -> tuple[str, str]:
-        model_name = getattr(model, "model_name", "")
-        system = getattr(model, "system", None)
-        if system:
-            system = PYDANTIC_AI_SYSTEM_TO_PROVIDER.get(system, system)
-        return model_name, system
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -149,14 +163,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind=span_kind,
-            model_name=span.get_tag("pydantic_ai.request.model") or "",
-            model_provider=span.get_tag("pydantic_ai.request.provider") or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
+        from pydantic_ai.messages import ModelResponse
 
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
@@ -169,14 +184,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
         result = response
         if isinstance(result, AgentRun) and hasattr(result, "result"):
             result = getattr(result.result, "output", "")
-        elif isinstance(result, tuple) and len(result) == 2:
-            model_response, _ = result
-            result = ""
-            for part in getattr(model_response, "parts", []):
-                if hasattr(part, "content"):
-                    result += part.content
-                elif hasattr(part, "args_as_json_str"):
-                    result += part.args_as_json_str()
+        elif isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], ModelResponse):
+            # stream_responses() below 2.x yields (response, is_last)
+            result = self._model_response_text(result[0])
+        elif isinstance(result, ModelResponse):
+            # stream_response() from 2.x yields the response alone
+            result = self._model_response_text(result)
         _annotate_llmobs_span_data(
             span,
             name=agent_name or "PydanticAI Agent",
@@ -186,6 +199,17 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # Manifest last: the annotate above is not failure-isolated, so a manifest problem must
         # not cost the span's name, input and output.
         self._tag_agent_manifest(span, kwargs, agent_instance)
+
+    @staticmethod
+    def _model_response_text(model_response: Any) -> str:
+        text = ""
+        for part in getattr(model_response, "parts", []):
+            content = getattr(part, "content", None)
+            if isinstance(content, str):
+                text += content
+            elif hasattr(part, "args_as_json_str"):
+                text += part.args_as_json_str()
+        return text
 
     @staticmethod
     def _extract_user_prompt_from_message_history(kwargs: dict[str, Any]) -> Optional[str]:
@@ -202,7 +226,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return None
 
     def _llmobs_set_tags_tool(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
         raw_call = (
@@ -256,7 +280,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ),
         )
 
-    def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: _LLMObsSpan, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
         # dict() rather than a cast: the consumer takes a plain mapping, and a TypedDict is not
@@ -330,7 +354,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             _, _, declared_name = model.partition(":")
             fields["model"] = declared_name or model
         elif model:
-            model_name, _ = self._get_model_and_provider(model)
+            model_name, _ = get_model_and_provider(model)
             # str-only, for the same reason as the tool description read. model_name is
             # annotated str, but a custom Model subclass returns whatever it likes and the encoder
             # reprs what it cannot encode, which can carry a connection string.
@@ -356,6 +380,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             for fn in (getattr(agent, "_prepare_tools", None), getattr(agent, "_prepare_output_tools", None))
             if callable(fn)
         ]
+        # 2.x moved both hooks onto PrepareTools / PrepareOutputTools capabilities.
+        prepared.extend(_capability_functions(agent, _PREPARE_TOOLS_CAPABILITIES, "prepare_func"))
         capabilities: list[AgentCapability] = []
         for kind, names in (
             ("mcp", self._mcp_server_names(agent)),
@@ -379,6 +405,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """
         fields: AgentManifest = {}
         processors = [fn for fn in getattr(agent, "history_processors", None) or [] if callable(fn)]
+        # 2.x moved history processors onto ProcessHistory capabilities.
+        processors.extend(_capability_functions(agent, _PROCESS_HISTORY_CAPABILITIES, "processor"))
         fields["memory_policies"] = [callable_name(fn) for fn in processors]
         return fields
 
@@ -462,8 +490,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return parameters
 
     def _builtin_tool_names(self, agent: Any) -> list[str]:
-        """Provider-side builtin tools by name. _builtin_tools is gone from 2.x, so the key drops."""
-        tools = getattr(agent, "_builtin_tools", None) or []
+        """Provider-side builtin tools by name.
+
+        2.x renamed them native tools, contributed by capabilities such as NativeTool and WebSearch. The
+        tool search tool pydantic-ai adds to every agent is skipped, since the caller did not declare it.
+        """
+        tools = getattr(agent, "_builtin_tools", None) or [
+            tool
+            for tool in getattr(agent, "_cap_native_tools", None) or []
+            if type(tool).__name__ not in _AUTO_NATIVE_TOOLS
+        ]
         return [getattr(tool, "kind", None) or type(tool).__name__ for tool in tools]
 
     def _toolset_names(self, agent: Any) -> list[str]:
@@ -563,17 +599,3 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if get_origin(candidate) is not None:
             return False
         return callable(candidate) and not isinstance(candidate, type)
-
-    def _register_span(self, span: Span, kind: Any) -> None:
-        if kind == "agent":
-            self._register_agent(span)
-        elif kind == "tool":
-            self._register_tool(span)
-
-    def _register_agent(self, span: Span) -> None:
-        self._latest_agent = span.span_id
-        self._running_agents[span.span_id] = []
-
-    def _register_tool(self, span: Span) -> None:
-        if self._latest_agent is not None:
-            self._running_agents[self._latest_agent].append(span.span_id)

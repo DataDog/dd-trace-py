@@ -16,25 +16,25 @@ log = get_logger(__name__)
 
 if sys.version_info[:2] == (3, 10):
 
-    def get_offsets_3_10(_s):
+    def get_offsets_3_10(_s: InjectionContext) -> list[int]:
         return [o for o in _find_except_bytecode_indexes_3_10(_s.original_code)]
 
     offsets_callback = get_offsets_3_10
 elif sys.version_info[:2] == (3, 11):
 
-    def get_offsets_3_11(_s):
+    def get_offsets_3_11(_s: InjectionContext) -> list[int]:
         return [o for o in _find_except_bytecode_indexes_3_11(_s.original_code)]
 
     offsets_callback = get_offsets_3_11
 else:
 
-    def get_offsets_default(_s):
+    def get_offsets_default(_s: InjectionContext) -> list[int]:
         return []
 
     offsets_callback = get_offsets_default
 
 
-def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType] = None):
+def _inject_handled_exception_reporting(func: t.Any, callback: t.Optional[CallbackType] = None) -> None:
     """Find the bytecode offsets for which we should inject our callback
     and call the bytecode injection code
     """
@@ -106,7 +106,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> list[int]:
 
     lines_offsets = [o for o, _ in dis.findlinestarts(code)]
 
-    def inject_next_start_of_line_offset(offset: int):
+    def inject_next_start_of_line_offset(offset: int) -> None:
         """Find the first offset of the next line"""
         while offset not in lines_offsets:
             offset += 2
@@ -115,7 +115,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> list[int]:
                 return
         injection_indexes.add(offset)
 
-    def first_offset_not_matching(start: int, *opcodes: int):
+    def first_offset_not_matching(start: int, *opcodes: int) -> int:
         while code.co_code[start] in opcodes:
             start += 2
         return start
@@ -177,7 +177,7 @@ def _find_except_bytecode_indexes_3_11(code: CodeType) -> list[int]:
 
     lines_offsets = [o for o, _ in dis.findlinestarts(code)]
 
-    def inject_next_start_of_line_offset(offset: int):
+    def inject_next_start_of_line_offset(offset: int) -> None:
         """Find the first offset of the next line"""
         while offset not in lines_offsets:
             offset += 2
@@ -186,12 +186,12 @@ def _find_except_bytecode_indexes_3_11(code: CodeType) -> list[int]:
                 return
         injection_indexes.add(offset)
 
-    def first_offset_not_matching(start: int, *opcodes: int):
+    def first_offset_not_matching(start: int, *opcodes: int) -> int:
         while code.co_code[start] in opcodes:
             start += 2
         return start
 
-    def nth_non_cache_opcode(start, n):
+    def nth_non_cache_opcode(start: int, n: int) -> int:
         for _ in range(n - 1):
             while code.co_code[start + 2] == CACHE:
                 start += 2
