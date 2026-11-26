@@ -1835,17 +1835,9 @@ else:
 
 
 if not IS_PYSTON:
-    ext_modules: list[t.Union[Extension, CythonExtension, RustExtension]] = [
-        Extension(
-            "ddtrace.internal.native._threads",
-            sources=["ddtrace/internal/native/_threads.cpp"],
-            extra_compile_args=(
-                ["-std=c++20", "-Wall", "-Wextra"] + fast_build_args
-                if CURRENT_OS != "Windows"
-                else ["/std:c++20", "/MT"]
-            ),
-        ),
-    ]
+    # ddtrace.internal.native._threads and ._msgpack are built by the ddtrace-native package
+    # (_ddtrace_native._threads / _ddtrace_native._msgpack); ddtrace.internal.native only bridges.
+    ext_modules: list[t.Union[Extension, CythonExtension, RustExtension]] = []
 
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
@@ -1923,19 +1915,12 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
             ),
-            # The msgpack headers live next to _msgpack, which moves to ddtrace-native with them.
-            # _encoding's trace encoders also compile against them.
+            # The msgpack headers live in this package (they stay here: _encoding's trace encoders
+            # compile against them too); the _msgpack extension itself moves to ddtrace-native.
             Extension(
                 "ddtrace.internal._encoding",
                 ["ddtrace/internal/_encoding.pyx"],
                 include_dirs=[".", "ddtrace/internal/native"],
-                libraries=encoding_libraries,
-                define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
-            ),
-            Extension(
-                "ddtrace.internal.native._msgpack",
-                ["ddtrace/internal/native/_msgpack.pyx"],
-                include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
             ),

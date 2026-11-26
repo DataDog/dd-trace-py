@@ -318,7 +318,7 @@ class Tracer:
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
         if active is None and (self.enabled or standalone_config.apm_opt_out):
-            active = self.context_provider.active()
+            active = self.context_provider.active()  # type: ignore[assignment]  # ddtrace-native stubs stand in for Span
 
         span_id = trace_id = LOG_ATTR_VALUE_ZERO
         if active:
@@ -892,7 +892,7 @@ class Tracer:
         """
         return self.start_span(
             name,
-            child_of=self.context_provider.active(),
+            child_of=self.context_provider.active(),  # type: ignore[arg-type]  # ddtrace-native stubs stand in for Span
             service=service,
             resource=resource,
             span_type=span_type,
