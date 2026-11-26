@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '9daccd578f30ad15d66011b3550f4f35b2e9be52'
+          ref: '1c446923053f1fb87a1d4b8204abcc714e56fe52'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -90,7 +90,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '9daccd578f30ad15d66011b3550f4f35b2e9be52'
+          ref: '1c446923053f1fb87a1d4b8204abcc714e56fe52'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -221,10 +221,6 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE_RASP
 
-      - name: Run DEBUGGER_PROBES_STATUS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_PROBES_STATUS
-
       - name: Run DEBUGGER_PROBES_SNAPSHOT
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
         run: ./run.sh DEBUGGER_PROBES_SNAPSHOT
@@ -278,7 +274,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '9daccd578f30ad15d66011b3550f4f35b2e9be52'
+          ref: '1c446923053f1fb87a1d4b8204abcc714e56fe52'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
