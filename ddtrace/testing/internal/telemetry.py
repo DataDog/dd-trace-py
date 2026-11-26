@@ -126,13 +126,13 @@ class TelemetryAPI:
 
     # Coverage.
 
-    def record_coverage_started(self, test_framework: str, coverage_library: str) -> None:
+    def record_coverage_started(self, test_framework: str, coverage_library: str, count: int = 1) -> None:
         tags = {"library": coverage_library, "test_framework": test_framework}
-        self.add_count_metric("code_coverage_started", 1, tags)
+        self.add_count_metric("code_coverage_started", count, tags)
 
-    def record_coverage_finished(self, test_framework: str, coverage_library: str) -> None:
+    def record_coverage_finished(self, test_framework: str, coverage_library: str, count: int = 1) -> None:
         tags = {"library": coverage_library, "test_framework": test_framework}
-        self.add_count_metric("code_coverage_finished", 1, tags)
+        self.add_count_metric("code_coverage_finished", count, tags)
 
     def record_coverage_is_empty(self) -> None:
         self.add_count_metric("code_coverage.is_empty", 1)

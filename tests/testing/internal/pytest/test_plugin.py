@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import typing as t
+from unittest import mock
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -23,6 +24,7 @@ from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
+from ddtrace.testing.internal.pytest.plugin import _CoverageTelemetry
 from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
 from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
@@ -654,13 +656,18 @@ class TestSkippingAndITRFeatures:
         mock_manager.coverage_writer.put_coverage.assert_called_once()
 
     @pytest.mark.parametrize("coverage_enabled", [False, True])
-    def test_coverage_telemetry_follows_coverage_enabled(self, coverage_enabled: bool, mock_telemetry: Mock) -> None:
+    def test_coverage_telemetry_follows_coverage_enabled(
+        self, coverage_enabled: bool, mock_telemetry: Mock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """code_coverage_started/finished must describe coverage running, not a test running.
 
         The legacy plugin only reaches record_code_coverage_started() when
         InternalTestSession.should_collect_coverage() is true, so emitting these per test
-        regardless of the setting over-reports coverage activity.
+        regardless of the setting over-reports coverage activity. The counts are recorded
+        once per session.
         """
+        monkeypatch.setattr(_CoverageTelemetry, "started", 0)
+        monkeypatch.setattr(_CoverageTelemetry, "finished", 0)
         test_ref = TestDataFactory.create_test_ref("", "test_suite.py", "test_function")
 
         mock_manager = session_manager_mock().build_mock()
@@ -678,9 +685,15 @@ class TestSkippingAndITRFeatures:
         ):
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 
-        expected = 1 if coverage_enabled else 0
-        assert mock_telemetry.record_coverage_started.call_count == expected
-        assert mock_telemetry.record_coverage_finished.call_count == expected
+        # Nothing is recorded per test.
+        mock_telemetry.record_coverage_started.assert_not_called()
+        mock_telemetry.record_coverage_finished.assert_not_called()
+
+        _CoverageTelemetry.record()
+        expected = [mock.call(test_framework="pytest", coverage_library="ddtrace", count=1)] if coverage_enabled else []
+        assert mock_telemetry.record_coverage_started.call_args_list == expected
+        assert mock_telemetry.record_coverage_finished.call_args_list == expected
+        assert (_CoverageTelemetry.started, _CoverageTelemetry.finished) == (0, 0)
 
 
 class TestSetupCoverageCollection:
