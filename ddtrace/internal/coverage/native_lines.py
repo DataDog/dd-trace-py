@@ -147,10 +147,48 @@ def _block_tables() -> t.Optional[tuple[bytes, bytes]]:
             if op is None:
                 return None
             kinds[op] = kind
+    min_instrumented = _min_instrumented_opcode()
     for op in set(dis.hasjrel) | set(dis.hasjabs):
-        if 0 <= op < _min_instrumented_opcode() and kinds[op] == 0:
+        if 0 <= op < min_instrumented and kinds[op] == 0:
             kinds[op] = _BLOCK_UNKNOWN_JUMP
     return bytes(kinds), bytes(cache_entries)
+
+
+# The CPython 3.12 base opcodes a run of lines can hold (see "Run probes" in _linecov.c): they only move
+# locals, constants and stack slots, so they cannot raise, jump, call, yield or run a signal handler.
+_RUN_SAFE = (
+    "NOP",
+    "LOAD_CONST",
+    "LOAD_FAST",
+    "LOAD_FAST_AND_CLEAR",
+    "STORE_FAST",
+    "STORE_DEREF",
+    "POP_TOP",
+    "COPY",
+    "SWAP",
+    "PUSH_NULL",
+    "KW_NAMES",
+    "EXTENDED_ARG",
+)
+_RUN_SAFE_OPCODE = 1
+_RUN_RESUME_OPCODE = 2  # a LINE event always fires after RESUME
+
+
+def _run_safe_table() -> t.Optional[bytes]:
+    """What _linecov.c needs to know of each base opcode for run probes, or None when this interpreter's
+    opcodes are not CPython 3.12's.
+    """
+    table = bytearray(256)
+    for name in _RUN_SAFE:
+        op = dis.opmap.get(name)
+        if op is None:
+            return None
+        table[op] = _RUN_SAFE_OPCODE
+    resume = dis.opmap.get("RESUME")
+    if resume is None:
+        return None
+    table[resume] = _RUN_RESUME_OPCODE
+    return bytes(table)
 
 
 def init(tool_id: int) -> bool:
@@ -160,10 +198,12 @@ def init(tool_id: int) -> bool:
     if not requested() or _linecov is None:
         return False
     block_probes = asbool(env.get("_DD_COVERAGE_BLOCK_PROBES", "false"))
-    tables = _block_tables() if block_probes and _linecov.HAVE_BLOCK_PROBES else None
+    run_probes = asbool(env.get("_DD_COVERAGE_RUN_PROBES", "false"))
+    tables = _block_tables() if (block_probes or run_probes) and _linecov.HAVE_BLOCK_PROBES else None
+    run_safe = _run_safe_table() if run_probes and tables is not None and _linecov.HAVE_RUN_PROBES else None
     try:
         events = _monitoring.events
-        # Block probes start off: the first self-tests check the probes that block probes fall back on.
+        # Block and run probes start off: the first self-tests check the probes they fall back on.
         internal = _linecov.init(
             tool_id=tool_id,
             line_event_index=events.LINE.bit_length() - 1,
@@ -182,6 +222,8 @@ def init(tool_id: int) -> bool:
             block_probes=False,
             block_kinds=tables[0] if tables else None,
             cache_entries=tables[1] if tables else None,
+            run_probes=False,
+            run_safe=run_safe,
         )
         _monitoring.register_callback(tool_id, events.LINE, _linecov.line_event)
         if _linecov.HAVE_INSTRUCTION_PROBES:
@@ -199,8 +241,11 @@ def init(tool_id: int) -> bool:
         _linecov.set_instruction_probes(False)
         log.debug("INSTRUCTION probe self-test failed; using LINE events only")
     # Greenlets switch frames without a yield, which block probes cannot follow.
-    if tables is not None and "greenlet" not in sys.modules and _start_block_probes(tool_id):
+    if block_probes and tables is not None and "greenlet" not in sys.modules and _start_block_probes(tool_id):
         ModuleWatchdog.after_module_imported("greenlet")(_stop_block_probes)
+    if run_safe is not None and _linecov.set_run_probes(True) and not _run_self_test(tool_id):
+        _linecov.set_run_probes(False)
+        log.debug("Run probe self-test failed; using probes on every line start")
     return True
 
 
@@ -290,6 +335,48 @@ def _block_self_test(tool_id: int) -> bool:
         for code in codes:
             _monitoring.set_local_events(tool_id, code, 0)
     return probes == [1, 3] and all(lines is not None and lines == blocks for lines, blocks in seen)
+
+
+_RUN_SELF_TEST_SOURCE = """\
+def probe(n):
+    a = n
+    b = a
+    c = b
+    if c > 1:
+        d = c
+        e = d
+    return a
+"""
+
+
+def _run_self_test(tool_id: int) -> bool:
+    """Check that run probes credit the lines LINE events do, for four contexts in turn.
+
+    A code object takes run probes at its second re-arm, so the last two contexts use them.
+    """
+    assert _linecov is not None  # nosec
+    filename = "<ddtrace-linecov-runs>"
+    namespace: dict[str, t.Any] = {}
+    exec(compile(_RUN_SELF_TEST_SOURCE, filename, "exec"), namespace)  # nosec: B102 -- fixed probe source
+    code = namespace["probe"].__code__
+    _monitoring.set_local_events(tool_id, code, _monitoring.events.LINE)
+    _linecov.attach(code, _linecov.register_file(filename, None))
+    seen = []
+    try:
+        for _ in range(4):
+            context = _linecov.Context()
+            previous = context.enter()
+            try:
+                namespace["probe"](3)
+            finally:
+                context.exit(previous)
+            seen.append(context.covered().get(filename))
+        runs = _linecov.runs(code)
+    finally:
+        # Re-arm first: a code object left listed would get its events back at the next re-arm.
+        _linecov.rearm()
+        _monitoring.set_local_events(tool_id, code, 0)
+    return bool(runs) and seen[0] is not None and all(lines == seen[0] for lines in seen)
 
 
 def _self_test(tool_id: int, distant_lines: bool = False) -> bool:

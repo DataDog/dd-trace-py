@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import textwrap
@@ -1160,3 +1161,155 @@ def test_threads_a_test_starts_run_for_the_test(tmp_path) -> None:
     assert {5, 6} <= set(helper), records
     if sys.version_info >= (3, 14):
         assert json.loads((tmp_path / "names.json").read_text()) == []
+
+
+# Straight-line code: lines 5, 8 and 11 call, so its runs end there.
+_INTERRUPTED_SOURCE = """\
+def body(n):
+    a = n
+    b = a
+    c = b
+    d = len(str(c))
+    e = d
+    f = e
+    g = len(str(f))
+    h = g
+    i = h
+    j = len(str(i))
+    k = j
+    m = k
+    return m
+"""
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 12), reason="run probes are for CPython 3.12")
+@pytest.mark.parametrize("interruption", ["signal", "async_exception"])
+def test_runs_hold_when_interrupted(tmp_path, interruption) -> None:
+    """With run probes, the first line of a run credits the run. A signal handler or an asynchronous
+    exception only runs where the interpreter checks for them, which no run holds, so it stops the
+    code at the end of a run or before one. Each window must hold exactly the lines up to where it
+    stopped.
+    """
+    if interruption == "signal" and not hasattr(signal, "setitimer"):
+        pytest.skip("needs setitimer")
+    output = _run_isolated(
+        f"""
+        import ctypes
+        import json
+        import os
+        import random
+        import signal
+        import sys
+        import threading
+        import time
+
+        from ddtrace.internal.coverage import _linecov
+        from ddtrace.internal.coverage import native_lines
+
+        sys.monitoring.use_tool_id(5, "test")
+        assert native_lines.init(5)
+        assert _linecov.stats()["run_probes"]
+        root = {str(tmp_path)!r}
+        native_lines.set_report_root(root)
+        path = os.path.join(root, "body.py")
+        code = compile({_INTERRUPTED_SOURCE!r}, path, "exec")
+        native_lines.instrument(code, path)
+        namespace = {{}}
+        exec(code, namespace)
+        body = namespace["body"]
+
+
+        def lines_of(context):
+            # Without the module's own lines, which ran before every window.
+            return sorted(
+                i * 8 + b
+                for _, bitmap in context.bitmaps(False)
+                for i, byte in enumerate(bitmap)
+                for b in range(8)
+                if byte & (0x80 >> b)
+            )
+
+
+        # A code object takes run probes at its second re-arm.
+        for _ in range(3):
+            context = native_lines.new_context()
+            previous = context.enter()
+            body(1)
+            context.exit(previous)
+        runs = _linecov.runs(body.__code__)
+
+
+        class Interrupt(Exception):
+            pass
+
+
+        state = {{"armed": False, "running": True}}
+        if {interruption!r} == "signal":
+
+            def handler(signum, frame):
+                if frame.f_code is body.__code__:
+                    raise Interrupt
+
+            signal.signal(signal.SIGALRM, handler)
+            signal.setitimer(signal.ITIMER_REAL, 0.00005, 0.00005)
+        else:
+            # The thread reads the flag and sets the exception with no check of the eval breaker in
+            # between, so the exception only reaches the main thread while the flag is set.
+            set_async_exc = ctypes.pythonapi.PyThreadState_SetAsyncExc
+            target = ctypes.c_ulong(threading.get_ident())
+            exception = ctypes.py_object(Interrupt)
+
+            def interrupt():
+                while state["running"]:
+                    if random.random() < 0.3 and state["armed"]:
+                        set_async_exc(target, exception)
+                    time.sleep(0)
+
+            sys.setswitchinterval(1e-6)
+            thread = threading.Thread(target=interrupt)
+            thread.start()
+
+        checked = 0
+        stops = []
+        mismatches = []
+        deadline = time.monotonic() + 30
+        try:
+            while len(stops) < 300 and time.monotonic() < deadline:
+                context = native_lines.new_context()
+                previous = context.enter()
+                last = 14
+                try:
+                    try:
+                        state["armed"] = True
+                        body(1)
+                    finally:
+                        state["armed"] = False
+                except Interrupt as error:
+                    # Where body stopped, if it did: a signal handler's frame comes after body's.
+                    tb = error.__traceback__
+                    while tb is not None:
+                        if tb.tb_frame.f_code is body.__code__:
+                            last = tb.tb_lineno
+                            stops.append(last)
+                        tb = tb.tb_next
+                context.exit(previous)
+                checked += 1
+                if lines_of(context) != list(range(2, last + 1)):
+                    mismatches.append((last, lines_of(context)))
+        finally:
+            if {interruption!r} == "signal":
+                signal.setitimer(signal.ITIMER_REAL, 0)
+            else:
+                state["running"] = False
+                thread.join()
+        stats = _linecov.stats()
+        print(json.dumps({{"runs": runs, "checked": checked, "stops": sorted(set(stops)), "count": len(stops),
+                           "mismatches": mismatches[:5], "run_events": stats["runs"]}}))
+        """,
+        env={"_DD_COVERAGE_RUN_PROBES": "true"},
+    )
+    result = json.loads(output.strip().splitlines()[-1])
+    assert result["runs"] == [[2, 3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14]], result
+    assert result["mismatches"] == [], result
+    # Stopped often enough, and at the ends of different runs.
+    assert result["count"] >= 50 and len(set(result["stops"]) - {1}) >= 2, result
