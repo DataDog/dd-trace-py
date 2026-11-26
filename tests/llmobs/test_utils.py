@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import json
-import os
 import threading
 
 from pydantic import BaseModel
@@ -966,8 +965,13 @@ def test_link_tracker_registration_is_atomic_with_eviction():
     assert all(tool_id in tracker._tool_calls for tool_id in tracker._lookup_tool_id.values())
 
 
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_link_tracker_lock_is_reset_in_fork_child():
     """A fork taken while another thread holds the tracker lock must not deadlock the child."""
+    import os
+
+    from ddtrace.llmobs._utils import LinkTracker
+
     tracker = LinkTracker()
     tracker._lock.acquire()
     try:
