@@ -8,7 +8,9 @@ import pytest
 from ddtrace.internal import core
 from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.kafka import _headers_byte_size
+from ddtrace.internal.datastreams.kafka import dsm_kafka_message_consume
 from ddtrace.internal.datastreams.kafka import dsm_kafka_message_produce
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
@@ -562,3 +564,93 @@ def test_dsm_kafka_message_produce_argument_lookup(
     for name, callback in callbacks.items():
         forwarded_here = name in expected_wrapped.values()
         assert callback.call_args_list == ([mock.call(error, message)] if forwarded_here else [])
+
+
+class _FakeConsumedMessage:
+    def __init__(self, value, key, headers):
+        self._value, self._key, self._headers = value, key, headers
+
+    def error(self):
+        return None
+
+    def value(self):
+        return self._value
+
+    def key(self):
+        return self._key
+
+    def headers(self):
+        return self._headers
+
+
+class _FakeConsumer:
+    _group_id = "group"
+    _auto_commit = False
+
+
+def _upstream_pathway(processor, topic):
+    ctx = processor.new_pathway()
+    ctx.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
+    return ctx
+
+
+@pytest.mark.parametrize(
+    "headers,expected_headers_size,expected_parent",
+    [
+        (None, 0, None),
+        ([], 0, None),
+        ([("a", b"bc"), ("ü", "é"), ("k", None)], 1 + 2 + 2 + 2 + 1, None),
+        ([("b64", "first")], None, "first"),
+        ([("b64", "first"), ("a", b"b"), ("b64", "second")], None, "second"),
+        ([("b64", None)], len(PROPAGATION_KEY_BASE_64), None),
+        ([("legacy", "first")], None, "first"),
+        ([("legacy", "first"), ("b64", "second")], None, "second"),
+        # A malformed entry zeroes the headers size; pathway headers found before it are kept.
+        ([("a",)], 0, None),
+        ([("b64", "first"), ("a",)], 0, "first"),
+    ],
+    ids=[
+        "none",
+        "empty",
+        "app-headers",
+        "pathway",
+        "repeated-pathway",
+        "empty-pathway",
+        "legacy",
+        "both-keys",
+        "malformed",
+        "malformed-after-pathway",
+    ],
+)
+def test_dsm_kafka_message_consume_headers(dsm_processor, headers, expected_headers_size, expected_parent):
+    """Pins the consume hook's payload size and the pathway header it continues from."""
+    upstream = {
+        "first": _upstream_pathway(dsm_processor, "first"),
+        "second": _upstream_pathway(dsm_processor, "second"),
+    }
+
+    def header_value(name, value):
+        if value in upstream:
+            ctx = upstream[value]
+            return ctx.encode_b64().encode() if name == "b64" else ctx.encode()
+        return value
+
+    names = {"b64": PROPAGATION_KEY_BASE_64, "legacy": PROPAGATION_KEY}
+    if headers is not None:
+        headers = [(names.get(h[0], h[0]), header_value(*h)) if len(h) == 2 else h for h in headers]
+    if expected_headers_size is None:
+        expected_headers_size = sum(len(k) + len(v) for k, v in headers)
+    message = _FakeConsumedMessage("välue", b"key", headers)
+
+    with mock.patch.object(
+        dsm_processor, "on_checkpoint_creation", wraps=dsm_processor.on_checkpoint_creation
+    ) as checkpoint_spy:
+        with core.context_with_data("test.dsm.kafka.consume", kafka_topic="topic", kafka_cluster_id="cluster"):
+            dsm_kafka_message_consume(_FakeConsumer(), message, None)
+
+    (checkpoint_call,) = checkpoint_spy.call_args_list
+    hash_value, parent_hash, edge_tags = checkpoint_call.args[:3]
+    assert edge_tags == ["direction:in", "group:group", "kafka_cluster_id:cluster", "topic:topic", "type:kafka"]
+    assert parent_hash == (upstream[expected_parent].hash if expected_parent else 0)
+    assert hash_value == DataStreamsCtx(dsm_processor, 0, 0, 0)._compute_hash(edge_tags, parent_hash)
+    assert checkpoint_call.kwargs["payload_size"] == len("välue".encode()) + len(b"key") + expected_headers_size

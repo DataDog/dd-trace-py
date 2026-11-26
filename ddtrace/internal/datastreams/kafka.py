@@ -6,6 +6,7 @@ from confluent_kafka import TopicPartition
 
 from ddtrace import config
 from ddtrace.internal import core
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
@@ -34,6 +35,20 @@ def _headers_byte_size(headers: Any, exclude: Optional[str] = None) -> int:
         return sum(_calculate_byte_size(key) + _calculate_byte_size(value) for key, value in entries if key != exclude)
     except (TypeError, ValueError):
         return 0
+
+
+def _consumed_headers_size_and_pathway(header_list: Any) -> tuple[int, dict[Any, Any]]:
+    """Size of consumed headers and the DSM pathway headers among them, in one pass. Repeated keys: last wins."""
+    size = 0
+    pathway_headers: dict[Any, Any] = {}
+    try:
+        for key, value in header_list:
+            size += _calculate_byte_size(key) + _calculate_byte_size(value)
+            if key == PROPAGATION_KEY_BASE_64 or key == PROPAGATION_KEY:
+                pathway_headers[key] = value
+    except (TypeError, ValueError):
+        size = 0
+    return size, pathway_headers
 
 
 def _with_pathway_header(headers: Any, ctx: Any) -> list[tuple[Any, Any]]:
@@ -127,7 +142,6 @@ def dsm_kafka_message_consume(instance, message, span):
         return
 
     header_list = message.headers() or []
-    headers = dict(header_list)
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
     group = instance._group_id
@@ -140,13 +154,14 @@ def dsm_kafka_message_consume(instance, message, span):
         payload_size += _calculate_byte_size(message.value())
 
     payload_size += _calculate_byte_size(message.key())
-    payload_size += _headers_byte_size(header_list)
+    headers_size, pathway_headers = _consumed_headers_size_and_pathway(header_list)
+    payload_size += headers_size
 
     p = processor()
     if p is None:
         return
 
-    ctx = DsmPathwayCodec.decode(headers, p)
+    ctx = DsmPathwayCodec.decode(pathway_headers, p)
 
     edge_tags = ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"]
     if cluster_id:
