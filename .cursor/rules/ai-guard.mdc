@@ -138,13 +138,15 @@ converted in `_anthropic.py`:
   the request does not declare it.
   Tools map to themselves; only referenced servers are sent.
 - Anthropic has already run the call when the response arrives: a block withholds the response only.
+- In an assistant turn, client `tool_use` calls go in the last assistant message, after any result of a tool
+  Anthropic ran, so a response that stops for a client call stays an output evaluation.
 - The before-hook lists iterable `messages`, `system`, `tools` and `mcp_servers` once, in the kwargs the SDK
   gets (`_list_iterable_params`), with no try/except: an error from a caller iterable propagates as it would
   from the SDK. The SDK merges `extra_body` over the params, so every read goes through `_sent_param`:
   a param that `extra_body` replaces is left unread, and the `extra_body` values are listed into a new
-  `extra_body` dict (the caller's stays intact). Nested content that is a one-shot iterator (tool result, document
-  source, web search result) is not read (`_is_one_shot`), so the SDK still sends it, and AI Guard does not
-  evaluate it.
+  `extra_body` dict (the caller's stays intact). Nested content (tool result, document source,
+  web search result) is read only when it is a list or tuple: any other iterable may be single-use, so it
+  is left unread (`_may_be_single_use`), the SDK still sends it, and AI Guard does not evaluate it.
   Buffered streams evaluate with the contrib stream handler's `request_kwargs`, that same dict.
 - The contrib stream rebuild drops `server_name` and renames `mcp_tool_result` to `tool_result`;
   `reconstruct_anthropic` restores both from the `content_block_start` chunks and leaves the contrib

@@ -204,11 +204,16 @@ def _parts_from_content_blocks(blocks: Sequence[Any]) -> list[ContentPart]:
     return parts
 
 
-def _is_one_shot(content: Any, what: str) -> bool:
-    """Whether content is a one-shot iterator, which is left unread so the SDK still sends it (unevaluated)."""
-    if not isinstance(content, Iterator):
+def _may_be_single_use(value: Any) -> bool:
+    """Whether value is an iterable other than a list, tuple, string, bytes or mapping: it may only be read once."""
+    return isinstance(value, Iterable) and not isinstance(value, (list, tuple, str, bytes, bytearray, Mapping))
+
+
+def _left_for_sdk(content: Any, what: str) -> bool:
+    """Whether nested content may be single-use, so it is left unread for the SDK (reported, not evaluated)."""
+    if not _may_be_single_use(content):
         return False
-    _report_converter_error("AI Guard anthropic: one-shot iterator content not evaluated: %s" % what)
+    _report_converter_error("AI Guard anthropic: iterable content not evaluated: %s" % what)
     return True
 
 
@@ -223,18 +228,10 @@ def _format_tool_result_block(block: Any) -> list[Message]:
             msg["content"] = content
         return [msg]
 
-    if _is_one_shot(content, "tool result"):
+    if _left_for_sdk(content, "tool result"):
         return [msg]
 
-    # tool_result.content is typed Iterable[...]: list tuples and other re-iterables.
-    # dict, bytes and bytearray are not valid containers here.
-    if not isinstance(content, (list, bytes, bytearray, dict)):
-        try:
-            content = list(content)
-        except TypeError:
-            pass
-
-    if isinstance(content, list):
+    if isinstance(content, (list, tuple)):
         parts = _parts_from_content_blocks(content)
         if parts:
             msg["content"] = _reduce_parts(parts)
@@ -262,7 +259,7 @@ def _format_server_tool_result_block(block: Any) -> Message:
 
     if block_type == "web_search_tool_result":
         results = _get(block, "content", []) or []
-        if _is_one_shot(results, "web search result"):
+        if _get(results, "type", "") == "web_search_tool_result_error" or _left_for_sdk(results, "web search result"):
             results = []
         parts = []
         for r in results:
@@ -334,13 +331,11 @@ def _format_document_block(block: Any) -> list[ContentPart]:
         if isinstance(inner, str):
             if inner:
                 parts.append(ContentPart(type="text", text=inner))
-        elif not _is_one_shot(inner, "document source"):
-            if not isinstance(inner, (list, tuple)):
-                try:
-                    inner = list(inner)
-                except TypeError:
-                    inner = []
-            parts.extend(_parts_from_content_blocks(inner or []))
+        elif isinstance(inner, (list, tuple)):
+            parts.extend(_parts_from_content_blocks(inner))
+        else:
+            # Not text: a possibly single-use iterable is reported and left for the SDK; the document gets the marker.
+            _left_for_sdk(inner, "document source")
     # base64 / url / missing source: not text-readable.
 
     if not parts:
@@ -359,19 +354,20 @@ def _format_content_blocks(
 ) -> list[Message]:
     """Convert the content blocks of one message to AI Guard messages, in block order.
 
-    In an assistant turn, each result of a tool Anthropic ran ends the message before it and follows as a tool message.
+    In an assistant turn, Anthropic tool results split the message; client tool calls go in the last assistant message.
     """
     messages: list[Message] = []
     tool_results: list[Message] = []
     parts: list[ContentPart] = []
     tool_calls: list[ToolCall] = []
+    client_calls: list[ToolCall] = []
     for block in blocks:
         block_type = _get(block, "type", "")
         if block_type in ("tool_use", "server_tool_use", "mcp_tool_use"):
             tool_call = _tool_call_from_block(block)
             if block_type == "mcp_tool_use" and mcp_servers is not None:
                 _reference_connector_server(tool_call, block, mcp_servers)
-            tool_calls.append(tool_call)
+            (client_calls if block_type == "tool_use" else tool_calls).append(tool_call)
         elif block_type == "tool_result":
             tool_results.extend(_format_tool_result_block(block))
         elif block_type in _PROVIDER_TOOL_RESULT_TYPES:
@@ -381,7 +377,7 @@ def _format_content_blocks(
                 messages.append(_format_provider_tool_result(block))
         else:
             parts.extend(_content_parts(block))
-    messages.extend(_message_of(role, parts, tool_calls))
+    messages.extend(_message_of(role, parts, tool_calls + client_calls))
     if role != "assistant":
         # Tool results answer the previous assistant turn, so the text of this turn comes after them.
         return tool_results + messages
@@ -473,7 +469,7 @@ def _convert_anthropic_messages(
     - assistant message with ``tool_use`` blocks -> ``role="assistant"`` with
       ``tool_calls``.
     - assistant message with server tool or MCP connector results -> split
-      at each result, in block order (see :func:`_format_content_blocks`).
+      at each result, in block order (see _format_content_blocks).
     - user message with ``tool_result`` blocks -> separate ``role="tool"``
       messages keyed by ``tool_use_id``; the user wrapper is suppressed when
       it would carry no text of its own.
@@ -534,7 +530,7 @@ def _convert_anthropic_response(resp: Any, mcp_servers: Optional[dict[str, MCPSe
 
     Mirrors :func:`_convert_anthropic_messages` for the response path: a
     standard assistant turn becomes a single message; a turn with server tool
-    or MCP connector results is split at each result (see :func:`_format_content_blocks`).
+    or MCP connector results is split at each result (see _format_content_blocks).
     Returns ``[]`` when the response is empty / malformed; raises
     only on a real converter bug (telemetry-logged).
     """
@@ -678,9 +674,7 @@ def _list_iterable_params(kwargs: dict[str, Any]) -> None:
 
 def _listed(value: Any) -> Any:
     """value as a list when it is an iterable that may only be read once, else value itself."""
-    if isinstance(value, Iterable) and not isinstance(value, (list, tuple, str, bytes, bytearray, Mapping)):
-        return list(value)
-    return value
+    return list(value) if _may_be_single_use(value) else value
 
 
 def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:

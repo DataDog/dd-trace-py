@@ -989,6 +989,21 @@ def test_before_hook_reads_params_from_extra_body():
     assert all(extra_body[key] is value for key, value in caller_extra_body.items())
 
 
+def test_web_search_error_result_is_not_reported():
+    """A web search error result is a model, not single-use content: it converts without a report."""
+    types = pytest.importorskip("anthropic.types")
+    if not hasattr(types, "WebSearchToolResultError"):
+        pytest.skip("this Anthropic SDK has no web search tool")
+    error = types.WebSearchToolResultError(type="web_search_tool_result_error", error_code="unavailable")
+    block = {"type": "web_search_tool_result", "tool_use_id": "s1", "content": error}
+
+    with patch("ddtrace.aiguard.integrations._anthropic._report_converter_error") as report:
+        messages = _convert_anthropic_response({"role": "assistant", "content": [block]})
+
+    assert messages == [{"role": "tool", "tool_call_id": "s1"}]
+    report.assert_not_called()
+
+
 @pytest.mark.parametrize("in_extra_body", [False, True])
 def test_before_hook_leaves_one_shot_nested_content_unread(in_extra_body):
     """One-shot document source and web search result content stays unread, so the SDK still sends it."""
