@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 import json
 import re
-import threading
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Protocol
@@ -66,6 +66,10 @@ from ddtrace.internal.telemetry.constants import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.time import HourGlass
 from ddtrace.version import __version__
+
+
+if TYPE_CHECKING:
+    import threading
 
 
 __all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation", "MCP", "MCPServer"]
@@ -1100,7 +1104,7 @@ class _AgentRouteDiscovery:
         self._pending: Optional[threading.Event] = None
         self._reason = "the Agent has not been checked for the AI Guard proxy route yet"
 
-    def _probe(self, generation: int, completed: threading.Event) -> None:
+    def _probe(self, generation: int, completed: "threading.Event") -> None:
         """Check the Agent outside the lock; a stale generation discards the result."""
         unsupported = False
         base_url, reason = None, "the Agent /info endpoint could not be read"
