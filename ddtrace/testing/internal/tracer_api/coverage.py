@@ -108,6 +108,12 @@ class CoverageData:
             return None
         return t.cast(tuple[int, bytes], native.pack(*keys))
 
+    def include(self, other: "CoverageData") -> None:
+        """Add the lines of other, whose window enclosed this one's, to this record. Native collection only."""
+        native, enclosing = self._native, other._native
+        if native is not None and enclosing is not None and enclosing is not native:
+            native.fixtures.append(enclosing)
+
     def _get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         # Canonicalize the workspace: instrumentation records covered paths under
         # realpath(co_filename), so a symlinked CI workspace (e.g. Jenkins
