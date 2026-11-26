@@ -1,6 +1,9 @@
 """The anthropic.stream.created hook on the event source of the SDK streams."""
 
+from functools import cached_property
+import gc
 import json
+import weakref
 
 import pytest
 
@@ -168,3 +171,47 @@ def test_listener_sees_attributes_set_after_the_stream_constructor(anthropic, st
     stream = _MarkedStream(cast_to=object, response=httpx.Response(200, request=request), client=_client(anthropic))
 
     assert [event.value for event in stream] == ["set after super().__init__"]
+
+
+def _keep_replaced_iterator(kept, is_async):
+    """A listener that replaces the events and keeps the replacement, like a product that holds the iterator."""
+
+    async def async_events(events):
+        async for event in events:
+            yield event
+
+    def listener(events):
+        source = events.iterator
+        events.iterator = async_events(source) if is_async else (event for event in source)
+        kept.append(events.iterator)
+
+    return listener
+
+
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+def test_replaced_iterator_does_not_keep_the_stream_alive(anthropic, is_async):
+    """With a lazy SDK iterator (anthropic>=2), a kept replacement still lets the stream be collected."""
+    stream_cls = anthropic.AsyncStream if is_async else anthropic.Stream
+    if not isinstance(getattr(stream_cls, "_iterator", None), cached_property):
+        pytest.skip("this SDK sets the stream iterator in __init__")
+    httpx = _httpx(anthropic)
+    kept = []
+    listener = _keep_replaced_iterator(kept, is_async)
+    core.on(ANTHROPIC_STREAM_CREATED, listener)
+    try:
+        request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+        stream = stream_cls(
+            cast_to=object, response=httpx.Response(200, request=request), client=_client(anthropic, is_async)
+        )
+        alive = weakref.ref(stream)
+        del stream
+        gc.collect()
+    finally:
+        core.reset_listeners(ANTHROPIC_STREAM_CREATED, listener)
+
+    assert alive() is None
+    with pytest.raises(RuntimeError, match="garbage collected"):
+        if is_async:
+            kept[0].__anext__().send(None)
+        else:
+            next(kept[0])
