@@ -12,3 +12,4 @@
 
 # Package split, wave 1: moving to ddtrace-internal (DataDog/datadog-apm-python#77).
 ddtrace/internal/module.py=786a19f278597d95fcc39fdf3dc4b294e33c16a528a9d99becacf4656b85db0d
+ddtrace/internal/logger/__init__.py=ad2efce7af17d8de18bb368126715a663a516294e109ec498156578aa1f81e64
