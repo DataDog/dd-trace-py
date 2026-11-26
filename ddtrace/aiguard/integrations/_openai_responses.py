@@ -583,7 +583,7 @@ def _authorize_mcp_approvals(
 def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for openai.responses.create.before; evaluates request inputs, streaming included.
 
-    Streamed response evaluation is gated separately by _install_openai_wrappers.
+    Streamed response evaluation is gated separately by _openai_stream_created.
     MCP approvals are checked whenever DD_AI_GUARD_MCP_ENABLED is on, because they authorize a tool call.
     """
     if is_aiguard_context_active():

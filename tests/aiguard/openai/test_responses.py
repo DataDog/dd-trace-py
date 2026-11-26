@@ -18,6 +18,8 @@ from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._listener import _with_listed_tools
+from ddtrace.aiguard._streaming import AsyncBufferedEvents
+from ddtrace.aiguard._streaming import BufferedEvents
 from ddtrace.aiguard.integrations._mcp import ApprovalDecision
 from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.aiguard.integrations._mcp import mcp_server
@@ -2036,7 +2038,7 @@ def test_stream_without_mcp_approvals_is_not_buffered(
         model=RESPONSES_MODEL, input="Ask deepwiki", tools=tools, stream=True
     )
 
-    assert type(stream).__name__ not in ("BufferedAIGuardStream", "BufferedAIGuardAsyncStream")
+    assert not isinstance(getattr(stream, "_iterator", None), (BufferedEvents, AsyncBufferedEvents))
     assert list(stream)
     # Only the prompt is evaluated, and it references no MCP server.
     mock_execute_request.assert_called_once()
@@ -2135,7 +2137,7 @@ def test_failing_stream_buffering_decision_does_not_break_the_stream(
             model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS, stream=True
         )
 
-    assert type(stream).__name__ not in ("BufferedAIGuardStream", "BufferedAIGuardAsyncStream")
+    assert not isinstance(getattr(stream, "_iterator", None), (BufferedEvents, AsyncBufferedEvents))
     assert list(stream)
     # Only the prompt is evaluated: the unbuffered stream is not.
     mock_execute_request.assert_called_once()
@@ -2573,4 +2575,4 @@ def test_streamed_reusable_prompt_is_not_buffered_in_monitor_mode(
             model=RESPONSES_MODEL, input="Ask deepwiki", prompt={"id": "pmpt_test"}, stream=True
         )
 
-    assert type(stream).__name__ not in ("BufferedAIGuardStream", "BufferedAIGuardAsyncStream")
+    assert not isinstance(getattr(stream, "_iterator", None), (BufferedEvents, AsyncBufferedEvents))

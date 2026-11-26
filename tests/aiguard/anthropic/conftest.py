@@ -68,8 +68,7 @@ def anthropic_sdk_buffered():
     """Like ``anthropic_sdk`` but with stream-response evaluation enabled.
 
     Enables ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` *before* calling
-    ``patch()`` so ``_install_anthropic_wrappers`` sees the flag as True and
-    actually installs the ``BufferedAIGuardStream`` wrappers.
+    patch(), so the streams the tests create are buffered by AI Guard.
     """
     with override_env(dict(ANTHROPIC_API_KEY="<not-a-real-key>")):
         with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):

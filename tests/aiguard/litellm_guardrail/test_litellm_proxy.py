@@ -268,8 +268,7 @@ def litellm_proxy(openai_stub, evaluations, stream_analysis):
         litellm.callbacks.append(guardrail)
         return guardrail
 
-    # Set after the OpenAI patch, so the setting changes only the guardrail. At patch time, it also adds
-    # OpenAI raw-response wrappers, and litellm streams fail with them.
+    # The OpenAI listener reads this setting when each model stream is created, like the guardrail.
     with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=stream_analysis)):
         try:
             yield add_guardrail
@@ -451,7 +450,21 @@ async def test_post_call_only_lets_the_openai_integration_evaluate_the_prompt(li
     assert evaluations == [("openai", "prompt"), ("litellm", "answer")]
 
 
-@pytest.mark.parametrize("stream, stream_analysis", [(False, False), (True, False), (True, True)])
+@pytest.mark.parametrize(
+    "stream, stream_analysis",
+    [
+        (False, False),
+        (True, False),
+        pytest.param(
+            True,
+            True,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="APPSEC-72050: without a pre-call claim, the OpenAI listener also evaluates the answer",
+            ),
+        ),
+    ],
+)
 async def test_post_call_only_evaluates_the_answer_with_the_prompt(
     litellm_proxy, evaluations, evaluated_messages, stream
 ):

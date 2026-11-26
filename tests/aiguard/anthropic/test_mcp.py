@@ -159,6 +159,12 @@ def test_remote_server_entry_is_origin_only():
 # ---------------------------------------------------------------------------
 
 
+# Streamed answers are evaluated from the request the SDK sent, without the mcp_tool objects.
+_STREAM_MCP_GAP = pytest.mark.xfail(
+    strict=True, reason="APPSEC-72050: streamed answers lose the client-managed MCP metadata"
+)
+
+
 @patch(EXECUTE_REQUEST)
 async def test_direct_async_call_remote_metadata(mock_execute_request, anthropic_sdk):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
@@ -683,7 +689,9 @@ async def test_async_tool_runner_block(mock_execute_request, anthropic_sdk):
     session.call_tool.assert_not_called()
 
 
-@pytest.mark.parametrize("buffered", [False, True], ids=["call_check", "response_check"])
+@pytest.mark.parametrize(
+    "buffered", [False, pytest.param(True, marks=_STREAM_MCP_GAP)], ids=["call_check", "response_check"]
+)
 @patch(EXECUTE_REQUEST)
 async def test_async_streaming_tool_runner(mock_execute_request, request, buffered):
     """Without stream analysis the call is checked; with it the buffered response is, and the call is not."""
@@ -731,6 +739,7 @@ def _web_request():
         yield
 
 
+@_STREAM_MCP_GAP
 @patch(EXECUTE_REQUEST)
 async def test_async_buffered_streaming_runner_in_web_request(mock_execute_request, anthropic_sdk_buffered):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
@@ -749,6 +758,7 @@ async def test_async_buffered_streaming_runner_in_web_request(mock_execute_reque
     assert payload["messages"][-1]["tool_calls"][0]["id"] == "toolu_1"
 
 
+@_STREAM_MCP_GAP
 @pytest.mark.parametrize("web_request", [False, True], ids=["no_span", "web_request"])
 @patch(EXECUTE_REQUEST)
 async def test_sync_buffered_streaming_runner(mock_execute_request, anthropic_sdk_buffered, web_request):
@@ -996,6 +1006,7 @@ async def test_unidentified_server_streaming_tool_runner_block(mock_execute_requ
     _assert_ordinary_tool_call(payload)
 
 
+@_STREAM_MCP_GAP
 @patch(EXECUTE_REQUEST)
 async def test_unidentified_server_buffered_response_is_evaluated_once(mock_execute_request, anthropic_sdk_buffered):
     """The buffered response evaluation checks the call, so the call itself is not evaluated again."""

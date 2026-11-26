@@ -849,13 +849,17 @@ AI Guard
      default: False
      description: |
        When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and
-       OpenAI (Chat Completions, including the ``with_raw_response`` helper, and Responses)
-       are fully buffered before any chunk is returned to the caller. LangChain chat model and LLM
+       OpenAI (Chat Completions and Responses, including the streams returned by ``.parse()`` of the
+       ``with_raw_response`` and ``with_streaming_response`` helpers) are fully buffered before any chunk
+       is returned to the caller. Reading the raw body of those helpers (``read()``, ``iter_lines()``,
+       ``iter_text()`` or ``iter_bytes()``) bypasses this buffering. LangChain chat model and LLM
        streams (``stream()`` and ``astream()``) from any provider are buffered too, and the tokens
        LangChain reports to callbacks (for example ``astream_events()`` or LangGraph
        ``stream_mode="messages"``) are held until the response is evaluated. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
-       and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
+       and ``AIGuardAbortError`` is raised. The SDK stream helpers never receive a blocked response:
+       after the block, or after a provider error during the stream, ``get_final_message()`` and
+       similar helpers have no message to return. When set to ``False`` (default), only request inputs
        are evaluated and streamed chunks are forwarded live.
 
        **Trade-offs**: enabling this flag increases time-to-first-token (all chunks must be
@@ -944,7 +948,7 @@ AI Guard
        evaluation completes, even when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off. So
        are streamed responses of requests that use a reusable prompt, unless DD_AI_GUARD_BLOCK
        is false.
-       Responses read through ``with_raw_response`` or ``with_streaming_response`` are not evaluated.
+       Non-streamed responses read through ``with_raw_response`` or ``with_streaming_response`` are not evaluated.
 
        MCP tools converted with the Anthropic SDK ``mcp_tool`` and ``async_mcp_tool`` helpers are
        evaluated before each call is sent to the MCP server, unless the model response that requested

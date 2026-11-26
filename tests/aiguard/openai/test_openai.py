@@ -1622,9 +1622,9 @@ def test_openai_kill_switch_enabled_registers_listeners():
     with override_ai_guard_config(dict(_ai_guard_openai_enabled=True)):
         with patch.object(_listener.core, "on") as mock_on:
             _listener._openai_listen(Mock())
-            # 4 evaluation listeners (chat/responses before+after) plus the
-            # patch/unpatch listeners that install the streaming buffer wrappers.
-            assert mock_on.call_count == 6
+            # 4 evaluation listeners (chat/responses before+after), stream.created (stream buffer)
+            # and the patch/unpatch listeners that list iterable tools.
+            assert mock_on.call_count == 7
 
 
 def test_openai_kill_switch_disabled_skips_listeners():
