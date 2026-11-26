@@ -55,6 +55,12 @@ def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[
     return f"/{relative}"
 
 
+@functools.lru_cache(maxsize=8)
+def _resolved_workspace(workspace: Path) -> str:
+    # Resolved once: the workspace is the same for every test, and its symlinks do not change mid-run.
+    return resolved_path(str(workspace))
+
+
 _FILE_LEVEL_BITMAP = bytes(CoverageLines.from_list([0]).to_bytes())
 
 
@@ -66,8 +72,17 @@ class CoverageData:
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         if self._native is not None:
-            return _native_bitmaps(self._native, resolved_path(str(relative_to)))
+            return _native_bitmaps(self._native, _resolved_workspace(relative_to))
         return self._get_coverage_bitmaps(relative_to)
+
+    def get_packed_files(self, relative_to: Path, keys: tuple[str, str]) -> t.Optional[tuple[int, bytes]]:
+        """The files get_coverage_bitmaps() returns, with their count, packed as a msgpack array of
+        maps {keys[0]: path, keys[1]: bitmap}; None when only get_coverage_bitmaps() can build them.
+        """
+        native = self._native
+        if native is None or _resolved_workspace(relative_to) != native_lines.report_root():
+            return None
+        return t.cast(tuple[int, bytes], native.pack(*keys))
 
     def _get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         # Canonicalize the workspace: instrumentation records covered paths under
