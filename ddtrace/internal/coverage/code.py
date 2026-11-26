@@ -4,7 +4,6 @@ from copy import deepcopy
 from inspect import getmodule
 import os
 from pathlib import Path
-import runpy
 import sys
 from types import CodeType
 from types import ModuleType
@@ -87,6 +86,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         # Avoid instrumenting anything in the current module
         self._exclude_paths.append(Path(__file__).resolve().parent)
+        # Code file names the path checks rejected. The import hooks and the exec callback both see
+        # each imported module, and the checks cost a stat call.
+        self._rejected_files: set[str] = set()
 
         self._coverage_enabled: bool = False
         self._file_level_coverage: bool = False
@@ -120,8 +122,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             par.exec = self._exec
         except ImportError:
             pass
-        # runpy (run_module, run_path) runs module code it compiled itself, outside the import system.
-        runpy.exec = self._runpy_exec  # type: ignore[attr-defined]
+        # Native line collection also sees every other exec() of module code, runpy's included.
+        if native_lines.requested():
+            native_lines.set_exec_callback(self._on_exec)
 
     @classmethod
     def install(
@@ -147,6 +150,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         # machinery only from 3.10 on; an unresolved include path here would silently
         # exclude everything under it on macOS (var -> private/var) or symlinked checkouts.
         cls._instance._include_paths = [p.resolve() for p in include_paths]
+        cls._instance._rejected_files.clear()
         cls._instance._collect_import_coverage = collect_import_time_coverage
         cls._instance._file_level_coverage = (
             is_file_level_coverage_enabled() if file_level_coverage is None else file_level_coverage
@@ -667,8 +671,12 @@ class ModuleCodeCollector(ModuleWatchdog):
         if _module is None and not native_lines.enabled():
             return code
 
+        filename = code.co_filename
+        if filename in self._rejected_files:
+            return code
         # The same memoized realpath as instrument_module's, so a module's file is resolved once.
-        if not self._is_instrumentable_file(resolved_path(code.co_filename)):
+        if not self._is_instrumentable_file(resolved_path(filename)):
+            self._rejected_files.add(filename)
             return code
 
         retval = self._mode.instrument_module(code, _module)
@@ -760,12 +768,12 @@ class ModuleCodeCollector(ModuleWatchdog):
         # Execute the module before calling the after_import hook
         _original_exec(new_object, _globals, _locals, **kwargs)
 
-    def _runpy_exec(self, _object, _globals=None, _locals=None, **kwargs):
-        # Only native line collection instruments it: the other modes would open an import context
-        # that no after_import hook closes.
-        if native_lines.enabled() and isinstance(_object, CodeType) and _object.co_name == "<module>":
-            _object = self.transform(_object, None)
-        _original_exec(_object, _globals, _locals, **kwargs)
+    def _on_exec(self, code: CodeType) -> None:
+        # Code compiled and run outside the import hooks: runpy, a sys.meta_path finder ahead of
+        # ModuleWatchdog whose exec_module() calls exec(), or spec_from_file_location() followed by
+        # exec_module().
+        if code.co_name == "<module>":
+            self.transform(code, None)
 
     @classmethod
     def uninstall(cls) -> None:
@@ -776,7 +784,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             par.exec = _original_exec
         except ImportError:
             pass
-        runpy.__dict__.pop("exec", None)
+        native_lines.set_exec_callback(None)
 
         if cls._instance is not None:
             cls._instance._mode.uninstall()

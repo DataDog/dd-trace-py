@@ -13,6 +13,7 @@ Enabled with _DD_COVERAGE_NATIVE_LINES=true, which also selects line-level cover
 _DD_COVERAGE_BLOCK_PROBES=false keeps one probe per line start.
 """
 
+import builtins
 from contextvars import ContextVar
 import dis
 import marshal
@@ -47,6 +48,9 @@ _requested: bool = sys.version_info >= (3, 12) and asbool(env.get("_DD_COVERAGE_
 _enabled: bool = False
 _report_root: t.Optional[str] = None
 _file_ids: dict[str, int] = {}
+_exec_callback: t.Optional[t.Callable[[CodeType], t.Any]] = None
+# builtins.exec as it was, and the wrapper that replaced it, while a callback is set.
+_exec_wrapping: t.Optional[tuple[t.Any, t.Any]] = None
 
 
 def requested() -> bool:
@@ -184,6 +188,7 @@ def init(tool_id: int) -> bool:
         return False
 
     _enabled = True
+    _apply_exec_callback()
     if internal and not _self_test(tool_id):
         _linecov.set_internal_rearm(False)
         log.debug("Internal re-arm self-test failed; using the public re-arm")
@@ -359,6 +364,37 @@ def _file_id(path: str) -> int:
     if file_id is None:
         file_id = _file_ids[path] = _linecov.register_file(path, _report_path(path))
     return file_id
+
+
+def set_exec_callback(callback: t.Optional[t.Callable[[CodeType], t.Any]]) -> None:
+    """Call callback with each code object exec() is about to run, once native collection is enabled.
+
+    It sees the code that loaders compile and run themselves, outside the import hooks. Code already
+    instrumented and code compiled from a string are not passed. builtins.exec is wrapped while a
+    callback is set; None restores it.
+    """
+    global _exec_callback
+
+    _exec_callback = callback
+    if _enabled:
+        _apply_exec_callback()
+
+
+def _apply_exec_callback() -> None:
+    global _exec_wrapping
+
+    assert _linecov is not None  # nosec
+    _linecov.set_exec_callback(_exec_callback)
+    if _exec_callback is not None and _exec_wrapping is None:
+        original = builtins.exec
+        _exec_wrapping = (original, _linecov.wrap_exec(original))
+        builtins.exec = _exec_wrapping[1]
+    elif _exec_callback is None and _exec_wrapping is not None:
+        original, wrapper = _exec_wrapping
+        _exec_wrapping = None
+        # Whoever replaced it since keeps theirs, which calls the wrapper, now without a callback.
+        if builtins.exec is wrapper:
+            builtins.exec = original
 
 
 def instrument(code: CodeType, path: str) -> int:
