@@ -425,6 +425,82 @@ def test_owner_switch_in_a_running_function() -> None:
     )
 
 
+def test_nested_window_suspends_the_outer_one() -> None:
+    """A window opened over another on the same thread: the outer context keeps no line armed while
+    the inner one runs, and gets the lines it runs after the inner window closes.
+    """
+    _run_isolated(
+        """
+        results = {}
+        for path, namespace in ((LINES, LINES_NS), (BLOCKS, BLOCKS_NS)):
+            outer, inner = _linecov.Context(), _linecov.Context()
+            probes = line_probes() if path == LINES else None
+            if probes:
+                probes.__enter__()
+            try:
+                outer_previous = outer.enter()
+                inner_previous = inner.enter()
+                kept = _linecov.stats()["events_kept"]
+                for n in range(6):
+                    namespace["branches"](n)
+                assert _linecov.stats()["events_kept"] == kept, _linecov.stats()
+                inner.exit(inner_previous)
+                for n in range(6):
+                    namespace["branches"](n)
+                outer.exit(outer_previous)
+            finally:
+                if probes:
+                    probes.__exit__(None, None, None)
+            results[path] = (covered(outer, path), covered(inner, path))
+        same("outer", results[LINES][0], results[BLOCKS][0])
+        same("inner", results[LINES][1], results[BLOCKS][1])
+        assert results[BLOCKS][0] == results[BLOCKS][1] != set(), results
+        """
+    )
+
+
+def test_window_on_another_thread_is_not_suspended() -> None:
+    """A context whose window is open on another thread keeps lines armed while windows nest here,
+    so it gets the lines it runs after this thread ran them.
+    """
+    _run_isolated(
+        """
+        results = {}
+        for path, namespace in ((LINES, LINES_NS), (BLOCKS, BLOCKS_NS)):
+            other, outer, inner = _linecov.Context(), _linecov.Context(), _linecov.Context()
+            ready, go = threading.Event(), threading.Event()
+
+            def target():
+                previous = other.enter()
+                ready.set()
+                go.wait(30)
+                namespace["branches"](4)
+                other.exit(previous)
+
+            probes = line_probes() if path == LINES else None
+            if probes:
+                probes.__enter__()
+            try:
+                thread = threading.Thread(target=target)
+                thread.start()
+                assert ready.wait(30)
+                outer_previous = outer.enter()
+                inner_previous = inner.enter()
+                namespace["branches"](4)
+                inner.exit(inner_previous)
+                outer.exit(outer_previous)
+                go.set()
+                thread.join(30)
+            finally:
+                if probes:
+                    probes.__exit__(None, None, None)
+            results[path] = (covered(other, path), covered(inner, path))
+        same("other", results[LINES][0], results[BLOCKS][0])
+        assert results[BLOCKS][0] == results[BLOCKS][1] != set(), results
+        """
+    )
+
+
 def test_window_closing_on_another_thread() -> None:
     """A thread carrying a context while the context's window closes: what it ran before the close
     is the context's, what it runs after is unowned.

@@ -213,6 +213,73 @@ def test_new_parameter_of_a_suite_fixture_replaces_the_previous_setup(tmp_path) 
     assert lines == [[1, 2, 3, 6], [1, 6, 7, 8]], records
 
 
+def test_nested_windows_keep_no_lines_armed(tmp_path) -> None:
+    """The test's window, its execution's window and a suite fixture's setup window nest on one
+    thread. Only the innermost one keeps lines armed, so loops run with their lines disabled after
+    the first pass, and each record still has every line.
+    """
+    (tmp_path / "work.py").write_text(
+        textwrap.dedent(
+            """\
+            def work(n):
+                total = 0
+                for i in range(n):
+                    total += i
+                return total
+            """
+        )
+    )
+    (tmp_path / "conftest.py").write_text(
+        textwrap.dedent(
+            """\
+            import json
+
+            import pytest
+
+            import work
+
+
+            @pytest.fixture(scope="module")
+            def resource():
+                return work.work(500)
+
+
+            def pytest_sessionfinish(session):
+                from ddtrace.internal.coverage import _linecov
+
+                with open("stats.json", "w") as f:
+                    json.dump(_linecov.stats(), f)
+            """
+        )
+    )
+    (tmp_path / "test_nested.py").write_text(
+        textwrap.dedent(
+            """\
+            import work
+
+
+            def test_first(resource):
+                assert work.work(500) == resource
+
+
+            def test_second(resource):
+                assert resource
+            """
+        )
+    )
+    output = _run_isolated(
+        _RECORDING_SCRIPT % "test_nested.py",
+        cwd=tmp_path,
+        env={"DD_API_KEY": "test-key", "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "false"},
+    )
+    records = json.loads(output.strip().splitlines()[-1])
+    stats = json.loads((tmp_path / "stats.json").read_text())
+    assert stats["events_kept"] == 0, stats
+    assert len(records) == 2, records
+    lines = [next(v for k, v in record["files"].items() if k.endswith("work.py")) for record in records]
+    assert lines == [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5]], records
+
+
 def test_pack_matches_bitmaps(tmp_path) -> None:
     """pack() encodes what bitmaps(True) returns, including the longer msgpack forms: more than 15
     files, paths longer than 31 bytes and bitmaps longer than 255 bytes.

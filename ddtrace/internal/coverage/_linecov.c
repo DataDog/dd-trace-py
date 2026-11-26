@@ -356,6 +356,12 @@ typedef struct Context
     int active;
     int index;      /* position in g_active while active */
     uint64_t token; /* names the context to child processes; unique in the process */
+    /* A window entered over this one, on a thread that ran for it, suspends it until that window
+       closes: this context keeps no lines armed meanwhile, and the close re-arms. Another thread
+       still running for it misses the lines the inner context ran first, so callers nest windows
+       only where the inner context's lines count for this one too. */
+    int suspended;         /* inner windows open over this one */
+    struct Context* outer; /* the context this one's open window suspends, or NULL */
 } Context;
 
 static PyTypeObject ContextType;
@@ -967,7 +973,7 @@ record_line(CodeInfo* ci, uint32_t line)
     /* Keep the line armed while an active context lacks it: it may run there next. */
     for (int k = 0; k < g_n_active; k++) {
         Context* c = g_active[k];
-        if (c != owner && !context_has(c, file_id, line)) {
+        if (c != owner && !c->suspended && !context_has(c, file_id, line)) {
             g_events_kept++;
             Py_RETURN_NONE;
         }
@@ -1811,7 +1817,7 @@ block_event(CodeInfo* ci, int32_t index)
     /* Keep the probe armed while an active context lacks a line it credits: it may run there next. */
     for (int j = 0; j < g_n_active; j++) {
         Context* c = g_active[j];
-        if (c != owner && context_lacks_chain(ci, bi, b, c)) {
+        if (c != owner && !c->suspended && context_lacks_chain(ci, bi, b, c)) {
             g_events_kept++;
             Py_RETURN_NONE;
         }
@@ -2207,6 +2213,21 @@ publish_owner(PyObject* running)
 #endif
 }
 
+/* Ends the suspension c's window put on the context it was opened over. With rearm, the lines
+   disabled while it was suspended run there again. */
+static void
+resume_outer(Context* c, int rearm)
+{
+    Context* outer = c->outer;
+    if (outer == NULL)
+        return;
+    c->outer = NULL;
+    outer->suspended--;
+    if (rearm && outer->active && outer->suspended == 0)
+        rearm_all();
+    Py_DECREF(outer);
+}
+
 /* Closes the window of c. settle is 0 only when nothing can carry c any more. */
 static void
 context_deactivate(Context* c, int settle)
@@ -2216,8 +2237,6 @@ context_deactivate(Context* c, int settle)
 #if DD_HAVE_BLOCK_PROBES
     if (settle)
         settle_window(c);
-#else
-    (void)settle;
 #endif
     Context* last = g_active[g_n_active - 1];
     g_active[c->index] = last;
@@ -2231,18 +2250,21 @@ context_deactivate(Context* c, int settle)
                 g_errors++;
         }
     }
+    resume_outer(c, settle);
 }
 
 static int
 Context_traverse(Context* c, visitproc visit, void* arg)
 {
     Py_VISIT(c->fixtures);
+    Py_VISIT(c->outer);
     return 0;
 }
 
 static int
 Context_clear(Context* c)
 {
+    resume_outer(c, 0);
     Py_CLEAR(c->fixtures);
     return 0;
 }
@@ -2293,7 +2315,8 @@ Context_pop(Context* c, PyObject* Py_UNUSED(ignored))
 }
 
 /* enter() -> previous: push, then make this context the running one (the ctxvar init was given).
-   Returns the running context it replaced, for exit(). */
+   Returns the running context it replaced, for exit(). An active context it replaced is suspended
+   until this one's window closes. */
 static PyObject*
 Context_enter(Context* c, PyObject* Py_UNUSED(ignored))
 {
@@ -2322,6 +2345,11 @@ Context_enter(Context* c, PyObject* Py_UNUSED(ignored))
         return NULL;
     }
     Py_DECREF(token);
+    Context* outer = owner_of(previous);
+    if (outer != NULL && outer != c && c->outer == NULL) {
+        c->outer = (Context*)Py_NewRef(outer);
+        outer->suspended++;
+    }
     publish_owner((PyObject*)c);
     return previous;
 }
@@ -2660,7 +2688,10 @@ Context_get_token(Context* c, void* Py_UNUSED(closure))
 static PyMethodDef Context_methods[] = {
     { "push", (PyCFunction)Context_push, METH_NOARGS, "Activate, re-arming disabled lines." },
     { "pop", (PyCFunction)Context_pop, METH_NOARGS, "Deactivate." },
-    { "enter", (PyCFunction)Context_enter, METH_NOARGS, "Push and run in this context; returns the previous one." },
+    { "enter",
+      (PyCFunction)Context_enter,
+      METH_NOARGS,
+      "Push and run in this context, suspending the previous one until this one pops; returns the previous one." },
     { "exit", (PyCFunction)Context_exit, METH_O, "Run in the given previous context again, and pop." },
     { "bitmaps", (PyCFunction)(void (*)(void))Context_bitmaps, METH_FASTCALL, "Record bitmaps." },
     { "pack", (PyCFunction)(void (*)(void))Context_pack, METH_FASTCALL, "Record bitmaps, packed as msgpack." },
