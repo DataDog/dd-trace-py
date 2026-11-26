@@ -215,7 +215,7 @@ class TelemetryWriter:
         # per-tracer exporters and their native runtime workers.
         self._worker_subscribers: list[weakref.WeakMethod] = []
         # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
-        # once in enable(); forked children inherit and auto-resume it (see the class docstring).
+        # once below, when telemetry is enabled; forked children inherit and auto-resume it.
         self._deps_collector: Optional[PeriodicService] = None
         # Test-only: when set, the worker points at a file:// endpoint that dumps each
         # telemetry request to its own file under this directory (offline/Bazel replay).
@@ -242,6 +242,15 @@ class TelemetryWriter:
             # In order to support 3.12, we start the writer upon initialization.
             # See https://github.com/python/cpython/pull/104826.
             self.enable()
+            # Start the telemetry periodic here, even when enable() could not build the worker,
+            # e.g. in a fork child hook: otherwise the next telemetry call, on any thread, would
+            # start it, and application threads must not start ddtrace threads. Each tick runs
+            # periodic() (without a forced flush): it polls for new dependencies and drives the
+            # app-started fallback, which retries building the worker, so it runs even when
+            # dependency collection is disabled. Forked children inherit it and auto-resume
+            # (autorestart=True).
+            self._deps_collector = _TelemetryDependencyCollector(self.periodic, config.HEARTBEAT_INTERVAL)
+            self._deps_collector.start()
             # Shut down (flush) the telemetry writer when the application exits.
             # MUST be registered AFTER enable(): enable() creates the native runtime, which
             # registers its OWN atexit shutdown. atexit runs LIFO, so registering ours last
@@ -453,14 +462,6 @@ class TelemetryWriter:
         # rather than lost; the native worker dedupes them (ASM API security).
         endpoint_collection.on_endpoint_registered = self._record_endpoint
         self._report_endpoints()
-
-        # Start the telemetry periodic. Each tick runs periodic() (without a forced flush): it polls
-        # for new dependencies and drives the app-started fallback, so it runs even when dependency
-        # collection is disabled. Created once (root process); forked children inherit it and
-        # auto-resume (autorestart=True), so only create it when it does not already exist.
-        if self._deps_collector is None:
-            self._deps_collector = _TelemetryDependencyCollector(self.periodic, config.HEARTBEAT_INTERVAL)
-            self._deps_collector.start()
 
     def app_started(self) -> None:
         """Emit the root process's app-started event, exactly once."""

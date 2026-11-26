@@ -30,11 +30,28 @@ if config._data_streams_enabled:
                 importlib.import_module(path_f % (integration_module,))
 
 
-def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor]:
-    global _processor
-    if config._data_streams_enabled and (not _processor or reset):
-        from . import processor
+def _create_processor() -> DataStreamsProcessor:
+    # Imported here so that processes without data streams monitoring do not load the
+    # processor and its dependencies (startup cost).
+    from . import processor
 
-        _processor = processor.DataStreamsProcessor()
+    return processor.DataStreamsProcessor()
+
+
+if config._data_streams_enabled:
+    # Create, and so start, the processor when ddtrace is imported, rather than on the first
+    # checkpoint: an application thread must not start ddtrace threads, as it might be holding
+    # locks of its own.
+    _processor = _create_processor()
+
+
+def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor]:
+    """Return the data streams processor, which exists when data streams monitoring is enabled.
+
+    reset creates a new processor, e.g. for tests that enable data streams monitoring at runtime.
+    """
+    global _processor
+    if reset and config._data_streams_enabled:
+        _processor = _create_processor()
 
     return _processor

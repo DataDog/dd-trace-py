@@ -37,7 +37,7 @@ from ddtrace.internal.module import origin
 from ddtrace.internal.native import SymDBSender
 from ddtrace.internal.native import uuid4
 from ddtrace.internal.native_runtime import get_native_runtime
-from ddtrace.internal.periodic import Timer
+from ddtrace.internal.periodic import Debouncer
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
@@ -574,14 +574,11 @@ class ScopeContext:
     __scope_limit__: int = 400
 
     def __init__(self, scopes: t.Optional[list[Scope]] = None) -> None:
-        # Both locks are taken by application threads on module import, so
-        # another thread can fork while one is held. Fork-safe locks are
+        # The lock is taken by application threads on module import, so
+        # another thread can fork while it is held. A fork-safe lock is
         # replaced in the child instead of being inherited locked.
         self._scopes: list[Scope] = scopes if scopes is not None else []
         self._scopes_lock = forksafe.RLock()
-
-        self._timer: t.Optional[Timer] = None
-        self._timer_lock = forksafe.RLock()
 
         # upload_id is stable for the lifetime of this process; all batches
         # uploaded by the process share it. A forked child gets a fresh
@@ -621,41 +618,25 @@ class ScopeContext:
         self._event_data["runtimeId"] = get_runtime_id()
         self._event_data["parentId"] = get_ancestor_runtime_id()
 
-    def _set_timer(self) -> None:
-        with self._timer_lock:
-            if self._timer is None:
-
-                class BatchTimer(Timer):
-                    def timeout(_timer) -> None:
-                        with self._scopes_lock:
-                            log.debug(
-                                "[PID %d] SymDB: Flushing batch of %d module scopes due to timeout",
-                                os.getpid(),
-                                len(self._scopes),
-                            )
-                            self._upload_locked()
-
-                        with self._timer_lock:
-                            self._timer = None
-
-                self._timer = BatchTimer(1.0)  # 1 second batch timer
-                self._timer.start()
-
-            else:
-                self._timer.reset()
+    def upload(self) -> None:
+        """Upload the pending scopes, if any."""
+        with self._scopes_lock:
+            batch = self._take_batch_locked()
+        self._send_batch(batch)
 
     def add_scope(self, scope: Scope) -> None:
+        batch = None
         with self._scopes_lock:
             # Flush the scopes if we reached the size limit.
             if (n := len(self._scopes)) >= self.__scope_limit__:
                 log.debug("[PID %d] SymDB: Flushing batch of %d module scopes due to size limit", os.getpid(), n)
-                self._upload_locked()
+                batch = self._take_batch_locked()
 
             # Add the new scope.
             self._scopes.append(scope)
 
-            # Set the timer to upload after a short delay.
-            self._set_timer()
+        # Send outside the lock, which application threads take on module import.
+        self._send_batch(batch)
 
     def to_json(self) -> dict[str, t.Any]:
         with self._scopes_lock:
@@ -668,10 +649,11 @@ class ScopeContext:
                 "scopes": [_.to_json() for _ in self._scopes],
             }
 
-    # The caller must hold _scopes_lock.
-    def _upload_locked(self) -> None:
+    # The caller must hold _scopes_lock. The batch is sent with _send_batch, without the lock: a
+    # thread that holds it while sending would make module imports on application threads wait.
+    def _take_batch_locked(self) -> t.Optional[tuple[bytes, str, int]]:
         if not self._scopes:
-            return
+            return None
 
         self._batch_counter += 1
         batch_num = self._batch_counter
@@ -712,10 +694,16 @@ class ScopeContext:
         # breaks the final payload. We add a placeholder instead and manually
         # replace it with the compressed JSON.
         body = body.replace(b"[symbols_placeholder]", compressed)
+        return body, headers["Content-Type"], n
+
+    def _send_batch(self, batch: t.Optional[tuple[bytes, str, int]]) -> None:
+        if batch is None:
+            return
+        body, content_type, n = batch
 
         log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
         try:
-            response = self._sender.send(body, headers["Content-Type"])
+            response = self._sender.send(body, content_type)
         except Exception:
             log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
         else:
@@ -764,6 +752,13 @@ def is_module_included(module: ModuleType) -> bool:
 
 class SymbolDatabaseUploader(BaseModuleWatchdog):
     __file_number_limit__: int = 10000
+    # Scopes are uploaded once none has been added for this many seconds.
+    __batch_delay__: float = 1.0
+
+    # Uploads the scopes of the installed uploader once none has been added for
+    # a while. There is one for the process: it goes dormant, rather than
+    # stopping, while no uploader is installed.
+    _upload_debouncer: t.ClassVar[t.Optional[Debouncer]] = None
 
     def __init__(self) -> None:
         super().__init__()
@@ -774,7 +769,23 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
         self._context = ScopeContext()
 
+        # Installed at startup or by remote configuration, never by an
+        # application thread, which only touches the debouncer.
+        cls = type(self)
+        if (debouncer := cls._upload_debouncer) is None:
+            debouncer = cls._upload_debouncer = Debouncer(cls.__batch_delay__)
+            debouncer.start()
+        # Set rather than passed to the constructor: the debouncer outlives
+        # this uploader, and every later install points it at its own context.
+        debouncer.target = self._context.upload
+        self._debouncer = debouncer
+
         self._process_unseen_loaded_modules()
+
+    def _add_scope(self, scope: Scope) -> None:
+        self._context.add_scope(scope)
+        # After the scope is in, as the debouncer requires.
+        self._debouncer.touch()
 
     def _process_unseen_loaded_modules(self) -> None:
         # Look for all the modules that are already imported when this is
@@ -808,7 +819,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
             if scope is not None:
                 log.debug("[PID %d] SymDB: Adding Symbol DB module scope %r", os.getpid(), scope.name)
-                self._context.add_scope(scope)
+                self._add_scope(scope)
                 self._processed_files_count += 1
 
     def after_import(self, module: ModuleType) -> None:
@@ -821,7 +832,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             return
 
         if (scope := Scope.from_module(module)) is not None:
-            self._context.add_scope(scope)
+            self._add_scope(scope)
             self._processed_files_count += 1
 
     @classmethod
@@ -842,3 +853,14 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
     @classmethod
     def install(cls) -> None:
         return super().install()
+
+    @classmethod
+    def uninstall(cls) -> None:
+        instance = t.cast(SymbolDatabaseUploader, cls._instance) if cls.is_installed() else None
+        super().uninstall()
+        if instance is not None:
+            # Only the installed uploader sets the target. The debouncer goes
+            # dormant: upload what it would have.
+            if (debouncer := cls._upload_debouncer) is not None:
+                debouncer.target = None
+            instance._context.upload()

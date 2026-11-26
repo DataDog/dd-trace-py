@@ -1280,6 +1280,9 @@ def test_a_timed_out_synchronous_export_is_not_reported_as_lost_spans(monkeypatc
 @contextlib.contextmanager
 def _native_writer(url, **kwargs):
     writer = NativeWriter(url, **kwargs)
+    if not writer._sync_mode:
+        # A span aggregator starts the writers it installs; a write does not start one.
+        writer.start()
     try:
         yield writer
     finally:

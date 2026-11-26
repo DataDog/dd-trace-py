@@ -1,3 +1,4 @@
+from time import monotonic
 import typing
 
 from ddtrace.internal import forksafe
@@ -98,6 +99,38 @@ class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
     def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         forksafe.unregister(self._restart)
         super()._stop_service(*args, **kwargs)
+
+
+class Debouncer(PeriodicService):
+    """Calls a target once delay seconds have passed since the last touch().
+
+    Any thread can call touch(), which never blocks, so application threads can
+    report a change without starting or waiting on a ddtrace thread. The deadline
+    is cleared before the target is called, so a touch made while the target runs
+    schedules another call: touch after making the change you report.
+
+    Once started it runs until the process exits. Without a target it is dormant,
+    which lets an owner that goes away, and comes back, switch it off and on.
+    """
+
+    def __init__(self, delay: float, target: typing.Optional[typing.Callable[[], None]] = None) -> None:
+        # Checking twice per delay calls the target between delay and 1.5 * delay after the last touch.
+        super().__init__(interval=delay / 2)
+        self._delay = delay
+        self._deadline: typing.Optional[float] = None
+        self.target = target
+
+    def touch(self) -> None:
+        """Call the target once delay seconds have passed without another touch."""
+        self._deadline = monotonic() + self._delay
+
+    def periodic(self) -> None:
+        if (target := self.target) is None or (deadline := self._deadline) is None:
+            return
+        if monotonic() < deadline:
+            return
+        self._deadline = None
+        target()
 
 
 class Timer:

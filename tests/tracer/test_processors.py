@@ -1109,14 +1109,18 @@ def test_register_unregister_span_processor(tracer):
 def test_configure_agentless_writer_releases_an_unstarted_exporter(agentless):
     """Swapping away from a writer that never started must still release its native exporter.
 
-    NativeWriter builds the exporter in __init__ rather than on first write, so stop() raises
-    ServiceStatusError and the periodic-thread teardown is a no-op -- without an explicit release,
-    every enable/disable cycle would leak an exporter and its telemetry subscription.
+    A writer that never started, e.g. in sync mode, has its exporter built in __init__, so stop()
+    raises ServiceStatusError and the periodic-thread teardown is a no-op -- without an explicit
+    release, every enable/disable cycle would leak an exporter and its telemetry subscription.
     """
     from ddtrace._trace.processor import SpanAggregator
 
     tags = {"team": "core", "region": "us1", "workers": 7, 1: "invalid-key"}
-    with override_global_config(dict(_trace_agentless_enabled=agentless, _dd_api_key="an-api-key")):
+    with (
+        override_global_config(dict(_trace_agentless_enabled=agentless, _dd_api_key="an-api-key")),
+        # Keep the writers from starting, as in sync mode.
+        mock.patch("ddtrace.internal.writer.writer.start_writer"),
+    ):
         aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1, tracer_tags=tags)
         old_writer = aggregator.writer
         assert old_writer.agentless is agentless

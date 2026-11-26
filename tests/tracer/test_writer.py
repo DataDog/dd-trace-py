@@ -25,6 +25,7 @@ from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings import _opentelemetry
 from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
@@ -1004,10 +1005,36 @@ def test_flush_queue_raise(writer_class):
             writer.flush_queue(raise_exc=True)
 
 
-def test_racing_start():
+def test_write_does_not_start_writer():
+    """Writes run on application threads, which must not start ddtrace threads."""
+    writer = NativeWriter("http://dne:1234")
+    try:
+        writer.write([Span("span")])
+        assert writer.status is ServiceStatus.STOPPED
+        assert len(writer._encoder) == 1
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_ci_visibility_writer_starts_when_recreated_not_on_write():
+    """CI Visibility writers start when they are created for use, as recreate() does, never on their first write."""
+    writer = CIVisibilityWriter("http://dne:1234")
+    writer.write([Span("span")])
+    assert writer.status is ServiceStatus.STOPPED
+
+    replacement = writer.recreate()
+    try:
+        assert replacement.status is ServiceStatus.RUNNING
+        assert writer.status is ServiceStatus.STOPPED
+    finally:
+        replacement.stop()
+
+
+def test_concurrent_writes():
     writer = NativeWriter("http://dne:1234")
     with contextlib.ExitStack() as stack:
         stack.enter_context(mock.patch.object(writer, "periodic"))
+        writer.start()
         stack.callback(writer.stop, 3.0)
 
         def do_write(i):

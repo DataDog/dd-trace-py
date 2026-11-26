@@ -23,6 +23,7 @@ from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
+from ..writer import start_writer
 from .constants import AGENTLESS_BASE_URL
 from .constants import AGENTLESS_COVERAGE_BASE_URL
 from .constants import AGENTLESS_COVERAGE_ENDPOINT
@@ -241,7 +242,9 @@ class CIVisibilityWriter(HTTPWriter):
         compute_stats_enabled: Optional[bool] = None,
         stats_opt_out: Optional[bool] = None,
     ) -> "CIVisibilityWriter":
-        return self.__class__(
+        # Stop this writer, which sends what it holds, before building its replacement.
+        self.stop()
+        replacement = self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
             timeout=self._timeout,
@@ -255,6 +258,8 @@ class CIVisibilityWriter(HTTPWriter):
             coverage_report_upload_enabled=self._coverage_report_upload_enabled,
             itr_suite_skipping_mode=self._itr_suite_skipping_mode,
         )
+        start_writer(replacement)
+        return replacement
 
     def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> "Response":
         request_error: Optional[REQUEST_ERROR_TYPE] = None

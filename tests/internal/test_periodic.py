@@ -1711,3 +1711,80 @@ def test_timer_usable_in_child_when_forked_while_lock_held():
 
     _, status = os.waitpid(pid, 0)
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child exited with status {status}"
+
+
+def test_debouncer_calls_target_once_after_the_last_touch():
+    calls = []
+    debouncer = periodic.Debouncer(1.0, target=lambda: calls.append(monotonic()))
+    debouncer.start()
+    try:
+        # Touches closer together than the delay postpone the call.
+        for _ in range(3):
+            debouncer.touch()
+            last_touch = monotonic()
+            sleep(0.05)
+        assert calls == []
+
+        deadline = monotonic() + 10
+        while not calls:
+            assert monotonic() < deadline
+            sleep(0.02)
+        # The deadline was set just before last_touch was taken.
+        assert calls[0] - last_touch >= 0.9
+
+        # One call per quiet period.
+        sleep(1.5)
+        assert len(calls) == 1
+    finally:
+        debouncer.stop()
+        debouncer.join()
+
+
+def test_debouncer_without_target_is_dormant():
+    calls = []
+    debouncer = periodic.Debouncer(0.1)
+    debouncer.start()
+    try:
+        debouncer.touch()
+        sleep(0.3)
+        assert debouncer.status is service.ServiceStatus.RUNNING
+
+        # A target set later gets the pending call.
+        debouncer.target = lambda: calls.append(True)
+        deadline = monotonic() + 5
+        while not calls:
+            assert monotonic() < deadline
+            sleep(0.02)
+    finally:
+        debouncer.stop()
+        debouncer.join()
+
+
+def test_debouncer_touch_while_target_runs_schedules_another_call():
+    running = Event()
+    release = Event()
+    calls = []
+
+    def target():
+        calls.append(True)
+        if len(calls) == 1:
+            running.set()
+            assert release.wait(timeout=5)
+
+    debouncer = periodic.Debouncer(0.1, target=target)
+    debouncer.start()
+    try:
+        debouncer.touch()
+        assert running.wait(timeout=5)
+        # The deadline was cleared before the call, so this touch is not lost.
+        debouncer.touch()
+        release.set()
+
+        deadline = monotonic() + 5
+        while len(calls) < 2:
+            assert monotonic() < deadline
+            sleep(0.02)
+    finally:
+        release.set()
+        debouncer.stop()
+        debouncer.join()
