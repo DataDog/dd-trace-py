@@ -96,11 +96,8 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
             packs.append(current)
         return [("[%s]" % ",".join(pack), len(pack)) for pack in packs]
 
-    def _connect(self) -> t.Any:
-        return get_connection(self._intake_url, self._timeout)
-
     def _post(self, pack: str, count: int) -> None:
-        conn = self._connect()
+        conn = get_connection(self._intake_url, self._timeout)
         try:
             conn.request("POST", self._endpoint, gzip.compress(pack.encode("utf-8")), self._headers)
             resp = conn.getresponse()

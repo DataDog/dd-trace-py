@@ -1,4 +1,3 @@
-import http.client as httplib
 from typing import TypedDict  # noqa:F401
 
 from ddtrace.internal.logs import LogsIntakeWriter
@@ -30,9 +29,6 @@ class V2LogWriter(LogsIntakeWriter):
     _MAX_BUFFER_EVENTS = 1000
 
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        self._intake = "http-intake.logs.%s" % site
-        super().__init__(api_key=api_key, intake_url="https://%s" % self._intake, interval=interval, timeout=timeout)
-
-    def _connect(self) -> httplib.HTTPSConnection:
-        # Kept on http.client so the recorded-response tests can intercept requests.
-        return httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
+        super().__init__(
+            api_key=api_key, intake_url="https://http-intake.logs.%s" % site, interval=interval, timeout=timeout
+        )
