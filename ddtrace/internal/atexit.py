@@ -7,12 +7,13 @@ import logging
 import signal
 import typing
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.threads import is_main_thread
 from ddtrace.internal.utils import signals
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 # Maps originally registered callables to their exception-safe wrappers,
 # so that unregister can find the right function to remove.

@@ -2,6 +2,7 @@ import logging
 import typing as t
 import uuid
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.serverless import MICROVM_RUN_HOOK_METHOD
 from ddtrace.internal.serverless import MICROVM_RUN_HOOK_PATH
 from ddtrace.internal.serverless import in_aws_lambda_microvm
@@ -10,7 +11,7 @@ from ddtrace.internal.settings import env
 from . import forksafe
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 __all__ = [

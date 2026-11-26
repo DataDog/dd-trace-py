@@ -19,6 +19,7 @@ try:
 except ImportError:  # pragma: no cover — Windows / restricted environments
     _FCNTL_AVAILABLE = False
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.paths import relative_parts
 from ddtrace.internal.utils.paths import relative_path
@@ -67,7 +68,7 @@ from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 # Sentinel written after a successful upload_git_data() so sibling xdist workers

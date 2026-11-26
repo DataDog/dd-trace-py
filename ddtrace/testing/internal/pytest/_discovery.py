@@ -7,6 +7,7 @@ import typing as t
 
 import pytest
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.paths import relative_parts
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED
@@ -17,7 +18,7 @@ from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.utils import asbool
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 _DEFAULT_OUTPUT_PATH = ".testoptimization/tests-discovery/tests.json"
 

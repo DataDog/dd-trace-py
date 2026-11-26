@@ -2,6 +2,7 @@ import contextlib
 import logging
 import typing as t
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.testing.internal.utils import DDTESTOPT_ROOT_SPAN_RESOURCE
 from ddtrace.testing.internal.utils import DDTraceTestContext
 from ddtrace.testing.internal.utils import PlainTestContext
@@ -9,7 +10,7 @@ from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.writer import TestOptWriter
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 def install_global_trace_filter(writer: TestOptWriter) -> None:

@@ -5,10 +5,11 @@ from dataclasses import field
 import logging
 import typing as t
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 @dataclass

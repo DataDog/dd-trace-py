@@ -6,6 +6,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
 from ddtrace.internal.native._native import is_sequence  # noqa: F401
 from ddtrace.internal.settings import env
@@ -22,7 +23,7 @@ CMD_MAX_LEN = 1000
 T = TypeVar("T")
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 def _get_attr(o: object, attr: str, default: object) -> Any:

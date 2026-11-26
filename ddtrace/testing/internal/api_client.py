@@ -8,6 +8,7 @@ import typing as t
 import uuid
 
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.testing.internal.constants import EMPTY_NAME
@@ -27,7 +28,7 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 _DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
 

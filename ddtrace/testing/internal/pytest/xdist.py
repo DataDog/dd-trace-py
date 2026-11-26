@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import typing as t
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.testing.internal.constants import DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
@@ -22,7 +23,7 @@ if t.TYPE_CHECKING:
     from ddtrace.testing.internal.session_manager import SessionManager
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 XDIST_UNSET = "UNSET"
 XDIST_AUTO = "auto"

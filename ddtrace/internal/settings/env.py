@@ -36,8 +36,10 @@ from typing import Optional
 
 # Use stdlib logging here instead of ddtrace.internal.logger.get_logger.
 # ddtrace/internal/logger.py imports ddtrace.internal.settings.env, so using
-# get_logger() would create a circular import at module-load time.
-logger = logging.getLogger(__name__)
+# get_logger() or logger_name() would create a circular import at module-load time.
+# The name is spelled out so it stays under the ddtrace logger once this module moves
+# into the ddtrace-internal package.
+logger = logging.getLogger("ddtrace.internal.settings.env")
 
 _SUPPORTED_CONFIGURATIONS: Optional[frozenset[str]] = None
 _DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset()

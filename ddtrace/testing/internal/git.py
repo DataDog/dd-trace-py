@@ -19,12 +19,13 @@ try:
 except ImportError:  # pragma: no cover — Windows / restricted environments
     _FCNTL_AVAILABLE = False
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.testing.internal.telemetry import GitTelemetry
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.tracer_api import StopWatch
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 # Matches git lock-contention and shallow-file race errors that can occur when
 # multiple processes (e.g. pytest-xdist workers) issue git fetch --update-shallow

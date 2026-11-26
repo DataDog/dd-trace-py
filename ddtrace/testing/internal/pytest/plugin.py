@@ -19,6 +19,7 @@ import pluggy
 import pytest
 
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
@@ -167,7 +168,7 @@ _OSR_MAX_TESTS = 5
 OUT_OF_SESSION_RETRY_REASON = "out_of_session"
 OUT_OF_SESSION_RETRY_PRETTY_NAME = "Out-of-Session Retry"
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 # The tuple pytest expects as the output of the `pytest_report_teststatus` hook.

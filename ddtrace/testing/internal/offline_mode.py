@@ -21,6 +21,7 @@ import logging
 import os
 import typing as t
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
@@ -30,7 +31,7 @@ from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
 from ddtrace.testing.internal.utils import asbool
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 def resolve_rlocation(path: str) -> str:

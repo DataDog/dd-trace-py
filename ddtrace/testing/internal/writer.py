@@ -6,6 +6,7 @@ import threading
 import typing as t
 import uuid
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -25,7 +26,7 @@ from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.version import __version__
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 Event = dict[str, t.Any]

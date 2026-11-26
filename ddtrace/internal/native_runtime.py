@@ -8,10 +8,11 @@ from typing import Optional
 
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.native import SharedRuntime
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 _DEFAULT_SHUTDOWN_TIMEOUT_MS = 3000
 

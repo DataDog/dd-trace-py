@@ -4,13 +4,14 @@ import logging
 import time
 import typing as t
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.cache import cached
 
 
 # Use stdlib logging here. Importing ddtrace.internal.logger creates circular imports
 # because this utility is shared by both the legacy CI Visibility and Testing plugin dependency trees.
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 _CODE_COVERAGE_FLAGS_ENV_VAR = "DD_CODE_COVERAGE_FLAGS"
 _MAX_CODE_COVERAGE_FLAGS = 32

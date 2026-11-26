@@ -7,12 +7,13 @@ import typing as t
 
 import pytest
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 _CACHED_TEST_REF_ATTR = "_ddtrace_test_ref"

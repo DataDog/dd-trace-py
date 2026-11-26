@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 import uuid
 
 from ddtrace.internal.http_client import HTTPClient
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import HttpResponse
@@ -36,7 +37,7 @@ from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 _MAX_TIMEOUT_SECONDS = 300.0  # 5 minutes

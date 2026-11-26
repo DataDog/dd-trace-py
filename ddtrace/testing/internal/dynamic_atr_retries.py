@@ -6,6 +6,7 @@ from functools import lru_cache
 import logging
 import typing as t
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.settings_data import Settings
@@ -14,7 +15,7 @@ from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.utils import asbool
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 DYNAMIC_ATR_ENABLED_ENV = "DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED"
 DYNAMIC_ATR_BUCKETS_ENV = "DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS"

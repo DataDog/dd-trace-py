@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import typing as t
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace.testing.internal.constants import EMPTY_NAME
@@ -32,7 +33,7 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.utils import asbool
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 class TestOptDataProvider(t.Protocol):

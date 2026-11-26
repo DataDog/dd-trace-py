@@ -15,13 +15,14 @@ import logging
 import socket
 
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.logger import logger_name
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.writer import BaseWriter
 from ddtrace.testing.internal.writer import Event
 
 
-_log = logging.getLogger(__name__)
+_log = logging.getLogger(logger_name(__name__))
 
 _TRUNCATION_SUFFIX = "... [truncated]"
 

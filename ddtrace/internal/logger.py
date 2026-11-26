@@ -61,9 +61,13 @@ _PACKAGE_PATHS = {
 }
 
 
-def _normalize_name(name: str) -> str:
+def logger_name(name: str) -> str:
     """Return the ddtrace logger name for the module ``name`` (e.g. ``_ddtrace_coverage.code`` ->
     ``ddtrace.internal.coverage.code``). Names outside the ``_ddtrace_<package>`` roots are returned unchanged.
+
+    Modules that log through stdlib ``logging`` instead of ``get_logger`` use it as
+    ``logging.getLogger(logger_name(__name__))``, so they stay under the ``ddtrace`` logger once they move into a
+    package.
     """
     root, dot, rest = name.partition(".")
     if not root.startswith(_PACKAGE_PREFIX) or root == _PACKAGE_PREFIX:
@@ -133,7 +137,7 @@ def get_logger(name: str) -> logging.Logger:
     The name of a module moved into a package is normalized to its former ddtrace path (see ``_PACKAGE_PATHS``), so
     ``get_logger("_ddtrace_coverage.code")`` returns the ``ddtrace.internal.coverage.code`` logger.
     """
-    name = _normalize_name(name)
+    name = logger_name(name)
     logger = logging.getLogger(name)
     # addFilter will only add the filter if it is not already present
     logger.addFilter(log_filter)

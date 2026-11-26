@@ -16,6 +16,7 @@ import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import uwsgi
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.module import origin
 from ddtrace.internal.native import list_distributions
 from ddtrace.internal.native import read_distribution
@@ -30,7 +31,7 @@ from ddtrace.internal.utils.paths import is_contained
 from ddtrace.internal.utils.paths import relative_parts
 
 
-LOG = logging.getLogger(__name__)
+LOG = logging.getLogger(logger_name(__name__))
 
 
 class Distribution(t.NamedTuple):

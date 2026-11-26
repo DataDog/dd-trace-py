@@ -7,6 +7,7 @@ from ddtrace.ext.git import _get_ci_merge_commit_sha
 from ddtrace.ext.git import _get_git_operation_tags
 from ddtrace.ext.git import _normalize_commit_sha
 from ddtrace.ext.git import _select_checkout_tags
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal import ci
 from ddtrace.testing.internal import git
@@ -23,7 +24,7 @@ from ddtrace.testing.internal.utils import _filter_sensitive_info
 from ddtrace.testing.internal.utils import asbool
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 _TagDict = dict[str, t.Optional[str]]

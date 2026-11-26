@@ -9,6 +9,7 @@ import pytest
 import ddtrace.internal.logger
 from ddtrace.internal.logger import LoggingBucket
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import logger_name
 import ddtrace.internal.logger_setup
 from tests.utils import BaseTestCase
 
@@ -380,6 +381,18 @@ def test_get_logger_normalizes_package_module_names(name, expected):
         assert logger.name == expected
         assert logger is logging.getLogger(expected)
         assert ddtrace.internal.logger.log_filter in logger.filters
+        # Stdlib-logging modules use logger_name directly and land on the same logger.
+        assert logger_name(name) == expected
+
+
+def test_moving_modules_log_under_ddtrace():
+    # Stdlib-logging modules that move into packages keep a ddtrace.* logger name. settings.env can't import the
+    # logger (circular import), so it spells the name out.
+    from ddtrace.internal import forksafe
+    import ddtrace.internal.settings.env as env_module
+
+    assert forksafe.log.name == "ddtrace.internal.forksafe"
+    assert env_module.logger.name == "ddtrace.internal.settings.env"
 
 
 def test_logger_log_level_from_env_applies_to_moved_code(monkeypatch):

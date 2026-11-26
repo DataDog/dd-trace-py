@@ -4,11 +4,12 @@ import re
 import typing as t
 
 from ddtrace.ext.ci import github_actions
+from ddtrace.internal.logger import logger_name
 from ddtrace.testing.internal import git
 from ddtrace.testing.internal.git import GitTag
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 class CITag:

@@ -8,6 +8,7 @@ from enum import Enum
 import logging
 import typing as t
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.testing.internal._protocols import BackendConnectorSetupProtocol
@@ -16,7 +17,7 @@ from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.settings_data import Settings
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 CIVISIBILITY = TELEMETRY_NAMESPACE.CIVISIBILITY
 

@@ -15,6 +15,7 @@ from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 import ddtrace.internal.coverage.installer
 from ddtrace.internal.coverage.util import resolved_path
+from ddtrace.internal.logger import logger_name
 from ddtrace.internal.utils.paths import relative_path
 from ddtrace.testing.internal.coverage_py.patch import get_coverage_percentage as _get_coverage_percentage
 from ddtrace.testing.internal.coverage_py.patch import patch as patch_coverage
@@ -25,10 +26,10 @@ from ddtrace.testing.internal.coverage_py.utils import _is_coverage_patched
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:

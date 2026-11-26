@@ -7,6 +7,7 @@ import typing as t
 
 import pytest
 
+from ddtrace.internal.logger import logger_name
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.test_data import TestTag
@@ -24,7 +25,7 @@ FRAMEWORK = "pytest_bdd"
 STEP_KIND = "pytest_bdd.step"
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(logger_name(__name__))
 
 
 class BddTestOptPlugin:
