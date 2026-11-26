@@ -45,12 +45,13 @@ def _is_function_scoped(scoped: t.Any) -> bool:
 
 def _enter_setup_context(scope: str) -> tuple[t.Any, t.Any]:
     """Switch to the context a setup of this scope runs in: its own for a suite scope, none for session."""
-    context = new_fixture_coverage_context() if scope in _SUITE_SCOPES else None
+    if scope in _SUITE_SCOPES:
+        context = new_fixture_coverage_context()
+        # The test the setup runs in is suspended until the setup's window closes.
+        return context, context.enter()
     previous = get_native_coverage_context()
-    if context is not None:
-        context.push()
-    set_native_coverage_context(context)
-    return context, previous
+    set_native_coverage_context(None)
+    return None, previous
 
 
 def link_suite_fixtures_in_closure(item: t.Any) -> None:
@@ -81,14 +82,14 @@ def link_suite_fixtures_in_closure(item: t.Any) -> None:
 
 
 def _exit_setup_context(fixturedef: t.Any, context: t.Any, previous: t.Any) -> None:
-    if context is not None:
-        # Children that exited inside the setup's window are the setup's.
-        collect_child_coverage()
-    set_native_coverage_context(previous)
-    if context is not None:
-        context.pop()
-        setattr(fixturedef, _CONTEXT_ATTR, context)
-        _set_up_with_context[fixturedef] = None
+    if context is None:
+        set_native_coverage_context(previous)
+        return
+    # Children that exited inside the setup's window are the setup's.
+    collect_child_coverage()
+    context.exit(previous)
+    setattr(fixturedef, _CONTEXT_ATTR, context)
+    _set_up_with_context[fixturedef] = None
 
 
 class FixtureCoverage:
