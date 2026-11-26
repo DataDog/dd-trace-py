@@ -3,7 +3,9 @@ from itertools import groupby
 import json
 import os
 from pathlib import Path
+from typing import Any
 from typing import Optional
+from typing import Union
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -16,6 +18,8 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.util import is_import_data_enabled
+from ddtrace.internal.coverage.util import warn_import_data_disabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
@@ -39,25 +43,24 @@ except ImportError:
     EXECUTE_ATTR = ""
 
 
-def is_coverage_available():
+def is_coverage_available() -> bool:
     return Coverage is not None
 
 
-def _initialize_coverage(root_dir):
-    coverage_kwargs = {
-        "data_file": None,
-        "source": [root_dir],
-        "config_file": False,
-        "omit": [
+def _initialize_coverage(root_dir: str) -> Coverage:
+    cov_object = Coverage(
+        data_file=None,
+        source=[root_dir],
+        config_file=False,
+        omit=[
             "*/site-packages/*",
         ],
-    }
-    cov_object = Coverage(**coverage_kwargs)
+    )
     cov_object.set_option("run:parallel", True)
     return cov_object
 
 
-def _start_coverage(root_dir: str):
+def _start_coverage(root_dir: str) -> Union[Coverage, ModuleCodeCollector.CollectInContext]:
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         collector = ModuleCodeCollector.CollectInContext()
@@ -77,7 +80,7 @@ def _start_coverage(root_dir: str):
     return coverage
 
 
-def _stop_coverage(module):
+def _stop_coverage(module: Any) -> None:
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         return
@@ -87,7 +90,7 @@ def _stop_coverage(module):
         del module._dd_coverage
 
 
-def _module_has_dd_coverage_enabled(module, silent_mode: bool = False) -> bool:
+def _module_has_dd_coverage_enabled(module: Any, silent_mode: bool = False) -> bool:
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         return hasattr(module, "_dd_coverage")
@@ -108,7 +111,7 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 
 def _switch_coverage_context(
     coverage_data: Coverage, known_test_name: str, framework: Optional[TEST_FRAMEWORKS] = None
-):
+) -> None:
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, framework)
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
@@ -129,14 +132,19 @@ def _switch_coverage_context(
 
 def _report_coverage_to_span(
     coverage_data: Coverage, span: ddtrace.trace.Span, root_dir: str, framework: Optional[TEST_FRAMEWORKS] = None
-):
+) -> None:
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
 
             workspace_path = getattr(coverage_data, "_workspace_path", Path("/"))
-            files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=True)
+            include_imported = is_import_data_enabled()
+            if not include_imported:
+                # This path reports through _get_covered_lines() directly and so bypasses
+                # expand_context_lines/files, where the opt-out warning would otherwise fire.
+                warn_import_data_disabled()
+            files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=include_imported)
             if not files:
                 return
             span._set_attribute(

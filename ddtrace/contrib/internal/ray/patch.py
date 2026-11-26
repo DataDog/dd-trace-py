@@ -90,7 +90,7 @@ config._add(
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"ray": ">=2.46.0"}
+    return {"ray": ">=2.48.0"}
 
 
 def get_version() -> str:
@@ -215,8 +215,6 @@ async def traced_end_job(wrapped, instance, args, kwargs):
 def patch():
     if getattr(ray, "_datadog_patch", False):
         return
-
-    import ddtrace._trace.subscribers.ray  # noqa: F401
 
     ray._datadog_patch = True
 

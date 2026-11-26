@@ -81,6 +81,7 @@ class TraceBottleTest(TracerTestCase):
     def test_app_root(self):
         @self.app.route("/hi/<name>")
         def hi(name):
+            assert self.tracer.current_span().resource == "GET /hi/<name>"
             return "hi %s" % name
 
         self._trace_app(self.tracer)
@@ -89,6 +90,7 @@ class TraceBottleTest(TracerTestCase):
         spans = self.pop_spans()
         span = spans[0]
         assert span.get_tag("http.route") == "/api/v1/hi/<name>"
+        assert span.resource == "GET /hi/<name>"
 
     def test_query_string(self):
         return self.test_200("foo=bar")
@@ -504,6 +506,13 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag("http.response.headers.my-response-header") == "my_response_value"
 
     def test_inferred_spans_api_gateway(self):
+        self.addCleanup(
+            setattr,
+            ddtrace.config,
+            "_inferred_proxy_services_enabled",
+            ddtrace.config._inferred_proxy_services_enabled,
+        )
+
         @self.app.route("/")
         def default_endpoint():
             return bottle.HTTPResponse("", status=200)
@@ -570,6 +579,152 @@ class TraceBottleTest(TracerTestCase):
                     assert web_span._parent is None
 
 
+@pytest.fixture
+def bottle_app(tracer):
+    app = bottle.Bottle()
+    app.install(TracePlugin(service=SERVICE))
+    return app
+
+
+def _request(app, path="/stream", method="GET", start_response=None):
+    environ = webtest.TestRequest.blank(path, method=method).environ
+    return app(environ, start_response or (lambda status, headers, exc_info=None: None))
+
+
+def test_route_miss(bottle_app, test_spans):
+    # The plugin only runs for a matched route callback.
+    body = _request(bottle_app, "/missing")
+    list(body)
+    assert test_spans.pop() == []
+
+
+def test_hook_error(bottle_app, test_spans):
+    # before_request runs ahead of route matching, so a failure there never
+    # reaches a handler and is not traced.
+    @bottle_app.hook("before_request")
+    def before():
+        raise ValueError("hook failed")
+
+    body = _request(bottle_app)
+    list(body)
+    assert test_spans.pop() == []
+
+
+def test_uninstall_reinstall(bottle_app, test_spans):
+    @bottle_app.route("/stream")
+    def handler():
+        return "done"
+
+    bottle_app.uninstall("trace")
+    list(_request(bottle_app))
+    assert test_spans.pop() == []
+    bottle_app.install(TracePlugin(service=SERVICE))
+    list(_request(bottle_app))
+    assert len(test_spans.pop()) == 1
+
+
+def test_uncaught_handler_error(bottle_app, tracer, test_spans):
+    bottle_app.catchall = False
+
+    @bottle_app.route("/stream")
+    def stream():
+        raise ValueError("uncaught")
+
+    with pytest.raises(ValueError, match="uncaught"):
+        _request(bottle_app)
+    (span,) = test_spans.pop()
+    assert span.resource == "GET /stream"
+    assert span.get_tag("error.message") == "uncaught"
+    assert_span_http_status_code(span, 500)
+    assert tracer.current_span() is None
+
+
+def test_route_local_plugin(bottle_app, test_spans):
+    bottle_app.uninstall("trace")
+
+    @bottle_app.route("/stream", apply=[TracePlugin(service="route-service")])
+    def stream():
+        return b"one"
+
+    body = _request(bottle_app)
+    assert list(body) == [b"one"]
+    (span,) = test_spans.pop()
+    assert span.resource == "GET /stream"
+    assert span.service == "route-service"
+
+
+def test_plugin_leaves_framework_methods_unchanged(test_spans):
+    app = bottle.Bottle()
+    original_wsgi = app.wsgi
+    original_cast = app._cast
+    original_match = app.router.match
+
+    @app.route("/hello")
+    def hello():
+        return "hello"
+
+    route = app.routes[0]
+    original_factory = route._make_callback
+    app.install(TracePlugin(service=SERVICE))
+    client = webtest.TestApp(app)
+    assert client.get("/hello").text == "hello"
+    app.reset()
+    assert client.get("/hello").text == "hello"
+    assert len(test_spans.pop()) == 2
+    app.uninstall("trace")
+    assert client.get("/hello").text == "hello"
+    assert test_spans.pop() == []
+    assert app.wsgi == original_wsgi
+    assert app._cast == original_cast
+    assert app.router.match == original_match
+    assert route._make_callback == original_factory
+
+
+def test_callback_completion_precedes_stream_iteration(bottle_app, tracer, test_spans):
+    active = []
+    captured = []
+
+    @bottle_app.route("/stream")
+    def handler():
+        captured.append(tracer.current_span())
+
+        def body():
+            active.append(tracer.current_span())
+            yield b"one"
+            active.append(tracer.current_span())
+            yield b"two"
+
+        return body()
+
+    body = _request(bottle_app)
+    try:
+        assert captured[0].finished
+        assert list(body) == [b"one", b"two"]
+    finally:
+        body.close()
+    assert active == [None, None]
+    assert test_spans.pop() == captured
+
+
+def test_skip_changes_follow_bottle_cache_reset(bottle_app, test_spans):
+    @bottle_app.route("/stream")
+    def handler():
+        return "done"
+
+    client = webtest.TestApp(bottle_app)
+    client.get("/stream")
+    assert len(test_spans.pop()) == 1
+    route = bottle_app.routes[0]
+    route.skiplist.append("trace")
+    route.reset()
+    client.get("/stream")
+    assert test_spans.pop() == []
+    route.skiplist.clear()
+    route.reset()
+    client.get("/stream")
+    assert len(test_spans.pop()) == 1
+
+
 @pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
 def test_otel_semantics_server_span_attributes():
     from functools import partial
@@ -628,6 +783,10 @@ def test_otel_semantics_server_error_statuses_override():
         bottle.response.status = 500
         return "oops"
 
+    @app.route("/abort/<status:int>")
+    def abort_response(status):
+        bottle.abort(status)
+
     with scoped_tracer() as tracer:
         spans = TracerSpanContainer(tracer)
         client = webtest.TestApp(app, lint=False)
@@ -647,10 +806,16 @@ def test_otel_semantics_server_error_statuses_override():
         assert span.resource == "GET /broken"
         assert span.get_metric("http.response.status_code") == 500
 
+        for status, expected_error in ((404, 1), (500, 0)):
+            spans.reset()
+            assert client.get("/abort/%s" % status, expect_errors=True).status_int == status
+            span = spans.get_root_span()
+            assert span.get_metric("http.response.status_code") == status
+            assert span.error == expected_error
+            if not expected_error:
+                assert span.get_tag("error.type") is None
 
-# Product bug: the plugin re-raises the HTTPError from abort() inside context_with_event
-# (ddtrace/contrib/internal/bottle/trace.py:76-86), so the exception marks a 404 span as an error
-# even though only 5xx statuses are errors under OTel semantics.
+
 @pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
 def test_otel_semantics_server_abort_4xx_is_not_an_error():
     import bottle
@@ -668,6 +833,37 @@ def test_otel_semantics_server_abort_4xx_is_not_an_error():
     with scoped_tracer() as tracer:
         spans = TracerSpanContainer(tracer)
         webtest.TestApp(app, lint=False).get("/missing", expect_errors=True)
+        span = spans.get_root_span()
+        assert span.get_metric("http.response.status_code") == 404
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_raised_response_header_failure_preserves_status():
+    import bottle
+    import webtest
+
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    class CustomResponse(bottle.HTTPResponse):
+        @property
+        def headers(self) -> dict[str, str]:
+            raise RuntimeError("response headers unavailable")
+
+    app = bottle.Bottle()
+
+    @app.route("/missing")
+    def missing():
+        raise CustomResponse("missing", status=404, headers={"X-Response": "available"})
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        response = webtest.TestApp(app, lint=False).get("/missing", expect_errors=True)
+        assert response.status_int == 404
+        assert response.text == "missing"
+        assert response.headers["X-Response"] == "available"
         span = spans.get_root_span()
         assert span.get_metric("http.response.status_code") == 404
         assert span.error == 0

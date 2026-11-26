@@ -2,10 +2,12 @@ from http.client import RemoteDisconnected
 import socket
 from typing import TYPE_CHECKING
 from typing import Optional
+from typing import cast
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.test import TEST_SESSION_NAME
+from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
@@ -45,7 +47,7 @@ from ddtrace.internal.settings import env
 
 
 class CIVisibilityEventClient(WriterClientBase):
-    def __init__(self):
+    def __init__(self) -> None:
         encoder = CIVisibilityEncoderV01(0, 0)
         encoder.set_metadata(
             "*",
@@ -69,7 +71,9 @@ class CIVisibilityEventClient(WriterClientBase):
 
 
 class CIVisibilityCoverageClient(WriterClientBase):
-    def __init__(self, intake_url, headers=None, itr_suite_skipping_mode=False):
+    def __init__(
+        self, intake_url: str, headers: Optional[dict[str, str]] = None, itr_suite_skipping_mode: bool = False
+    ) -> None:
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
         if itr_suite_skipping_mode:
             encoder._set_itr_suite_skipping_mode(itr_suite_skipping_mode)
@@ -90,17 +94,19 @@ class CIVisibilityAgentlessCoverageClient(CIVisibilityCoverageClient):
 class CIVisibilityCoverageReportClient(WriterClientBase):
     """Client specifically for coverage report uploads."""
 
-    def __init__(self, intake_url, headers=None):
+    def __init__(self, intake_url: str, headers: Optional[dict[str, str]] = None) -> None:
         encoder = CIVisibilityCoverageReportEncoder()
         self._intake_url = intake_url
         if headers:
             self._headers = headers
-        super().__init__(encoder)
+        # The report encoder is not a BufferedEncoder: it uploads reports directly and stays empty, so the
+        # writer's buffered paths, which check its length first, never use it as one.
+        super().__init__(cast(BufferedEncoder, encoder))
 
     @property
     def coverage_encoder(self) -> CIVisibilityCoverageReportEncoder:
         """Get the properly typed coverage report encoder."""
-        return self.encoder  # type: ignore[return-value]
+        return cast(CIVisibilityCoverageReportEncoder, self.encoder)
 
 
 class CIVisibilityAgentlessCoverageReportClient(CIVisibilityCoverageReportClient):
@@ -224,7 +230,7 @@ class CIVisibilityWriter(HTTPWriter):
             use_gzip=use_gzip,
         )
 
-    def stop(self, timeout=None):
+    def stop(self, timeout: Optional[float] = None) -> None:
         if self.status != service.ServiceStatus.STOPPED:
             super().stop(timeout=timeout)
 

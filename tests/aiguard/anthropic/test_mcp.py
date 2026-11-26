@@ -38,6 +38,7 @@ from ddtrace.aiguard import middleware  # noqa: E402
 from ddtrace.aiguard.integrations._mcp import mcp_server  # noqa: E402
 from ddtrace.aiguard.integrations._mcp import mcp_server_id  # noqa: E402
 from ddtrace.aiguard.integrations._mcp import safe_stdio_args  # noqa: E402
+from ddtrace.aiguard.integrations._mcp import stdio_program  # noqa: E402
 from ddtrace.internal import core  # noqa: E402
 from ddtrace.internal.span_bus import store_span_on_context  # noqa: E402
 from ddtrace.trace import tracer  # noqa: E402
@@ -307,11 +308,13 @@ async def test_stdio_metadata_and_real_call(mock_execute_request, anthropic_sdk)
 
     assert result == [{"type": "text", "text": "hi"}]
     (payload,) = _payloads(mock_execute_request)
+    # Only the program name of the interpreter path is reported and hashed.
+    program = stdio_program(sys.executable)
     server = {
-        "id": mcp_server_id(command=sys.executable),
+        "id": mcp_server_id(command=program),
         "managed_by": "client",
         "transport": "stdio",
-        "command": sys.executable,
+        "command": program,
         "tools": {"echo": "echo"},
     }
     _assert_direct_call(payload, server)

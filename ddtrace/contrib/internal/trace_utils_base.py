@@ -1,7 +1,15 @@
-from collections.abc import Mapping
-import re
 from typing import Any
 from typing import Optional
+
+from ddtrace._trace.http_meta import NORMALIZE_PATTERN  # noqa:F401
+from ddtrace._trace.http_meta import SECURITY_TESTING_HEADERS  # noqa:F401
+from ddtrace._trace.http_meta import USER_AGENT_PATTERNS  # noqa:F401
+from ddtrace._trace.http_meta import _get_header_value_case_insensitive  # noqa:F401
+from ddtrace._trace.http_meta import _get_request_header_user_agent  # noqa:F401
+from ddtrace._trace.http_meta import _normalize_tag_name  # noqa:F401
+from ddtrace._trace.http_meta import _normalized_header_name  # noqa:F401
+from ddtrace._trace.http_meta import _set_url_tag  # noqa:F401
+from ddtrace._trace.http_meta import _store_security_testing_headers  # noqa:F401
 
 # Re-exported because products such as AppSec and AI Guard reach the tracing helpers through the contrib
 # layer instead of importing ddtrace._trace directly.
@@ -9,106 +17,16 @@ from ddtrace._trace.http_tags import http_block_metadata  # noqa: F401
 from ddtrace._trace.http_tags import name_blocked_request_span  # noqa: F401
 from ddtrace._trace.http_tags import set_client_address_tags  # noqa: F401
 from ddtrace._trace.http_tags import set_url_tags_server  # noqa: F401
-from ddtrace._trace.otel.http.tags import _sanitized_url
-from ddtrace._trace.span import Span
-from ddtrace.ext import http
+from ddtrace._trace.otel.http.tags import _sanitized_url  # noqa:F401
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.http import normalize_header_name
 
 
 log = get_logger(__name__)
-
-NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
-
-
-@cached()
-def _normalized_header_name(header_name: str) -> str:
-    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
-
-
-def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
-    """
-    Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
-    'http.request.headers.content_type'. Rules applied actual header name are:
-    - any letter is converted to lowercase
-    - any digit is left unchanged
-    - any block of any length of different ASCII chars is converted to a single underscore '_'
-    :param request_or_response: The context of the headers: request|response
-    :param header_name: The header's name
-    :type header_name: str
-    :rtype: str
-    """
-    # Looking at:
-    #   - http://www.iana.org/assignments/message-headers/message-headers.xhtml
-    #   - https://tools.ietf.org/html/rfc6648
-    # and for consistency with other language integrations seems safe to assume the following algorithm for header
-    # names normalization:
-    #   - any letter is converted to lowercase
-    #   - any digit is left unchanged
-    #   - any block of any length of different ASCII chars is converted to a single underscore '_'
-    normalized_name = _normalized_header_name(header_name)
-    return f"http.{request_or_response}.headers.{normalized_name}"
-
-
-def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str) -> Optional[str]:
-    """
-    Get a header in a case insensitive way. This function is meant for frameworks
-    like Django < 2.2 that don't store the headers in a case insensitive mapping.
-    """
-    # just in case we are lucky
-    shortcut_value = headers.get(keyname)
-    if shortcut_value is not None:
-        return shortcut_value
-
-    for key, value in headers.items():
-        if key.lower().replace("_", "-") == keyname:
-            return value
-
-    return None
-
-
-# Possible User Agent header.
-USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
-
-# Datadog scan/test markers, tagged unconditionally so the API endpoint
-# reducer can keep scan/test traffic out of the API inventory.
-SECURITY_TESTING_HEADERS = ("x-datadog-endpoint-scan", "x-datadog-security-test")
-
-
-def _get_request_header_user_agent(headers: Mapping[str, str], headers_are_case_sensitive: bool = False) -> str:
-    """Get user agent from request headers
-    :param headers: A dict of http headers to be stored in the span
-    :type headers: dict or list
-    """
-    for key_pattern in USER_AGENT_PATTERNS:
-        if not headers_are_case_sensitive:
-            user_agent = headers.get(key_pattern)
-        else:
-            user_agent = _get_header_value_case_insensitive(headers, key_pattern)
-
-        if user_agent:
-            return user_agent
-    return ""
-
-
-def _store_security_testing_headers(
-    headers: Mapping[str, str], span: Span, headers_are_case_sensitive: bool = False
-) -> None:
-    """Tag SECURITY_TESTING_HEADERS on the span, regardless of integration config."""
-    for header_name in SECURITY_TESTING_HEADERS:
-        if not headers_are_case_sensitive:
-            value = headers.get(header_name)
-        else:
-            value = _get_header_value_case_insensitive(headers, header_name)
-        if value is not None:
-            span._set_attribute(_normalize_tag_name("request", header_name), value)
 
 
 def set_user(
@@ -162,7 +80,3 @@ def set_user(
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",
         )
-
-
-def _set_url_tag(integration_config: IntegrationConfig, span: SpanData, url: str, query: str) -> None:
-    span._set_attribute(http.URL, _sanitized_url(url, query, integration_config.http_tag_query_string))

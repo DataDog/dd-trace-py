@@ -35,26 +35,6 @@ class TestIASTFunction:
         assert function.name == "test_module"
         assert function.function == "test_function"
         assert function.hook == "test_hook"
-        assert function.force is False
-
-    def test_init_with_force(self):
-        """Test IASTFunction initialization with force=True."""
-        function = IASTFunction("test_module", "test_function", "test_hook", force=True)
-        assert function.force is True
-
-    @patch("ddtrace.appsec._iast._patch_modules.wrap_object")
-    def test_force_wrapper_success(self, mock_wrap):
-        """Test force_wrapper when wrapping succeeds."""
-        IASTFunction.force_wrapper("test_module", "test_function", "test_hook")
-        mock_wrap.assert_called_once()
-
-    @patch("ddtrace.appsec._iast._patch_modules.wrap_object")
-    @patch("ddtrace.appsec._iast._patch_modules.iast_instrumentation_wrapt_debug_log")
-    def test_force_wrapper_failure(self, mock_log, mock_wrap):
-        """Test force_wrapper when wrapping fails."""
-        mock_wrap.side_effect = ImportError
-        IASTFunction.force_wrapper("test_module", "test_function", "test_hook")
-        mock_log.assert_called_once()
 
     @patch("ddtrace.appsec._iast._patch_modules.try_wrap_function_wrapper")
     def test_patch_lazy(self, mock_wrap):
@@ -63,14 +43,6 @@ class TestIASTFunction:
         result = function.patch()
         assert result is True
         mock_wrap.assert_called_once_with("test_module", "test_function", "test_hook")
-
-    @patch("ddtrace.appsec._iast._patch_modules.wrap_object")
-    def test_patch_force(self, mock_wrap):
-        """Test patch method with forced patching."""
-        function = IASTFunction("test_module", "test_function", "test_hook", force=True)
-        result = function.patch()
-        assert result is True
-        mock_wrap.assert_called_once()
 
     @patch("ddtrace.appsec._iast._patch_modules.try_unwrap")
     def test_unpatch(self, mock_unwrap):
@@ -81,8 +53,8 @@ class TestIASTFunction:
 
     def test_repr(self):
         """Test string representation."""
-        function = IASTFunction("test_module", "test_function", "test_hook", force=True)
-        expected = "IASTFunction(name=test_module, function=test_function, hook=test_hook, force=True)"
+        function = IASTFunction("test_module", "test_function", "test_hook")
+        expected = "IASTFunction(name=test_module, function=test_function, hook=test_hook)"
         assert repr(function) == expected
 
 
@@ -111,15 +83,6 @@ class TestWrapModulesForIAST:
         assert len(wrap_modules.functions) == 1
         function = next(iter(wrap_modules.functions))
         assert isinstance(function, IASTFunction)
-        assert function.force is False
-
-    def test_add_module_forced(self, wrap_modules):
-        """Test adding a function for forced patching."""
-        wrap_modules.add_module_forced("test_add_module_forced", "test_function", "test_hook")
-        assert len(wrap_modules.functions) == 1
-        function = next(iter(wrap_modules.functions))
-        assert isinstance(function, IASTFunction)
-        assert function.force is True
 
     @patch("ddtrace.appsec._iast._patch_modules.IASTFunction.patch")
     def test_patch(self, mock_patch, wrap_modules):
@@ -176,9 +139,6 @@ def test_patch_iast_registers_pymysql_connection_underscore_escape_string() -> N
 
     class RecordingWrap:
         def wrap_function(self, name: str, function: str, hook: object) -> None:
-            recorded.append((name, function))
-
-        def add_module_forced(self, name: str, function: str, hook: object) -> None:
             recorded.append((name, function))
 
         def patch(self) -> None:

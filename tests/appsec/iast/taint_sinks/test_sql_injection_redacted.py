@@ -1,13 +1,16 @@
 import pytest
 
+from ddtrace.appsec._iast._evidence_redaction.sql_sensitive_analyzer import sql_sensitive_analyzer
+from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from ddtrace.appsec._iast.constants import DBAPI_PSYCOPG
+from ddtrace.appsec._iast.constants import DBAPI_SQLITE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability
@@ -51,6 +54,26 @@ def test_sqli_redaction_suite(
 
         assert vulnerability["type"] == VULN_SQL_INJECTION
         assert source == sources_expected
+
+
+@pytest.mark.parametrize("dialect", [DBAPI_SQLITE, DBAPI_PSYCOPG])
+@pytest.mark.parametrize(
+    "literal", ["12.345E3", "12.345E+3", "12.345E-3", "12E-3", "1e10", "1.e2", "-.5e+2", "+1.E-2", "1e2F", "1e2d"]
+)
+def test_sql_sensitive_analyzer_redacts_whole_exponent_literal(dialect, literal):
+    prefix = "SELECT "
+    evidence = Evidence(value=prefix + literal + " AS result", dialect=dialect)
+
+    assert sql_sensitive_analyzer(evidence, None, None) == [{"start": len(prefix), "end": len(prefix) + len(literal)}]
+
+
+@pytest.mark.parametrize("dialect", [DBAPI_SQLITE, DBAPI_PSYCOPG])
+@pytest.mark.parametrize("suffix", ["E", "e+", "E-", "e10foo"])
+def test_sql_sensitive_analyzer_does_not_extend_redaction_past_mantissa(dialect, suffix):
+    prefix = "SELECT E10, name1e10, item_1E2, "
+    evidence = Evidence(value=prefix + "1" + suffix, dialect=dialect)
+
+    assert sql_sensitive_analyzer(evidence, None, None) == [{"start": len(prefix), "end": len(prefix) + 1}]
 
 
 def test_redacted_report_no_match(iast_context_defaults):
@@ -191,6 +214,37 @@ def test_redacted_report_valueparts_username_not_tainted(iast_context_defaults):
 
     for v in result["sources"]:
         assert v == {"name": "SomeName", "origin": OriginType.PARAMETER, "pattern": "abcdefghi", "redacted": True}
+
+
+@pytest.mark.parametrize("password_first", [True, False])
+def test_redacted_report_only_clears_redacted_source_values(iast_context_defaults, password_first):
+    password = taint_pyobject(
+        pyobject="hunter", source_name="password", source_value="hunter", source_origin=OriginType.PARAMETER
+    )
+    order_by = taint_pyobject(
+        pyobject="id", source_name="order_by", source_value="id", source_origin=OriginType.PARAMETER
+    )
+
+    if password_first:
+        string_tainted = add_aspect(
+            add_aspect(add_aspect("SELECT * FROM users WHERE password = '", password), "' ORDER BY "), order_by
+        )
+    else:
+        string_tainted = add_aspect(
+            add_aspect(add_aspect(add_aspect("SELECT ", order_by), " FROM users WHERE password = '"), password), "'"
+        )
+    ev = Evidence(value=string_tainted, dialect="POSTGRES")
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
+    report = IastSpanReporter(vulnerabilities={v})
+    report.add_ranges_to_evidence_and_extract_sources(v)
+    result = report.build_and_scrub_value_parts()
+
+    sources = {source["name"]: source for source in result["sources"]}
+    assert sources.keys() == {"password", "order_by"}
+    assert sources["password"]["redacted"] is True
+    assert "value" not in sources["password"]
+    assert sources["order_by"] == {"name": "order_by", "origin": OriginType.PARAMETER, "value": "id"}
 
 
 def test_redacted_report_valueparts_username_tainted(iast_context_defaults):

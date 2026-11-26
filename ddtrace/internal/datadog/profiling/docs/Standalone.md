@@ -1,8 +1,9 @@
 Standalone Building and Testing
 ===============================
 
-See the accompanying `Architecture.md` for comments on the high-level design and goals of these directories.
+See the accompanying [Architecture.md](Architecture.md) for comments on the high-level design and goals of these directories.
 This document discusses some aspects of building and testing the native code in a standalone fashion, apart from the normal dd-trace-py build system.
+See [Testing.md](Testing.md) for every check that applies to a profiler change and the CI job that runs it.
 
 
 Building
@@ -25,6 +26,7 @@ There are a few reasons why a developer would use `build_standalone.sh`:
 
 Note that `build_standalone.sh` runs in GitLab's `profiling_native` jobs with the `stack_test` target.
 This runs all `dd_wrapper` and stack tests through CTest, with unsanitized, sanitizer, and Valgrind configurations.
+See [Testing.md](Testing.md) for the job matrix.
 
 
 ### Notes
@@ -36,19 +38,29 @@ However, you may want to delete things if you switch branches.
 
 ### How
 
-`build_standalone.sh` has some online documentation.
+`build_standalone.sh` takes exactly three arguments: an option, a build mode, and a target.
+
+* Option: `--` for the default compiler, or one flag such as `--clang`, `--gcc`, `--safety`, `--thread`, `--valgrind`, or `--cppcheck`.
+  The help output lists all of them.
+  Every option except `--`, `--gcc`, and `--fanalyze` uses clang.
+* Build mode: `Debug`, `Release`, or `RelWithDebInfo`. `--` means `Debug`.
+* Target: `all`, `stack`, or `ddup`. Each also builds `dd_wrapper`.
+  Add `_test` to build and run the tests through CTest.
+
+The script needs bash 4 or later and `bc`.
+It first builds the Rust extension with `setup.py build_rust --inplace`, so run it from the repository root.
 Here are the most useful commands.
 
 
 #### Help
 ```sh
-./build_standalone.sh
+./ddtrace/internal/datadog/profiling/build_standalone.sh
 ```
 
 
 #### Build everything in release mode
 ```sh
-./build_standalone.sh -- Release all
+./ddtrace/internal/datadog/profiling/build_standalone.sh -- Release all
 ```
 
 
@@ -57,7 +69,7 @@ Here are the most useful commands.
 Usually, `setup.py` will use `gcc`, but this can be overridden for testing.
 
 ```sh
-./build_standalone.sh --clang -- all
+./ddtrace/internal/datadog/profiling/build_standalone.sh --clang -- all
 ```
 
 
@@ -66,9 +78,10 @@ Usually, `setup.py` will use `gcc`, but this can be overridden for testing.
 CPPCheck is a powerful static analysis tool.
 It doesn't work very well with cython-generated code, since cython has certain opinions.
 It does work pretty well for `dd_wrapper`, though.
+The `stack` target runs it on `dd_wrapper` and `stack`. Install `cppcheck` on `PATH` first.
 
 ```sh
-./build_standalone.sh --cppcheck -- dd_wrapper
+./ddtrace/internal/datadog/profiling/build_standalone.sh --cppcheck -- stack
 ```
 
 
@@ -79,7 +92,7 @@ They are not built or packaged by `setup.py`.
 Add the `_test` suffix to a target name. The `stack_test` target also builds and runs the `dd_wrapper` tests:
 
 ```sh
-./build_standalone.sh -- RelWithDebInfo stack_test
+./ddtrace/internal/datadog/profiling/build_standalone.sh -- RelWithDebInfo stack_test
 ```
 
 
@@ -88,11 +101,21 @@ Add the `_test` suffix to a target name. The `stack_test` target also builds and
 The code can be built with sanitizers.
 
 ```sh
-./build_standalone.sh --safety -- all
+./ddtrace/internal/datadog/profiling/build_standalone.sh --safety -- all
 ```
 
 It can be useful to test with sanitizers enabled.
+Disable leak detection, as CI does. The death tests fork, and LeakSanitizer conflicts with GoogleTest in the forked children:
 
 ```sh
-./build_standalone.sh --safety RelWithDebInfo stack_test
+ASAN_OPTIONS=detect_leaks=0 ./ddtrace/internal/datadog/profiling/build_standalone.sh --safety RelWithDebInfo stack_test
+```
+
+
+#### Valgrind
+
+On Linux, `--valgrind` runs the tests under Valgrind memcheck with the `valgrind.supp` file in each test directory.
+
+```sh
+./ddtrace/internal/datadog/profiling/build_standalone.sh --valgrind RelWithDebInfo stack_test
 ```

@@ -6,7 +6,7 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
-from ._logger import configure_ddtrace_logger  # noqa: E402
+from .internal.logger.setup import configure_ddtrace_logger  # noqa: E402
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402

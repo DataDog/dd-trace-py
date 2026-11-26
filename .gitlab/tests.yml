@@ -82,11 +82,11 @@ extract_test_artifacts:
     - !reference [.testrunner, before_script]
     - |
       # The native IAST suite compiles repository C++ sources and does not import ddtrace.
-      # Other test jobs remove the checkout package so Python imports use the wheel.
+      # Other test jobs remove the checkout packages so Python imports use the wheel.
       if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" ]]; then
-        rm -r "$CI_PROJECT_DIR/ddtrace"
+        rm -r "$CI_PROJECT_DIR/ddtrace" "$CI_PROJECT_DIR/ddtrace_commands"
       fi
-    # Keep repository test helpers importable; ddtrace itself resolves from the installed wheel.
+    # Keep repository test helpers importable; library packages resolve from the installed wheel.
     - export PYTHONPATH="$CI_PROJECT_DIR"
     - unset DD_SERVICE
     - unset DD_ENV
@@ -111,6 +111,8 @@ extract_test_artifacts:
         "Changes detected in test dependency locks. Run scripts/test-requirements lock and commit the result."
       ./scripts/check-diff "scripts/integration_registry/registry.yaml" \
         "Registry YAML file was modified. Run scripts/integration_registry/update_and_format_registry.py and commit the result."
+    # Fail the job when a test process crashed or hung into a core dump, even if its tests passed.
+    - bash .gitlab/scripts/generate-core-backtraces.sh --fail-on-core
 
 .test_base_snapshot:
   extends: .test_base
@@ -234,6 +236,8 @@ extract_test_artifacts:
       if [[ ${#coverage_files[@]} -gt 1 ]]; then
         coverage combine
       fi
+    # Fail the job when a test process crashed or hung into a core dump, even if its tests passed.
+    - bash .gitlab/scripts/generate-core-backtraces.sh --fail-on-core
 
 .ddtest_run_snapshot:
   extends: .ddtest_run

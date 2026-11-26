@@ -229,7 +229,7 @@ is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& f
 }
 
 size_t
-TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
+TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop, size_t max_depth)
 {
     // TODO: Check for running task.
     (void)echion;
@@ -254,7 +254,7 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
     size_t count = 0;
 
     // Unwind the coro frames
-    while (!coro_frames.empty()) {
+    while (!coro_frames.empty() && count < max_depth) {
         PyObject* frame = coro_frames.top();
         coro_frames.pop();
 

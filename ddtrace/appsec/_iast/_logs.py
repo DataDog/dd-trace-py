@@ -37,10 +37,6 @@ def iast_propagation_sink_point_debug_log(msg, *args, **kwargs):
     log.debug("iast::propagation::sink_point::%s", msg, *args, **kwargs)
 
 
-def iast_instrumentation_ast_patching_errorr_log(msg):
-    iast_error(msg, default_prefix="iast::instrumentation::ast_patching::")
-
-
 def iast_propagation_error_log(msg, exc: Union[BaseException, tuple, None] = None):
     iast_error(msg, default_prefix="iast::propagation::error::", exc=exc)
 

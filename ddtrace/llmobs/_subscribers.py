@@ -4,11 +4,12 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
-from ddtrace.contrib._events.span_lifecycle import SpanLifecycleListener
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal.core.span_lifecycle import SpanLifecycleListener
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.llmobs._constants import GATEWAY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -55,7 +56,7 @@ def integration_for(component: str) -> Optional[BaseLLMIntegration]:
 
 
 class LLMObsLlmSubscriber(SpanLifecycleListener):
-    """Tags the llm.request spans of integrations that leave llmobs_integration unset on their event.
+    """Tags the llm.request spans of every LLM integration, selected by the request's component.
 
     Runs whether or not LLMObs is enabled, so APM spans carry the LLMObs shadow tags either way.
     """
@@ -65,16 +66,19 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
     @classmethod
     def on_starting(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
         event = ctx.event
-        # Integrations that pass their own integration are tagged by the tracing subscriber.
-        if event.llmobs_integration is not None:
-            return
         integration = integration_for(event.component)
         if integration is None:
             return
         # Keep the request's integration on its context so the request finishes with the one it started with.
         ctx.set_item(_CONTEXT_KEY, integration)
-        if event.submit_to_llmobs and integration.llmobs_enabled:
+        if not integration.llmobs_enabled:
+            return
+        if event.submit_to_llmobs:
             event.span_type = SpanTypes.LLM
+        gateway = integration._llmobs_gateway(event.request_kwargs)
+        if gateway:
+            # Set it also when this span is not submitted: another integration can emit the llm span below it.
+            ctx.set_item(GATEWAY, gateway)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
@@ -91,7 +95,7 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
             provider=event.provider,
             instance=event.instance,
         )
-        base_url = integration._get_base_url(instance=event.instance, request_kwargs=event.request_kwargs)  # type: ignore[arg-type]
+        base_url = integration._get_base_url(instance=event.instance, request_kwargs=event.request_kwargs)
         if integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         integration._annotate_integration_tag(span)

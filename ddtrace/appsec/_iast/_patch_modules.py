@@ -4,8 +4,7 @@ This module provides the core functionality for patching Python functions to ena
 It implements the wrapper classes and utilities needed to:
 1. Wrap security-sensitive functions using wrapt
 2. Manage module patching state
-3. Handle forced patching when needed
-4. Support testing scenarios with unpatching capabilities
+3. Support testing scenarios with unpatching capabilities
 
 The module uses wrapt's function wrapping capabilities to intercept calls to security-sensitive
 functions and enable taint tracking and vulnerability detection.
@@ -16,9 +15,6 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 
-from wrapt import FunctionWrapper
-
-from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast.secure_marks import SecurityControl
 from ddtrace.appsec._iast.secure_marks import get_security_controls_from_env
 from ddtrace.appsec._iast.secure_marks.configuration import SC_SANITIZER
@@ -28,7 +24,6 @@ from ddtrace.appsec._iast.secure_marks.validators import create_validator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.security._patch_utils import try_unwrap
 from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
-from ddtrace.internal.security._patch_utils import wrap_object
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -41,64 +36,39 @@ class IASTFunction:
     """Represents a function to be patched for IAST analysis.
 
     This class encapsulates the information needed to patch a specific function in a module
-    for IAST analysis. It handles both forced and lazy patching scenarios.
+    for IAST analysis using lazy patching.
 
     Attributes:
         name (str): The name of the module to patch
         function (str): The name of the function to wrap
         hook (callable): The wrapper function to apply
-        force (bool): Whether to force immediate patching or wait for module import
     """
 
     name = ""
     function = ""
     hook = ""
-    force = False
 
-    def __init__(self, name, function, hook, force=False):
+    def __init__(self, name, function, hook):
         """Initialize an IASTFunction instance.
 
         Args:
             name (str): The name of the module to patch
             function (str): The name of the function to wrap
             hook (callable): The wrapper function to apply
-            force (bool, optional): Whether to force immediate patching. Defaults to False.
         """
         self.name = name
         self.function = function
         self.hook = hook
-        self.force = force
-
-    @staticmethod
-    def force_wrapper(module: str, name: str, wrapper: Callable):
-        """Force immediate wrapping of a module's function.
-
-        This method attempts to immediately wrap a function in a module, regardless of
-        whether the module has been imported yet.
-
-        Args:
-            module (str): The module name
-            name (str): The function name to wrap
-            wrapper (callable): The wrapper function to apply
-        """
-        try:
-            wrap_object(module, name, FunctionWrapper, (wrapper,))
-        except (ImportError, AttributeError):
-            iast_instrumentation_wrapt_debug_log(f"Module {module}.{name} not exists")
 
     def patch(self):
         """Apply the patch to the target module and function.
 
-        This method handles both forced and lazy patching scenarios. If force is True,
-        it attempts immediate patching. Otherwise, it sets up lazy patching.
+        This method sets up lazy patching for the target function.
 
         Returns:
             bool: True if patching was attempted
         """
-        if self.force is True:
-            self.force_wrapper(self.name, self.function, self.hook)
-        else:
-            try_wrap_function_wrapper(self.name, self.function, self.hook)
+        try_wrap_function_wrapper(self.name, self.function, self.hook)
         return True
 
     def unpatch(self):
@@ -110,7 +80,7 @@ class IASTFunction:
 
     def __repr__(self):
         """Return a string representation of the IASTFunction instance."""
-        return f"IASTFunction(name={self.name}, function={self.function}, hook={self.hook}, force={self.force})"
+        return f"IASTFunction(name={self.name}, function={self.function}, hook={self.hook})"
 
 
 class WrapFunctonsForIAST:
@@ -138,16 +108,6 @@ class WrapFunctonsForIAST:
             hook (callable): The wrapper function to apply
         """
         self.functions.add(IASTFunction(name, function, hook))
-
-    def add_module_forced(self, name, function, hook):
-        """Add a module for forced immediate patching.
-
-        Args:
-            name (str): The module name
-            function (str): The function name to wrap
-            hook (callable): The wrapper function to apply
-        """
-        self.functions.add(IASTFunction(name, function, hook, True))
 
     def patch(self) -> None:
         """Apply patches to all registered functions.
@@ -213,6 +173,7 @@ def _apply_security_control(iast_funcs: WrapFunctonsForIAST, control: SecurityCo
         control: SecurityControl object containing the configuration
     """
     # Create the appropriate wrapper function
+    wrapper_func: Callable[..., object]
     if control.control_type == SC_SANITIZER:
         wrapper_func = functools.partial(create_sanitizer, control.vulnerability_types)
     elif control.control_type == SC_VALIDATOR:

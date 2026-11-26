@@ -1,10 +1,11 @@
 components:
   bootstrap:
+    - ddtrace_commands/*
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py
   tracing:
-    - ddtrace/_logger.py
+    - ddtrace/internal/logger/setup.py
     - ddtrace/_monkey.py
     - ddtrace/_trace/*
     - ddtrace/trace/*
@@ -81,8 +82,7 @@ components:
     - ddtrace/internal/gitmetadata.py
     - ddtrace/internal/glob_matching.py
     - ddtrace/internal/ipc.py
-    - ddtrace/internal/logger.py
-    - ddtrace/_logger.py
+    - ddtrace/internal/logger/*
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
@@ -402,7 +402,6 @@ suites:
       - '@tracing'
       - '@flask'
       - '@django'
-      - ddtrace/contrib/_events/span_lifecycle.py
       - ddtrace/llmobs/_integrations/base.py
       - ddtrace/llmobs/_contrib/_subscribers.py
       - ddtrace/llmobs/_llmobs.py

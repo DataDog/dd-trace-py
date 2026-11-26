@@ -15,11 +15,11 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -35,7 +35,7 @@ IMAGE_REFERENCE = re.compile(r"<image:[0-9a-f]{32}>")
 class TypeSafeIntegration(BaseLLMIntegration):
     _integration_name = "typesafe"
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Record the request base_url on the span; the contrib sets the APM model tag itself."""
         base_url = self._get_base_url(**kwargs)
         if base_url is not None:
@@ -46,7 +46,7 @@ class TypeSafeIntegration(BaseLLMIntegration):
         base_url = _get_attr(config, "base_url", None)
         return str(base_url) if base_url else None
 
-    def _get_model_provider(self, span: Span) -> str:
+    def _get_model_provider(self, span: _LLMObsSpan) -> str:
         base_url = span._get_ctx_item(REQUEST_BASE_URL) or ""
         # The SDK can be pointed at OpenRouter, which serves the same System One API
         if OPENROUTER_MODEL_PROVIDER in base_url.lower():
@@ -55,7 +55,7 @@ class TypeSafeIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -87,7 +87,7 @@ class TypeSafeIntegration(BaseLLMIntegration):
 
     def _set_apm_shadow_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -166,7 +166,7 @@ def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Option
     aliases = {} if aliases is None else aliases
     found = {} if found is None else found
     if value is None or isinstance(value, (str, bytes, bytearray)):
-        return load_data_value(value)  # type: ignore[no-untyped-call]
+        return load_data_value(value)
     if isinstance(value, Mapping):
         return {str(k): _to_data(v, aliases, found) for k, v in value.items()}
     if isinstance(value, Sequence):
@@ -196,4 +196,4 @@ def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Option
             for name, field in model_fields.items()
             if getattr(value, name, None) is not None
         }
-    return load_data_value(value)  # type: ignore[no-untyped-call]
+    return load_data_value(value)
