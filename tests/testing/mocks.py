@@ -202,6 +202,7 @@ class SessionManagerMockBuilder:
         mock_manager.workspace_path = self._workspace_path
         mock_manager.retry_handlers = self._retry_handlers
         mock_manager.env_tags = self._env_tags
+        mock_manager.runtime_tags_overrides = {}
 
         mock_manager.itr_skipping_level = self._itr_skipping_level
         mock_manager.session = MagicMock()
