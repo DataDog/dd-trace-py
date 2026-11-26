@@ -10,15 +10,17 @@ to a record file. The test process merges the record into that context.
 A multiprocessing child writes its record when its run ends instead, at the end of
 BaseProcess._bootstrap, for the context that started the process (run_process()): fork and
 forkserver children leave through os._exit(), which skips atexit, and Pool.terminate() ends its
-workers with SIGTERM.
+workers with SIGTERM. SIGTERM can also end a spawn child before its run starts, while it
+unpickles its process, which imports the modules the target needs: the child then writes its
+record for the context named at its start (start()), as its Process object is not unpickled yet.
 
 It imports no ddtrace module, so a child pays only for the collector, and any failure leaves the
 child unrecorded and otherwise unchanged. Not recorded: interpreters started with -E, -I or -S,
 which skip sitecustomize; another Python version or build than the test process's; children
 that exit through os._exit() or a signal, which skip the record, except a multiprocessing child
-that SIGTERM ends, unless its run replaced the SIGTERM handler without calling the one before;
-children still running when the test session ends; a file outside the workspace that is a link to
-a file in it.
+that SIGTERM ends, unless its run replaced the SIGTERM handler without calling the one before, or
+it is a forkserver child whose run had not started; children still running when the test session
+ends; a file outside the workspace that is a link to a file in it.
 """
 
 from __future__ import annotations
@@ -45,6 +47,8 @@ _SITE_PACKAGES = frozenset(("site-packages", "dist-packages"))
 # The token of the context this process records for. A multiprocessing child takes the one its
 # Process object names (run_process()).
 _owner = 0
+# What a spawn child writes its record with when SIGTERM ends it before its run starts.
+_startup_record: _ProcessRecord | None = None
 
 
 def _read_config(directory: str) -> dict[str, Any]:
@@ -197,7 +201,7 @@ def _write_final_record(linecov: Any, directory: str) -> None:
 class _ProcessRecord:
     """Writes the record of a multiprocessing child when its run ends, or when SIGTERM arrives."""
 
-    __slots__ = ("linecov", "directory", "owner", "previous", "writing", "pending")
+    __slots__ = ("linecov", "directory", "owner", "previous", "writing", "pending", "replaced")
 
     def __init__(self, linecov: Any, directory: str, owner: int) -> None:
         self.linecov = linecov
@@ -208,19 +212,31 @@ class _ProcessRecord:
         self.writing = False
         # A SIGTERM that arrived during write(), as (signum, frame).
         self.pending: Any = None
+        # Set once another record handles SIGTERM instead: on_sigterm then only passes it on.
+        self.replaced = False
 
-    def handle_sigterm(self) -> None:
-        """Write the record when SIGTERM arrives, then handle the signal as before."""
+    def handle_sigterm(self, replacing: _ProcessRecord | None = None) -> None:
+        """Write the record when SIGTERM arrives, then handle the signal as before.
+
+        A record passed as replacing writes nothing from then on. If its handler is still in place,
+        this record's handler takes over from it and passes the signal on to the one it had replaced.
+        """
         try:
             import signal
 
             previous = signal.getsignal(signal.SIGTERM)
+            if replacing is not None and previous == replacing.on_sigterm:
+                previous = replacing.previous
             # An ignored signal ends nothing, and a handler set outside Python stays.
             if previous is signal.SIG_DFL or callable(previous):
                 self.previous = previous
                 signal.signal(signal.SIGTERM, self.on_sigterm)
         except Exception:  # nosec: not the main thread
             pass
+        if replacing is not None:
+            replacing.replaced = True
+            # Passed on when the run ends, like a SIGTERM that arrives while this record is written.
+            self.pending = replacing.pending
 
     def write(self) -> None:
         self.writing = True
@@ -234,7 +250,8 @@ class _ProcessRecord:
             # Handled once the record is written.
             self.pending = (signum, frame)
             return
-        self.write()
+        if not self.replaced:
+            self.write()
         self.pass_on(signum, frame)
 
     def pass_on(self, signum: int, frame: Any) -> None:
@@ -256,13 +273,14 @@ def run_process(linecov: Any, directory: str, owner: int, bootstrap: Any, proces
     """Run a multiprocessing child's BaseProcess._bootstrap, for the context owner names, and write
     the record of its lines when the run ends or when SIGTERM arrives.
     """
-    global _owner
+    global _owner, _startup_record
 
     _owner = owner
     # The children of this child run for the same context.
     os.environ[_OWNER_ENV] = str(owner)
     record = _ProcessRecord(linecov, directory, owner)
-    record.handle_sigterm()
+    record.handle_sigterm(_startup_record)
+    _startup_record = None
     try:
         return bootstrap(process, *args, **kwargs)
     finally:
@@ -275,17 +293,20 @@ def run_process(linecov: Any, directory: str, owner: int, bootstrap: Any, proces
             record.pass_on(*pending)
 
 
-def _runs_processes(argv: list[str]) -> bool:
-    """Whether multiprocessing started this interpreter to run a process (spawn) or to fork them (forkserver)."""
+def _start_method(argv: list[str]) -> str:
+    """The multiprocessing start method that started this interpreter, to run a process ("spawn") or
+    to fork them ("forkserver"), or "" if multiprocessing did not start it.
+    """
     try:
         command = argv[argv.index("-c") + 1]
     except (ValueError, IndexError):
-        return False
+        return ""
+    if "from multiprocessing.spawn import spawn_main" in command:
+        return "spawn"
     # Python 3.13 and later put "import sys; " before the forkserver's import.
-    return (
-        "from multiprocessing.spawn import spawn_main" in command
-        or "from multiprocessing.forkserver import main" in command
-    )
+    if "from multiprocessing.forkserver import main" in command:
+        return "forkserver"
+    return ""
 
 
 def _cover_processes(linecov: Any, directory: str) -> None:
@@ -314,7 +335,7 @@ def _cover_processes(linecov: Any, directory: str) -> None:
 
 def start() -> None:
     """Record this process's lines for the context named in its environment or the state file."""
-    global _owner
+    global _owner, _startup_record
 
     directory = os.environ.get(_DIR_ENV)
     if not directory or not hasattr(sys, "monitoring"):
@@ -361,8 +382,13 @@ def start() -> None:
     # The children of this child run for the same context, even once the test process runs another.
     os.environ[_OWNER_ENV] = str(_owner)
     linecov.add_exec_hook(_exec_hook(linecov, config))
-    if _runs_processes(sys.orig_argv):
+    start_method = _start_method(sys.orig_argv)
+    if start_method:
         _cover_processes(linecov, directory)
+    if start_method == "spawn":
+        # Process.terminate() or Pool.terminate() soon after the start can end the child before its run.
+        _startup_record = _ProcessRecord(linecov, directory, _owner)
+        _startup_record.handle_sigterm()
 
     import atexit
 
