@@ -6,8 +6,8 @@ import struct
 from msgpack import Unpacker
 from msgpack import unpackb
 
-from ddtrace.internal._encoding import Packer
-from ddtrace.internal._encoding import packb
+from ddtrace.internal.native._msgpack import Packer
+from ddtrace.internal.native._msgpack import packb
 
 
 def check(data):

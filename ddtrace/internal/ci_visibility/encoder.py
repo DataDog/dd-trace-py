@@ -14,7 +14,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
-from ddtrace.internal._encoding import packb as msgpack_packb
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
@@ -29,6 +28,7 @@ from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_pay
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._msgpack import packb as msgpack_packb
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings import env

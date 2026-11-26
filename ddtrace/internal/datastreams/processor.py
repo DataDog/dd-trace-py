@@ -28,10 +28,10 @@ from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
-from .._encoding import packb
 from ..agent import get_connection
 from ..hostname import get_hostname
 from ..logger import get_logger
+from ..native._msgpack import packb
 from ..periodic import PeriodicService
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
