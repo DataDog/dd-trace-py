@@ -1,6 +1,7 @@
 """Tests for ddtrace.testing.internal.http module."""
 
 from concurrent.futures import ThreadPoolExecutor
+import gzip
 import logging
 import os
 import socket
@@ -900,6 +901,33 @@ class TestBackendConnector:
         assert b"content1" in body
         assert b"content2" in body
         assert body.count(b"--boundary123") == 3  # 2 file separators + 1 end
+
+    @pytest.mark.parametrize(
+        ("level_kwargs", "extra_flags"),
+        # The gzip header's XFL byte says how hard deflate worked: 0 at the default level 6, 4 at level 1.
+        [({}, 0), ({"gzip_level": 1}, 4)],
+    )
+    @patch("ddtrace.testing.internal.http.HTTPClient")
+    def test_post_files_compresses_at_the_requested_level(
+        self, mock_http_client: Mock, level_kwargs: dict, extra_flags: int
+    ) -> None:
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.header.side_effect = _headers({})
+        mock_response.body.return_value = b""
+        mock_client = Mock()
+        mock_client.post.return_value = mock_response
+        mock_http_client.return_value = mock_client
+
+        connector = BackendConnector(url="https://api.example.com", use_gzip=True)
+        files = [FileAttachment("coverage1", "coverage1.msgpack", "application/msgpack", b"content1" * 100)]
+        connector.post_files("/upload", files, send_gzip=True, **level_kwargs)
+
+        call_args = mock_client.post.call_args
+        assert ("Content-Encoding", "gzip") in call_args[1]["headers"]
+        body = call_args[1]["body"]
+        assert gzip.decompress(body).count(b"content1") == 100
+        assert body[8] == extra_flags
 
 
 def _set_environ(monkeypatch: pytest.MonkeyPatch, environ: dict) -> None:

@@ -107,6 +107,10 @@ def _truncate_events_meta(events: list[Event]) -> list[Event]:
 # {"version": 2, "coverages": [...]} packed up to the array header.
 _COVERAGE_PAYLOAD_PREFIX = b"\x82\xa7version\x02\xa9coverages"
 
+# Coverage payloads grow with the number of tests. Level 1 compresses them in about a third of the default
+# level's CPU time, and the requests come out up to about twice as large.
+_COVERAGE_GZIP_LEVEL = 1
+
 
 def _pack_id(value: t.Optional[int]) -> bytes:
     """An id as msgpack_packb() packs it: an unsigned integer in its shortest form, or nil."""
@@ -604,7 +608,9 @@ class TestCoverageWriter(BaseWriter[CoverageEvent]):
                 ),
             ]
 
-            result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+            result = self.connector.post_files(
+                "/api/v2/citestcov", files=files, send_gzip=True, gzip_level=_COVERAGE_GZIP_LEVEL
+            )
 
             TelemetryAPI.get().record_event_payload(
                 endpoint="code_coverage",

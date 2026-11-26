@@ -841,6 +841,7 @@ class TestTestCoverageWriter:
         assert files[1].name == "event"
         assert files[1].content_type == "application/json"
         assert call_args[1]["send_gzip"] is True
+        assert call_args[1]["gzip_level"] == 1
 
 
 class TestSerializationFunctions:
