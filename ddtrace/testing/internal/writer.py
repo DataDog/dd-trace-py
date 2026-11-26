@@ -7,6 +7,7 @@ import typing as t
 import uuid
 
 from ddtrace.internal.settings import env
+from ddtrace.internal.telemetry.inputs import get_library
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
@@ -22,7 +23,6 @@ from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import StopWatch
 from ddtrace.testing.internal.tracer_api import msgpack_packb
-from ddtrace.version import __version__
 
 
 log = logging.getLogger(__name__)
@@ -357,7 +357,7 @@ class TestOptWriter(BaseWriter):
             "*": {
                 "language": "python",
                 "runtime-id": uuid.uuid4().hex,
-                "library_version": f"{__version__}",
+                "library_version": f"{get_library().version}",
                 "_dd.origin": "ciapp-test",
                 "_dd.p.dm": "-0",  # what is this?
             },

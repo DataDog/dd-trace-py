@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+import ddtrace
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendConnector
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
@@ -528,6 +529,8 @@ class TestTestOptWriter:
         # Check metadata structure
         assert "language" in writer.metadata["*"]
         assert writer.metadata["*"]["language"] == "python"
+        # Test events report the version of ddtrace, the distribution declaring the library identity.
+        assert writer.metadata["*"]["library_version"] == ddtrace.__version__
         assert "_dd.origin" in writer.metadata["*"]
 
         # Check test capabilities
