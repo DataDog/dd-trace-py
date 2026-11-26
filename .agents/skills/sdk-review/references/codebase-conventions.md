@@ -22,35 +22,30 @@ Repo-specific idioms: configuration, logging, shared helpers, test patterns, and
 ### CONV-1.4: State exactly what changed and how to enable it
 - Flag: a note for an opt-in or default-changing feature that omits the default or the env var to set, says "the tracer" when only an integration changed, omits which library versions a fix applies to, or describes the trigger more narrowly than the code (for example, "ddtrace-run" when SSI is affected too).
 
-## 2. Configuration
+## 2. Internal APIs
 
-### CONV-2.1: Register new or renamed settings with `add-new-configuration`
-- Flag: a new `DD_*`/`_DD_*`/`OTEL_*` variable with no matching entry in `supported-configurations.json`. See [add-new-configuration](../../add-new-configuration/SKILL.md).
-
-## 3. Internal APIs
-
-### CONV-3.1: Read span values in ddtrace internals with `span._get_attribute`
+### CONV-2.1: Read span values in ddtrace internals with `span._get_attribute`
 - Flag: `span.get_tag(...)`/`span.get_metric(...)` in `ddtrace/_trace/` or other internal code.
 - ❌ `route = span.get_tag(http.ROUTE)`
 - ✅ `route = span._get_attribute(http.ROUTE)`
 
-## 4. Tests and test environments
+## 3. Tests and test environments
 
-### CONV-4.1: Test every version the PR claims to support
+### CONV-3.1: Test every version the PR claims to support
 - Flag: a PR claiming support for a library major (for example, mcp 2.x) with no test venv locked to it or no matching max version in `scripts/integration_registry/registry.yaml`; or a suite that adds `'3.15'` while none of its variants covers `'3.14'`. Separate per-version variants are fine when the suite covers every version between them.
 
-### CONV-4.2: Use snapshot tests for integration spans
+### CONV-3.2: Use snapshot tests for integration spans
 - Flag: new integration tests that assert span attributes one by one where a snapshot under `tests/snapshots/` would cover them.
 
-## 5. Repository and CI
+## 4. Repository and CI
 
-### CONV-5.1: Edit skills under `.agents/skills/`
+### CONV-4.1: Edit skills under `.agents/skills/`
 - Flag: changes under `.claude/skills/`, which is a compatibility symlink to `.agents/skills/`. See [AGENTS.md](../../../../AGENTS.md).
 
-### CONV-5.2: Schedule expensive benchmark jobs like the existing ones
+### CONV-4.2: Schedule expensive benchmark jobs like the existing ones
 - Flag: a new benchmark job that runs on every push or PR instead of following the macrobenchmark schedule rules, or explicit Kubernetes CPU/memory requests without `DD_DISABLE_VPA`.
 
-### CONV-5.3: Add codespell false positives to `ignore-words-list`
+### CONV-4.3: Add codespell false positives to `ignore-words-list`
 - Flag: whole lines added to `.codespellignorelines` to silence one word, instead of adding the word to `ignore-words-list` in `setup.cfg`.
 
 ## Don't flag

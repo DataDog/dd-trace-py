@@ -26,7 +26,7 @@ Bugs, races, unhandled edge cases, and tests that pass when they shouldn't. For 
 - Flag: a request path or route computed from `PATH_INFO` alone, which is wrong for apps mounted under a prefix.
 
 ### COR-2.2: Don't leave unmarked stubs reachable from Python or libdatadog
-- Flag: new code that reaches `todo!()`/`unimplemented!()`/`raise NotImplementedError` with no TODO comment, or one that foreign code can call, which panics inside the customer process. This includes a stub in the diff, and new code that delegates to an existing stub through `Self::from`, `.into()` or a trait method. Follow each new delegation to the impl it calls.
+- Flag: new Rust code that reaches `todo!()`/`unimplemented!()` with no TODO comment, or one that Python or libdatadog can call, which panics inside the customer process. This includes a stub in the diff, and new code that delegates to an existing stub through `Self::from`, `.into()` or a trait method. Follow each new delegation to the impl it calls.
 - ❌ `fn from_owned(value: String) -> Self { Self::from(value) }`, where `impl From<String>` is `todo!()`
 - ✅ implement `From<String>`; or remove `from_owned` until it is needed; or mark it `// TODO: unimplemented, From<String> is a todo!()` and make sure no caller can reach it
 
@@ -41,3 +41,4 @@ Bugs, races, unhandled edge cases, and tests that pass when they shouldn't. For 
 ## Don't flag
 - A `contextlib.suppress(Exception)` or broad `except` around ddtrace-internal analysis in an instrumentation callback, which keeps ddtrace failures out of the application.
 - Missing float handling for a header whose format the source documents as an integer.
+- A Python `raise NotImplementedError` in a base-class or unsupported-operation method; it is usually a deliberate interface contract, not an unfinished stub.

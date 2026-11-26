@@ -37,5 +37,5 @@ Other repositories:
 
 ## 2. Configuration
 
-### XSDK-2.1: Register new settings so the cross-language feature-parity registry tracks them
-- Flag: a new `DD_*`/`OTEL_*` setting that skips the [add-new-configuration](../../add-new-configuration/SKILL.md) hand-off, or whose name, default, or accepted values differ from the same setting in another SDK.
+### XSDK-2.1: Match an existing setting's name, default and accepted values in other SDKs
+- Flag: a new `DD_*`/`OTEL_*` setting whose name, default, or accepted values differ from the same setting in another SDK. Registration itself is checked in CI; see [add-new-configuration](../../add-new-configuration/SKILL.md).

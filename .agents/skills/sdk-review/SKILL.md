@@ -77,7 +77,9 @@ A missing lens is incomplete coverage, not approval.
 
 Verify findings against the frozen diff and committed context. Remove duplicates, preserve the responsible lens, and order findings by severity. Ignore unrelated pre-existing issues.
 
-Never drop a lens finding that cites a rule. You may merge it with a duplicate, keeping every location. When you disagree with it, keep it and add a `Coordinator note:` with your reasoning; the human reviewer decides. Your reasoning might be that the finding is speculative, misreads the rule, concerns unchanged code, or is explained by the author. You may drop a `no rule` finding only when the evidence shows it is wrong. List each such drop under `Dropped`, with the lens and reason.
+Never drop a lens finding that cites a rule, except under the `P3` limit below. You may merge it with a duplicate, keeping every location. When you disagree with it, keep it and add a `Coordinator note:` with your reasoning; the human reviewer decides. Your reasoning might be that the finding is speculative, misreads the rule, concerns unchanged code, or is explained by the author. You may drop a `no rule` finding only when the evidence shows it is wrong. List each such drop under `Dropped`, with the lens and reason.
+
+Report at most three `P3` findings, after merging duplicates. Keep the ones a maintainer is most likely to act on: rule matches before `no rule` findings, then correctness, compatibility and contract issues before style, then the findings you are most confident in. Don't list the other `P3` findings, even briefly; only say how many you left out. This limit doesn't apply to `P0`-`P2` findings or to the `Acknowledged` section. Keep each finding at the severity its lens gave it: never raise a severity, and apply the limit to the lens's rating. You may lower a severity when the evidence shows the impact is smaller.
 
 Before reporting, re-resolve the selected refs and restart the review if they differ from the frozen SHAs.
 

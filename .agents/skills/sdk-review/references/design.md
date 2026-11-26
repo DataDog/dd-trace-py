@@ -9,7 +9,8 @@ Where code belongs, who owns state, and API and type shape.
 ## 1. Product isolation and layering
 
 ### DES-1.1: Set span data in tracing subscribers, not in contrib code
-- Flag: code under `ddtrace/contrib/internal/` that calls `Span` methods (`span._set_attribute`, `set_tag`, `set_exc_info`) or creates spans, instead of dispatching a core event handled under `ddtrace/_trace/subscribers/`. See [contributing-integrations.rst](../../../../docs/contributing-integrations.rst).
+- Flag: a new integration, or one that uses or is being migrated to `core.context_with_event()`/`TracingEvent`, whose code under `ddtrace/contrib/internal/` calls `Span` methods (`span._set_attribute`, `set_tag`, `set_exc_info`) or creates spans, instead of dispatching a core event handled under `ddtrace/_trace/subscribers/`. See [contributing-integrations.rst](../../../../docs/contributing-integrations.rst) and the [apm-integrations](../../apm-integrations/SKILL.md) skill.
+- Not when: the change extends an existing `context_with_data()` or Pin-based integration whose patch owns the span lifecycle and isn't moving to events; contrib may use the tracer API there.
 - ❌ `span.set_exc_info(*sys.exc_info())` in `aiokafka/patch.py`
 - ✅ `core.dispatch(...)` in the patch, with the error recorded by a subscriber in `ddtrace/_trace/subscribers/`
 
@@ -24,7 +25,7 @@ Where code belongs, who owns state, and API and type shape.
 - ✅ always dispatch; the tracing product registers and unregisters its own bundles
 
 ### DES-1.4: Fix dependency direction instead of adding layer exceptions or moving code to dodge them
-- Flag: a new exception in `scripts/import-analysis/layers.json`, contrib importing `ddtrace.llmobs`, new `Span` dependencies in `ddtrace.llmobs` helpers, product code loaded from `ddtrace/contrib/__init__.py`, or a product-specific helper moved into a core module to avoid a violation. Use [dependency-direction-analysis](../../dependency-direction-analysis/SKILL.md).
+- Flag: a new exception in `scripts/import-analysis/layers.json`, contrib importing `ddtrace.llmobs`, new `Span` dependencies in `ddtrace.llmobs` helpers, product code loaded from `ddtrace/contrib/__init__.py`, or a product-specific helper moved into a core module to avoid a violation. Use [dependency-direction-analysis](../../dependency-direction-analysis/SKILL.md). A new exception with a stated reason (a `//` entry and the PR description) is still reported, as acknowledged, because a human must accept it; see LA-7 in [contributing-architecture.rst](../../../../docs/contributing-architecture.rst).
 - ✅ pass product data through `ddtrace.internal.core.ExecutionContext` instead of span or tracer types.
 
 ### DES-1.5: Put generic helpers in generic modules, and leave existing helpers where they are
