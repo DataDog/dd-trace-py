@@ -24,7 +24,6 @@ from mcp.types import TextContent  # noqa: E402
 from mcp.types import Tool as MCPTool  # noqa: E402
 
 from ddtrace.aiguard import AIGuardAbortError  # noqa: E402
-from ddtrace.aiguard.integrations._mcp import mcp_server_id  # noqa: E402
 from tests.aiguard.utils import mock_evaluate_response  # noqa: E402
 from tests.aiguard.utils import override_ai_guard_config  # noqa: E402
 
@@ -35,8 +34,11 @@ SEARCH = MCPTool(
     inputSchema={"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
 )
 REMOTE_URL = "https://url-user:url-pass@MCP.example.com:8443/mcp/path?token=qs-secret#frag-secret"
-REMOTE_ORIGIN = "https://mcp.example.com:8443"
-SECRETS = ("url-user", "url-pass", "qs-secret", "frag-secret", "/mcp/path", "hdr-secret", "env-secret", "arg-secret")
+# The reported URL: WHATWG host and path, without userinfo, query or fragment.
+REMOTE_SENT_URL = "https://mcp.example.com:8443/mcp/path"
+# Each MCP tool call is evaluated with its own server, the only one of its request.
+SERVER_ID = "mcp_1"
+SECRETS = ("url-user", "url-pass", "qs-secret", "frag-secret", "hdr-secret", "env-secret", "arg-secret")
 
 
 class FakeSession:
@@ -123,7 +125,7 @@ def _assert_no_secrets(request: dict[str, Any]) -> None:
 )
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_direct_call_remote_server(mock_execute_request, langchain, transport, expected):
-    """A call outside ToolNode is evaluated alone, with the server's origin and none of its credentials."""
+    """A call outside ToolNode is evaluated alone, with the server's URL and none of its credentials."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     session = FakeSession()
     (search,) = await _load(session, connection=_remote_connection(transport), server_name="docs")
@@ -133,15 +135,14 @@ async def test_direct_call_remote_server(mock_execute_request, langchain, transp
     assert session.calls == [("search", {"query": "aiguard"})]
     assert mock_execute_request.call_count == 1
     request = _requests(mock_execute_request)[0]
-    server_id = mcp_server_id(url=REMOTE_ORIGIN)
     assert request["mcp_servers"] == [
         {
-            "id": server_id,
+            "id": SERVER_ID,
             "managed_by": "client",
             "transport": expected,
             "tools": {"search": "search"},
             "name": "docs",
-            "url": REMOTE_ORIGIN,
+            "url": REMOTE_SENT_URL,
         }
     ]
     (message,) = request["messages"]
@@ -149,7 +150,7 @@ async def test_direct_call_remote_server(mock_execute_request, langchain, transp
     (tool_call,) = message["tool_calls"]
     assert tool_call["id"]
     assert tool_call["function"] == {"name": "search", "arguments": '{"query": "aiguard"}'}
-    assert tool_call["mcp"] == {"server_id": server_id}
+    assert tool_call["mcp"] == {"server_id": SERVER_ID}
     _assert_no_secrets(request)
 
 
@@ -171,7 +172,7 @@ async def test_direct_call_stdio_server(mock_execute_request, langchain):
     request = _requests(mock_execute_request)[0]
     assert request["mcp_servers"] == [
         {
-            "id": mcp_server_id(command="npx", args=["@scope/pkg"]),
+            "id": SERVER_ID,
             "managed_by": "client",
             "transport": "stdio",
             "tools": {"search": "search"},
@@ -186,7 +187,7 @@ async def test_direct_call_stdio_server(mock_execute_request, langchain):
 
 @pytest.mark.asyncio
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-async def test_npx_servers_running_different_packages_get_different_ids(mock_execute_request, langchain):
+async def test_npx_servers_report_the_package_they_run(mock_execute_request, langchain):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     for package in ("@modelcontextprotocol/server-filesystem", "@modelcontextprotocol/server-git"):
         connection = {"transport": "stdio", "command": "npx", "args": ["-y", package]}
@@ -198,10 +199,6 @@ async def test_npx_servers_running_different_packages_get_different_ids(mock_exe
         ["@modelcontextprotocol/server-filesystem"],
         ["@modelcontextprotocol/server-git"],
     ]
-    assert [server["id"] for server in servers] == [
-        mcp_server_id(command="npx", args=server["args"]) for server in servers
-    ]
-    assert servers[0]["id"] != servers[1]["id"]
 
 
 @pytest.mark.asyncio
@@ -214,7 +211,7 @@ async def test_stdio_server_without_a_known_launcher_reports_no_args(mock_execut
     await search.ainvoke({"query": "a"})
 
     (server,) = _requests(mock_execute_request)[0]["mcp_servers"]
-    assert server["id"] == mcp_server_id(command="node")
+    assert server["id"] == SERVER_ID
     assert server["command"] == "node"
     assert "args" not in server
 
@@ -260,7 +257,7 @@ async def test_direct_call_decision_without_blocking_executes(mock_execute_reque
 @pytest.mark.asyncio
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_multi_server_client_keeps_servers_apart(mock_execute_request, langchain):
-    """Two servers exposing the same tool keep their own server_id and original name through get_tools."""
+    """Two servers exposing the same tool keep their own entry and original name through get_tools."""
     from langchain_mcp_adapters.client import MultiServerMCPClient
 
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
@@ -279,8 +276,8 @@ async def test_multi_server_client_keeps_servers_apart(mock_execute_request, lan
 
     assert session.calls == [("search", {"query": "a"}), ("search", {"query": "b"})]
     alpha, beta = (request["mcp_servers"][0] for request in _requests(mock_execute_request))
-    assert alpha["id"] == mcp_server_id(url="https://alpha.example.com")
-    assert beta["id"] == mcp_server_id(url="https://beta.example.com")
+    assert (alpha["name"], alpha["url"]) == ("alpha", "https://alpha.example.com/mcp")
+    assert (beta["name"], beta["url"]) == ("beta", "https://beta.example.com/sse")
     assert alpha["tools"] == {"alpha_search": "search"}
     assert beta["tools"] == {"beta_search": "search"}
     calls = [request["messages"][-1]["tool_calls"][0] for request in _requests(mock_execute_request)]
@@ -298,7 +295,7 @@ async def test_session_only_server_is_identified_by_name(mock_execute_request, l
 
     assert _requests(mock_execute_request)[0]["mcp_servers"] == [
         {
-            "id": mcp_server_id(name="docs"),
+            "id": SERVER_ID,
             "managed_by": "client",
             "transport": "unknown",
             "tools": {"search": "search"},
@@ -385,7 +382,7 @@ async def test_create_agent_mcp_call_gets_one_mcp_aware_check(mock_execute_reque
     assert request["messages"][0] == {"role": "user", "content": "look it up"}
     tool_call = request["messages"][-1]["tool_calls"][0]
     assert tool_call["id"] == "call_1"
-    assert tool_call["mcp"] == {"server_id": mcp_server_id(url=REMOTE_ORIGIN)}
+    assert tool_call["mcp"] == {"server_id": SERVER_ID}
     assert request["mcp_servers"][0]["tools"] == {"search": "search"}
     _assert_no_secrets(request)
 
@@ -576,7 +573,7 @@ async def test_wrapper_tool_named_like_the_mcp_tool_keeps_the_inner_check(mock_e
     assert session.calls == [("search", {"query": "aiguard"})]
     (request,) = _mcp_requests(mock_execute_request)
     (message,) = request["messages"]
-    assert message["tool_calls"][0]["mcp"] == {"server_id": mcp_server_id(url=REMOTE_ORIGIN)}
+    assert message["tool_calls"][0]["mcp"] == {"server_id": SERVER_ID}
 
 
 @pytest.mark.asyncio
@@ -614,7 +611,7 @@ async def test_agent_executor_mcp_call_gets_the_in_tool_check(
     (request,) = _mcp_requests(mock_execute_request)
     (message,) = request["messages"]
     assert message["tool_calls"][0]["id"] != ""
-    assert message["tool_calls"][0]["mcp"] == {"server_id": mcp_server_id(url=REMOTE_ORIGIN)}
+    assert message["tool_calls"][0]["mcp"] == {"server_id": SERVER_ID}
 
 
 def test_unpatch_restores_the_converter(langchain):

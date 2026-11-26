@@ -39,7 +39,7 @@ _TRANSPORT_BY_SERVER_CLASS: dict[str, MCPTransport] = {
     "MCPServerStreamableHttp": AI_GUARD.MCP_TRANSPORT_STREAMABLE_HTTP,
 }
 # Names the SDK generates when none is configured. They embed the stdio command or the raw URL,
-# so they are never reported; the command and URL origin are reported through their own fields.
+# so they are never reported; the command and URL are reported through their own fields.
 _GENERATED_NAME_PREFIXES = ("stdio: ", "sse: ", "streamable_http: ")
 
 
