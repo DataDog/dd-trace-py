@@ -596,13 +596,16 @@ def materialize_request(kwargs: dict[str, Any]) -> None:
 
     Iterable tool result content goes into a request-local block copy: the caller's objects are never changed.
     """
+    caller_error: Optional[BaseException] = None
     try:
         _materialize_request(kwargs)
     except _CallerIterationError as exc:
         # The SDK would raise it too while reading that iterable, before sending the request.
-        raise exc.__cause__ from None  # type: ignore[misc]
+        caller_error = exc.__cause__
     except Exception:
         logger.debug("AI Guard anthropic: failed to materialize the request iterables", exc_info=True)
+    if caller_error is not None:
+        raise caller_error
 
 
 class _CallerIterationError(Exception):
