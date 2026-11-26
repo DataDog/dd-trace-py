@@ -76,6 +76,10 @@
   opensearch:
     name: registry.ddbuild.io/images/mirror/opensearchproject/opensearch:1.3.13
     alias: opensearch
+    # The image's entrypoint turns every `a.b=c` line of `env` into an OpenSearch setting. GitLab passes
+    # the multi-line commit message to services, so a message line like `os.makedirs(d, exist_ok=True)`
+    # makes OpenSearch exit at start. Drop those variables before running the entrypoint.
+    entrypoint: ["/bin/bash", "-c", "unset CI_COMMIT_MESSAGE CI_COMMIT_DESCRIPTION CI_COMMIT_TAG_MESSAGE; exec ./opensearch-docker-entrypoint.sh opensearch"]
     variables:
       DISABLE_SECURITY_PLUGIN: true
       discovery.type: single-node
