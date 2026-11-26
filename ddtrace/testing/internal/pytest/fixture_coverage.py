@@ -1,7 +1,8 @@
 """Fixture scopes for native per-test line coverage.
 
-A class, module or package fixture's setup runs in its own coverage context, and every test that
-uses the fixture gets that context's lines in its record, whichever test ran the setup. Session
+A class, module or package fixture's setup runs in its own coverage context, and every test whose
+fixture closure contains the fixture gets that context's lines in its record, whichever test ran
+the setup. Session
 fixtures, and the teardown of every fixture wider than a test, run for no test: their lines go to
 the process's Shared record.
 """
@@ -45,6 +46,30 @@ def _enter_setup_context(scope: str) -> tuple[t.Any, t.Any]:
         context.push()
     set_native_coverage_context(context)
     return context, previous
+
+
+def link_suite_fixtures_in_closure(item: t.Any) -> None:
+    """Make the running test depend on the suite-scope fixtures of its closure that are set up already.
+
+    A test depends on every class, module or package fixture in its fixture closure, also when it
+    reuses the cached value or never reaches setup (a skip mark). FixtureDef.execute links the
+    fixtures first set up during the test.
+    """
+    user = get_native_coverage_context()
+    if user is None:
+        return
+    info = getattr(item, "_fixtureinfo", None)
+    if info is None:
+        return
+    for fixturedefs in info.name2fixturedefs.values():
+        if not fixturedefs:
+            continue
+        # The last definition is the one this item's requests resolve to.
+        fixturedef = fixturedefs[-1]
+        context = getattr(fixturedef, _CONTEXT_ATTR, None)
+        # pytest clears cached_result when a scope ends, so a cached fixture belongs to this test's scopes.
+        if context is not None and fixturedef.cached_result is not None and context not in user.fixtures:
+            user.fixtures.append(context)
 
 
 def _exit_setup_context(fixturedef: t.Any, context: t.Any, previous: t.Any) -> None:
@@ -92,14 +117,19 @@ def install_fixture_tracking() -> t.Optional[FixtureCoverage]:
     finish = fixture_def.finish
 
     def execute_recording_use(self: t.Any, request: t.Any) -> t.Any:
+        before = getattr(self, _CONTEXT_ATTR, None)
         try:
             return execute(self, request)
         finally:
             context = getattr(self, _CONTEXT_ATTR, None)
             if context is not None:
                 user = get_native_coverage_context()
-                if user is not None and user is not context and context not in user.fixtures:
-                    user.fixtures.append(context)
+                if user is not None and user is not context:
+                    if before is not None and before is not context and before in user.fixtures:
+                        # A new setup (another parameter) replaced the instance linked at test start.
+                        user.fixtures.remove(before)
+                    if context not in user.fixtures:
+                        user.fixtures.append(context)
 
     def finish_for_no_test(self: t.Any, request: t.Any) -> t.Any:
         if _is_function_scoped(self) or not native_line_coverage_enabled():
