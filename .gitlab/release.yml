@@ -31,11 +31,15 @@
 #     PYPI_REPOSITORY: testpypi
 
 release_pypi_prod:
+  rules:
+    - when: never
   extends: .release_pypi
   variables:
     PYPI_REPOSITORY: pypi
 
 notify_datadog_release:
+  rules:
+    - when: never
   extends: .release_base
   allow_failure: true
   needs: [ "ddtrace package", "release_pypi_prod" ]

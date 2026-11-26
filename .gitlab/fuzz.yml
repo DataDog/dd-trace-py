@@ -16,10 +16,7 @@ fuzz_infra:
     DDSIGN_ID_TOKEN:
       aud: image-integrity
   rules:
-    # runs during nightly builds
-    - if: $NIGHTLY_BUILD == "true"
-    # Also allow manual run in branches for ease of debug / testing
-    - when: manual
+    - when: never
   parallel:
     matrix:
       - PYTHON_VERSION: "3.9"
