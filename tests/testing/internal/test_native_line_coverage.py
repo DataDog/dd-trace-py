@@ -268,6 +268,157 @@ def test_a_test_skipped_before_it_starts_gets_no_suite_fixture(tmp_path) -> None
     assert helper == [[1, 2, 3], None, [1, 2, 3]], records
 
 
+def test_wide_fixture_teardowns_run_for_no_test(tmp_path) -> None:
+    """Session fixtures and the teardowns of module and session fixtures run for no test, also when
+    they run in the last test's teardown. A test that requests a module fixture set up earlier
+    through request.getfixturevalue(), outside its fixture closure, gets the fixture's setup lines.
+    Once collection ends, FixtureDef has pytest's own __init__ again.
+    """
+    (tmp_path / "fixture_helper.py").write_text(
+        textwrap.dedent(
+            """\
+            def set_up():
+                value = 1
+                return value
+
+
+            def tear_down():
+                done = True
+                return done
+
+
+            def set_up_session():
+                session_value = 2
+                return session_value
+
+
+            def tear_down_session():
+                session_done = True
+                return session_done
+            """
+        )
+    )
+    (tmp_path / "conftest.py").write_text(
+        textwrap.dedent(
+            """\
+            import pytest
+
+            import fixture_helper
+
+
+            @pytest.fixture(scope="session")
+            def session_resource():
+                yield fixture_helper.set_up_session()
+                fixture_helper.tear_down_session()
+            """
+        )
+    )
+    (tmp_path / "test_teardown.py").write_text(
+        textwrap.dedent(
+            """\
+            from _pytest.fixtures import FixtureDef
+            import pytest
+
+            import fixture_helper
+
+
+            @pytest.fixture(scope="module")
+            def resource():
+                yield fixture_helper.set_up()
+                fixture_helper.tear_down()
+
+
+            def test_first(resource, session_resource):
+                assert resource and session_resource
+
+
+            def test_dynamic(request):
+                assert request.getfixturevalue("resource")
+                with open("init.txt", "w") as f:
+                    f.write(FixtureDef.__init__.__qualname__)
+            """
+        )
+    )
+    output = _run_isolated(
+        _RECORDING_SCRIPT % "test_teardown.py",
+        cwd=tmp_path,
+        env={"DD_API_KEY": "test-key", "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "false"},
+    )
+    assert (tmp_path / "init.txt").read_text() == "FixtureDef.__init__"
+    records = json.loads(output.strip().splitlines()[-1])
+    assert len(records) == 2, records
+    lines = [next(v for k, v in record["files"].items() if k.endswith("fixture_helper.py")) for record in records]
+    # Lines 1, 6, 11 and 16 are the file's initialisers.
+    assert lines == [[1, 2, 3, 6, 11, 16], [1, 2, 3, 6, 11, 16]], records
+
+
+def test_fixtures_of_a_session_a_test_runs_count_for_the_test(tmp_path) -> None:
+    """A pytest session that a test runs in the same process creates its fixtures after the outer
+    collection has ended. Their setups and teardowns run in the test's context, and no fixture is
+    left behind for later tests to check.
+    """
+    (tmp_path / "inner_helper.py").write_text(
+        textwrap.dedent(
+            """\
+            def set_up():
+                value = 1
+                return value
+
+
+            def tear_down():
+                done = True
+                return done
+            """
+        )
+    )
+    (tmp_path / "inner").mkdir()
+    (tmp_path / "inner" / "test_inner.py").write_text(
+        textwrap.dedent(
+            """\
+            import pytest
+
+            import inner_helper
+
+
+            @pytest.fixture(scope="module")
+            def resource():
+                yield inner_helper.set_up()
+                inner_helper.tear_down()
+
+
+            def test_inner(resource):
+                assert resource
+            """
+        )
+    )
+    (tmp_path / "test_outer.py").write_text(
+        textwrap.dedent(
+            """\
+            import pytest
+
+            from ddtrace.testing.internal.pytest import fixture_coverage
+
+
+            def test_outer():
+                exit_code = pytest.main(["-p", "no:cacheprovider", "-p", "no:randomly", "-q", "inner"])
+                with open("outer.txt", "w") as f:
+                    f.write("%d %d" % (exit_code, len(fixture_coverage._set_up_with_context)))
+            """
+        )
+    )
+    output = _run_isolated(
+        _RECORDING_SCRIPT % "test_outer.py",
+        cwd=tmp_path,
+        env={"DD_API_KEY": "test-key", "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "false"},
+    )
+    assert (tmp_path / "outer.txt").read_text() == "0 0"
+    records = json.loads(output.strip().splitlines()[-1])
+    assert len(records) == 1, records
+    lines = next(v for k, v in records[0]["files"].items() if k.endswith("inner_helper.py"))
+    # Lines 1 and 6 are the file's initialisers.
+    assert lines == [1, 2, 3, 6, 7, 8], records
+
+
 def test_nested_windows_keep_no_lines_armed(tmp_path) -> None:
     """The test's window, its execution's window and a suite fixture's setup window nest on one
     thread. Only the innermost one keeps lines armed, so loops run with their lines disabled after
