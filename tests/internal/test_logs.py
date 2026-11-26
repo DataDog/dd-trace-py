@@ -92,7 +92,7 @@ class _LogIntakeReceiver:
                 body = self.rfile.read(length)
                 if self.headers.get("Content-Encoding") == "gzip":
                     body = gzip.decompress(body)
-                self.intake.requests.append(_Request(self.path, dict(self.headers), body))
+                self.intake.requests.append(_Request(self.path, {k.lower(): v for k, v in self.headers.items()}, body))
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(b"{}")
@@ -143,15 +143,11 @@ class TestLogsIntakeWriter:
     def test_intake_url(self):
         writer = _make_writer(intake_url="https://http-intake.logs.datadoghq.com")
         assert writer._url == "https://http-intake.logs.datadoghq.com/api/v2/logs"
-        assert writer._connection_cls.__name__ == "HTTPSConnection"
-
-        writer = _make_writer(intake_url="http://localhost:8888")
-        assert writer._url == "http://localhost:8888/api/v2/logs"
-        assert writer._netloc == "localhost:8888"
-        assert writer._connection_cls.__name__ == "HTTPConnection"
+        assert writer._endpoint == "/api/v2/logs"
 
         writer = _make_writer(intake_url="https://logs.example.com/base/path/")
         assert writer._url == "https://logs.example.com/base/path/api/v2/logs"
+        assert writer._endpoint == "/base/path/api/v2/logs"
 
     def test_buffer_limit_drops_and_warns(self):
         writer = _make_writer()
@@ -186,8 +182,8 @@ class TestLogsIntakeWriter:
         assert len(log_intake_receiver.requests) == 1
         request = log_intake_receiver.requests[0]
         assert request.path == "/api/v2/logs"
-        assert request.headers["DD-API-KEY"] == "test-api-key"
-        assert request.headers["Content-Type"] == "application/json"
+        assert request.headers["dd-api-key"] == "test-api-key"
+        assert request.headers["content-type"] == "application/json"
         assert [event["message"] for event in log_intake_receiver.events()] == ["hello", "world"]
 
     def test_periodic_drops_events_on_connection_error(self):
@@ -206,10 +202,12 @@ class TestLogsIntakeWriter:
         response.read.return_value = b'{"errors": []}'
         connection = mock.Mock()
         connection.getresponse.return_value = response
-        writer._connection_cls = mock.Mock(return_value=connection)
 
         writer.enqueue({"message": "hello"})
-        with mock.patch("ddtrace.internal.logs.logger") as mock_logger:
+        with (
+            mock.patch("ddtrace.internal.logs.get_connection", return_value=connection),
+            mock.patch("ddtrace.internal.logs.logger") as mock_logger,
+        ):
             writer.periodic()
 
         mock_logger.error.assert_called_once_with(
@@ -365,6 +363,18 @@ class TestEnable:
         ):
             assert enable_agentless_log_submission()
         writer_cls.assert_called_once_with(api_key="test-key", intake_url="https://http-intake.logs.datadoghq.eu")
+
+    def test_enable_with_invalid_url_warns_and_installs_nothing(self):
+        with (
+            agentless_settings(self._enable_env(DD_AGENTLESS_LOG_SUBMISSION_URL="ftp://example.com")),
+            mock.patch.object(ddtrace.config, "_otel_logs_enabled", False),
+            mock.patch("ddtrace.internal.logs.logger") as mock_logger,
+            mock.patch("ddtrace.internal.logs.LogsIntakeWriter") as writer_cls,
+        ):
+            assert not enable_agentless_log_submission()
+        writer_cls.assert_not_called()
+        mock_logger.warning.assert_called_once()
+        assert not any(isinstance(h, AgentlessLogsHandler) for h in logging.getLogger().handlers)
 
 
 @pytest.mark.subprocess(

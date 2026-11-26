@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import atexit
 import gzip
-import http.client as httplib
 import json
 import logging
 import typing as t
@@ -24,6 +23,8 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.settings._agentless import config as agentless_config
+from ddtrace.internal.utils.http import get_connection
+from ddtrace.internal.utils.http import verify_url
 
 
 logger = get_logger(__name__)
@@ -48,11 +49,10 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
         self._lock = forksafe.RLock()
         self._buffer: list[dict[str, t.Any]] = []
         self._timeout = timeout
-        parsed = urlsplit(intake_url)
-        self._connection_cls = httplib.HTTPSConnection if parsed.scheme == "https" else httplib.HTTPConnection
-        self._netloc = parsed.netloc
-        self._endpoint = parsed.path.rstrip("/") + "/api/v2/logs"
-        self._url = "%s://%s%s" % (parsed.scheme, self._netloc, self._endpoint)
+        self._intake_url = intake_url
+        # get_connection() keeps only scheme, host and port, so carry any path prefix in the endpoint.
+        self._endpoint = urlsplit(intake_url).path.rstrip("/") + "/api/v2/logs"
+        self._url = intake_url.rstrip("/") + "/api/v2/logs"
         self._headers = {"DD-API-KEY": api_key, "Content-Type": "application/json", "Content-Encoding": "gzip"}
 
     def start(self, *args: t.Any, **kwargs: t.Any) -> None:
@@ -96,7 +96,7 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
         return [("[%s]" % ",".join(pack), len(pack)) for pack in packs]
 
     def _post(self, pack: str, count: int) -> None:
-        conn = self._connection_cls(self._netloc, timeout=self._timeout)
+        conn = get_connection(self._intake_url, self._timeout)
         try:
             conn.request("POST", self._endpoint, gzip.compress(pack.encode("utf-8")), self._headers)
             resp = conn.getresponse()
@@ -178,10 +178,14 @@ def enable_agentless_log_submission() -> bool:
         )
         return False
 
-    writer = LogsIntakeWriter(
-        api_key=agentless_config.api_key,
-        intake_url=agentless_config.log_submission_url or "https://http-intake.logs.%s" % agentless_config.site,
-    )
+    intake_url = agentless_config.log_submission_url or "https://http-intake.logs.%s" % agentless_config.site
+    try:
+        verify_url(intake_url)
+    except ValueError:
+        logger.warning("Invalid logs intake URL %r; logs will not be submitted.", intake_url, exc_info=True)
+        return False
+
+    writer = LogsIntakeWriter(api_key=agentless_config.api_key, intake_url=intake_url)
     writer.start()
     logging.getLogger().addHandler(AgentlessLogsHandler(writer))
     return True
