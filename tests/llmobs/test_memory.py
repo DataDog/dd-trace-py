@@ -2,6 +2,7 @@ import ast
 from dataclasses import dataclass
 import hashlib
 import importlib
+import inspect
 import json
 from pathlib import Path
 import sys
@@ -40,9 +41,6 @@ from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs.decorators import memory
-
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestMemoryHelpers:
@@ -1211,10 +1209,12 @@ class TestImportLayeringAndLazyImports:
         return imported
 
     def test_langgraph_patch_does_not_import_llmobs(self):
-        imports = self._imported_modules(REPO_ROOT / "ddtrace/contrib/internal/langgraph/patch.py")
+        patch_mod = importlib.import_module("ddtrace.contrib.internal.langgraph.patch")
+        imports = self._imported_modules(Path(inspect.getfile(patch_mod)))
         assert not any(mod == "ddtrace.llmobs" or mod.startswith("ddtrace.llmobs.") for mod in imports)
 
     def test_memory_module_does_not_import_asyncio_or_concurrent_futures(self):
-        imports = self._imported_modules(REPO_ROOT / "ddtrace/llmobs/_memory.py")
+        mem_mod = importlib.import_module("ddtrace.llmobs._memory")
+        imports = self._imported_modules(Path(inspect.getfile(mem_mod)))
         for forbidden in ("asyncio", "concurrent", "concurrent.futures"):
             assert not any(mod == forbidden or mod.startswith(f"{forbidden}.") for mod in imports)
