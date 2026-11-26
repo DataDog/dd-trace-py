@@ -30,6 +30,8 @@ _SUITE_SCOPES = frozenset(("class", "module", "package"))
 # The coverage context of the fixture's latest setup, which is the instance pytest has cached.
 _CONTEXT_ATTR = "_dd_coverage_context"
 _PATCHED_ATTR = "_dd_coverage_patched"
+# Set on FixtureDef while its __init__ is wrapped: pytest's own __init__, to restore.
+_ORIGINAL_INIT_ATTR = "_dd_coverage_original_init"
 # Suite-scope FixtureDefs with a context, from their setup until their finish, in setup order.
 # Tests check these rather than their whole fixture closure.
 _set_up_with_context: dict[t.Any, None] = {}
@@ -41,6 +43,15 @@ def _is_function_scoped(scoped: t.Any) -> bool:
     if scope is not None and _FUNCTION_SCOPE is not None:
         return scope is _FUNCTION_SCOPE
     return bool(scoped.scope == "function")
+
+
+def _is_tracked(fixturedef: t.Any) -> bool:
+    """Whether a fixture wider than a test was created while new FixtureDefs were tracked, so it has the wrapped finish.
+
+    One created later, by a pytest session that a test runs in the same process, is set up and torn down in
+    the context current then, like a function-scoped fixture: its lines are the running test's.
+    """
+    return "finish" in vars(fixturedef)
 
 
 def _enter_setup_context(scope: str) -> tuple[t.Any, t.Any]:
@@ -103,6 +114,10 @@ class SuiteFixtureLinks:
     def pytest_runtest_setup(self, item: t.Any) -> None:
         link_suite_fixtures_in_closure(item)
 
+    @pytest.hookimpl(trylast=True)  # type: ignore[misc]
+    def pytest_collection_finish(self, session: t.Any) -> None:
+        stop_tracking_new_fixtures()
+
 
 class FixtureCoverage(SuiteFixtureLinks):
     """Also runs each fixture setup wider than a test in the coverage context its scope calls for.
@@ -113,7 +128,7 @@ class FixtureCoverage(SuiteFixtureLinks):
 
     @pytest.hookimpl(hookwrapper=True)  # type: ignore[misc]
     def pytest_fixture_setup(self, fixturedef: t.Any, request: t.Any) -> t.Generator[None, None, None]:
-        if _is_function_scoped(fixturedef) or not native_line_coverage_enabled():
+        if _is_function_scoped(fixturedef) or not native_line_coverage_enabled() or not _is_tracked(fixturedef):
             yield
             return
         context, previous = _enter_setup_context(fixturedef.scope)
@@ -121,6 +136,76 @@ class FixtureCoverage(SuiteFixtureLinks):
             yield
         finally:
             _exit_setup_context(fixturedef, context, previous)
+
+
+# The wrappers call the class methods as they are at call time, which keeps the patches other
+# plugins apply to them later.
+def _execute_recording_use(self: t.Any, request: t.Any) -> t.Any:
+    before = getattr(self, _CONTEXT_ATTR, None)
+    try:
+        return type(self).execute(self, request)
+    finally:
+        context = getattr(self, _CONTEXT_ATTR, None)
+        if context is not None:
+            user = get_native_coverage_context()
+            if user is not None and user is not context:
+                if before is not None and before is not context and before in user.fixtures:
+                    # A new setup (another parameter) replaced the instance linked at test start.
+                    user.fixtures.remove(before)
+                if context not in user.fixtures:
+                    user.fixtures.append(context)
+
+
+def _finish_for_no_test(self: t.Any, request: t.Any) -> t.Any:
+    if not native_line_coverage_enabled():
+        return type(self).finish(self, request)
+    previous = get_native_coverage_context()
+    set_native_coverage_context(None)
+    try:
+        return type(self).finish(self, request)
+    finally:
+        set_native_coverage_context(previous)
+        if self.cached_result is None:
+            _set_up_with_context.pop(self, None)
+
+
+def _track_new_wide_fixtures(fixture_def: t.Any) -> None:
+    """Wrap execute and finish on each FixtureDef wider than a test that is created from now on.
+
+    The wrappers go on the instance: most fixtures are function-scoped, never have a context, and so
+    keep pytest's methods. A session fixture never has a context either, so it only gets finish.
+    """
+    if _ORIGINAL_INIT_ATTR in vars(fixture_def):
+        return
+    init = fixture_def.__init__
+
+    def init_tracking_wide_fixtures(self: t.Any, *args: t.Any, **kwargs: t.Any) -> None:
+        init(self, *args, **kwargs)
+        if not _is_function_scoped(self):
+            if self.scope in _SUITE_SCOPES:
+                self.execute = types.MethodType(_execute_recording_use, self)
+            self.finish = types.MethodType(_finish_for_no_test, self)
+
+    setattr(fixture_def, _ORIGINAL_INIT_ATTR, init)
+    fixture_def.__init__ = init_tracking_wide_fixtures
+
+
+def stop_tracking_new_fixtures() -> None:
+    """Give FixtureDef its own __init__ back, once collection has created the fixtures.
+
+    pytest 9 creates a function-scoped FixtureDef each time a fixture requests the request fixture,
+    several times per test, and wrapping those creations would cost more than the rest of fixture
+    tracking.
+    """
+    try:
+        from _pytest import fixtures
+    except ImportError:
+        return
+    fixture_def = fixtures.FixtureDef
+    init = vars(fixture_def).get(_ORIGINAL_INIT_ATTR)
+    if init is not None:
+        fixture_def.__init__ = init
+        delattr(fixture_def, _ORIGINAL_INIT_ATTR)
 
 
 def install_fixture_tracking() -> t.Optional[SuiteFixtureLinks]:
@@ -131,8 +216,8 @@ def install_fixture_tracking() -> t.Optional[SuiteFixtureLinks]:
     a fixture, cached or not, static or through request.getfixturevalue(), so it sees every use.
     No pytest hook does.
 
-    Only fixtures wider than a test get the wrapped execute and finish, on the instance: most
-    fixtures are function-scoped, never have a context, and so keep pytest's methods.
+    The FixtureDefs collection creates get the wrapped methods. Those created later, while tests
+    run, do not, and their setups run in the running test's context.
     """
     try:
         from _pytest import fixtures
@@ -140,50 +225,8 @@ def install_fixture_tracking() -> t.Optional[SuiteFixtureLinks]:
         return None
     call_fixture_func = getattr(fixtures, "call_fixture_func", None)
     plugin = SuiteFixtureLinks() if call_fixture_func is not None else FixtureCoverage()
-    fixture_def = fixtures.FixtureDef
-    if getattr(fixture_def, _PATCHED_ATTR, False):
-        return plugin
-    init = fixture_def.__init__
-
-    # The wrappers call the class methods as they are at call time, which keeps the patches other
-    # plugins apply to them later.
-    def execute_recording_use(self: t.Any, request: t.Any) -> t.Any:
-        before = getattr(self, _CONTEXT_ATTR, None)
-        try:
-            return type(self).execute(self, request)
-        finally:
-            context = getattr(self, _CONTEXT_ATTR, None)
-            if context is not None:
-                user = get_native_coverage_context()
-                if user is not None and user is not context:
-                    if before is not None and before is not context and before in user.fixtures:
-                        # A new setup (another parameter) replaced the instance linked at test start.
-                        user.fixtures.remove(before)
-                    if context not in user.fixtures:
-                        user.fixtures.append(context)
-
-    def finish_for_no_test(self: t.Any, request: t.Any) -> t.Any:
-        if not native_line_coverage_enabled():
-            return type(self).finish(self, request)
-        previous = get_native_coverage_context()
-        set_native_coverage_context(None)
-        try:
-            return type(self).finish(self, request)
-        finally:
-            set_native_coverage_context(previous)
-            if self.cached_result is None:
-                _set_up_with_context.pop(self, None)
-
-    def init_tracking_wide_fixtures(self: t.Any, *args: t.Any, **kwargs: t.Any) -> None:
-        init(self, *args, **kwargs)
-        if not _is_function_scoped(self):
-            self.execute = types.MethodType(execute_recording_use, self)
-            self.finish = types.MethodType(finish_for_no_test, self)
-
-    fixture_def.__init__ = init_tracking_wide_fixtures
-    setattr(fixture_def, _PATCHED_ATTR, True)
-
-    if call_fixture_func is None:
+    _track_new_wide_fixtures(fixtures.FixtureDef)
+    if call_fixture_func is None or getattr(call_fixture_func, _PATCHED_ATTR, False):
         return plugin
 
     # pytest_fixture_setup looks this function up in the module at each setup, so the patch
@@ -192,7 +235,7 @@ def install_fixture_tracking() -> t.Optional[SuiteFixtureLinks]:
         scope = getattr(request, "_scope", None)
         if scope is not None and scope is _FUNCTION_SCOPE:
             return call_fixture_func(fixturefunc, request, kwargs)
-        if _is_function_scoped(request) or not native_line_coverage_enabled():
+        if _is_function_scoped(request) or not native_line_coverage_enabled() or not _is_tracked(request._fixturedef):
             return call_fixture_func(fixturefunc, request, kwargs)
         context, previous = _enter_setup_context(request.scope)
         try:
@@ -200,5 +243,6 @@ def install_fixture_tracking() -> t.Optional[SuiteFixtureLinks]:
         finally:
             _exit_setup_context(request._fixturedef, context, previous)
 
+    setattr(call_fixture_func_in_scope_context, _PATCHED_ATTR, True)
     fixtures.call_fixture_func = call_fixture_func_in_scope_context
     return plugin
