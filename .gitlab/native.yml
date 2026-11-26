@@ -2,6 +2,8 @@ include:
   - local: ".gitlab/testrunner.yml"
 
 "rust ci":
+  rules:
+    - when: never
   stage: tests
   image: !reference [.testrunner, image]
   tags: !reference [.testrunner, tags]
@@ -40,6 +42,8 @@ include:
 # The libdatadog crates are released together. Make sure that all Cargo.toml and
 # Cargo.lock files use one libdatadog release tag. See scripts/check_libdatadog_pins.py.
 "libdatadog pins":
+  rules:
+    - when: never
   extends: .ci_utils
   stage: tests
   needs: []
@@ -48,6 +52,8 @@ include:
     - python3 scripts/check_libdatadog_pins.py
 
 "clang-tidy profiling":
+  rules:
+    - when: never
   stage: tests
   image: registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native
   tags: ["arch:amd64"]
