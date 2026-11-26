@@ -119,41 +119,36 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
             conn.close()
 
 
-class AgentlessLogsHandler(logging.Handler):
-    """Root logger handler that forwards application log records to a LogsIntakeWriter."""
+class LogsIntakeHandler(logging.Handler):
+    """Turns log records into logs intake events; subclasses decide where _submit() sends them."""
 
     # Larger entries are accepted and truncated by the intake, but they must still fit in a request.
     _MAX_MESSAGE_BYTES = 1024 * 1024
 
-    def __init__(self, writer: LogsIntakeWriter) -> None:
+    # A fixed formatter keeps the message free of any layout set with setFormatter(); it
+    # only appends the traceback when the record carries exc_info.
+    _FORMATTER = logging.Formatter()
+
+    def __init__(self, service: str, ddtags: str, hostname: str) -> None:
         super().__init__()
-        self._writer = writer
-        self._hostname = get_hostname()
-        tags = dict(config.tags)
-        if config.env:
-            tags["env"] = config.env
-        if config.version:
-            tags["version"] = config.version
-        self._ddtags = ",".join("%s:%s" % (key, value) for key, value in tags.items())
+        self._service = service
+        self._ddtags = ddtags
+        self._hostname = hostname
 
     def emit(self, record: logging.LogRecord) -> None:
-        # Submitting ddtrace's own logs could feed back into themselves (e.g. send failures).
-        if record.name == "ddtrace" or record.name.startswith("ddtrace."):
-            return
         try:
-            # The default formatter appends the traceback when the record carries exc_info.
-            message = self.format(record)
+            message = self._FORMATTER.format(record)
             if len(message) > self._MAX_MESSAGE_BYTES:
                 message = message[: self._MAX_MESSAGE_BYTES - len(_TRUNCATION_SUFFIX)] + _TRUNCATION_SUFFIX
 
-            self._writer.enqueue(
+            self._submit(
                 {
                     "date": int(record.created * 1000),
                     "ddsource": "python",
                     "ddtags": self._ddtags,
                     "hostname": self._hostname,
                     "message": message,
-                    "service": config.service or "",
+                    "service": self._service,
                     "status": record.levelname.lower(),
                     # Injected by the logging integration when the record is created (DD_LOGS_INJECTION).
                     LOG_ATTR_TRACE_ID: getattr(record, LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO),
@@ -162,6 +157,35 @@ class AgentlessLogsHandler(logging.Handler):
             )
         except Exception:
             self.handleError(record)
+
+    def _submit(self, event: dict[str, t.Any]) -> None:
+        raise NotImplementedError
+
+
+class AgentlessLogsHandler(LogsIntakeHandler):
+    """Root logger handler that forwards application log records to a LogsIntakeWriter."""
+
+    def __init__(self, writer: LogsIntakeWriter) -> None:
+        tags = dict(config.tags)
+        if config.env:
+            tags["env"] = config.env
+        if config.version:
+            tags["version"] = config.version
+        super().__init__(
+            service=config.service or "",
+            ddtags=",".join("%s:%s" % (key, value) for key, value in tags.items()),
+            hostname=get_hostname(),
+        )
+        self._writer = writer
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # Submitting ddtrace's own logs could feed back into themselves (e.g. send failures).
+        if record.name == "ddtrace" or record.name.startswith("ddtrace."):
+            return
+        super().emit(record)
+
+    def _submit(self, event: dict[str, t.Any]) -> None:
+        self._writer.enqueue(event)
 
 
 def enable_agentless_log_submission() -> bool:

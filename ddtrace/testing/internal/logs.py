@@ -14,7 +14,7 @@ import json
 import logging
 import socket
 
-from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.logs import LogsIntakeHandler
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.writer import BaseWriter
@@ -22,8 +22,6 @@ from ddtrace.testing.internal.writer import Event
 
 
 _log = logging.getLogger(__name__)
-
-_TRUNCATION_SUFFIX = "... [truncated]"
 
 
 class LogsWriter(BaseWriter):
@@ -73,7 +71,7 @@ class LogsWriter(BaseWriter):
         return True
 
 
-class LogsHandler(logging.Handler):
+class LogsHandler(LogsIntakeHandler):
     """Logging handler that forwards records to the Datadog logs intake.
 
     Records are enriched with dd.trace_id/dd.span_id (present when the logging patch
@@ -81,11 +79,8 @@ class LogsHandler(logging.Handler):
     async delivery.
     """
 
-    # Truncate individual log messages at the Datadog logs intake per-entry limit of 1 MB.
-    _MAX_MESSAGE_BYTES = 1 * 1024 * 1024  # 1 MB
-
     def __init__(self, writer: LogsWriter) -> None:
-        super().__init__()
+        super().__init__(service=writer.service, ddtags="datadog.product:citest", hostname=writer.hostname)
         self._writer = writer
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -95,27 +90,7 @@ class LogsHandler(logging.Handler):
         root_level = logging.getLogger().level
         if root_level != logging.NOTSET and record.levelno < root_level:
             return
+        super().emit(record)
 
-        try:
-            message = record.getMessage()
-            if len(message) > self._MAX_MESSAGE_BYTES:
-                message = message[: self._MAX_MESSAGE_BYTES - len(_TRUNCATION_SUFFIX)] + _TRUNCATION_SUFFIX
-
-            # Use the log record's creation time rather than the current time so that
-            # events buffered before a flush carry an accurate timestamp.
-            timestamp_ms = int(record.created * 1000)
-
-            event: Event = {
-                "date": timestamp_ms,
-                "ddsource": "python",
-                "ddtags": "datadog.product:citest",
-                "hostname": self._writer.hostname,
-                "message": message,
-                "service": self._writer.service,
-                "status": record.levelname.lower(),
-                "dd.trace_id": getattr(record, "dd.trace_id", LOG_ATTR_VALUE_ZERO),
-                "dd.span_id": getattr(record, "dd.span_id", LOG_ATTR_VALUE_ZERO),
-            }
-            self._writer.put_event(event)
-        except Exception:
-            self.handleError(record)
+    def _submit(self, event: Event) -> None:
+        self._writer.put_event(event)

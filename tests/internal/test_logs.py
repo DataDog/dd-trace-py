@@ -278,6 +278,12 @@ class TestAgentlessLogsHandler:
         assert event["message"].startswith("a message\nTraceback")
         assert "ValueError: boom" in event["message"]
 
+    def test_ignores_custom_formatter(self, handler, mock_writer):
+        handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+        self._log()
+        (event,) = mock_writer.enqueue.call_args[0]
+        assert event["message"] == "a message"
+
     def test_truncates_huge_message(self, handler, mock_writer):
         logging.getLogger("test.app").setLevel(logging.DEBUG)
         logging.getLogger("test.app").warning("x" * (2 * 1024 * 1024))
@@ -303,8 +309,7 @@ class TestAgentlessLogsHandler:
 
     def test_handle_error_does_not_raise(self, handler):
         record = logging.LogRecord("test.app", logging.WARNING, "path", 1, "m", (), None)
-        with mock.patch.object(handler, "_writer") as writer:
-            writer.enqueue.side_effect = RuntimeError("nope")
+        with mock.patch.object(handler._writer, "enqueue", side_effect=RuntimeError("nope")):
             with mock.patch.object(handler, "handleError") as handle_error:
                 handler.handle(record)
             handle_error.assert_called_once()

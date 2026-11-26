@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 
 from ddtrace.testing.internal.logs import LogsHandler
@@ -64,3 +65,16 @@ class TestLogsHandlerTruncation:
 
         assert len(writer.events) == 1
         assert "truncated" not in writer.events[0]["message"]
+
+    def test_exception_traceback_appended(self) -> None:
+        handler, writer = self._make_handler()
+        try:
+            raise ValueError("boom")
+        except ValueError:
+            record = logging.LogRecord("test", logging.ERROR, "", 0, "failed", (), sys.exc_info())
+        handler.emit(record)
+
+        assert len(writer.events) == 1
+        message = writer.events[0]["message"]
+        assert message.startswith("failed\nTraceback")
+        assert "ValueError: boom" in message
