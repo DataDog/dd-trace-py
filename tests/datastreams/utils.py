@@ -49,3 +49,13 @@ def pathway_stats_merged(processor):
         for bucket in processor._buckets.values():
             merged.update(bucket.pathway_stats)
         return merged
+
+
+def pathway_payload_counts(processor):
+    """Payload-size counts per ``pathway_stats`` key, summed across all DSM buckets."""
+    with processor._lock:
+        counts = {}
+        for bucket in processor._buckets.values():
+            for key, stats in bucket.pathway_stats.items():
+                counts[key] = counts.get(key, 0) + stats.payload_size.count
+        return counts

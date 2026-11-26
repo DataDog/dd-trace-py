@@ -8,9 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings._inferred_base_service import PythonDetector
 from ddtrace.internal.settings._inferred_base_service import _module_exists
 from ddtrace.internal.settings._inferred_base_service import detect_service
+from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.utils.service import int_service
 
 
 @pytest.fixture
@@ -239,6 +242,34 @@ def test_get_service(cmd, default, expected, testdir):
     )
 
     assert "AssertionError" not in result.stderr, "AssertionError found in stderr"
+
+
+@pytest.mark.parametrize(
+    "dd_service,expected",
+    [
+        # DD_SERVICE equals the inferred base service ("app"): integrations must use it.
+        ("app", "app"),
+        # DD_SERVICE differs from the inferred base service.
+        ("other", "other"),
+        # No DD_SERVICE: integrations keep their default instead of the inferred name.
+        (None, "myint-default"),
+    ],
+)
+def test_int_service_with_inferred_base_service(monkeypatch, dd_service, expected):
+    # Config also reads the service from OTEL_SERVICE_NAME and from a "service:" entry in DD_TAGS, so
+    # clear all three to keep the CI environment from making the service look user provided.
+    for name in ("DD_SERVICE", "OTEL_SERVICE_NAME", "DD_TAGS"):
+        monkeypatch.delenv(name, raising=False)
+    if dd_service is not None:
+        monkeypatch.setenv("DD_SERVICE", dd_service)
+    monkeypatch.setattr("ddtrace.internal.settings._config.detect_service", lambda argv: "app")
+
+    cfg = Config()
+    assert cfg._inferred_base_service == "app"
+
+    myint = IntegrationConfig(cfg, "myint")
+    myint._default_service = "myint-default"
+    assert int_service(None, myint) == expected
 
 
 @pytest.mark.parametrize(

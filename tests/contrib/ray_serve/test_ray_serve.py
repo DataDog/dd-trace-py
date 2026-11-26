@@ -28,9 +28,11 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.http.useragent",
 ]
 
+# ProxyRouter.match_route_pattern, which gives templated routes such as /name/{name}, exists in
+# Ray 2.52 and later. Older versions fall back to the route prefix.
 RAY_SERVE_SNAPSHOT_VARIANTS = {
-    "ray_2_47": parse_version(ray.__version__) < (2, 48),
-    "ray_2_47_plus": parse_version(ray.__version__) >= (2, 48),
+    "ray_pre_2_52": parse_version(ray.__version__) < (2, 52),
+    "ray_2_52_plus": parse_version(ray.__version__) >= (2, 52),
 }
 
 
