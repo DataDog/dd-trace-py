@@ -58,6 +58,7 @@
       "falling through with no rules applied at all."
     ],
     "top_level": [
+      "ddtrace._error_attribution",
       "ddtrace._logger",
       "ddtrace._monkey",
       "ddtrace.auto",
